@@ -1,0 +1,66 @@
+{
+  "nav": {
+    "home": "Inicio",
+    "teams": "Equipos",
+    "agents": "Agentes",
+    "conversations": "Conversaciones",
+    "employees": "Empleados",
+    "channels": "Canales",
+    "integrations": "Integraciones",
+    "usage": "Uso",
+    "settings": "Configuración"
+  },
+  "common": {
+    "loading": "Cargando…",
+    "error": "Algo salió mal",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "create": "Crear",
+    "search": "Buscar",
+    "noResults": "Sin resultados",
+    "learnMore": "Más información"
+  },
+  "themes": {
+    "light": "Claro",
+    "dark": "Oscuro",
+    "system": "Sistema"
+  },
+  "presentationMode": {
+    "enable": "Activar modo presentación",
+    "disable": "Desactivar modo presentación"
+  },
+  "emptyStates": {
+    "teams": {
+      "title": "Aún no hay equipos",
+      "description": "Crea tu primer equipo de IA y déjalo trabajar para ti.",
+      "cta": "Crear un equipo"
+    },
+    "agents": {
+      "title": "Sin agentes aquí",
+      "description": "Los agentes son los bloques fundamentales de tus equipos de IA.",
+      "cta": "Agregar un agente"
+    },
+    "conversations": {
+      "title": "Aún no hay conversaciones",
+      "description": "Las conversaciones aparecerán aquí cuando los empleados empiecen a chatear.",
+      "cta": "Configurar un canal"
+    },
+    "employees": {
+      "title": "Sin empleados cargados",
+      "description": "Importa tu equipo por CSV o agrégalos uno a uno.",
+      "cta": "Importar empleados"
+    }
+  },
+  "auth": {
+    "welcomeBack": "Bienvenido de vuelta",
+    "signIn": "Inicia sesión en tu workspace",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "signInButton": "Iniciar sesión",
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "noAccount": "¿No tienes cuenta?",
+    "signUp": "Registrarse"
+  }
+}
