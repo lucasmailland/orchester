@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --fichap-primary: 59 59 255;
+    --fichap-primary-subtle: 240 240 255;
+    --fichap-accent: 124 58 237;
+    --fichap-success: 34 197 94;
+    --fichap-warning: 245 158 11;
+    --fichap-danger: 239 68 68;
+
+    --sidebar-width: 240px;
+    --sidebar-collapsed-width: 64px;
+    --topbar-height: 56px;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--fichap-primary) / 0.15) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--fichap-primary) / 0.15);
+    border-radius: 9999px;
+  }
+}

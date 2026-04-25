@@ -1,0 +1,66 @@
+{
+  "nav": {
+    "home": "Home",
+    "teams": "Teams",
+    "agents": "Agents",
+    "conversations": "Conversations",
+    "employees": "Employees",
+    "channels": "Channels",
+    "integrations": "Integrations",
+    "usage": "Usage",
+    "settings": "Settings"
+  },
+  "common": {
+    "loading": "Loading…",
+    "error": "Something went wrong",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "noResults": "No results found",
+    "learnMore": "Learn more"
+  },
+  "themes": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "presentationMode": {
+    "enable": "Enable presentation mode",
+    "disable": "Disable presentation mode"
+  },
+  "emptyStates": {
+    "teams": {
+      "title": "No teams yet",
+      "description": "Create your first AI team and let them work for you.",
+      "cta": "Create a team"
+    },
+    "agents": {
+      "title": "No agents here",
+      "description": "Agents are the building blocks of your AI teams.",
+      "cta": "Add an agent"
+    },
+    "conversations": {
+      "title": "No conversations yet",
+      "description": "Conversations will appear here once employees start chatting.",
+      "cta": "Set up a channel"
+    },
+    "employees": {
+      "title": "No employees loaded",
+      "description": "Import your team via CSV or add them one by one.",
+      "cta": "Import employees"
+    }
+  },
+  "auth": {
+    "welcomeBack": "Welcome back",
+    "signIn": "Sign in to your workspace",
+    "email": "Email",
+    "password": "Password",
+    "signInButton": "Sign in",
+    "forgotPassword": "Forgot password?",
+    "noAccount": "Don't have an account?",
+    "signUp": "Sign up"
+  }
+}
