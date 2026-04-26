@@ -15,6 +15,12 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@orchester/db": [
+        "../../packages/db/src/index.ts"
+      ],
+      "@orchester/db/schema": [
+        "../../packages/db/src/schema/index.ts"
       ]
     },
     "jsx": "preserve",

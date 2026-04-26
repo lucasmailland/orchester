@@ -61,6 +61,55 @@
     "signInButton": "Iniciar sesión",
     "forgotPassword": "¿Olvidaste tu contraseña?",
     "noAccount": "¿No tienes cuenta?",
-    "signUp": "Registrarse"
+    "signUp": "Registrarse",
+    "createAccount": "Crea tu cuenta",
+    "startFree": "Empieza a crear equipos de IA gratis",
+    "name": "Nombre completo",
+    "namePlaceholder": "María García",
+    "confirmPassword": "Confirmar contraseña",
+    "alreadyAccount": "¿Ya tienes cuenta?",
+    "signingIn": "Iniciando sesión…",
+    "creatingAccount": "Creando cuenta…",
+    "invalidCredentials": "Email o contraseña incorrectos",
+    "emailTaken": "Ya existe una cuenta con este email",
+    "googleSignIn": "Continuar con Google",
+    "orContinueWith": "o continúa con"
+  },
+  "onboarding": {
+    "step1": {
+      "title": "Bienvenido a Orchester",
+      "description": "Configuremos tu workspace en menos de 2 minutos.",
+      "workspaceName": "Nombre del workspace",
+      "workspaceNamePlaceholder": "Acme Inc.",
+      "workspaceSlug": "URL del workspace",
+      "slugHint": "orchester.io/w/tu-slug",
+      "continue": "Continuar"
+    },
+    "step2": {
+      "title": "Conecta tu proveedor de IA",
+      "description": "Agrega una clave API para potenciar tus agentes. Puedes cambiarla después.",
+      "provider": "Proveedor",
+      "apiKey": "Clave API",
+      "apiKeyPlaceholder": "sk-ant-...",
+      "skip": "Omitir por ahora",
+      "continue": "Continuar",
+      "recommended": "Recomendado"
+    },
+    "step3": {
+      "title": "Elige un punto de partida",
+      "description": "Elige un equipo listo o empieza desde cero.",
+      "useTemplate": "Usar template",
+      "startBlank": "Empezar en blanco",
+      "skip": "Omitir"
+    },
+    "step4": {
+      "title": "Carga tus empleados",
+      "description": "Importa tu equipo para que los agentes los saluden por nombre.",
+      "importCsv": "Importar CSV",
+      "skipForNow": "Omitir por ahora — lo haré después",
+      "finishing": "Configurando tu workspace…",
+      "allDone": "¡Todo listo!"
+    },
+    "progressStep": "Paso {current} de {total}"
   }
 }

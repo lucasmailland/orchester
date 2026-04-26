@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts"
+  },
   "scripts": {
     "migrate": "drizzle-kit migrate",
     "push": "drizzle-kit push",
@@ -11,14 +15,16 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "drizzle-orm": "^0.38.3",
+    "@paralleldrive/cuid2": "^3.3.0",
+    "better-auth": "^1.6.9",
+    "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.5"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.30.4",
+    "@types/node": "^22.10.2",
+    "drizzle-kit": "^0.31.10",
     "tsx": "^4.19.2",
-    "vitest": "^2.1.8",
     "typescript": "^5.7.2",
-    "@types/node": "^22.10.2"
+    "vitest": "^2.1.8"
   }
 }
