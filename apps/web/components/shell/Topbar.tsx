@@ -11,10 +11,16 @@ import { cn } from "@/lib/utils";
 
 interface TopbarProps {
   locale: string;
+  userName?: string;
+  userImage?: string | null;
 }
 
-export function Topbar({ locale: _locale }: TopbarProps) {
+export function Topbar({ locale: _locale, userName, userImage }: TopbarProps) {
   const { isPresenting } = usePresentationMode();
+
+  const initials = userName
+    ? userName.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
+    : "U";
 
   return (
     <motion.header
@@ -27,7 +33,6 @@ export function Topbar({ locale: _locale }: TopbarProps) {
         "backdrop-blur-md"
       )}
     >
-      {/* Left */}
       <div className="flex items-center gap-2">
         {isPresenting && (
           <motion.span
@@ -41,7 +46,6 @@ export function Topbar({ locale: _locale }: TopbarProps) {
         )}
       </div>
 
-      {/* Right */}
       <div className="flex items-center gap-1">
         <PresentationModeToggle />
         <ThemeToggle />
@@ -49,7 +53,8 @@ export function Topbar({ locale: _locale }: TopbarProps) {
         <div className="ml-2 cursor-pointer">
           <Avatar
             size="sm"
-            name="Demo User"
+            name={initials}
+            {...(userImage ? { src: userImage } : {})}
             classNames={{
               base: "bg-gradient-to-br from-fichap-primary to-fichap-accent",
               name: "text-white font-semibold text-xs",

@@ -75,6 +75,79 @@
     "googleSignIn": "Continuar com Google",
     "orContinueWith": "ou continue com"
   },
+  "pages": {
+    "dashboard": {
+      "title": "Dashboard",
+      "subtitle": "Seu workspace em um relance",
+      "activeAgents": "Agentes Ativos",
+      "conversationsToday": "Conversas Hoje",
+      "totalEmployees": "Total de Colaboradores",
+      "avgResponseTime": "Tempo Médio de Resposta",
+      "seconds": "seg",
+      "conversationsChart": "Conversas — Últimos 30 Dias",
+      "noData": "Sem dados ainda — execute o seed para ver análises."
+    },
+    "teams": {
+      "title": "Equipes",
+      "subtitle": "Suas equipes de agentes de IA",
+      "agents": "agentes",
+      "empty": "Nenhuma equipe ainda.",
+      "emptyCta": "Criar equipe"
+    },
+    "agents": {
+      "title": "Agentes",
+      "subtitle": "Todos os agentes do workspace",
+      "model": "Modelo",
+      "team": "Equipe",
+      "status": { "active": "Ativo", "inactive": "Inativo", "draft": "Rascunho" },
+      "empty": "Nenhum agente ainda.",
+      "emptyCta": "Adicionar agente"
+    },
+    "employees": {
+      "title": "Colaboradores",
+      "subtitle": "Diretório da sua equipe",
+      "search": "Buscar por nome ou e-mail…",
+      "area": "Área",
+      "email": "E-mail",
+      "phone": "Telefone",
+      "active": "Ativo",
+      "inactive": "Inativo",
+      "empty": "Nenhum colaborador ainda.",
+      "emptyCta": "Importar CSV"
+    },
+    "conversations": {
+      "title": "Conversas",
+      "subtitle": "Interações recentes dos agentes",
+      "status": { "open": "Aberta", "closed": "Encerrada", "escalated": "Escalada" },
+      "channel": { "web": "Web", "whatsapp": "WhatsApp", "telegram": "Telegram" },
+      "messages": "msgs",
+      "duration": "seg",
+      "empty": "Nenhuma conversa ainda.",
+      "emptyCta": "Configurar canal"
+    },
+    "channels": {
+      "title": "Canais",
+      "subtitle": "Onde seus agentes falam com colaboradores",
+      "empty": "Nenhum canal configurado.",
+      "emptyCta": "Conectar canal"
+    },
+    "integrations": {
+      "title": "Integrações",
+      "subtitle": "Conecte suas ferramentas",
+      "empty": "Nenhuma integração ainda.",
+      "emptyCta": "Explorar integrações"
+    },
+    "usage": {
+      "title": "Uso",
+      "subtitle": "Uso de tokens e faturamento",
+      "empty": "Os dados de uso aparecerão quando os agentes processarem conversas."
+    },
+    "settings": {
+      "title": "Configurações",
+      "subtitle": "Configuração do workspace",
+      "empty": "Configurações em breve."
+    }
+  },
   "onboarding": {
     "step1": {
       "title": "Bem-vindo ao Orchester",

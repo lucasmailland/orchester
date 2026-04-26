@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
   },
   experimental: {
-    optimizePackageImports: ["@heroui/react", "lucide-react"],
+    optimizePackageImports: ["@heroui/react", "lucide-react", "recharts"],
   },
 };
 

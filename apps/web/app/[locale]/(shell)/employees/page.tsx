@@ -1,0 +1,42 @@
+import { getTranslations } from "next-intl/server";
+import { EmployeeTable } from "@/components/employees/EmployeeTable";
+import { getEmployees } from "@/lib/db-queries";
+import { getCurrentWorkspace } from "@/lib/workspace";
+
+export default async function EmployeesPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "pages.employees" });
+
+  const workspace = await getCurrentWorkspace();
+  const employees = workspace
+    ? await getEmployees(workspace.workspace.id).catch(() => [])
+    : [];
+
+  const labels = {
+    search: t("search"),
+    area: t("area"),
+    email: t("email"),
+    phone: t("phone"),
+    active: t("active"),
+    inactive: t("inactive"),
+    empty: t("empty"),
+    emptyCta: t("emptyCta"),
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-default-900 dark:text-default-100">
+          {t("title")}
+        </h1>
+        <p className="mt-1 text-sm text-default-500">{t("subtitle")}</p>
+      </div>
+
+      <EmployeeTable employees={employees} labels={labels} />
+    </div>
+  );
+}

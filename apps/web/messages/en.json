@@ -75,6 +75,79 @@
     "googleSignIn": "Continue with Google",
     "orContinueWith": "or continue with"
   },
+  "pages": {
+    "dashboard": {
+      "title": "Dashboard",
+      "subtitle": "Your workspace at a glance",
+      "activeAgents": "Active Agents",
+      "conversationsToday": "Conversations Today",
+      "totalEmployees": "Total Employees",
+      "avgResponseTime": "Avg. Response Time",
+      "seconds": "sec",
+      "conversationsChart": "Conversations — Last 30 Days",
+      "noData": "No data yet — seed your database to see analytics."
+    },
+    "teams": {
+      "title": "Teams",
+      "subtitle": "Your AI agent teams",
+      "agents": "agents",
+      "empty": "No teams yet. Create your first team to get started.",
+      "emptyCta": "Create team"
+    },
+    "agents": {
+      "title": "Agents",
+      "subtitle": "All agents across your workspace",
+      "model": "Model",
+      "team": "Team",
+      "status": { "active": "Active", "inactive": "Inactive", "draft": "Draft" },
+      "empty": "No agents yet.",
+      "emptyCta": "Add agent"
+    },
+    "employees": {
+      "title": "Employees",
+      "subtitle": "Your team directory",
+      "search": "Search by name or email…",
+      "area": "Area",
+      "email": "Email",
+      "phone": "Phone",
+      "active": "Active",
+      "inactive": "Inactive",
+      "empty": "No employees yet. Import your team to get started.",
+      "emptyCta": "Import CSV"
+    },
+    "conversations": {
+      "title": "Conversations",
+      "subtitle": "Recent agent interactions",
+      "status": { "open": "Open", "closed": "Closed", "escalated": "Escalated" },
+      "channel": { "web": "Web", "whatsapp": "WhatsApp", "telegram": "Telegram" },
+      "messages": "msgs",
+      "duration": "sec",
+      "empty": "No conversations yet.",
+      "emptyCta": "Set up a channel"
+    },
+    "channels": {
+      "title": "Channels",
+      "subtitle": "Where your agents talk to employees",
+      "empty": "No channels configured.",
+      "emptyCta": "Connect a channel"
+    },
+    "integrations": {
+      "title": "Integrations",
+      "subtitle": "Connect your tools and data sources",
+      "empty": "No integrations yet.",
+      "emptyCta": "Browse integrations"
+    },
+    "usage": {
+      "title": "Usage",
+      "subtitle": "Token usage and billing",
+      "empty": "Usage data will appear once agents start processing conversations."
+    },
+    "settings": {
+      "title": "Settings",
+      "subtitle": "Workspace configuration",
+      "empty": "Settings coming soon."
+    }
+  },
   "onboarding": {
     "step1": {
       "title": "Welcome to Orchester",
