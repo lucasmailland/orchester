@@ -1,5 +1,7 @@
+import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { Topbar } from "@/components/shell/Topbar";
+import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
 
 export default async function ShellLayout({
   children,
@@ -9,6 +11,18 @@ export default async function ShellLayout({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
+
+  const session = await getCurrentSession();
+
+  if (!session) {
+    redirect(`/${locale}/login`);
+  }
+
+  const workspaceData = await getCurrentWorkspace();
+
+  if (!workspaceData && !session.user.onboardingCompleted) {
+    redirect(`/${locale}/onboarding`);
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-default-50 dark:bg-[#0a0a0f]">

@@ -1,10 +1,12 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import * as schema from "./schema";
 
-let cachedDb: PostgresJsDatabase | null = null;
+export type DbClient = ReturnType<typeof createDbClient>;
 
-export function createDbClient(connectionString: string): PostgresJsDatabase {
+let cachedDb: DbClient | null = null;
+
+export function createDbClient(connectionString: string) {
   if (!connectionString) {
     throw new Error("DATABASE_URL is required");
   }
@@ -16,10 +18,10 @@ export function createDbClient(connectionString: string): PostgresJsDatabase {
     prepare: false,
   });
 
-  return drizzle(sql);
+  return drizzle(sql, { schema });
 }
 
-export function getDb(): PostgresJsDatabase {
+export function getDb(): DbClient {
   const url = process.env["DATABASE_URL"];
   if (!url) throw new Error("DATABASE_URL is required");
 

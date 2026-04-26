@@ -12,6 +12,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./"),
+      "@orchester/db": path.resolve(__dirname, "../../packages/db/src/index.ts"),
+      "@orchester/db/schema": path.resolve(__dirname, "../../packages/db/src/schema/index.ts"),
+      "server-only": path.resolve(__dirname, "./__mocks__/server-only.ts"),
     },
   },
 });

@@ -61,6 +61,55 @@
     "signInButton": "Sign in",
     "forgotPassword": "Forgot password?",
     "noAccount": "Don't have an account?",
-    "signUp": "Sign up"
+    "signUp": "Sign up",
+    "createAccount": "Create your account",
+    "startFree": "Start building AI teams for free",
+    "name": "Full name",
+    "namePlaceholder": "Jane Smith",
+    "confirmPassword": "Confirm password",
+    "alreadyAccount": "Already have an account?",
+    "signingIn": "Signing in…",
+    "creatingAccount": "Creating account…",
+    "invalidCredentials": "Invalid email or password",
+    "emailTaken": "An account with this email already exists",
+    "googleSignIn": "Continue with Google",
+    "orContinueWith": "or continue with"
+  },
+  "onboarding": {
+    "step1": {
+      "title": "Welcome to Orchester",
+      "description": "Let's set up your workspace in under 2 minutes.",
+      "workspaceName": "Workspace name",
+      "workspaceNamePlaceholder": "Acme Inc.",
+      "workspaceSlug": "Workspace URL",
+      "slugHint": "orchester.io/w/your-slug",
+      "continue": "Continue"
+    },
+    "step2": {
+      "title": "Connect your AI provider",
+      "description": "Add an API key to power your agents. You can change this later.",
+      "provider": "Provider",
+      "apiKey": "API key",
+      "apiKeyPlaceholder": "sk-ant-...",
+      "skip": "Skip for now",
+      "continue": "Continue",
+      "recommended": "Recommended"
+    },
+    "step3": {
+      "title": "Choose a starting point",
+      "description": "Pick a ready-made team or start from scratch.",
+      "useTemplate": "Use template",
+      "startBlank": "Start blank",
+      "skip": "Skip"
+    },
+    "step4": {
+      "title": "Load your employees",
+      "description": "Import your team so agents can greet them by name.",
+      "importCsv": "Import CSV",
+      "skipForNow": "Skip for now — I'll do this later",
+      "finishing": "Setting up your workspace…",
+      "allDone": "You're all set!"
+    },
+    "progressStep": "Step {current} of {total}"
   }
 }
