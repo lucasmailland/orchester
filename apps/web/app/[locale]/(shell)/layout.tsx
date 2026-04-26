@@ -28,7 +28,7 @@ export default async function ShellLayout({
     <div className="flex h-screen overflow-hidden bg-default-50 dark:bg-[#0a0a0f]">
       <Sidebar locale={locale} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <Topbar locale={locale} />
+        <Topbar locale={locale} userName={session.user.name} userImage={session.user.image ?? null} />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>
