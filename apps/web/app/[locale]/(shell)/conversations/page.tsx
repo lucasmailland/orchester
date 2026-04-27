@@ -1,11 +1,9 @@
 import { getTranslations } from "next-intl/server";
 import { MessageSquare } from "lucide-react";
-import { motion } from "framer-motion";
 import { ConversationRow } from "@/components/conversations/ConversationRow";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { getConversations } from "@/lib/db-queries";
 import { getCurrentWorkspace } from "@/lib/workspace";
-import { staggerContainer } from "@/lib/motion";
 
 export default async function ConversationsPage({
   params,
@@ -35,10 +33,10 @@ export default async function ConversationsPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-default-900 dark:text-default-100">
+        <h1 className="font-display text-2xl font-bold tracking-tight text-zinc-100">
           {t("title")}
         </h1>
-        <p className="mt-1 text-sm text-default-500">{t("subtitle")}</p>
+        <p className="mt-1 text-sm text-zinc-500">{t("subtitle")}</p>
       </div>
 
       {conversations.length === 0 ? (
@@ -47,15 +45,9 @@ export default async function ConversationsPage({
           title={t("empty")}
           description=""
           ctaLabel={t("emptyCta")}
-          onCta={() => {}}
         />
       ) : (
-        <motion.div
-          variants={staggerContainer}
-          initial="hidden"
-          animate="visible"
-          className="overflow-hidden rounded-xl border border-default-100 dark:border-white/5"
-        >
+        <div className="overflow-hidden rounded-xl border border-white/[0.07]">
           {conversations.map((conv) => (
             <ConversationRow
               key={conv.id}
@@ -72,7 +64,7 @@ export default async function ConversationsPage({
               durationLabel={t("duration")}
             />
           ))}
-        </motion.div>
+        </div>
       )}
     </div>
   );

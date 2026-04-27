@@ -2,6 +2,7 @@
   "nav": {
     "home": "Home",
     "teams": "Teams",
+    "org": "Org Chart",
     "agents": "Agents",
     "conversations": "Conversations",
     "employees": "Employees",
@@ -87,12 +88,41 @@
       "conversationsChart": "Conversations — Last 30 Days",
       "noData": "No data yet — seed your database to see analytics."
     },
+    "org": {
+      "title": "Org Chart",
+      "subtitle": "Your AI agent hierarchy"
+    },
     "teams": {
       "title": "Teams",
       "subtitle": "Your AI agent teams",
       "agents": "agents",
       "empty": "No teams yet. Create your first team to get started.",
-      "emptyCta": "Create team"
+      "emptyCta": "Create team",
+      "addTeam": "New Team",
+      "addAgent": "Add Agent",
+      "back": "Teams",
+      "editTeam": "Edit",
+      "deleteTeam": "Delete",
+      "createTitle": "Create team",
+      "editTitle": "Edit team",
+      "nameLabel": "Team name",
+      "descriptionLabel": "Description",
+      "colorLabel": "Color",
+      "save": "Save",
+      "cancel": "Cancel",
+      "namePlaceholder": "e.g. HR Support",
+      "descriptionPlaceholder": "What does this team do?",
+      "createAgentTitle": "Add agent",
+      "editAgentTitle": "Edit agent",
+      "confirmDelete": "Delete this team? All agents will be unassigned.",
+      "confirmDeleteAgent": "Delete this agent?",
+      "agent": {
+        "nameLabel": "Name",
+        "roleLabel": "Role",
+        "promptLabel": "System prompt",
+        "modelLabel": "Model",
+        "statusLabel": "Status"
+      }
     },
     "agents": {
       "title": "Agents",
@@ -139,13 +169,46 @@
     },
     "usage": {
       "title": "Usage",
-      "subtitle": "Token usage and billing",
-      "empty": "Usage data will appear once agents start processing conversations."
+      "subtitle": "Token consumption and cost breakdown by agent",
+      "empty": "No usage data yet.",
+      "noData": "No data available for this period.",
+      "totalTokens": "Total Tokens",
+      "estimatedCost": "Est. Cost",
+      "conversations": "Conversations",
+      "avgTokens": "Avg Tokens/Conv",
+      "chartTitle": "Token Usage",
+      "agentTableTitle": "Agent Breakdown",
+      "col": {
+        "agent": "Agent",
+        "model": "Model",
+        "conversations": "Conversations",
+        "tokens": "Tokens",
+        "cost": "Cost (USD)"
+      }
     },
     "settings": {
       "title": "Settings",
       "subtitle": "Workspace configuration",
-      "empty": "Settings coming soon."
+      "empty": "Settings coming soon.",
+      "workspace": "Workspace",
+      "workspaceName": "Workspace Name",
+      "workspaceSlug": "Workspace Slug",
+      "workspaceNamePlaceholder": "Acme Inc.",
+      "save": "Save Changes",
+      "saved": "Saved!",
+      "danger": "Danger Zone",
+      "deleteWorkspace": "Delete Workspace",
+      "deleteWarning": "This action is irreversible. All data will be permanently deleted.",
+      "apiKeys": "API Keys",
+      "apiKeysDescription": "Manage keys for external integrations.",
+      "noApiKeys": "No API keys yet.",
+      "addApiKey": "Add Key",
+      "notifications": "Notifications",
+      "notificationsDescription": "Configure alert preferences.",
+      "locale": "Language",
+      "localeDescription": "Interface language for your account.",
+      "team": "Team Members",
+      "teamDescription": "Manage who has access to this workspace."
     }
   },
   "onboarding": {

@@ -19,7 +19,12 @@ export function Topbar({ locale: _locale, userName, userImage }: TopbarProps) {
   const { isPresenting } = usePresentationMode();
 
   const initials = userName
-    ? userName.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
+    ? userName
+        .split(" ")
+        .map((w) => w[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
     : "U";
 
   return (
@@ -28,36 +33,50 @@ export function Topbar({ locale: _locale, userName, userImage }: TopbarProps) {
       initial="hidden"
       animate="visible"
       className={cn(
-        "flex h-14 shrink-0 items-center justify-between border-b px-6",
-        "border-default-100 bg-background/80 dark:border-white/5",
-        "backdrop-blur-md"
+        "flex h-14 shrink-0 items-center justify-between px-5",
+        "border-b border-white/[0.06] bg-zinc-950/80 backdrop-blur-md"
       )}
     >
-      <div className="flex items-center gap-2">
+      {/* Left: live indicator */}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+          </span>
+          <span className="text-[11px] font-medium uppercase tracking-wider text-zinc-600">
+            Live
+          </span>
+        </div>
+
         {isPresenting && (
           <motion.span
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -8 }}
-            className="rounded-full bg-fichap-primary/10 px-2.5 py-0.5 text-xs font-medium text-fichap-primary"
+            className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-[11px] font-medium text-violet-400"
           >
             Presentation Mode
           </motion.span>
         )}
       </div>
 
+      {/* Right: controls */}
       <div className="flex items-center gap-1">
         <PresentationModeToggle />
         <ThemeToggle />
         <LanguageSelector />
+
+        <div className="ml-2 h-5 w-px bg-white/[0.08]" />
+
         <div className="ml-2 cursor-pointer">
           <Avatar
             size="sm"
             name={initials}
             {...(userImage ? { src: userImage } : {})}
             classNames={{
-              base: "bg-gradient-to-br from-fichap-primary to-fichap-accent",
-              name: "text-white font-semibold text-xs",
+              base: "bg-gradient-to-br from-violet-600 to-blue-600 h-7 w-7",
+              name: "text-white font-semibold text-[10px]",
             }}
           />
         </div>

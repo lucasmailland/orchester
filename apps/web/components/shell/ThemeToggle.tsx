@@ -25,7 +25,7 @@ export function ThemeToggle() {
       size="sm"
       onPress={() => setTheme(isDark ? "light" : "dark")}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      className="text-default-500 hover:text-default-900 dark:hover:text-default-100"
+      className="text-zinc-500 hover:text-zinc-100"
     >
       <AnimatePresence mode="wait" initial={false}>
         {isDark ? (

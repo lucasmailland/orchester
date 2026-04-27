@@ -2,6 +2,7 @@
   "nav": {
     "home": "Inicio",
     "teams": "Equipos",
+    "org": "Organigrama",
     "agents": "Agentes",
     "conversations": "Conversaciones",
     "employees": "Empleados",
@@ -87,12 +88,41 @@
       "conversationsChart": "Conversaciones — Últimos 30 Días",
       "noData": "Sin datos aún — ejecuta el seed para ver analytics."
     },
+    "org": {
+      "title": "Organigrama",
+      "subtitle": "La jerarquía de tus equipos y agentes"
+    },
     "teams": {
       "title": "Equipos",
       "subtitle": "Tus equipos de agentes IA",
       "agents": "agentes",
       "empty": "Aún no hay equipos.",
-      "emptyCta": "Crear equipo"
+      "emptyCta": "Crear equipo",
+      "addTeam": "Nuevo equipo",
+      "addAgent": "Agregar agente",
+      "back": "Equipos",
+      "editTeam": "Editar",
+      "deleteTeam": "Eliminar",
+      "createTitle": "Crear equipo",
+      "editTitle": "Editar equipo",
+      "nameLabel": "Nombre del equipo",
+      "descriptionLabel": "Descripción",
+      "colorLabel": "Color",
+      "save": "Guardar",
+      "cancel": "Cancelar",
+      "namePlaceholder": "ej. Soporte RRHH",
+      "descriptionPlaceholder": "¿Qué hace este equipo?",
+      "createAgentTitle": "Agregar agente",
+      "editAgentTitle": "Editar agente",
+      "confirmDelete": "¿Eliminar este equipo? Los agentes quedarán sin asignar.",
+      "confirmDeleteAgent": "¿Eliminar este agente?",
+      "agent": {
+        "nameLabel": "Nombre",
+        "roleLabel": "Rol",
+        "promptLabel": "Prompt del sistema",
+        "modelLabel": "Modelo",
+        "statusLabel": "Estado"
+      }
     },
     "agents": {
       "title": "Agentes",
@@ -139,13 +169,46 @@
     },
     "usage": {
       "title": "Uso",
-      "subtitle": "Uso de tokens y facturación",
-      "empty": "Los datos de uso aparecerán cuando los agentes procesen conversaciones."
+      "subtitle": "Consumo de tokens y desglose de costos por agente",
+      "empty": "Sin datos de uso todavía.",
+      "noData": "Sin datos para este período.",
+      "totalTokens": "Tokens Totales",
+      "estimatedCost": "Costo Est.",
+      "conversations": "Conversaciones",
+      "avgTokens": "Tokens Prom/Conv",
+      "chartTitle": "Uso de Tokens",
+      "agentTableTitle": "Desglose por Agente",
+      "col": {
+        "agent": "Agente",
+        "model": "Modelo",
+        "conversations": "Conversaciones",
+        "tokens": "Tokens",
+        "cost": "Costo (USD)"
+      }
     },
     "settings": {
       "title": "Ajustes",
       "subtitle": "Configuración del workspace",
-      "empty": "Ajustes próximamente."
+      "empty": "Ajustes próximamente.",
+      "workspace": "Workspace",
+      "workspaceName": "Nombre del Workspace",
+      "workspaceSlug": "Slug del Workspace",
+      "workspaceNamePlaceholder": "Acme Inc.",
+      "save": "Guardar Cambios",
+      "saved": "¡Guardado!",
+      "danger": "Zona de Peligro",
+      "deleteWorkspace": "Eliminar Workspace",
+      "deleteWarning": "Esta acción es irreversible. Todos los datos serán eliminados permanentemente.",
+      "apiKeys": "Claves API",
+      "apiKeysDescription": "Gestiona claves para integraciones externas.",
+      "noApiKeys": "Sin claves API aún.",
+      "addApiKey": "Agregar Clave",
+      "notifications": "Notificaciones",
+      "notificationsDescription": "Configura tus preferencias de alertas.",
+      "locale": "Idioma",
+      "localeDescription": "Idioma de la interfaz para tu cuenta.",
+      "team": "Miembros del Equipo",
+      "teamDescription": "Gestiona quién tiene acceso a este workspace."
     }
   },
   "onboarding": {

@@ -1,6 +1,6 @@
 import { getTranslations } from "next-intl/server";
-import { Settings } from "lucide-react";
-import { EmptyState } from "@/components/ui/EmptyState";
+import { getCurrentWorkspace } from "@/lib/workspace";
+import { SettingsClient } from "@/components/settings/SettingsClient";
 
 export default async function SettingsPage({
   params,
@@ -10,15 +10,36 @@ export default async function SettingsPage({
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "pages.settings" });
 
+  const workspace = await getCurrentWorkspace();
+
+  const labels = {
+    title: t("title"),
+    subtitle: t("subtitle"),
+    workspace: t("workspace"),
+    workspaceName: t("workspaceName"),
+    workspaceSlug: t("workspaceSlug"),
+    workspaceNamePlaceholder: t("workspaceNamePlaceholder"),
+    save: t("save"),
+    saved: t("saved"),
+    danger: t("danger"),
+    deleteWorkspace: t("deleteWorkspace"),
+    deleteWarning: t("deleteWarning"),
+    apiKeys: t("apiKeys"),
+    apiKeysDescription: t("apiKeysDescription"),
+    noApiKeys: t("noApiKeys"),
+    addApiKey: t("addApiKey"),
+    notifications: t("notifications"),
+    notificationsDescription: t("notificationsDescription"),
+    locale: t("locale"),
+    localeDescription: t("localeDescription"),
+    team: t("team"),
+    teamDescription: t("teamDescription"),
+  };
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-default-900 dark:text-default-100">
-          {t("title")}
-        </h1>
-        <p className="mt-1 text-sm text-default-500">{t("subtitle")}</p>
-      </div>
-      <EmptyState icon={<Settings size={28} />} title={t("empty")} description="" />
-    </div>
+    <SettingsClient
+      workspace={workspace ? { id: workspace.workspace.id, name: workspace.workspace.name, slug: workspace.workspace.slug } : null}
+      labels={labels}
+    />
   );
 }

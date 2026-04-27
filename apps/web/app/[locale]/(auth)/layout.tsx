@@ -1,42 +1,76 @@
+import { NeuralBackground } from "@/components/auth/NeuralBackground";
+import { AgentOrgChart } from "@/components/auth/AgentOrgChart";
+import { Syne, JetBrains_Mono } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const syne = Syne({ subsets: ["latin"], variable: "--font-syne", display: "swap" });
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-auth-mono",
+  weight: ["400", "500"],
+  display: "swap",
+});
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen">
+    <div className={cn("flex min-h-screen bg-[#09090B]", syne.variable, mono.variable)}>
       {/* Left: form area */}
-      <div className="flex w-full flex-col items-center justify-center bg-background px-8 md:w-[480px] md:shrink-0">
-        {children}
+      <div className="relative flex w-full flex-col items-center justify-center px-8 md:w-[520px] md:shrink-0">
+        <div
+          className="absolute inset-0 opacity-[0.035]"
+          style={{
+            backgroundImage: "radial-gradient(circle, #8b5cf6 1px, transparent 1px)",
+            backgroundSize: "28px 28px",
+          }}
+        />
+        <div className="absolute right-0 top-0 h-full w-px bg-gradient-to-b from-transparent via-violet-500/15 to-transparent" />
+        <div className="relative z-10 w-full max-w-[380px]">{children}</div>
       </div>
 
-      {/* Right: decorative gradient panel */}
-      <div className="relative hidden flex-1 md:flex md:flex-col md:items-center md:justify-center overflow-hidden bg-gradient-to-br from-[#3B3BFF] via-[#4040E8] to-[#7C3AED]">
-        {/* Glow orbs */}
-        <div className="absolute -top-32 -right-32 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute -bottom-32 -left-32 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
+      {/* Right: neural brand panel */}
+      <div className="relative hidden flex-1 overflow-hidden bg-[#060608] md:flex">
+        <NeuralBackground />
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-[#09090B] to-transparent" />
 
-        <div className="relative z-10 px-12 text-center text-white">
-          <div className="mb-6 flex justify-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
-              <span className="text-2xl font-bold">O</span>
-            </div>
-          </div>
-          <h2 className="text-3xl font-bold tracking-tight">Orchester</h2>
-          <p className="mt-3 text-lg text-white/80">
-            Build AI agent teams for your enterprise in minutes.
-          </p>
-          <div className="mt-8 grid grid-cols-3 gap-4 text-center">
-            {[
-              { label: "Templates", value: "6+" },
-              { label: "AI Models", value: "12+" },
-              { label: "Channels", value: "3" },
-            ].map((stat) => (
-              <div
-                key={stat.label}
-                className="rounded-xl bg-white/10 px-4 py-3 backdrop-blur-sm"
-              >
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <div className="text-xs text-white/70">{stat.label}</div>
+        <div className="relative z-20 flex w-full flex-col items-center justify-center gap-8 px-8">
+          {/* Brand */}
+          <div className="text-center">
+            <div className="mb-4 flex justify-center">
+              <div className="relative">
+                <div className="absolute -inset-3 rounded-2xl bg-violet-500/8 blur-2xl" />
+                <div className="relative flex h-14 w-14 items-center justify-center rounded-xl border border-violet-500/20 bg-zinc-900/90 shadow-xl shadow-violet-500/10">
+                  <span
+                    className="text-2xl font-bold text-white"
+                    style={{ fontFamily: "var(--font-syne), system-ui" }}
+                  >
+                    O
+                  </span>
+                </div>
               </div>
-            ))}
+            </div>
+            <h2
+              className="text-3xl font-bold tracking-tight text-white"
+              style={{ fontFamily: "var(--font-syne), system-ui" }}
+            >
+              Orchester
+            </h2>
+            <p className="mx-auto mt-2 max-w-[200px] text-sm text-zinc-600">
+              AI agent teams for your enterprise
+            </p>
           </div>
+
+          {/* Live label */}
+          <div
+            className="flex items-center gap-2"
+            style={{ fontFamily: "var(--font-auth-mono), monospace" }}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50" />
+            <span className="text-[10px] uppercase tracking-widest text-zinc-600">
+              Live Agent Network
+            </span>
+          </div>
+
+          <AgentOrgChart />
         </div>
       </div>
     </div>
