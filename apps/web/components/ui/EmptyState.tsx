@@ -2,8 +2,9 @@
 
 import { motion } from "framer-motion";
 import { Button } from "@heroui/react";
-import { staggerContainer, staggerItem } from "@/lib/motion";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { APPLE_EASE } from "@/lib/motion";
 
 interface EmptyStateProps {
   icon?: React.ReactNode;
@@ -11,6 +12,7 @@ interface EmptyStateProps {
   description: string;
   ctaLabel?: string;
   onCta?: () => void;
+  ctaHref?: string;
   className?: string;
 }
 
@@ -20,46 +22,55 @@ export function EmptyState({
   description,
   ctaLabel,
   onCta,
+  ctaHref,
   className,
 }: EmptyStateProps) {
   return (
     <motion.div
-      variants={staggerContainer}
-      initial="hidden"
-      animate="visible"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: APPLE_EASE }}
       className={cn(
-        "flex flex-col items-center justify-center gap-4 rounded-2xl",
-        "border border-dashed border-default-200 bg-default-50/50 p-12",
-        "dark:border-white/10 dark:bg-white/[0.02]",
+        "flex flex-col items-center justify-center gap-5 rounded-2xl",
+        "border border-dashed border-white/[0.09] bg-white/[0.02] p-14",
         className
       )}
     >
       {icon && (
-        <motion.div
-          variants={staggerItem}
-          className="rounded-2xl bg-fichap-primary/10 p-4 text-fichap-primary dark:bg-fichap-primary/20"
-        >
-          {icon}
-        </motion.div>
+        <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl">
+          <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-violet-600/25 to-blue-600/15" />
+          <div className="absolute inset-0 rounded-2xl border border-violet-500/20" />
+          <div className="relative text-violet-400">{icon}</div>
+        </div>
       )}
 
-      <motion.div variants={staggerItem} className="space-y-1 text-center">
-        <h3 className="text-base font-semibold text-default-800 dark:text-default-100">
-          {title}
-        </h3>
-        <p className="max-w-sm text-sm text-default-500">{description}</p>
-      </motion.div>
+      <div className="space-y-1.5 text-center">
+        <h3 className="text-sm font-semibold text-zinc-200">{title}</h3>
+        {description && (
+          <p className="max-w-xs text-sm leading-relaxed text-zinc-500">{description}</p>
+        )}
+      </div>
 
-      {ctaLabel && onCta && (
-        <motion.div variants={staggerItem} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-          <Button
-            color="primary"
-            size="sm"
-            onPress={onCta}
-            className="bg-[#3B3BFF] font-medium"
-          >
-            {ctaLabel}
-          </Button>
+      {ctaLabel && (onCta || ctaHref) && (
+        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
+          {ctaHref ? (
+            <Button
+              as={Link}
+              href={ctaHref}
+              size="sm"
+              className="bg-gradient-to-r from-violet-600 to-blue-600 font-medium text-white shadow-lg shadow-violet-500/20"
+            >
+              {ctaLabel}
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              {...(onCta ? { onPress: onCta } : {})}
+              className="bg-gradient-to-r from-violet-600 to-blue-600 font-medium text-white shadow-lg shadow-violet-500/20"
+            >
+              {ctaLabel}
+            </Button>
+          )}
         </motion.div>
       )}
     </motion.div>

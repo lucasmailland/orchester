@@ -2,7 +2,7 @@ import createMiddleware from "next-intl/middleware";
 import { routing } from "./i18n/routing";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { extractLocalePath, isAuthPath, isProtectedPath } from "./lib/middleware-utils";
+import { extractLocalePath, isProtectedPath } from "./lib/middleware-utils";
 
 const intlMiddleware = createMiddleware(routing);
 
@@ -28,14 +28,15 @@ export async function middleware(request: NextRequest) {
 
   const hasSession = Boolean(sessionToken);
 
+  // Only redirect unauthenticated users away from protected pages.
+  // Do NOT redirect from login→home based on cookie alone — the cookie may be
+  // stale/invalid and would cause an ERR_TOO_MANY_REDIRECTS loop. The shell
+  // layout already validates the session server-side and redirects to login
+  // if invalid, so we let the shell handle the "already logged in" case.
   if (isProtectedPath(localePath) && !hasSession) {
     const loginUrl = new URL(`/${locale}/login`, request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
-  }
-
-  if (isAuthPath(localePath) && hasSession) {
-    return NextResponse.redirect(new URL(`/${locale}`, request.url));
   }
 
   return intlMiddleware(request);

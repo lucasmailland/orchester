@@ -14,30 +14,35 @@ interface SidebarItemProps {
 
 export function SidebarItem({ href, icon, label, collapsed }: SidebarItemProps) {
   const pathname = usePathname();
-  const isActive = pathname === href || pathname.startsWith(href + "/");
+  const isActive = pathname === href || (href.includes("/", 1) && pathname.startsWith(href + "/"));
 
   return (
     <Link href={href} className="relative block px-2">
       {isActive && (
-        <motion.div
-          layoutId="sidebar-active-indicator"
-          className="absolute inset-0 rounded-lg bg-fichap-primary/10 dark:bg-fichap-primary/20"
-          transition={{ type: "spring", stiffness: 400, damping: 30 }}
-        />
+        <>
+          <motion.div
+            layoutId="sidebar-active-bg"
+            className="absolute inset-0 rounded-lg bg-white/[0.07]"
+            transition={{ type: "spring", stiffness: 500, damping: 35 }}
+          />
+          <motion.div
+            layoutId="sidebar-active-bar"
+            className="absolute inset-y-1.5 left-2 w-[3px] rounded-full bg-violet-400"
+            transition={{ type: "spring", stiffness: 500, damping: 35 }}
+          />
+        </>
       )}
       <div
         className={cn(
-          "relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150",
-          "hover:bg-fichap-primary/5 dark:hover:bg-white/5",
-          isActive
-            ? "text-fichap-primary"
-            : "text-default-600 hover:text-default-900 dark:text-default-400 dark:hover:text-default-100"
+          "relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium",
+          "transition-colors duration-150 hover:bg-white/[0.04]",
+          isActive ? "text-white" : "text-zinc-500 hover:text-zinc-200"
         )}
       >
         <span
           className={cn(
-            "flex-shrink-0 transition-transform duration-150",
-            isActive && "scale-110"
+            "flex-shrink-0 transition-colors duration-150",
+            isActive ? "text-violet-400" : "text-zinc-600 group-hover:text-zinc-400"
           )}
         >
           {icon}

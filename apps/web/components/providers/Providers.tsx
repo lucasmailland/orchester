@@ -10,8 +10,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <HeroUIProvider>
       <ThemeProvider
         attribute="class"
-        defaultTheme="light"
-        enableSystem
+        defaultTheme="dark"
+        enableSystem={false}
         disableTransitionOnChange={false}
       >
         <PresentationModeProvider>

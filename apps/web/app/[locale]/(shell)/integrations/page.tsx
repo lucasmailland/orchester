@@ -13,17 +13,16 @@ export default async function IntegrationsPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-default-900 dark:text-default-100">
+        <h1 className="font-display text-2xl font-bold tracking-tight text-zinc-100">
           {t("title")}
         </h1>
-        <p className="mt-1 text-sm text-default-500">{t("subtitle")}</p>
+        <p className="mt-1 text-sm text-zinc-500">{t("subtitle")}</p>
       </div>
       <EmptyState
         icon={<Plug size={28} />}
         title={t("empty")}
         description=""
         ctaLabel={t("emptyCta")}
-        onCta={() => {}}
       />
     </div>
   );

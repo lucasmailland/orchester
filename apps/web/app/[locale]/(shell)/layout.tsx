@@ -25,11 +25,20 @@ export default async function ShellLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-default-50 dark:bg-[#0a0a0f]">
+    <div className="flex h-screen overflow-hidden bg-[#09090b]">
       <Sidebar locale={locale} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <Topbar locale={locale} userName={session.user.name} userImage={session.user.image ?? null} />
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <Topbar
+          locale={locale}
+          userName={session.user.name}
+          userImage={session.user.image ?? null}
+        />
+        <main className="relative flex-1 overflow-y-auto">
+          {/* Subtle grid + ambient glow */}
+          <div className="pointer-events-none absolute inset-0 bg-grid" />
+          <div className="pointer-events-none absolute inset-0 bg-ambient" />
+          <div className="relative z-10 p-6">{children}</div>
+        </main>
       </div>
     </div>
   );
