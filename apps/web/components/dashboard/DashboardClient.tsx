@@ -242,13 +242,13 @@ function MiniDonut({ data, colors, center }: {
   colors: Record<string, string>;
   center?: string;
 }) {
-  if (!data.length) return <Empty h={120} />;
+  if (!data.length) return <Empty h={150} />;
   return (
     <div className="relative">
-      <ResponsiveContainer width="100%" height={120}>
+      <ResponsiveContainer width="100%" height={150}>
         <PieChart>
           <Pie data={data} dataKey="count" nameKey="name" cx="50%" cy="50%"
-            innerRadius={36} outerRadius={52} paddingAngle={3} strokeWidth={0}>
+            innerRadius={46} outerRadius={64} paddingAngle={3} strokeWidth={0}>
             {data.map((entry, i) => (
               <Cell key={i} fill={colors[entry.name] ?? "#3f3f46"} fillOpacity={0.9} />
             ))}
@@ -258,7 +258,7 @@ function MiniDonut({ data, colors, center }: {
       </ResponsiveContainer>
       {center && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <span className="font-mono text-xs font-bold text-zinc-400">{center}</span>
+          <span className="font-mono text-sm font-bold text-zinc-300">{center}</span>
         </div>
       )}
     </div>
@@ -399,7 +399,7 @@ function ActivityFeed({ data }: { data: FullDashboardStats["recentConversations"
   };
   return (
     <div className="space-y-1">
-      {data.map((c) => (
+      {data.slice(0, 6).map((c) => (
         <div key={c.id} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-white/[0.03] transition-colors">
           <div className={cn(
             "h-1.5 w-1.5 shrink-0 rounded-full",
@@ -617,7 +617,7 @@ export function DashboardClient({ stats, workspaceName }: Props) {
       </Card>
 
       {/* ── Row 5: Teams + Employees + Peak hours ── */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3 items-start">
 
         {/* Team stats */}
         <Card>
@@ -694,8 +694,8 @@ export function DashboardClient({ stats, workspaceName }: Props) {
         </Card>
       </div>
 
-      {/* ── Row 6: Status dist + Channel dist + Recent activity ── */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/* ── Row 6: Status + Channel + Recent activity ── */}
+      <div className="grid gap-4 lg:grid-cols-3 items-start">
 
         {/* Status */}
         <Card>
@@ -756,13 +756,20 @@ export function DashboardClient({ stats, workspaceName }: Props) {
         {/* Recent activity */}
         <Card>
           <CardHeader title="Actividad reciente" sub="últimas conversaciones" />
-          <div className="pb-3">
+          <div className="pb-1">
             {stats.recentConversations.length === 0
               ? <Empty h={100} />
               : <ActivityFeed data={stats.recentConversations} />
             }
           </div>
+          <div className="border-t border-white/[0.04] px-5 py-2.5">
+            <a href="conversaciones" className="flex items-center gap-1 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">
+              <span>Ver todas las conversaciones</span>
+              <ArrowRight size={10} />
+            </a>
+          </div>
         </Card>
+
       </div>
 
     </div>
