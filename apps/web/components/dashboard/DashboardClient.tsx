@@ -617,27 +617,51 @@ export function DashboardClient({ stats, workspaceName }: Props) {
       </Card>
 
       {/* ── Row 5: Teams + Employees + Peak hours ── */}
-      <div className="grid gap-4 lg:grid-cols-3 items-start">
+      <div className="grid gap-4 lg:grid-cols-3">
 
         {/* Team stats */}
         <Card>
           <CardHeader title="Equipos" sub="últimos 30 días" />
-          <div className="px-5 pb-5 space-y-2">
+          <div className="px-5 pb-5 space-y-4">
             {stats.teamStats.length === 0 && <Empty h={80} />}
-            {stats.teamStats.map((t, i) => (
-              <div key={t.teamId} className="flex items-center gap-3">
-                <span className="font-mono text-[10px] text-zinc-700 w-3 shrink-0">{i + 1}</span>
-                <div
-                  className="h-2 w-2 shrink-0 rounded-sm"
-                  style={{ backgroundColor: t.teamColor ?? "#52525b" }}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium text-zinc-200">{t.teamName}</p>
-                  <p className="text-[10px] text-zinc-600">{t.conversations} convs · {fmtT(t.tokens)} tok</p>
+            {stats.teamStats.map((t, i) => {
+              const maxConvs = stats.teamStats[0]?.conversations ?? 1;
+              const tokPerConv = t.conversations > 0 ? Math.round(t.tokens / t.conversations) : 0;
+              return (
+                <div key={t.teamId} className="space-y-2">
+                  {/* Header row */}
+                  <div className="flex items-center gap-2.5">
+                    <span className="font-mono text-[10px] text-zinc-700 w-3 shrink-0">{i + 1}</span>
+                    <div
+                      className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                      style={{ backgroundColor: t.teamColor ?? "#52525b" }}
+                    />
+                    <p className="min-w-0 flex-1 truncate text-xs font-semibold text-zinc-200">{t.teamName}</p>
+                    <span className="shrink-0 font-mono text-xs font-bold text-amber-400">${t.costUsd.toFixed(2)}</span>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="flex items-center gap-2 pl-[22px]">
+                    <div className="h-[3px] flex-1 overflow-hidden rounded-full bg-zinc-800">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${(t.conversations / maxConvs) * 100}%`,
+                          backgroundColor: t.teamColor ?? "#8b5cf6",
+                          opacity: 0.7,
+                        }}
+                      />
+                    </div>
+                    <span className="shrink-0 font-mono text-[10px] text-zinc-500">{t.conversations} convs</span>
+                  </div>
+                  {/* Stats chips */}
+                  <div className="flex items-center gap-3 pl-[22px]">
+                    <span className="text-[10px] text-zinc-600">{fmtT(t.tokens)} tok</span>
+                    <span className="text-[10px] text-zinc-700">·</span>
+                    <span className="text-[10px] text-zinc-600">{fmtT(tokPerConv)} tok/conv</span>
+                  </div>
                 </div>
-                <span className="shrink-0 font-mono text-xs font-semibold text-amber-400">${t.costUsd.toFixed(2)}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Card>
 
@@ -695,7 +719,7 @@ export function DashboardClient({ stats, workspaceName }: Props) {
       </div>
 
       {/* ── Row 6: Status + Channel + Recent activity ── */}
-      <div className="grid gap-4 lg:grid-cols-3 items-start">
+      <div className="grid gap-4 lg:grid-cols-3">
 
         {/* Status */}
         <Card>
