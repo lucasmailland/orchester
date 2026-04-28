@@ -1,6 +1,6 @@
 import "server-only";
 import { getDb, schema } from "@orchester/db";
-import { eq, count, countDistinct, and, gte, sql, desc } from "drizzle-orm";
+import { eq, count, countDistinct, and, gte, lt, lte, sql, desc } from "drizzle-orm";
 
 export interface DashboardStats {
   activeAgents: number;
@@ -389,7 +389,7 @@ export async function getUsageStats(workspaceId: string): Promise<UsageStats> {
         .where(and(
           eq(schema.conversations.workspaceId, workspaceId),
           gte(schema.messages.createdAt, startOfLastMonth),
-          sql`${schema.messages.createdAt} < ${startOfMonth}`
+          lt(schema.messages.createdAt, startOfMonth)
         )),
 
       // Conversations this month
@@ -473,12 +473,13 @@ export async function getUsageStats(workspaceId: string): Promise<UsageStats> {
 export async function getFullDashboardStats(workspaceId: string): Promise<FullDashboardStats> {
   const db = getDb();
   const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yesterday = new Date(today.getTime() - 86_400_000);
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const endOfLastMonth = new Date(startOfMonth.getTime() - 1);
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  // Build all boundary dates using Date.UTC so they're UTC-anchored Date objects
+  const today           = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const yesterday       = new Date(today.getTime() - 86_400_000);
+  const startOfMonth    = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const startOfLastMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  const endOfLastMonth  = new Date(startOfMonth.getTime() - 1);
+  const thirtyDaysAgo   = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   const [
     activeAgentsRes, totalAgentsRes, convsTodayRes, convsYesterdayRes, employeesRes,
@@ -506,7 +507,7 @@ export async function getFullDashboardStats(workspaceId: string): Promise<FullDa
       .where(and(
         eq(schema.conversations.workspaceId, workspaceId),
         gte(schema.conversations.startedAt, yesterday),
-        sql`${schema.conversations.startedAt} < ${today}`,
+        lt(schema.conversations.startedAt, today),
       )),
 
     // Total employees
@@ -547,7 +548,7 @@ export async function getFullDashboardStats(workspaceId: string): Promise<FullDa
       .where(and(
         eq(schema.conversations.workspaceId, workspaceId),
         gte(schema.messages.createdAt, startOfLastMonth),
-        sql`${schema.messages.createdAt} <= ${endOfLastMonth}`,
+        lte(schema.messages.createdAt, endOfLastMonth),
       )),
 
     // Conversations this month
@@ -559,7 +560,7 @@ export async function getFullDashboardStats(workspaceId: string): Promise<FullDa
       .where(and(
         eq(schema.conversations.workspaceId, workspaceId),
         gte(schema.conversations.startedAt, startOfLastMonth),
-        sql`${schema.conversations.startedAt} <= ${endOfLastMonth}`,
+        lte(schema.conversations.startedAt, endOfLastMonth),
       )),
 
     // Conversations by day (30d)
@@ -598,13 +599,13 @@ export async function getFullDashboardStats(workspaceId: string): Promise<FullDa
 
     // Channel distribution (30d)
     db.select({
-      type: sql<string>`coalesce(${schema.channels.type}, 'direct')`,
+      type: sql<string>`coalesce(${schema.channels.type}::text, 'unknown')`,
       count: count(),
     })
       .from(schema.conversations)
       .leftJoin(schema.channels, eq(schema.conversations.channelId, schema.channels.id))
       .where(and(eq(schema.conversations.workspaceId, workspaceId), gte(schema.conversations.startedAt, thirtyDaysAgo)))
-      .groupBy(schema.channels.type),
+      .groupBy(sql`coalesce(${schema.channels.type}::text, 'unknown')`),
 
     // Status distribution (30d)
     db.select({ status: schema.conversations.status, count: count() })
