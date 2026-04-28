@@ -12,7 +12,6 @@ import {
   MessageSquare,
   Plug,
   Radio,
-  BarChart3,
   Settings,
   ChevronLeft,
 } from "lucide-react";
@@ -40,7 +39,6 @@ export function Sidebar({ locale }: SidebarProps) {
   const systemNav = [
     { href: `/${locale}/channels`, icon: <Radio size={16} />, label: t("channels") },
     { href: `/${locale}/integrations`, icon: <Plug size={16} />, label: t("integrations") },
-    { href: `/${locale}/usage`, icon: <BarChart3 size={16} />, label: t("usage") },
     { href: `/${locale}/settings`, icon: <Settings size={16} />, label: t("settings") },
   ];
 
