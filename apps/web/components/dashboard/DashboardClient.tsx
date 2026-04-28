@@ -616,78 +616,31 @@ export function DashboardClient({ stats, workspaceName }: Props) {
         </div>
       </Card>
 
-      {/* ── Row 5: Teams + Employees + Peak hours ── */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/* ── Row A: Equipos + Pico — both compact, naturally similar height ── */}
+      <div className="grid gap-4 lg:grid-cols-2 items-start">
 
         {/* Team stats */}
         <Card>
           <CardHeader title="Equipos" sub="últimos 30 días" />
-          <div className="px-5 pb-5 space-y-4">
+          <div className="px-5 pb-5 space-y-3">
             {stats.teamStats.length === 0 && <Empty h={80} />}
             {stats.teamStats.map((t, i) => {
               const maxConvs = stats.teamStats[0]?.conversations ?? 1;
-              const tokPerConv = t.conversations > 0 ? Math.round(t.tokens / t.conversations) : 0;
               return (
-                <div key={t.teamId} className="space-y-2">
-                  {/* Header row */}
-                  <div className="flex items-center gap-2.5">
-                    <span className="font-mono text-[10px] text-zinc-700 w-3 shrink-0">{i + 1}</span>
-                    <div
-                      className="h-2.5 w-2.5 shrink-0 rounded-sm"
-                      style={{ backgroundColor: t.teamColor ?? "#52525b" }}
-                    />
-                    <p className="min-w-0 flex-1 truncate text-xs font-semibold text-zinc-200">{t.teamName}</p>
-                    <span className="shrink-0 font-mono text-xs font-bold text-amber-400">${t.costUsd.toFixed(2)}</span>
-                  </div>
-                  {/* Progress bar */}
-                  <div className="flex items-center gap-2 pl-[22px]">
-                    <div className="h-[3px] flex-1 overflow-hidden rounded-full bg-zinc-800">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${(t.conversations / maxConvs) * 100}%`,
-                          backgroundColor: t.teamColor ?? "#8b5cf6",
-                          opacity: 0.7,
-                        }}
-                      />
-                    </div>
-                    <span className="shrink-0 font-mono text-[10px] text-zinc-500">{t.conversations} convs</span>
-                  </div>
-                  {/* Stats chips */}
-                  <div className="flex items-center gap-3 pl-[22px]">
-                    <span className="text-[10px] text-zinc-600">{fmtT(t.tokens)} tok</span>
-                    <span className="text-[10px] text-zinc-700">·</span>
-                    <span className="text-[10px] text-zinc-600">{fmtT(tokPerConv)} tok/conv</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-
-        {/* Top employees */}
-        <Card>
-          <CardHeader title="Empleados más activos" sub="últimos 30 días" />
-          <div className="px-5 pb-5 space-y-2">
-            {stats.topEmployees.length === 0 && <Empty h={80} />}
-            {stats.topEmployees.map((e, i) => {
-              const max = stats.topEmployees[0]?.conversations ?? 1;
-              return (
-                <div key={e.id} className="flex items-center gap-3">
+                <div key={t.teamId} className="flex items-center gap-3">
                   <span className="font-mono text-[10px] text-zinc-700 w-3 shrink-0">{i + 1}</span>
+                  <div className="h-2 w-2 shrink-0 rounded-sm" style={{ backgroundColor: t.teamColor ?? "#52525b" }} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-medium text-zinc-200">{e.name}</p>
-                    <div className="mt-0.5 flex items-center gap-2">
+                    <p className="truncate text-xs font-medium text-zinc-200">{t.teamName}</p>
+                    <div className="mt-1 flex items-center gap-2">
                       <div className="h-[2px] flex-1 overflow-hidden rounded-full bg-zinc-800">
-                        <div className="h-full rounded-full bg-violet-500/60"
-                          style={{ width: `${(e.conversations / max) * 100}%` }} />
+                        <div className="h-full rounded-full" style={{ width: `${(t.conversations / maxConvs) * 100}%`, backgroundColor: t.teamColor ?? "#8b5cf6", opacity: 0.7 }} />
                       </div>
-                      <span className="shrink-0 font-mono text-[10px] text-zinc-500">{e.conversations}</span>
+                      <span className="shrink-0 font-mono text-[10px] text-zinc-600">{t.conversations} convs</span>
                     </div>
+                    <p className="mt-0.5 text-[10px] text-zinc-600">{fmtT(t.tokens)} tok</p>
                   </div>
-                  {e.area && (
-                    <span className="shrink-0 rounded bg-zinc-800/60 px-1.5 py-0.5 text-[9px] text-zinc-600">{e.area}</span>
-                  )}
+                  <span className="shrink-0 font-mono text-xs font-semibold text-amber-400">${t.costUsd.toFixed(2)}</span>
                 </div>
               );
             })}
@@ -718,8 +671,8 @@ export function DashboardClient({ stats, workspaceName }: Props) {
         </Card>
       </div>
 
-      {/* ── Row 6: Status + Channel + Recent activity ── */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/* ── Row B: Estado + Canal — both donuts, nearly identical height ── */}
+      <div className="grid gap-4 lg:grid-cols-2 items-start">
 
         {/* Status */}
         <Card>
@@ -774,6 +727,38 @@ export function DashboardClient({ stats, workspaceName }: Props) {
                 </div>
               </>
             ) : <Empty h={120} />}
+          </div>
+        </Card>
+      </div>
+
+      {/* ── Row C: Empleados + Actividad — both list-heavy, nearly identical height ── */}
+      <div className="grid gap-4 lg:grid-cols-2 items-start">
+
+        {/* Top employees */}
+        <Card>
+          <CardHeader title="Empleados más activos" sub="últimos 30 días" />
+          <div className="px-5 pb-5 space-y-2">
+            {stats.topEmployees.length === 0 && <Empty h={80} />}
+            {stats.topEmployees.map((e, i) => {
+              const max = stats.topEmployees[0]?.conversations ?? 1;
+              return (
+                <div key={e.id} className="flex items-center gap-3">
+                  <span className="font-mono text-[10px] text-zinc-700 w-3 shrink-0">{i + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-medium text-zinc-200">{e.name}</p>
+                    <div className="mt-0.5 flex items-center gap-2">
+                      <div className="h-[2px] flex-1 overflow-hidden rounded-full bg-zinc-800">
+                        <div className="h-full rounded-full bg-violet-500/60" style={{ width: `${(e.conversations / max) * 100}%` }} />
+                      </div>
+                      <span className="shrink-0 font-mono text-[10px] text-zinc-500">{e.conversations}</span>
+                    </div>
+                  </div>
+                  {e.area && (
+                    <span className="shrink-0 rounded bg-zinc-800/60 px-1.5 py-0.5 text-[9px] text-zinc-600">{e.area}</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </Card>
 
