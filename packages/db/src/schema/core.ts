@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, pgEnum, integer, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, pgEnum, integer, boolean, jsonb, numeric } from "drizzle-orm/pg-core";
 import { workspaces } from "./workspaces";
 
 export const agentStatusEnum = pgEnum("agent_status", ["active", "inactive", "draft"]);
@@ -31,6 +31,8 @@ export const agents = pgTable("agent", {
   model: text("model").notNull().default("claude-sonnet-4-6"),
   status: agentStatusEnum("status").notNull().default("draft"),
   config: jsonb("config").$type<Record<string, unknown>>().default({}),
+  temperature: numeric("temperature", { precision: 3, scale: 2 }).default("0.70"),
+  maxTokens: integer("max_tokens"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
