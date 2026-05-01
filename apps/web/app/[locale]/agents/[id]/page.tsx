@@ -1,0 +1,38 @@
+import { notFound, redirect } from "next/navigation";
+import { getDb, schema } from "@orchester/db";
+import { eq, and } from "drizzle-orm";
+import { getCurrentWorkspace } from "@/lib/workspace";
+import { AgentStudio } from "@/components/agents/studio/AgentStudio";
+
+export default async function AgentStudioPage({
+  params,
+}: {
+  params: Promise<{ id: string; locale: string }>;
+}) {
+  const { id, locale } = await params;
+  const ws = await getCurrentWorkspace();
+  if (!ws) redirect(`/${locale}/login`);
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(schema.agents)
+    .where(and(eq(schema.agents.id, id), eq(schema.agents.workspaceId, ws.workspace.id)))
+    .limit(1);
+  const agent = rows[0];
+  if (!agent) notFound();
+  return (
+    <AgentStudio
+      agent={{
+        id: agent.id,
+        name: agent.name,
+        role: agent.role,
+        systemPrompt: agent.systemPrompt,
+        model: agent.model,
+        status: agent.status,
+        temperature: agent.temperature,
+        maxTokens: agent.maxTokens,
+        teamId: agent.teamId,
+      }}
+    />
+  );
+}

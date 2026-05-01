@@ -1,7 +1,20 @@
 import { NextResponse } from "next/server";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
+import { eq, desc } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
+
+export async function GET() {
+  const ws = await getCurrentWorkspace();
+  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(schema.agents)
+    .where(eq(schema.agents.workspaceId, ws.workspace.id))
+    .orderBy(desc(schema.agents.updatedAt));
+  return NextResponse.json(rows);
+}
 
 export async function POST(req: Request) {
   const workspace = await getCurrentWorkspace();

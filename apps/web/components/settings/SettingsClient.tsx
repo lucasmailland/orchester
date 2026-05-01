@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Building2, Key, Bell, Globe, Users, AlertTriangle, Check, Copy, Eye, EyeOff } from "lucide-react";
+import { Building2, Key, Bell, Globe, Users, AlertTriangle, Check, Copy, Eye, EyeOff, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AIProvidersSection } from "./AIProvidersSection";
 
 interface SettingsLabels {
   title: string;
@@ -237,6 +238,15 @@ export function SettingsClient({ workspace, labels }: SettingsClientProps) {
               </div>
             ))}
           </div>
+        </SectionCard>
+
+        {/* AI Providers */}
+        <SectionCard
+          icon={<Sparkles size={16} />}
+          title="Proveedores de IA"
+          description="Conectá tus claves de Anthropic, OpenAI, Google AI o Azure. Los modelos disponibles aparecen en el editor de agentes y en los flujos."
+        >
+          <AIProvidersSection />
         </SectionCard>
 
         {/* API Keys */}
