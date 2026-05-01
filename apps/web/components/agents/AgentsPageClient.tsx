@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bot, Plus, Pencil, Trash2, Zap, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { AgentFormModal } from "./AgentFormModal";
+import { NoProviderBanner } from "@/components/common/NoProviderBanner";
 
 const STATUS_CONFIG = {
   active: {
@@ -92,6 +93,8 @@ type FilterStatus = "all" | "active" | "inactive" | "draft";
 
 export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
   const router = useRouter();
+  const params = useParams<{ locale: string }>();
+  const locale = params?.locale ?? "es";
   const [createOpen, setCreateOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<AgentItem | null>(null);
   const [filter, setFilter] = useState<FilterStatus>("all");
@@ -129,6 +132,7 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
 
   return (
     <div className="space-y-6">
+      <NoProviderBanner />
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -222,9 +226,13 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
                     <motion.div
                       key={agent.id}
                       variants={staggerItem}
+                      onClick={(e) => {
+                        if ((e.target as HTMLElement).closest("button")) return;
+                        router.push(`/${locale}/agents/${agent.id}`);
+                      }}
                       className={cn(
-                        "group relative overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.03]",
-                        "transition-all hover:border-white/[0.12] hover:bg-white/[0.05]"
+                        "group relative cursor-pointer overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.03]",
+                        "transition-all hover:border-violet-500/30 hover:bg-white/[0.05]"
                       )}
                     >
                       {/* Left color bar */}

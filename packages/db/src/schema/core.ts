@@ -63,6 +63,7 @@ export const employees = pgTable("employee", {
   managerId: text("manager_id"),
   avatarUrl: text("avatar_url"),
   active: boolean("active").notNull().default(true),
+  assignedAgentIds: jsonb("assigned_agent_ids").$type<string[]>().default([]),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

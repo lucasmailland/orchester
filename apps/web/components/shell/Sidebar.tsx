@@ -14,6 +14,7 @@ import {
   Radio,
   Settings,
   ChevronLeft,
+  Workflow,
 } from "lucide-react";
 import { SidebarItem } from "./SidebarItem";
 import { sidebarVariants, APPLE_EASE } from "@/lib/motion";
@@ -32,6 +33,7 @@ export function Sidebar({ locale }: SidebarProps) {
     { href: `/${locale}/teams`, icon: <Layers size={16} />, label: t("teams") },
     { href: `/${locale}/org`, icon: <Network size={16} />, label: t("org") },
     { href: `/${locale}/agents`, icon: <Bot size={16} />, label: t("agents") },
+    { href: `/${locale}/flows`, icon: <Workflow size={16} />, label: t("flows") },
     { href: `/${locale}/conversations`, icon: <MessageSquare size={16} />, label: t("conversations") },
     { href: `/${locale}/employees`, icon: <Users size={16} />, label: t("employees") },
   ];
