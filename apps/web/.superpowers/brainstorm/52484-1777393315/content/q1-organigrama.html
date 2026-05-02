@@ -1,0 +1,37 @@
+<h2>¿Qué debe mostrar el Organigrama?</h2>
+<p class="subtitle">Esta decisión define la relación entre las 3 pantallas</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Jerarquía de IA pura</h3>
+      <p>El organigrama muestra <strong>Equipos → Agentes</strong>. Los equipos son los nodos padre, los agentes son sus hijos. Es el "árbol de la IA" de la empresa. Los empleados se gestionan aparte.</p>
+      <div style="margin-top:12px;padding:10px;background:rgba(139,92,246,0.08);border-radius:8px;border:1px solid rgba(139,92,246,0.15);">
+        <div style="font-size:11px;color:#a78bfa;font-family:monospace;">Workspace<br/>├── Equipo Ventas<br/>│   ├── 🤖 Lead Qualifier<br/>│   └── 🤖 Follow-up Bot<br/>└── Equipo Soporte<br/>    └── 🤖 Support Agent</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Organigrama de empleados</h3>
+      <p>El organigrama muestra la <strong>jerarquía humana</strong> de la empresa (CEO → Managers → Empleados). Cada empleado puede tener agentes asignados que lo asisten. Los equipos son secundarios.</p>
+      <div style="margin-top:12px;padding:10px;background:rgba(59,130,246,0.08);border-radius:8px;border:1px solid rgba(59,130,246,0.15);">
+        <div style="font-size:11px;color:#60a5fa;font-family:monospace;">CEO (María)<br/>├── VP Ventas (Carlos) 🤖<br/>│   ├── Sales Rep 1 (Ana) 🤖<br/>│   └── Sales Rep 2 (Luis)<br/>└── VP Soporte (Pedro) 🤖</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Vista dual: Empresa + IA</h3>
+      <p>El organigrama combina <strong>ambos mundos</strong>. A la izquierda, la estructura humana (equipos de personas). A la derecha, los agentes de IA asignados. Se ve quién trabaja con qué agente.</p>
+      <div style="margin-top:12px;padding:10px;background:rgba(16,185,129,0.08);border-radius:8px;border:1px solid rgba(16,185,129,0.15);">
+        <div style="font-size:11px;color:#34d399;font-family:monospace;">Equipo Ventas [3 personas]<br/>  👥 Carlos, Ana, Luis<br/>  🤖 Lead Bot, Closer Bot<br/><br/>Equipo Soporte [2 personas]<br/>  👥 Pedro, María<br/>  🤖 Support Bot</div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,11 +1,19 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Send, Trash2, Loader2 } from "lucide-react";
+import { Send, Trash2, Loader2, Wrench } from "lucide-react";
 
+interface ToolCallView {
+  name: string;
+  input: unknown;
+  output: unknown;
+  error?: string;
+}
 interface Msg {
   role: "user" | "assistant";
   content: string;
+  toolCalls?: ToolCallView[];
+  flowRunId?: string;
 }
 
 interface Props {
@@ -14,9 +22,19 @@ interface Props {
   model: string;
   temperature: number;
   maxTokens?: number | undefined;
+  variables?: Record<string, string>;
+  tools?: string[];
 }
 
-export function TestChat({ agentId, systemPrompt, model, temperature, maxTokens }: Props) {
+export function TestChat({
+  agentId,
+  systemPrompt,
+  model,
+  temperature,
+  maxTokens,
+  variables,
+  tools,
+}: Props) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,7 +53,15 @@ export function TestChat({ agentId, systemPrompt, model, temperature, maxTokens 
       const r = await fetch(`/api/agents/${agentId}/test-chat`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ messages: next, systemPrompt, model, temperature, maxTokens }),
+        body: JSON.stringify({
+          messages: next.map(({ role, content }) => ({ role, content })),
+          systemPrompt,
+          model,
+          temperature,
+          maxTokens,
+          variables,
+          tools,
+        }),
       });
       const j = await r.json();
       if (!r.ok) {
@@ -44,7 +70,15 @@ export function TestChat({ agentId, systemPrompt, model, temperature, maxTokens 
         else setError(j.error || "Error");
         return;
       }
-      setMessages((prev) => [...prev, { role: "assistant", content: j.content }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: j.content,
+          toolCalls: j.toolCalls,
+          flowRunId: j.flowRunId,
+        },
+      ]);
       setTokens((t) => t + (j.tokensUsed ?? 0));
       setTimeout(() => scrollRef.current?.scrollTo({ top: 99999, behavior: "smooth" }), 50);
     } catch (e) {
@@ -77,15 +111,37 @@ export function TestChat({ agentId, systemPrompt, model, temperature, maxTokens 
           </div>
         )}
         {messages.map((m, i) => (
-          <div
-            key={i}
-            className={
-              m.role === "user"
-                ? "ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-violet-500/20 px-3.5 py-2 text-sm text-zinc-100"
-                : "mr-auto max-w-[85%] rounded-2xl rounded-bl-sm border border-white/5 bg-zinc-800/60 px-3.5 py-2 text-sm text-zinc-100"
-            }
-          >
-            {m.content}
+          <div key={i} className="space-y-1.5">
+            <div
+              className={
+                m.role === "user"
+                  ? "ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-violet-500/20 px-3.5 py-2 text-sm text-zinc-100"
+                  : "mr-auto max-w-[85%] rounded-2xl rounded-bl-sm border border-white/5 bg-zinc-800/60 px-3.5 py-2 text-sm text-zinc-100"
+              }
+            >
+              {m.content || (m.flowRunId ? "_(ejecutado por flujo)_" : "")}
+            </div>
+            {m.toolCalls && m.toolCalls.length > 0 && (
+              <div className="mr-auto max-w-[85%] space-y-1">
+                {m.toolCalls.map((tc, j) => (
+                  <details
+                    key={j}
+                    className="rounded-lg border border-white/[0.06] bg-zinc-900/50 px-2.5 py-1.5 text-[11px]"
+                  >
+                    <summary className="flex cursor-pointer items-center gap-1.5 text-zinc-300">
+                      <Wrench className="h-3 w-3 text-violet-400" /> {tc.name}
+                      {tc.error && <span className="ml-auto text-red-400">error</span>}
+                    </summary>
+                    <pre className="mt-1.5 max-h-40 overflow-y-auto rounded bg-black/40 p-2 font-mono text-[10px] text-zinc-400">
+                      {JSON.stringify({ input: tc.input, output: tc.output, error: tc.error }, null, 2)}
+                    </pre>
+                  </details>
+                ))}
+              </div>
+            )}
+            {m.flowRunId && (
+              <div className="mr-auto text-[10px] text-zinc-600">flow run: {m.flowRunId.slice(0, 8)}</div>
+            )}
           </div>
         ))}
         {loading && (
@@ -123,7 +179,14 @@ export function TestChat({ agentId, systemPrompt, model, temperature, maxTokens 
             <Send className="h-4 w-4" />
           </button>
         </div>
-        <div className="mt-1.5 text-[10px] text-zinc-600">Tokens usados: {tokens}</div>
+        <div className="mt-1.5 flex items-center justify-between text-[10px] text-zinc-600">
+          <span>Tokens usados: {tokens}</span>
+          {tools && tools.length > 0 && (
+            <span className="flex items-center gap-1">
+              <Wrench className="h-2.5 w-2.5" /> {tools.length} tool{tools.length !== 1 && "s"}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

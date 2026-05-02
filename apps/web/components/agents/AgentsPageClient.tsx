@@ -2,6 +2,8 @@
 
 import { useState, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { toast } from "sonner";
+import { confirm } from "@/components/ui/ConfirmDialog";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bot, Plus, Pencil, Trash2, Zap, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -118,9 +120,20 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
   }, [filtered, teams]);
 
   async function handleDelete(agentId: string) {
-    if (!confirm("¿Eliminar este agente?")) return;
-    await fetch(`/api/agents/${agentId}`, { method: "DELETE" });
-    router.refresh();
+    const ok = await confirm({
+      title: "¿Eliminar este agente?",
+      description: "Esta acción no se puede deshacer.",
+      confirmText: "Eliminar",
+      destructive: true,
+    });
+    if (!ok) return;
+    const r = await fetch(`/api/agents/${agentId}`, { method: "DELETE" });
+    if (r.ok) {
+      toast.success("Agente eliminado");
+      router.refresh();
+    } else {
+      toast.error("No se pudo eliminar el agente");
+    }
   }
 
   const FILTERS: { value: FilterStatus; label: string; count: number }[] = [

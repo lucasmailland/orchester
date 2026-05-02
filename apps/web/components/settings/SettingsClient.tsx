@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Building2, Key, Bell, Globe, Users, AlertTriangle, Check, Copy, Eye, EyeOff, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AIProvidersSection } from "./AIProvidersSection";
+import { toast } from "sonner";
 
 interface SettingsLabels {
   title: string;
@@ -338,7 +339,7 @@ export function SettingsClient({ workspace, labels }: SettingsClientProps) {
           </div>
         </div>
         <button
-          onClick={() => alert("This action is disabled in demo mode.")}
+          onClick={() => toast.error("Esta acción no está disponible en modo demo")}
           className="rounded-xl border border-red-500/30 px-4 py-2 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/10"
         >
           {labels.deleteWorkspace}

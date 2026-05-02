@@ -4,6 +4,7 @@ import { HeroUIProvider } from "@heroui/react";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import { PresentationModeProvider } from "./PresentationModeProvider";
+import { ConfirmDialogHost } from "@/components/ui/ConfirmDialog";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -16,6 +17,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       >
         <PresentationModeProvider>
           {children}
+          <ConfirmDialogHost />
           <Toaster
             position="bottom-right"
             toastOptions={{

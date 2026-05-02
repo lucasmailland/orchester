@@ -1,18 +1,29 @@
 import { NextResponse } from "next/server";
 import { getCurrentWorkspace } from "@/lib/workspace";
-import { llmCall, ProviderNotConfiguredError } from "@/lib/llm-call";
+import { ProviderNotConfiguredError } from "@/lib/llm-call";
+import { runAgent, loadAgent } from "@/lib/agent-runtime";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ws = await getCurrentWorkspace();
   if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  await params;
+  const { id } = await params;
   const body = await req.json();
-  const { messages, systemPrompt, model, temperature, maxTokens } = body as {
+  const {
+    messages,
+    systemPrompt,
+    model,
+    temperature,
+    maxTokens,
+    variables,
+    tools,
+  } = body as {
     messages: Array<{ role: "user" | "assistant"; content: string }>;
     systemPrompt: string;
     model: string;
     temperature?: number;
     maxTokens?: number;
+    variables?: Record<string, string>;
+    tools?: string[];
   };
   if (!messages?.length || !systemPrompt || !model)
     return NextResponse.json(
@@ -20,14 +31,36 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       { status: 400 }
     );
 
+  const agent = await loadAgent(ws.workspace.id, id);
+  if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+
   try {
-    const r = await llmCall({
-      workspaceId: ws.workspace.id,
-      model,
+    const overrides: NonNullable<Parameters<typeof runAgent>[0]["overrides"]> = {
       systemPrompt,
+      model,
+    };
+    if (temperature !== undefined) overrides.temperature = temperature;
+    if (maxTokens !== undefined) overrides.maxTokens = maxTokens;
+    if (variables !== undefined) overrides.variables = variables;
+    if (tools !== undefined) overrides.tools = tools;
+
+    const r = await runAgent({
+      workspaceId: ws.workspace.id,
+      agent: {
+        id: agent.id,
+        kind: agent.kind,
+        flowId: agent.flowId,
+        systemPrompt: agent.systemPrompt,
+        model: agent.model,
+        temperature: agent.temperature,
+        maxTokens: agent.maxTokens,
+        variables: agent.variables,
+        tools: agent.tools,
+        responseFormat: agent.responseFormat,
+        maxTurns: agent.maxTurns,
+      },
       messages,
-      ...(temperature !== undefined && { temperature }),
-      ...(maxTokens !== undefined && { maxTokens }),
+      overrides,
     });
     return NextResponse.json(r);
   } catch (e) {
