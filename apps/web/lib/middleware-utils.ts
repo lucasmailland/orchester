@@ -1,4 +1,4 @@
-export const PROTECTED_PATHS = ["/", "/teams", "/agents", "/conversations", "/employees", "/channels", "/integrations", "/usage", "/settings", "/onboarding", "/builder", "/runs"];
+export const PROTECTED_PATHS = ["/", "/teams", "/agents", "/flows", "/org", "/conversations", "/employees", "/channels", "/integrations", "/usage", "/settings", "/onboarding", "/builder", "/runs"];
 
 export const AUTH_PATHS = ["/login", "/signup"];
 

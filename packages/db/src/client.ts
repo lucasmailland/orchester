@@ -4,7 +4,12 @@ import * as schema from "./schema";
 
 export type DbClient = ReturnType<typeof createDbClient>;
 
-let cachedDb: DbClient | null = null;
+// Survive Next.js dev HMR: stash the client on globalThis so module re-evaluation
+// doesn't re-create the connection pool on every save.
+const globalForDb = globalThis as unknown as {
+  __orchesterDb?: DbClient;
+  __orchesterPg?: ReturnType<typeof postgres>;
+};
 
 export function createDbClient(connectionString: string) {
   if (!connectionString) {
@@ -15,7 +20,8 @@ export function createDbClient(connectionString: string) {
     max: 10,
     idle_timeout: 20,
     connect_timeout: 10,
-    prepare: false,
+    // Prepared statements cache query plans → ~3-10x speedup on hot paths.
+    prepare: true,
   });
 
   return drizzle(sql, { schema });
@@ -25,9 +31,9 @@ export function getDb(): DbClient {
   const url = process.env["DATABASE_URL"];
   if (!url) throw new Error("DATABASE_URL is required");
 
-  if (!cachedDb) {
-    cachedDb = createDbClient(url);
+  if (!globalForDb.__orchesterDb) {
+    globalForDb.__orchesterDb = createDbClient(url);
   }
 
-  return cachedDb;
+  return globalForDb.__orchesterDb;
 }
