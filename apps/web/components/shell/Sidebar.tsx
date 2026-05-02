@@ -15,6 +15,7 @@ import {
   Settings,
   ChevronLeft,
   Workflow,
+  BookOpen,
 } from "lucide-react";
 import { SidebarItem } from "./SidebarItem";
 import { sidebarVariants, APPLE_EASE } from "@/lib/motion";
@@ -34,6 +35,7 @@ export function Sidebar({ locale }: SidebarProps) {
     { href: `/${locale}/org`, icon: <Network size={16} />, label: t("org") },
     { href: `/${locale}/agents`, icon: <Bot size={16} />, label: t("agents") },
     { href: `/${locale}/flows`, icon: <Workflow size={16} />, label: t("flows") },
+    { href: `/${locale}/knowledge`, icon: <BookOpen size={16} />, label: t("knowledge") },
     { href: `/${locale}/conversations`, icon: <MessageSquare size={16} />, label: t("conversations") },
     { href: `/${locale}/employees`, icon: <Users size={16} />, label: t("employees") },
   ];
