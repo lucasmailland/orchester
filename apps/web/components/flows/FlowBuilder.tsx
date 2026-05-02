@@ -25,6 +25,7 @@ import { TriggerNode } from "./nodes/TriggerNode";
 import { FlowRunsPanel } from "./FlowRunsPanel";
 import { Save, Play, Loader2, History, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 const nodeTypes = {
   trigger: TriggerNode,
@@ -129,8 +130,8 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
       body: JSON.stringify(payload),
     });
     setSaving(false);
-    setFeedback(r.ok ? "Guardado" : "Error al guardar");
-    setTimeout(() => setFeedback(null), 2000);
+    if (r.ok) toast.success("Flujo guardado");
+    else toast.error("No se pudo guardar el flujo");
   }
 
   async function run() {
@@ -143,8 +144,8 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     });
     setRunning(false);
     const j = await r.json();
-    setFeedback(`Ejecución ${j.status}${j.error ? `: ${j.error}` : ""}`);
-    setTimeout(() => setFeedback(null), 5000);
+    if (j.status === "succeeded") toast.success("Ejecución completada");
+    else toast.error(`Ejecución ${j.status}${j.error ? `: ${j.error}` : ""}`);
     if (runsOpen) setRunsOpen(false);
     setTimeout(() => setRunsOpen(true), 300);
   }

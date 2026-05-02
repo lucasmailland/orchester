@@ -10,6 +10,8 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { APPLE_EASE, staggerContainer, staggerItem } from "@/lib/motion";
+import { toast } from "sonner";
+import { confirm } from "@/components/ui/ConfirmDialog";
 import { TeamFormModal } from "./TeamFormModal";
 
 const STATUS_DOT: Record<string, string> = {
@@ -101,10 +103,20 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
   const [editTeamOpen, setEditTeamOpen] = useState(false);
 
   async function deleteTeam() {
-    if (!confirm(labels.confirmDelete)) return;
-    await fetch(`/api/teams/${team.id}`, { method: "DELETE" });
-    router.back();
-    router.refresh();
+    const ok = await confirm({
+      title: labels.confirmDelete,
+      confirmText: "Eliminar",
+      destructive: true,
+    });
+    if (!ok) return;
+    const r = await fetch(`/api/teams/${team.id}`, { method: "DELETE" });
+    if (r.ok) {
+      toast.success("Equipo eliminado");
+      router.back();
+      router.refresh();
+    } else {
+      toast.error("No se pudo eliminar");
+    }
   }
 
   return (

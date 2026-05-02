@@ -24,7 +24,28 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const { id } = await params;
   const body = await req.json();
-  const { name, role, systemPrompt, model, status, teamId, temperature, maxTokens } = body;
+  const {
+    name,
+    role,
+    systemPrompt,
+    model,
+    status,
+    teamId,
+    temperature,
+    maxTokens,
+    kind,
+    flowId,
+    tools,
+    variables,
+    greeting,
+    fallback,
+    starters,
+    avatarUrl,
+    color,
+    maxTurns,
+    responseFormat,
+    outputSchema,
+  } = body;
 
   if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
   if (!role?.trim()) return NextResponse.json({ error: "Role is required" }, { status: 400 });
@@ -41,6 +62,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       ...(teamId !== undefined && { teamId: teamId || null }),
       ...(temperature !== undefined && { temperature: String(temperature) }),
       ...(maxTokens !== undefined && { maxTokens }),
+      ...(kind !== undefined && { kind }),
+      ...(flowId !== undefined && { flowId: flowId || null }),
+      ...(tools !== undefined && { tools }),
+      ...(variables !== undefined && { variables }),
+      ...(greeting !== undefined && { greeting: greeting || null }),
+      ...(fallback !== undefined && { fallback: fallback || null }),
+      ...(starters !== undefined && { starters }),
+      ...(avatarUrl !== undefined && { avatarUrl: avatarUrl || null }),
+      ...(color !== undefined && { color }),
+      ...(maxTurns !== undefined && { maxTurns }),
+      ...(responseFormat !== undefined && { responseFormat }),
+      ...(outputSchema !== undefined && { outputSchema }),
       updatedAt: new Date(),
     })
     .where(and(eq(schema.agents.id, id), eq(schema.agents.workspaceId, workspace.workspace.id)))

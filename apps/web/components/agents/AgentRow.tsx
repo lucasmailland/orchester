@@ -7,6 +7,8 @@ import { Bot, Pencil, Trash2 } from "lucide-react";
 import { APPLE_EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { AgentFormModal } from "./AgentFormModal";
+import { toast } from "sonner";
+import { confirm } from "@/components/ui/ConfirmDialog";
 
 interface AgentRowProps {
   id: string;
@@ -60,9 +62,20 @@ export function AgentRow({ id, name, role, model, status, teamId, teamName, syst
   const [editOpen, setEditOpen] = useState(false);
 
   async function handleDelete() {
-    if (!confirm("Delete this agent?")) return;
-    await fetch(`/api/agents/${id}`, { method: "DELETE" });
-    router.refresh();
+    const ok = await confirm({
+      title: "Eliminar agente",
+      description: "Esta acción no se puede deshacer.",
+      confirmText: "Eliminar",
+      destructive: true,
+    });
+    if (!ok) return;
+    const r = await fetch(`/api/agents/${id}`, { method: "DELETE" });
+    if (r.ok) {
+      toast.success("Agente eliminado");
+      router.refresh();
+    } else {
+      toast.error("No se pudo eliminar");
+    }
   }
 
   return (

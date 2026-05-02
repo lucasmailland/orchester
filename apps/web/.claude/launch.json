@@ -4,11 +4,9 @@
     {
       "name": "orchester-web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev", "--port", "3010"],
-      "port": 3010,
-      "env": {
-        "DATABASE_URL": "postgresql://orchester:orchester@localhost:5432/orchester"
-      }
+      "runtimeArgs": ["dev"],
+      "cwd": "dev/orchester/apps/web",
+      "port": 3000
     }
   ]
 }

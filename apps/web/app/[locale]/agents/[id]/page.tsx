@@ -32,6 +32,18 @@ export default async function AgentStudioPage({
         temperature: agent.temperature,
         maxTokens: agent.maxTokens,
         teamId: agent.teamId,
+        kind: agent.kind,
+        flowId: agent.flowId,
+        tools: agent.tools,
+        variables: agent.variables,
+        greeting: agent.greeting,
+        fallback: agent.fallback,
+        starters: agent.starters,
+        avatarUrl: agent.avatarUrl,
+        color: agent.color,
+        maxTurns: agent.maxTurns,
+        responseFormat: agent.responseFormat,
+        outputSchema: agent.outputSchema,
       }}
     />
   );

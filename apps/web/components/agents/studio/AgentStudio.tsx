@@ -2,13 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Workflow as WorkflowIcon } from "lucide-react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { toast } from "sonner";
 import { PromptEditor } from "./PromptEditor";
 import { ModelPicker } from "./ModelPicker";
 import { TestChat } from "./TestChat";
 import { VersionHistory } from "./VersionHistory";
 import { PromptGeneratorModal } from "./PromptGeneratorModal";
 import { TemplatePickerModal } from "./TemplatePickerModal";
+import { AgentConfigPanel, type AgentConfigState } from "./AgentConfigPanel";
 
 interface AgentDTO {
   id: string;
@@ -20,10 +24,26 @@ interface AgentDTO {
   temperature: string | number | null;
   maxTokens: number | null;
   teamId: string | null;
+  kind: "conversational" | "flow";
+  flowId: string | null;
+  tools: string[] | null;
+  variables: Record<string, string> | null;
+  greeting: string | null;
+  fallback: string | null;
+  starters: string[] | null;
+  avatarUrl: string | null;
+  color: string | null;
+  maxTurns: number | null;
+  responseFormat: "text" | "json" | "markdown";
+  outputSchema: Record<string, unknown> | null;
 }
+
+type Tab = "config" | "advanced" | "versions";
 
 export function AgentStudio({ agent }: { agent: AgentDTO }) {
   const router = useRouter();
+  const params = useParams<{ locale: string }>();
+  const locale = params?.locale ?? "es";
   const [name, setName] = useState(agent.name);
   const [role, setRole] = useState(agent.role);
   const [systemPrompt, setSystemPrompt] = useState(agent.systemPrompt);
@@ -32,25 +52,75 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
     agent.temperature ? Number(agent.temperature) : 0.7
   );
   const [maxTokens, setMaxTokens] = useState<number | undefined>(agent.maxTokens ?? undefined);
-  const [tab, setTab] = useState<"config" | "versions">("config");
+  const [config, setConfig] = useState<AgentConfigState>({
+    kind: agent.kind,
+    flowId: agent.flowId,
+    variables: agent.variables ?? {},
+    tools: agent.tools ?? [],
+    greeting: agent.greeting ?? "",
+    fallback: agent.fallback ?? "",
+    starters: agent.starters ?? [],
+    avatarUrl: agent.avatarUrl ?? "",
+    color: agent.color ?? "#8b5cf6",
+    maxTurns: agent.maxTurns ?? 20,
+    responseFormat: agent.responseFormat,
+    outputSchema: agent.outputSchema ? JSON.stringify(agent.outputSchema, null, 2) : "",
+  });
+  const [tab, setTab] = useState<Tab>("config");
   const [genOpen, setGenOpen] = useState(false);
   const [tplOpen, setTplOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [savedAt, setSavedAt] = useState<Date | null>(null);
+
+  function patchConfig(p: Partial<AgentConfigState>) {
+    setConfig((c) => ({ ...c, ...p }));
+  }
 
   async function save() {
     setSaving(true);
+    let parsedOutputSchema: Record<string, unknown> | null = null;
+    if (config.responseFormat === "json" && config.outputSchema.trim()) {
+      try {
+        parsedOutputSchema = JSON.parse(config.outputSchema);
+      } catch {
+        toast.error("El JSON Schema no es válido");
+        setSaving(false);
+        return;
+      }
+    }
     const r = await fetch(`/api/agents/${agent.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, role, systemPrompt, model, temperature, maxTokens }),
+      body: JSON.stringify({
+        name,
+        role,
+        systemPrompt,
+        model,
+        temperature,
+        maxTokens,
+        kind: config.kind,
+        flowId: config.flowId,
+        tools: config.tools,
+        variables: config.variables,
+        greeting: config.greeting,
+        fallback: config.fallback,
+        starters: config.starters,
+        avatarUrl: config.avatarUrl,
+        color: config.color,
+        maxTurns: config.maxTurns,
+        responseFormat: config.responseFormat,
+        outputSchema: parsedOutputSchema,
+      }),
     });
     setSaving(false);
     if (r.ok) {
-      setSavedAt(new Date());
+      toast.success("Agente guardado");
       router.refresh();
+    } else {
+      toast.error("No se pudo guardar");
     }
   }
+
+  const isFlowKind = config.kind === "flow";
 
   return (
     <>
@@ -64,6 +134,19 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
+            <div
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-white"
+              style={{ background: config.color }}
+            >
+              {config.avatarUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={config.avatarUrl} alt="" className="h-full w-full rounded-lg object-cover" />
+              ) : (
+                <span className="text-[11px] font-bold">
+                  {name.slice(0, 1).toUpperCase()}
+                </span>
+              )}
+            </div>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -75,13 +158,17 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
               onChange={(e) => setRole(e.target.value)}
               className="bg-transparent text-xs text-zinc-400 outline-none focus:underline"
             />
+            <span
+              className={
+                isFlowKind
+                  ? "ml-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-300"
+                  : "ml-2 rounded-md border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-violet-300"
+              }
+            >
+              {isFlowKind ? "flow" : "conversacional"}
+            </span>
           </div>
           <div className="flex items-center gap-3">
-            {savedAt && (
-              <span className="text-[11px] text-zinc-500">
-                Guardado {savedAt.toLocaleTimeString()}
-              </span>
-            )}
             <button
               type="button"
               onClick={save}
@@ -97,7 +184,7 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
         <div className="flex flex-1 overflow-hidden">
           <div className="flex w-[60%] flex-col gap-3 overflow-y-auto border-r border-white/[0.06] p-4">
             <div className="flex gap-1.5">
-              {(["config", "versions"] as const).map((t) => (
+              {(["config", "advanced", "versions"] as const).map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -108,59 +195,90 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
                       : "rounded-lg px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-300"
                   }
                 >
-                  {t === "config" ? "Configuración" : "Versiones"}
+                  {t === "config" ? "Prompt + Modelo" : t === "advanced" ? "Avanzado" : "Versiones"}
                 </button>
               ))}
             </div>
 
-            {tab === "config" ? (
+            {tab === "config" && (
               <>
-                <div className="flex-1 min-h-[300px]">
-                  <PromptEditor
-                    value={systemPrompt}
-                    onChange={setSystemPrompt}
-                    onGenerate={() => setGenOpen(true)}
-                    onTemplates={() => setTplOpen(true)}
-                  />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div>
-                    <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-zinc-500">
-                      Modelo
-                    </label>
-                    <ModelPicker value={model} onChange={setModel} />
+                {isFlowKind ? (
+                  <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5 text-sm">
+                    <div className="mb-2 flex items-center gap-2 text-amber-300">
+                      <WorkflowIcon className="h-4 w-4" />
+                      <span className="font-medium">Agente driven by flow</span>
+                    </div>
+                    <p className="text-xs text-zinc-400">
+                      Este agente no usa prompt. Cada mensaje ejecuta el flujo seleccionado en la
+                      pestaña <strong>Avanzado</strong>.
+                    </p>
+                    {config.flowId ? (
+                      <Link
+                        href={`/${locale}/flows/${config.flowId}`}
+                        className="mt-3 inline-block rounded-lg border border-amber-500/30 px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-500/10"
+                      >
+                        Editar el flujo →
+                      </Link>
+                    ) : (
+                      <p className="mt-3 text-xs text-amber-300">
+                        ⚠ Ningún flujo seleccionado. Andá a <strong>Avanzado</strong> y elegí uno.
+                      </p>
+                    )}
                   </div>
-                  <div>
-                    <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-zinc-500">
-                      Temperature: {temperature.toFixed(2)}
-                    </label>
-                    <input
-                      type="range"
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      value={temperature}
-                      onChange={(e) => setTemperature(Number(e.target.value))}
-                      className="w-full accent-violet-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-zinc-500">
-                      Max tokens
-                    </label>
-                    <input
-                      type="number"
-                      value={maxTokens ?? ""}
-                      onChange={(e) =>
-                        setMaxTokens(e.target.value ? Number(e.target.value) : undefined)
-                      }
-                      placeholder="default"
-                      className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2.5 py-2 text-sm text-zinc-100 outline-none focus:border-violet-500/60"
-                    />
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="flex-1 min-h-[300px]">
+                      <PromptEditor
+                        value={systemPrompt}
+                        onChange={setSystemPrompt}
+                        onGenerate={() => setGenOpen(true)}
+                        onTemplates={() => setTplOpen(true)}
+                      />
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div>
+                        <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-zinc-500">
+                          Modelo
+                        </label>
+                        <ModelPicker value={model} onChange={setModel} />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-zinc-500">
+                          Temperature: {temperature.toFixed(2)}
+                        </label>
+                        <input
+                          type="range"
+                          min={0}
+                          max={1}
+                          step={0.05}
+                          value={temperature}
+                          onChange={(e) => setTemperature(Number(e.target.value))}
+                          className="w-full accent-violet-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-zinc-500">
+                          Max tokens
+                        </label>
+                        <input
+                          type="number"
+                          value={maxTokens ?? ""}
+                          onChange={(e) =>
+                            setMaxTokens(e.target.value ? Number(e.target.value) : undefined)
+                          }
+                          placeholder="default"
+                          className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2.5 py-2 text-sm text-zinc-100 outline-none focus:border-violet-500/60"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
               </>
-            ) : (
+            )}
+
+            {tab === "advanced" && <AgentConfigPanel value={config} onChange={patchConfig} />}
+
+            {tab === "versions" && (
               <VersionHistory
                 agentId={agent.id}
                 current={{ systemPrompt, model, temperature, maxTokens }}
@@ -176,6 +294,8 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
               model={model}
               temperature={temperature}
               maxTokens={maxTokens}
+              variables={config.variables}
+              tools={config.tools}
             />
           </div>
         </div>

@@ -2,6 +2,8 @@ import { pgTable, text, timestamp, pgEnum, integer, boolean, jsonb, numeric } fr
 import { workspaces } from "./workspaces";
 
 export const agentStatusEnum = pgEnum("agent_status", ["active", "inactive", "draft"]);
+export const agentKindEnum = pgEnum("agent_kind", ["conversational", "flow"]);
+export const agentResponseFormatEnum = pgEnum("agent_response_format", ["text", "json", "markdown"]);
 export const channelTypeEnum = pgEnum("channel_type", ["web", "whatsapp", "telegram"]);
 export const channelStatusEnum = pgEnum("channel_status", ["active", "inactive"]);
 export const conversationStatusEnum = pgEnum("conversation_status", ["open", "closed", "escalated"]);
@@ -30,6 +32,18 @@ export const agents = pgTable("agent", {
   systemPrompt: text("system_prompt").notNull(),
   model: text("model").notNull().default("claude-sonnet-4-6"),
   status: agentStatusEnum("status").notNull().default("draft"),
+  kind: agentKindEnum("kind").notNull().default("conversational"),
+  flowId: text("flow_id"),
+  tools: jsonb("tools").$type<string[]>().default([]),
+  variables: jsonb("variables").$type<Record<string, string>>().default({}),
+  greeting: text("greeting"),
+  fallback: text("fallback"),
+  starters: jsonb("starters").$type<string[]>().default([]),
+  avatarUrl: text("avatar_url"),
+  color: text("color").default("#8b5cf6"),
+  maxTurns: integer("max_turns").default(20),
+  responseFormat: agentResponseFormatEnum("response_format").notNull().default("text"),
+  outputSchema: jsonb("output_schema").$type<Record<string, unknown>>(),
   config: jsonb("config").$type<Record<string, unknown>>().default({}),
   temperature: numeric("temperature", { precision: 3, scale: 2 }).default("0.70"),
   maxTokens: integer("max_tokens"),
