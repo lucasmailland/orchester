@@ -31,10 +31,17 @@ const nodeTypes = {
   trigger: TriggerNode,
   agent: AgentNode,
   condition: ConditionNode,
+  switch: ConditionNode,
   http: HttpNode,
   transform: AgentNode,
   delay: AgentNode,
   notify: AgentNode,
+  code: AgentNode,
+  loop_for_each: ConditionNode,
+  parallel: AgentNode,
+  try_catch: ConditionNode,
+  subflow: AgentNode,
+  wait_human: AgentNode,
 };
 
 interface FlowDTO {
@@ -250,10 +257,17 @@ function defaultLabel(type: string): string {
     trigger: "Inicio",
     agent: "Agente",
     condition: "Condición",
+    switch: "Switch",
     http: "HTTP",
     transform: "Transformar",
     delay: "Esperar",
     notify: "Notificar",
+    code: "Código",
+    loop_for_each: "Loop foreach",
+    parallel: "Paralelo",
+    try_catch: "Try / Catch",
+    subflow: "Subflujo",
+    wait_human: "Esperar aprobación",
   };
   return map[type] ?? type;
 }
@@ -266,28 +280,59 @@ function subtitleFor(n: { type: string; config: Record<string, unknown> }): stri
 }
 
 function Sidebar({ onAdd }: { onAdd: (type: string) => void }) {
-  const types = [
-    { id: "agent", label: "Agente", emoji: "🤖" },
-    { id: "condition", label: "Condición", emoji: "🔀" },
-    { id: "http", label: "HTTP", emoji: "🌐" },
-    { id: "transform", label: "Transformar", emoji: "🔧" },
-    { id: "delay", label: "Esperar", emoji: "⏱" },
-    { id: "notify", label: "Notificar", emoji: "📨" },
+  const groups: Array<{ heading: string; items: { id: string; label: string; emoji: string }[] }> = [
+    {
+      heading: "AI",
+      items: [
+        { id: "agent", label: "Agente", emoji: "🤖" },
+        { id: "subflow", label: "Subflujo", emoji: "🧩" },
+      ],
+    },
+    {
+      heading: "Lógica",
+      items: [
+        { id: "condition", label: "Condición", emoji: "🔀" },
+        { id: "switch", label: "Switch", emoji: "🎚" },
+        { id: "loop_for_each", label: "Loop", emoji: "🔁" },
+        { id: "parallel", label: "Paralelo", emoji: "🪢" },
+        { id: "try_catch", label: "Try/Catch", emoji: "🛟" },
+        { id: "code", label: "Código", emoji: "💻" },
+      ],
+    },
+    {
+      heading: "Datos",
+      items: [
+        { id: "http", label: "HTTP", emoji: "🌐" },
+        { id: "transform", label: "Transformar", emoji: "🔧" },
+      ],
+    },
+    {
+      heading: "Acciones",
+      items: [
+        { id: "delay", label: "Esperar", emoji: "⏱" },
+        { id: "wait_human", label: "Aprobación", emoji: "🙋" },
+        { id: "notify", label: "Notificar", emoji: "📨" },
+      ],
+    },
   ];
   return (
-    <div className="w-44 border-r border-white/[0.06] bg-zinc-950 p-3">
-      <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-        Nodos
-      </div>
-      {types.map((t) => (
-        <button
-          key={t.id}
-          type="button"
-          onClick={() => onAdd(t.id)}
-          className="mb-1 flex w-full items-center gap-2 rounded-lg border border-white/[0.06] bg-zinc-900/40 px-2.5 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800/60"
-        >
-          <span>{t.emoji}</span> {t.label}
-        </button>
+    <div className="w-48 overflow-y-auto border-r border-white/[0.06] bg-zinc-950 p-3">
+      {groups.map((g) => (
+        <div key={g.heading} className="mb-3">
+          <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+            {g.heading}
+          </div>
+          {g.items.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => onAdd(t.id)}
+              className="mb-1 flex w-full items-center gap-2 rounded-lg border border-white/[0.06] bg-zinc-900/40 px-2.5 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800/60"
+            >
+              <span>{t.emoji}</span> {t.label}
+            </button>
+          ))}
+        </div>
       ))}
     </div>
   );
@@ -436,7 +481,7 @@ function Inspector({
             onChange={(e) => update({ config: { method: e.target.value } })}
             className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
           >
-            {["GET", "POST", "PUT", "DELETE"].map((m) => (
+            {["GET", "POST", "PUT", "PATCH", "DELETE"].map((m) => (
               <option key={m}>{m}</option>
             ))}
           </select>
@@ -447,12 +492,133 @@ function Inspector({
             placeholder="https://api.example.com/{{id}}"
             className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
           />
+          <label className="block text-zinc-500">Auth</label>
+          <select
+            value={((config.auth as { kind?: string })?.kind) ?? "none"}
+            onChange={(e) => {
+              const kind = e.target.value;
+              update({
+                config: {
+                  auth: kind === "none" ? undefined : { ...((config.auth as object) ?? {}), kind },
+                },
+              });
+            }}
+            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+          >
+            <option value="none">Sin auth</option>
+            <option value="bearer">Bearer token</option>
+            <option value="basic">Basic auth</option>
+            <option value="api_key">API key (header)</option>
+          </select>
+          {((config.auth as { kind?: string })?.kind) === "bearer" && (
+            <input
+              value={((config.auth as { token?: string })?.token) ?? ""}
+              onChange={(e) =>
+                update({ config: { auth: { ...((config.auth as object) ?? {}), token: e.target.value } } })
+              }
+              placeholder="Token o {{var}}"
+              className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+            />
+          )}
+          {((config.auth as { kind?: string })?.kind) === "basic" && (
+            <>
+              <input
+                value={((config.auth as { user?: string })?.user) ?? ""}
+                onChange={(e) =>
+                  update({ config: { auth: { ...((config.auth as object) ?? {}), user: e.target.value } } })
+                }
+                placeholder="user"
+                className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+              />
+              <input
+                value={((config.auth as { pass?: string })?.pass) ?? ""}
+                onChange={(e) =>
+                  update({ config: { auth: { ...((config.auth as object) ?? {}), pass: e.target.value } } })
+                }
+                placeholder="pass o {{var}}"
+                className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+              />
+            </>
+          )}
+          {((config.auth as { kind?: string })?.kind) === "api_key" && (
+            <>
+              <input
+                value={((config.auth as { header?: string })?.header) ?? "X-API-Key"}
+                onChange={(e) =>
+                  update({ config: { auth: { ...((config.auth as object) ?? {}), header: e.target.value } } })
+                }
+                placeholder="X-API-Key"
+                className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+              />
+              <input
+                value={((config.auth as { key?: string })?.key) ?? ""}
+                onChange={(e) =>
+                  update({ config: { auth: { ...((config.auth as object) ?? {}), key: e.target.value } } })
+                }
+                placeholder="API key o {{var}}"
+                className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+              />
+            </>
+          )}
+          <label className="block text-zinc-500">Body (JSON, opcional)</label>
+          <textarea
+            value={(config.body as string) ?? ""}
+            onChange={(e) => update({ config: { body: e.target.value } })}
+            rows={3}
+            placeholder='{ "key": "{{var}}" }'
+            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none focus:border-violet-500/60"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-zinc-500">Reintentos</label>
+              <input
+                type="number"
+                min={1}
+                max={5}
+                value={(config.maxAttempts as number) ?? 1}
+                onChange={(e) => update({ config: { maxAttempts: Number(e.target.value) } })}
+                className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-zinc-500">Timeout (ms)</label>
+              <input
+                type="number"
+                min={1000}
+                max={60000}
+                step={1000}
+                value={(config.timeoutMs as number) ?? 30000}
+                onChange={(e) => update({ config: { timeoutMs: Number(e.target.value) } })}
+                className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+              />
+            </div>
+          </div>
           <label className="block text-zinc-500">Output var</label>
           <input
             value={(config.outputVar as string) ?? ""}
             onChange={(e) => update({ config: { outputVar: e.target.value } })}
             placeholder="httpResult"
             className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+          />
+        </>
+      )}
+
+      {node.type === "transform" && (
+        <>
+          <label className="block text-zinc-500">Variable destino</label>
+          <input
+            value={(config.target as string) ?? ""}
+            onChange={(e) => update({ config: { target: e.target.value } })}
+            placeholder="result"
+            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+          />
+          <label className="block text-zinc-500">Valor (template)</label>
+          <textarea
+            value={(config.value as string) ?? ""}
+            onChange={(e) => update({ config: { value: e.target.value } })}
+            placeholder="Hola {{nombre}}"
+            rows={2}
+            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none focus:border-violet-500/60"
           />
         </>
       )}
@@ -468,6 +634,161 @@ function Inspector({
           />
         </>
       )}
+
+      {node.type === "code" && (
+        <>
+          <label className="block text-zinc-500">Source (DSL)</label>
+          <textarea
+            value={(config.source as string) ?? ""}
+            onChange={(e) => update({ config: { source: e.target.value } })}
+            rows={6}
+            placeholder={`set total = {{score}}\nset greeting = "hola {{nombre}}"`}
+            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none focus:border-violet-500/60"
+          />
+          <p className="text-[10px] text-zinc-600">
+            Sintaxis: <code>set var = expr</code> con interpolación <code>{`{{var}}`}</code>. Una línea por sentencia.
+          </p>
+        </>
+      )}
+
+      {node.type === "loop_for_each" && (
+        <>
+          <label className="block text-zinc-500">Variable array</label>
+          <input
+            value={(config.arrayVar as string) ?? ""}
+            onChange={(e) => update({ config: { arrayVar: e.target.value } })}
+            placeholder="items"
+            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+          />
+          <label className="block text-zinc-500">Variable item</label>
+          <input
+            value={(config.itemVar as string) ?? "item"}
+            onChange={(e) => update({ config: { itemVar: e.target.value } })}
+            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+          />
+          <p className="text-[10px] text-zinc-600">
+            Conectá el handle <code>body</code> al primer nodo del loop.
+          </p>
+        </>
+      )}
+
+      {node.type === "parallel" && (
+        <p className="text-[11px] text-zinc-500">
+          Conectá múltiples nodos como hijos. Se ejecutan en paralelo y el flujo continúa cuando todos terminan.
+        </p>
+      )}
+
+      {node.type === "try_catch" && (
+        <>
+          <label className="block text-zinc-500">Variable error</label>
+          <input
+            value={(config.errorVar as string) ?? "error"}
+            onChange={(e) => update({ config: { errorVar: e.target.value } })}
+            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+          />
+          <p className="text-[10px] text-zinc-600">
+            Usá los handles <code>try</code> y <code>catch</code> para conectar las dos ramas.
+          </p>
+        </>
+      )}
+
+      {node.type === "switch" && (
+        <>
+          <label className="block text-zinc-500">Expresión</label>
+          <input
+            value={(config.expression as string) ?? ""}
+            onChange={(e) => update({ config: { expression: e.target.value } })}
+            placeholder="{{tipo}}"
+            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+          />
+          <p className="text-[10px] text-zinc-600">
+            Cada edge saliente debe tener un <code>sourceHandle</code> con el valor a matchear, o <code>default</code>.
+          </p>
+        </>
+      )}
+
+      {node.type === "subflow" && (
+        <SubflowPicker
+          currentFlowId={(config.flowId as string) ?? ""}
+          onChange={(id) => update({ config: { flowId: id } })}
+        />
+      )}
+
+      {node.type === "wait_human" && (
+        <>
+          <label className="block text-zinc-500">Mensaje</label>
+          <input
+            value={(config.message as string) ?? ""}
+            onChange={(e) => update({ config: { message: e.target.value } })}
+            placeholder="Aprobar pedido {{id}}"
+            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+          />
+          <label className="block text-zinc-500">Asignado a (email)</label>
+          <input
+            value={(config.assignee as string) ?? ""}
+            onChange={(e) => update({ config: { assignee: e.target.value } })}
+            placeholder="manager@company.com"
+            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+          />
+        </>
+      )}
+
+      {node.type === "notify" && (
+        <>
+          <label className="block text-zinc-500">Canal</label>
+          <select
+            value={(config.channel as string) ?? "log"}
+            onChange={(e) => update({ config: { channel: e.target.value } })}
+            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+          >
+            <option value="log">Log (consola)</option>
+            <option value="email">Email</option>
+            <option value="slack">Slack</option>
+            <option value="webhook">Webhook</option>
+          </select>
+          <label className="block text-zinc-500">Mensaje</label>
+          <textarea
+            value={(config.message as string) ?? ""}
+            onChange={(e) => update({ config: { message: e.target.value } })}
+            rows={2}
+            placeholder="Lead nuevo: {{nombre}}"
+            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none focus:border-violet-500/60"
+          />
+        </>
+      )}
     </div>
+  );
+}
+
+function SubflowPicker({
+  currentFlowId,
+  onChange,
+}: {
+  currentFlowId: string;
+  onChange: (id: string) => void;
+}) {
+  const [flows, setFlows] = useState<Array<{ id: string; name: string }>>([]);
+  useEffect(() => {
+    fetch("/api/flows")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setFlows(Array.isArray(d) ? d : []))
+      .catch(() => setFlows([]));
+  }, []);
+  return (
+    <>
+      <label className="block text-zinc-500">Flujo a invocar</label>
+      <select
+        value={currentFlowId}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+      >
+        <option value="">— elegir —</option>
+        {flows.map((f) => (
+          <option key={f.id} value={f.id}>
+            {f.name}
+          </option>
+        ))}
+      </select>
+    </>
   );
 }

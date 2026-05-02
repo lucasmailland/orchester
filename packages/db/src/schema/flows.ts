@@ -27,10 +27,17 @@ export const flowNodeTypeEnum = pgEnum("flow_node_type", [
   "trigger",
   "agent",
   "condition",
+  "switch",
   "http",
   "transform",
   "delay",
   "notify",
+  "code",
+  "loop_for_each",
+  "parallel",
+  "try_catch",
+  "subflow",
+  "wait_human",
   "end",
 ]);
 
@@ -39,9 +46,16 @@ export interface FlowNodeData {
     | "trigger"
     | "agent"
     | "condition"
+    | "switch"
     | "http"
     | "transform"
     | "delay"
+    | "code"
+    | "loop_for_each"
+    | "parallel"
+    | "try_catch"
+    | "subflow"
+    | "wait_human"
     | "notify"
     | "end";
   label: string;
@@ -108,9 +122,74 @@ export const flowRunSteps = pgTable("flow_run_step", {
   completedAt: timestamp("completed_at"),
 });
 
+export const flowVersions = pgTable("flow_version", {
+  id: text("id").primaryKey(),
+  flowId: text("flow_id")
+    .notNull()
+    .references(() => flows.id, { onDelete: "cascade" }),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  label: text("label"),
+  nodes: jsonb("nodes").$type<Array<{ id: string } & FlowNodeData>>().default([]),
+  edges: jsonb("edges").$type<Array<{ id: string } & FlowEdgeData>>().default([]),
+  variables: jsonb("variables").$type<Record<string, unknown>>().default({}),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const flowWebhooks = pgTable("flow_webhook", {
+  id: text("id").primaryKey(),
+  flowId: text("flow_id")
+    .notNull()
+    .references(() => flows.id, { onDelete: "cascade" }),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  secret: text("secret").notNull(), // path component used in /api/webhooks/{secret}
+  hmacKey: text("hmac_key"), // optional HMAC signing key
+  enabled: boolean("enabled").notNull().default(true),
+  lastTriggeredAt: timestamp("last_triggered_at"),
+  triggerCount: integer("trigger_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const flowSchedules = pgTable("flow_schedule", {
+  id: text("id").primaryKey(),
+  flowId: text("flow_id")
+    .notNull()
+    .references(() => flows.id, { onDelete: "cascade" }),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  cron: text("cron").notNull(), // e.g. "*/5 * * * *"
+  timezone: text("timezone").notNull().default("UTC"),
+  enabled: boolean("enabled").notNull().default(true),
+  nextRunAt: timestamp("next_run_at"),
+  lastRunAt: timestamp("last_run_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const flowTemplates = pgTable("flow_template", {
+  id: text("id").primaryKey(),
+  category: text("category").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  nodes: jsonb("nodes").$type<Array<{ id: string } & FlowNodeData>>().default([]),
+  edges: jsonb("edges").$type<Array<{ id: string } & FlowEdgeData>>().default([]),
+  variables: jsonb("variables").$type<Record<string, unknown>>().default({}),
+  workspaceId: text("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
+  isPublic: boolean("is_public").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export type Flow = typeof flows.$inferSelect;
 export type NewFlow = typeof flows.$inferInsert;
 export type FlowRun = typeof flowRuns.$inferSelect;
 export type NewFlowRun = typeof flowRuns.$inferInsert;
 export type FlowRunStep = typeof flowRunSteps.$inferSelect;
+export type FlowVersion = typeof flowVersions.$inferSelect;
+export type FlowWebhook = typeof flowWebhooks.$inferSelect;
+export type FlowSchedule = typeof flowSchedules.$inferSelect;
+export type FlowTemplate = typeof flowTemplates.$inferSelect;
 export type NewFlowRunStep = typeof flowRunSteps.$inferInsert;
