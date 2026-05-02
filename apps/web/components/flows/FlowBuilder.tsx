@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -23,7 +23,7 @@ import { ConditionNode } from "./nodes/ConditionNode";
 import { HttpNode } from "./nodes/HttpNode";
 import { TriggerNode } from "./nodes/TriggerNode";
 import { FlowRunsPanel } from "./FlowRunsPanel";
-import { Save, Play, Loader2, History, ArrowLeft } from "lucide-react";
+import { Save, Play, Loader2, History, ArrowLeft, Variable, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -61,6 +61,7 @@ interface FlowDTO {
     sourceHandle?: string;
     label?: string;
   }>;
+  variables?: Record<string, unknown>;
 }
 
 export function FlowBuilder({ flow }: { flow: FlowDTO }) {
@@ -82,10 +83,16 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     })
   );
   const [selected, setSelected] = useState<Node | null>(null);
+  const [variables, setVariables] = useState<Record<string, unknown>>(flow.variables ?? {});
+  const [varsOpen, setVarsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipNextAutoSaveRef = useRef(true); // skip on first render
+  const dirtyRef = useRef(false);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -113,10 +120,8 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     ]);
   }
 
-  async function save() {
-    setSaving(true);
-    setFeedback(null);
-    const payload = {
+  const buildPayload = useCallback(
+    () => ({
       nodes: nodes.map((n) => ({
         id: n.id,
         type: n.type,
@@ -130,16 +135,48 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
         if (typeof e.label === "string") out.label = e.label;
         return out;
       }),
-    };
+      variables,
+    }),
+    [nodes, edges, variables]
+  );
+
+  async function save({ silent }: { silent?: boolean } = {}) {
+    if (!silent) setSaving(true);
+    if (silent) setAutoSaveStatus("saving");
+    setFeedback(null);
     const r = await fetch(`/api/flows/${flow.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(buildPayload()),
     });
-    setSaving(false);
-    if (r.ok) toast.success("Flujo guardado");
-    else toast.error("No se pudo guardar el flujo");
+    if (!silent) setSaving(false);
+    if (r.ok) {
+      dirtyRef.current = false;
+      if (silent) setAutoSaveStatus("saved");
+      else toast.success("Flujo guardado");
+    } else {
+      if (silent) setAutoSaveStatus("error");
+      else toast.error("No se pudo guardar el flujo");
+    }
   }
+
+  // Auto-save with 2s debounce after any change
+  useEffect(() => {
+    if (skipNextAutoSaveRef.current) {
+      skipNextAutoSaveRef.current = false;
+      return;
+    }
+    dirtyRef.current = true;
+    setAutoSaveStatus("idle");
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      save({ silent: true });
+    }, 2000);
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, edges, variables]);
 
   async function run() {
     setRunning(true);
@@ -173,6 +210,31 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
           </div>
           <div className="flex items-center gap-2">
             {feedback && <span className="text-[11px] text-zinc-400">{feedback}</span>}
+            {autoSaveStatus !== "idle" && (
+              <span
+                className={
+                  autoSaveStatus === "saving"
+                    ? "text-[11px] text-zinc-500"
+                    : autoSaveStatus === "error"
+                    ? "text-[11px] text-red-400"
+                    : "text-[11px] text-emerald-400"
+                }
+              >
+                {autoSaveStatus === "saving"
+                  ? "Guardando…"
+                  : autoSaveStatus === "error"
+                  ? "Error al guardar"
+                  : "Auto-guardado"}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setVarsOpen((o) => !o)}
+              className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-zinc-300 hover:bg-white/5"
+              title="Variables del flujo"
+            >
+              <Variable className="h-3.5 w-3.5" />
+            </button>
             <button
               type="button"
               onClick={() => setRunsOpen((o) => !o)}
@@ -183,7 +245,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             </button>
             <button
               type="button"
-              onClick={save}
+              onClick={() => save()}
               disabled={saving}
               className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs hover:bg-white/5 disabled:opacity-40"
             >
@@ -211,6 +273,13 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
         </div>
         <div className="relative flex flex-1 overflow-hidden">
           <Sidebar onAdd={addNode} />
+          {varsOpen && (
+            <VariablesPanel
+              variables={variables}
+              onChange={setVariables}
+              onClose={() => setVarsOpen(false)}
+            />
+          )}
           <div className="flex-1">
             <ReactFlow
               nodes={nodes}
@@ -790,5 +859,99 @@ function SubflowPicker({
         ))}
       </select>
     </>
+  );
+}
+
+function VariablesPanel({
+  variables,
+  onChange,
+  onClose,
+}: {
+  variables: Record<string, unknown>;
+  onChange: (v: Record<string, unknown>) => void;
+  onClose: () => void;
+}) {
+  const [pending, setPending] = useState<{ key: string; value: string }[]>(() =>
+    Object.entries(variables).map(([k, v]) => ({
+      key: k,
+      value: typeof v === "string" ? v : JSON.stringify(v),
+    }))
+  );
+
+  function commit(rows: { key: string; value: string }[]) {
+    const out: Record<string, unknown> = {};
+    for (const { key, value } of rows) {
+      if (!key.trim()) continue;
+      // Try parsing as JSON for numbers/bools/objects, fallback to raw string
+      let parsed: unknown = value;
+      try {
+        parsed = JSON.parse(value);
+      } catch {}
+      out[key.trim()] = parsed;
+    }
+    onChange(out);
+  }
+
+  return (
+    <div className="absolute left-48 top-0 z-30 flex h-full w-[340px] flex-col border-r border-white/[0.06] bg-zinc-950">
+      <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
+        <span className="flex items-center gap-2 text-sm text-zinc-200">
+          <Variable className="h-4 w-4" /> Variables
+        </span>
+        <button onClick={onClose} type="button" className="text-zinc-500 hover:text-zinc-200">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="flex-1 space-y-2 overflow-y-auto p-3 text-xs">
+        <p className="mb-1 text-[11px] text-zinc-500">
+          Variables iniciales del flujo (también se usan como defaults para los runs).
+        </p>
+        {pending.map((row, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <input
+              value={row.key}
+              onChange={(e) => {
+                const next = pending.slice();
+                next[i] = { ...row, key: e.target.value };
+                setPending(next);
+              }}
+              onBlur={() => commit(pending)}
+              placeholder="nombre"
+              className="w-1/3 rounded-md border border-white/[0.08] bg-zinc-800/40 px-2 py-1 font-mono text-zinc-100 outline-none focus:border-violet-500/60"
+            />
+            <input
+              value={row.value}
+              onChange={(e) => {
+                const next = pending.slice();
+                next[i] = { ...row, value: e.target.value };
+                setPending(next);
+              }}
+              onBlur={() => commit(pending)}
+              placeholder='"valor" o 42 o {…}'
+              className="flex-1 rounded-md border border-white/[0.08] bg-zinc-800/40 px-2 py-1 font-mono text-zinc-100 outline-none focus:border-violet-500/60"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const next = pending.filter((_, j) => j !== i);
+                setPending(next);
+                commit(next);
+              }}
+              className="text-zinc-500 hover:text-red-400"
+              aria-label="Eliminar"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => setPending([...pending, { key: "", value: "" }])}
+          className="mt-1 w-full rounded-md border border-dashed border-white/10 py-1.5 text-[11px] text-zinc-500 hover:border-violet-500/40 hover:text-violet-300"
+        >
+          + agregar variable
+        </button>
+      </div>
+    </div>
   );
 }
