@@ -1,14 +1,20 @@
 import "server-only";
+import { cache } from "react";
 import { auth } from "./auth";
 import { headers } from "next/headers";
 import { getDb, schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
 
-export async function getCurrentSession() {
+/**
+ * `cache()` deduplicates calls within a single React request — if 5 server
+ * components call getCurrentSession(), there's still only ONE auth lookup.
+ * Big win because the shell layout + 3-4 loaders all hit this.
+ */
+export const getCurrentSession = cache(async () => {
   return auth.api.getSession({ headers: await headers() });
-}
+});
 
-export async function getCurrentWorkspace() {
+export const getCurrentWorkspace = cache(async () => {
   const session = await getCurrentSession();
   if (!session) return null;
 
@@ -21,7 +27,7 @@ export async function getCurrentWorkspace() {
     .limit(1);
 
   return result[0] ?? null;
-}
+});
 
 export async function requireSession(redirectTo = "/en/login") {
   const session = await getCurrentSession();
