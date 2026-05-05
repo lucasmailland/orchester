@@ -35,6 +35,9 @@ export interface RunAgentParams {
     variables?: Record<string, string>;
     tools?: string[];
   };
+  /** Optional context — enables memory_* tools to scope per-conversation/employee. */
+  conversationId?: string;
+  employeeId?: string;
 }
 
 export interface RunAgentResult {
@@ -141,6 +144,9 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
         const out = await executeTool(tc.name, tc.input as Record<string, unknown>, {
           workspaceId: p.workspaceId,
           variables,
+          agentId: p.agent.id,
+          ...(p.conversationId ? { conversationId: p.conversationId } : {}),
+          ...(p.employeeId ? { employeeId: p.employeeId } : {}),
         });
         toolCalls.push({ name: tc.name, input: tc.input, output: out });
         toolResults.push({ id: tc.id, name: tc.name, input: tc.input, output: out });

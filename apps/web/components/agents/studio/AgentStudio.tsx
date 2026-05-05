@@ -13,6 +13,7 @@ import { VersionHistory } from "./VersionHistory";
 import { PromptGeneratorModal } from "./PromptGeneratorModal";
 import { TemplatePickerModal } from "./TemplatePickerModal";
 import { AgentConfigPanel, type AgentConfigState } from "./AgentConfigPanel";
+import { MemoryPanel } from "./MemoryPanel";
 
 interface AgentDTO {
   id: string;
@@ -276,7 +277,12 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
               </>
             )}
 
-            {tab === "advanced" && <AgentConfigPanel value={config} onChange={patchConfig} />}
+            {tab === "advanced" && (
+              <div className="space-y-4">
+                <AgentConfigPanel value={config} onChange={patchConfig} />
+                <MemoryPanel agentId={agent.id} />
+              </div>
+            )}
 
             {tab === "versions" && (
               <VersionHistory
