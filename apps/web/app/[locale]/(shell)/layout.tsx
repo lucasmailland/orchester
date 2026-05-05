@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { Topbar } from "@/components/shell/Topbar";
+import { CommandPalette } from "@/components/shell/CommandPalette";
 import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
 
 export default async function ShellLayout({
@@ -40,6 +41,7 @@ export default async function ShellLayout({
           <div className="relative z-10 p-6">{children}</div>
         </main>
       </div>
+      <CommandPalette />
     </div>
   );
 }
