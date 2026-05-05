@@ -1,12 +1,12 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { MessageSquare, Globe, Phone } from "lucide-react";
+import { MessageSquare, Globe, Phone, Hash, Mail, Code } from "lucide-react";
 import { APPLE_EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 type ConvStatus = "open" | "closed" | "escalated";
-type ChannelType = "web" | "whatsapp" | "telegram";
+type ChannelType = "web" | "widget" | "whatsapp" | "telegram" | "slack" | "email" | "api";
 
 interface ConversationRowProps {
   employeeName: string | null;
@@ -36,8 +36,12 @@ const STATUS_TEXT: Record<ConvStatus, string> = {
 
 const CHANNEL_ICONS: Record<ChannelType, React.ReactNode> = {
   web: <Globe size={11} />,
+  widget: <Globe size={11} />,
   whatsapp: <Phone size={11} />,
   telegram: <MessageSquare size={11} />,
+  slack: <Hash size={11} />,
+  email: <Mail size={11} />,
+  api: <Code size={11} />,
 };
 
 function formatTime(date: Date): string {

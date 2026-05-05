@@ -4,7 +4,15 @@ import { workspaces } from "./workspaces";
 export const agentStatusEnum = pgEnum("agent_status", ["active", "inactive", "draft"]);
 export const agentKindEnum = pgEnum("agent_kind", ["conversational", "flow"]);
 export const agentResponseFormatEnum = pgEnum("agent_response_format", ["text", "json", "markdown"]);
-export const channelTypeEnum = pgEnum("channel_type", ["web", "whatsapp", "telegram"]);
+export const channelTypeEnum = pgEnum("channel_type", [
+  "web",
+  "widget",
+  "whatsapp",
+  "telegram",
+  "slack",
+  "email",
+  "api",
+]);
 export const channelStatusEnum = pgEnum("channel_status", ["active", "inactive"]);
 export const conversationStatusEnum = pgEnum("conversation_status", ["open", "closed", "escalated"]);
 export const messageRoleEnum = pgEnum("message_role", ["user", "assistant", "system"]);
@@ -57,9 +65,15 @@ export const channels = pgTable("channel", {
     .notNull()
     .references(() => workspaces.id, { onDelete: "cascade" }),
   teamId: text("team_id").references(() => teams.id, { onDelete: "set null" }),
+  agentId: text("agent_id"),
   name: text("name").notNull(),
   type: channelTypeEnum("type").notNull(),
   status: channelStatusEnum("status").notNull().default("inactive"),
+  /** Public secret used in inbound webhook URLs (e.g. /api/channels/{secret}/webhook) */
+  secret: text("secret"),
+  /** Encrypted credentials for the channel (bot tokens, OAuth refresh, etc.) */
+  credentialsEncrypted: text("credentials_encrypted"),
+  /** Visual config: branding, greeting, position, color, etc. */
   config: jsonb("config").$type<Record<string, unknown>>().default({}),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -94,6 +108,15 @@ export const conversations = pgTable("conversation", {
   summary: text("summary"),
   messageCount: integer("message_count").notNull().default(0),
   durationSeconds: integer("duration_seconds"),
+  /** Phase 5 — Conversations Hub */
+  externalId: text("external_id"), // e.g. telegram chat id, widget visitor id
+  customerEmail: text("customer_email"),
+  customerName: text("customer_name"),
+  tags: jsonb("tags").$type<string[]>().default([]),
+  csat: integer("csat"), // 1-5
+  deflected: boolean("deflected").notNull().default(false),
+  assignedToUserId: text("assigned_to_user_id"),
+  takenOverAt: timestamp("taken_over_at"),
   startedAt: timestamp("started_at").notNull().defaultNow(),
   endedAt: timestamp("ended_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -107,6 +130,21 @@ export const messages = pgTable("message", {
   role: messageRoleEnum("role").notNull(),
   content: text("content").notNull(),
   tokensUsed: integer("tokens_used"),
+  /** Author when role = "system" (operator takeover): user.id */
+  authorUserId: text("author_user_id"),
+  /** When the operator manually replies, vs an agent response */
+  fromOperator: boolean("from_operator").notNull().default(false),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const conversationLabels = pgTable("conversation_label", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  color: text("color").notNull().default("#8b5cf6"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
