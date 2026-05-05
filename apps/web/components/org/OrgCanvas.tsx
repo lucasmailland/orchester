@@ -6,16 +6,19 @@ import {
   Background,
   Controls,
   MiniMap,
+  Handle,
+  Position,
   type Node,
   type Edge,
+  type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Bot, Users, Workflow, User, Search } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { Bot, Workflow, Layers, Building2, Search, Zap, Wrench, Radio } from "lucide-react";
+import { useRouter, useParams } from "next/navigation";
 
 interface OrgNode {
   id: string;
-  type: "team" | "agent" | "employee" | "flow";
+  type: "workspace" | "team" | "agent" | "flow";
   label: string;
   meta?: Record<string, unknown>;
 }
@@ -23,84 +26,295 @@ interface OrgEdge {
   id: string;
   source: string;
   target: string;
-  kind: string;
+  kind: "ws-team" | "team-agent" | "flow-agent" | "agent-agent";
+  animated?: boolean;
+  label?: string;
 }
 
-const TYPE_STYLE: Record<string, { color: string; icon: LucideIcon }> = {
-  team: { color: "#3b82f6", icon: Users },
-  agent: { color: "#8b5cf6", icon: Bot },
-  employee: { color: "#10b981", icon: User },
-  flow: { color: "#f59e0b", icon: Workflow },
+interface Summary {
+  teams: number;
+  agents: number;
+  activeAgents: number;
+  flows: number;
+  liveFlows: number;
+}
+
+const COLORS = {
+  workspace: "#a78bfa",
+  team: "#3b82f6",
+  agent: "#8b5cf6",
+  flow: "#f59e0b",
 };
 
-function layoutNodes(nodes: OrgNode[]): Node[] {
-  const cols: Record<string, number> = { team: 0, employee: 1, agent: 2, flow: 3 };
-  const counts: Record<string, number> = { team: 0, employee: 0, agent: 0, flow: 0 };
-  return nodes.map((n) => {
-    const col = cols[n.type] ?? 4;
-    const row = (counts[n.type] = (counts[n.type] ?? 0) + 1) - 1;
-    return {
-      id: n.id,
-      position: { x: col * 260 + 60, y: row * 90 + 60 },
-      data: { label: n.label, kind: n.type, meta: n.meta },
-      type: "card",
-    };
-  });
-}
+const EDGE_COLORS: Record<string, string> = {
+  "ws-team": "#3b82f6",
+  "team-agent": "#8b5cf6",
+  "flow-agent": "#f59e0b",
+  "agent-agent": "#a78bfa",
+};
 
-function CardNode({
-  data,
-}: {
-  data: { label: string; kind: string; meta?: Record<string, unknown> };
-}) {
-  const style = TYPE_STYLE[data.kind] ?? TYPE_STYLE.agent;
-  if (!style) return null;
-  const Icon = style.icon;
-  const active = (data.meta?.active as boolean) ?? false;
+/* ─────────────────── custom node renderers ─────────────────── */
+
+function WorkspaceNode({ data }: NodeProps) {
+  const d = data as { label: string; meta?: { teamCount?: number; agentCount?: number; flowCount?: number } };
   return (
-    <div
-      className="flex min-w-[200px] items-center gap-2 rounded-xl border border-white/[0.08] bg-zinc-900/95 px-3 py-2.5 shadow"
-      style={{ borderLeftWidth: 3, borderLeftColor: style.color }}
-    >
-      <div
-        className="flex h-7 w-7 items-center justify-center rounded-lg"
-        style={{ background: style.color + "1A", color: style.color }}
-      >
-        <Icon className="h-3.5 w-3.5" />
+    <div className="relative flex min-w-[260px] items-center gap-3 rounded-2xl border border-violet-400/40 bg-gradient-to-br from-violet-500/15 via-zinc-900 to-zinc-900 px-4 py-3 shadow-[0_0_60px_-15px_rgba(139,92,246,0.5)]">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/20 text-violet-200">
+        <Building2 className="h-5 w-5" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-xs font-medium text-zinc-100">{data.label}</div>
-        <div className="text-[10px] uppercase tracking-wider text-zinc-500">
-          {data.kind}
-          {active && <span className="ml-1.5 text-emerald-400">● live</span>}
+        <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-300/80">Workspace</div>
+        <div className="truncate text-base font-semibold text-zinc-50">{d.label}</div>
+        <div className="mt-0.5 text-[10px] text-zinc-500">
+          {d.meta?.teamCount ?? 0} equipos · {d.meta?.agentCount ?? 0} agentes · {d.meta?.flowCount ?? 0} flujos
         </div>
+      </div>
+      <Handle type="source" position={Position.Bottom} style={{ background: COLORS.workspace }} />
+    </div>
+  );
+}
+
+function TeamNode({ data }: NodeProps) {
+  const d = data as {
+    label: string;
+    meta?: { color?: string; agentCount?: number; activeCount?: number; description?: string; orphan?: boolean };
+  };
+  const color = d.meta?.color ?? COLORS.team;
+  return (
+    <div
+      className="relative flex min-w-[200px] items-center gap-2.5 rounded-xl border border-white/[0.1] bg-zinc-900/95 px-3.5 py-2.5 shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
+      style={{ borderTopWidth: 3, borderTopColor: color }}
+    >
+      <Handle type="target" position={Position.Top} style={{ background: color }} />
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: color + "22", color }}>
+        <Layers className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium text-zinc-100">{d.label}</div>
+        <div className="text-[10px] text-zinc-500">
+          {d.meta?.agentCount ?? 0} agentes
+          {(d.meta?.activeCount ?? 0) > 0 && (
+            <span className="ml-1 text-emerald-400">· {d.meta?.activeCount} activos</span>
+          )}
+        </div>
+      </div>
+      <Handle type="source" position={Position.Bottom} style={{ background: color }} />
+    </div>
+  );
+}
+
+function AgentNode({ data }: NodeProps) {
+  const d = data as {
+    label: string;
+    meta?: {
+      role?: string;
+      model?: string;
+      status?: string;
+      kind?: string;
+      color?: string;
+      toolCount?: number;
+      channels?: Array<{ id: string; type: string; name: string }>;
+    };
+  };
+  const color = d.meta?.color ?? COLORS.agent;
+  const status = d.meta?.status ?? "draft";
+  const isFlow = d.meta?.kind === "flow";
+  const channelCount = d.meta?.channels?.length ?? 0;
+  return (
+    <div
+      className="relative min-w-[220px] rounded-xl border border-white/[0.1] bg-zinc-900/95 px-3.5 py-2.5 shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
+      style={{ borderLeftWidth: 3, borderLeftColor: color }}
+    >
+      <Handle type="target" position={Position.Top} style={{ background: color }} />
+      <Handle type="source" position={Position.Right} id="out-right" style={{ background: color }} />
+      <Handle type="target" position={Position.Left} id="in-left" style={{ background: color }} />
+      <div className="flex items-center gap-2.5">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg text-white" style={{ background: color }}>
+          <Bot className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-sm font-medium text-zinc-100">{d.label}</span>
+            <span
+              className={
+                status === "active"
+                  ? "h-1.5 w-1.5 rounded-full bg-emerald-400"
+                  : status === "draft"
+                  ? "h-1.5 w-1.5 rounded-full bg-amber-400"
+                  : "h-1.5 w-1.5 rounded-full bg-zinc-600"
+              }
+              title={status}
+            />
+          </div>
+          <div className="truncate text-[10px] text-zinc-500">{d.meta?.role}</div>
+        </div>
+      </div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-zinc-500">
+        <span className="font-mono">{d.meta?.model}</span>
+        {isFlow && (
+          <span className="rounded bg-amber-500/15 px-1 py-0.5 text-[9px] uppercase tracking-wider text-amber-300">
+            Flow
+          </span>
+        )}
+        {(d.meta?.toolCount ?? 0) > 0 && (
+          <span className="flex items-center gap-0.5 text-zinc-400">
+            <Wrench className="h-2.5 w-2.5" /> {d.meta?.toolCount}
+          </span>
+        )}
+        {channelCount > 0 && (
+          <span className="flex items-center gap-0.5 text-blue-400">
+            <Radio className="h-2.5 w-2.5" /> {channelCount}
+          </span>
+        )}
       </div>
     </div>
   );
 }
 
-const nodeTypes = { card: CardNode };
-
-function edgeColor(kind: string): string {
-  switch (kind) {
-    case "team-agent":
-      return "#3b82f6";
-    case "employee-agent":
-      return "#10b981";
-    case "flow-agent":
-      return "#f59e0b";
-    default:
-      return "#52525b";
-  }
+function FlowNode({ data }: NodeProps) {
+  const d = data as { label: string; meta?: { live?: boolean; agentCount?: number; status?: string } };
+  return (
+    <div className="relative flex min-w-[180px] items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1.5 shadow-[0_8px_24px_rgba(245,158,11,0.15)]">
+      <Handle type="source" position={Position.Bottom} style={{ background: COLORS.flow }} />
+      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/25 text-amber-300">
+        <Workflow className="h-3 w-3" />
+      </div>
+      <span className="truncate text-xs font-medium text-amber-100">{d.label}</span>
+      {d.meta?.live && (
+        <span className="ml-auto flex items-center gap-0.5 text-[9px] uppercase tracking-wider text-emerald-300">
+          <Zap className="h-2.5 w-2.5" /> live
+        </span>
+      )}
+    </div>
+  );
 }
 
+const nodeTypes = {
+  workspace: WorkspaceNode,
+  team: TeamNode,
+  agent: AgentNode,
+  flow: FlowNode,
+};
+
+/* ─────────────────── hierarchical layout ─────────────────── */
+
+const COL_WIDTH_AGENT = 250;
+const COL_GAP_TEAM = 60;
+const ROW_WORKSPACE_Y = 0;
+const ROW_TEAM_Y = 200;
+const ROW_AGENT_Y = 400;
+const ROW_FLOW_Y = 720;
+
+function layoutNodes(rawNodes: OrgNode[], rawEdges: OrgEdge[]): Node[] {
+  const ws = rawNodes.find((n) => n.type === "workspace");
+  const teams = rawNodes.filter((n) => n.type === "team");
+  const agents = rawNodes.filter((n) => n.type === "agent");
+  const flows = rawNodes.filter((n) => n.type === "flow");
+
+  const agentsByTeam = new Map<string, string[]>();
+  for (const e of rawEdges) {
+    if (e.kind === "team-agent") {
+      if (!agentsByTeam.has(e.source)) agentsByTeam.set(e.source, []);
+      agentsByTeam.get(e.source)!.push(e.target);
+    }
+  }
+
+  const teamAgentCounts = teams.map((t) => Math.max(1, agentsByTeam.get(t.id)?.length ?? 1));
+  const totalAgentCols = teamAgentCounts.reduce((a, b) => a + b, 0);
+  const totalWidth = totalAgentCols * COL_WIDTH_AGENT + Math.max(0, teams.length - 1) * COL_GAP_TEAM;
+  const startX = -totalWidth / 2;
+
+  const out: Node[] = [];
+  const agentX = new Map<string, number>();
+
+  if (ws) {
+    out.push({
+      id: ws.id,
+      type: "workspace",
+      data: { label: ws.label, meta: ws.meta },
+      position: { x: -130, y: ROW_WORKSPACE_Y },
+      draggable: false,
+    });
+  }
+
+  let cursor = startX;
+  for (let i = 0; i < teams.length; i++) {
+    const team = teams[i]!;
+    const cnt = teamAgentCounts[i]!;
+    const teamWidth = cnt * COL_WIDTH_AGENT;
+    const teamCenterX = cursor + teamWidth / 2;
+    out.push({
+      id: team.id,
+      type: "team",
+      data: { label: team.label, meta: team.meta },
+      position: { x: teamCenterX - 100, y: ROW_TEAM_Y },
+      draggable: false,
+    });
+
+    const agentsForTeam = agentsByTeam.get(team.id) ?? [];
+    for (let j = 0; j < agentsForTeam.length; j++) {
+      const aId = agentsForTeam[j]!;
+      const x = cursor + j * COL_WIDTH_AGENT + (COL_WIDTH_AGENT - 220) / 2;
+      agentX.set(aId, x);
+      const a = agents.find((n) => n.id === aId);
+      if (a) {
+        out.push({
+          id: a.id,
+          type: "agent",
+          data: { label: a.label, meta: a.meta },
+          position: { x, y: ROW_AGENT_Y },
+        });
+      }
+    }
+    cursor += teamWidth + COL_GAP_TEAM;
+  }
+
+  for (const a of agents) {
+    if (!agentX.has(a.id)) {
+      const x = cursor + (COL_WIDTH_AGENT - 220) / 2;
+      agentX.set(a.id, x);
+      out.push({
+        id: a.id,
+        type: "agent",
+        data: { label: a.label, meta: a.meta },
+        position: { x, y: ROW_AGENT_Y },
+      });
+      cursor += COL_WIDTH_AGENT;
+    }
+  }
+
+  for (const f of flows) {
+    const linked = rawEdges
+      .filter((e) => e.kind === "flow-agent" && e.source === f.id)
+      .map((e) => agentX.get(e.target))
+      .filter((v): v is number => v != null);
+    const cx = linked.length > 0 ? linked.reduce((a, b) => a + b, 0) / linked.length : 0;
+    out.push({
+      id: f.id,
+      type: "flow",
+      data: { label: f.label, meta: f.meta },
+      position: { x: cx, y: ROW_FLOW_Y },
+    });
+  }
+
+  return out;
+}
+
+/* ─────────────────── canvas component ─────────────────── */
+
+const FILTERS = ["team", "agent", "flow"] as const;
+type FilterKind = (typeof FILTERS)[number];
+
 export function OrgCanvas() {
-  const [data, setData] = useState<{ nodes: OrgNode[]; edges: OrgEdge[] }>({
+  const router = useRouter();
+  const params = useParams<{ locale: string }>();
+  const locale = params?.locale ?? "es";
+  const [data, setData] = useState<{ nodes: OrgNode[]; edges: OrgEdge[]; summary?: Summary }>({
     nodes: [],
     edges: [],
   });
   const [filter, setFilter] = useState("");
-  const [kindFilter, setKindFilter] = useState<string | null>(null);
+  const [kindFilter, setKindFilter] = useState<FilterKind | null>(null);
 
   useEffect(() => {
     const load = () =>
@@ -109,79 +323,159 @@ export function OrgCanvas() {
         .then((d) => setData(d.nodes ? d : { nodes: [], edges: [] }))
         .catch(() => {});
     load();
-    const interval = setInterval(load, 10000);
+    const interval = setInterval(load, 15000);
     return () => clearInterval(interval);
   }, []);
 
   const visibleNodes = useMemo(() => {
+    const norm = filter.trim().toLowerCase();
+    const matches = (n: OrgNode) =>
+      !norm ||
+      n.label.toLowerCase().includes(norm) ||
+      String((n.meta?.role as string) ?? "").toLowerCase().includes(norm);
     return data.nodes.filter((n) => {
-      if (kindFilter && n.type !== kindFilter) return false;
-      if (filter && !n.label.toLowerCase().includes(filter.toLowerCase())) return false;
-      return true;
+      if (n.type === "workspace") return true;
+      if (kindFilter && kindFilter !== n.type) return false;
+      return matches(n);
     });
   }, [data.nodes, filter, kindFilter]);
 
   const visibleIds = useMemo(() => new Set(visibleNodes.map((n) => n.id)), [visibleNodes]);
 
-  const flowNodes: Node[] = useMemo(() => layoutNodes(visibleNodes), [visibleNodes]);
+  const flowNodes: Node[] = useMemo(
+    () => layoutNodes(visibleNodes, data.edges),
+    [visibleNodes, data.edges]
+  );
+
   const flowEdges: Edge[] = useMemo(
     () =>
       data.edges
         .filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target))
-        .map((e) => ({
-          id: e.id,
-          source: e.source,
-          target: e.target,
-          animated: e.kind === "flow-agent",
-          style: { stroke: edgeColor(e.kind) },
-        })),
+        .map((e) => {
+          const edge: Edge = {
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            animated: e.animated ?? false,
+            style: {
+              stroke: EDGE_COLORS[e.kind] ?? "#52525b",
+              strokeWidth: e.kind === "agent-agent" ? 2 : 1.5,
+              ...(e.kind === "flow-agent" ? { strokeDasharray: "4 4" } : {}),
+            },
+          };
+          if (e.kind === "agent-agent") {
+            edge.sourceHandle = "out-right";
+            edge.targetHandle = "in-left";
+          }
+          if (e.label) {
+            edge.label = e.label;
+            edge.labelStyle = { fill: "#a1a1aa", fontSize: 10 };
+            edge.labelBgStyle = { fill: "#0a0a0a" };
+          }
+          return edge;
+        }),
     [data.edges, visibleIds]
   );
 
+  function onNodeClick(_: React.MouseEvent, node: Node) {
+    const id = node.id;
+    if (id.startsWith("agent:")) router.push(`/${locale}/agents/${id.slice(6)}`);
+    else if (id.startsWith("flow:")) router.push(`/${locale}/flows/${id.slice(5)}`);
+    else if (id.startsWith("team:") && !id.endsWith("__orphan__")) router.push(`/${locale}/teams/${id.slice(5)}`);
+  }
+
   return (
     <div className="flex h-[calc(100vh-160px)] flex-col">
-      <div className="flex items-center gap-3 px-4 py-3">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-3 px-1 py-3">
+        <div className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-zinc-900/40 px-2.5 py-1.5">
           <Search className="h-3.5 w-3.5 text-zinc-500" />
           <input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Buscar nodos…"
-            className="rounded-lg border border-white/[0.08] bg-zinc-900 px-2.5 py-1 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-violet-500/60"
+            placeholder="Buscar agente, equipo, flujo…"
+            className="w-48 bg-transparent text-xs text-zinc-100 placeholder-zinc-600 outline-none"
           />
         </div>
         <div className="flex gap-1.5 text-xs">
-          {["team", "agent", "employee", "flow"].map((k) => (
+          {FILTERS.map((k) => (
             <button
               key={k}
               type="button"
               onClick={() => setKindFilter((curr) => (curr === k ? null : k))}
               className={
                 kindFilter === k
-                  ? "rounded-md bg-violet-500/20 px-2 py-1 text-violet-300"
-                  : "rounded-md text-zinc-500 hover:text-zinc-300"
+                  ? "rounded-md bg-violet-500/20 px-2.5 py-1 text-violet-300"
+                  : "rounded-md border border-white/[0.08] px-2.5 py-1 text-zinc-400 hover:bg-white/5"
               }
             >
-              {k}
+              {k === "team" ? "Equipos" : k === "agent" ? "Agentes" : "Flujos"}
             </button>
           ))}
         </div>
-        <div className="ml-auto text-[11px] text-zinc-500">
-          {visibleNodes.length} / {data.nodes.length} nodos · {flowEdges.length} conexiones
+        <div className="ml-auto flex items-center gap-3 text-[11px] text-zinc-500">
+          {data.summary && (
+            <>
+              <span>
+                <strong className="text-zinc-300">{data.summary.teams}</strong> equipos
+              </span>
+              <span>
+                <strong className="text-zinc-300">{data.summary.agents}</strong> agentes ({data.summary.activeAgents} activos)
+              </span>
+              <span>
+                <strong className="text-zinc-300">{data.summary.flows}</strong> flujos
+                {data.summary.liveFlows > 0 && (
+                  <span className="text-emerald-400"> · {data.summary.liveFlows} live</span>
+                )}
+              </span>
+            </>
+          )}
         </div>
       </div>
-      <div className="flex-1 overflow-hidden rounded-xl border border-white/[0.06]">
-        <ReactFlow
-          nodes={flowNodes}
-          edges={flowEdges}
-          nodeTypes={nodeTypes}
-          fitView
-          proOptions={{ hideAttribution: true }}
-        >
-          <Background color="#27272a" gap={20} />
-          <Controls className="!border-white/10 !bg-zinc-900" />
-          <MiniMap pannable zoomable className="!border-white/10 !bg-zinc-900" />
-        </ReactFlow>
+
+      <div className="flex-1 overflow-hidden rounded-2xl border border-white/[0.06] bg-zinc-950/40">
+        {data.nodes.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center text-zinc-500">
+            <Bot className="mb-3 h-10 w-10 text-zinc-700" />
+            <p className="text-sm">Aún no hay agentes ni equipos.</p>
+            <button
+              type="button"
+              onClick={() => router.push(`/${locale}/agents`)}
+              className="mt-3 rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-400"
+            >
+              Crear el primer agente
+            </button>
+          </div>
+        ) : (
+          <ReactFlow
+            nodes={flowNodes}
+            edges={flowEdges}
+            nodeTypes={nodeTypes}
+            onNodeClick={onNodeClick}
+            fitView
+            fitViewOptions={{ padding: 0.2 }}
+            minZoom={0.2}
+            maxZoom={1.5}
+            proOptions={{ hideAttribution: true }}
+            nodesDraggable
+            nodesConnectable={false}
+            elementsSelectable
+          >
+            <Background color="#27272a" gap={20} />
+            <Controls className="!border-white/10 !bg-zinc-900" />
+            <MiniMap
+              pannable
+              zoomable
+              className="!border-white/10 !bg-zinc-900"
+              nodeColor={(n) => {
+                if (n.type === "workspace") return COLORS.workspace;
+                if (n.type === "team") return COLORS.team;
+                if (n.type === "agent") return COLORS.agent;
+                if (n.type === "flow") return COLORS.flow;
+                return "#52525b";
+              }}
+            />
+          </ReactFlow>
+        )}
       </div>
     </div>
   );
