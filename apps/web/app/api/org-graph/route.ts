@@ -3,9 +3,16 @@ import { getDb, schema } from "@orchester/db";
 import { eq, desc } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
 
+/**
+ * Organigrama de IA — sólo Workspace → Teams → Agents, con Flows
+ * que conectan agentes entre sí. Sin empleados (la idea es agentizar).
+ */
+
+export type OrgNodeType = "workspace" | "team" | "agent" | "flow";
+
 interface OrgNode {
   id: string;
-  type: "team" | "agent" | "employee" | "flow";
+  type: OrgNodeType;
   label: string;
   meta?: Record<string, unknown>;
 }
@@ -13,7 +20,9 @@ interface OrgEdge {
   id: string;
   source: string;
   target: string;
-  kind: "team-agent" | "employee-agent" | "flow-agent" | "team-employee";
+  kind: "ws-team" | "team-agent" | "flow-agent" | "agent-agent";
+  animated?: boolean;
+  label?: string;
 }
 
 export async function GET() {
@@ -22,10 +31,9 @@ export async function GET() {
   const db = getDb();
   const wsId = ws.workspace.id;
 
-  const [teams, agents, employees, flows, runs] = await Promise.all([
+  const [teams, agents, flows, runs, channels] = await Promise.all([
     db.select().from(schema.teams).where(eq(schema.teams.workspaceId, wsId)),
     db.select().from(schema.agents).where(eq(schema.agents.workspaceId, wsId)),
-    db.select().from(schema.employees).where(eq(schema.employees.workspaceId, wsId)),
     db.select().from(schema.flows).where(eq(schema.flows.workspaceId, wsId)),
     db
       .select()
@@ -33,80 +41,191 @@ export async function GET() {
       .where(eq(schema.flowRuns.workspaceId, wsId))
       .orderBy(desc(schema.flowRuns.startedAt))
       .limit(50),
+    db.select().from(schema.channels).where(eq(schema.channels.workspaceId, wsId)),
   ]);
 
-  const recentActiveFlowIds = new Set(
-    runs.filter((r) => r.status === "running" || r.status === "succeeded").map((r) => r.flowId)
+  // Compute "live" flows (had a run in the last few min)
+  const liveCutoff = Date.now() - 10 * 60 * 1000;
+  const liveFlowIds = new Set(
+    runs
+      .filter((r) => r.status === "running" || r.status === "succeeded")
+      .filter((r) => new Date(r.startedAt).getTime() > liveCutoff)
+      .map((r) => r.flowId)
   );
 
   const nodes: OrgNode[] = [];
   const edges: OrgEdge[] = [];
 
+  // Root workspace node
+  const wsNodeId = `workspace:${wsId}`;
+  nodes.push({
+    id: wsNodeId,
+    type: "workspace",
+    label: ws.workspace.name,
+    meta: {
+      teamCount: teams.length,
+      agentCount: agents.length,
+      flowCount: flows.length,
+    },
+  });
+
+  // Group agents by team
+  const agentsByTeam = new Map<string, typeof agents>();
+  const orphanAgents: typeof agents = [];
+  for (const a of agents) {
+    if (a.teamId) {
+      if (!agentsByTeam.has(a.teamId)) agentsByTeam.set(a.teamId, []);
+      agentsByTeam.get(a.teamId)!.push(a);
+    } else {
+      orphanAgents.push(a);
+    }
+  }
+
+  // Teams + connections to workspace
   for (const t of teams) {
+    const teamAgents = agentsByTeam.get(t.id) ?? [];
+    const activeCount = teamAgents.filter((a) => a.status === "active").length;
     nodes.push({
       id: `team:${t.id}`,
       type: "team",
       label: t.name,
-      meta: { color: t.avatarColor },
+      meta: {
+        color: t.avatarColor,
+        agentCount: teamAgents.length,
+        activeCount,
+        description: t.description,
+      },
+    });
+    edges.push({
+      id: `e:ws-t:${t.id}`,
+      source: wsNodeId,
+      target: `team:${t.id}`,
+      kind: "ws-team",
     });
   }
+
+  // Synthetic team for orphan agents (sin equipo asignado)
+  const orphanTeamId = "team:__orphan__";
+  if (orphanAgents.length > 0) {
+    nodes.push({
+      id: orphanTeamId,
+      type: "team",
+      label: "Sin equipo",
+      meta: {
+        color: "#52525b",
+        agentCount: orphanAgents.length,
+        activeCount: orphanAgents.filter((a) => a.status === "active").length,
+        description: "Agentes sin equipo asignado",
+        orphan: true,
+      },
+    });
+    edges.push({
+      id: "e:ws-orphan",
+      source: wsNodeId,
+      target: orphanTeamId,
+      kind: "ws-team",
+    });
+  }
+
+  // Channels per agent (so agents show their reach)
+  const channelsByAgent = new Map<string, Array<{ id: string; type: string; name: string }>>();
+  for (const c of channels) {
+    if (c.agentId) {
+      if (!channelsByAgent.has(c.agentId)) channelsByAgent.set(c.agentId, []);
+      channelsByAgent.get(c.agentId)!.push({ id: c.id, type: c.type, name: c.name });
+    }
+  }
+
+  // Agents + connections to their team
   for (const a of agents) {
+    const parentTeamId = a.teamId ? `team:${a.teamId}` : orphanTeamId;
     nodes.push({
       id: `agent:${a.id}`,
       type: "agent",
       label: a.name,
-      meta: { role: a.role, model: a.model, status: a.status },
+      meta: {
+        role: a.role,
+        model: a.model,
+        status: a.status,
+        kind: a.kind,
+        color: a.color,
+        toolCount: (a.tools as string[] | null)?.length ?? 0,
+        channels: channelsByAgent.get(a.id) ?? [],
+      },
     });
-    if (a.teamId) {
-      edges.push({
-        id: `e:t-a:${a.id}`,
-        source: `team:${a.teamId}`,
-        target: `agent:${a.id}`,
-        kind: "team-agent",
-      });
-    }
-  }
-  for (const e of employees) {
-    nodes.push({
-      id: `employee:${e.id}`,
-      type: "employee",
-      label: e.name,
-      meta: { area: e.area, email: e.email },
+    edges.push({
+      id: `e:t-a:${a.id}`,
+      source: parentTeamId,
+      target: `agent:${a.id}`,
+      kind: "team-agent",
     });
-    for (const aid of e.assignedAgentIds ?? []) {
-      edges.push({
-        id: `e:em-a:${e.id}-${aid}`,
-        source: `employee:${e.id}`,
-        target: `agent:${aid}`,
-        kind: "employee-agent",
-      });
-    }
   }
+
+  // Flows: each flow that references agents creates a "flow-agent" edge to each
+  // referenced agent. Plus an agent-agent edge between consecutive agent nodes
+  // in the flow (so users see the orchestration visually).
   for (const f of flows) {
-    nodes.push({
-      id: `flow:${f.id}`,
-      type: "flow",
-      label: f.name,
-      meta: { active: recentActiveFlowIds.has(f.id), status: f.status },
-    });
-    const agentIdsInFlow = new Set<string>();
-    for (const n of (f.nodes ?? []) as Array<{
+    const flowNodes = (f.nodes ?? []) as Array<{
+      id: string;
       type: string;
       config?: Record<string, unknown>;
-    }>) {
+    }>;
+    const agentRefs: string[] = [];
+    for (const n of flowNodes) {
       if (n.type === "agent" && typeof n.config?.agentId === "string") {
-        agentIdsInFlow.add(n.config.agentId);
+        agentRefs.push(n.config.agentId);
       }
     }
-    for (const aid of agentIdsInFlow) {
+    if (agentRefs.length === 0) continue;
+
+    const flowNodeId = `flow:${f.id}`;
+    nodes.push({
+      id: flowNodeId,
+      type: "flow",
+      label: f.name,
+      meta: {
+        live: liveFlowIds.has(f.id),
+        status: f.status,
+        agentCount: agentRefs.length,
+      },
+    });
+
+    // Connect flow → each unique agent it uses
+    for (const aid of new Set(agentRefs)) {
       edges.push({
         id: `e:f-a:${f.id}-${aid}`,
-        source: `flow:${f.id}`,
+        source: flowNodeId,
         target: `agent:${aid}`,
         kind: "flow-agent",
+        animated: liveFlowIds.has(f.id),
+      });
+    }
+
+    // Show the agent-to-agent chain inside the flow as direct edges
+    for (let i = 0; i < agentRefs.length - 1; i++) {
+      const a = agentRefs[i]!;
+      const b = agentRefs[i + 1]!;
+      if (a === b) continue;
+      edges.push({
+        id: `e:a-a:${f.id}-${i}`,
+        source: `agent:${a}`,
+        target: `agent:${b}`,
+        kind: "agent-agent",
+        animated: liveFlowIds.has(f.id),
+        label: f.name,
       });
     }
   }
 
-  return NextResponse.json({ nodes, edges });
+  return NextResponse.json({
+    nodes,
+    edges,
+    summary: {
+      teams: teams.length,
+      agents: agents.length,
+      activeAgents: agents.filter((a) => a.status === "active").length,
+      flows: flows.length,
+      liveFlows: liveFlowIds.size,
+    },
+  });
 }

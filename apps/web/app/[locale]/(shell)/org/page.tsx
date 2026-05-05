@@ -16,7 +16,7 @@ export default async function OrgPage({
           {t("title")}
         </h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Vista en vivo de cómo equipos, agentes, flujos y personas se conectan.
+          La jerarquía de tu IA: equipos de agentes que orquestan flujos. Click en un nodo para abrirlo.
         </p>
       </div>
       <OrgCanvas />
