@@ -5,6 +5,14 @@ const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  /**
+   * `standalone` output produces a self-contained server.js + minimal
+   * node_modules. Required by the Dockerfile in repo root and ideal for
+   * Railway/Fly.io/AWS. Vercel ignores this and builds with its own runtime.
+   */
+  output: "standalone",
+  /** Hosting providers (Railway, Fly) need the workspace root for tracing. */
+  outputFileTracingRoot: process.cwd().replace(/\/apps\/web$/, ""),
   images: {
     formats: ["image/avif", "image/webp"],
   },
