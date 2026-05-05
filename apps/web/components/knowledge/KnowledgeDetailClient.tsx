@@ -37,9 +37,10 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
   const [tab, setTab] = useState<"docs" | "search">("docs");
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
-  const [source, setSource] = useState<"text" | "url">("text");
+  const [source, setSource] = useState<"text" | "url" | "file">("text");
   const [content, setContent] = useState("");
   const [url, setUrl] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Search
@@ -50,15 +51,29 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
   >([]);
 
   async function ingest() {
-    if (!title.trim()) return toast.error("Título requerido");
+    if (!title.trim() && source !== "file") return toast.error("Título requerido");
     if (source === "text" && !content.trim()) return toast.error("Contenido requerido");
     if (source === "url" && !url.trim()) return toast.error("URL requerida");
+    if (source === "file" && !file) return toast.error("Seleccioná un archivo");
     setSubmitting(true);
-    const r = await fetch(`/api/knowledge-bases/${kb.id}/docs`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ title, source, content, url, contentType: "text/plain" }),
-    });
+
+    let r: Response;
+    if (source === "file" && file) {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("title", title.trim() || file.name);
+      fd.append("source", "file");
+      r = await fetch(`/api/knowledge-bases/${kb.id}/docs`, {
+        method: "POST",
+        body: fd,
+      });
+    } else {
+      r = await fetch(`/api/knowledge-bases/${kb.id}/docs`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title, source, content, url, contentType: "text/plain" }),
+      });
+    }
     setSubmitting(false);
     const j = await r.json();
     if (r.ok) {
@@ -155,7 +170,7 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
                 autoFocus
               />
               <div className="flex gap-2">
-                {(["text", "url"] as const).map((s) => (
+                {(["text", "url", "file"] as const).map((s) => (
                   <button
                     key={s}
                     type="button"
@@ -166,11 +181,11 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
                         : "rounded-md border border-white/[0.08] px-2.5 py-1 text-xs text-zinc-400 hover:bg-white/5"
                     }
                   >
-                    {s === "text" ? "Pegar texto" : "Desde URL"}
+                    {s === "text" ? "Pegar texto" : s === "url" ? "Desde URL" : "Subir PDF / DOCX"}
                   </button>
                 ))}
               </div>
-              {source === "text" ? (
+              {source === "text" && (
                 <textarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
@@ -178,13 +193,33 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
                   placeholder="Pegá el texto del documento aquí…"
                   className="w-full resize-none rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-2 font-mono text-xs text-zinc-100 outline-none focus:border-violet-500/60"
                 />
-              ) : (
+              )}
+              {source === "url" && (
                 <input
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="https://docs.midominio.com/article"
                   className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-2 font-mono text-xs text-zinc-100 outline-none focus:border-violet-500/60"
                 />
+              )}
+              {source === "file" && (
+                <div className="space-y-2">
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,.txt,.md,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/json,application/x-markdown"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      setFile(f);
+                      if (f && !title) setTitle(f.name);
+                    }}
+                    className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-2 text-xs text-zinc-100 file:mr-3 file:rounded-md file:border-0 file:bg-violet-500/20 file:px-2 file:py-1 file:text-violet-300"
+                  />
+                  {file && (
+                    <p className="text-[10px] text-zinc-500">
+                      {file.name} · {(file.size / 1024).toFixed(1)} KB · {file.type || "?"}
+                    </p>
+                  )}
+                </div>
               )}
               <div className="flex items-center gap-2">
                 <button

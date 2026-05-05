@@ -18,6 +18,12 @@ export interface ToolCall {
 export interface ToolContext {
   workspaceId: string;
   variables: Record<string, string>;
+  /** Required for memory_* tools. Identifies the agent calling the tool. */
+  agentId?: string;
+  /** Optional context: lets memory tools scope to conversation. */
+  conversationId?: string;
+  /** Optional context: lets memory tools scope to employee/customer. */
+  employeeId?: string;
 }
 
 const BUILTINS: Record<string, ToolDefinition> = {
@@ -92,6 +98,45 @@ const BUILTINS: Record<string, ToolDefinition> = {
         },
       },
       required: ["kbId", "query"],
+    },
+  },
+  memory_set: {
+    name: "memory_set",
+    description:
+      "Save a fact you want to remember. Choose scope: 'global' (always known), 'employee' (about the current user), or 'conversation' (only this thread). Use this whenever the user shares a preference, a name, or a stable fact.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        scope: { type: "string", enum: ["global", "employee", "conversation"] },
+        key: { type: "string", description: "Short snake_case identifier, e.g. 'preferred_language'" },
+        value: { description: "Any JSON-serializable value." },
+      },
+      required: ["scope", "key", "value"],
+    },
+  },
+  memory_get: {
+    name: "memory_get",
+    description:
+      "Retrieve previously saved facts. Returns the data bag for a given scope. Use to recall what you know before answering.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        scope: { type: "string", enum: ["global", "employee", "conversation"] },
+      },
+      required: ["scope"],
+    },
+  },
+  memory_remove: {
+    name: "memory_remove",
+    description:
+      "Forget a previously saved fact. Pass `key` to remove a single key, or omit `key` to clear the entire scope's bag.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        scope: { type: "string", enum: ["global", "employee", "conversation"] },
+        key: { type: "string" },
+      },
+      required: ["scope"],
     },
   },
 };
@@ -254,6 +299,38 @@ export async function executeTool(
       input: (input.input as Record<string, unknown>) ?? {},
     });
     return result;
+  }
+
+  if (name === "memory_set" || name === "memory_get" || name === "memory_remove") {
+    if (!ctx.agentId) throw new Error("memory_* tools require ctx.agentId");
+    const { setMemory, getRelevantMemories, removeMemory } = await import("./memory");
+    const scope = String(input.scope ?? "global") as "global" | "conversation" | "employee";
+    const baseQ = {
+      agentId: ctx.agentId,
+      workspaceId: ctx.workspaceId,
+      conversationId: ctx.conversationId,
+      employeeId: ctx.employeeId,
+    };
+    if (name === "memory_set") {
+      const key = String(input.key ?? "");
+      if (!key) throw new Error("key required");
+      const value = input.value;
+      const out = await setMemory({ ...baseQ, scope, key, value });
+      return { ok: true, scope, data: out.data };
+    }
+    if (name === "memory_get") {
+      const matches = await getRelevantMemories(baseQ);
+      const filtered = matches.filter((m) => m.scope === scope);
+      return {
+        scope,
+        data: filtered[0]?.data ?? {},
+      };
+    }
+    if (name === "memory_remove") {
+      const key = input.key != null ? String(input.key) : null;
+      await removeMemory({ ...baseQ, scope, key });
+      return { ok: true, scope, removed: key ?? "all" };
+    }
   }
 
   if (name === "knowledge_search") {

@@ -44,14 +44,51 @@ export function chunkText(
 }
 
 /**
- * Convert various input types to plain text. PDF/DOCX support deliberately
- * deferred — for v1 we accept text, markdown, and pre-parsed payloads.
- * If a PDF arrives we just store it without parsing and mark the doc as failed.
+ * Convert various input types to plain text. Supports text/*, JSON, markdown,
+ * PDF and DOCX. Anything else is rejected with a helpful error.
  */
 export function isParsable(contentType: string): boolean {
   return (
     contentType.startsWith("text/") ||
     contentType === "application/json" ||
-    contentType === "application/x-markdown"
+    contentType === "application/x-markdown" ||
+    contentType === "application/pdf" ||
+    contentType ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
   );
+}
+
+/**
+ * Extract plain text from a buffer based on the content type.
+ * Throws on unsupported types.
+ */
+export async function extractTextFromBuffer(
+  buffer: Buffer,
+  contentType: string
+): Promise<string> {
+  if (
+    contentType.startsWith("text/") ||
+    contentType === "application/json" ||
+    contentType === "application/x-markdown"
+  ) {
+    return buffer.toString("utf-8");
+  }
+  if (contentType === "application/pdf") {
+    const mod = (await import("pdf-parse")) as unknown as {
+      default: (buf: Buffer) => Promise<{ text: string }>;
+    };
+    const parsed = await mod.default(buffer);
+    return parsed.text ?? "";
+  }
+  if (
+    contentType ===
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ) {
+    const mod = (await import("mammoth")) as unknown as {
+      extractRawText: (opts: { buffer: Buffer }) => Promise<{ value: string }>;
+    };
+    const result = await mod.extractRawText({ buffer });
+    return result.value ?? "";
+  }
+  throw new Error(`Unsupported content type for ingest: ${contentType}`);
 }

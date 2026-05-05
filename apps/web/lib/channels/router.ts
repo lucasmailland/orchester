@@ -126,16 +126,32 @@ export async function handleInbound(
     return { conversationId: conversation.id, reply, tokensUsed: 0 };
   }
 
-  // Conversational: build full message history for LLM, then call with tools
-  const history = await db
+  // Conversational: build (compacted) history + inject memory into the system prompt
+  const fullHistory = await db
     .select()
     .from(schema.messages)
     .where(eq(schema.messages.conversationId, conversation.id))
     .orderBy(schema.messages.createdAt);
 
-  const chatMsgs: ChatMessage[] = history
-    .filter((m) => m.role === "user" || m.role === "assistant")
-    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+  const { compactHistory } = await import("@/lib/memory-compaction");
+  const chatMsgs: ChatMessage[] = await compactHistory({
+    workspaceId,
+    conversation,
+    messages: fullHistory,
+    model: agent.model,
+    keepLastN: agent.maxTurns ?? 10,
+  });
+
+  // Inject relevant memory into the system prompt
+  const { getRelevantMemories, formatMemoriesAsPromptBlock } = await import("@/lib/memory");
+  const memories = await getRelevantMemories({
+    agentId: agent.id,
+    workspaceId,
+    conversationId: conversation.id,
+    employeeId: conversation.employeeId ?? undefined,
+  });
+  const memoryBlock = formatMemoriesAsPromptBlock(memories);
+  const finalSystemPrompt = agent.systemPrompt + memoryBlock;
 
   const tools = getToolDefinitions(agent.tools ?? []);
   let reply = "";
@@ -146,7 +162,7 @@ export async function handleInbound(
     const r = await llmCall({
       workspaceId,
       model: agent.model,
-      systemPrompt: agent.systemPrompt,
+      systemPrompt: finalSystemPrompt,
       messages: chatMsgs,
       temperature: agent.temperature ? Number(agent.temperature) : 0.7,
       ...(agent.maxTokens != null && { maxTokens: agent.maxTokens }),
@@ -166,6 +182,9 @@ export async function handleInbound(
           const out = await executeTool(tc.name, tc.input as Record<string, unknown>, {
             workspaceId,
             variables: (agent.variables as Record<string, string>) ?? {},
+            agentId: agent.id,
+            conversationId: conversation.id,
+            ...(conversation.employeeId ? { employeeId: conversation.employeeId } : {}),
           });
           toolResults.push({ id: tc.id, name: tc.name, input: tc.input, output: out });
         } catch (e) {
