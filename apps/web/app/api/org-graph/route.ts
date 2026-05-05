@@ -161,9 +161,10 @@ export async function GET() {
     });
   }
 
-  // Flows: each flow that references agents creates a "flow-agent" edge to each
-  // referenced agent. Plus an agent-agent edge between consecutive agent nodes
-  // in the flow (so users see the orchestration visually).
+  // Flows are NOT rendered as separate nodes. Instead each flow that chains
+  // multiple agents creates an agent→agent edge labeled with the flow name —
+  // so the user reads relationships naturally ("Lead Qualifier orquesta hacia
+  // Closer Bot via Pipeline de leads"). One node, two relations.
   for (const f of flows) {
     const flowNodes = (f.nodes ?? []) as Array<{
       id: string;
@@ -177,29 +178,6 @@ export async function GET() {
       }
     }
     if (agentRefs.length === 0) continue;
-
-    const flowNodeId = `flow:${f.id}`;
-    nodes.push({
-      id: flowNodeId,
-      type: "flow",
-      label: f.name,
-      meta: {
-        live: liveFlowIds.has(f.id),
-        status: f.status,
-        agentCount: agentRefs.length,
-      },
-    });
-
-    // Connect flow → each unique agent it uses
-    for (const aid of new Set(agentRefs)) {
-      edges.push({
-        id: `e:f-a:${f.id}-${aid}`,
-        source: flowNodeId,
-        target: `agent:${aid}`,
-        kind: "flow-agent",
-        animated: liveFlowIds.has(f.id),
-      });
-    }
 
     // Show the agent-to-agent chain inside the flow as direct edges
     for (let i = 0; i < agentRefs.length - 1; i++) {
