@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -8,7 +8,9 @@ import {
   MiniMap,
   Handle,
   Position,
+  applyNodeChanges,
   type Node,
+  type NodeChange,
   type Edge,
   type NodeProps,
 } from "@xyflow/react";
@@ -198,16 +200,16 @@ const nodeTypes = {
 
 /* ─────────────────── hierarchical layout ─────────────────── */
 
-const COL_WIDTH_AGENT = 250;
-const COL_GAP_TEAM = 60;
+const COL_WIDTH_AGENT = 240;
+const COL_GAP_TEAM = 36;
 const ROW_WORKSPACE_Y = 0;
-const ROW_TEAM_Y = 200;
-const ROW_AGENT_Y = 400;
-const ROW_FLOW_Y = 720;
+const ROW_TEAM_Y = 150;
+const ROW_AGENT_Y = 300;
+const ROW_FLOW_Y = 480;
 
 function layoutNodes(rawNodes: OrgNode[], rawEdges: OrgEdge[]): Node[] {
   const ws = rawNodes.find((n) => n.type === "workspace");
-  const teams = rawNodes.filter((n) => n.type === "team");
+  const allTeams = rawNodes.filter((n) => n.type === "team");
   const agents = rawNodes.filter((n) => n.type === "agent");
   const flows = rawNodes.filter((n) => n.type === "flow");
 
@@ -219,9 +221,14 @@ function layoutNodes(rawNodes: OrgNode[], rawEdges: OrgEdge[]): Node[] {
     }
   }
 
-  const teamAgentCounts = teams.map((t) => Math.max(1, agentsByTeam.get(t.id)?.length ?? 1));
+  // Drop empty teams from the layout — they only add visual noise.
+  // (They still exist in the DB; user just won't see empty squads in the org chart.)
+  const teams = allTeams.filter((t) => (agentsByTeam.get(t.id)?.length ?? 0) > 0);
+
+  const teamAgentCounts = teams.map((t) => agentsByTeam.get(t.id)!.length);
   const totalAgentCols = teamAgentCounts.reduce((a, b) => a + b, 0);
-  const totalWidth = totalAgentCols * COL_WIDTH_AGENT + Math.max(0, teams.length - 1) * COL_GAP_TEAM;
+  const totalWidth =
+    totalAgentCols * COL_WIDTH_AGENT + Math.max(0, teams.length - 1) * COL_GAP_TEAM;
   const startX = -totalWidth / 2;
 
   const out: Node[] = [];
@@ -233,7 +240,7 @@ function layoutNodes(rawNodes: OrgNode[], rawEdges: OrgEdge[]): Node[] {
       type: "workspace",
       data: { label: ws.label, meta: ws.meta },
       position: { x: -130, y: ROW_WORKSPACE_Y },
-      draggable: false,
+      // user-draggable now (was false → broke "drag node" UX)
     });
   }
 
@@ -248,7 +255,6 @@ function layoutNodes(rawNodes: OrgNode[], rawEdges: OrgEdge[]): Node[] {
       type: "team",
       data: { label: team.label, meta: team.meta },
       position: { x: teamCenterX - 100, y: ROW_TEAM_Y },
-      draggable: false,
     });
 
     const agentsForTeam = agentsByTeam.get(team.id) ?? [];
@@ -269,6 +275,7 @@ function layoutNodes(rawNodes: OrgNode[], rawEdges: OrgEdge[]): Node[] {
     cursor += teamWidth + COL_GAP_TEAM;
   }
 
+  // Orphan agents (no team) get their own column at the end
   for (const a of agents) {
     if (!agentX.has(a.id)) {
       const x = cursor + (COL_WIDTH_AGENT - 220) / 2;
@@ -342,10 +349,61 @@ export function OrgCanvas() {
 
   const visibleIds = useMemo(() => new Set(visibleNodes.map((n) => n.id)), [visibleNodes]);
 
-  const flowNodes: Node[] = useMemo(
-    () => layoutNodes(visibleNodes, data.edges),
-    [visibleNodes, data.edges]
+  /**
+   * Hold mutable node state so the user can drag nodes manually. We re-layout
+   * automatically whenever the *visible set* changes (new agents, filter,
+   * etc.), but preserve user-moved positions across data refreshes via the
+   * `userMovedRef` map.
+   */
+  const userMovedRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const [flowNodes, setFlowNodes] = useState<Node[]>([]);
+  const layoutKey = useMemo(
+    () => visibleNodes.map((n) => n.id).sort().join(","),
+    [visibleNodes]
   );
+
+  useEffect(() => {
+    const computed = layoutNodes(visibleNodes, data.edges);
+    // Restore user-moved positions
+    const merged = computed.map((n) => {
+      const moved = userMovedRef.current.get(n.id);
+      return moved ? { ...n, position: moved } : n;
+    });
+    setFlowNodes(merged);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layoutKey]);
+
+  // Update node *data* in place (status, channel count, etc.) without losing
+  // positions when the org-graph re-fetches.
+  useEffect(() => {
+    setFlowNodes((curr) => {
+      if (curr.length === 0) return curr;
+      const map = new Map(visibleNodes.map((n) => [n.id, n]));
+      return curr.map((cn) => {
+        const fresh = map.get(cn.id);
+        if (!fresh) return cn;
+        return { ...cn, data: { label: fresh.label, meta: fresh.meta } };
+      });
+    });
+  }, [visibleNodes]);
+
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
+    setFlowNodes((nds) => {
+      const next = applyNodeChanges(changes, nds);
+      // Track positions so refreshes don't snap them back.
+      for (const c of changes) {
+        if (c.type === "position" && c.position && !c.dragging) {
+          userMovedRef.current.set(c.id, c.position);
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  function resetLayout() {
+    userMovedRef.current.clear();
+    setFlowNodes(layoutNodes(visibleNodes, data.edges));
+  }
 
   const flowEdges: Edge[] = useMemo(
     () =>
@@ -356,10 +414,12 @@ export function OrgCanvas() {
             id: e.id,
             source: e.source,
             target: e.target,
+            // smoothstep gives orthogonal lines — much cleaner than the default bezier
+            type: e.kind === "agent-agent" ? "default" : "smoothstep",
             animated: e.animated ?? false,
             style: {
               stroke: EDGE_COLORS[e.kind] ?? "#52525b",
-              strokeWidth: e.kind === "agent-agent" ? 2 : 1.5,
+              strokeWidth: e.kind === "agent-agent" ? 2 : 1.6,
               ...(e.kind === "flow-agent" ? { strokeDasharray: "4 4" } : {}),
             },
           };
@@ -412,6 +472,14 @@ export function OrgCanvas() {
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          onClick={resetLayout}
+          className="rounded-md border border-white/[0.08] px-2.5 py-1 text-xs text-zinc-400 hover:bg-white/5"
+          title="Volver al layout original"
+        >
+          Reset layout
+        </button>
         <div className="ml-auto flex items-center gap-3 text-[11px] text-zinc-500">
           {data.summary && (
             <>
@@ -449,16 +517,23 @@ export function OrgCanvas() {
           <ReactFlow
             nodes={flowNodes}
             edges={flowEdges}
+            onNodesChange={onNodesChange}
             nodeTypes={nodeTypes}
             onNodeClick={onNodeClick}
             fitView
-            fitViewOptions={{ padding: 0.2 }}
-            minZoom={0.2}
-            maxZoom={1.5}
+            fitViewOptions={{ padding: 0.15 }}
+            minZoom={0.15}
+            maxZoom={1.8}
             proOptions={{ hideAttribution: true }}
             nodesDraggable
             nodesConnectable={false}
             elementsSelectable
+            // Pan only on drag in EMPTY space; drag on a node moves the node.
+            // Default already does this, but be explicit so shift-drag also pans.
+            panOnDrag
+            selectionOnDrag={false}
+            zoomOnScroll
+            panOnScroll={false}
           >
             <Background color="#27272a" gap={20} />
             <Controls className="!border-white/10 !bg-zinc-900" />
