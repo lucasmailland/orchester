@@ -1,6 +1,19 @@
+import { unstable_cache } from "next/cache";
 import { getFullDashboardStats } from "@/lib/db-queries";
 import { getCurrentWorkspace } from "@/lib/workspace";
 import { DashboardClient } from "@/components/dashboard/DashboardClient";
+
+/**
+ * Cache the 22-query dashboard payload per workspace for 30 seconds.
+ * Revalidate via tag if needed (`revalidateTag('dashboard:<wsId>')`) when
+ * a high-impact mutation happens.
+ */
+const getCachedDashboard = (workspaceId: string) =>
+  unstable_cache(
+    async () => getFullDashboardStats(workspaceId),
+    ["dashboard", workspaceId],
+    { revalidate: 30, tags: [`dashboard:${workspaceId}`] }
+  )();
 
 export default async function DashboardPage({
   params,
@@ -11,10 +24,8 @@ export default async function DashboardPage({
 
   const workspace = await getCurrentWorkspace();
   const stats = workspace
-    ? await getFullDashboardStats(workspace.workspace.id).catch((e) => {
+    ? await getCachedDashboard(workspace.workspace.id).catch((e) => {
         console.error("[Dashboard] getFullDashboardStats failed:", e?.message ?? e);
-        console.error("[Dashboard] cause:", (e as any)?.cause?.message ?? (e as any)?.cause ?? "no cause");
-        console.error("[Dashboard] stack:", e?.stack?.split("\n").slice(0, 5).join("\n"));
         return null;
       })
     : null;
