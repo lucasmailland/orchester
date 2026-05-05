@@ -8,7 +8,7 @@ import { motion } from "framer-motion";
 import { Input } from "@heroui/react";
 import { useTranslations } from "next-intl";
 import { Building2 } from "lucide-react";
-import { generateSlug } from "@/app/actions/onboarding";
+import { generateSlug } from "@/lib/slug";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 
 const welcomeSchema = z.object({

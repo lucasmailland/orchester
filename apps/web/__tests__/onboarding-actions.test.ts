@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateSlug } from "../app/actions/onboarding";
+import { generateSlug } from "../lib/slug";
 
 describe("generateSlug", () => {
   it("lowercases and hyphenates", () => {

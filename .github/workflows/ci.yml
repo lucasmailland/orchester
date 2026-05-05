@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Lint · Type · Test · Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: orchester
+          POSTGRES_PASSWORD: orchester
+          POSTGRES_DB: orchester
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://orchester:orchester@localhost:5432/orchester
+      BETTER_AUTH_SECRET: ci-test-secret-not-real-32chars-ok
+      BETTER_AUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      ENCRYPTION_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Enable pgvector
+        run: psql "$DATABASE_URL" -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+      - name: Push schema
+        run: pnpm --filter @orchester/db push --force
+
+      - name: TypeScript check
+        run: pnpm --filter web tsc --noEmit
+
+      - name: Tests
+        run: pnpm --filter web vitest run
+
+      - name: Build
+        run: pnpm --filter web build
