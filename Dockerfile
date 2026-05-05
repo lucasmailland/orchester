@@ -1,8 +1,16 @@
-# Production Dockerfile for Orchester (Next.js standalone output).
-# Used by Railway / Fly.io / any container platform.
+# Production Dockerfile for Orchester (Next.js standalone + worker process).
 #
-# Build: docker build -t orchester .
-# Run:   docker run -p 3000:3000 --env-file .env.production orchester
+# Build:
+#   docker build -t orchester .
+#
+# Run web:
+#   docker run -p 3000:3000 --env-file .env.production orchester
+#
+# Run worker (mismo image, distinto comando):
+#   docker run --env-file .env.production orchester \
+#     node --import tsx/esm apps/web/worker/index.ts
+#
+# El docker-compose.prod.yml setea el comando correcto para cada servicio.
 
 # ----- Stage 1: deps -----
 FROM node:22-alpine AS deps
@@ -27,13 +35,13 @@ COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
 COPY . .
 
-# Skip schema push during image build — runtime will do it (or CI does it before).
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 RUN pnpm --filter web build
 
 # ----- Stage 3: runtime -----
 FROM node:22-alpine AS runner
+RUN apk add --no-cache libc6-compat wget
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -43,12 +51,22 @@ ENV HOSTNAME=0.0.0.0
 
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 
-# Standalone Next.js output (next.config.ts uses `output: "standalone"` — see config)
+# Standalone Next.js output
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
+# Worker source + tsx (runtime TS) + node_modules necesarios para el worker.
+# El standalone ya trae los deps tracked por Next; el worker requiere los suyos
+# (pg-boss, tsx, lib/* compartidas).
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/worker ./apps/web/worker
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/lib ./apps/web/lib
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/tsconfig.json ./apps/web/tsconfig.json
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/tsx ./node_modules/tsx
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/pg-boss ./node_modules/pg-boss
+
 USER nextjs
 EXPOSE 3000
 
+# Default: web. docker-compose override comando para el worker.
 CMD ["node", "apps/web/server.js"]

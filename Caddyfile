@@ -1,0 +1,50 @@
+# Orchester reverse proxy — TLS automático vía Let's Encrypt.
+# Pasá DOMAIN como env y Caddy resuelve el cert solo (puerto 80 + 443 abiertos).
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Healthcheck público (para uptime monitors externos)
+	handle /api/health {
+		reverse_proxy web:3000
+	}
+
+	# Asset estático: cachear agresivo
+	@static {
+		path /_next/static/* /assets/* /favicon.ico /robots.txt
+	}
+	handle @static {
+		reverse_proxy web:3000
+		header Cache-Control "public, max-age=31536000, immutable"
+	}
+
+	# Resto: pasar a Next.js
+	handle {
+		reverse_proxy web:3000 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	# Headers de seguridad (Next.js los agrega también, esto es defensa en profundidad)
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	log {
+		output stdout
+		format json
+		level INFO
+	}
+}
+
+# Subdominio opcional para GlitchTip (observability profile)
+errors.{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy glitchtip:8000
+}
