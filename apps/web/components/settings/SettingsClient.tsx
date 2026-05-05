@@ -3,9 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Building2, Key, Bell, Globe, Users, AlertTriangle, Check, Copy, Eye, EyeOff, Sparkles } from "lucide-react";
+import { Building2, Key, Bell, Globe, Users, AlertTriangle, Check, Copy, Eye, EyeOff, Sparkles, Code, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AIProvidersSection } from "./AIProvidersSection";
+import { DevelopersSection } from "./DevelopersSection";
+import { MembersSection } from "./MembersSection";
+import { BillingSection } from "./BillingSection";
 import { toast } from "sonner";
 
 interface SettingsLabels {
@@ -248,6 +251,33 @@ export function SettingsClient({ workspace, labels }: SettingsClientProps) {
           description="Conectá tus claves de Anthropic, OpenAI, Google AI o Azure. Los modelos disponibles aparecen en el editor de agentes y en los flujos."
         >
           <AIProvidersSection />
+        </SectionCard>
+
+        {/* Billing */}
+        <SectionCard
+          icon={<CreditCard size={16} />}
+          title="Plan y consumo"
+          description="Tu plan, uso del mes y límites."
+        >
+          <BillingSection />
+        </SectionCard>
+
+        {/* Members */}
+        <SectionCard
+          icon={<Users size={16} />}
+          title="Miembros e invitaciones"
+          description="Invitá personas a tu workspace con un rol específico."
+        >
+          <MembersSection />
+        </SectionCard>
+
+        {/* Developers */}
+        <SectionCard
+          icon={<Code size={16} />}
+          title="Desarrolladores"
+          description="API keys, webhooks salientes y eventos."
+        >
+          <DevelopersSection />
         </SectionCard>
 
         {/* API Keys */}
