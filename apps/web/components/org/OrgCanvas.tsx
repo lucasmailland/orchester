@@ -309,8 +309,6 @@ function layoutNodes(rawNodes: OrgNode[], rawEdges: OrgEdge[]): Node[] {
 
 /* ─────────────────── canvas component ─────────────────── */
 
-const FILTERS = ["team", "agent", "flow"] as const;
-type FilterKind = (typeof FILTERS)[number];
 
 export function OrgCanvas() {
   const router = useRouter();
@@ -321,7 +319,6 @@ export function OrgCanvas() {
     edges: [],
   });
   const [filter, setFilter] = useState("");
-  const [kindFilter, setKindFilter] = useState<FilterKind | null>(null);
 
   useEffect(() => {
     const load = () =>
@@ -334,18 +331,45 @@ export function OrgCanvas() {
     return () => clearInterval(interval);
   }, []);
 
+  /**
+   * Single coherent view: workspace + teams + agents only. Flow nodes are
+   * dropped from the visible set — flows are rendered as agent↔agent edges
+   * labeled with the flow name (so the user sees "Lead Qualifier → Closer Bot
+   * via Pipeline de leads" naturally, instead of a disconnected flow pill).
+   *
+   * Search filters individual cards but always keeps ancestors (workspace +
+   * parent team) visible so the tree stays connected.
+   */
   const visibleNodes = useMemo(() => {
+    const baseNodes = data.nodes.filter((n) => n.type !== "flow");
     const norm = filter.trim().toLowerCase();
+    if (!norm) return baseNodes;
+
     const matches = (n: OrgNode) =>
-      !norm ||
+      n.type === "workspace" ||
       n.label.toLowerCase().includes(norm) ||
       String((n.meta?.role as string) ?? "").toLowerCase().includes(norm);
-    return data.nodes.filter((n) => {
-      if (n.type === "workspace") return true;
-      if (kindFilter && kindFilter !== n.type) return false;
-      return matches(n);
-    });
-  }, [data.nodes, filter, kindFilter]);
+
+    // Build child→parent map from team-agent edges, then ensure ancestors are kept.
+    const parentOf = new Map<string, string>();
+    for (const e of data.edges) {
+      if (e.kind === "team-agent" || e.kind === "ws-team") {
+        parentOf.set(e.target, e.source);
+      }
+    }
+    const keep = new Set<string>();
+    for (const n of baseNodes) {
+      if (matches(n)) {
+        keep.add(n.id);
+        let p: string | undefined = parentOf.get(n.id);
+        while (p) {
+          keep.add(p);
+          p = parentOf.get(p);
+        }
+      }
+    }
+    return baseNodes.filter((n) => keep.has(n.id));
+  }, [data.nodes, data.edges, filter]);
 
   const visibleIds = useMemo(() => new Set(visibleNodes.map((n) => n.id)), [visibleNodes]);
 
@@ -455,22 +479,6 @@ export function OrgCanvas() {
             placeholder="Buscar agente, equipo, flujo…"
             className="w-48 bg-transparent text-xs text-zinc-100 placeholder-zinc-600 outline-none"
           />
-        </div>
-        <div className="flex gap-1.5 text-xs">
-          {FILTERS.map((k) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setKindFilter((curr) => (curr === k ? null : k))}
-              className={
-                kindFilter === k
-                  ? "rounded-md bg-violet-500/20 px-2.5 py-1 text-violet-300"
-                  : "rounded-md border border-white/[0.08] px-2.5 py-1 text-zinc-400 hover:bg-white/5"
-              }
-            >
-              {k === "team" ? "Equipos" : k === "agent" ? "Agentes" : "Flujos"}
-            </button>
-          ))}
         </div>
         <button
           type="button"
