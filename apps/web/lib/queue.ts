@@ -1,0 +1,135 @@
+import "server-only";
+
+/**
+ * Job queue backed by Postgres (vía pg-boss).
+ * Cero Redis. Cero broker externo. Usa la misma DB que el resto de la app.
+ *
+ * pg-boss crea sus propias tablas en el schema `pgboss` la primera vez
+ * que se llama a `start()`. Es idempotente.
+ *
+ * Ejemplo:
+ *   import { enqueue, registerWorker } from "@/lib/queue";
+ *
+ *   // En request handler:
+ *   await enqueue("flow:run", { flowId, input });
+ *
+ *   // En worker process:
+ *   registerWorker("flow:run", async (job) => {
+ *     await runFlow(job.data.flowId, job.data.input);
+ *   });
+ */
+
+// pg-boss se carga lazy para no romper builds donde no está instalado todavía.
+// Se agrega al package.json como parte del pivot OSS.
+type PgBoss = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+type Job<T = unknown> = { id: string; name: string; data: T };
+
+let _bossPromise: Promise<PgBoss> | null = null;
+
+async function getBoss(): Promise<PgBoss> {
+  if (_bossPromise) return _bossPromise;
+  _bossPromise = (async () => {
+    // pg-boss se resuelve dinámicamente para que el type-check pase sin install
+    // todavía hecho. En runtime, `pnpm install` lo trae.
+    // @ts-expect-error -- pg-boss types se cargan al instalar la dep
+    const { default: PgBossCtor } = await import("pg-boss");
+    const cs = process.env["DATABASE_URL"];
+    if (!cs) throw new Error("DATABASE_URL not set — required for pg-boss queue");
+    const boss = new PgBossCtor({
+      connectionString: cs,
+      // Limpia jobs completados después de 7 días para que la tabla no crezca
+      archiveCompletedAfterSeconds: 60 * 60 * 24 * 7,
+      retentionDays: 30,
+    });
+    boss.on("error", (err: Error) => {
+      console.error("[queue] pg-boss error:", err);
+    });
+    await boss.start();
+    return boss;
+  })();
+  return _bossPromise;
+}
+
+export interface EnqueueOptions {
+  /** Delay en segundos antes de ejecutar */
+  startAfterSeconds?: number;
+  /** Máximo reintentos (default 3) */
+  retryLimit?: number;
+  /** Backoff exponencial: delay base en segundos */
+  retryBackoff?: boolean;
+  /** TTL del job (segundos). Si no se ejecuta en este tiempo, se descarta */
+  expireInSeconds?: number;
+  /** Singleton key — sólo permite 1 job activo con esta key */
+  singletonKey?: string;
+}
+
+export async function enqueue<T = unknown>(
+  name: string,
+  data: T,
+  opts: EnqueueOptions = {}
+): Promise<string | null> {
+  const boss = await getBoss();
+  const sendOpts: Record<string, unknown> = {
+    retryLimit: opts.retryLimit ?? 3,
+    retryBackoff: opts.retryBackoff ?? true,
+    expireInSeconds: opts.expireInSeconds ?? 60 * 60, // 1h default
+  };
+  if (opts.startAfterSeconds) sendOpts["startAfter"] = opts.startAfterSeconds;
+  if (opts.singletonKey) sendOpts["singletonKey"] = opts.singletonKey;
+  return boss.send(name, data, sendOpts);
+}
+
+export type WorkerHandler<T = unknown> = (job: Job<T>) => Promise<void>;
+
+export async function registerWorker<T = unknown>(
+  name: string,
+  handler: WorkerHandler<T>,
+  opts: { teamSize?: number; teamConcurrency?: number } = {}
+): Promise<void> {
+  const boss = await getBoss();
+  await boss.work(
+    name,
+    {
+      teamSize: opts.teamSize ?? 1,
+      teamConcurrency: opts.teamConcurrency ?? 1,
+    },
+    async (job: Job<T> | Job<T>[]) => {
+      // pg-boss v10 entrega array si fetchSize > 1; v9 entrega objeto
+      const jobs = Array.isArray(job) ? job : [job];
+      for (const j of jobs) {
+        try {
+          await handler(j);
+        } catch (e) {
+          console.error(`[queue] handler "${name}" threw:`, e);
+          throw e; // pg-boss decide reintento
+        }
+      }
+    }
+  );
+  console.log(`[queue] worker registered: ${name}`);
+}
+
+/** Schedule recurrente (cron). */
+export async function schedule(
+  name: string,
+  cron: string,
+  data: unknown = {}
+): Promise<void> {
+  const boss = await getBoss();
+  await boss.schedule(name, cron, data, { tz: "UTC" });
+}
+
+export async function shutdownQueue(): Promise<void> {
+  if (!_bossPromise) return;
+  const boss = await _bossPromise;
+  await boss.stop({ graceful: true, timeout: 30_000 });
+  _bossPromise = null;
+}
+
+// ─── Job names (registro central, evita typos) ──────────────────
+
+export const JOB_FLOW_RUN = "flow:run";
+export const JOB_KB_INGEST = "kb:ingest";
+export const JOB_KB_REINDEX = "kb:reindex";
+export const JOB_WEBHOOK_DELIVER = "webhook:deliver";
+export const JOB_USAGE_AGGREGATE = "usage:aggregate";

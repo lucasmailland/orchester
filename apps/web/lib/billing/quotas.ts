@@ -3,7 +3,19 @@ import { getDb, schema } from "@orchester/db";
 import { eq, and, gte, sum } from "drizzle-orm";
 import { planLimits, type Plan } from "./plans";
 
+/**
+ * En self-host (SELF_HOSTED=true o STRIPE_SECRET_KEY ausente), todos los
+ * workspaces son plan "enterprise" → quotas ilimitadas. Sin esta degradación,
+ * un user self-hosted choca con el límite Free de 100 conversaciones/mes.
+ */
+function isSelfHosted(): boolean {
+  return (
+    process.env["SELF_HOSTED"] === "true" || !process.env["STRIPE_SECRET_KEY"]
+  );
+}
+
 export async function getWorkspacePlan(workspaceId: string): Promise<Plan> {
+  if (isSelfHosted()) return "enterprise";
   const db = getDb();
   const rows = await db
     .select()

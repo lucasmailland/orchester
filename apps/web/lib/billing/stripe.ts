@@ -2,13 +2,20 @@ import "server-only";
 
 /**
  * Tiny Stripe REST wrapper — avoids pulling the SDK to keep the bundle small.
- * Requires STRIPE_SECRET_KEY env var. If unset, throws a helpful error.
+ * STRIPE_SECRET_KEY es opcional: si no está configurado, billing queda
+ * desactivado y `isStripeEnabled()` devuelve false. La UI debe esconder
+ * los flujos de upgrade en ese caso (self-hosted / OSS).
  */
+export function isStripeEnabled(): boolean {
+  return Boolean(process.env["STRIPE_SECRET_KEY"]);
+}
+
 function getKey(): string {
   const k = process.env["STRIPE_SECRET_KEY"];
   if (!k) {
     throw new Error(
-      "STRIPE_SECRET_KEY not configured — set it in .env.local to enable billing."
+      "Stripe billing is disabled in this deployment (STRIPE_SECRET_KEY not set). " +
+        "This is expected on self-hosted / OSS installs."
     );
   }
   return k;
