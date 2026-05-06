@@ -184,6 +184,8 @@ export function AgentConfigPanel({ value, onChange }: Props) {
                 <button
                   key={c}
                   type="button"
+                  aria-label={`Color ${c}`}
+                  aria-pressed={value.color === c}
                   onClick={() => onChange({ color: c })}
                   className={cn(
                     "h-7 w-7 rounded-lg border-2",
@@ -234,21 +236,23 @@ export function AgentConfigPanel({ value, onChange }: Props) {
             />
           </div>
           <div>
-            <label className="mb-1.5 flex items-center justify-between text-[11px] uppercase tracking-wider text-zinc-500">
-              Sugerencias iniciales (botones que el usuario puede tocar)
+            <div className="mb-1.5 flex items-center justify-between text-[11px] uppercase tracking-wider text-zinc-500">
+              <span id="starters-label">Sugerencias iniciales (botones que el usuario puede tocar)</span>
               <button
                 type="button"
+                aria-label="Agregar sugerencia inicial"
                 onClick={() => onChange({ starters: [...value.starters, ""] })}
                 className="flex items-center gap-1 text-[10px] text-violet-400 hover:text-violet-300"
               >
                 <Plus className="h-3 w-3" /> Agregar
               </button>
-            </label>
-            <div className="space-y-1.5">
+            </div>
+            <div className="space-y-1.5" aria-labelledby="starters-label">
               {value.starters.map((s, i) => (
                 <div key={i} className="flex items-center gap-1.5">
                   <input
                     value={s}
+                    aria-label={`Sugerencia ${i + 1}`}
                     onChange={(e) => {
                       const next = [...value.starters];
                       next[i] = e.target.value;
@@ -259,6 +263,7 @@ export function AgentConfigPanel({ value, onChange }: Props) {
                   />
                   <button
                     type="button"
+                    aria-label={`Eliminar sugerencia ${i + 1}`}
                     onClick={() => onChange({ starters: value.starters.filter((_, j) => j !== i) })}
                     className="text-zinc-500 hover:text-red-400"
                   >

@@ -278,12 +278,16 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
                           {/* Actions */}
                           <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                             <button
+                              type="button"
+                              aria-label={`Editar ${agent.name}`}
                               onClick={() => setEditingAgent(agent)}
                               className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 hover:bg-white/[0.08] hover:text-zinc-200"
                             >
                               <Pencil size={12} />
                             </button>
                             <button
+                              type="button"
+                              aria-label={`Eliminar ${agent.name}`}
                               onClick={() => handleDelete(agent.id)}
                               className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 hover:bg-red-500/10 hover:text-red-400"
                             >

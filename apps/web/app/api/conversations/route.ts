@@ -45,7 +45,9 @@ export async function GET(req: Request) {
     );
   }
 
-  // Join with channels to filter by type and get name
+  // Join with channels (filtro por tipo + nombre), employees (nombre del usuario
+  // real cuando la conversación está atada a un empleado) y agents (nombre del
+  // agente que respondió). Esto evita el "Anónimo · sin agente" del listado.
   const rows = await db
     .select({
       id: schema.conversations.id,
@@ -53,6 +55,9 @@ export async function GET(req: Request) {
       channelType: schema.channels.type,
       channelName: schema.channels.name,
       agentId: schema.conversations.agentId,
+      agentName: schema.agents.name,
+      employeeName: schema.employees.name,
+      employeeEmail: schema.employees.email,
       customerName: schema.conversations.customerName,
       customerEmail: schema.conversations.customerEmail,
       tags: schema.conversations.tags,
@@ -64,6 +69,8 @@ export async function GET(req: Request) {
     })
     .from(schema.conversations)
     .leftJoin(schema.channels, eq(schema.channels.id, schema.conversations.channelId))
+    .leftJoin(schema.employees, eq(schema.employees.id, schema.conversations.employeeId))
+    .leftJoin(schema.agents, eq(schema.agents.id, schema.conversations.agentId))
     .where(
       channelType
         ? and(...conds, eq(schema.channels.type, channelType as never))

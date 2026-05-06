@@ -416,7 +416,8 @@ export async function getUsageStats(workspaceId: string): Promise<UsageStats> {
         .groupBy(sql`date(${schema.messages.createdAt})`)
         .orderBy(sql`date(${schema.messages.createdAt})`),
 
-      // Per-agent usage (all time, top 10)
+      // Per-agent usage (current month, top 10) — alineado con totalTokensMonth
+      // y totalCostMonth para evitar incoherencias en los KPI cards.
       db
         .select({
           agentId: schema.agents.id,
@@ -428,7 +429,10 @@ export async function getUsageStats(workspaceId: string): Promise<UsageStats> {
         .from(schema.agents)
         .innerJoin(schema.conversations, eq(schema.conversations.agentId, schema.agents.id))
         .innerJoin(schema.messages, eq(schema.messages.conversationId, schema.conversations.id))
-        .where(eq(schema.agents.workspaceId, workspaceId))
+        .where(and(
+          eq(schema.agents.workspaceId, workspaceId),
+          gte(schema.messages.createdAt, startOfMonth)
+        ))
         .groupBy(schema.agents.id, schema.agents.name, schema.agents.model)
         .orderBy(desc(sql`sum(${schema.messages.tokensUsed})`))
         .limit(10),
@@ -580,7 +584,8 @@ export async function getFullDashboardStats(workspaceId: string): Promise<FullDa
       .groupBy(sql`date(${schema.messages.createdAt})`)
       .orderBy(sql`date(${schema.messages.createdAt})`),
 
-    // Agent usage (all-time top 12)
+    // Agent usage (current month, top 12) — alineado con totalTokensMonth/
+    // totalCostMonth para que el donut "mes actual" no muestre datos all-time.
     db.select({
       agentId: schema.agents.id,
       agentName: schema.agents.name,
@@ -592,7 +597,10 @@ export async function getFullDashboardStats(workspaceId: string): Promise<FullDa
       .from(schema.agents)
       .innerJoin(schema.conversations, eq(schema.conversations.agentId, schema.agents.id))
       .innerJoin(schema.messages, eq(schema.messages.conversationId, schema.conversations.id))
-      .where(eq(schema.agents.workspaceId, workspaceId))
+      .where(and(
+        eq(schema.agents.workspaceId, workspaceId),
+        gte(schema.messages.createdAt, startOfMonth)
+      ))
       .groupBy(schema.agents.id, schema.agents.name, schema.agents.model, schema.agents.status)
       .orderBy(desc(sql`sum(${schema.messages.tokensUsed})`))
       .limit(12),

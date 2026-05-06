@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, pgEnum, integer, boolean, jsonb, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, pgEnum, integer, boolean, jsonb, numeric, uniqueIndex } from "drizzle-orm/pg-core";
 import { workspaces } from "./workspaces";
 
 export const agentStatusEnum = pgEnum("agent_status", ["active", "inactive", "draft"]);
@@ -79,22 +79,32 @@ export const channels = pgTable("channel", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const employees = pgTable("employee", {
-  id: text("id").primaryKey(),
-  workspaceId: text("workspace_id")
-    .notNull()
-    .references(() => workspaces.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  email: text("email").notNull(),
-  phone: text("phone"),
-  area: text("area"),
-  managerId: text("manager_id"),
-  avatarUrl: text("avatar_url"),
-  active: boolean("active").notNull().default(true),
-  assignedAgentIds: jsonb("assigned_agent_ids").$type<string[]>().default([]),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const employees = pgTable(
+  "employee",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    phone: text("phone"),
+    area: text("area"),
+    managerId: text("manager_id"),
+    avatarUrl: text("avatar_url"),
+    active: boolean("active").notNull().default(true),
+    assignedAgentIds: jsonb("assigned_agent_ids").$type<string[]>().default([]),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    // Email único por workspace (evita que un seed corrido 2 veces duplique gente)
+    uniqWorkspaceEmail: uniqueIndex("uniq_employee_workspace_email").on(
+      t.workspaceId,
+      t.email
+    ),
+  })
+);
 
 export const conversations = pgTable("conversation", {
   id: text("id").primaryKey(),

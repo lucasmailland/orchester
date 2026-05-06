@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Building2, Key, Bell, Globe, Users, AlertTriangle, Check, Copy, Eye, EyeOff, Sparkles, Code, CreditCard } from "lucide-react";
+import { Building2, Bell, Globe, Users, AlertTriangle, Check, Sparkles, Code, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AIProvidersSection } from "./AIProvidersSection";
 import { DevelopersSection } from "./DevelopersSection";
@@ -79,11 +79,6 @@ function SectionCard({ icon, title, description, children }: {
   );
 }
 
-const MOCK_API_KEYS = [
-  { id: "1", name: "Production Key", prefix: "sk-orc-prod-", created: "2026-03-15", lastUsed: "2 hours ago" },
-  { id: "2", name: "Development Key", prefix: "sk-orc-dev-", created: "2026-04-01", lastUsed: "1 day ago" },
-];
-
 const LOCALES = [
   { value: "en", label: "English" },
   { value: "es", label: "Español" },
@@ -106,9 +101,6 @@ export function SettingsClient({ workspace, labels }: SettingsClientProps) {
   const [notifications, setNotifications] = useState<Record<string, boolean>>(
     Object.fromEntries(NOTIFICATION_SETTINGS.map(n => [n.id, n.defaultOn]))
   );
-  const [revealedKey, setRevealedKey] = useState<string | null>(null);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-
   async function handleSaveWorkspace(e: { preventDefault: () => void }) {
     e.preventDefault();
     setSaving(true);
@@ -131,11 +123,6 @@ export function SettingsClient({ workspace, labels }: SettingsClientProps) {
 
   function toggleNotification(id: string) {
     setNotifications(prev => ({ ...prev, [id]: !prev[id] }));
-  }
-
-  function copyKey(id: string) {
-    setCopiedKey(id);
-    setTimeout(() => setCopiedKey(null), 1500);
   }
 
   return (
@@ -226,6 +213,10 @@ export function SettingsClient({ workspace, labels }: SettingsClientProps) {
                   <p className="text-xs text-zinc-600">{n.description}</p>
                 </div>
                 <button
+                  type="button"
+                  role="switch"
+                  aria-checked={notifications[n.id] ?? false}
+                  aria-label={n.label}
                   onClick={() => toggleNotification(n.id)}
                   className={cn(
                     "relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors duration-200",
@@ -280,82 +271,7 @@ export function SettingsClient({ workspace, labels }: SettingsClientProps) {
           <DevelopersSection />
         </SectionCard>
 
-        {/* API Keys */}
-        <SectionCard
-          icon={<Key size={16} />}
-          title={labels.apiKeys}
-          description={labels.apiKeysDescription}
-        >
-          <div className="space-y-3">
-            {MOCK_API_KEYS.map(key => (
-              <div
-                key={key.id}
-                className="rounded-xl border border-white/[0.06] bg-zinc-900/60 p-3"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-zinc-200">{key.name}</p>
-                    <p className="font-mono text-[11px] text-zinc-600">
-                      {revealedKey === key.id
-                        ? `${key.prefix}••••••••••••`
-                        : `${key.prefix.slice(0, 8)}••••••••`}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setRevealedKey(revealedKey === key.id ? null : key.id)}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 hover:bg-white/[0.07] hover:text-zinc-300 transition-colors"
-                    >
-                      {revealedKey === key.id ? <EyeOff size={13} /> : <Eye size={13} />}
-                    </button>
-                    <button
-                      onClick={() => copyKey(key.id)}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 hover:bg-white/[0.07] hover:text-zinc-300 transition-colors"
-                    >
-                      {copiedKey === key.id ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
-                    </button>
-                  </div>
-                </div>
-                <div className="mt-2 flex gap-3 text-[11px] text-zinc-600">
-                  <span>Created {key.created}</span>
-                  <span>·</span>
-                  <span>Last used {key.lastUsed}</span>
-                </div>
-              </div>
-            ))}
-            <button className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-white/[0.08] py-2.5 text-xs text-zinc-500 transition-colors hover:border-violet-500/30 hover:text-violet-400">
-              <Key size={12} />
-              {labels.addApiKey}
-            </button>
-          </div>
-        </SectionCard>
       </div>
-
-      {/* Team Members */}
-      <SectionCard
-        icon={<Users size={16} />}
-        title={labels.team}
-        description={labels.teamDescription}
-      >
-        <div className="space-y-2">
-          {[
-            { name: "Demo Admin", email: "demo@fichap.com", role: "Owner", initials: "DA" },
-          ].map(member => (
-            <div key={member.email} className="flex items-center gap-3 rounded-xl border border-white/[0.05] bg-zinc-900/40 p-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-blue-600 text-xs font-bold text-white">
-                {member.initials}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-zinc-200">{member.name}</p>
-                <p className="text-xs text-zinc-600">{member.email}</p>
-              </div>
-              <span className="rounded-md border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-[11px] font-medium text-violet-400">
-                {member.role}
-              </span>
-            </div>
-          ))}
-        </div>
-      </SectionCard>
 
       {/* Danger Zone */}
       <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-6">

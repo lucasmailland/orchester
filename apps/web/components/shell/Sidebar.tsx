@@ -29,21 +29,39 @@ export function Sidebar({ locale }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const t = useTranslations("nav");
 
-  const mainNav = [
+  // Grouping rationale:
+  //   WORKSPACE → cosas que ves todos los días (dashboard + lo que produce el sistema)
+  //   AUTOMATIZACIÓN → cómo se construyen los agentes
+  //   DATOS → directorios estáticos (people, teams, knowledge)
+  //   SISTEMA → infra del workspace (canales, integraciones, ajustes)
+  const workspaceNav = [
     { href: `/${locale}`, icon: <Home size={16} />, label: t("home") },
-    { href: `/${locale}/teams`, icon: <Layers size={16} />, label: t("teams") },
+    { href: `/${locale}/conversations`, icon: <MessageSquare size={16} />, label: t("conversations") },
     { href: `/${locale}/org`, icon: <Network size={16} />, label: t("org") },
+  ];
+
+  const buildNav = [
     { href: `/${locale}/agents`, icon: <Bot size={16} />, label: t("agents") },
     { href: `/${locale}/flows`, icon: <Workflow size={16} />, label: t("flows") },
-    { href: `/${locale}/knowledge`, icon: <BookOpen size={16} />, label: t("knowledge") },
-    { href: `/${locale}/conversations`, icon: <MessageSquare size={16} />, label: t("conversations") },
+  ];
+
+  const dataNav = [
+    { href: `/${locale}/teams`, icon: <Layers size={16} />, label: t("teams") },
     { href: `/${locale}/employees`, icon: <Users size={16} />, label: t("employees") },
+    { href: `/${locale}/knowledge`, icon: <BookOpen size={16} />, label: t("knowledge") },
   ];
 
   const systemNav = [
     { href: `/${locale}/channels`, icon: <Radio size={16} />, label: t("channels") },
     { href: `/${locale}/integrations`, icon: <Plug size={16} />, label: t("integrations") },
     { href: `/${locale}/settings`, icon: <Settings size={16} />, label: t("settings") },
+  ];
+
+  const groups: Array<{ label: string; items: typeof workspaceNav }> = [
+    { label: "Workspace", items: workspaceNav },
+    { label: "Automatización", items: buildNav },
+    { label: "Datos", items: dataNav },
+    { label: "Sistema", items: systemNav },
   ];
 
   return (
@@ -78,37 +96,23 @@ export function Sidebar({ locale }: SidebarProps) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3">
-        {/* Main section label */}
-        <AnimatePresenceWrapper show={!collapsed}>
-          <div className="mb-1.5 px-4">
-            <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-zinc-600">
-              Main
-            </span>
+        {groups.map((group, idx) => (
+          <div key={group.label}>
+            {idx > 0 && <div className="my-3 mx-3 border-t border-white/[0.06]" />}
+            <AnimatePresenceWrapper show={!collapsed}>
+              <div className="mb-1.5 px-4">
+                <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-zinc-600">
+                  {group.label}
+                </span>
+              </div>
+            </AnimatePresenceWrapper>
+            <div className="flex flex-col gap-0.5">
+              {group.items.map((item) => (
+                <SidebarItem key={item.href} {...item} collapsed={collapsed} />
+              ))}
+            </div>
           </div>
-        </AnimatePresenceWrapper>
-
-        <div className="flex flex-col gap-0.5">
-          {mainNav.map((item) => (
-            <SidebarItem key={item.href} {...item} collapsed={collapsed} />
-          ))}
-        </div>
-
-        <div className="my-3 mx-3 border-t border-white/[0.06]" />
-
-        {/* System section label */}
-        <AnimatePresenceWrapper show={!collapsed}>
-          <div className="mb-1.5 px-4">
-            <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-zinc-600">
-              System
-            </span>
-          </div>
-        </AnimatePresenceWrapper>
-
-        <div className="flex flex-col gap-0.5">
-          {systemNav.map((item) => (
-            <SidebarItem key={item.href} {...item} collapsed={collapsed} />
-          ))}
-        </div>
+        ))}
       </nav>
 
       {/* Collapse toggle */}

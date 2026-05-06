@@ -10,6 +10,9 @@ interface Conv {
   channelType: string | null;
   channelName: string | null;
   agentId: string | null;
+  agentName: string | null;
+  employeeName: string | null;
+  employeeEmail: string | null;
   customerName: string | null;
   customerEmail: string | null;
   tags: string[] | null;
@@ -230,8 +233,13 @@ export function ConversationsClient({
               <div className="flex-1">
                 <div className="flex items-center gap-2 text-zinc-100">
                   <span className="font-medium">
-                    {c.customerName ?? c.customerEmail ?? "Anónimo"}
+                    {c.employeeName ?? c.customerName ?? c.customerEmail ?? c.employeeEmail ?? "Anónimo"}
                   </span>
+                  {c.agentName && (
+                    <span className="text-[10px] text-zinc-500">
+                      con <span className="text-zinc-300">{c.agentName}</span>
+                    </span>
+                  )}
                   {c.takenOverAt && (
                     <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-amber-300">
                       take-over
@@ -354,8 +362,11 @@ function ConversationDrawer({
           <div className="flex items-center gap-2 text-sm text-zinc-100">
             <User className="h-4 w-4 text-zinc-500" />
             <span className="font-medium">
-              {conversation.customerName ?? conversation.customerEmail ?? "Anónimo"}
+              {conversation.employeeName ?? conversation.customerName ?? conversation.customerEmail ?? conversation.employeeEmail ?? "Anónimo"}
             </span>
+            {conversation.agentName && (
+              <span className="text-[11px] text-zinc-500">· con {conversation.agentName}</span>
+            )}
             <span className="text-[11px] text-zinc-500">· {conversation.channelType}</span>
           </div>
           <button onClick={onClose} type="button" className="text-zinc-500 hover:text-zinc-200">
