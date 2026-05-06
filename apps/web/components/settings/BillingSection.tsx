@@ -123,10 +123,13 @@ export function BillingSection() {
   );
 }
 
-function UsageBar({ label, current, limit, pct }: { label: string; current: number; limit: number; pct: number }) {
+function UsageBar({ label, current, limit, pct }: { label: string; current: number | null | undefined; limit: number | null | undefined; pct: number }) {
   const tone = pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-violet-500";
-  const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}K` : n.toString());
-  const limitTxt = isFinite(limit) ? fmt(limit) : "∞";
+  const fmt = (n: number | null | undefined) => {
+    const v = Number(n ?? 0);
+    return v >= 1000 ? `${(v / 1000).toFixed(1)}K` : String(v);
+  };
+  const limitTxt = limit != null && isFinite(limit) ? fmt(limit) : "∞";
   return (
     <div>
       <div className="mb-1 flex justify-between text-zinc-400">
