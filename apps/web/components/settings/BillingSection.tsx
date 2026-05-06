@@ -7,6 +7,8 @@ import { toast } from "sonner";
 interface UsagePayload {
   plan: string;
   planMeta: { name: string; priceUsd: number };
+  /** Si es false, estamos en self-host: esconder upgrade/portal flows. */
+  stripeEnabled?: boolean;
   usage: {
     conversations: number;
     tokensIn: number;
@@ -75,11 +77,11 @@ export function BillingSection() {
             <div className="text-lg font-semibold text-zinc-100">
               {data.planMeta.name}{" "}
               <span className="text-sm text-zinc-500">
-                · ${data.planMeta.priceUsd}/mes
+                {data.stripeEnabled === false ? "· sin límites" : `· $${data.planMeta.priceUsd}/mes`}
               </span>
             </div>
           </div>
-          {data.plan === "free" ? (
+          {data.stripeEnabled === false ? null : data.plan === "free" ? (
             <button
               type="button"
               onClick={() => checkout("pro")}

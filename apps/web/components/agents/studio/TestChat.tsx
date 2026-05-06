@@ -167,12 +167,14 @@ export function TestChat({
               }
             }}
             rows={2}
-            placeholder="Escribí un mensaje…"
+            aria-label="Mensaje para el agente"
+            placeholder="Escribí un mensaje (Enter para enviar, Shift+Enter para salto de línea)…"
             className="flex-1 resize-none rounded-xl border border-white/[0.08] bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 outline-none focus:border-violet-500/60"
           />
           <button
             onClick={send}
             disabled={!input.trim() || loading}
+            aria-label="Enviar mensaje"
             className="rounded-xl bg-violet-500 p-2.5 text-white hover:bg-violet-400 disabled:opacity-40"
             type="button"
           >

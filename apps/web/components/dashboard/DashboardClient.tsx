@@ -444,7 +444,15 @@ function ActivityFeed({ data }: { data: FullDashboardStats["recentConversations"
 
 interface Props { stats: FullDashboardStats; workspaceName: string; locale: string }
 
-export function DashboardClient({ stats, workspaceName }: Props) {
+/** Formatea un porcentaje de cambio con signo. Devuelve null si el delta es nulo. */
+function fmtDelta(delta: number | null | undefined): string | null {
+  if (delta == null || !Number.isFinite(delta)) return null;
+  const rounded = Math.round(delta);
+  if (rounded === 0) return "0%";
+  return `${rounded > 0 ? "+" : ""}${rounded}%`;
+}
+
+export function DashboardClient({ stats, workspaceName, locale }: Props) {
   const now = new Date();
   const totalConvs30d = stats.activityByDay.reduce((s, d) => s + d.conversations, 0);
   const totalTokens30d = stats.activityByDay.reduce((s, d) => s + d.tokens, 0);
@@ -489,7 +497,7 @@ export function DashboardClient({ stats, workspaceName }: Props) {
           sub={`de ${stats.totalAgents} totales`}
           icon={<Bot size={16} />} accent="violet" />
         <KPI label="Conversaciones hoy" value={stats.conversationsToday}
-          sub="vs ayer"
+          sub={stats.conversationsToday === 0 && stats.conversationsYesterday === 0 ? "sin actividad reciente" : "vs ayer"}
           icon={<MessageSquare size={16} />} accent="cyan"
           trend={{ now: stats.conversationsToday, prev: stats.conversationsYesterday }} />
         <KPI label="Abiertas ahora" value={stats.openConversations}
@@ -509,14 +517,20 @@ export function DashboardClient({ stats, workspaceName }: Props) {
       {/* ── Row 2: 4 usage metrics ── */}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
-          {
-            icon: <Zap size={13} className="text-violet-400" />,
-            label: "Tokens este mes",
-            value: fmtT(stats.totalTokensMonth),
-            sub: stats.totalTokensLastMonth > 0 ? `${pctChange(stats.totalTokensMonth, stats.totalTokensLastMonth) ?? 0 >= 0 ? "+" : ""}${pctChange(stats.totalTokensMonth, stats.totalTokensLastMonth) ?? 0}% vs mes ant.` : "primer mes",
-            sparkColor: "#8b5cf6",
-            delta: stats.totalTokensLastMonth > 0 ? pctChange(stats.totalTokensMonth, stats.totalTokensLastMonth) : null,
-          },
+          (() => {
+            const delta = stats.totalTokensLastMonth > 0
+              ? pctChange(stats.totalTokensMonth, stats.totalTokensLastMonth)
+              : null;
+            const formatted = fmtDelta(delta);
+            return {
+              icon: <Zap size={13} className="text-violet-400" />,
+              label: "Tokens este mes",
+              value: fmtT(stats.totalTokensMonth),
+              sub: formatted ? `${formatted} vs mes ant.` : "primer mes",
+              sparkColor: "#8b5cf6",
+              delta,
+            };
+          })(),
           {
             icon: <DollarSign size={13} className="text-amber-400" />,
             label: "Costo estimado",
@@ -529,7 +543,9 @@ export function DashboardClient({ stats, workspaceName }: Props) {
             icon: <BarChart3 size={13} className="text-cyan-400" />,
             label: "Conversaciones / mes",
             value: stats.conversationsMonth.toLocaleString(),
-            sub: `${stats.conversationsLastMonth} el mes pasado`,
+            sub: stats.conversationsLastMonth > 0
+              ? `${stats.conversationsLastMonth} el mes pasado`
+              : "primer mes",
             sparkColor: "#06b6d4",
             delta: stats.conversationsLastMonth > 0 ? pctChange(stats.conversationsMonth, stats.conversationsLastMonth) : null,
           },
@@ -551,14 +567,18 @@ export function DashboardClient({ stats, workspaceName }: Props) {
               <p className="font-mono text-xl font-bold text-zinc-50">{m.value}</p>
               <div className="mt-0.5 flex items-center gap-2">
                 <span className="text-[10px] text-zinc-700">{m.sub}</span>
-                {m.delta !== null && m.delta !== undefined && (
-                  <span className={cn(
-                    "text-[9px] font-bold",
-                    m.delta >= 0 ? "text-emerald-500" : "text-red-500"
-                  )}>
-                    {m.delta >= 0 ? "+" : ""}{m.delta}%
-                  </span>
-                )}
+                {(() => {
+                  const txt = fmtDelta(m.delta);
+                  if (!txt || m.delta == null) return null;
+                  return (
+                    <span className={cn(
+                      "text-[9px] font-bold",
+                      m.delta >= 0 ? "text-emerald-500" : "text-red-500"
+                    )}>
+                      {txt}
+                    </span>
+                  );
+                })()}
               </div>
             </div>
             <Sparkline data={sparkData} color={m.sparkColor} />
@@ -609,7 +629,7 @@ export function DashboardClient({ stats, workspaceName }: Props) {
       <Card>
         <CardHeader
           title={`Rendimiento de agentes · ${stats.agentUsage.length} agentes`}
-          sub="all-time · ordenado por consumo de tokens"
+          sub="mes actual · ordenado por consumo de tokens"
         />
         <div className="px-5 pb-5">
           <AgentTable data={stats.agentUsage} />
@@ -772,7 +792,7 @@ export function DashboardClient({ stats, workspaceName }: Props) {
             }
           </div>
           <div className="border-t border-white/[0.04] px-5 py-2.5">
-            <a href="conversaciones" className="flex items-center gap-1 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">
+            <a href={`/${locale}/conversations`} className="flex items-center gap-1 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">
               <span>Ver todas las conversaciones</span>
               <ArrowRight size={10} />
             </a>
