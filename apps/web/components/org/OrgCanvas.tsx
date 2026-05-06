@@ -374,12 +374,56 @@ export function OrgCanvas() {
   const visibleIds = useMemo(() => new Set(visibleNodes.map((n) => n.id)), [visibleNodes]);
 
   /**
-   * Hold mutable node state so the user can drag nodes manually. We re-layout
-   * automatically whenever the *visible set* changes (new agents, filter,
-   * etc.), but preserve user-moved positions across data refreshes via the
-   * `userMovedRef` map.
+   * Hold mutable node state so the user can drag nodes manually. Las posiciones
+   * se preservan a través de refreshes de datos (`userMovedRef`) Y a través de
+   * full reloads (localStorage), de modo que cuando un usuario acomoda su
+   * organigrama, lo encuentra igual la próxima vez.
+   *
+   * Key de localStorage scoped por workspace id (extraído del primer nodo
+   * "workspace") — si el usuario cambia de workspace, no contaminamos.
    */
+  const wsNode = data.nodes.find((n) => n.type === "workspace");
+  const storageKey = wsNode ? `orchester:org:positions:${wsNode.id}` : null;
   const userMovedRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+
+  // Hydrate userMovedRef desde localStorage la primera vez que conocemos el ws.
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current || !storageKey || typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, { x: number; y: number }>;
+        for (const [id, pos] of Object.entries(parsed)) {
+          if (pos && typeof pos.x === "number" && typeof pos.y === "number") {
+            userMovedRef.current.set(id, pos);
+          }
+        }
+      }
+    } catch {
+      // localStorage corrupto → ignorar y empezar limpio
+    }
+    hydratedRef.current = true;
+  }, [storageKey]);
+
+  // Persistir posiciones movidas al localStorage (debounced).
+  const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persist = useCallback(() => {
+    if (!storageKey || typeof window === "undefined") return;
+    if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
+    persistTimeoutRef.current = setTimeout(() => {
+      const obj: Record<string, { x: number; y: number }> = {};
+      userMovedRef.current.forEach((v, k) => {
+        obj[k] = v;
+      });
+      try {
+        window.localStorage.setItem(storageKey, JSON.stringify(obj));
+      } catch {
+        // quota exceeded o privacy mode → ignorar
+      }
+    }, 250);
+  }, [storageKey]);
+
   const [flowNodes, setFlowNodes] = useState<Node[]>([]);
   const layoutKey = useMemo(
     () => visibleNodes.map((n) => n.id).sort().join(","),
@@ -411,21 +455,30 @@ export function OrgCanvas() {
     });
   }, [visibleNodes]);
 
-  const onNodesChange = useCallback((changes: NodeChange[]) => {
-    setFlowNodes((nds) => {
-      const next = applyNodeChanges(changes, nds);
-      // Track positions so refreshes don't snap them back.
-      for (const c of changes) {
-        if (c.type === "position" && c.position && !c.dragging) {
-          userMovedRef.current.set(c.id, c.position);
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      setFlowNodes((nds) => {
+        const next = applyNodeChanges(changes, nds);
+        // Track positions so refreshes don't snap them back.
+        let touched = false;
+        for (const c of changes) {
+          if (c.type === "position" && c.position && !c.dragging) {
+            userMovedRef.current.set(c.id, c.position);
+            touched = true;
+          }
         }
-      }
-      return next;
-    });
-  }, []);
+        if (touched) persist();
+        return next;
+      });
+    },
+    [persist]
+  );
 
   function resetLayout() {
     userMovedRef.current.clear();
+    if (storageKey && typeof window !== "undefined") {
+      window.localStorage.removeItem(storageKey);
+    }
     setFlowNodes(layoutNodes(visibleNodes, data.edges));
   }
 

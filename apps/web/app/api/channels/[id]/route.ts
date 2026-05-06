@@ -4,6 +4,7 @@ import { eq, and } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
 import { encrypt } from "@/lib/encryption";
 import { telegramSetWebhook, telegramGetMe } from "@/lib/channels/telegram";
+import { slackAuthTest } from "@/lib/channels/slack";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ws = await getCurrentWorkspace();
@@ -68,6 +69,49 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         hasCredentials: true,
         webhookSet: true,
         botUsername: me.result?.username,
+      });
+    } catch (e) {
+      const { credentialsEncrypted, ...rest } = row;
+      return NextResponse.json({
+        ...rest,
+        hasCredentials: true,
+        webhookSet: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  // Slack: validar credenciales con auth.test cuando se actualizan.
+  // No auto-configuramos el Event Subscriptions URL porque eso requiere que el
+  // operador lo pegue manualmente en https://api.slack.com/apps/<app>/event-subscriptions.
+  if (
+    row.type === "slack" &&
+    body.credentials?.botToken &&
+    body.credentials?.signingSecret
+  ) {
+    try {
+      const me = await slackAuthTest(body.credentials.botToken);
+      if (!me.ok) {
+        const { credentialsEncrypted, ...rest } = row;
+        return NextResponse.json({
+          ...rest,
+          hasCredentials: true,
+          webhookSet: false,
+          error: me.error ?? "Invalid Slack bot token",
+        });
+      }
+      const webhookUrl = process.env["NEXT_PUBLIC_APP_URL"]
+        ? `${process.env["NEXT_PUBLIC_APP_URL"]}/api/channels/slack/webhook/${row.secret}`
+        : null;
+      const { credentialsEncrypted, ...rest } = row;
+      return NextResponse.json({
+        ...rest,
+        hasCredentials: true,
+        webhookSet: true,
+        slackTeam: me.team,
+        slackUser: me.user,
+        slackBotId: me.bot_id,
+        webhookUrl, // el operador la pega en api.slack.com → Event Subscriptions
       });
     } catch (e) {
       const { credentialsEncrypted, ...rest } = row;

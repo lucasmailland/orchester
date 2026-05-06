@@ -23,7 +23,8 @@ export async function GET(req: Request) {
   const tag = url.searchParams.get("tag");
   const search = url.searchParams.get("search");
   const fromIso = url.searchParams.get("from");
-  const limit = Math.min(200, Number(url.searchParams.get("limit") ?? 50));
+  const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit") ?? 50)));
+  const offset = Math.max(0, Number(url.searchParams.get("offset") ?? 0));
 
   const db = getDb();
 
@@ -77,7 +78,13 @@ export async function GET(req: Request) {
         : and(...conds)
     )
     .orderBy(desc(schema.conversations.startedAt))
-    .limit(limit);
+    .limit(limit + 1) // +1 para detectar si hay más; lo descartamos al responder
+    .offset(offset);
 
-  return NextResponse.json(rows);
+  const hasMore = rows.length > limit;
+  return NextResponse.json({
+    rows: hasMore ? rows.slice(0, limit) : rows,
+    hasMore,
+    nextOffset: hasMore ? offset + limit : null,
+  });
 }

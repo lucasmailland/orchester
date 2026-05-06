@@ -175,8 +175,14 @@ function ProviderCard({
 
       <div className="space-y-2">
         <div className="relative">
-          <KeyRound className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
+          <label htmlFor={`provider-key-${provider}`} className="sr-only">
+            API key de {meta.name}
+          </label>
+          <KeyRound className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-zinc-500" aria-hidden="true" />
           <input
+            id={`provider-key-${provider}`}
+            name={`provider-key-${provider}`}
+            autoComplete="off"
             type={show ? "text" : "password"}
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
@@ -186,6 +192,7 @@ function ProviderCard({
           <button
             onClick={() => setShow((s) => !s)}
             type="button"
+            aria-label={show ? "Ocultar API key" : "Mostrar API key"}
             className="absolute right-2.5 top-2.5 text-zinc-500 hover:text-zinc-300"
           >
             {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -193,12 +200,20 @@ function ProviderCard({
         </div>
 
         {meta.needsEndpoint && (
-          <input
-            value={endpoint}
-            onChange={(e) => setEndpoint(e.target.value)}
-            placeholder="https://my-resource.openai.azure.com"
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/60 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 outline-none focus:border-violet-500/60"
-          />
+          <>
+            <label htmlFor={`provider-endpoint-${provider}`} className="sr-only">
+              Endpoint personalizado para {meta.name}
+            </label>
+            <input
+              id={`provider-endpoint-${provider}`}
+              name={`provider-endpoint-${provider}`}
+              type="url"
+              value={endpoint}
+              onChange={(e) => setEndpoint(e.target.value)}
+              placeholder="https://my-resource.openai.azure.com"
+              className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/60 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 outline-none focus:border-violet-500/60"
+            />
+          </>
         )}
       </div>
 
