@@ -88,15 +88,26 @@ export function MembersSection() {
       </div>
 
       <div className="flex items-center gap-2 border-t border-white/[0.06] pt-3">
-        <Mail className="h-3.5 w-3.5 text-zinc-500" />
+        <label htmlFor="member-invite-email" className="sr-only">
+          Email del invitado
+        </label>
+        <Mail className="h-3.5 w-3.5 text-zinc-500" aria-hidden="true" />
         <input
+          id="member-invite-email"
+          name="invite-email"
+          autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="email@empresa.com"
           type="email"
           className="flex-1 rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-1.5 text-xs text-zinc-100 outline-none focus:border-violet-500/60"
         />
+        <label htmlFor="member-invite-role" className="sr-only">
+          Rol del invitado
+        </label>
         <select
+          id="member-invite-role"
+          name="invite-role"
           value={role}
           onChange={(e) => setRole(e.target.value as "admin" | "editor" | "viewer")}
           className="rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-xs text-zinc-100 outline-none"

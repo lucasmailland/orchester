@@ -54,6 +54,9 @@ export function ConversationsClient({
 }) {
   const [conversations, setConversations] = useState<Conv[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [filters, setFilters] = useState({
     status: "",
     channel: "",
@@ -63,18 +66,53 @@ export function ConversationsClient({
   });
   const [selected, setSelected] = useState<Conv | null>(null);
 
-  async function load() {
-    setLoading(true);
+  const PAGE_SIZE = 50;
+
+  function buildQs(offset: number): URLSearchParams {
     const qs = new URLSearchParams();
     if (filters.status) qs.set("status", filters.status);
     if (filters.channel) qs.set("channel", filters.channel);
     if (filters.agentId) qs.set("agentId", filters.agentId);
     if (filters.tag) qs.set("tag", filters.tag);
     if (filters.search) qs.set("search", filters.search);
-    const r = await fetch(`/api/conversations?${qs}`);
+    qs.set("limit", String(PAGE_SIZE));
+    qs.set("offset", String(offset));
+    return qs;
+  }
+
+  async function load() {
+    setLoading(true);
+    const r = await fetch(`/api/conversations?${buildQs(0)}`);
     const j = await r.json();
-    setConversations(Array.isArray(j) ? j : []);
+    // Soporta tanto el formato nuevo {rows,hasMore} como el viejo (array) para
+    // compatibilidad mientras hay caches en vuelo.
+    if (Array.isArray(j)) {
+      setConversations(j);
+      setHasMore(false);
+      setNextOffset(null);
+    } else {
+      setConversations(j.rows ?? []);
+      setHasMore(Boolean(j.hasMore));
+      setNextOffset(j.nextOffset ?? null);
+    }
     setLoading(false);
+  }
+
+  async function loadMore() {
+    if (nextOffset == null || loadingMore) return;
+    setLoadingMore(true);
+    const r = await fetch(`/api/conversations?${buildQs(nextOffset)}`);
+    const j = await r.json();
+    const more: Conv[] = Array.isArray(j) ? j : (j.rows ?? []);
+    setConversations((prev) => [...prev, ...more]);
+    if (Array.isArray(j)) {
+      setHasMore(false);
+      setNextOffset(null);
+    } else {
+      setHasMore(Boolean(j.hasMore));
+      setNextOffset(j.nextOffset ?? null);
+    }
+    setLoadingMore(false);
   }
 
   useEffect(() => {
@@ -142,15 +180,26 @@ export function ConversationsClient({
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.08] bg-zinc-900/40 p-3">
         <div className="relative flex-1 min-w-[180px]">
-          <Search className="pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5 text-zinc-500" />
+          <label htmlFor="conv-search" className="sr-only">
+            Buscar conversaciones
+          </label>
+          <Search className="pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5 text-zinc-500" aria-hidden="true" />
           <input
+            id="conv-search"
+            name="conv-search"
+            type="search"
             value={filters.search}
             onChange={(e) => setFilters({ ...filters, search: e.target.value })}
             placeholder="Buscar nombre, email o resumen…"
             className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 py-1.5 pl-8 pr-2 text-xs text-zinc-100 outline-none focus:border-violet-500/60"
           />
         </div>
+        <label htmlFor="conv-filter-status" className="sr-only">
+          Filtrar por estado
+        </label>
         <select
+          id="conv-filter-status"
+          name="status"
           value={filters.status}
           onChange={(e) => setFilters({ ...filters, status: e.target.value })}
           className="rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-xs text-zinc-300 outline-none"
@@ -160,7 +209,12 @@ export function ConversationsClient({
           <option value="escalated">Escaladas</option>
           <option value="closed">Cerradas</option>
         </select>
+        <label htmlFor="conv-filter-channel" className="sr-only">
+          Filtrar por canal
+        </label>
         <select
+          id="conv-filter-channel"
+          name="channel"
           value={filters.channel}
           onChange={(e) => setFilters({ ...filters, channel: e.target.value })}
           className="rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-xs text-zinc-300 outline-none"
@@ -173,7 +227,12 @@ export function ConversationsClient({
           <option value="email">Email</option>
           <option value="api">API</option>
         </select>
+        <label htmlFor="conv-filter-agent" className="sr-only">
+          Filtrar por agente
+        </label>
         <select
+          id="conv-filter-agent"
+          name="agent"
           value={filters.agentId}
           onChange={(e) => setFilters({ ...filters, agentId: e.target.value })}
           className="rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-xs text-zinc-300 outline-none"
@@ -263,6 +322,21 @@ export function ConversationsClient({
               <span className="text-[10px] text-zinc-600">{STATUS_LABEL[c.status]}</span>
             </button>
           ))}
+          {hasMore && (
+            <div className="flex items-center justify-center border-t border-white/[0.05] bg-zinc-900/40 py-3">
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="rounded-lg border border-white/10 bg-white/[0.02] px-4 py-1.5 text-xs text-zinc-300 transition-colors hover:border-violet-500/40 hover:bg-violet-500/5 disabled:opacity-50"
+              >
+                {loadingMore ? "Cargando…" : `Cargar ${PAGE_SIZE} más`}
+              </button>
+            </div>
+          )}
+          <div className="border-t border-white/[0.05] bg-zinc-900/20 px-4 py-2 text-center text-[10px] text-zinc-600">
+            Mostrando {conversations.length} {hasMore ? "(hay más)" : ""}
+          </div>
         </div>
       )}
 

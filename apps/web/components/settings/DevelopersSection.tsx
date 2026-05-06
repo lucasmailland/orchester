@@ -194,7 +194,13 @@ export function DevelopersSection() {
           ))}
 
           <div className="mt-2 flex items-center gap-2 border-t border-white/[0.06] pt-3">
+            <label htmlFor="api-key-name" className="sr-only">
+              Nombre de la nueva API key
+            </label>
             <input
+              id="api-key-name"
+              name="api-key-name"
+              autoComplete="off"
               value={newKeyName}
               onChange={(e) => setNewKeyName(e.target.value)}
               placeholder="Nombre — ej. 'Production server'"
@@ -263,7 +269,13 @@ export function DevelopersSection() {
             </div>
           ))}
           <div className="space-y-2 border-t border-white/[0.06] pt-3">
+            <label htmlFor="webhook-url" className="sr-only">
+              URL del webhook saliente
+            </label>
             <input
+              id="webhook-url"
+              name="webhook-url"
+              type="url"
               value={newWhUrl}
               onChange={(e) => setNewWhUrl(e.target.value)}
               placeholder="https://your-server.com/orchester-events"

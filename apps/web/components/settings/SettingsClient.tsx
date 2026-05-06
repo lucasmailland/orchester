@@ -142,8 +142,12 @@ export function SettingsClient({ workspace, labels }: SettingsClientProps) {
         >
           <form onSubmit={handleSaveWorkspace} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-400">{labels.workspaceName}</label>
+              <label htmlFor="ws-name" className="text-xs font-medium text-zinc-400">
+                {labels.workspaceName}
+              </label>
               <input
+                id="ws-name"
+                name="workspace-name"
                 value={wsName}
                 onChange={e => setWsName(e.target.value)}
                 placeholder={labels.workspaceNamePlaceholder}
@@ -151,8 +155,12 @@ export function SettingsClient({ workspace, labels }: SettingsClientProps) {
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-400">{labels.workspaceSlug}</label>
+              <label htmlFor="ws-slug" className="text-xs font-medium text-zinc-400">
+                {labels.workspaceSlug}
+              </label>
               <input
+                id="ws-slug"
+                name="workspace-slug"
                 value={workspace?.slug ?? ""}
                 readOnly
                 className={cn(inputClass, "cursor-not-allowed opacity-50")}

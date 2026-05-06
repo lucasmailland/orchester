@@ -4,6 +4,7 @@ import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
 import { decodeTelegramCredentials, telegramSend } from "@/lib/channels/telegram";
+import { decodeSlackCredentials, slackSend } from "@/lib/channels/slack";
 
 /**
  * POST /api/conversations/[id]/reply
@@ -60,6 +61,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           await telegramSend(creds.botToken, conv.externalId, text);
         } catch (e) {
           console.error("Telegram send failed:", e);
+        }
+      }
+    } else if (channel?.type === "slack" && conv.externalId) {
+      // externalId = "<slackChannel>:<threadTs>" — split para mandar al thread
+      const creds = decodeSlackCredentials(channel.credentialsEncrypted);
+      if (creds?.botToken) {
+        const [slackChannel, threadTs] = conv.externalId.split(":");
+        try {
+          if (slackChannel) {
+            await slackSend(creds.botToken, slackChannel, text, threadTs);
+          }
+        } catch (e) {
+          console.error("Slack send failed:", e);
         }
       }
     }
