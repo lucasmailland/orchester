@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getDb, schema } from "@orchester/db";
 import { and, eq } from "drizzle-orm";
 import { getCurrentSession } from "@/lib/workspace";
+import { logAudit } from "@/lib/audit";
 
 /**
  * Endpoints del workspace. Validamos que el caller sea miembro Y que su rol
@@ -96,11 +97,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   const db = getDb();
+  const before = await loadWorkspace(id);
   const updated = await db
     .update(schema.workspaces)
     .set(set)
     .where(eq(schema.workspaces.id, id))
     .returning();
+  await logAudit({
+    workspaceId: id,
+    userId: session.user.id,
+    action: "workspace.update",
+    resource: "workspace",
+    resourceId: id,
+    before: before ? { name: before.name, timezone: before.timezone } : undefined,
+    after: { name: updated[0]?.name, timezone: updated[0]?.timezone },
+  });
   return NextResponse.json({ ok: true, workspace: updated[0] ?? null });
 }
 
@@ -129,6 +140,17 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   }
 
   const db = getDb();
+  // Loguear ANTES del delete — el cascade borraría también los audit_log.
+  // Por eso el log se persiste al user_id sin workspace_id (workspaceId
+  // queda apuntando a un ws que ya no existe; lo dejamos para forensics).
+  await logAudit({
+    workspaceId: id,
+    userId: session.user.id,
+    action: "workspace.delete",
+    resource: "workspace",
+    resourceId: id,
+    before: { name: ws.name, slug: ws.slug },
+  });
   await db.delete(schema.workspaces).where(eq(schema.workspaces.id, id));
   // Cascade en schema borra members, agents, conversations, etc.
   return NextResponse.json({ ok: true });

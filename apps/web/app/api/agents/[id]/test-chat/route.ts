@@ -1,11 +1,22 @@
 import { NextResponse } from "next/server";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
 import { ProviderNotConfiguredError } from "@/lib/llm-call";
 import { runAgent, loadAgent } from "@/lib/agent-runtime";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getCurrentSession();
   const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!ws || !session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // LLM-heavy endpoint: 30 req/min por (workspace,user). Defensa contra
+  // un user comprometido que quiera quemar la cuota de Anthropic.
+  const limited = enforceRateLimit(
+    `test-chat:${ws.workspace.id}:${session.user.id}`,
+    RATE_LIMITS.LLM_HEAVY
+  );
+  if (limited) return limited;
+
   const { id } = await params;
   const body = await req.json();
   const {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getDb, schema } from "@orchester/db";
 import { and, eq } from "drizzle-orm";
 import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
+import { logAudit } from "@/lib/audit";
 
 /**
  * GET /api/workspace-members
@@ -100,6 +101,16 @@ export async function PATCH(req: Request) {
     .set({ role: role as "owner" | "admin" | "editor" | "viewer" })
     .where(eq(schema.workspaceMembers.id, target.id));
 
+  await logAudit({
+    workspaceId: ws.workspace.id,
+    userId: session.user.id,
+    action: "member.role_change",
+    resource: "workspace_member",
+    resourceId: target.id,
+    before: { role: target.role },
+    after: { role },
+  });
+
   return NextResponse.json({ ok: true });
 }
 
@@ -137,6 +148,15 @@ export async function DELETE(req: Request) {
   await db
     .delete(schema.workspaceMembers)
     .where(eq(schema.workspaceMembers.id, target.id));
+
+  await logAudit({
+    workspaceId: ws.workspace.id,
+    userId: session.user.id,
+    action: "member.remove",
+    resource: "workspace_member",
+    resourceId: target.id,
+    before: { userId: target.userId, role: target.role },
+  });
 
   return NextResponse.json({ ok: true });
 }

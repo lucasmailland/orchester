@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
 import { decodeTelegramCredentials, telegramSend } from "@/lib/channels/telegram";
 import { decodeSlackCredentials, slackSend } from "@/lib/channels/slack";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 /**
  * POST /api/conversations/[id]/reply
@@ -17,6 +18,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const ws = await getCurrentWorkspace();
   const session = await getCurrentSession();
   if (!ws || !session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const limited = enforceRateLimit(
+    `reply:${ws.workspace.id}:${session.user.id}`,
+    RATE_LIMITS.MUTATION
+  );
+  if (limited) return limited;
+
   const { id } = await params;
   const body = await req.json();
   const text = String(body?.text ?? "").trim();

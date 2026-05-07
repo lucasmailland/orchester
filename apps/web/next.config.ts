@@ -41,10 +41,48 @@ const nextConfig: NextConfig = {
   },
   /** Skip transpiling these — they're already ESM-friendly */
   transpilePackages: [],
-  /** Avoid double-running middleware/server components in dev */
-  // reactStrictMode is on; that's a deliberate dev-only double render.
-  // Keep it but at least the production build will be 1x.
-  // For ULTRA-fast dev: turn off strict mode below if needed.
+
+  /**
+   * Security headers aplicados a TODA respuesta. Defense-in-depth: incluso si
+   * el reverse proxy (Caddy) ya los pone, los repetimos acá por si alguien
+   * sirve Next.js directo. Headers idénticos no causan conflicto.
+   *
+   * Ver `.agents/reference/security.md` para la justificación de cada header.
+   */
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          // HSTS sólo se aplica sobre HTTPS; los browsers lo ignoran en HTTP local.
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
+          // CSP relajado: Next.js + framer-motion + recharts emiten inline
+          // styles/scripts. Endurecible cuando se migre a CSP nonce.
+          {
+            key: "Content-Security-Policy",
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob: https:",
+              "font-src 'self' data:",
+              "connect-src 'self' https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://slack.com https://api.telegram.org",
+              "frame-ancestors 'self'",
+              "base-uri 'self'",
+              "form-action 'self'",
+            ].join("; "),
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default withNextIntl(nextConfig);

@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
 import { encrypt, maskKey, decrypt } from "@/lib/encryption";
+import { logAudit } from "@/lib/audit";
 
 function safeDecrypt(s: string): string {
   try {
@@ -74,8 +75,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const session = await getCurrentSession();
   const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!ws || !session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json();
   const { provider, apiKey, endpoint } = body as {
     provider: "anthropic" | "openai" | "google" | "azure_openai";
@@ -106,6 +108,15 @@ export async function POST(req: Request) {
       .returning();
     const row = updated[0];
     if (!row) return NextResponse.json({ error: "Update failed" }, { status: 500 });
+    // No loguear la key, sólo el provider y el masked.
+    await logAudit({
+      workspaceId: ws.workspace.id,
+      userId: session.user.id,
+      action: "provider.update",
+      resource: "ai_provider",
+      resourceId: row.id,
+      after: { provider: row.provider, apiKeyMasked: maskKey(apiKey.trim()) },
+    });
     return NextResponse.json({ id: row.id, provider: row.provider });
   }
   const inserted = await db
@@ -120,5 +131,13 @@ export async function POST(req: Request) {
     .returning();
   const row = inserted[0];
   if (!row) return NextResponse.json({ error: "Insert failed" }, { status: 500 });
+  await logAudit({
+    workspaceId: ws.workspace.id,
+    userId: session.user.id,
+    action: "provider.create",
+    resource: "ai_provider",
+    resourceId: row.id,
+    after: { provider: row.provider, apiKeyMasked: maskKey(apiKey.trim()) },
+  });
   return NextResponse.json({ id: row.id, provider: row.provider }, { status: 201 });
 }
