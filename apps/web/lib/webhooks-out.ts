@@ -35,7 +35,8 @@ export async function dispatchEvent(
     const targets = subs.filter((s) => (s.events ?? []).includes(event));
     await Promise.all(targets.map((s) => deliver(s, event, payload)));
   } catch (e) {
-    console.error("[webhooks-out] dispatch failed:", e);
+    const { safeLogError } = await import("./safe-log");
+    safeLogError("[webhooks-out] dispatch failed:", e);
   }
 }
 

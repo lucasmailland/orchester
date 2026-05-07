@@ -110,7 +110,8 @@ export async function compactHistory(args: CompactArgs): Promise<ChatMessage[]> 
       .where(eq(schema.conversations.id, args.conversation.id));
   } catch (e) {
     // Summarization failure is non-fatal — fall back to truncate.
-    console.error("[compaction] summarizer failed, falling back to truncation:", e);
+    const { safeLogError } = await import("./safe-log");
+    safeLogError("[compaction] summarizer failed, falling back to truncation:", e);
   }
 
   const out: ChatMessage[] = [];

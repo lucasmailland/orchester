@@ -64,3 +64,50 @@ if (!globalForCleanup.__orchesterRateCleanupRunning) {
     }
   }, 300_000).unref?.();
 }
+
+/**
+ * Helper para rutas que ya hicieron `getCurrentSession()` / `getCurrentWorkspace()`.
+ * Devuelve `Response` listo (`429 Too Many Requests`) si el limit está saturado, o
+ * `null` si la request puede continuar.
+ *
+ * Uso:
+ *   const limited = enforceRateLimit(`test-chat:${ws.id}:${session.user.id}`,
+ *                                    { capacity: 30, refillPerSec: 30 / 60 });
+ *   if (limited) return limited;
+ *
+ * Presets sugeridos:
+ *   - LLM-bound (test-chat, conversation reply): 30 req/min (cara, drena cuota Anthropic)
+ *   - Cheap reads (list, get): 600 req/min (no rate-limit prácticamente)
+ *   - Mutations (POST/PATCH/DELETE): 120 req/min
+ *   - Public webhooks (telegram, slack): 600 req/min por canal
+ */
+export function enforceRateLimit(
+  key: string,
+  opts: RateLimitOptions
+): Response | null {
+  const r = rateLimit(key, opts);
+  if (r.ok) return null;
+  return new Response(
+    JSON.stringify({
+      error: "Too many requests",
+      retryAfterMs: r.retryAfterMs,
+    }),
+    {
+      status: 429,
+      headers: {
+        "content-type": "application/json",
+        "retry-after": String(Math.ceil(r.retryAfterMs / 1000)),
+      },
+    }
+  );
+}
+
+/** Presets reutilizables para no inventar números en cada handler. */
+export const RATE_LIMITS = {
+  /** Endpoints que tocan LLM (queman créditos del provider). */
+  LLM_HEAVY: { capacity: 30, refillPerSec: 30 / 60 },
+  /** Mutaciones generales (PATCH/POST/DELETE de records). */
+  MUTATION: { capacity: 120, refillPerSec: 120 / 60 },
+  /** Webhooks entrantes públicos. */
+  WEBHOOK: { capacity: 600, refillPerSec: 600 / 60 },
+} as const;
