@@ -55,9 +55,24 @@
 - ✅ `api/conversations/[id]/reply/route.ts`: outbound manual via `slackSend(thread_ts)`
 - ✅ `integrations/page.tsx`: card "Disponible" verde linkeada a `/channels`
 
+### 2026-05-06 (cont.) — UX upgrades
+
+- ✅ **Block Kit + mrkdwn**: `slackSend` ahora acepta opciones (`blocks`, `threadTs`),
+  convierte markdown estándar (GitHub-flavored) al subset `mrkdwn` de Slack
+  (`**bold** → *bold*`, `[t](u) → <u|t>`, headings → bold).
+- ✅ **Reacción 👀 al recibir** vía `slackReact` (`reactions.add`). Confirma al
+  usuario que el bot leyó su mensaje antes de invocar el LLM.
+- ✅ **Typing indicator** vía `assistant.threads.setStatus` ("Pensando…") cuando
+  la app tiene scope `assistant:write`. Falla silencioso si no.
+- ✅ Orden de eventos en Slack: msg-user → 👀 → "Pensando…" → respuesta del bot.
+
+### Scopes recomendados ahora
+
+`chat:write`, `app_mentions:read`, `im:history`, `im:read`, `im:write`,
+**`reactions:write`** (nuevo, para 👀), opcional **`assistant:write`** (typing).
+
 ### Pendientes
 
-- [ ] Soporte de bloques de Slack (Block Kit) — hoy solo texto plano
-- [ ] Reacciones (`reactions:write`) para feedback rápido
-- [ ] Typing indicator (no tiene API directa pero hay workarounds)
+- [ ] Block Kit completo: pasar `blocks` al LLM via output structurado (hoy
+  el agente solo retorna texto, así que no hay producción de blocks).
 - [ ] Quitar mensaje del bot del rate-limit de tier 3 (1/sec) → batch agent replies

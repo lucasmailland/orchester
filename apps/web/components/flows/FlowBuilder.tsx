@@ -89,6 +89,9 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const [running, setRunning] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [runModalOpen, setRunModalOpen] = useState(false);
+  const [runInputDraft, setRunInputDraft] = useState("{\n  \n}");
+  const [runInputError, setRunInputError] = useState<string | null>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextAutoSaveRef = useRef(true); // skip on first render
@@ -178,13 +181,23 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, edges, variables]);
 
-  async function run() {
+  function openRunModal() {
+    // Pre-llená el input con las variables actuales del flow para que el operador
+    // arranque desde algo significativo en lugar de un objeto vacío.
+    const seed = Object.keys(variables).length > 0 ? variables : {};
+    setRunInputDraft(JSON.stringify(seed, null, 2));
+    setRunInputError(null);
+    setRunModalOpen(true);
+  }
+
+  async function runWithInput(input: Record<string, unknown>) {
+    setRunModalOpen(false);
     setRunning(true);
     setFeedback(null);
     const r = await fetch(`/api/flows/${flow.id}/run`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ input: {} }),
+      body: JSON.stringify({ input }),
     });
     setRunning(false);
     const j = await r.json();
@@ -192,6 +205,19 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     else toast.error(`Ejecución ${j.status}${j.error ? `: ${j.error}` : ""}`);
     if (runsOpen) setRunsOpen(false);
     setTimeout(() => setRunsOpen(true), 300);
+  }
+
+  function submitRunModal() {
+    try {
+      const parsed = runInputDraft.trim() ? JSON.parse(runInputDraft) : {};
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        setRunInputError("El input debe ser un objeto JSON ({…})");
+        return;
+      }
+      void runWithInput(parsed as Record<string, unknown>);
+    } catch (e) {
+      setRunInputError(e instanceof Error ? e.message : "JSON inválido");
+    }
   }
 
   return (
@@ -258,7 +284,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             </button>
             <button
               type="button"
-              onClick={run}
+              onClick={openRunModal}
               disabled={running}
               className="flex items-center gap-1.5 rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-medium hover:bg-violet-400 disabled:opacity-40"
             >
@@ -316,6 +342,72 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             onClose={() => setRunsOpen(false)}
           />
         </div>
+        {runModalOpen && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="run-modal-title"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setRunModalOpen(false);
+            }}
+          >
+            <div className="w-full max-w-lg rounded-2xl border border-white/[0.08] bg-zinc-950 p-5 shadow-2xl">
+              <div className="mb-3 flex items-start justify-between">
+                <div>
+                  <h2 id="run-modal-title" className="text-sm font-semibold text-zinc-100">
+                    Ejecutar flujo
+                  </h2>
+                  <p className="mt-0.5 text-xs text-zinc-500">
+                    Pegá el JSON con el input que recibirá el nodo trigger.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Cerrar"
+                  onClick={() => setRunModalOpen(false)}
+                  className="rounded-lg p-1 text-zinc-500 hover:bg-white/[0.05] hover:text-zinc-300"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <label htmlFor="run-input-json" className="mb-1 block text-[10px] uppercase tracking-wider text-zinc-500">
+                Input
+              </label>
+              <textarea
+                id="run-input-json"
+                name="run-input"
+                value={runInputDraft}
+                onChange={(e) => {
+                  setRunInputDraft(e.target.value);
+                  if (runInputError) setRunInputError(null);
+                }}
+                rows={10}
+                spellCheck={false}
+                className="w-full resize-none rounded-lg border border-white/[0.08] bg-zinc-900 px-3 py-2 font-mono text-xs text-zinc-100 outline-none focus:border-violet-500/60"
+              />
+              {runInputError && (
+                <p className="mt-2 text-xs text-red-400">⚠ {runInputError}</p>
+              )}
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRunModalOpen(false)}
+                  className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/[0.05]"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={submitRunModal}
+                  className="flex items-center gap-1.5 rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-400"
+                >
+                  <Play className="h-3.5 w-3.5" /> Ejecutar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </ReactFlowProvider>
   );
