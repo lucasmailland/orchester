@@ -84,7 +84,7 @@ export function DangerZoneSection({ workspace }: Props) {
         >
           <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-zinc-950 p-5 shadow-2xl">
             <h3 id="delete-ws-title" className="text-sm font-semibold text-red-400">
-              ¿Eliminar el workspace "{workspace.name}"?
+              ¿Eliminar el workspace &ldquo;{workspace.name}&rdquo;?
             </h3>
             <p className="mt-1 text-xs text-zinc-500">
               Esta acción no se puede deshacer. Para confirmar, escribí el slug del workspace:

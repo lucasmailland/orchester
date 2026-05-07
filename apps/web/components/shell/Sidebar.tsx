@@ -30,23 +30,24 @@ export function Sidebar({ locale }: SidebarProps) {
   const t = useTranslations("nav");
 
   // Grouping rationale:
-  //   WORKSPACE → cosas que ves todos los días (dashboard + lo que produce el sistema)
-  //   AUTOMATIZACIÓN → cómo se construyen los agentes
-  //   DATOS → directorios estáticos (people, teams, knowledge)
+  //   WORKSPACE → vistas diarias (dashboard + producción del sistema)
+  //   AUTOMATIZACIÓN → todo lo que construye/orquesta IA: agentes, flujos,
+  //                    sus equipos y la vista jerárquica del organigrama
+  //   DATOS → directorios estáticos (people, knowledge)
   //   SISTEMA → infra del workspace (canales, integraciones, ajustes)
   const workspaceNav = [
     { href: `/${locale}`, icon: <Home size={16} />, label: t("home") },
     { href: `/${locale}/conversations`, icon: <MessageSquare size={16} />, label: t("conversations") },
-    { href: `/${locale}/org`, icon: <Network size={16} />, label: t("org") },
   ];
 
   const buildNav = [
+    { href: `/${locale}/org`, icon: <Network size={16} />, label: t("org") },
+    { href: `/${locale}/teams`, icon: <Layers size={16} />, label: t("teams") },
     { href: `/${locale}/agents`, icon: <Bot size={16} />, label: t("agents") },
     { href: `/${locale}/flows`, icon: <Workflow size={16} />, label: t("flows") },
   ];
 
   const dataNav = [
-    { href: `/${locale}/teams`, icon: <Layers size={16} />, label: t("teams") },
     { href: `/${locale}/employees`, icon: <Users size={16} />, label: t("employees") },
     { href: `/${locale}/knowledge`, icon: <BookOpen size={16} />, label: t("knowledge") },
   ];
