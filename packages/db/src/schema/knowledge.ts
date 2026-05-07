@@ -91,9 +91,16 @@ export const agentMemories = pgTable("agent_memory", {
   workspaceId: text("workspace_id")
     .notNull()
     .references(() => workspaces.id, { onDelete: "cascade" }),
+  /**
+   * Cuando scope=="team", el `agentId` es ignorado y la memoria se asocia al
+   * `teamId`. Cualquier agente del mismo team la lee/escribe.
+   * Truco implementación: agentId en filas team-scope se setea al string
+   * `"team:<teamId>"` para que el unique index siga funcionando sin migrar.
+   */
   conversationId: text("conversation_id"),
   employeeId: text("employee_id"),
-  scope: text("scope").notNull().default("global"), // global | conversation | employee
+  teamId: text("team_id"),
+  scope: text("scope").notNull().default("global"), // global | conversation | employee | team
   data: jsonb("data").$type<Record<string, unknown>>().default({}),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

@@ -41,6 +41,7 @@ interface MeCtx {
   email: string;
   preferredLocale: string;
   preferredTheme: string;
+  twoFactorEnabled?: boolean;
 }
 
 interface Props {

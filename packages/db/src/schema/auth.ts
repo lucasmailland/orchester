@@ -9,8 +9,30 @@ export const users = pgTable("user", {
   onboardingCompleted: boolean("onboarding_completed").notNull().default(false),
   preferredLocale: text("preferred_locale").default("en"),
   preferredTheme: text("preferred_theme").default("light"),
+  /** True si el user habilitó 2FA TOTP. Si está activo, el login pide código tras password. */
+  twoFactorEnabled: boolean("two_factor_enabled").default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+/**
+ * Tabla del plugin twoFactor de better-auth. Contiene el secret TOTP cifrado
+ * a nivel app + 10 backup codes (también cifrados). El plugin lee/escribe acá.
+ *
+ * Nunca retornado al cliente: el `returned: false` del plugin asegura que
+ * `secret` y `backupCodes` no aparecen en respuestas de la API.
+ */
+export const twoFactors = pgTable("two_factor", {
+  id: text("id").primaryKey(),
+  /** TOTP secret en base32, encriptado con BETTER_AUTH_SECRET (no nuestro
+   *  ENCRYPTION_SECRET — es responsabilidad del plugin). */
+  secret: text("secret").notNull(),
+  /** Backup codes serializados como JSON-string con 10 códigos one-shot. */
+  backupCodes: text("backup_codes").notNull(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  verified: boolean("verified").default(true),
 });
 
 export const sessions = pgTable("session", {

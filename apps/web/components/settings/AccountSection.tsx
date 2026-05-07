@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
-import { User, Loader2 } from "lucide-react";
+import { User, Loader2, Trash2, AlertTriangle } from "lucide-react";
 import { Field, FieldRow, SettingsCard } from "./_layout";
+import { TwoFactorSection } from "./TwoFactorSection";
 
 interface Props {
   me: {
@@ -13,6 +14,7 @@ interface Props {
     email: string;
     preferredLocale: string;
     preferredTheme: string;
+    twoFactorEnabled?: boolean;
   };
 }
 
@@ -35,6 +37,9 @@ export function AccountSection({ me }: Props) {
   const [locale, setLocale] = useState(me.preferredLocale);
   const [theme, setTheme] = useState(me.preferredTheme);
   const [saving, setSaving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const dirty =
     name.trim() !== me.name ||
@@ -145,6 +150,114 @@ export function AccountSection({ me }: Props) {
         </Field>
       </FieldRow>
 
+      {/* 2FA */}
+      <details className="rounded-lg border border-white/[0.08] bg-zinc-900/40 p-3">
+        <summary className="cursor-pointer text-xs font-medium text-zinc-200">
+          Autenticación de dos factores (2FA)
+          {me.twoFactorEnabled && (
+            <span className="ml-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-300">
+              activo
+            </span>
+          )}
+        </summary>
+        <div className="mt-3">
+          <TwoFactorSection enabled={Boolean(me.twoFactorEnabled)} />
+        </div>
+      </details>
+
+      {/* GDPR delete account */}
+      <details className="rounded-lg border border-red-500/20 bg-red-500/[0.03] p-3">
+        <summary className="cursor-pointer text-xs font-medium text-red-300">
+          Eliminar cuenta (GDPR)
+        </summary>
+        <p className="mt-2 text-[11px] text-zinc-500">
+          Borra tu cuenta y todos tus datos. Si sos owner único de algún workspace,
+          el workspace y todo su contenido también se eliminan.
+        </p>
+        <button
+          type="button"
+          onClick={() => setDeleteOpen(true)}
+          className="btn-danger mt-2"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Eliminar mi cuenta
+        </button>
+      </details>
+
+      {deleteOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-account-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setDeleteOpen(false);
+          }}
+        >
+          <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-zinc-950 p-5 shadow-2xl">
+            <div className="mb-3 flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-4 w-4 text-red-400" />
+              <div>
+                <h3 id="delete-account-title" className="text-sm font-semibold text-red-400">
+                  Eliminar cuenta
+                </h3>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Esto borra tu user de la DB. No se puede deshacer. Para confirmar,
+                  escribí tu email:
+                </p>
+              </div>
+            </div>
+            <code className="block rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-center font-mono text-sm text-zinc-100">
+              {me.email}
+            </code>
+            <input
+              type="email"
+              autoComplete="off"
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              placeholder="Tipeá tu email"
+              className="input mt-3 font-mono"
+              autoFocus
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteOpen(false)}
+                className="btn-secondary"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={
+                  deleteConfirm.toLowerCase() !== me.email.toLowerCase() || deleting
+                }
+                onClick={async () => {
+                  setDeleting(true);
+                  const r = await fetch(
+                    `/api/me/delete?confirm=${encodeURIComponent(me.email)}`,
+                    { method: "DELETE" }
+                  );
+                  setDeleting(false);
+                  if (r.ok) {
+                    toast.success("Cuenta eliminada");
+                    setTimeout(() => {
+                      window.location.href = "/auth/login";
+                    }, 800);
+                  } else {
+                    const j = await r.json().catch(() => ({}));
+                    toast.error(j.error ?? "No se pudo eliminar");
+                  }
+                }}
+                className="btn-danger"
+              >
+                {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                Eliminar definitivamente
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </SettingsCard>
   );
 }
