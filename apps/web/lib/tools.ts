@@ -137,7 +137,7 @@ const BUILTINS: Record<string, ToolDefinition> = {
     inputSchema: {
       type: "object",
       properties: {
-        scope: { type: "string", enum: ["global", "employee", "conversation"] },
+        scope: { type: "string", enum: ["global", "employee", "conversation", "team"] },
         key: { type: "string", description: "Short snake_case identifier, e.g. 'preferred_language'" },
         value: { description: "Any JSON-serializable value." },
       },
@@ -151,7 +151,7 @@ const BUILTINS: Record<string, ToolDefinition> = {
     inputSchema: {
       type: "object",
       properties: {
-        scope: { type: "string", enum: ["global", "employee", "conversation"] },
+        scope: { type: "string", enum: ["global", "employee", "conversation", "team"] },
       },
       required: ["scope"],
     },
@@ -163,7 +163,7 @@ const BUILTINS: Record<string, ToolDefinition> = {
     inputSchema: {
       type: "object",
       properties: {
-        scope: { type: "string", enum: ["global", "employee", "conversation"] },
+        scope: { type: "string", enum: ["global", "employee", "conversation", "team"] },
         key: { type: "string" },
       },
       required: ["scope"],
@@ -421,7 +421,7 @@ export async function executeTool(
   if (name === "memory_set" || name === "memory_get" || name === "memory_remove") {
     if (!ctx.agentId) throw new Error("memory_* tools require ctx.agentId");
     const { setMemory, getRelevantMemories, removeMemory } = await import("./memory");
-    const scope = String(input.scope ?? "global") as "global" | "conversation" | "employee";
+    const scope = String(input.scope ?? "global") as "global" | "conversation" | "employee" | "team";
     const baseQ = {
       agentId: ctx.agentId,
       workspaceId: ctx.workspaceId,

@@ -4,16 +4,24 @@ import { getDb, schema } from "@orchester/db";
 import { eq, and, desc } from "drizzle-orm";
 
 /**
- * Persistent agent memory. Three scopes:
- * - global       — facts true across all users (e.g. "company holiday is on July 9")
+ * Persistent agent memory. Cuatro scopes:
+ * - global       — facts true across all users del agente (e.g. "company holiday is on July 9")
  * - employee     — facts about a specific employee/customer (e.g. "prefers English")
  * - conversation — short-lived, lives within a single conversation thread
+ * - team         — compartida por TODOS los agentes del mismo team (multi-agent
+ *                  collaboration). Si Sofia escribe "Acme renovó plan a Pro",
+ *                  Elena la lee porque están en el team "HR Benefits".
  *
- * Stored as `data: jsonb { key: value }` keyed by (agent, scope, conversationId?, employeeId?).
+ * Stored as `data: jsonb { key: value }` keyed by (agent, scope, conversation?, employee?, team?).
  * One row per (agent + scope + scope-target) — upsert semantics.
+ *
+ * Cuando `scope=="team"`, el `agentId` se ignora a fines lógicos: la fila se
+ * persiste con `agentId = "team:<teamId>"` (string-prefijo) para mantener el
+ * unique index actual. El `getRelevantMemories` lo busca por teamId resolviendo
+ * el team del agente caller.
  */
 
-export type MemoryScope = "global" | "conversation" | "employee";
+export type MemoryScope = "global" | "conversation" | "employee" | "team";
 
 export interface MemoryRecord {
   id: string;
@@ -21,6 +29,7 @@ export interface MemoryRecord {
   data: Record<string, unknown>;
   conversationId: string | null;
   employeeId: string | null;
+  teamId: string | null;
   updatedAt: Date;
 }
 
@@ -84,6 +93,23 @@ export async function getRelevantMemories(q: MemoryQuery): Promise<MemoryRecord[
     for (const m of emp) results.push(toRecord(m));
   }
 
+  // 4. Team memory — compartida por todos los agentes del mismo team.
+  const teamId = await resolveAgentTeam(q.agentId, q.workspaceId);
+  if (teamId) {
+    const team = await db
+      .select()
+      .from(schema.agentMemories)
+      .where(
+        and(
+          eq(schema.agentMemories.workspaceId, q.workspaceId),
+          eq(schema.agentMemories.scope, "team"),
+          eq(schema.agentMemories.teamId, teamId)
+        )
+      )
+      .limit(1);
+    for (const m of team) results.push(toRecord(m));
+  }
+
   return results;
 }
 
@@ -92,7 +118,18 @@ export async function setMemory(
   q: MemoryQuery & { scope: MemoryScope; key: string; value: unknown }
 ): Promise<MemoryRecord> {
   const db = getDb();
-  const existing = await findRow(q);
+  // Para scope="team" resolvemos el teamId del agente caller. Si el caller no
+  // tiene team, escribimos como global (failover). Avisar en el cliente.
+  let teamId: string | null = null;
+  if (q.scope === "team") {
+    teamId = await resolveAgentTeam(q.agentId, q.workspaceId);
+    if (!teamId) {
+      throw new Error(
+        "Agent has no team assigned — cannot write team-scoped memory"
+      );
+    }
+  }
+  const existing = await findRow({ ...q, teamId });
   if (existing) {
     const merged = { ...(existing.data ?? {}), [q.key]: q.value };
     const updated = await db
@@ -106,10 +143,12 @@ export async function setMemory(
     .insert(schema.agentMemories)
     .values({
       id: createId(),
-      agentId: q.agentId,
+      // Para team-scope, usamos un agentId-prefijo así no coliciona con global del agente.
+      agentId: q.scope === "team" ? `team:${teamId}` : q.agentId,
       workspaceId: q.workspaceId,
       conversationId: q.scope === "conversation" ? q.conversationId ?? null : null,
       employeeId: q.scope === "employee" ? q.employeeId ?? null : null,
+      teamId: q.scope === "team" ? teamId : null,
       scope: q.scope,
       data: { [q.key]: q.value },
     })
@@ -122,7 +161,11 @@ export async function removeMemory(
   q: MemoryQuery & { scope: MemoryScope; key?: string | null }
 ): Promise<void> {
   const db = getDb();
-  const existing = await findRow(q);
+  let teamId: string | null = null;
+  if (q.scope === "team") {
+    teamId = await resolveAgentTeam(q.agentId, q.workspaceId);
+  }
+  const existing = await findRow({ ...q, teamId });
   if (!existing) return;
   if (q.key == null) {
     await db.delete(schema.agentMemories).where(eq(schema.agentMemories.id, existing.id));
@@ -171,6 +214,8 @@ export function formatMemoriesAsPromptBlock(records: MemoryRecord[]): string {
         ? "Things you always know"
         : r.scope === "conversation"
         ? "Things you remember from this conversation"
+        : r.scope === "team"
+        ? "Things shared with your team"
         : "Things you know about this user";
     const bullets = entries
       .map(([k, v]) => `- ${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)
@@ -183,13 +228,20 @@ export function formatMemoriesAsPromptBlock(records: MemoryRecord[]): string {
 
 /* ───────────────── helpers ───────────────── */
 
-async function findRow(q: MemoryQuery & { scope: MemoryScope }) {
+async function findRow(
+  q: MemoryQuery & { scope: MemoryScope; teamId?: string | null }
+) {
   const db = getDb();
   const conds = [
-    eq(schema.agentMemories.agentId, q.agentId),
     eq(schema.agentMemories.workspaceId, q.workspaceId),
     eq(schema.agentMemories.scope, q.scope),
   ];
+  if (q.scope === "team") {
+    if (!q.teamId) return null;
+    conds.push(eq(schema.agentMemories.teamId, q.teamId));
+  } else {
+    conds.push(eq(schema.agentMemories.agentId, q.agentId));
+  }
   if (q.scope === "conversation" && q.conversationId) {
     conds.push(eq(schema.agentMemories.conversationId, q.conversationId));
   }
@@ -207,6 +259,21 @@ function toRecord(row: typeof schema.agentMemories.$inferSelect): MemoryRecord {
     data: (row.data ?? {}) as Record<string, unknown>,
     conversationId: row.conversationId ?? null,
     employeeId: row.employeeId ?? null,
+    teamId: row.teamId ?? null,
     updatedAt: row.updatedAt,
   };
+}
+
+/**
+ * Resuelve el teamId del agente caller. Si el agente no tiene team, devuelve null.
+ * Usado por getRelevantMemories y setMemory cuando scope==="team".
+ */
+async function resolveAgentTeam(agentId: string, workspaceId: string): Promise<string | null> {
+  const db = getDb();
+  const rows = await db
+    .select({ teamId: schema.agents.teamId })
+    .from(schema.agents)
+    .where(and(eq(schema.agents.id, agentId), eq(schema.agents.workspaceId, workspaceId)))
+    .limit(1);
+  return rows[0]?.teamId ?? null;
 }

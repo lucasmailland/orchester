@@ -33,6 +33,8 @@ export default async function SettingsPage({
           (session.user as { preferredLocale?: string | null }).preferredLocale ?? "en",
         preferredTheme:
           (session.user as { preferredTheme?: string | null }).preferredTheme ?? "light",
+        twoFactorEnabled:
+          (session.user as { twoFactorEnabled?: boolean | null }).twoFactorEnabled ?? false,
       }
     : null;
 

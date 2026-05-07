@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { twoFactor } from "better-auth/plugins";
 import { createDbClient, schema } from "@orchester/db";
 
 function getAuthDb() {
@@ -18,6 +19,7 @@ export const auth = betterAuth({
       session: schema.sessions,
       account: schema.accounts,
       verification: schema.verifications,
+      twoFactor: schema.twoFactors,
     },
   }),
   emailAndPassword: {
@@ -46,6 +48,25 @@ export const auth = betterAuth({
       },
     },
   },
+  /**
+   * Plugins habilitados:
+   *   - twoFactor: TOTP (RFC 6238) + recovery codes. UI de setup en
+   *     /settings#account → "Activar 2FA". Genera otpauth:// URL para
+   *     escanear con Authenticator/Authy/1Password.
+   *
+   *     Issuer = "Orchester" (lo que ven en la app del autenticador).
+   *     Backup codes: 10 códigos one-shot que el user guarda en algún
+   *     lado seguro. Se regeneran cuando se rota el secret.
+   */
+  plugins: [
+    twoFactor({
+      issuer: "Orchester",
+      // skipVerificationOnEnable=false → al activar el plugin, el user tiene
+      // que probar un código antes de que el flag quede activo. Evita que un
+      // user "active 2FA" sin terminar y se quede locked-out.
+      skipVerificationOnEnable: false,
+    }),
+  ],
 });
 
 export type Auth = typeof auth;
