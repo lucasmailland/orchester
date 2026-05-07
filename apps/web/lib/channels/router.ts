@@ -153,20 +153,26 @@ export async function handleInbound(
   const memoryBlock = formatMemoriesAsPromptBlock(memories);
   const finalSystemPrompt = agent.systemPrompt + memoryBlock;
 
-  const tools = getToolDefinitions(agent.tools ?? []);
+  // El agente puede mutar dentro del loop si llama a `agent_handoff`. Esa tool
+  // pivotea `conversation.agentId` → en la próxima iteración tenemos que
+  // recargar el agente y reconstruir prompt/tools/temperature acordes.
+  let activeAgent = agent;
+  let activeTools = getToolDefinitions(activeAgent.tools ?? []);
+  let activeSystemPrompt = finalSystemPrompt;
   let reply = "";
   let tokens = 0;
   let safetyCounter = 0;
+  let handoffCount = 0; // protege contra ping-pong infinito entre agentes
   while (safetyCounter < 5) {
     safetyCounter++;
     const r = await llmCall({
       workspaceId,
-      model: agent.model,
-      systemPrompt: finalSystemPrompt,
+      model: activeAgent.model,
+      systemPrompt: activeSystemPrompt,
       messages: chatMsgs,
-      temperature: agent.temperature ? Number(agent.temperature) : 0.7,
-      ...(agent.maxTokens != null && { maxTokens: agent.maxTokens }),
-      ...(tools.length > 0 && { tools }),
+      temperature: activeAgent.temperature ? Number(activeAgent.temperature) : 0.7,
+      ...(activeAgent.maxTokens != null && { maxTokens: activeAgent.maxTokens }),
+      ...(activeTools.length > 0 && { tools: activeTools }),
     });
     tokens += r.tokensUsed;
     if (r.toolCalls && r.toolCalls.length > 0) {
@@ -176,17 +182,21 @@ export async function handleInbound(
         content: r.content,
         toolCalls: r.toolCalls,
       });
+      let didHandoff = false;
       const toolResults = [];
       for (const tc of r.toolCalls) {
         try {
           const out = await executeTool(tc.name, tc.input as Record<string, unknown>, {
             workspaceId,
-            variables: (agent.variables as Record<string, string>) ?? {},
-            agentId: agent.id,
+            variables: (activeAgent.variables as Record<string, string>) ?? {},
+            agentId: activeAgent.id,
             conversationId: conversation.id,
             ...(conversation.employeeId ? { employeeId: conversation.employeeId } : {}),
           });
           toolResults.push({ id: tc.id, name: tc.name, input: tc.input, output: out });
+          if (tc.name === "agent_handoff" && (out as { ok?: boolean })?.ok) {
+            didHandoff = true;
+          }
         } catch (e) {
           toolResults.push({
             id: tc.id,
@@ -197,13 +207,49 @@ export async function handleInbound(
         }
       }
       chatMsgs.push({ role: "tool", content: "", toolResults });
+
+      if (didHandoff) {
+        if (++handoffCount > 2) {
+          // Anti ping-pong: 2 handoffs en una misma run del router se cortan.
+          break;
+        }
+        // La tool ya pivotó `conversation.agentId`. Re-leemos para saber a quién.
+        const updatedConv = await db
+          .select()
+          .from(schema.conversations)
+          .where(eq(schema.conversations.id, conversation.id))
+          .limit(1);
+        if (updatedConv[0]) conversation = updatedConv[0];
+        const newAgentId = conversation.agentId;
+        if (newAgentId) {
+          const newAgentRows = await db
+            .select()
+            .from(schema.agents)
+            .where(eq(schema.agents.id, newAgentId))
+            .limit(1);
+          if (newAgentRows[0]) {
+            activeAgent = newAgentRows[0];
+            activeTools = getToolDefinitions(activeAgent.tools ?? []);
+            // Re-inyectá memorias del nuevo agente (cambia el contexto).
+            const newMems = await getRelevantMemories({
+              agentId: activeAgent.id,
+              workspaceId,
+              conversationId: conversation.id,
+              employeeId: conversation.employeeId ?? undefined,
+            });
+            activeSystemPrompt =
+              activeAgent.systemPrompt + formatMemoriesAsPromptBlock(newMems);
+          }
+        }
+      }
+
       continue;
     }
     reply = r.content;
     break;
   }
 
-  if (!reply && agent.fallback) reply = agent.fallback;
+  if (!reply && activeAgent.fallback) reply = activeAgent.fallback;
 
   // 5. Persist assistant message
   await db.insert(schema.messages).values({
