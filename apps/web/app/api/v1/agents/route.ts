@@ -11,11 +11,12 @@ export async function GET(req: Request) {
       { error: "Invalid or missing API key" },
       { status: 401 }
     );
-  const rl = rateLimit(`api:${auth.workspaceId}`, { capacity: 60, refillPerSec: 1 });
+  const rl = await rateLimit(`api:${auth.workspaceId}`, { capacity: 60, refillPerSec: 1 });
   if (!rl.ok) {
+    const retryAfterMs = rl.retryAfterMs ?? 1000;
     return NextResponse.json(
       { error: "Rate limited" },
-      { status: 429, headers: { "retry-after": String(Math.ceil(rl.retryAfterMs / 1000)) } }
+      { status: 429, headers: { "retry-after": String(Math.ceil(retryAfterMs / 1000)) } }
     );
   }
   const db = getDb();

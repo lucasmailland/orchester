@@ -63,22 +63,10 @@ const nextConfig: NextConfig = {
             key: "Strict-Transport-Security",
             value: "max-age=63072000; includeSubDomains; preload",
           },
-          // CSP relajado: Next.js + framer-motion + recharts emiten inline
-          // styles/scripts. Endurecible cuando se migre a CSP nonce.
-          {
-            key: "Content-Security-Policy",
-            value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-              "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: blob: https:",
-              "font-src 'self' data:",
-              "connect-src 'self' https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://slack.com https://api.telegram.org",
-              "frame-ancestors 'self'",
-              "base-uri 'self'",
-              "form-action 'self'",
-            ].join("; "),
-          },
+          // CSP dinámico con nonce se aplica en `middleware.ts`. Acá NO ponemos
+          // CSP estático para que el dinámico no se duplique con headers
+          // contradictorios. Si servís endpoints sin pasar por middleware
+          // (e.g. /api/*), no hay HTML a proteger con CSP.
         ],
       },
     ];

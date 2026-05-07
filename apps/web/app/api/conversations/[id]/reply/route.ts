@@ -6,6 +6,7 @@ import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
 import { decodeTelegramCredentials, telegramSend } from "@/lib/channels/telegram";
 import { decodeSlackCredentials, slackSend } from "@/lib/channels/slack";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { safeLogError } from "@/lib/safe-log";
 
 /**
  * POST /api/conversations/[id]/reply
@@ -19,7 +20,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const session = await getCurrentSession();
   if (!ws || !session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const limited = enforceRateLimit(
+  const limited = await enforceRateLimit(
     `reply:${ws.workspace.id}:${session.user.id}`,
     RATE_LIMITS.MUTATION
   );
@@ -68,7 +69,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         try {
           await telegramSend(creds.botToken, conv.externalId, text);
         } catch (e) {
-          console.error("Telegram send failed:", e);
+          safeLogError("Telegram send failed:", e);
         }
       }
     } else if (channel?.type === "slack" && conv.externalId) {
@@ -81,7 +82,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             await slackSend(creds.botToken, slackChannel, text, threadTs);
           }
         } catch (e) {
-          console.error("Slack send failed:", e);
+          safeLogError("Slack send failed:", e);
         }
       }
     }

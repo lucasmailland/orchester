@@ -38,8 +38,9 @@ async function getBoss(): Promise<PgBoss> {
       archiveCompletedAfterSeconds: 60 * 60 * 24 * 7,
       retentionDays: 30,
     });
-    boss.on("error", (err: Error) => {
-      console.error("[queue] pg-boss error:", err);
+    boss.on("error", async (err: Error) => {
+      const { safeLogError } = await import("./safe-log");
+      safeLogError("[queue] pg-boss error:", err);
     });
     await boss.start();
     return boss;
@@ -97,7 +98,8 @@ export async function registerWorker<T = unknown>(
         try {
           await handler(j);
         } catch (e) {
-          console.error(`[queue] handler "${name}" threw:`, e);
+          const { safeLogError } = await import("./safe-log");
+          safeLogError(`[queue] handler "${name}" threw:`, e);
           throw e; // pg-boss decide reintento
         }
       }

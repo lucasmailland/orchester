@@ -89,7 +89,13 @@ async function deliver(
       lastError = e instanceof Error ? e.message : String(e);
     }
     if (attemptCount < maxAttempts) {
-      await new Promise((res) => setTimeout(res, 500 * Math.pow(2, attemptCount - 1)));
+      // Exponential backoff con jitter (Decorrelated Jitter de AWS).
+      // Evita thundering herd cuando muchos webhooks fallan simultáneamente.
+      const base = 500;
+      const cap = 30_000;
+      const exp = Math.min(cap, base * Math.pow(2, attemptCount - 1));
+      const jittered = Math.random() * (exp - base) + base;
+      await new Promise((res) => setTimeout(res, jittered));
     }
   }
 

@@ -1,0 +1,55 @@
+# gitleaks config for Orchester.
+#
+# Detecta secretos comunes (Anthropic, OpenAI, Slack, AWS, JWT) en commits.
+# Corre:
+#   - localmente vía pre-commit hook (`scripts/install-git-hooks.sh`)
+#   - en CI vía `.github/workflows/ci.yml` (job `secret-scan`)
+#
+# Si aparece un falso positivo, agregalo a `[allowlist]` con la regla precisa.
+
+title = "Orchester gitleaks config"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "anthropic-key"
+description = "Anthropic API key"
+regex = '''sk-ant-api03-[A-Za-z0-9_-]{30,}'''
+keywords = ["sk-ant-"]
+
+[[rules]]
+id = "openai-key"
+description = "OpenAI API key"
+regex = '''sk-(proj-)?[A-Za-z0-9_-]{30,}'''
+keywords = ["sk-"]
+
+[[rules]]
+id = "google-ai-key"
+description = "Google AI API key"
+regex = '''AIza[0-9A-Za-z_-]{30,}'''
+keywords = ["AIza"]
+
+[[rules]]
+id = "slack-bot-token"
+description = "Slack bot token"
+regex = '''xox[abpors]-[0-9A-Za-z-]{10,}'''
+keywords = ["xoxb-", "xoxp-", "xoxa-", "xoxs-"]
+
+[allowlist]
+description = "Test fixtures + placeholders intencionales"
+paths = [
+  '''.*\.test\.ts$''',
+  '''.*\.test\.tsx$''',
+  '''.gitleaks\.toml''',
+  '''\.agents/.*\.md''',
+]
+regexes = [
+  # Placeholders en UI
+  '''sk-ant-api03-\.\.\.''',
+  '''sk-\.\.\.''',
+  '''AIza\.\.\.''',
+  # Test fixture conocido
+  '''sk-ant-api03-very-secret-key-12345''',
+  '''sk-ant-api03-1234567890''',
+]

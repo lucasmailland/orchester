@@ -1,11 +1,40 @@
 import "server-only";
 
 /**
- * In-memory token bucket rate limiter. Single-node only — for multi-node
- * deployments, swap with Upstash Redis or memcached.
+ * Rate-limit con interfaz pluggable. Default: in-memory token bucket.
+ * Para multi-node, swap a Redis con `setRateLimitAdapter(redisAdapter)`.
  *
- * Buckets persisted on globalThis to survive Next.js HMR in dev.
+ * Cómo usar Redis (cuando llegue ese momento):
+ *
+ *   import { setRateLimitAdapter, createRedisAdapter } from "@/lib/rate-limit";
+ *   setRateLimitAdapter(createRedisAdapter(process.env.REDIS_URL!));
+ *
+ * El adapter Redis está en `lib/rate-limit-redis.ts` (lazy: sólo se carga si
+ * lo activás).
+ *
+ * En dev, los buckets viven en globalThis para sobrevivir HMR.
  */
+
+export interface RateLimitOptions {
+  /** Maximum tokens (e.g. 100 = 100 requests). */
+  capacity: number;
+  /** Tokens added per second (e.g. 100/60 = 100 req/min). */
+  refillPerSec: number;
+}
+
+export interface RateLimitResult {
+  ok: boolean;
+  /** Si !ok, ms hasta que haya tokens. Si ok, undefined. */
+  retryAfterMs?: number;
+  /** Tokens restantes después del consume (para X-RateLimit-Remaining). */
+  remaining: number;
+}
+
+export interface RateLimitAdapter {
+  consume(key: string, opts: RateLimitOptions): Promise<RateLimitResult>;
+}
+
+// ─── In-memory adapter (default) ────────────────────────────────
 
 interface Bucket {
   tokens: number;
@@ -20,34 +49,45 @@ if (!globalForLimiter.__orchesterRateBuckets) {
 }
 const BUCKETS = globalForLimiter.__orchesterRateBuckets;
 
-export interface RateLimitOptions {
-  /** Maximum tokens (e.g. 100 = 100 requests). */
-  capacity: number;
-  /** Tokens added per second (e.g. 100/60 = 100 req/min). */
-  refillPerSec: number;
+const memoryAdapter: RateLimitAdapter = {
+  async consume(key, opts) {
+    const now = Date.now();
+    let b = BUCKETS.get(key);
+    if (!b) {
+      b = { tokens: opts.capacity, updatedAt: now };
+      BUCKETS.set(key, b);
+    }
+    const delta = (now - b.updatedAt) / 1000;
+    b.tokens = Math.min(opts.capacity, b.tokens + delta * opts.refillPerSec);
+    b.updatedAt = now;
+    if (b.tokens < 1) {
+      const needed = 1 - b.tokens;
+      const retryAfterMs = Math.ceil((needed / opts.refillPerSec) * 1000);
+      return { ok: false, retryAfterMs, remaining: 0 };
+    }
+    b.tokens -= 1;
+    return { ok: true, remaining: Math.floor(b.tokens) };
+  },
+};
+
+let activeAdapter: RateLimitAdapter = memoryAdapter;
+
+/**
+ * Permite swappear el adapter (e.g. Redis para multi-node). Idempotente; el
+ * último que se setea gana.
+ */
+export function setRateLimitAdapter(adapter: RateLimitAdapter): void {
+  activeAdapter = adapter;
 }
 
 /**
- * Returns true if the request is allowed; consumes 1 token.
+ * Returns rate-limit result. Async para que adapters Redis funcionen.
  */
-export function rateLimit(key: string, opts: RateLimitOptions): { ok: true } | { ok: false; retryAfterMs: number } {
-  const now = Date.now();
-  let b = BUCKETS.get(key);
-  if (!b) {
-    b = { tokens: opts.capacity, updatedAt: now };
-    BUCKETS.set(key, b);
-  }
-  // Refill
-  const delta = (now - b.updatedAt) / 1000;
-  b.tokens = Math.min(opts.capacity, b.tokens + delta * opts.refillPerSec);
-  b.updatedAt = now;
-  if (b.tokens < 1) {
-    const needed = 1 - b.tokens;
-    const retryAfterMs = Math.ceil((needed / opts.refillPerSec) * 1000);
-    return { ok: false, retryAfterMs };
-  }
-  b.tokens -= 1;
-  return { ok: true };
+export async function rateLimit(
+  key: string,
+  opts: RateLimitOptions
+): Promise<RateLimitResult> {
+  return activeAdapter.consume(key, opts);
 }
 
 /**
@@ -81,22 +121,21 @@ if (!globalForCleanup.__orchesterRateCleanupRunning) {
  *   - Mutations (POST/PATCH/DELETE): 120 req/min
  *   - Public webhooks (telegram, slack): 600 req/min por canal
  */
-export function enforceRateLimit(
+export async function enforceRateLimit(
   key: string,
   opts: RateLimitOptions
-): Response | null {
-  const r = rateLimit(key, opts);
+): Promise<Response | null> {
+  const r = await rateLimit(key, opts);
   if (r.ok) return null;
+  const retryAfterMs = r.retryAfterMs ?? 1000;
   return new Response(
-    JSON.stringify({
-      error: "Too many requests",
-      retryAfterMs: r.retryAfterMs,
-    }),
+    JSON.stringify({ error: "Too many requests", retryAfterMs }),
     {
       status: 429,
       headers: {
         "content-type": "application/json",
-        "retry-after": String(Math.ceil(r.retryAfterMs / 1000)),
+        "retry-after": String(Math.ceil(retryAfterMs / 1000)),
+        "x-ratelimit-remaining": String(r.remaining),
       },
     }
   );
