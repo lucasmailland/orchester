@@ -77,6 +77,36 @@ const BUILTINS: Record<string, ToolDefinition> = {
       required: ["flowId"],
     },
   },
+  agent_handoff: {
+    name: "agent_handoff",
+    description:
+      "Hand off the current conversation to another agent. Use this when the user's request is OUTSIDE your specialty and a teammate is better suited. The other agent receives the conversation history + your handoff note and continues the dialog. From the next turn forward, the other agent is the one responding.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        agentId: {
+          type: "string",
+          description:
+            "ID of the teammate that should take over. Use `agent_team_list` first to see who's available.",
+        },
+        note: {
+          type: "string",
+          description:
+            "Short note for the receiving agent explaining the case (e.g. 'User asks about leave > 5 days, beyond my approval limit'). Becomes part of the next agent's system context.",
+        },
+      },
+      required: ["agentId", "note"],
+    },
+  },
+  agent_team_list: {
+    name: "agent_team_list",
+    description:
+      "Lists the teammates available in your workspace that you can hand off to (via `agent_handoff`). Returns id + name + role + short description for each.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
   knowledge_search: {
     name: "knowledge_search",
     description:
@@ -299,6 +329,93 @@ export async function executeTool(
       input: (input.input as Record<string, unknown>) ?? {},
     });
     return result;
+  }
+
+  if (name === "agent_team_list") {
+    const { getDb, schema } = await import("@orchester/db");
+    const { eq, and, ne } = await import("drizzle-orm");
+    const db = getDb();
+    const conds = [eq(schema.agents.workspaceId, ctx.workspaceId), eq(schema.agents.status, "active")];
+    if (ctx.agentId) conds.push(ne(schema.agents.id, ctx.agentId));
+    const teammates = await db
+      .select({
+        id: schema.agents.id,
+        name: schema.agents.name,
+        role: schema.agents.role,
+        teamId: schema.agents.teamId,
+      })
+      .from(schema.agents)
+      .where(and(...conds));
+    return { teammates };
+  }
+
+  if (name === "agent_handoff") {
+    if (!ctx.agentId) throw new Error("agent_handoff requires the calling agent context");
+    if (!ctx.conversationId) {
+      throw new Error("agent_handoff requires conversationId — only available in conversational runs");
+    }
+    const targetAgentId = String(input.agentId ?? "");
+    const note = String(input.note ?? "").slice(0, 1000);
+    if (!targetAgentId) throw new Error("agentId required");
+    if (targetAgentId === ctx.agentId) throw new Error("cannot hand off to yourself");
+
+    const { getDb, schema } = await import("@orchester/db");
+    const { eq, and } = await import("drizzle-orm");
+    const { createId } = await import("@paralleldrive/cuid2");
+    const { logAudit } = await import("./audit");
+    const db = getDb();
+
+    // Validate target agent exists in same workspace and is active
+    const targetRows = await db
+      .select()
+      .from(schema.agents)
+      .where(
+        and(
+          eq(schema.agents.id, targetAgentId),
+          eq(schema.agents.workspaceId, ctx.workspaceId)
+        )
+      )
+      .limit(1);
+    const target = targetRows[0];
+    if (!target) throw new Error(`target agent ${targetAgentId} not found in workspace`);
+    if (target.status !== "active") {
+      throw new Error(`target agent ${target.name} is not active (status=${target.status})`);
+    }
+
+    // Pivot the conversation to the new agent
+    await db
+      .update(schema.conversations)
+      .set({ agentId: targetAgentId })
+      .where(eq(schema.conversations.id, ctx.conversationId));
+
+    // Persist a system message with the handoff note for auditability and so
+    // the next agent's history-compaction sees it as context.
+    await db.insert(schema.messages).values({
+      id: createId(),
+      conversationId: ctx.conversationId,
+      role: "system",
+      content: `[handoff] from agentId=${ctx.agentId} to agentId=${targetAgentId} — ${note}`,
+      metadata: {
+        kind: "agent_handoff",
+        fromAgentId: ctx.agentId,
+        toAgentId: targetAgentId,
+        note,
+      },
+    });
+
+    await logAudit({
+      workspaceId: ctx.workspaceId,
+      action: "agent.handoff",
+      resource: "conversation",
+      resourceId: ctx.conversationId,
+      after: { fromAgentId: ctx.agentId, toAgentId: targetAgentId, note },
+    });
+
+    return {
+      ok: true,
+      handedOffTo: { id: target.id, name: target.name, role: target.role },
+      note,
+    };
   }
 
   if (name === "memory_set" || name === "memory_get" || name === "memory_remove") {
