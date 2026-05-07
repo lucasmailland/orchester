@@ -69,3 +69,37 @@ export async function POST(req: Request) {
   });
   return NextResponse.json({ ...inserted[0]!, inviteUrl }, { status: 201 });
 }
+
+/**
+ * DELETE /api/invites?id=...
+ * Revoca una invitación pendiente. Sólo owner/admin del workspace.
+ */
+export async function DELETE(req: Request) {
+  const session = await getCurrentSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ws = await getCurrentWorkspace();
+  if (!ws) return NextResponse.json({ error: "No workspace" }, { status: 404 });
+  if (ws.role !== "owner" && ws.role !== "admin") {
+    return NextResponse.json({ error: "Insufficient role" }, { status: 403 });
+  }
+
+  const url = new URL(req.url);
+  const id = url.searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+  const db = getDb();
+  const deleted = await db
+    .delete(schema.workspaceInvites)
+    .where(eq(schema.workspaceInvites.id, id))
+    .returning({ id: schema.workspaceInvites.id });
+  if (!deleted[0]) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  await logAudit({
+    workspaceId: ws.workspace.id,
+    userId: session.user.id,
+    action: "invite.revoke",
+    resource: "workspace_invite",
+    resourceId: id,
+  });
+  return NextResponse.json({ ok: true });
+}
