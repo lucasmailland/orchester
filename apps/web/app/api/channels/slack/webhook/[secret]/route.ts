@@ -5,6 +5,8 @@ import { handleInbound } from "@/lib/channels/router";
 import {
   decodeSlackCredentials,
   slackSend,
+  slackReact,
+  slackSetThinkingStatus,
   verifySlackSignature,
   type SlackEventEnvelope,
 } from "@/lib/channels/slack";
@@ -84,25 +86,48 @@ export async function POST(
     return NextResponse.json({ ok: true });
   }
 
+  // UX: feedback inmediato al usuario antes de invocar el LLM (puede tardar
+  // segundos). 1) reacción 👀 al mensaje original. 2) status "Pensando…" en el
+  // thread (si el workspace es Slack AI app). Ambos son best-effort.
+  const slackChannel = ev.channel;
+  const replyThreadTs = ev.thread_ts ?? ev.ts;
+  const ackPromise = (async () => {
+    const tasks: Array<Promise<unknown>> = [];
+    if (ev.ts) {
+      tasks.push(
+        slackReact(creds.botToken, slackChannel, ev.ts, "eyes").catch(() => undefined)
+      );
+    }
+    if (replyThreadTs) {
+      tasks.push(slackSetThinkingStatus(creds.botToken, slackChannel, replyThreadTs));
+    }
+    await Promise.all(tasks);
+  })();
+
   try {
     const result = await handleInbound(channel.workspaceId, {
       channelId: channel.id,
       // externalId combina canal+thread para que cada thread sea su propia conversación
-      externalId: `${ev.channel}:${ev.thread_ts ?? ev.ts ?? ev.user}`,
+      externalId: `${slackChannel}:${replyThreadTs ?? ev.user}`,
       text: ev.text,
       metadata: {
         source: "slack",
         slackUser: ev.user,
-        slackChannel: ev.channel,
-        threadTs: ev.thread_ts ?? ev.ts,
+        slackChannel,
+        threadTs: replyThreadTs,
       },
     });
 
+    // Esperá que el ack haya llegado a Slack antes de mandar la respuesta —
+    // así el orden visible es: msg-user → 👀 → "pensando…" → respuesta.
+    await ackPromise;
+
     if (result.reply) {
-      await slackSend(creds.botToken, ev.channel, result.reply, ev.thread_ts ?? ev.ts);
+      await slackSend(creds.botToken, slackChannel, result.reply, replyThreadTs);
     }
     return NextResponse.json({ ok: true });
   } catch (e) {
+    await ackPromise.catch(() => undefined);
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : String(e) },
       { status: 500 }
