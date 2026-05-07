@@ -11,7 +11,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   // LLM-heavy endpoint: 30 req/min por (workspace,user). Defensa contra
   // un user comprometido que quiera quemar la cuota de Anthropic.
-  const limited = enforceRateLimit(
+  const limited = await enforceRateLimit(
     `test-chat:${ws.workspace.id}:${session.user.id}`,
     RATE_LIMITS.LLM_HEAVY
   );

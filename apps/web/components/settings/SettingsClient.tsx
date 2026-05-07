@@ -10,6 +10,8 @@ import {
   Users as UsersIcon,
   Code,
   AlertTriangle,
+  Monitor,
+  ScrollText,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -21,6 +23,8 @@ import { BillingSection } from "./BillingSection";
 import { MembersSection } from "./MembersSection";
 import { DevelopersSection } from "./DevelopersSection";
 import { DangerZoneSection } from "./DangerZoneSection";
+import { SessionsSection } from "./SessionsSection";
+import { AuditLogSection } from "./AuditLogSection";
 import { SettingsCard } from "./_layout";
 
 interface WorkspaceCtx {
@@ -72,6 +76,8 @@ const TABS: Tab[] = [
     visible: (ctx) => ctx.stripeEnabled || true, // siempre visible — muestra "Self-hosted"
   },
   { id: "members", label: "Equipo", icon: UsersIcon },
+  { id: "sessions", label: "Sesiones", icon: Monitor },
+  { id: "audit", label: "Audit log", icon: ScrollText },
   { id: "developers", label: "Desarrolladores", icon: Code },
   { id: "danger", label: "Zona de peligro", icon: AlertTriangle, variant: "danger" },
 ];
@@ -190,6 +196,24 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
               description="Miembros del workspace e invitaciones pendientes."
             >
               <MembersSection />
+            </SettingsCard>
+          )}
+          {activeTab === "sessions" && (
+            <SettingsCard
+              icon={<Monitor size={16} />}
+              title="Sesiones activas"
+              description="Devices conectados a tu cuenta. Cerralos remotamente si sospechás compromise."
+            >
+              <SessionsSection />
+            </SettingsCard>
+          )}
+          {activeTab === "audit" && (
+            <SettingsCard
+              icon={<ScrollText size={16} />}
+              title="Audit log"
+              description="Cada mutación crítica del workspace queda registrada acá. Read-only."
+            >
+              <AuditLogSection />
             </SettingsCard>
           )}
           {activeTab === "developers" && (

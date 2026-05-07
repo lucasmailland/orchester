@@ -5,6 +5,8 @@ import { getCurrentWorkspace } from "@/lib/workspace";
 import { encrypt } from "@/lib/encryption";
 import { telegramSetWebhook, telegramGetMe } from "@/lib/channels/telegram";
 import { slackAuthTest } from "@/lib/channels/slack";
+import { logAudit } from "@/lib/audit";
+import { getCurrentSession } from "@/lib/workspace";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ws = await getCurrentWorkspace();
@@ -130,13 +132,30 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await getCurrentSession();
+  if (!ws || !session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
   const db = getDb();
+  // Snapshot before delete para el audit log.
+  const before = (
+    await db
+      .select({ name: schema.channels.name, type: schema.channels.type })
+      .from(schema.channels)
+      .where(and(eq(schema.channels.id, id), eq(schema.channels.workspaceId, ws.workspace.id)))
+      .limit(1)
+  )[0];
   const deleted = await db
     .delete(schema.channels)
     .where(and(eq(schema.channels.id, id), eq(schema.channels.workspaceId, ws.workspace.id)))
     .returning({ id: schema.channels.id });
   if (!deleted[0]) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  await logAudit({
+    workspaceId: ws.workspace.id,
+    userId: session.user.id,
+    action: "channel.delete",
+    resource: "channel",
+    resourceId: id,
+    before: before ? { name: before.name, type: before.type } : undefined,
+  });
   return NextResponse.json({ ok: true });
 }

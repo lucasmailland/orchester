@@ -34,6 +34,7 @@ export async function logAudit(entry: AuditLogInput): Promise<void> {
     });
   } catch (e) {
     // Don't crash the caller because of audit failure
-    console.error("[audit] failed to log:", e);
+    const { safeLogError } = await import("./safe-log");
+    safeLogError("[audit] failed to log:", e);
   }
 }
