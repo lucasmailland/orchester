@@ -29,9 +29,6 @@ let _bossPromise: Promise<PgBoss> | null = null;
 async function getBoss(): Promise<PgBoss> {
   if (_bossPromise) return _bossPromise;
   _bossPromise = (async () => {
-    // pg-boss se resuelve dinámicamente para que el type-check pase sin install
-    // todavía hecho. En runtime, `pnpm install` lo trae.
-    // @ts-expect-error -- pg-boss types se cargan al instalar la dep
     const { default: PgBossCtor } = await import("pg-boss");
     const cs = process.env["DATABASE_URL"];
     if (!cs) throw new Error("DATABASE_URL not set — required for pg-boss queue");
