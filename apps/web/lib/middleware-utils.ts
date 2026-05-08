@@ -2,7 +2,7 @@ export const PROTECTED_PATHS = ["/", "/teams", "/agents", "/flows", "/org", "/co
 
 export const AUTH_PATHS = ["/login", "/signup"];
 
-export const PUBLIC_PATHS = ["/api", "/_next", "/favicon.ico", "/widget", "/c/"];
+export const PUBLIC_PATHS = ["/api", "/_next", "/favicon.ico", "/widget", "/c/", "/welcome", "/pricing", "/privacy", "/terms", "/docs"];
 
 export function extractLocalePath(pathname: string): string {
   const match = pathname.match(/^\/(en|pt-BR|es)(\/.*)?$/);
