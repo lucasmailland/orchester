@@ -96,6 +96,10 @@ export const employees = pgTable(
     assignedAgentIds: jsonb("assigned_agent_ids").$type<string[]>().default([]),
     /** Hard budget USD/mes. Cuando se supera, el agente devuelve `budget_exceeded`. NULL = sin límite. */
     monthlyBudgetUsd: numeric("monthly_budget_usd", { precision: 10, scale: 2 }),
+    /** Última alerta enviada (warn70 | warn90 | exceeded), idempotente por mes. */
+    lastBudgetAlertLevel: text("last_budget_alert_level"),
+    /** Mes calendario de la última alerta (YYYY-MM). Se resetea cada mes. */
+    lastBudgetAlertMonth: text("last_budget_alert_month"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

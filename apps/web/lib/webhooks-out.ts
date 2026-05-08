@@ -10,7 +10,10 @@ export type WebhookEvent =
   | "flow.run.failed"
   | "conversation.escalated"
   | "conversation.created"
-  | "kb.doc.indexed";
+  | "kb.doc.indexed"
+  | "employee.budget.warn70"
+  | "employee.budget.warn90"
+  | "employee.budget.exceeded";
 
 /**
  * Dispatch an event to all configured outbound webhooks for the workspace.
