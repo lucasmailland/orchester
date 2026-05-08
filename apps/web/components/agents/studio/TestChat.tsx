@@ -49,8 +49,53 @@ export function TestChat({
     setInput("");
     setLoading(true);
     setError(null);
+
+    // Si el agente tiene tools, no podemos streamear (test-chat-stream NO ejecuta
+    // tools — solo genera tokens). Caemos al endpoint blocking.
+    const hasTools = (tools?.length ?? 0) > 0;
+
+    if (hasTools) {
+      try {
+        const r = await fetch(`/api/agents/${agentId}/test-chat`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            messages: next.map(({ role, content }) => ({ role, content })),
+            systemPrompt,
+            model,
+            temperature,
+            maxTokens,
+            variables,
+            tools,
+          }),
+        });
+        const j = await r.json();
+        if (!r.ok) {
+          if (j.error === "PROVIDER_NOT_CONFIGURED")
+            setError("Configurá el proveedor en Ajustes para usar este modelo.");
+          else setError(j.error || "Error");
+          return;
+        }
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: j.content, toolCalls: j.toolCalls, flowRunId: j.flowRunId },
+        ]);
+        setTokens((t) => t + (j.tokensUsed ?? 0));
+        setTimeout(() => scrollRef.current?.scrollTo({ top: 99999, behavior: "smooth" }), 50);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // ── Streaming path ─────────────────────────────────────────────
+    // Append placeholder vacío que vamos a ir llenando.
+    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
     try {
-      const r = await fetch(`/api/agents/${agentId}/test-chat`, {
+      const r = await fetch(`/api/agents/${agentId}/test-chat-stream`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -60,29 +105,90 @@ export function TestChat({
           temperature,
           maxTokens,
           variables,
-          tools,
         }),
       });
-      const j = await r.json();
-      if (!r.ok) {
-        if (j.error === "PROVIDER_NOT_CONFIGURED")
-          setError("Configurá el proveedor en Ajustes para usar este modelo.");
-        else setError(j.error || "Error");
+      if (!r.ok || !r.body) {
+        const j = await r.json().catch(() => ({}));
+        setError(j.error ?? "Error");
+        // remover placeholder
+        setMessages((prev) => prev.slice(0, -1));
         return;
       }
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: j.content,
-          toolCalls: j.toolCalls,
-          flowRunId: j.flowRunId,
-        },
-      ]);
-      setTokens((t) => t + (j.tokensUsed ?? 0));
-      setTimeout(() => scrollRef.current?.scrollTo({ top: 99999, behavior: "smooth" }), 50);
+
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let buffered = "";
+      let flushTimer: ReturnType<typeof setTimeout> | null = null;
+      const flush = () => {
+        if (!buffered) return;
+        const chunk = buffered;
+        buffered = "";
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          if (!last || last.role !== "assistant") return prev;
+          return [
+            ...prev.slice(0, -1),
+            { ...last, content: last.content + chunk },
+          ];
+        });
+        scrollRef.current?.scrollTo({ top: 99999 });
+      };
+      const scheduleFlush = () => {
+        if (flushTimer) return;
+        // Batch render cada 50ms para no spammear React con cada token.
+        flushTimer = setTimeout(() => {
+          flushTimer = null;
+          flush();
+        }, 50);
+      };
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf("\n\n")) !== -1) {
+          const block = buf.slice(0, idx);
+          buf = buf.slice(idx + 2);
+          for (const line of block.split("\n")) {
+            if (!line.startsWith("data:")) continue;
+            const json = line.slice(5).trim();
+            if (!json) continue;
+            try {
+              const ev = JSON.parse(json) as
+                | { type: "text"; delta: string }
+                | { type: "done"; tokensUsed: number }
+                | { type: "error"; error: string };
+              if (ev.type === "text") {
+                buffered += ev.delta;
+                scheduleFlush();
+              } else if (ev.type === "done") {
+                if (flushTimer) {
+                  clearTimeout(flushTimer);
+                  flushTimer = null;
+                }
+                flush();
+                setTokens((t) => t + (ev.tokensUsed ?? 0));
+              } else if (ev.type === "error") {
+                setError(ev.error);
+                setMessages((prev) => prev.slice(0, -1));
+              }
+            } catch {
+              // ignorar líneas mal formadas
+            }
+          }
+        }
+      }
+      // flush final por si quedó algo en el buffer
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+      flush();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      setMessages((prev) => prev.slice(0, -1));
     } finally {
       setLoading(false);
     }

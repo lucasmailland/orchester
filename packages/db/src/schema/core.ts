@@ -94,6 +94,8 @@ export const employees = pgTable(
     avatarUrl: text("avatar_url"),
     active: boolean("active").notNull().default(true),
     assignedAgentIds: jsonb("assigned_agent_ids").$type<string[]>().default([]),
+    /** Hard budget USD/mes. Cuando se supera, el agente devuelve `budget_exceeded`. NULL = sin límite. */
+    monthlyBudgetUsd: numeric("monthly_budget_usd", { precision: 10, scale: 2 }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -118,6 +120,10 @@ export const conversations = pgTable("conversation", {
   summary: text("summary"),
   messageCount: integer("message_count").notNull().default(0),
   durationSeconds: integer("duration_seconds"),
+  /** Costo total acumulado de la conversación. Sumatoria de message.cost_usd. */
+  totalCostUsd: numeric("total_cost_usd", { precision: 10, scale: 6 }).default("0"),
+  /** Tokens totales acumulados (input + output) en la conversación. */
+  totalTokens: integer("total_tokens").default(0),
   /** Phase 5 — Conversations Hub */
   externalId: text("external_id"), // e.g. telegram chat id, widget visitor id
   customerEmail: text("customer_email"),
@@ -139,7 +145,12 @@ export const messages = pgTable("message", {
     .references(() => conversations.id, { onDelete: "cascade" }),
   role: messageRoleEnum("role").notNull(),
   content: text("content").notNull(),
+  /** Total tokens (input + output) consumidos por este message si role=assistant. */
   tokensUsed: integer("tokens_used"),
+  /** Costo USD (precisión 10.6 = ej. 0.001234). NULL si role!=assistant o no LLM. */
+  costUsd: numeric("cost_usd", { precision: 10, scale: 6 }),
+  /** Modelo que generó este message (ej. claude-sonnet-4-6). Null para user msgs. */
+  model: text("model"),
   /** Author when role = "system" (operator takeover): user.id */
   authorUserId: text("author_user_id"),
   /** When the operator manually replies, vs an agent response */
