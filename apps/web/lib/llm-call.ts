@@ -48,6 +48,20 @@ export interface LlmCallResult {
   toolCalls?: ToolUseBlock[];
 }
 
+/**
+ * Stream chunk emitido por `llmStream()`. Discriminado por `type`:
+ *   - `text`: porción de texto (concatená en orden)
+ *   - `toolCall`: el modelo decidió llamar a una tool (se entrega completo,
+ *     no en chunks parciales — Anthropic streamea tool calls al final)
+ *   - `done`: streaming terminó. Trae el `tokensUsed` total.
+ *   - `error`: algo falló mid-stream.
+ */
+export type LlmStreamChunk =
+  | { type: "text"; delta: string }
+  | { type: "toolCall"; toolCall: ToolUseBlock }
+  | { type: "done"; tokensUsed: number; model: string }
+  | { type: "error"; error: string };
+
 export class ProviderNotConfiguredError extends Error {
   constructor(public provider: ProviderType) {
     super(`Provider ${provider} is not configured`);
@@ -250,6 +264,267 @@ async function callAzure(
     tokensUsed: j.usage?.total_tokens ?? 0,
     model: p.model,
   };
+}
+
+/**
+ * Streaming version de `llmCall()`. Devuelve un AsyncIterable que emite chunks
+ * de texto a medida que el provider los manda. Implementaciones:
+ *   - Anthropic: SSE con eventos `content_block_delta`/`message_delta`
+ *   - OpenAI: SSE con `delta.content` parcial
+ *   - Google + Azure: fall-through a llamada blocking + emit single chunk
+ *     (no soportan streaming en este iteration)
+ *
+ * El caller consume con:
+ *   for await (const chunk of llmStream(params)) {
+ *     if (chunk.type === "text") buffer += chunk.delta;
+ *     if (chunk.type === "done") finalTokens = chunk.tokensUsed;
+ *   }
+ */
+export async function* llmStream(p: LlmCallParams): AsyncGenerator<LlmStreamChunk> {
+  const provider = routeToProvider(p.model);
+  if (!provider) {
+    yield { type: "error", error: `Unknown model: ${p.model}` };
+    return;
+  }
+  const { apiKey } = await getProviderKey(p.workspaceId, provider);
+
+  if (provider === "anthropic") {
+    yield* streamAnthropic(p, apiKey);
+    return;
+  }
+  if (provider === "openai") {
+    yield* streamOpenAI(p, apiKey);
+    return;
+  }
+  // Google / Azure → fallback blocking, emit como un solo chunk al final.
+  try {
+    const result = await llmCall(p);
+    if (result.content) yield { type: "text", delta: result.content };
+    if (result.toolCalls?.length) {
+      for (const tc of result.toolCalls) yield { type: "toolCall", toolCall: tc };
+    }
+    yield { type: "done", tokensUsed: result.tokensUsed, model: result.model };
+  } catch (e) {
+    yield { type: "error", error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+async function* streamAnthropic(
+  p: LlmCallParams,
+  apiKey: string
+): AsyncGenerator<LlmStreamChunk> {
+  // Build messages igual que el blocking call
+  const anthropicMessages = p.messages
+    .filter((m) => m.role !== "system")
+    .map((m) => {
+      if (m.role === "tool") {
+        const blocks = (m.toolResults ?? []).map((tr) => ({
+          type: "tool_result" as const,
+          tool_use_id: tr.id,
+          content: tr.error
+            ? `Error: ${tr.error}`
+            : typeof tr.output === "string"
+            ? tr.output
+            : JSON.stringify(tr.output ?? null),
+          ...(tr.error ? { is_error: true } : {}),
+        }));
+        return { role: "user" as const, content: blocks };
+      }
+      if (m.role === "assistant" && m.toolCalls && m.toolCalls.length > 0) {
+        const blocks: Array<Record<string, unknown>> = [];
+        if (m.content) blocks.push({ type: "text", text: m.content });
+        for (const tc of m.toolCalls) {
+          blocks.push({ type: "tool_use", id: tc.id, name: tc.name, input: tc.input });
+        }
+        return { role: "assistant" as const, content: blocks };
+      }
+      return { role: m.role, content: m.content };
+    });
+
+  const body: Record<string, unknown> = {
+    model: p.model,
+    max_tokens: p.maxTokens ?? 1024,
+    temperature: p.temperature ?? 0.7,
+    system: p.systemPrompt,
+    messages: anthropicMessages,
+    stream: true,
+  };
+  if (p.tools && p.tools.length > 0) {
+    body.tools = p.tools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.inputSchema,
+    }));
+  }
+
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok || !r.body) {
+    const txt = await r.text().catch(() => "");
+    yield { type: "error", error: `Anthropic ${r.status}: ${txt}` };
+    return;
+  }
+
+  // Estado para reconstruir tool_use blocks streameados.
+  // Anthropic envía: content_block_start (con id+name) → input_json_delta → content_block_stop
+  type ToolBuilder = { id: string; name: string; jsonStr: string };
+  const toolByIndex: Record<number, ToolBuilder> = {};
+  let inputTokens = 0;
+  let outputTokens = 0;
+
+  for await (const ev of parseSSE(r.body)) {
+    if (ev.event === "message_start") {
+      const data = safeJsonParse(ev.data);
+      inputTokens = data?.message?.usage?.input_tokens ?? 0;
+      continue;
+    }
+    if (ev.event === "content_block_start") {
+      const data = safeJsonParse(ev.data);
+      if (data?.content_block?.type === "tool_use") {
+        toolByIndex[data.index] = {
+          id: data.content_block.id,
+          name: data.content_block.name,
+          jsonStr: "",
+        };
+      }
+      continue;
+    }
+    if (ev.event === "content_block_delta") {
+      const data = safeJsonParse(ev.data);
+      const d = data?.delta;
+      if (d?.type === "text_delta" && typeof d.text === "string") {
+        yield { type: "text", delta: d.text };
+      } else if (d?.type === "input_json_delta" && typeof d.partial_json === "string") {
+        const t = toolByIndex[data.index];
+        if (t) t.jsonStr += d.partial_json;
+      }
+      continue;
+    }
+    if (ev.event === "content_block_stop") {
+      const data = safeJsonParse(ev.data);
+      const t = toolByIndex[data?.index];
+      if (t) {
+        let parsed: unknown = {};
+        try {
+          parsed = t.jsonStr ? JSON.parse(t.jsonStr) : {};
+        } catch {
+          /* leave {} */
+        }
+        yield { type: "toolCall", toolCall: { id: t.id, name: t.name, input: parsed } };
+      }
+      continue;
+    }
+    if (ev.event === "message_delta") {
+      const data = safeJsonParse(ev.data);
+      outputTokens = data?.usage?.output_tokens ?? outputTokens;
+      continue;
+    }
+    if (ev.event === "message_stop") {
+      yield { type: "done", tokensUsed: inputTokens + outputTokens, model: p.model };
+      return;
+    }
+    if (ev.event === "error") {
+      const data = safeJsonParse(ev.data);
+      yield {
+        type: "error",
+        error: data?.error?.message ?? "stream error",
+      };
+      return;
+    }
+  }
+  // Si llegamos acá sin message_stop, el stream se cortó.
+  yield { type: "done", tokensUsed: inputTokens + outputTokens, model: p.model };
+}
+
+async function* streamOpenAI(
+  p: LlmCallParams,
+  apiKey: string
+): AsyncGenerator<LlmStreamChunk> {
+  const messages = p.messages
+    .filter((m) => m.role !== "tool")
+    .map((m) => ({ role: m.role as "user" | "assistant" | "system", content: m.content }));
+
+  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      model: p.model,
+      messages: [{ role: "system", content: p.systemPrompt }, ...messages],
+      temperature: p.temperature ?? 0.7,
+      max_tokens: p.maxTokens ?? 1024,
+      stream: true,
+      stream_options: { include_usage: true },
+    }),
+  });
+  if (!r.ok || !r.body) {
+    const txt = await r.text().catch(() => "");
+    yield { type: "error", error: `OpenAI ${r.status}: ${txt}` };
+    return;
+  }
+
+  let totalTokens = 0;
+  for await (const ev of parseSSE(r.body)) {
+    if (ev.data === "[DONE]") {
+      yield { type: "done", tokensUsed: totalTokens, model: p.model };
+      return;
+    }
+    const data = safeJsonParse(ev.data);
+    const delta = data?.choices?.[0]?.delta;
+    if (typeof delta?.content === "string" && delta.content) {
+      yield { type: "text", delta: delta.content };
+    }
+    if (data?.usage?.total_tokens) {
+      totalTokens = data.usage.total_tokens;
+    }
+  }
+  yield { type: "done", tokensUsed: totalTokens, model: p.model };
+}
+
+/**
+ * Parser minimal de Server-Sent Events. Lee el body como Uint8Array stream y
+ * devuelve {event, data} por cada bloque vacío-line-separated.
+ */
+async function* parseSSE(
+  body: ReadableStream<Uint8Array>
+): AsyncGenerator<{ event: string; data: string }> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let idx;
+    while ((idx = buf.indexOf("\n\n")) !== -1) {
+      const block = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      let event = "message";
+      const dataLines: string[] = [];
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+      }
+      if (dataLines.length > 0) {
+        yield { event, data: dataLines.join("\n") };
+      }
+    }
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function safeJsonParse(s: string): any {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
 }
 
 /** Pick the best available provider for one-shot tasks (prompt generation). */

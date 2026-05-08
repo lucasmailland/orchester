@@ -101,6 +101,30 @@ export async function handleInbound(
     return { conversationId: conversation.id, reply: "", tokensUsed: 0 };
   }
 
+  // 3.6 Per-employee budget check (cost-control). Si el employee tiene
+  // monthlyBudgetUsd seteado y ya lo agotó este mes, devolvemos el fallback
+  // del agente sin consumir tokens. Audit log para que el operador sepa.
+  const { checkEmployeeBudget } = await import("@/lib/employee-budget");
+  const budget = await checkEmployeeBudget(
+    workspaceId,
+    conversation.employeeId ?? undefined
+  );
+  if (!budget.allowed) {
+    const reply =
+      agent.fallback ??
+      `Lo siento, alcanzaste tu límite mensual de uso ($${budget.budgetUsd}). Contactá a tu admin para extenderlo.`;
+    await db.insert(schema.messages).values({
+      id: createId(),
+      conversationId: conversation.id,
+      role: "assistant",
+      content: reply,
+      tokensUsed: 0,
+      costUsd: "0",
+      metadata: { reason: "budget_exceeded", spent: budget.spentUsd, budget: budget.budgetUsd },
+    });
+    return { conversationId: conversation.id, reply, tokensUsed: 0 };
+  }
+
   // 4. Branch by agent kind
   if (agent.kind === "flow") {
     if (!agent.flowId) throw new Error("Flow-driven agent has no flowId");
@@ -251,13 +275,26 @@ export async function handleInbound(
 
   if (!reply && activeAgent.fallback) reply = activeAgent.fallback;
 
-  // 5. Persist assistant message
+  // 5. Persist assistant message + actualizar agregados de cost/tokens.
+  const { calculateCostUsd } = await import("@/lib/pricing");
+  const { recordMessageCost } = await import("@/lib/employee-budget");
+  const messageId = createId();
+  const costUsd = calculateCostUsd(activeAgent.model, tokens);
   await db.insert(schema.messages).values({
-    id: createId(),
+    id: messageId,
     conversationId: conversation.id,
     role: "assistant",
     content: reply,
     tokensUsed: tokens,
+    costUsd: String(costUsd),
+    model: activeAgent.model,
+  });
+  await recordMessageCost({
+    messageId,
+    conversationId: conversation.id,
+    model: activeAgent.model,
+    tokensUsed: tokens,
+    costUsd,
   });
   await db
     .update(schema.conversations)
