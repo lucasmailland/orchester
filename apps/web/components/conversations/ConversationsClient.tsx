@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, X, MessageSquare, User, Bot, Tag as TagIcon, UserCheck } from "lucide-react";
+import { Search, X, MessageSquare, User, Bot, Tag as TagIcon, UserCheck, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 
 interface Conv {
@@ -21,6 +21,8 @@ interface Conv {
   startedAt: string;
   takenOverAt: string | null;
   summary: string | null;
+  totalCostUsd: string | null;
+  totalTokens: number | null;
 }
 interface Msg {
   id: string;
@@ -28,6 +30,27 @@ interface Msg {
   content: string;
   fromOperator: boolean;
   createdAt: string;
+  costUsd: string | null;
+  tokensUsed: number | null;
+  model: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+interface BudgetStatus {
+  allowed: boolean;
+  budgetUsd: number | null;
+  spentUsd: number;
+  conversationCount: number;
+}
+
+/**
+ * Formatea costos en USD con precisión adecuada al rango.
+ * <$0.01 → 4 decimales (sub-cent), <$1 → 3 decimales, ≥$1 → 2 decimales.
+ */
+function fmtUsd(n: number): string {
+  if (n === 0) return "$0";
+  if (n < 0.01) return `$${n.toFixed(4)}`;
+  if (n < 1) return `$${n.toFixed(3)}`;
+  return `$${n.toFixed(2)}`;
 }
 interface Agent {
   id: string;
@@ -317,6 +340,11 @@ export function ConversationsClient({
                   {c.channelType ?? "—"} · {c.messageCount} mensajes ·{" "}
                   {new Date(c.startedAt).toLocaleString()}
                   {c.csat != null && ` · CSAT ${c.csat}/5`}
+                  {c.totalCostUsd != null && Number(c.totalCostUsd) > 0 && (
+                    <span className="ml-1 text-emerald-400/80">
+                      · {fmtUsd(Number(c.totalCostUsd))}
+                    </span>
+                  )}
                 </div>
               </div>
               <span className="text-[10px] text-zinc-600">{STATUS_LABEL[c.status]}</span>
@@ -368,12 +396,19 @@ function ConversationDrawer({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(conversation.status);
   const [tags, setTags] = useState<string[]>(conversation.tags ?? []);
+  const [budget, setBudget] = useState<BudgetStatus | null>(null);
 
   useEffect(() => {
     fetch(`/api/conversations/${conversation.id}`)
       .then((r) => r.json())
-      .then((d) => setMessages(d?.messages ?? []));
+      .then((d) => {
+        setMessages(d?.messages ?? []);
+        setBudget(d?.budget ?? null);
+      });
   }, [conversation.id]);
+
+  const totalCost = conversation.totalCostUsd != null ? Number(conversation.totalCostUsd) : 0;
+  const totalTokens = conversation.totalTokens ?? 0;
 
   async function takeOver() {
     setBusy(true);
@@ -448,6 +483,27 @@ function ConversationDrawer({
           </button>
         </div>
 
+        {/* Resumen de costo + budget del empleado (Sprint C3) */}
+        {(totalCost > 0 || budget) && (
+          <div className="flex flex-wrap items-center gap-3 border-b border-white/[0.06] bg-zinc-900/40 px-5 py-2 text-[11px]">
+            <div className="flex items-center gap-1.5 text-emerald-300">
+              <DollarSign className="h-3 w-3" />
+              <span className="font-medium">{fmtUsd(totalCost)}</span>
+              <span className="text-zinc-600">
+                · {totalTokens.toLocaleString()} tokens
+              </span>
+            </div>
+            {budget && budget.budgetUsd != null && (
+              <BudgetMeter budget={budget} />
+            )}
+            {budget && budget.budgetUsd == null && budget.spentUsd > 0 && (
+              <span className="text-zinc-500">
+                Empleado: {fmtUsd(budget.spentUsd)} este mes (sin límite)
+              </span>
+            )}
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] px-5 py-2.5 text-xs">
           <select
             value={status}
@@ -497,28 +553,52 @@ function ConversationDrawer({
         </div>
 
         <div className="flex-1 space-y-3 overflow-y-auto p-5">
-          {messages.map((m) => (
-            <div
-              key={m.id}
-              className={
-                m.role === "user"
-                  ? "ml-auto max-w-[80%] rounded-2xl rounded-br-sm bg-zinc-800 px-3 py-2 text-sm text-zinc-100"
-                  : "mr-auto max-w-[80%] rounded-2xl rounded-bl-sm border border-white/5 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-100"
-              }
-            >
-              {m.fromOperator && (
-                <div className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wider text-amber-400">
-                  <UserCheck className="h-2.5 w-2.5" /> Operador
-                </div>
-              )}
-              {!m.fromOperator && m.role === "assistant" && (
-                <div className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wider text-violet-400">
-                  <Bot className="h-2.5 w-2.5" /> Agente
-                </div>
-              )}
-              <div className="whitespace-pre-wrap">{m.content}</div>
-            </div>
-          ))}
+          {messages.map((m) => {
+            const reason =
+              m.metadata && typeof m.metadata === "object"
+                ? (m.metadata as { reason?: string }).reason
+                : undefined;
+            const isBudgetExceeded = reason === "budget_exceeded";
+            const cost = m.costUsd != null ? Number(m.costUsd) : 0;
+            return (
+              <div
+                key={m.id}
+                className={
+                  m.role === "user"
+                    ? "ml-auto max-w-[80%] rounded-2xl rounded-br-sm bg-zinc-800 px-3 py-2 text-sm text-zinc-100"
+                    : isBudgetExceeded
+                    ? "mr-auto max-w-[80%] rounded-2xl rounded-bl-sm border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-100"
+                    : "mr-auto max-w-[80%] rounded-2xl rounded-bl-sm border border-white/5 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-100"
+                }
+              >
+                {m.fromOperator && (
+                  <div className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wider text-amber-400">
+                    <UserCheck className="h-2.5 w-2.5" /> Operador
+                  </div>
+                )}
+                {!m.fromOperator && m.role === "assistant" && !isBudgetExceeded && (
+                  <div className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wider text-violet-400">
+                    <Bot className="h-2.5 w-2.5" /> Agente
+                  </div>
+                )}
+                {isBudgetExceeded && (
+                  <div className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wider text-rose-300">
+                    <DollarSign className="h-2.5 w-2.5" /> Budget excedido
+                  </div>
+                )}
+                <div className="whitespace-pre-wrap">{m.content}</div>
+                {/* Footer: tokens + costo + modelo. Solo en mensajes del agente que sí
+                    consumieron LLM (budget_exceeded los muestra el banner rojo). */}
+                {m.role === "assistant" && !m.fromOperator && (m.tokensUsed ?? 0) > 0 && (
+                  <div className="mt-1 flex items-center gap-2 border-t border-white/5 pt-1 text-[9px] text-zinc-500">
+                    <span>{m.tokensUsed} tokens</span>
+                    {cost > 0 && <span className="text-emerald-400/70">{fmtUsd(cost)}</span>}
+                    {m.model && <span className="text-zinc-600">{m.model}</span>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         <div className="border-t border-white/[0.06] p-3">
@@ -549,5 +629,29 @@ function ConversationDrawer({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Pill compacto que muestra cuánto del budget mensual del empleado se usó.
+ * Verde <70%, ámbar 70-90%, rojo ≥90% (también si excedió y allowed=false).
+ */
+function BudgetMeter({ budget }: { budget: BudgetStatus }) {
+  if (budget.budgetUsd == null) return null;
+  const pct = Math.min(100, (budget.spentUsd / budget.budgetUsd) * 100);
+  const tone = !budget.allowed || pct >= 90
+    ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
+    : pct >= 70
+    ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
+    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+  return (
+    <span
+      className={`flex items-center gap-1.5 rounded-md border px-2 py-0.5 ${tone}`}
+      title={`${budget.conversationCount} conversaciones este mes`}
+    >
+      <span className="font-medium">{fmtUsd(budget.spentUsd)}</span>
+      <span className="opacity-70">/ {fmtUsd(budget.budgetUsd)}</span>
+      <span className="opacity-60">({pct.toFixed(0)}%)</span>
+    </span>
   );
 }

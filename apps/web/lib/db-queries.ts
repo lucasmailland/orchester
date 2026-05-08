@@ -178,6 +178,7 @@ export async function getEmployees(workspaceId: string) {
       phone: schema.employees.phone,
       area: schema.employees.area,
       active: schema.employees.active,
+      monthlyBudgetUsd: schema.employees.monthlyBudgetUsd,
       createdAt: schema.employees.createdAt,
     })
     .from(schema.employees)
