@@ -74,6 +74,12 @@ export async function middleware(request: NextRequest) {
   const hasSession = Boolean(sessionToken);
 
   if (isProtectedPath(localePath) && !hasSession) {
+    // Caso especial: si el unauth visita la raíz, mostramos el landing público
+    // en lugar de mandarlos a login. Para todo lo demás (rutas internas) sí
+    // pedimos login con callback para volver después.
+    if (localePath === "/") {
+      return NextResponse.redirect(new URL(`/${locale}/welcome`, request.url));
+    }
     const loginUrl = new URL(`/${locale}/login`, request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
