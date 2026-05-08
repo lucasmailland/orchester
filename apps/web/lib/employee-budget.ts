@@ -87,6 +87,10 @@ export async function checkEmployeeBudget(
 /**
  * Persiste el costo de un message LLM y actualiza el agregado de la conversation.
  * Llamar después de `db.insert(schema.messages)` con el role=assistant.
+ *
+ * Después de la transacción, si el message está atado a un employee con budget,
+ * dispara `maybeFireBudgetAlert` que manda email + webhook si cruzó 70/90/100%.
+ * El alert es best-effort; cualquier error se loguea sin romper el flujo.
  */
 export async function recordMessageCost(args: {
   messageId: string;
@@ -114,4 +118,21 @@ export async function recordMessageCost(args: {
       })
       .where(eq(schema.conversations.id, args.conversationId));
   });
+
+  // Después de cobrar, evaluar si crucé un umbral nuevo (70/90/exceeded).
+  // Esto necesita workspace + employee del conversation; los buscamos acá
+  // para mantener la API simple del caller.
+  const convRows = await db
+    .select({
+      workspaceId: schema.conversations.workspaceId,
+      employeeId: schema.conversations.employeeId,
+    })
+    .from(schema.conversations)
+    .where(eq(schema.conversations.id, args.conversationId))
+    .limit(1);
+  const conv = convRows[0];
+  if (conv?.employeeId) {
+    const { maybeFireBudgetAlert } = await import("@/lib/cost-alerts");
+    await maybeFireBudgetAlert(conv.workspaceId, conv.employeeId);
+  }
 }
