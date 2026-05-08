@@ -67,6 +67,8 @@ export async function GET(req: Request) {
       startedAt: schema.conversations.startedAt,
       takenOverAt: schema.conversations.takenOverAt,
       summary: schema.conversations.summary,
+      totalCostUsd: schema.conversations.totalCostUsd,
+      totalTokens: schema.conversations.totalTokens,
     })
     .from(schema.conversations)
     .leftJoin(schema.channels, eq(schema.channels.id, schema.conversations.channelId))

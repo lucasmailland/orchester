@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
+import { checkEmployeeBudget } from "@/lib/employee-budget";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ws = await getCurrentWorkspace();
@@ -22,7 +23,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .from(schema.messages)
     .where(eq(schema.messages.conversationId, id))
     .orderBy(schema.messages.createdAt);
-  return NextResponse.json({ conversation: conv, messages });
+
+  // Si la conversation está atada a un employee con budget, exponemos el estado
+  // mensual para que la UI del operador muestre cuánto gastó y cuánto le queda.
+  // Si no hay employeeId → budget=null y el panel no muestra la sección.
+  const budget = conv.employeeId ? await checkEmployeeBudget(ws.workspace.id, conv.employeeId) : null;
+  return NextResponse.json({ conversation: conv, messages, budget });
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
