@@ -5,6 +5,7 @@ import { getDb, schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
 import { getCurrentSession } from "@/lib/workspace";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 
 export interface CreateWorkspaceInput {
   name: string;
@@ -43,6 +44,15 @@ export async function completeOnboardingAction(locale: string) {
     .update(schema.users)
     .set({ onboardingCompleted: true, updatedAt: new Date() })
     .where(eq(schema.users.id, session.user.id));
+
+  // Si venía de /pricing con un plan pago, lo mandamos al checkout. La cookie
+  // la setea SignupForm; la limpiamos acá para no re-disparar el flujo.
+  const jar = await cookies();
+  const pendingPlan = jar.get("pending_plan")?.value;
+  if (pendingPlan && ["starter", "pro", "business"].includes(pendingPlan)) {
+    jar.delete("pending_plan");
+    redirect(`/${locale}/checkout?plan=${pendingPlan}`);
+  }
 
   redirect(`/${locale}`);
 }

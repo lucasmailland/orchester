@@ -7,7 +7,7 @@ import { z } from "zod";
 import { motion } from "framer-motion";
 import { Button, Input, Divider } from "@heroui/react";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Lock, User, ArrowRight, Chrome } from "lucide-react";
 import { signUp, signIn } from "@/lib/auth-client";
 import { notify } from "@/lib/toast";
@@ -34,8 +34,21 @@ interface SignupFormProps {
 export function SignupForm({ locale }: SignupFormProps) {
   const t = useTranslations("auth");
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  /**
+   * Si el usuario llegó desde /pricing con ?plan=pro, persistimos el plan en
+   * una cookie para cobrarlo después del onboarding (sobrevive el redirect de
+   * OAuth, a diferencia de sessionStorage). Sólo planes pagos.
+   */
+  function persistPendingPlan() {
+    const plan = searchParams.get("plan");
+    if (plan && ["starter", "pro", "business"].includes(plan)) {
+      document.cookie = `pending_plan=${plan}; path=/; max-age=1800; samesite=lax`;
+    }
+  }
 
   const {
     register,
@@ -45,6 +58,7 @@ export function SignupForm({ locale }: SignupFormProps) {
 
   async function onSubmit(values: SignupValues) {
     setIsLoading(true);
+    persistPendingPlan();
     const { error } = await signUp.email({
       name: values.name,
       email: values.email,
@@ -63,6 +77,7 @@ export function SignupForm({ locale }: SignupFormProps) {
 
   async function handleGoogleSignIn() {
     setIsGoogleLoading(true);
+    persistPendingPlan();
     await signIn.social({ provider: "google", callbackURL: `/${locale}/onboarding` });
   }
 
