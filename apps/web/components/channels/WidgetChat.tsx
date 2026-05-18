@@ -51,26 +51,98 @@ export function WidgetChat({ channelId, color, title, greeting, starters, placeh
     setMessages(next);
     setInput("");
     setLoading(true);
+
+    // Placeholder vacío que vamos llenando con los deltas del stream.
+    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
+    // Batch de render cada 50ms para no spamear React con cada token.
+    let buffered = "";
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+    const flush = () => {
+      if (!buffered) return;
+      const chunk = buffered;
+      buffered = "";
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (!last || last.role !== "assistant") return prev;
+        return [...prev.slice(0, -1), { ...last, content: last.content + chunk }];
+      });
+    };
+    const scheduleFlush = () => {
+      if (flushTimer) return;
+      flushTimer = setTimeout(() => {
+        flushTimer = null;
+        flush();
+      }, 50);
+    };
+    const setLast = (content: string) =>
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (!last || last.role !== "assistant") return prev;
+        return [...prev.slice(0, -1), { ...last, content }];
+      });
+
     try {
-      const r = await fetch(`/api/widget/${channelId}/messages`, {
+      const r = await fetch(`/api/widget/${channelId}/stream`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ visitorId, text: text.trim() }),
       });
-      const j = await r.json();
-      if (r.ok) {
-        setMessages((prev) => [...prev, { role: "assistant", content: j.reply ?? "" }]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: "Lo siento, hubo un error." },
-        ]);
+      if (!r.ok || !r.body) {
+        setLast("Lo siento, hubo un error.");
+        return;
       }
+
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let gotText = false;
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf("\n\n")) !== -1) {
+          const block = buf.slice(0, idx);
+          buf = buf.slice(idx + 2);
+          for (const line of block.split("\n")) {
+            if (!line.startsWith("data:")) continue;
+            const json = line.slice(5).trim();
+            if (!json) continue;
+            try {
+              const ev = JSON.parse(json) as
+                | { type: "text"; delta: string }
+                | { type: "done"; reply: string }
+                | { type: "error"; error: string };
+              if (ev.type === "text") {
+                gotText = true;
+                buffered += ev.delta;
+                scheduleFlush();
+              } else if (ev.type === "done") {
+                if (flushTimer) {
+                  clearTimeout(flushTimer);
+                  flushTimer = null;
+                }
+                flush();
+                // Si no llegó ningún delta (p.ej. flow sin reply), usamos
+                // el reply final del done para no dejar la burbuja vacía.
+                if (!gotText && ev.reply) setLast(ev.reply);
+              } else if (ev.type === "error") {
+                setLast("Lo siento, hubo un error.");
+              }
+            } catch {
+              // ignorar líneas mal formadas
+            }
+          }
+        }
+      }
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+      flush();
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Sin conexión, intentá de nuevo." },
-      ]);
+      setLast("Sin conexión, intentá de nuevo.");
     } finally {
       setLoading(false);
     }

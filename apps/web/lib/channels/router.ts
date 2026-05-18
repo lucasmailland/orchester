@@ -1,8 +1,8 @@
 import "server-only";
 import { createId } from "@paralleldrive/cuid2";
-import { getDb, schema } from "@orchester/db";
+import { getDb, schema, type Conversation, type Agent, type Channel } from "@orchester/db";
 import { eq, and, desc } from "drizzle-orm";
-import { llmCall, type ChatMessage } from "@/lib/llm-call";
+import { llmCall, llmStream, type ChatMessage } from "@/lib/llm-call";
 import { getToolDefinitions, executeTool } from "@/lib/tools";
 import { executeFlow } from "@/lib/flow-engine";
 
@@ -21,14 +21,44 @@ export interface OutboundResponse {
   tokensUsed: number;
 }
 
+type Db = ReturnType<typeof getDb>;
+
+/** Contexto resuelto para una conversación conversacional lista para invocar LLM. */
+interface ConvCtx {
+  db: Db;
+  workspaceId: string;
+  channel: Channel;
+  agent: Agent;
+  conversation: Conversation;
+  /** messageCount tal como se leyó al ubicar la conversación (pre +1 del user msg). */
+  baseMessageCount: number;
+}
+
 /**
- * Routes an inbound message to the right agent and persists the conversation.
- * Handles both conversational (LLM with tools) and flow-driven agents.
+ * Resultado de `resolveInbound`: o ya terminó (takeover / budget / flow) y
+ * tenemos la respuesta final, o es conversacional y hay que correr el LLM.
  */
-export async function handleInbound(
+type Resolution =
+  | { kind: "terminal"; conversationId: string; reply: string; tokensUsed: number }
+  | { kind: "conversational"; ctx: ConvCtx };
+
+/**
+ * Prelude compartido por el path bloqueante y el streaming:
+ *   1. Ubica channel + agent
+ *   2. Busca o crea la conversation por externalId
+ *   3. Persiste el mensaje del usuario
+ *   3.5 Take-over humano → terminal con reply=""
+ *   3.6 Budget por empleado → terminal con fallback
+ *   4. Agente flow → ejecuta el flow → terminal
+ *
+ * Cualquier otra cosa → `conversational` con el ctx para invocar el LLM.
+ * El comportamiento (writes a DB, valores de retorno) es idéntico al que
+ * tenía `handleInbound` inline — sólo está extraído para reusarlo.
+ */
+async function resolveInbound(
   workspaceId: string,
   msg: InboundMessage
-): Promise<OutboundResponse> {
+): Promise<Resolution> {
   const db = getDb();
 
   // 1. Locate channel + agent
@@ -83,6 +113,8 @@ export async function handleInbound(
     conversation = inserted[0]!;
   }
 
+  const baseMessageCount = conversation.messageCount ?? 0;
+
   // 3. Persist user message
   await db.insert(schema.messages).values({
     id: createId(),
@@ -93,12 +125,12 @@ export async function handleInbound(
   });
   await db
     .update(schema.conversations)
-    .set({ messageCount: (conversation.messageCount ?? 0) + 1 })
+    .set({ messageCount: baseMessageCount + 1 })
     .where(eq(schema.conversations.id, conversation.id));
 
   // 3.5 If conversation is taken-over by a human, do NOT auto-reply.
   if (conversation.takenOverAt) {
-    return { conversationId: conversation.id, reply: "", tokensUsed: 0 };
+    return { kind: "terminal", conversationId: conversation.id, reply: "", tokensUsed: 0 };
   }
 
   // 3.6 Per-employee budget check (cost-control). Si el employee tiene
@@ -122,7 +154,7 @@ export async function handleInbound(
       costUsd: "0",
       metadata: { reason: "budget_exceeded", spent: budget.spentUsd, budget: budget.budgetUsd },
     });
-    return { conversationId: conversation.id, reply, tokensUsed: 0 };
+    return { kind: "terminal", conversationId: conversation.id, reply, tokensUsed: 0 };
   }
 
   // 4. Branch by agent kind
@@ -147,10 +179,76 @@ export async function handleInbound(
       content: reply,
       metadata: { flowRunId: result.runId, status: result.status },
     });
-    return { conversationId: conversation.id, reply, tokensUsed: 0 };
+    return { kind: "terminal", conversationId: conversation.id, reply, tokensUsed: 0 };
   }
 
-  // Conversational: build (compacted) history + inject memory into the system prompt
+  return {
+    kind: "conversational",
+    ctx: { db, workspaceId, channel, agent, conversation, baseMessageCount },
+  };
+}
+
+/**
+ * Persiste el mensaje del agente + agregados de cost/tokens + usage event.
+ * Compartido por el turno bloqueante y el streaming para no divergir.
+ *
+ * `activeAgent` puede diferir de `ctx.agent` si hubo handoff (define modelo +
+ * costo). El usage event usa el agente ORIGINAL (`ctx.agent.id`) a propósito,
+ * igual que el código histórico.
+ */
+async function persistAssistantTurn(
+  ctx: ConvCtx,
+  activeAgent: Agent,
+  conversation: Conversation,
+  reply: string,
+  tokens: number
+): Promise<void> {
+  const { db, workspaceId, baseMessageCount } = ctx;
+  const { calculateCostUsd } = await import("@/lib/pricing");
+  const { recordMessageCost } = await import("@/lib/employee-budget");
+  const messageId = createId();
+  const costUsd = calculateCostUsd(activeAgent.model, tokens);
+  await db.insert(schema.messages).values({
+    id: messageId,
+    conversationId: conversation.id,
+    role: "assistant",
+    content: reply,
+    tokensUsed: tokens,
+    costUsd: String(costUsd),
+    model: activeAgent.model,
+  });
+  await recordMessageCost({
+    messageId,
+    conversationId: conversation.id,
+    model: activeAgent.model,
+    tokensUsed: tokens,
+    costUsd,
+  });
+  await db
+    .update(schema.conversations)
+    .set({ messageCount: baseMessageCount + 2 })
+    .where(eq(schema.conversations.id, conversation.id));
+
+  // Usage event (Phase 7 metering)
+  await db.insert(schema.usageEvents).values({
+    id: createId(),
+    workspaceId,
+    kind: "agent_message",
+    amount: 1,
+    agentId: ctx.agent.id,
+    metadata: { tokens },
+  });
+}
+
+/**
+ * Construye history compactada + inyecta memoria. Devuelve los mensajes de
+ * chat y el system prompt final para el agente activo.
+ */
+async function buildConversationContext(ctx: ConvCtx): Promise<{
+  chatMsgs: ChatMessage[];
+  systemPrompt: string;
+}> {
+  const { db, workspaceId, agent, conversation } = ctx;
   const fullHistory = await db
     .select()
     .from(schema.messages)
@@ -166,7 +264,6 @@ export async function handleInbound(
     keepLastN: agent.maxTurns ?? 10,
   });
 
-  // Inject relevant memory into the system prompt
   const { getRelevantMemories, formatMemoriesAsPromptBlock } = await import("@/lib/memory");
   const memories = await getRelevantMemories({
     agentId: agent.id,
@@ -174,15 +271,29 @@ export async function handleInbound(
     conversationId: conversation.id,
     employeeId: conversation.employeeId ?? undefined,
   });
-  const memoryBlock = formatMemoriesAsPromptBlock(memories);
-  const finalSystemPrompt = agent.systemPrompt + memoryBlock;
+  return {
+    chatMsgs,
+    systemPrompt: agent.systemPrompt + formatMemoriesAsPromptBlock(memories),
+  };
+}
+
+/**
+ * Turno conversacional bloqueante: loop LLM + tools + handoff, luego persiste.
+ * Comportamiento idéntico al `handleInbound` histórico.
+ */
+async function runConversationalTurn(ctx: ConvCtx): Promise<OutboundResponse> {
+  const { db, workspaceId, agent } = ctx;
+  let conversation = ctx.conversation;
+
+  const { chatMsgs, systemPrompt } = await buildConversationContext(ctx);
+  const { getRelevantMemories, formatMemoriesAsPromptBlock } = await import("@/lib/memory");
 
   // El agente puede mutar dentro del loop si llama a `agent_handoff`. Esa tool
   // pivotea `conversation.agentId` → en la próxima iteración tenemos que
   // recargar el agente y reconstruir prompt/tools/temperature acordes.
   let activeAgent = agent;
   let activeTools = getToolDefinitions(activeAgent.tools ?? []);
-  let activeSystemPrompt = finalSystemPrompt;
+  let activeSystemPrompt = systemPrompt;
   let reply = "";
   let tokens = 0;
   let safetyCounter = 0;
@@ -275,41 +386,133 @@ export async function handleInbound(
 
   if (!reply && activeAgent.fallback) reply = activeAgent.fallback;
 
-  // 5. Persist assistant message + actualizar agregados de cost/tokens.
-  const { calculateCostUsd } = await import("@/lib/pricing");
-  const { recordMessageCost } = await import("@/lib/employee-budget");
-  const messageId = createId();
-  const costUsd = calculateCostUsd(activeAgent.model, tokens);
-  await db.insert(schema.messages).values({
-    id: messageId,
-    conversationId: conversation.id,
-    role: "assistant",
-    content: reply,
-    tokensUsed: tokens,
-    costUsd: String(costUsd),
-    model: activeAgent.model,
-  });
-  await recordMessageCost({
-    messageId,
-    conversationId: conversation.id,
-    model: activeAgent.model,
-    tokensUsed: tokens,
-    costUsd,
-  });
-  await db
-    .update(schema.conversations)
-    .set({ messageCount: (conversation.messageCount ?? 0) + 2 })
-    .where(eq(schema.conversations.id, conversation.id));
-
-  // 6. Usage event (Phase 7 metering)
-  await db.insert(schema.usageEvents).values({
-    id: createId(),
-    workspaceId,
-    kind: "agent_message",
-    amount: 1,
-    agentId: agent.id,
-    metadata: { tokens },
-  });
-
+  await persistAssistantTurn(ctx, activeAgent, conversation, reply, tokens);
   return { conversationId: conversation.id, reply, tokensUsed: tokens };
+}
+
+/**
+ * Routes an inbound message to the right agent and persists the conversation.
+ * Handles both conversational (LLM with tools) and flow-driven agents.
+ *
+ * Comportamiento sin cambios respecto a versiones previas — Telegram/Slack/
+ * widget-blocking lo siguen usando tal cual.
+ */
+export async function handleInbound(
+  workspaceId: string,
+  msg: InboundMessage
+): Promise<OutboundResponse> {
+  const res = await resolveInbound(workspaceId, msg);
+  if (res.kind === "terminal") {
+    return {
+      conversationId: res.conversationId,
+      reply: res.reply,
+      tokensUsed: res.tokensUsed,
+    };
+  }
+  return runConversationalTurn(res.ctx);
+}
+
+/**
+ * Chunk emitido por `handleInboundStream`. El cliente concatena los `text`
+ * en orden y al recibir `done` ya tiene la respuesta completa persistida.
+ */
+export type InboundStreamChunk =
+  | { type: "text"; delta: string }
+  | { type: "done"; conversationId: string; reply: string; tokensUsed: number }
+  | { type: "error"; error: string };
+
+/**
+ * Variante streaming de `handleInbound` para el widget público.
+ *
+ * Reusa exactamente el mismo prelude (resolveInbound) y la misma persistencia
+ * (persistAssistantTurn) que el path bloqueante, así no hay divergencia de
+ * datos. Política de streaming (igual que el test-chat del studio):
+ *
+ *   - terminal (takeover/budget/flow) → un único `done` con el reply final
+ *   - conversacional CON tools → no se puede streamear el loop de tools de
+ *     forma segura, así que corremos el turno bloqueante y emitimos el
+ *     resultado completo como un solo chunk + `done`
+ *   - conversacional SIN tools → streaming real token-por-token vía llmStream,
+ *     acumulando para persistir igual que el blocking
+ */
+export async function* handleInboundStream(
+  workspaceId: string,
+  msg: InboundMessage
+): AsyncGenerator<InboundStreamChunk> {
+  let res: Resolution;
+  try {
+    res = await resolveInbound(workspaceId, msg);
+  } catch (e) {
+    yield { type: "error", error: e instanceof Error ? e.message : String(e) };
+    return;
+  }
+
+  if (res.kind === "terminal") {
+    if (res.reply) yield { type: "text", delta: res.reply };
+    yield {
+      type: "done",
+      conversationId: res.conversationId,
+      reply: res.reply,
+      tokensUsed: res.tokensUsed,
+    };
+    return;
+  }
+
+  const ctx = res.ctx;
+  const { workspaceId: wsId, agent, conversation } = ctx;
+  const hasTools = (agent.tools?.length ?? 0) > 0;
+
+  // Con tools: fallback al turno bloqueante (loop de tools + handoff) y
+  // emitimos el resultado como un solo bloque. Persistencia idéntica.
+  if (hasTools) {
+    try {
+      const out = await runConversationalTurn(ctx);
+      if (out.reply) yield { type: "text", delta: out.reply };
+      yield {
+        type: "done",
+        conversationId: out.conversationId,
+        reply: out.reply,
+        tokensUsed: out.tokensUsed,
+      };
+    } catch (e) {
+      yield { type: "error", error: e instanceof Error ? e.message : String(e) };
+    }
+    return;
+  }
+
+  // Sin tools: streaming real. Sin tools no hay handoff → activeAgent = agent
+  // y la conversation no se reasigna, así que la persistencia es directa.
+  try {
+    const { chatMsgs, systemPrompt } = await buildConversationContext(ctx);
+    let reply = "";
+    let tokens = 0;
+    for await (const chunk of llmStream({
+      workspaceId: wsId,
+      model: agent.model,
+      systemPrompt,
+      messages: chatMsgs,
+      temperature: agent.temperature ? Number(agent.temperature) : 0.7,
+      ...(agent.maxTokens != null && { maxTokens: agent.maxTokens }),
+    })) {
+      if (chunk.type === "text") {
+        reply += chunk.delta;
+        yield { type: "text", delta: chunk.delta };
+      } else if (chunk.type === "done") {
+        tokens += chunk.tokensUsed;
+      } else if (chunk.type === "error") {
+        yield { type: "error", error: chunk.error };
+        return;
+      }
+    }
+
+    if (!reply && agent.fallback) {
+      reply = agent.fallback;
+      yield { type: "text", delta: reply };
+    }
+
+    await persistAssistantTurn(ctx, agent, conversation, reply, tokens);
+    yield { type: "done", conversationId: conversation.id, reply, tokensUsed: tokens };
+  } catch (e) {
+    yield { type: "error", error: e instanceof Error ? e.message : String(e) };
+  }
 }
