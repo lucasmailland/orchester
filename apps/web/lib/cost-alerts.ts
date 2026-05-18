@@ -10,8 +10,7 @@ import { safeLogError } from "@/lib/safe-log";
  * Niveles de alerta que disparamos. El orden importa para no "retroceder"
  * cuando ya enviamos un nivel mayor en el mismo mes calendario.
  */
-const LEVELS = ["warn70", "warn90", "exceeded"] as const;
-type Level = (typeof LEVELS)[number];
+type Level = "warn70" | "warn90" | "exceeded";
 
 const RANK: Record<Level, number> = { warn70: 1, warn90: 2, exceeded: 3 };
 
