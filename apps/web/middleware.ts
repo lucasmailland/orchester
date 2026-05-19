@@ -85,21 +85,56 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Pasamos al middleware de next-intl con headers extendidos para que el
-  // nonce esté disponible en los Server Components vía `headers()`.
+  // Next.js extrae el nonce del header `Content-Security-Policy` del REQUEST
+  // que llega al renderer para aplicarlo a sus <script> inline de bootstrap/
+  // hidratación. Si el renderer no ve ese header, los scripts quedan sin
+  // nonce → el CSP (nonce + strict-dynamic, sin unsafe-inline) los bloquea →
+  // la página NO hidrata (todo muerto en el browser aunque el SSR dé 200).
+  //
+  // next-intl arma su propia NextResponse y NO propaga los request headers
+  // que seteamos (el viejo spread `{...request}` ni siquiera era válido). El
+  // patrón correcto es `NextResponse.next({ request: { headers } })`. Así que:
+  //   1. dejamos que next-intl calcule su decisión (redirect / rewrite / cookie)
+  //   2. si es redirect (3xx) lo devolvemos tal cual (+CSP)
+  //   3. si no, re-emitimos con `NextResponse.next({ request: { headers } })`
+  //      forwardeando el CSP, y copiamos lo que next-intl haya seteado
+  //      (set-cookie, rewrite de locale, etc.)
+  const csp = buildCsp(nonce, isDev);
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", csp);
 
-  const response = intlMiddleware({
-    ...request,
-    headers: requestHeaders,
-  } as NextRequest);
+  const intlResponse = intlMiddleware(request);
 
-  // Inyectamos el nonce al CSP en la response.
-  if (response) {
-    response.headers.set("Content-Security-Policy", buildCsp(nonce, isDev));
-    response.headers.set("x-nonce", nonce);
+  // Redirect de next-intl (ej. agrega prefijo de locale) → respetarlo.
+  const status = intlResponse?.status ?? 200;
+  if (status >= 300 && status < 400) {
+    intlResponse.headers.set("Content-Security-Policy", csp);
+    intlResponse.headers.set("x-nonce", nonce);
+    return intlResponse;
   }
+
+  // Caso normal: re-emitir con los request headers (incluido el CSP) para que
+  // el renderer de Next vea el nonce. Preservamos el rewrite de locale y las
+  // cookies que next-intl haya seteado.
+  const rewriteUrl = intlResponse?.headers.get("x-middleware-rewrite");
+  const response = rewriteUrl
+    ? NextResponse.rewrite(new URL(rewriteUrl, request.url), {
+        request: { headers: requestHeaders },
+      })
+    : NextResponse.next({ request: { headers: requestHeaders } });
+
+  if (intlResponse) {
+    intlResponse.headers.forEach((value, key) => {
+      // No pisar los headers internos de control de Next.
+      if (key === "x-middleware-rewrite" || key === "x-middleware-next") return;
+      response.headers.set(key, value);
+    });
+    const setCookie = intlResponse.headers.get("set-cookie");
+    if (setCookie) response.headers.set("set-cookie", setCookie);
+  }
+  response.headers.set("Content-Security-Policy", csp);
+  response.headers.set("x-nonce", nonce);
   return response;
 }
 
