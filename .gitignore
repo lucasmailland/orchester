@@ -10,3 +10,9 @@ build/
 coverage/
 .vercel/
 uploads/
+
+# Worker bundle (generado por worker/build.mjs)
+apps/web/worker/.dist/
+
+# Override local de docker compose (port remap por máquina)
+docker-compose.override.yml

@@ -10,8 +10,9 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "worker": "tsx worker/index.ts",
-    "worker:prod": "node --import tsx/esm worker/index.ts"
+    "worker:build": "node worker/build.mjs",
+    "worker": "node worker/build.mjs && node worker/.dist/worker.mjs",
+    "worker:prod": "node worker/build.mjs && node worker/.dist/worker.mjs"
   },
   "dependencies": {
     "@better-fetch/fetch": "^1.1.21",
@@ -37,6 +38,7 @@
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.74.0",
     "recharts": "^3.8.1",
+    "server-only": "^0.0.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^2.6.0",
     "zod": "^4.3.6"
@@ -51,6 +53,7 @@
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "esbuild": "0.18.20",
     "eslint": "^9.17.0",
     "eslint-config-next": "^15.3.0",
     "jsdom": "^25.0.1",
