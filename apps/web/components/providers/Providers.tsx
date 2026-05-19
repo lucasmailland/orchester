@@ -6,7 +6,13 @@ import { Toaster } from "sonner";
 import { PresentationModeProvider } from "./PresentationModeProvider";
 import { ConfirmDialogHost } from "@/components/ui/ConfirmDialog";
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({
+  children,
+  nonce,
+}: {
+  children: React.ReactNode;
+  nonce?: string | undefined;
+}) {
   return (
     <HeroUIProvider>
       <ThemeProvider
@@ -14,6 +20,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         defaultTheme="dark"
         enableSystem={false}
         disableTransitionOnChange={false}
+        {...(nonce ? { nonce } : {})}
       >
         <PresentationModeProvider>
           {children}
