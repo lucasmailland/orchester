@@ -48,6 +48,29 @@ async function getBoss(): Promise<PgBoss> {
   return _bossPromise;
 }
 
+/**
+ * pg-boss v10 exige que la queue exista (fila en `pgboss.queue`) ANTES de
+ * send/work/schedule — en v9 era implícita. createQueue tira si ya existe,
+ * así que cacheamos por nombre e ignoramos el conflicto de duplicado.
+ */
+const _ensuredQueues = new Map<string, Promise<void>>();
+async function ensureQueue(name: string): Promise<void> {
+  let p = _ensuredQueues.get(name);
+  if (!p) {
+    p = (async () => {
+      const boss = await getBoss();
+      try {
+        await boss.createQueue(name);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (!/already exists|duplicate/i.test(msg)) throw e;
+      }
+    })();
+    _ensuredQueues.set(name, p);
+  }
+  return p;
+}
+
 export interface EnqueueOptions {
   /** Delay en segundos antes de ejecutar */
   startAfterSeconds?: number;
@@ -67,6 +90,7 @@ export async function enqueue<T = unknown>(
   opts: EnqueueOptions = {}
 ): Promise<string | null> {
   const boss = await getBoss();
+  await ensureQueue(name);
   const sendOpts: Record<string, unknown> = {
     retryLimit: opts.retryLimit ?? 3,
     retryBackoff: opts.retryBackoff ?? true,
@@ -85,6 +109,7 @@ export async function registerWorker<T = unknown>(
   opts: { teamSize?: number; teamConcurrency?: number } = {}
 ): Promise<void> {
   const boss = await getBoss();
+  await ensureQueue(name);
   await boss.work(
     name,
     {
@@ -115,6 +140,7 @@ export async function schedule(
   data: unknown = {}
 ): Promise<void> {
   const boss = await getBoss();
+  await ensureQueue(name);
   await boss.schedule(name, cron, data, { tz: "UTC" });
 }
 

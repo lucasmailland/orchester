@@ -138,7 +138,10 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    command: ["node", "--import", "tsx/esm", "apps/web/worker/index.ts"]
+    # El worker comparte libs con Next que importan `server-only`; correrlo con
+    # tsx dispara ERR_REQUIRE_CYCLE_MODULE (Node ≥22) + el throw de server-only.
+    # Lo bundleamos con esbuild (alias server-only→vacío) y corremos node puro.
+    command: ["sh", "-c", "node apps/web/worker/build.mjs && node apps/web/worker/.dist/worker.mjs"]
     depends_on:
       postgres:
         condition: service_healthy
