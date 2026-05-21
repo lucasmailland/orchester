@@ -98,7 +98,7 @@ export function SignupForm({ locale }: SignupFormProps) {
       <motion.form
         variants={staggerItem}
         onSubmit={handleSubmit(onSubmit)}
-        className="space-y-5"
+        className="flex flex-col gap-4"
       >
         <Input
           {...register("name")}
