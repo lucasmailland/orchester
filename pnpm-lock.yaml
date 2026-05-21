@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  postgres: 3.4.9
+
 importers:
 
   .:
@@ -74,6 +77,9 @@ importers:
       pg-boss:
         specifier: ^10.1.5
         version: 10.4.2
+      postgres:
+        specifier: 3.4.9
+        version: 3.4.9
       react:
         specifier: ^19.0.0
         version: 19.2.5
@@ -171,7 +177,7 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(gel@2.2.0)(kysely@0.28.16)(pg@8.20.0)(postgres@3.4.9)
       postgres:
-        specifier: ^3.4.5
+        specifier: 3.4.9
         version: 3.4.9
     devDependencies:
       '@types/node':
@@ -3996,7 +4002,7 @@ packages:
       kysely: '*'
       mysql2: '>=2'
       pg: '>=8'
-      postgres: '>=3'
+      postgres: 3.4.9
       prisma: '*'
       sql.js: '>=1'
       sqlite3: '>=5'

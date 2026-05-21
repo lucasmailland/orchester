@@ -6,3 +6,4 @@ export * from "./flows";
 export * from "./agent-tools";
 export * from "./knowledge";
 export * from "./production";
+export * from "./integrations";
