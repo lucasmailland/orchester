@@ -27,6 +27,20 @@ export interface ToolContext {
 }
 
 const BUILTINS: Record<string, ToolDefinition> = {
+  run_integration: {
+    name: "run_integration",
+    description:
+      "Ejecuta una acción de una integración conectada del workspace (Stripe, Notion, Postgres, Resend, Slack, HTTP, etc.). Pasá el integrationId (de la lista de integraciones), el nombre de la acción y su input. Las credenciales se resuelven server-side.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        integrationId: { type: "string", description: "ID de la integración configurada." },
+        action: { type: "string", description: "Acción a ejecutar (ej. list_customers, query, send_email)." },
+        input: { type: "object", description: "Parámetros de la acción." },
+      },
+      required: ["integrationId", "action"],
+    },
+  },
   current_time: {
     name: "current_time",
     description:
@@ -496,6 +510,19 @@ export async function executeTool(
       limit ${topK}
     `);
     return { results: rows };
+  }
+
+  if (name === "run_integration") {
+    const integrationId = String(input.integrationId ?? "");
+    const action = String(input.action ?? "");
+    if (!integrationId || !action) throw new Error("integrationId y action son requeridos");
+    const { runIntegrationAction } = await import("@/lib/integrations/store");
+    return runIntegrationAction(
+      ctx.workspaceId,
+      integrationId,
+      action,
+      (input.input as Record<string, unknown>) ?? {}
+    );
   }
 
   throw new Error(`Unknown tool: ${name}`);
