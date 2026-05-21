@@ -23,8 +23,12 @@ export async function POST(req: Request) {
   const body = await req.json();
   const url = String(body?.url ?? "").trim();
   const events = (body?.events as string[]) ?? [];
-  if (!url.startsWith("http://") && !url.startsWith("https://"))
-    return NextResponse.json({ error: "Valid URL required" }, { status: 400 });
+  try {
+    const { assertPublicUrl } = await import("@/lib/net-guard");
+    assertPublicUrl(url);
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "URL invalida" }, { status: 400 });
+  }
   const db = getDb();
   const inserted = await db
     .insert(schema.outboundWebhooks)

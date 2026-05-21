@@ -41,9 +41,16 @@ interface McpToolDef {
   handler: (input: Record<string, unknown>, auth: McpAuth) => Promise<unknown>;
 }
 
-/** Una key con scope "readonly" no puede ejecutar tools de escritura. */
+/**
+ * Allowlist para escritura: una key puede escribir sólo si NO es readonly Y
+ * (no tiene scopes — caso legacy/full — O tiene algún scope de escritura).
+ * Evita el bug de blocklist donde `["agents:read"]` pasaba por no contener
+ * literalmente "readonly".
+ */
 function canWrite(auth: McpAuth): boolean {
-  return !auth.scopes.includes("readonly");
+  if (auth.scopes.includes("readonly")) return false;
+  if (auth.scopes.length === 0) return true; // sin scopes = full (compat)
+  return auth.scopes.some((s) => s === "write" || s.endsWith(":write"));
 }
 
 // ─────────────────────────────────────────────────────────────────────────

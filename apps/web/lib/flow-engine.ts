@@ -1,7 +1,7 @@
 import "server-only";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { llmCall } from "./llm-call";
 
 export type FlowNodeType =
@@ -127,7 +127,7 @@ export async function executeFlow({
   const flowRows = await db
     .select()
     .from(schema.flows)
-    .where(eq(schema.flows.id, flowId))
+    .where(and(eq(schema.flows.id, flowId), eq(schema.flows.workspaceId, workspaceId)))
     .limit(1);
   const flow = flowRows[0];
   if (!flow) throw new Error("Flow not found");

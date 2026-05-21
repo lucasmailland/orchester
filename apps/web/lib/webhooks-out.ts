@@ -2,7 +2,7 @@ import "server-only";
 import { createId } from "@paralleldrive/cuid2";
 import crypto from "node:crypto";
 import { getDb, schema } from "@orchester/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 
 export type WebhookEvent =
   | "agent.responded"
@@ -118,6 +118,18 @@ async function deliver(
   const body = JSON.stringify({ event, data: payload, ts: Date.now() });
   const signature = crypto.createHmac("sha256", sub.secret).update(body).digest("hex");
 
+  // Guard SSRF: no entregar a hosts internos aunque la URL haya quedado guardada.
+  try {
+    const { assertPublicUrl } = await import("./net-guard");
+    assertPublicUrl(sub.url);
+  } catch (e) {
+    await db
+      .update(schema.webhookDeliveries)
+      .set({ status: "failed", error: e instanceof Error ? e.message : "URL bloqueada", deliveredAt: new Date() })
+      .where(eq(schema.webhookDeliveries.id, deliveryId));
+    return;
+  }
+
   let attemptCount = 0;
   const maxAttempts = 3;
   let lastError: string | null = null;
@@ -174,7 +186,12 @@ async function deliver(
     .set(
       success
         ? { lastDeliveredAt: new Date(), failureCount: 0 }
-        : { lastErrorAt: new Date(), lastError, failureCount: (lastError ? 1 : 0) }
+        : {
+            lastErrorAt: new Date(),
+            lastError,
+            // Incremento real de fallas consecutivas (antes quedaba siempre en 1).
+            failureCount: sql`${schema.outboundWebhooks.failureCount} + 1`,
+          }
     )
     .where(eq(schema.outboundWebhooks.id, sub.id));
 }
