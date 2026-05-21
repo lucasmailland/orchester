@@ -39,7 +39,7 @@ export function ApiKeyStep({ onNext, onSkip, submitButton }: ApiKeyStepProps) {
           <Zap size={24} className="text-fichap-accent" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-default-900 dark:text-default-100">
+          <h2 className="text-xl font-bold text-foreground">
             {t("title")}
           </h2>
           <p className="text-sm text-default-500">{t("description")}</p>
@@ -66,9 +66,10 @@ export function ApiKeyStep({ onNext, onSkip, submitButton }: ApiKeyStepProps) {
             {...register("anthropicKey")}
             type="password"
             label={t("apiKey")}
+            labelPlacement="outside"
             placeholder={t("apiKeyPlaceholder")}
             startContent={<Key size={14} className="shrink-0 text-default-400" />}
-            classNames={{ inputWrapper: "bg-background dark:bg-default-50/10" }}
+            classNames={{ inputWrapper: "bg-default-100" }}
           />
         </div>
 

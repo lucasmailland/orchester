@@ -44,7 +44,7 @@ export default function EmptyShowcasePage() {
       className="space-y-8"
     >
       <motion.div variants={staggerItem}>
-        <h1 className="text-2xl font-semibold tracking-tight text-default-900 dark:text-default-100">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Empty States
         </h1>
         <p className="mt-1 text-sm text-default-500">

@@ -89,7 +89,7 @@ export function SignupForm({ locale }: SignupFormProps) {
       className="w-full max-w-sm space-y-6"
     >
       <motion.div variants={staggerItem} className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight text-default-900 dark:text-default-100">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
           {t("createAccount")}
         </h1>
         <p className="text-sm text-default-500">{t("startFree")}</p>
@@ -98,7 +98,7 @@ export function SignupForm({ locale }: SignupFormProps) {
       <motion.form
         variants={staggerItem}
         onSubmit={handleSubmit(onSubmit)}
-        className="space-y-3"
+        className="space-y-5"
       >
         <Input
           {...register("name")}
@@ -108,7 +108,8 @@ export function SignupForm({ locale }: SignupFormProps) {
           startContent={<User size={15} className="shrink-0 text-default-400" />}
           isInvalid={!!errors.name}
           errorMessage={errors.name?.message}
-          classNames={{ inputWrapper: "bg-default-100 dark:bg-default-50/10" }}
+          labelPlacement="outside"
+          classNames={{ inputWrapper: "bg-default-100" }}
           autoComplete="name"
         />
         <Input
@@ -119,7 +120,8 @@ export function SignupForm({ locale }: SignupFormProps) {
           startContent={<Mail size={15} className="shrink-0 text-default-400" />}
           isInvalid={!!errors.email}
           errorMessage={errors.email?.message}
-          classNames={{ inputWrapper: "bg-default-100 dark:bg-default-50/10" }}
+          labelPlacement="outside"
+          classNames={{ inputWrapper: "bg-default-100" }}
           autoComplete="email"
         />
         <Input
@@ -130,7 +132,8 @@ export function SignupForm({ locale }: SignupFormProps) {
           startContent={<Lock size={15} className="shrink-0 text-default-400" />}
           isInvalid={!!errors.password}
           errorMessage={errors.password?.message}
-          classNames={{ inputWrapper: "bg-default-100 dark:bg-default-50/10" }}
+          labelPlacement="outside"
+          classNames={{ inputWrapper: "bg-default-100" }}
           autoComplete="new-password"
         />
         <Input
@@ -141,7 +144,8 @@ export function SignupForm({ locale }: SignupFormProps) {
           startContent={<Lock size={15} className="shrink-0 text-default-400" />}
           isInvalid={!!errors.confirmPassword}
           errorMessage={errors.confirmPassword?.message}
-          classNames={{ inputWrapper: "bg-default-100 dark:bg-default-50/10" }}
+          labelPlacement="outside"
+          classNames={{ inputWrapper: "bg-default-100" }}
           autoComplete="new-password"
         />
 

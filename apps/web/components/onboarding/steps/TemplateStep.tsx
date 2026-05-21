@@ -48,7 +48,7 @@ export function TemplateStep({ onNext, onSkip }: TemplateStepProps) {
       className="space-y-6"
     >
       <motion.div variants={staggerItem}>
-        <h2 className="text-xl font-bold text-default-900 dark:text-default-100">
+        <h2 className="text-xl font-bold text-foreground">
           {t("title")}
         </h2>
         <p className="mt-1 text-sm text-default-500">{t("description")}</p>
@@ -71,7 +71,7 @@ export function TemplateStep({ onNext, onSkip }: TemplateStepProps) {
                   {tmpl.icon}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-default-800 dark:text-default-100">
+                  <p className="text-sm font-semibold text-foreground">
                     {tmpl.name}
                   </p>
                   <p className="text-xs text-default-500">{tmpl.description}</p>
