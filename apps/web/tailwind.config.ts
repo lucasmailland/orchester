@@ -2,11 +2,20 @@ import type { Config } from "tailwindcss";
 import { heroui } from "@heroui/react";
 import { fontFamily } from "tailwindcss/defaultTheme";
 
+// HeroUI ships precompiled class strings in @heroui/theme/dist. Tailwind debe
+// escanear esos archivos para emitir las utilities de estado (label flotante,
+// data-[filled-within], scale del label, etc.). Con pnpm el paquete NO está en
+// ./node_modules/@heroui/theme: vive en el store .pnpm y, en este monorepo,
+// hoisteado a la raíz. Un glob fijo a ./node_modules no matchea → los
+// componentes quedan a medio estilar (labels superpuestos, etc.). Cubrimos las
+// ubicaciones posibles del store con un wildcard de versión/hash.
 const config: Config = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}",
+    "./node_modules/.pnpm/@heroui+theme@*/node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}",
+    "../../node_modules/.pnpm/@heroui+theme@*/node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}",
   ],
   darkMode: "class",
   theme: {

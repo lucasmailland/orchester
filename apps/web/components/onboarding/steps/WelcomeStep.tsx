@@ -62,7 +62,7 @@ export function WelcomeStep({ onNext, defaultValues, submitButton }: WelcomeStep
           <Building2 size={24} className="text-fichap-primary" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-default-900 dark:text-default-100">
+          <h2 className="text-xl font-bold text-foreground">
             {t("title")}
           </h2>
           <p className="text-sm text-default-500">{t("description")}</p>
@@ -72,25 +72,27 @@ export function WelcomeStep({ onNext, defaultValues, submitButton }: WelcomeStep
       <motion.form
         variants={staggerItem}
         onSubmit={handleSubmit(onNext)}
-        className="space-y-4"
+        className="space-y-6"
         id="onboarding-form"
       >
         <Input
           {...register("name")}
           label={t("workspaceName")}
+          labelPlacement="outside"
           placeholder={t("workspaceNamePlaceholder")}
           isInvalid={!!errors.name}
           errorMessage={errors.name?.message}
-          classNames={{ inputWrapper: "bg-default-100 dark:bg-default-50/10" }}
+          classNames={{ inputWrapper: "bg-default-100" }}
           autoFocus
         />
         <Input
           {...register("slug")}
           label={t("workspaceSlug")}
+          labelPlacement="outside"
           placeholder="acme-inc"
           isInvalid={!!errors.slug}
           errorMessage={errors.slug?.message}
-          classNames={{ inputWrapper: "bg-default-100 dark:bg-default-50/10" }}
+          classNames={{ inputWrapper: "bg-default-100" }}
           description={t("slugHint")}
           startContent={<span className="text-xs text-default-400">orchester.io/w/</span>}
         />

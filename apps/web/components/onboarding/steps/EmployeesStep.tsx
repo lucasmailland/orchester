@@ -38,7 +38,7 @@ export function EmployeesStep({ onComplete, isLoading }: EmployeesStepProps) {
       className="space-y-6"
     >
       <motion.div variants={staggerItem}>
-        <h2 className="text-xl font-bold text-default-900 dark:text-default-100">
+        <h2 className="text-xl font-bold text-foreground">
           {t("title")}
         </h2>
         <p className="mt-1 text-sm text-default-500">{t("description")}</p>
@@ -50,7 +50,7 @@ export function EmployeesStep({ onComplete, isLoading }: EmployeesStepProps) {
             <Upload size={28} />
           </div>
           <div className="space-y-1 text-center">
-            <p className="text-sm font-medium text-default-700 dark:text-default-200">
+            <p className="text-sm font-medium text-foreground">
               Drop your CSV here
             </p>
             <p className="text-xs text-default-400">
