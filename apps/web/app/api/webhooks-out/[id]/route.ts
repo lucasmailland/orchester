@@ -2,6 +2,20 @@ import { NextResponse } from "next/server";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
+import { sendTestEvent } from "@/lib/webhooks-out";
+
+/** POST /api/webhooks-out/[id]  { action: "test" } → entrega un evento de prueba. */
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const ws = await getCurrentWorkspace();
+  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { id } = await params;
+  const body = (await req.json().catch(() => ({}))) as { action?: string };
+  if (body.action !== "test") {
+    return NextResponse.json({ error: "action no soportada" }, { status: 400 });
+  }
+  const result = await sendTestEvent(ws.workspace.id, id);
+  return NextResponse.json(result, { status: result.ok ? 200 : 400 });
+}
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ws = await getCurrentWorkspace();

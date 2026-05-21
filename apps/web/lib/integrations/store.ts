@@ -103,6 +103,15 @@ export async function upsertIntegration(args: {
     lastTestedAt: now,
     lastError: test.ok ? null : (test.error ?? "test falló"),
   });
+  // Webhook out: avisar que se conectó una integración (best-effort).
+  if (test.ok) {
+    const { dispatchEvent } = await import("@/lib/webhooks-out");
+    void dispatchEvent(args.workspaceId, "integration.connected", {
+      integrationId: id,
+      type: args.type,
+      name: args.name,
+    });
+  }
   return { id, status, ...(test.error ? { error: test.error } : {}), ...(test.meta ? { meta: test.meta } : {}) };
 }
 

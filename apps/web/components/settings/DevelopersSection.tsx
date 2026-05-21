@@ -118,6 +118,19 @@ export function DevelopersSection() {
     load();
   }
 
+  async function testWebhook(id: string) {
+    const t = toast.loading("Enviando evento de prueba…");
+    const r = await fetch(`/api/webhooks-out/${id}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "test" }),
+    });
+    const j = await r.json();
+    toast.dismiss(t);
+    if (j.ok) toast.success("Evento de prueba entregado");
+    else toast.error(j.error ?? "Falló la entrega de prueba");
+  }
+
   return (
     <div className="space-y-8">
       {/* API Keys */}
@@ -236,6 +249,13 @@ export function DevelopersSection() {
               <div className="flex items-center justify-between">
                 <code className="break-all font-mono text-zinc-200">{w.url}</code>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => testWebhook(w.id)}
+                    className="rounded-md border border-white/10 px-2 py-0.5 text-[10px] text-zinc-300 hover:bg-white/5"
+                  >
+                    Probar
+                  </button>
                   <button
                     type="button"
                     onClick={() => toggleWebhook(w.id, !w.enabled)}
