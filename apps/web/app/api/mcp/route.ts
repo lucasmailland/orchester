@@ -77,7 +77,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const rl = await rateLimit(`mcp:${auth.workspaceId}`, { capacity: 120, refillPerSec: 2 });
+  // Rate-limit por key (no sólo por workspace): una key rogue no agota el cupo
+  // de las demás y el abuso es atribuible.
+  const rl = await rateLimit(`mcp:${auth.workspaceId}:${auth.keyId}`, {
+    capacity: 120,
+    refillPerSec: 2,
+  });
   if (!rl.ok) {
     return NextResponse.json(rpcError(null, -32000, "Rate limited"), {
       status: 429,
@@ -92,8 +97,14 @@ export async function POST(request: Request) {
     return NextResponse.json(rpcError(null, -32700, "JSON inválido"), { status: 400 });
   }
 
-  // Batch o request único.
+  // Batch o request único. Cap de batch para evitar amplificación (un solo
+  // token de rate-limit no debe habilitar N llamadas pesadas).
   const isBatch = Array.isArray(body);
+  if (isBatch && (body as unknown[]).length > 20) {
+    return NextResponse.json(rpcError(null, -32600, "Batch demasiado grande (máx 20)"), {
+      status: 400,
+    });
+  }
   const reqs = (isBatch ? body : [body]) as JsonRpcReq[];
   const responses: object[] = [];
   for (const r of reqs) {

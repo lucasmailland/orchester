@@ -196,6 +196,12 @@ const postgres: Connector = {
   async test(config) {
     const cs = config.connectionString ?? "";
     if (!cs) return { ok: false, error: "Connection string requerida" };
+    try {
+      const { assertPublicDbHost } = await import("@/lib/net-guard");
+      assertPublicDbHost(cs);
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "host bloqueado" };
+    }
     const { default: pg } = await import("postgres");
     const sql = pg(cs, { max: 1, idle_timeout: 5, connect_timeout: 8 });
     try {
@@ -214,15 +220,24 @@ const postgres: Connector = {
       inputSchema: { type: "object", properties: { sql: { type: "string" } }, required: ["sql"] },
       async run(config, input) {
         const raw = String(input.sql ?? "").trim();
-        // Guard: solo SELECT/WITH. Bloquea DML/DDL.
-        if (!/^(select|with)\b/i.test(raw) || /\b(insert|update|delete|drop|alter|truncate|create|grant|revoke)\b/i.test(raw)) {
+        // Defensa 1 (regex): solo SELECT/WITH, bloquea DML/DDL obvios.
+        if (!/^(select|with)\b/i.test(raw) || /\b(insert|update|delete|drop|alter|truncate|create|grant|revoke|copy)\b/i.test(raw)) {
           throw new Error("Solo se permiten consultas de lectura (SELECT/WITH).");
         }
+        const { assertPublicDbHost } = await import("@/lib/net-guard");
+        assertPublicDbHost(config.connectionString ?? "");
         const { default: pg } = await import("postgres");
         const sql = pg(config.connectionString ?? "", { max: 1, idle_timeout: 5, connect_timeout: 8 });
         try {
-          const rows = await sql.unsafe(raw);
-          return { rows: rows.slice(0, 200), rowCount: rows.length };
+          // Defensa 2 (DB): transacción READ ONLY + statement_timeout (anti-DoS,
+          // bloquea escritura aunque la regex se evada).
+          const rows = await sql.begin(async (tx) => {
+            await tx.unsafe("set transaction read only");
+            await tx.unsafe("set local statement_timeout = 10000");
+            return tx.unsafe(raw);
+          });
+          const arr = Array.isArray(rows) ? rows : [];
+          return { rows: arr.slice(0, 200), rowCount: arr.length };
         } finally {
           await sql.end({ timeout: 2 });
         }
@@ -287,6 +302,12 @@ const http: Connector = {
     const baseUrl = config.baseUrl ?? "";
     if (!baseUrl) return { ok: false, error: "Base URL requerida" };
     try {
+      const { assertPublicUrl } = await import("@/lib/net-guard");
+      assertPublicUrl(baseUrl);
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "URL bloqueada" };
+    }
+    try {
       const r = await fetchJson(baseUrl, {
         headers: config.bearerToken ? { Authorization: `Bearer ${config.bearerToken}` } : {},
         timeoutMs: 8000,
@@ -314,6 +335,8 @@ const http: Connector = {
         const baseUrl = (config.baseUrl ?? "").replace(/\/$/, "");
         const path = String(input.path ?? "");
         const url = baseUrl + (path.startsWith("/") ? "" : "/") + path;
+        const { assertPublicUrl } = await import("@/lib/net-guard");
+        assertPublicUrl(url);
         const r = await fetchJson(url, {
           method,
           headers: {

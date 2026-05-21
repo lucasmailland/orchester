@@ -24,7 +24,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const body = await req.json();
   const db = getDb();
   const set: Record<string, unknown> = {};
-  if (body.url !== undefined) set.url = body.url;
+  if (body.url !== undefined) {
+    try {
+      const { assertPublicUrl } = await import("@/lib/net-guard");
+      assertPublicUrl(String(body.url));
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : "URL invalida" }, { status: 400 });
+    }
+    set.url = body.url;
+  }
   if (body.events !== undefined) set.events = body.events;
   if (body.enabled !== undefined) set.enabled = !!body.enabled;
   const updated = await db

@@ -13,6 +13,17 @@ import crypto from "node:crypto";
 import { getDb, schema } from "@orchester/db";
 import { eq, sql } from "drizzle-orm";
 import { executeFlow } from "@/lib/flow-engine";
+import { rateLimit } from "@/lib/rate-limit";
+
+/** Headers seguros para pasar al flow (evita filtrar Authorization/Cookie). */
+const SAFE_HEADERS = new Set([
+  "content-type",
+  "user-agent",
+  "x-orchester-event",
+  "x-github-event",
+  "x-event-key",
+  "x-request-id",
+]);
 
 export async function POST(req: Request, { params }: { params: Promise<{ secret: string }> }) {
   return handle(req, await params);
@@ -33,14 +44,29 @@ async function handle(req: Request, p: { secret: string }) {
     return NextResponse.json({ error: "Webhook not found" }, { status: 404 });
   }
 
-  // Read body once
-  const rawBody = await req.text();
+  // Rate limit por secret: el endpoint es público y dispara un flow completo
+  // (con llamadas LLM) por request → sin límite es DoS / amplificación de costo.
+  const rl = await rateLimit(`webhook-in:${p.secret}`, { capacity: 60, refillPerSec: 1 });
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Rate limited" },
+      { status: 429, headers: { "retry-after": String(Math.ceil((rl.retryAfterMs ?? 1000) / 1000)) } }
+    );
+  }
 
-  // Optional HMAC verification
+  // Body con cap de tamaño (1 MB) para evitar payloads abusivos.
+  const rawBody = await req.text();
+  if (rawBody.length > 1_000_000) {
+    return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+  }
+
+  // HMAC opcional con comparación timing-safe (evita oráculo de timing).
   if (wh.hmacKey) {
     const sig = req.headers.get("x-orchester-signature") ?? "";
     const expected = crypto.createHmac("sha256", wh.hmacKey).update(rawBody).digest("hex");
-    if (sig !== expected) {
+    const sigBuf = Buffer.from(sig, "hex");
+    const expBuf = Buffer.from(expected, "hex");
+    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
   }
@@ -57,10 +83,16 @@ async function handle(req: Request, p: { secret: string }) {
     query[k] = v;
   });
 
+  // Sólo headers seguros (no Authorization/Cookie/etc.).
+  const safeHeaders: Record<string, string> = {};
+  req.headers.forEach((v, k) => {
+    if (SAFE_HEADERS.has(k.toLowerCase())) safeHeaders[k] = v;
+  });
+
   const input = {
     ...(typeof parsed === "object" && parsed !== null ? parsed : { body: parsed }),
     _query: query,
-    _headers: Object.fromEntries(req.headers),
+    _headers: safeHeaders,
   };
 
   // Update counters (fire and forget)

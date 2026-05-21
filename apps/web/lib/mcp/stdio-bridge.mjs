@@ -45,6 +45,8 @@ async function forward(req) {
         authorization: `Bearer ${KEY}`,
       },
       body: JSON.stringify(req),
+      // Timeout para que un LLM colgado no congele el bridge (y el cliente).
+      signal: AbortSignal.timeout(120_000),
     });
     if (r.status === 202) return null; // notification, sin cuerpo
     const text = await r.text();
