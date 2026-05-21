@@ -72,7 +72,7 @@ export function WelcomeStep({ onNext, defaultValues, submitButton }: WelcomeStep
       <motion.form
         variants={staggerItem}
         onSubmit={handleSubmit(onNext)}
-        className="space-y-6"
+        className="flex flex-col gap-4"
         id="onboarding-form"
       >
         <Input
