@@ -121,6 +121,49 @@ export const DOCS: Doc[] = [
     ],
   },
   {
+    slug: "mcp",
+    title: "MCP Server",
+    description: "Conectá Claude, Gemini o cualquier cliente MCP a tu workspace.",
+    blocks: [
+      { kind: "p", text: "Orchester expone un servidor MCP (Model Context Protocol) para que cualquier cliente — Claude Desktop, Gemini, Cursor, etc. — opere tu workspace: listar y chatear con agentes, leer conversaciones, buscar en knowledge (RAG), correr flujos y más." },
+      { kind: "h2", text: "Conexión remota (HTTP)" },
+      { kind: "p", text: "Endpoint Streamable HTTP en /api/mcp, autenticado con una API key del workspace (Ajustes → Developers). Configurá tu cliente MCP con la URL y el header Authorization." },
+      { kind: "code", lang: "json", code: `{
+  "mcpServers": {
+    "orchester": {
+      "url": "https://tu-instancia/api/mcp",
+      "headers": { "Authorization": "Bearer ok_live_…" }
+    }
+  }
+}` },
+      { kind: "h2", text: "Conexión local (stdio bridge)" },
+      { kind: "p", text: "Para clientes que sólo hablan stdio, usá el bridge incluido que proxea stdio ↔ HTTP." },
+      { kind: "code", lang: "json", code: `{
+  "mcpServers": {
+    "orchester": {
+      "command": "node",
+      "args": ["apps/web/lib/mcp/stdio-bridge.mjs"],
+      "env": {
+        "ORCHESTER_URL": "https://tu-instancia/api/mcp",
+        "ORCHESTER_API_KEY": "ok_live_…"
+      }
+    }
+  }
+}` },
+      { kind: "h2", text: "Tools disponibles" },
+      { kind: "ul", items: [
+        "list_agents — descubrir agentes del workspace.",
+        "chat_with_agent — conversar con un agente (consume tokens).",
+        "list_conversations / get_conversation — leer historial.",
+        "search_knowledge / list_knowledge_bases — RAG sobre tus bases.",
+        "list_flows / run_flow — disparar flujos.",
+        "list_employees — listar empleados y budgets.",
+        "create_agent — crear un agente (requiere key con escritura).",
+      ] },
+      { kind: "callout", tone: "info", text: "Las API keys con scope \"readonly\" sólo pueden usar tools de lectura. Las tools de escritura (chat_with_agent, run_flow, create_agent) requieren una key con permisos de escritura." },
+    ],
+  },
+  {
     slug: "self-hosting",
     title: "Self-hosting",
     description: "Corré Orchester en tu propia infraestructura.",
