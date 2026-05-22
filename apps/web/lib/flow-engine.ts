@@ -7,10 +7,13 @@ import { llmCall } from "./llm-call";
 export type FlowNodeType =
   | "trigger"
   | "agent"
+  | "kb_search"
   | "condition"
   | "switch"
   | "http"
+  | "integration"
   | "transform"
+  | "spreadsheet"
   | "delay"
   | "notify"
   | "code"
@@ -19,6 +22,7 @@ export type FlowNodeType =
   | "try_catch"
   | "subflow"
   | "wait_human"
+  | "note"
   | "end";
 
 export interface FlowNode {
@@ -55,6 +59,55 @@ export function interpolate(template: string, ctx: Record<string, unknown>): str
     }
     return v == null ? "" : String(v);
   });
+}
+
+/**
+ * Resuelve un valor manteniendo el tipo. Si el template es exactamente un único
+ * `{{ruta}}` devuelve el valor real (array/objeto/número), no su string. Si no,
+ * cae a `interpolate` (string).
+ */
+export function resolveValue(template: unknown, ctx: Record<string, unknown>): unknown {
+  if (typeof template !== "string") return template;
+  const m = /^\s*\{\{([^}]+)\}\}\s*$/.exec(template);
+  if (m) {
+    const parts = m[1]!.trim().split(".");
+    let v: unknown = ctx;
+    for (const p of parts) {
+      if (v && typeof v === "object" && p in (v as Record<string, unknown>)) {
+        v = (v as Record<string, unknown>)[p];
+      } else {
+        return undefined;
+      }
+    }
+    return v;
+  }
+  return interpolate(template, ctx);
+}
+
+/** Interpola strings dentro de un objeto/array de forma recursiva. */
+export function deepInterpolate(value: unknown, ctx: Record<string, unknown>): unknown {
+  if (typeof value === "string") return resolveValue(value, ctx);
+  if (Array.isArray(value)) return value.map((v) => deepInterpolate(v, ctx));
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = deepInterpolate(v, ctx);
+    }
+    return out;
+  }
+  return value;
+}
+
+/** Convierte "30s" | "5m" | "1h" | "1d" (o un número en ms) a milisegundos. */
+export function parseDuration(input: unknown): number {
+  if (typeof input === "number") return input;
+  const s = String(input ?? "").trim();
+  const m = /^(\d+(?:\.\d+)?)\s*(ms|s|m|h|d)?$/.exec(s);
+  if (!m) return 0;
+  const n = Number(m[1]);
+  const unit = m[2] ?? "ms";
+  const mult: Record<string, number> = { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
+  return n * (mult[unit] ?? 1);
 }
 
 export interface Condition {
@@ -110,6 +163,51 @@ async function runUserCode(source: string, ctx: RunContext): Promise<Record<stri
     ctx.variables[varName] = value;
   }
   return out;
+}
+
+/**
+ * Corre JavaScript de usuario en un sandbox `node:vm`. Recibe `input` (copia de
+ * las variables del flujo) y devuelve lo que retorne el código. Sin `require`,
+ * sin acceso a globals peligrosos, con timeout. No es una frontera de seguridad
+ * fuerte, pero el código lo escribe el dueño del workspace para su propio flujo.
+ */
+async function runUserJs(code: string, variables: Record<string, unknown>): Promise<unknown> {
+  const vm = await import("node:vm");
+  const input = structuredClone(variables);
+  const sandbox = Object.create(null) as Record<string, unknown>;
+  const context = vm.createContext(sandbox);
+  const script = new vm.Script(`(function(input){"use strict";\n${code}\n})`);
+  let fn: unknown;
+  try {
+    fn = script.runInContext(context, { timeout: 1000 });
+  } catch (e) {
+    throw new Error(`No pudimos leer el código: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  if (typeof fn !== "function") throw new Error("El código no es válido.");
+  try {
+    return (fn as (i: unknown) => unknown)(input);
+  } catch (e) {
+    throw new Error(`El código falló al ejecutarse: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/**
+ * Evalúa una fórmula tipo Excel (`=SUM(input.ventas)`) exponiendo toda la
+ * batería de funciones de @formulajs/formulajs + `input` (las variables del
+ * flujo) en un sandbox `node:vm`.
+ */
+async function runFormula(formula: string, variables: Record<string, unknown>): Promise<unknown> {
+  const vm = await import("node:vm");
+  const formulajs = await import("@formulajs/formulajs");
+  const expr = formula.startsWith("=") ? formula.slice(1) : formula;
+  const input = structuredClone(variables);
+  const sandbox: Record<string, unknown> = { ...formulajs, input };
+  const context = vm.createContext(sandbox);
+  try {
+    return vm.runInContext(`(${expr})`, context, { timeout: 1000 });
+  } catch (e) {
+    throw new Error(`La fórmula tiene un error: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 export async function executeFlow({
@@ -263,8 +361,11 @@ async function executeNode(
 
   if (node.type === "agent") {
     const agentId = cfg.agentId as string | undefined;
-    if (!agentId) throw new Error("agent node missing agentId");
-    const userMessage = interpolate((cfg.message as string) ?? "{{input}}", ctx.variables);
+    if (!agentId) throw new Error("Falta elegir el agente en este paso.");
+    // `prompt` (registry) se antepone al mensaje entrante; `message` es el legado.
+    const extra = cfg.prompt ? interpolate(cfg.prompt as string, ctx.variables) : "";
+    const incoming = interpolate((cfg.message as string) ?? "{{message}}", ctx.variables);
+    const userMessage = [extra, incoming].filter((s) => s && s.trim()).join("\n\n") || incoming;
     const aRows = await db.select().from(schema.agents).where(eq(schema.agents.id, agentId)).limit(1);
     const agent = aRows[0];
     if (!agent) throw new Error(`agent not found: ${agentId}`);
@@ -283,19 +384,26 @@ async function executeNode(
   }
 
   if (node.type === "condition") {
-    const cond = cfg.condition as Condition;
-    const passed = evaluateCondition(cond, ctx.variables);
+    // Acepta el formato nuevo del registry (left/op/right planos) o el legado
+    // ({ condition: { left, op, right } }).
+    const flat = cfg.condition
+      ? (cfg.condition as Condition)
+      : ({ left: cfg.left, op: cfg.op, right: cfg.right } as Condition);
+    if (!flat.op) throw new Error("Falta elegir la comparación en este paso.");
+    const passed = evaluateCondition(flat, ctx.variables);
     helpers.setHandle(passed ? "true" : "false");
     helpers.setOutput({ passed });
     return;
   }
 
   if (node.type === "switch") {
-    const value = interpolate((cfg.expression as string) ?? "", ctx.variables);
+    // El valor evaluado se usa como nombre del camino (sourceHandle del edge).
+    const value = interpolate((cfg.value as string) ?? (cfg.expression as string) ?? "", ctx.variables);
     const cases = (cfg.cases as Array<{ value: string; handle: string }>) ?? [];
     const matched = cases.find((c) => c.value === value);
-    helpers.setHandle(matched?.handle ?? "default");
-    helpers.setOutput({ value, matched: matched?.handle ?? "default" });
+    const handle = matched?.handle ?? (value || "default");
+    helpers.setHandle(handle);
+    helpers.setOutput({ value, matched: handle });
     return;
   }
 
@@ -356,6 +464,24 @@ async function executeNode(
   }
 
   if (node.type === "transform") {
+    // Formato nuevo: `template` es un objeto/JSON con {{variables}} adentro, que
+    // se fusiona en las variables del flujo. Legado: target + value.
+    if (cfg.template !== undefined) {
+      let tpl: unknown = cfg.template;
+      if (typeof tpl === "string") {
+        try {
+          tpl = JSON.parse(tpl);
+        } catch {
+          throw new Error("El campo 'Resultado' tiene que ser un objeto JSON válido.");
+        }
+      }
+      const result = deepInterpolate(tpl, ctx.variables);
+      if (result && typeof result === "object" && !Array.isArray(result)) {
+        Object.assign(ctx.variables, result as Record<string, unknown>);
+      }
+      helpers.setOutput({ result });
+      return;
+    }
     const target = (cfg.target as string) ?? "result";
     const value = interpolate((cfg.value as string) ?? "", ctx.variables);
     ctx.variables[target] = value;
@@ -364,7 +490,8 @@ async function executeNode(
   }
 
   if (node.type === "delay") {
-    const ms = Math.min(60_000, Number(cfg.ms ?? 1000));
+    // `duration` ("30s"/"5m"…) en el registry; `ms` numérico legado.
+    const ms = Math.min(60_000, cfg.duration !== undefined ? parseDuration(cfg.duration) : Number(cfg.ms ?? 1000));
     await new Promise((res) => setTimeout(res, ms));
     helpers.setOutput({ ms });
     return;
@@ -372,6 +499,7 @@ async function executeNode(
 
   if (node.type === "notify") {
     helpers.setOutput({
+      to: cfg.to ? interpolate(cfg.to as string, ctx.variables) : undefined,
       channel: cfg.channel,
       message: interpolate((cfg.message as string) ?? "", ctx.variables),
     });
@@ -379,18 +507,75 @@ async function executeNode(
   }
 
   if (node.type === "code") {
+    // Formato nuevo: JavaScript real (campo `code`) corrido en sandbox vm con
+    // `input` (copia de las variables). Legado: mini-DSL `source`.
+    if (typeof cfg.code === "string" && cfg.code.trim()) {
+      const result = await runUserJs(cfg.code, ctx.variables);
+      if (result && typeof result === "object" && !Array.isArray(result)) {
+        Object.assign(ctx.variables, result as Record<string, unknown>);
+      }
+      helpers.setOutput({ result });
+      return;
+    }
     const source = (cfg.source as string) ?? "";
     const result = await runUserCode(source, ctx);
     helpers.setOutput({ result });
     return;
   }
 
+  if (node.type === "kb_search") {
+    const kbId = cfg.kbId as string | undefined;
+    if (!kbId) throw new Error("Falta elegir la base de conocimiento.");
+    const query = interpolate((cfg.query as string) ?? "{{message}}", ctx.variables);
+    const topK = cfg.topK != null ? Number(cfg.topK) : 5;
+    const { searchKnowledgeBase } = await import("./knowledge-search");
+    const results = await searchKnowledgeBase(workspaceId, kbId, query, topK);
+    const outputVar = (cfg.outputVar as string) ?? "knowledge";
+    ctx.variables[outputVar] = results;
+    helpers.setOutput({ count: results.length, topResult: results[0]?.text?.slice(0, 200) });
+    return;
+  }
+
+  if (node.type === "integration") {
+    // `integrationId` viene como "integrationId::action".
+    const raw = String(cfg.integrationId ?? "");
+    const [integrationId, action] = raw.split("::");
+    if (!integrationId || !action) throw new Error("Falta elegir la app y la acción.");
+    const input = (deepInterpolate(cfg.input ?? {}, ctx.variables) as Record<string, unknown>) ?? {};
+    const { runIntegrationAction } = await import("./integrations/store");
+    const result = await runIntegrationAction(workspaceId, integrationId, action, input);
+    const outputVar = (cfg.outputVar as string) ?? "appResult";
+    ctx.variables[outputVar] = result;
+    helpers.setOutput({ result });
+    return;
+  }
+
+  if (node.type === "spreadsheet") {
+    const formula = String(cfg.formula ?? "").trim();
+    if (!formula) throw new Error("Falta escribir la fórmula.");
+    const result = await runFormula(formula, ctx.variables);
+    const outputVar = (cfg.outputVar as string) ?? "result";
+    ctx.variables[outputVar] = result;
+    helpers.setOutput({ [outputVar]: result });
+    return;
+  }
+
+  if (node.type === "note") {
+    // No hace nada: es un comentario visual.
+    helpers.setOutput({});
+    return;
+  }
+
   if (node.type === "loop_for_each") {
-    const arrayVar = (cfg.arrayVar as string) ?? "items";
     const itemVar = (cfg.itemVar as string) ?? "item";
-    const items = ctx.variables[arrayVar];
+    // `items` (registry) es un template tipo {{lista}} que resolvemos al array
+    // real; `arrayVar` es el nombre de variable legado.
+    const items =
+      cfg.items !== undefined
+        ? resolveValue(cfg.items, ctx.variables)
+        : ctx.variables[(cfg.arrayVar as string) ?? "items"];
     if (!Array.isArray(items)) {
-      throw new Error(`loop_for_each: ${arrayVar} is not an array`);
+      throw new Error("La 'Lista' a repetir no es una lista. Revisá que apunte a un array.");
     }
     const bodyEdges = edges.filter((e) => e.source === node.id && e.sourceHandle === "body");
     const results: unknown[] = [];
@@ -460,8 +645,9 @@ async function executeNode(
   }
 
   if (node.type === "wait_human") {
+    const msg = (cfg.instructions as string) ?? (cfg.message as string) ?? "Se necesita una aprobación";
     ctx.variables["_pendingApproval"] = {
-      message: interpolate((cfg.message as string) ?? "Approval required", ctx.variables),
+      message: interpolate(msg, ctx.variables),
       assignee: cfg.assignee,
     };
     helpers.setOutput({ paused: true });

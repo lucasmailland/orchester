@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@better-fetch/fetch": "^1.1.21",
+    "@formulajs/formulajs": "^4.6.0",
     "@heroui/react": "^2.7.6",
     "@hookform/resolvers": "^5.2.2",
     "@paralleldrive/cuid2": "^3.3.0",

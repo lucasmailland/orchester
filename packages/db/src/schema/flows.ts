@@ -26,10 +26,13 @@ export const flowRunStatusEnum = pgEnum("flow_run_status", [
 export const flowNodeTypeEnum = pgEnum("flow_node_type", [
   "trigger",
   "agent",
+  "kb_search",
   "condition",
   "switch",
   "http",
+  "integration",
   "transform",
+  "spreadsheet",
   "delay",
   "notify",
   "code",
@@ -38,6 +41,7 @@ export const flowNodeTypeEnum = pgEnum("flow_node_type", [
   "try_catch",
   "subflow",
   "wait_human",
+  "note",
   "end",
 ]);
 
@@ -45,10 +49,13 @@ export interface FlowNodeData {
   type:
     | "trigger"
     | "agent"
+    | "kb_search"
     | "condition"
     | "switch"
     | "http"
+    | "integration"
     | "transform"
+    | "spreadsheet"
     | "delay"
     | "code"
     | "loop_for_each"
@@ -57,6 +64,7 @@ export interface FlowNodeData {
     | "subflow"
     | "wait_human"
     | "notify"
+    | "note"
     | "end";
   label: string;
   config: Record<string, unknown>;
