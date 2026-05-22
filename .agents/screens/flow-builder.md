@@ -112,6 +112,14 @@ agree.
 
 ## Execution (changelog — newest first)
 
+### 2026-05-22 — Finishing touches
+- **Copy/paste/duplicate** steps (Cmd/Ctrl+C/V/D), undoable.
+- **Switch routing by value**: a "Caminos posibles" list (new `string-list`
+  field) renders one labeled output per value on the SwitchNode + a "Siguiente"
+  default; the engine routes by value, falling back to default.
+- **Copilot edits the current flow**: the builder sends the structured graph;
+  when present the copilot modifies it and returns the full updated graph.
+
 ### 2026-05-22 — "Person-first" UX wave
 - **Rich per-node docs** (`lib/flows/node-docs.ts`): what it's for, when it's
   ideal, a tip — in the inspector ("¿Cómo funciona este paso?"), palette
@@ -173,9 +181,9 @@ agree.
   exceed 60 s serverless limit (the SSE run-stream holds the request open).
 - Visual debugger: step-by-step replay with vars panel highlighting.
 - ~~SSE streaming for runs.~~ Done via `/run-stream` (2026-05-22).
-- Copilot: let it edit an existing flow incrementally (today `set_flow` replaces
-  the whole graph) and optionally probe the given API URL (SSRF-guarded).
-- Copy-paste / duplicate nodes; sticky-note styling for the `note` node.
+- Copilot: optionally probe the given API URL (SSRF-guarded) to infer the http
+  step's shape. (Editing the current flow + replace/merge is done.)
+- Sticky-note styling for the `note` node.
 - Real notify integrations (Slack, Resend email, Twilio SMS).
 - Cron worker (today schedules are stored but no worker triggers them yet).
 - Subflow: pass scoped variables instead of merging the entire context.
