@@ -10,11 +10,26 @@ export interface Cred {
 }
 
 // ── Chat ───────────────────────────────────────────────────────────────────────
+/** Bloque de invocación de tool emitido por el modelo. */
+export interface ToolUseBlock {
+  id: string;
+  name: string;
+  input: unknown;
+}
+/** Resultado de la ejecución de un tool, devuelto al modelo en la próxima vuelta. */
+export interface ToolResultBlock {
+  id: string;
+  name: string;
+  /** Args con los que se llamó al tool (algunos providers lo incluyen para auditoría). */
+  input?: unknown;
+  output?: unknown;
+  error?: string;
+}
 export interface ChatMessage {
   role: "user" | "assistant" | "system" | "tool";
   content: string;
-  toolCalls?: Array<{ id: string; name: string; input: unknown }>;
-  toolResults?: Array<{ id: string; name: string; output?: unknown; error?: string }>;
+  toolCalls?: ToolUseBlock[];
+  toolResults?: ToolResultBlock[];
 }
 export interface ChatTool {
   name: string;
