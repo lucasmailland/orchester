@@ -104,6 +104,48 @@ export const NODE_REGISTRY: Record<string, NodeDef> = {
       { key: "outputVar", label: "Guardar resultado en", type: "text", advanced: true, placeholder: "image", help: "Nombre de la variable que tendrá la URL de la imagen." },
     ],
   },
+  llm_prompt: {
+    id: "llm_prompt", engine: "llm_prompt", category: "ai", icon: "Sparkles", accent: "#8b5cf6",
+    title: i("Generar texto (IA)", "Generate text (AI)", "Gerar texto (IA)"),
+    summary: i("Le das una instrucción a un modelo y te devuelve texto. Sin armar un agente.", "Give a model a prompt and get text back. No agent needed.", "Dê uma instrução a um modelo e receba texto."),
+    fields: [
+      { key: "model", label: "Modelo", type: "model-picker", capability: "chat", required: true, help: "Qué modelo de IA usar." },
+      { key: "prompt", label: "Instrucción", type: "variable", required: true, help: "Qué querés que haga. Podés usar {{variables}}.", example: "Resumí esto en 3 puntos: {{texto}}" },
+      { key: "system", label: "Rol / contexto (opcional)", type: "textarea", advanced: true, help: "Cómo se tiene que comportar el modelo.", example: "Sos un redactor formal." },
+      { key: "outputVar", label: "Guardar en", type: "text", advanced: true, placeholder: "texto", help: "Variable con el texto generado." },
+    ],
+  },
+  generate_video: {
+    id: "generate_video", engine: "generate_video", category: "ai", icon: "Video", accent: "#ec4899",
+    title: i("Crear video (IA)", "Create video (AI)", "Criar vídeo (IA)"),
+    summary: i("Genera un video corto a partir de un texto.", "Generates a short video from a text prompt.", "Gera um vídeo curto a partir de um texto."),
+    fields: [
+      { key: "model", label: "Modelo de video", type: "model-picker", capability: "video", required: true, help: "Hoy se ejecuta vía Replicate o fal. Conectá uno." },
+      { key: "prompt", label: "Descripción del video", type: "variable", required: true, example: "Un gato astronauta flotando en el espacio" },
+      { key: "outputVar", label: "Guardar en", type: "text", advanced: true, placeholder: "video", help: "Variable con la URL del video." },
+    ],
+  },
+  text_to_speech: {
+    id: "text_to_speech", engine: "text_to_speech", category: "ai", icon: "Volume2", accent: "#06b6d4",
+    title: i("Texto a voz", "Text to speech", "Texto para voz"),
+    summary: i("Convierte un texto en audio hablado.", "Turns text into spoken audio.", "Converte texto em áudio falado."),
+    fields: [
+      { key: "model", label: "Modelo de voz", type: "model-picker", capability: "tts", required: true, help: "ElevenLabs, OpenAI TTS… Conectá uno." },
+      { key: "text", label: "Texto a decir", type: "variable", required: true, help: "Podés usar {{variables}}.", example: "Hola {{nombre}}, ¡bienvenido!" },
+      { key: "voice", label: "Voz (id)", type: "text", advanced: true, help: "Id de la voz del proveedor (opcional)." },
+      { key: "outputVar", label: "Guardar en", type: "text", advanced: true, placeholder: "audio", help: "Variable con la URL del audio." },
+    ],
+  },
+  transcribe: {
+    id: "transcribe", engine: "transcribe", category: "ai", icon: "Mic", accent: "#06b6d4",
+    title: i("Transcribir audio", "Transcribe audio", "Transcrever áudio"),
+    summary: i("Convierte un audio en texto.", "Turns audio into text.", "Converte áudio em texto."),
+    fields: [
+      { key: "model", label: "Modelo de transcripción", type: "model-picker", capability: "stt", required: true, help: "Whisper, Deepgram… Conectá uno." },
+      { key: "audioUrl", label: "URL del audio", type: "variable", required: true, help: "Link al archivo de audio. Podés usar {{variables}}.", example: "{{audio}}" },
+      { key: "outputVar", label: "Guardar en", type: "text", advanced: true, placeholder: "texto", help: "Variable con el texto transcripto." },
+    ],
+  },
 
   // ── Lógica ──────────────────────────────────────────────────────────────────
   condition: {
@@ -207,6 +249,18 @@ export const NODE_REGISTRY: Record<string, NodeDef> = {
       { key: "model", label: "Modelo de embeddings", type: "model-picker", capability: "embedding", required: true, help: "Con qué modelo vectorizar (OpenAI, Voyage, Google…)." },
       { key: "input", label: "Texto a vectorizar", type: "variable", required: true, help: "El texto que se convierte en vector. Podés usar {{variables}}.", example: "{{message}}" },
       { key: "outputVar", label: "Guardar en", type: "text", advanced: true, placeholder: "vector", help: "Nombre de la variable con el vector resultante." },
+    ],
+  },
+  rerank: {
+    id: "rerank", engine: "rerank", category: "data", icon: "ListOrdered", accent: "#3b82f6",
+    title: i("Ordenar por relevancia (rerank)", "Rerank by relevance", "Reordenar por relevância"),
+    summary: i("Ordena una lista de textos según cuán relevantes son a una consulta.", "Ranks a list of texts by relevance to a query.", "Ordena textos por relevância a uma consulta."),
+    fields: [
+      { key: "model", label: "Modelo de rerank", type: "model-picker", capability: "rerank", required: true, help: "Cohere, Voyage, Jina… Conectá uno." },
+      { key: "query", label: "Consulta", type: "variable", required: true, example: "{{message}}" },
+      { key: "documents", label: "Lista de textos", type: "variable", required: true, help: "Una lista (array) de textos a ordenar. Ej. {{resultados}}.", example: "{{resultados}}" },
+      { key: "topN", label: "Cuántos traer", type: "number", advanced: true, help: "Cantidad de resultados top (opcional)." },
+      { key: "outputVar", label: "Guardar en", type: "text", advanced: true, placeholder: "ranked", help: "Variable con los resultados ordenados." },
     ],
   },
 
