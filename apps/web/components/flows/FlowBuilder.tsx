@@ -128,6 +128,22 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const rfRef = useRef<ReactFlowInstance | null>(null);
+  const clipboardRef = useRef<Node | null>(null);
+
+  /** Crea una copia del nodo dado, desplazada y seleccionada. */
+  function duplicateFrom(source: Node | null) {
+    if (!source) return;
+    pushHistory();
+    const id = createId();
+    const copy: Node = {
+      id,
+      type: source.type,
+      position: { x: source.position.x + 40, y: source.position.y + 40 },
+      data: JSON.parse(JSON.stringify(source.data ?? {})),
+    };
+    setNodes((nds) => [...nds, copy]);
+    setSelected(copy);
+  }
 
   function pushHistory() {
     const h = historyRef.current;
@@ -288,16 +304,27 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
       const target = e.target as HTMLElement | null;
       const typing = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
       if (typing) return;
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+      const mod = e.metaKey || e.ctrlKey;
+      const key = e.key.toLowerCase();
+      if (mod && key === "z") {
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
+      } else if (mod && key === "c" && selected) {
+        e.preventDefault();
+        clipboardRef.current = selected;
+      } else if (mod && key === "v" && clipboardRef.current) {
+        e.preventDefault();
+        duplicateFrom(clipboardRef.current);
+      } else if (mod && key === "d" && selected) {
+        e.preventDefault();
+        duplicateFrom(selected);
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges]);
+  }, [nodes, edges, selected]);
 
   function openRunModal() {
     // Pre-llená un formulario con las variables del flujo (más amigable que JSON).
