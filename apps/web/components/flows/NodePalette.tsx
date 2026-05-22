@@ -1,21 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  Play, MessageSquare, Clock, Webhook, Bot, BookOpen, GitBranch, Split,
-  Repeat, Rows3, LifeBuoy, Code2, Plug, Globe, Wand2, Table2, Timer, Bell,
-  UserCheck, Workflow, StickyNote, Search, type LucideIcon,
-} from "lucide-react";
+import { Search } from "lucide-react";
 import {
   listNodesByCategory, CATEGORY_LABELS, type Locale, type NodeDef,
 } from "@/lib/flows/node-registry";
 import { getNodeDocs } from "@/lib/flows/node-docs";
-
-const ICONS: Record<string, LucideIcon> = {
-  Play, MessageSquare, Clock, Webhook, Bot, BookOpen, GitBranch, Split,
-  Repeat, Rows3, LifeBuoy, Code2, Plug, Globe, Wand2, Table2, Timer, Bell,
-  UserCheck, Workflow, StickyNote,
-};
+import { iconFor } from "./nodes/icon-map";
 
 /**
  * Paleta de nodos generada desde el `node-registry`. Agrupa por categoría,
@@ -89,7 +80,7 @@ function PaletteItem({
   locale: Locale;
   onAdd: (nodeId: string) => void;
 }) {
-  const Icon = ICONS[node.icon] ?? Plug;
+  const Icon = iconFor(node.icon);
   const docs = getNodeDocs(node.id);
   const tooltip = docs ? `${node.summary[locale]}\n\nCuándo conviene: ${docs.whenToUse[locale]}` : node.summary[locale];
   return (
