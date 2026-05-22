@@ -4,7 +4,9 @@ import { resolveModel } from "./catalog";
 import { loadCredential } from "./credentials";
 import { generateImageWith } from "./adapters/images";
 import { embedWith } from "./adapters/embeddings";
-import type { ImageResult, EmbeddingResult } from "./capabilities";
+import { generateVideoWith, speakWith, transcribeWith } from "./adapters/media";
+import { rerankWith } from "./adapters/rerank";
+import type { ImageResult, EmbeddingResult, VideoResult, AudioResult, TranscriptResult, RerankResult } from "./capabilities";
 
 /**
  * Punto de entrada unificado de IA. El resto de la app llama acá; cada función
@@ -64,6 +66,39 @@ export async function embed(workspaceId: string, modelId: string, input: string[
     throw new Error(`"${modelId}" no es un modelo de embeddings válido.`);
   const cred = await loadCredential(workspaceId, resolved.provider.id);
   return embedWith(resolved.provider.id, resolved.provider.family, { model: resolved.model, input }, cred, resolved.provider.baseURL);
+}
+
+export async function generateVideo(workspaceId: string, modelId: string, prompt: string): Promise<VideoResult> {
+  const resolved = resolveModel(modelId);
+  if (!resolved || resolved.capability !== "video") throw new Error(`"${modelId}" no es un modelo de video válido.`);
+  const cred = await loadCredential(workspaceId, resolved.provider.id);
+  return generateVideoWith(resolved.provider.id, resolved.provider.family, { model: resolved.model, prompt }, cred);
+}
+
+export async function textToSpeech(workspaceId: string, modelId: string, text: string, voice?: string): Promise<AudioResult> {
+  const resolved = resolveModel(modelId);
+  if (!resolved || resolved.capability !== "tts") throw new Error(`"${modelId}" no es un modelo de voz válido.`);
+  const cred = await loadCredential(workspaceId, resolved.provider.id);
+  const { bytes, mime } = await speakWith(resolved.provider.id, { model: resolved.model, text, ...(voice ? { voice } : {}) }, cred);
+  const { getStorage, makeKey } = await import("../storage");
+  const storage = getStorage();
+  const key = makeKey(workspaceId, "ai-audio", "speech.mp3");
+  await storage.put(key, bytes, mime);
+  return { url: storage.url(key), mime, model: resolved.model };
+}
+
+export async function transcribe(workspaceId: string, modelId: string, audioUrl: string): Promise<TranscriptResult> {
+  const resolved = resolveModel(modelId);
+  if (!resolved || resolved.capability !== "stt") throw new Error(`"${modelId}" no es un modelo de transcripción válido.`);
+  const cred = await loadCredential(workspaceId, resolved.provider.id);
+  return transcribeWith(resolved.provider.id, { model: resolved.model, audioUrl }, cred);
+}
+
+export async function rerank(workspaceId: string, modelId: string, query: string, documents: string[], topN?: number): Promise<RerankResult> {
+  const resolved = resolveModel(modelId);
+  if (!resolved || resolved.capability !== "rerank") throw new Error(`"${modelId}" no es un modelo de rerank válido.`);
+  const cred = await loadCredential(workspaceId, resolved.provider.id);
+  return rerankWith(resolved.provider.id, { model: resolved.model, query, documents, ...(topN ? { topN } : {}) }, cred);
 }
 
 export type { LlmCallParams, LlmCallResult, LlmStreamChunk };

@@ -120,6 +120,28 @@ export const NODE_DOCS: Record<string, NodeDocs> = {
       "Quando quer comparar textos por significado ou preparar dados para busca semântica."
     ),
   },
+  llm_prompt: {
+    whatFor: i("Le da una instrucción a un modelo de IA y devuelve texto. Como el agente, pero para algo puntual sin configurar nada.", "Sends a one-off prompt to an AI model and returns text.", "Envia uma instrução a um modelo e retorna texto."),
+    whenToUse: i("Para tareas rápidas de texto: resumir, reescribir, clasificar, extraer datos.", "For quick text tasks: summarize, rewrite, classify, extract.", "Para tarefas rápidas de texto."),
+  },
+  generate_video: {
+    whatFor: i("Genera un video corto a partir de un texto.", "Generates a short video from a text prompt.", "Gera um vídeo curto a partir de um texto."),
+    whenToUse: i("Para clips generados por IA. Hoy se ejecuta vía Replicate o fal.", "For AI clips. Today runs via Replicate or fal.", "Para clipes de IA. Hoje roda via Replicate ou fal."),
+    tip: i("Conectá Replicate o fal y elegí un modelo de video del catálogo.", "Connect Replicate or fal and pick a video model.", "Conecte Replicate ou fal e escolha um modelo de vídeo."),
+  },
+  text_to_speech: {
+    whatFor: i("Convierte un texto en audio hablado (voz).", "Turns text into spoken audio.", "Converte texto em áudio falado."),
+    whenToUse: i("Para narrar mensajes, generar audios personalizados, o la voz de un video.", "To narrate messages, make personalized audio, or a video's voice.", "Para narrar mensagens ou a voz de um vídeo."),
+    tip: i("Con ElevenLabs podés clonar voces; pasá el id de la voz en 'Voz'.", "With ElevenLabs you can clone voices; pass the voice id.", "Com ElevenLabs você pode clonar vozes."),
+  },
+  transcribe: {
+    whatFor: i("Convierte un archivo de audio en texto.", "Turns an audio file into text.", "Converte um arquivo de áudio em texto."),
+    whenToUse: i("Para transcribir notas de voz, llamadas o mensajes de audio.", "To transcribe voice notes, calls or audio messages.", "Para transcrever notas de voz, chamadas ou áudios."),
+  },
+  rerank: {
+    whatFor: i("Ordena una lista de textos según cuán relevantes son a una consulta.", "Ranks a list of texts by relevance to a query.", "Ordena textos por relevância a uma consulta."),
+    whenToUse: i("Después de 'Buscar en conocimiento', para quedarte con los resultados más relevantes (mejora el RAG).", "After 'Search knowledge', to keep the most relevant results (improves RAG).", "Depois de 'Buscar no conhecimento', para ficar com os mais relevantes."),
+  },
   condition: {
     whatFor: i(
       "Hace que el flujo tome un camino u otro según si se cumple algo (Sí o No).",

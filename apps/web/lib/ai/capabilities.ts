@@ -81,5 +81,65 @@ export interface EmbeddingAdapter {
   embed(p: EmbeddingParams, cred: Cred): Promise<EmbeddingResult>;
 }
 
-// Puertos futuros (fase 2): VideoAdapter, AvatarAdapter, TtsAdapter, SttAdapter,
-// MusicAdapter, RerankAdapter, OcrAdapter — se declararán al implementarlos.
+// ── Video ───────────────────────────────────────────────────────────────────
+export interface VideoParams {
+  model: string;
+  prompt: string;
+}
+export interface VideoResult {
+  url: string;
+  model: string;
+}
+export interface VideoAdapter {
+  generateVideo(p: VideoParams, cred: Cred): Promise<VideoResult>;
+}
+
+// ── Voz (TTS) ────────────────────────────────────────────────────────────────
+export interface TtsParams {
+  model: string;
+  text: string;
+  voice?: string;
+}
+export interface AudioResult {
+  url: string;
+  mime: string;
+  model: string;
+}
+export interface TtsAdapter {
+  speak(p: TtsParams, cred: Cred): Promise<AudioResult>;
+}
+
+// ── Transcripción (STT) ──────────────────────────────────────────────────────
+export interface SttParams {
+  model: string;
+  audioUrl: string;
+}
+export interface TranscriptResult {
+  text: string;
+  model: string;
+}
+export interface SttAdapter {
+  transcribe(p: SttParams, cred: Cred): Promise<TranscriptResult>;
+}
+
+// ── Rerank ───────────────────────────────────────────────────────────────────
+export interface RerankParams {
+  model: string;
+  query: string;
+  documents: string[];
+  topN?: number;
+}
+export interface RerankHit {
+  index: number;
+  document: string;
+  score: number;
+}
+export interface RerankResult {
+  results: RerankHit[];
+  model: string;
+}
+export interface RerankAdapter {
+  rerank(p: RerankParams, cred: Cred): Promise<RerankResult>;
+}
+
+// Puertos futuros (fase 2): AvatarAdapter, MusicAdapter, OcrAdapter.

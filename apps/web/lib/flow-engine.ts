@@ -10,6 +10,11 @@ export type FlowNodeType =
   | "kb_search"
   | "generate_image"
   | "embed_text"
+  | "llm_prompt"
+  | "generate_video"
+  | "text_to_speech"
+  | "transcribe"
+  | "rerank"
   | "condition"
   | "switch"
   | "http"
@@ -591,6 +596,69 @@ async function executeNode(
     const outputVar = (cfg.outputVar as string) || "vector";
     ctx.variables[outputVar] = res.vectors[0] ?? [];
     helpers.setOutput({ dims: res.vectors[0]?.length ?? 0 });
+    return;
+  }
+
+  if (node.type === "llm_prompt") {
+    const model = String(cfg.model ?? "");
+    if (!model) throw new Error("Falta elegir el modelo.");
+    const prompt = interpolate(String(cfg.prompt ?? ""), ctx.variables);
+    if (!prompt.trim()) throw new Error("Falta la instrucción.");
+    const system = cfg.system ? interpolate(String(cfg.system), ctx.variables) : "";
+    const { runChat } = await import("./ai/run");
+    const res = await runChat({ workspaceId, model, systemPrompt: system, messages: [{ role: "user", content: prompt }] });
+    const outputVar = (cfg.outputVar as string) || "texto";
+    ctx.variables[outputVar] = res.content;
+    helpers.setOutput({ tokensUsed: res.tokensUsed });
+    return;
+  }
+
+  if (node.type === "generate_video") {
+    const model = String(cfg.model ?? "");
+    if (!model) throw new Error("Falta elegir el modelo de video.");
+    const prompt = interpolate(String(cfg.prompt ?? ""), ctx.variables);
+    const { generateVideo } = await import("./ai/run");
+    const res = await generateVideo(workspaceId, model, prompt);
+    ctx.variables[(cfg.outputVar as string) || "video"] = res.url;
+    helpers.setOutput({ url: res.url });
+    return;
+  }
+
+  if (node.type === "text_to_speech") {
+    const model = String(cfg.model ?? "");
+    if (!model) throw new Error("Falta elegir el modelo de voz.");
+    const text = interpolate(String(cfg.text ?? ""), ctx.variables);
+    if (!text.trim()) throw new Error("Falta el texto a decir.");
+    const { textToSpeech } = await import("./ai/run");
+    const res = await textToSpeech(workspaceId, model, text, cfg.voice ? String(cfg.voice) : undefined);
+    ctx.variables[(cfg.outputVar as string) || "audio"] = res.url;
+    helpers.setOutput({ url: res.url });
+    return;
+  }
+
+  if (node.type === "transcribe") {
+    const model = String(cfg.model ?? "");
+    if (!model) throw new Error("Falta elegir el modelo de transcripción.");
+    const audioUrl = interpolate(String(cfg.audioUrl ?? ""), ctx.variables);
+    if (!audioUrl.trim()) throw new Error("Falta la URL del audio.");
+    const { transcribe } = await import("./ai/run");
+    const res = await transcribe(workspaceId, model, audioUrl);
+    ctx.variables[(cfg.outputVar as string) || "texto"] = res.text;
+    helpers.setOutput({ chars: res.text.length });
+    return;
+  }
+
+  if (node.type === "rerank") {
+    const model = String(cfg.model ?? "");
+    if (!model) throw new Error("Falta elegir el modelo de rerank.");
+    const query = interpolate(String(cfg.query ?? ""), ctx.variables);
+    const docsRaw = resolveValue(cfg.documents, ctx.variables);
+    const documents = Array.isArray(docsRaw) ? docsRaw.map((d) => String(d)) : [];
+    if (documents.length === 0) throw new Error("La 'Lista de textos' tiene que ser una lista con elementos.");
+    const { rerank } = await import("./ai/run");
+    const res = await rerank(workspaceId, model, query, documents, cfg.topN ? Number(cfg.topN) : undefined);
+    ctx.variables[(cfg.outputVar as string) || "ranked"] = res.results;
+    helpers.setOutput({ count: res.results.length });
     return;
   }
 

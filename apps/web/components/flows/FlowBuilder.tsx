@@ -61,6 +61,11 @@ const nodeTypes = {
   note: RegistryNode,
   generate_image: RegistryNode,
   embed_text: RegistryNode,
+  llm_prompt: RegistryNode,
+  generate_video: RegistryNode,
+  text_to_speech: RegistryNode,
+  transcribe: RegistryNode,
+  rerank: RegistryNode,
 };
 
 /** Deriva el id del registry a partir del nodo guardado (que sólo tiene engine type). */
