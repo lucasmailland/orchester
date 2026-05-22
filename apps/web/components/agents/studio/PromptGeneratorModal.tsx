@@ -59,7 +59,7 @@ export function PromptGeneratorModal({ open, agentId, onClose, onPick }: Props) 
       <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl">
         <div className="flex items-center justify-between border-b border-line px-5 py-4">
           <div className="flex items-center gap-2.5 text-sm font-medium text-strong">
-            <Sparkles className="h-4 w-4 text-violet-400" /> Generador de prompts con IA · Paso {step}/3
+            <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-400" /> Generador de prompts con IA · Paso {step}/3
           </div>
           <button onClick={onClose} className="text-muted hover:text-body" type="button">
             <X className="h-4 w-4" />
@@ -97,7 +97,7 @@ export function PromptGeneratorModal({ open, agentId, onClose, onPick }: Props) 
                       className={cn(
                         "rounded-lg border px-2 py-2 text-xs",
                         tone === t
-                          ? "border-violet-500/50 bg-violet-500/15 text-violet-200"
+                          ? "border-violet-500/50 bg-violet-500/15 text-violet-700 dark:text-violet-200"
                           : "border-line text-muted hover:border-white/20"
                       )}
                     >
@@ -131,7 +131,7 @@ export function PromptGeneratorModal({ open, agentId, onClose, onPick }: Props) 
           {step === 3 && (
             <div className="space-y-3">
               {error && (
-                <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-300">
                   {error}
                 </div>
               )}
@@ -145,7 +145,7 @@ export function PromptGeneratorModal({ open, agentId, onClose, onPick }: Props) 
                   }}
                   className="block w-full rounded-xl border border-line bg-card p-4 text-left hover:border-violet-500/40 hover:bg-surface"
                 >
-                  <div className="mb-1 text-xs font-medium text-violet-300">Variación {i + 1}</div>
+                  <div className="mb-1 text-xs font-medium text-violet-700 dark:text-violet-300">Variación {i + 1}</div>
                   <pre className="whitespace-pre-wrap font-mono text-[12px] text-body">
                     {v.length > 400 ? v.slice(0, 400) + "…" : v}
                   </pre>

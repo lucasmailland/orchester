@@ -67,7 +67,7 @@ export function ConfirmDialogHost(): ReactNode {
           >
             <div className="mb-3 flex items-start gap-3">
               {state.destructive && (
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-500/15 text-red-400">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-500/15 text-red-600 dark:text-red-400">
                   <AlertTriangle className="h-4 w-4" />
                 </div>
               )}

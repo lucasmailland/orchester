@@ -18,13 +18,13 @@ interface AuditEntry {
 }
 
 const ACTION_TONE: Record<string, string> = {
-  delete: "text-red-300 bg-red-500/10 border-red-500/30",
-  remove: "text-red-300 bg-red-500/10 border-red-500/30",
-  revoke: "text-red-300 bg-red-500/10 border-red-500/30",
-  create: "text-emerald-300 bg-emerald-500/10 border-emerald-500/30",
-  update: "text-blue-300 bg-blue-500/10 border-blue-500/30",
-  takeover: "text-amber-300 bg-amber-500/10 border-amber-500/30",
-  role_change: "text-violet-300 bg-violet-500/10 border-violet-500/30",
+  delete: "text-red-700 dark:text-red-300 bg-red-500/10 border-red-500/30",
+  remove: "text-red-700 dark:text-red-300 bg-red-500/10 border-red-500/30",
+  revoke: "text-red-700 dark:text-red-300 bg-red-500/10 border-red-500/30",
+  create: "text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border-emerald-500/30",
+  update: "text-blue-700 dark:text-blue-300 bg-blue-500/10 border-blue-500/30",
+  takeover: "text-amber-700 dark:text-amber-300 bg-amber-500/10 border-amber-500/30",
+  role_change: "text-violet-700 dark:text-violet-300 bg-violet-500/10 border-violet-500/30",
 };
 
 function actionTone(action: string): string {

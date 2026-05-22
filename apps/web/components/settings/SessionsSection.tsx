@@ -103,7 +103,7 @@ export function SessionsSection() {
                   <div className="flex items-center gap-2">
                     <span className="text-strong">{deviceLabel(s.userAgent)}</span>
                     {s.isCurrent && (
-                      <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-emerald-300">
+                      <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
                         actual
                       </span>
                     )}
@@ -120,7 +120,7 @@ export function SessionsSection() {
                     onClick={() => void revoke(s.id)}
                     disabled={busyId === s.id}
                     aria-label="Cerrar esta sesión"
-                    className="text-muted hover:text-red-400 disabled:opacity-50"
+                    className="text-muted hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
                   >
                     {busyId === s.id ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />

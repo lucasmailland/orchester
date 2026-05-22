@@ -12,7 +12,7 @@ export function ConditionNode({ data }: NodeProps) {
     >
       <Handle type="target" position={Position.Left} />
       <div className="flex items-center gap-2.5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/15 text-amber-400">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
           <GitBranch className="h-4 w-4" />
         </div>
         <div>

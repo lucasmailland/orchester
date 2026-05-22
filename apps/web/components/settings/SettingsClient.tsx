@@ -151,10 +151,10 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
                       "flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium transition-colors",
                       isActive
                         ? isDanger
-                          ? "bg-red-500/10 text-red-300"
-                          : "bg-violet-500/15 text-violet-200"
+                          ? "bg-red-500/10 text-red-700 dark:text-red-300"
+                          : "bg-violet-500/15 text-violet-700 dark:text-violet-200"
                         : isDanger
-                        ? "text-red-400/80 hover:bg-red-500/5 hover:text-red-300"
+                        ? "text-red-400/80 hover:bg-red-500/5 hover:text-red-700 dark:hover:text-red-300"
                         : "text-muted hover:bg-hover hover:text-body"
                     )}
                   >

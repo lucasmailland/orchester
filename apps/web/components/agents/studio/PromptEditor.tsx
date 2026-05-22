@@ -16,10 +16,10 @@ export function PromptEditor({ value, onChange, onGenerate, onTemplates }: Props
   const q = useMemo(() => promptQuality(value), [value]);
   const tone =
     q.label === "Excellent"
-      ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10"
+      ? "text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10"
       : q.label === "Good"
-      ? "text-amber-400 border-amber-500/30 bg-amber-500/10"
-      : "text-red-400 border-red-500/30 bg-red-500/10";
+      ? "text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/10"
+      : "text-red-600 dark:text-red-400 border-red-500/30 bg-red-500/10";
 
   return (
     <div className="flex h-full flex-col rounded-2xl border border-line bg-card">
@@ -28,7 +28,7 @@ export function PromptEditor({ value, onChange, onGenerate, onTemplates }: Props
           <button
             onClick={onGenerate}
             type="button"
-            className="flex items-center gap-1.5 rounded-lg bg-violet-500/15 px-2.5 py-1.5 text-xs text-violet-300 hover:bg-violet-500/25"
+            className="flex items-center gap-1.5 rounded-lg bg-violet-500/15 px-2.5 py-1.5 text-xs text-violet-700 dark:text-violet-300 hover:bg-violet-500/25"
           >
             <Sparkles className="h-3.5 w-3.5" /> Generar con IA
           </button>

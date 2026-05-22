@@ -28,7 +28,7 @@ const STATUS_CONFIG = {
     dot: "bg-emerald-400",
     pulse: "bg-emerald-400",
     leftBorder: "border-l-emerald-500/40",
-    label: "text-emerald-400",
+    label: "text-emerald-600 dark:text-emerald-400",
   },
   inactive: {
     dot: "bg-zinc-600",
@@ -40,7 +40,7 @@ const STATUS_CONFIG = {
     dot: "bg-amber-400",
     pulse: "bg-amber-400",
     leftBorder: "border-l-amber-500/40",
-    label: "text-amber-400",
+    label: "text-amber-600 dark:text-amber-400",
   },
 };
 
@@ -87,13 +87,13 @@ export function AgentRow({ id, name, role, model, status, teamId, teamName, syst
         whileHover={{ x: 2, transition: { duration: 0.15 } }}
         className={cn(
           "group relative flex items-center gap-4 rounded-xl border border-l-2 p-4",
-          "border-white/[0.07] bg-card hover:bg-white/[0.05]",
+          "border-line bg-card hover:bg-hover",
           "transition-colors duration-200",
           s.leftBorder
         )}
       >
         {/* Avatar with status dot */}
-        <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600/15 text-violet-400">
+        <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600/15 text-violet-600 dark:text-violet-400">
           <Bot size={17} />
           <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center">
             {s.pulse && (
@@ -145,7 +145,7 @@ export function AgentRow({ id, name, role, model, status, teamId, teamName, syst
             </button>
             <button
               onClick={handleDelete}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-red-500/10 hover:text-red-400 transition-colors"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-colors"
             >
               <Trash2 size={13} />
             </button>

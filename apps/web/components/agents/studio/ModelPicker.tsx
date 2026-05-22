@@ -96,7 +96,7 @@ export function ModelPicker({ value, onChange }: Props) {
                   }}
                   className={cn(
                     "flex w-full items-center justify-between px-3 py-2 text-left text-xs hover:bg-hover",
-                    m.id === value && "bg-violet-500/10 text-violet-200"
+                    m.id === value && "bg-violet-500/10 text-violet-700 dark:text-violet-200"
                   )}
                 >
                   <span className="flex items-center gap-2 text-body">

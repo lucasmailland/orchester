@@ -34,8 +34,8 @@ export function NoProviderBanner() {
   const isDisconnected = summary.hasHistoricalActivity;
   const Icon = isDisconnected ? AlertTriangle : AlertCircle;
   const styles = isDisconnected
-    ? "border-red-500/40 bg-red-500/10 text-red-200 hover:bg-red-500/15"
-    : "border-amber-500/30 bg-amber-500/5 text-amber-200 hover:bg-amber-500/10";
+    ? "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-200 hover:bg-red-500/15"
+    : "border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-200 hover:bg-amber-500/10";
 
   return (
     <Link

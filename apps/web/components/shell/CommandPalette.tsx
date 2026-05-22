@@ -136,10 +136,10 @@ export function CommandPalette() {
                   }
                   className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm text-body aria-selected:bg-violet-500/15 aria-selected:text-violet-200"
                 >
-                  {it.type === "agent" && <Bot className="h-4 w-4 text-violet-400" />}
-                  {it.type === "flow" && <Workflow className="h-4 w-4 text-amber-400" />}
-                  {it.type === "kb" && <BookOpen className="h-4 w-4 text-emerald-400" />}
-                  {it.type === "channel" && <Radio className="h-4 w-4 text-blue-400" />}
+                  {it.type === "agent" && <Bot className="h-4 w-4 text-violet-600 dark:text-violet-400" />}
+                  {it.type === "flow" && <Workflow className="h-4 w-4 text-amber-600 dark:text-amber-400" />}
+                  {it.type === "kb" && <BookOpen className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                  {it.type === "channel" && <Radio className="h-4 w-4 text-blue-600 dark:text-blue-400" />}
                   <span className="flex-1 truncate">{it.label}</span>
                   <span className="text-[10px] uppercase tracking-wider text-faint">
                     {it.type}

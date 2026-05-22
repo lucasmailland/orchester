@@ -24,9 +24,9 @@ interface Invite {
 }
 
 const ROLE_BADGE: Record<Member["role"], string> = {
-  owner: "border-violet-500/40 bg-violet-500/10 text-violet-200",
-  admin: "border-blue-500/40 bg-blue-500/10 text-blue-200",
-  editor: "border-emerald-500/40 bg-emerald-500/10 text-emerald-200",
+  owner: "border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-200",
+  admin: "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-200",
+  editor: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200",
   viewer: "border-zinc-500/40 bg-zinc-500/10 text-body",
 };
 
@@ -187,7 +187,7 @@ export function MembersSection() {
                     onClick={() => void removeMember(m)}
                     disabled={busyMember === m.userId}
                     aria-label={`Remover a ${m.name}`}
-                    className="text-muted hover:text-red-400 disabled:opacity-50"
+                    className="text-muted hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -206,7 +206,7 @@ export function MembersSection() {
 
         {lastInviteUrl && (
           <div className="mb-3 rounded-lg border border-violet-500/30 bg-violet-500/10 p-2.5 text-xs">
-            <div className="mb-1 text-violet-200">Link de invitación (también enviado por email):</div>
+            <div className="mb-1 text-violet-700 dark:text-violet-200">Link de invitación (también enviado por email):</div>
             <div className="flex items-center gap-2 rounded bg-black/30 px-2 py-1.5">
               <code className="flex-1 break-all font-mono text-[10px] text-body">
                 {lastInviteUrl}
@@ -217,7 +217,7 @@ export function MembersSection() {
                 aria-label="Copiar link"
                 className="text-muted hover:text-strong"
               >
-                {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                {copied ? <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-3 w-3" />}
               </button>
             </div>
           </div>
@@ -241,7 +241,7 @@ export function MembersSection() {
                   type="button"
                   onClick={() => void revokeInvite(i.id)}
                   aria-label={`Revocar invitación a ${i.email}`}
-                  className="text-muted hover:text-red-400"
+                  className="text-muted hover:text-red-600 dark:hover:text-red-400"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>

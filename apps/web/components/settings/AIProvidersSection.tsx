@@ -148,7 +148,7 @@ function ProviderCard({
     >
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-400">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
             <Sparkles className="h-4 w-4" />
           </div>
           <div>
@@ -160,7 +160,7 @@ function ProviderCard({
           </div>
         </div>
         {row && (
-          <button onClick={remove} className="text-xs text-muted hover:text-red-400" type="button">
+          <button onClick={remove} className="text-xs text-muted hover:text-red-600 dark:hover:text-red-400" type="button">
             Quitar
           </button>
         )}
@@ -240,7 +240,7 @@ function ProviderCard({
         <div
           className={cn(
             "mt-2 flex items-center gap-1.5 text-xs",
-            feedback.startsWith("Error") ? "text-red-400" : "text-emerald-400"
+            feedback.startsWith("Error") ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
           )}
         >
           {feedback.startsWith("Error") ? <AlertCircle className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}

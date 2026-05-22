@@ -112,7 +112,7 @@ export function AgentFormModal({ open, onClose, teamId, teams, initial, labels }
           >
             <div className="max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-violet-500/20 bg-surface shadow-2xl shadow-black/80 ring-1 ring-violet-500/10">
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-4">
+              <div className="flex items-center justify-between border-b border-line px-6 py-4">
                 <h2 className="font-display text-base font-bold text-strong">
                   {isEdit ? labels.editTitle : labels.createTitle}
                 </h2>
@@ -204,14 +204,14 @@ export function AgentFormModal({ open, onClose, teamId, teams, initial, labels }
                 </div>
 
                 {error && (
-                  <p className="text-xs text-red-400">{error}</p>
+                  <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
                 )}
 
                 <div className="flex justify-end gap-2 pt-1">
                   <button
                     type="button"
                     onClick={onClose}
-                    className="rounded-xl border border-line px-4 py-2 text-sm text-muted transition-colors hover:bg-white/[0.05] hover:text-body"
+                    className="rounded-xl border border-line px-4 py-2 text-sm text-muted transition-colors hover:bg-hover hover:text-body"
                   >
                     {labels.cancel}
                   </button>

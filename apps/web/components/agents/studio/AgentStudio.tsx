@@ -162,8 +162,8 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
             <span
               className={
                 isFlowKind
-                  ? "ml-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-300"
-                  : "ml-2 rounded-md border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-violet-300"
+                  ? "ml-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300"
+                  : "ml-2 rounded-md border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-violet-700 dark:text-violet-300"
               }
             >
               {isFlowKind ? "flow" : "conversacional"}
@@ -205,7 +205,7 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
               <>
                 {isFlowKind ? (
                   <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5 text-sm">
-                    <div className="mb-2 flex items-center gap-2 text-amber-300">
+                    <div className="mb-2 flex items-center gap-2 text-amber-700 dark:text-amber-300">
                       <WorkflowIcon className="h-4 w-4" />
                       <span className="font-medium">Agente driven by flow</span>
                     </div>
@@ -216,12 +216,12 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
                     {config.flowId ? (
                       <Link
                         href={`/${locale}/flows/${config.flowId}`}
-                        className="mt-3 inline-block rounded-lg border border-amber-500/30 px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-500/10"
+                        className="mt-3 inline-block rounded-lg border border-amber-500/30 px-3 py-1.5 text-xs text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
                       >
                         Editar el flujo →
                       </Link>
                     ) : (
-                      <p className="mt-3 text-xs text-amber-300">
+                      <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
                         ⚠ Ningún flujo seleccionado. Andá a <strong>Avanzado</strong> y elegí uno.
                       </p>
                     )}

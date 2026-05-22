@@ -119,7 +119,7 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
                   <div
                     className={
                       meta.supported
-                        ? "flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-400"
+                        ? "flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400"
                         : "flex h-9 w-9 items-center justify-center rounded-xl bg-elevated text-muted"
                     }
                   >
@@ -127,7 +127,7 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
                   </div>
                   <div className="font-medium text-strong">{meta.label}</div>
                   {!meta.supported && (
-                    <span className="ml-auto rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-300">
+                    <span className="ml-auto rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300">
                       Beta
                     </span>
                   )}
@@ -291,7 +291,7 @@ function ConnectedChannelRow({
   return (
     <div className="rounded-2xl border border-line bg-card p-4">
       <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-400">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
           <meta.Icon className="h-4 w-4" />
         </div>
         <div className="flex-1">
@@ -300,7 +300,7 @@ function ConnectedChannelRow({
             {meta.label} ·{" "}
             <span
               className={
-                channel.status === "active" ? "text-emerald-400" : "text-amber-400"
+                channel.status === "active" ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
               }
             >
               {channel.status}
@@ -324,7 +324,7 @@ function ConnectedChannelRow({
         <button
           type="button"
           onClick={remove}
-          className="text-muted hover:text-red-400"
+          className="text-muted hover:text-red-600 dark:hover:text-red-400"
         >
           ✕
         </button>
@@ -360,7 +360,7 @@ function ConnectedChannelRow({
                   onClick={() => copy(embedSnippet, "embed")}
                   className="text-muted hover:text-body"
                 >
-                  {copied === "embed" ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copied === "embed" ? <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
               </div>
               <p className="mt-1 text-[10px] text-faint">
@@ -403,7 +403,7 @@ function ConnectedChannelRow({
                       onClick={() => copy(telegramWebhookUrl, "webhook")}
                       className="text-muted hover:text-body"
                     >
-                      {copied === "webhook" ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copied === "webhook" ? <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                     </button>
                   </div>
                 </div>
@@ -423,7 +423,7 @@ function ConnectedChannelRow({
                   onClick={() => copy(apiTriggerUrl, "api")}
                   className="text-muted hover:text-body"
                 >
-                  {copied === "api" ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copied === "api" ? <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
               </div>
               <p className="mt-1 text-[10px] text-faint">

@@ -132,7 +132,7 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
             className="rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
           >
             <div className="mb-2 flex items-center gap-2">
-              <BookOpen className="h-4 w-4 text-violet-400" />
+              <BookOpen className="h-4 w-4 text-violet-600 dark:text-violet-400" />
               <span className="font-medium text-strong">{kb.name}</span>
             </div>
             <p className="line-clamp-2 text-xs text-muted">{kb.description ?? "—"}</p>

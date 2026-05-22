@@ -24,10 +24,10 @@ interface Doc {
 
 const STATUS_COLOR: Record<string, string> = {
   pending: "text-muted",
-  parsing: "text-blue-400",
-  embedding: "text-amber-400",
-  ready: "text-emerald-400",
-  failed: "text-red-400",
+  parsing: "text-blue-600 dark:text-blue-400",
+  embedding: "text-amber-600 dark:text-amber-400",
+  ready: "text-emerald-600 dark:text-emerald-400",
+  failed: "text-red-600 dark:text-red-400",
 };
 
 export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
@@ -177,7 +177,7 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
                     onClick={() => setSource(s)}
                     className={
                       source === s
-                        ? "rounded-md bg-violet-500/20 px-2.5 py-1 text-xs text-violet-300"
+                        ? "rounded-md bg-violet-500/20 px-2.5 py-1 text-xs text-violet-700 dark:text-violet-300"
                         : "rounded-md border border-line px-2.5 py-1 text-xs text-muted hover:bg-hover"
                     }
                   >
@@ -261,14 +261,14 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
                       <div className="text-[10px] text-faint">
                         {d.source} · {d.chunkCount} chunks ·{" "}
                         <span className={STATUS_COLOR[d.status] ?? "text-muted"}>{d.status}</span>
-                        {d.error && <span className="text-red-400"> · {d.error}</span>}
+                        {d.error && <span className="text-red-600 dark:text-red-400"> · {d.error}</span>}
                       </div>
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => deleteDoc(d.id)}
-                    className="text-muted hover:text-red-400"
+                    className="text-muted hover:text-red-600 dark:hover:text-red-400"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

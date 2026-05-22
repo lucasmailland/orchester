@@ -19,9 +19,9 @@ const STATUS_DOT: Record<string, string> = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  active: "text-emerald-400",
+  active: "text-emerald-600 dark:text-emerald-400",
   inactive: "text-muted",
-  draft: "text-amber-400",
+  draft: "text-amber-600 dark:text-amber-400",
 };
 
 const MODEL_SHORT: Record<string, string> = {
@@ -165,11 +165,11 @@ export function OrgChart({ workspaceName, teams }: OrgChartProps) {
           </div>
           <div className="ml-2 flex items-center gap-5 border-l border-line pl-5">
             <div className="text-center">
-              <p className="text-2xl font-bold tabular-nums text-violet-400">{teams.length}</p>
+              <p className="text-2xl font-bold tabular-nums text-violet-600 dark:text-violet-400">{teams.length}</p>
               <p className="text-[10px] font-medium uppercase tracking-widest text-muted">Teams</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold tabular-nums text-blue-400">{totalAgents}</p>
+              <p className="text-2xl font-bold tabular-nums text-blue-600 dark:text-blue-400">{totalAgents}</p>
               <p className="text-[10px] font-medium uppercase tracking-widest text-muted">Agents</p>
             </div>
           </div>

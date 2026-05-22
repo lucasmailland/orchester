@@ -104,7 +104,7 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
             className="rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
           >
             <div className="mb-2 flex items-center gap-2">
-              <Workflow className="h-4 w-4 text-violet-400" />
+              <Workflow className="h-4 w-4 text-violet-600 dark:text-violet-400" />
               <span className="font-medium text-strong">{f.name}</span>
             </div>
             <p className="line-clamp-2 text-xs text-muted">{f.description ?? "—"}</p>

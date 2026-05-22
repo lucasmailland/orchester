@@ -242,8 +242,8 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
                   autoSaveStatus === "saving"
                     ? "text-[11px] text-muted"
                     : autoSaveStatus === "error"
-                    ? "text-[11px] text-red-400"
-                    : "text-[11px] text-emerald-400"
+                    ? "text-[11px] text-red-600 dark:text-red-400"
+                    : "text-[11px] text-emerald-600 dark:text-emerald-400"
                 }
               >
                 {autoSaveStatus === "saving"
@@ -387,7 +387,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
                 className="w-full resize-none rounded-lg border border-line bg-surface px-3 py-2 font-mono text-xs text-strong outline-none focus:border-violet-500/60"
               />
               {runInputError && (
-                <p className="mt-2 text-xs text-red-400">⚠ {runInputError}</p>
+                <p className="mt-2 text-xs text-red-600 dark:text-red-400">⚠ {runInputError}</p>
               )}
               <div className="mt-4 flex justify-end gap-2">
                 <button
@@ -543,7 +543,7 @@ function Inspector({
         <button
           type="button"
           onClick={() => onDelete(node.id)}
-          className="text-red-400 hover:text-red-300"
+          className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
         >
           Eliminar
         </button>
@@ -1029,7 +1029,7 @@ function VariablesPanel({
                 setPending(next);
                 commit(next);
               }}
-              className="text-muted hover:text-red-400"
+              className="text-muted hover:text-red-600 dark:hover:text-red-400"
               aria-label="Eliminar"
             >
               <X className="h-3 w-3" />
@@ -1039,7 +1039,7 @@ function VariablesPanel({
         <button
           type="button"
           onClick={() => setPending([...pending, { key: "", value: "" }])}
-          className="mt-1 w-full rounded-md border border-dashed border-line py-1.5 text-[11px] text-muted hover:border-violet-500/40 hover:text-violet-300"
+          className="mt-1 w-full rounded-md border border-dashed border-line py-1.5 text-[11px] text-muted hover:border-violet-500/40 hover:text-violet-700 dark:hover:text-violet-300"
         >
           + agregar variable
         </button>

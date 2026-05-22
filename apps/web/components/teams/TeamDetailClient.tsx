@@ -21,9 +21,9 @@ const STATUS_DOT: Record<string, string> = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  active: "text-emerald-400",
+  active: "text-emerald-600 dark:text-emerald-400",
   inactive: "text-muted",
-  draft: "text-amber-400",
+  draft: "text-amber-600 dark:text-amber-400",
 };
 
 const MODEL_SHORT: Record<string, string> = {
@@ -170,14 +170,14 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
           <div className="flex items-center gap-2">
             <button
               onClick={() => setEditTeamOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-xs text-muted transition-colors hover:bg-white/[0.05] hover:text-body"
+              className="flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-xs text-muted transition-colors hover:bg-hover hover:text-body"
             >
               <Pencil size={13} />
               {labels.editTeam}
             </button>
             <button
               onClick={deleteTeam}
-              className="flex items-center gap-1.5 rounded-xl border border-red-500/20 px-3 py-2 text-xs text-red-500/70 transition-colors hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400"
+              className="flex items-center gap-1.5 rounded-xl border border-red-500/20 px-3 py-2 text-xs text-red-500/70 transition-colors hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
             >
               <Trash2 size={13} />
               {labels.deleteTeam}
@@ -196,7 +196,7 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
             </h2>
             <Link
               href={`/${labels.locale}/agents`}
-              className="flex items-center gap-1 text-[11px] text-faint transition-colors hover:text-violet-400"
+              className="flex items-center gap-1 text-[11px] text-faint transition-colors hover:text-violet-600 dark:hover:text-violet-400"
             >
               Gestionar agentes
               <ExternalLink size={10} />
@@ -209,7 +209,7 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
               <p className="text-xs text-faint">Este equipo no tiene agentes.</p>
               <Link
                 href={`/${labels.locale}/agents`}
-                className="rounded-lg bg-violet-600/20 px-3 py-1.5 text-xs font-medium text-violet-400 hover:bg-violet-600/30"
+                className="rounded-lg bg-violet-600/20 px-3 py-1.5 text-xs font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-600/30"
               >
                 Ir a Agentes →
               </Link>
@@ -220,7 +220,7 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
                 <motion.div
                   key={agent.id}
                   variants={staggerItem}
-                  className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-card px-4 py-3"
+                  className="flex items-center gap-3 rounded-xl border border-line bg-card px-4 py-3"
                 >
                   {/* Status indicator */}
                   <span className="relative flex h-2 w-2 shrink-0">
@@ -257,7 +257,7 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
             </h2>
             <Link
               href={`/${labels.locale}/channels`}
-              className="flex items-center gap-1 text-[11px] text-faint transition-colors hover:text-violet-400"
+              className="flex items-center gap-1 text-[11px] text-faint transition-colors hover:text-violet-600 dark:hover:text-violet-400"
             >
               Ver canales
               <ExternalLink size={10} />
@@ -278,7 +278,7 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
                   <motion.div
                     key={ch.id}
                     variants={staggerItem}
-                    className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-card px-4 py-3"
+                    className="flex items-center gap-3 rounded-xl border border-line bg-card px-4 py-3"
                   >
                     <div
                       className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"

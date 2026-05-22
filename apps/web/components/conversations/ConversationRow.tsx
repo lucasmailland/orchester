@@ -29,9 +29,9 @@ const STATUS_DOT: Record<ConvStatus, string> = {
 };
 
 const STATUS_TEXT: Record<ConvStatus, string> = {
-  open: "text-blue-400",
+  open: "text-blue-600 dark:text-blue-400",
   closed: "text-muted",
-  escalated: "text-red-400",
+  escalated: "text-red-600 dark:text-red-400",
 };
 
 const CHANNEL_ICONS: Record<ChannelType, React.ReactNode> = {
@@ -78,7 +78,7 @@ export function ConversationRow({
       )}
     >
       {/* Icon */}
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-600/15 text-violet-400">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-600/15 text-violet-600 dark:text-violet-400">
         <MessageSquare size={13} />
       </div>
 

@@ -95,7 +95,7 @@ function pctChange(now: number, prev: number) {
 
 function Card({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("rounded-2xl border border-white/[0.07] bg-card backdrop-blur-sm", className)}>
+    <div className={cn("rounded-2xl border border-line bg-card backdrop-blur-sm", className)}>
       {children}
     </div>
   );
@@ -119,7 +119,7 @@ function Delta({ now, prev }: { now: number; prev: number }) {
   return (
     <span className={cn(
       "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
-      pct >= 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
+      pct >= 0 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"
     )}>
       {pct >= 0 ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
       {Math.abs(pct)}%
@@ -140,12 +140,12 @@ function KPI({
   trend?: { now: number; prev: number };
 }) {
   const ACCENT: Record<string, { bg: string; text: string; ring: string }> = {
-    violet: { bg: "bg-violet-500/10", text: "text-violet-400", ring: "ring-violet-500/20" },
+    violet: { bg: "bg-violet-500/10", text: "text-violet-600 dark:text-violet-400", ring: "ring-violet-500/20" },
     cyan:   { bg: "bg-cyan-500/10",   text: "text-cyan-400",   ring: "ring-cyan-500/20" },
-    emerald:{ bg: "bg-emerald-500/10",text: "text-emerald-400",ring: "ring-emerald-500/20" },
-    amber:  { bg: "bg-amber-500/10",  text: "text-amber-400",  ring: "ring-amber-500/20" },
-    red:    { bg: "bg-red-500/10",    text: "text-red-400",    ring: "ring-red-500/20" },
-    blue:   { bg: "bg-blue-500/10",   text: "text-blue-400",   ring: "ring-blue-500/20" },
+    emerald:{ bg: "bg-emerald-500/10",text: "text-emerald-600 dark:text-emerald-400",ring: "ring-emerald-500/20" },
+    amber:  { bg: "bg-amber-500/10",  text: "text-amber-600 dark:text-amber-400",  ring: "ring-amber-500/20" },
+    red:    { bg: "bg-red-500/10",    text: "text-red-600 dark:text-red-400",    ring: "ring-red-500/20" },
+    blue:   { bg: "bg-blue-500/10",   text: "text-blue-600 dark:text-blue-400",   ring: "ring-blue-500/20" },
   };
   const a = ACCENT[accent] ?? ACCENT.violet!;
 
@@ -153,7 +153,7 @@ function KPI({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl border border-white/[0.07] bg-card p-5"
+      className="rounded-2xl border border-line bg-card p-5"
     >
       <div className="flex items-start justify-between gap-3">
         <div className={cn("flex h-9 w-9 items-center justify-center rounded-xl ring-1", a.bg, a.text, a.ring)}>
@@ -340,9 +340,9 @@ function AgentTable({ data }: { data: FullDashboardStats["agentUsage"] }) {
           {data.map((a, i) => {
             const color = mColor(a.model);
             const STATUS_BADGE: Record<string, string> = {
-              active: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+              active: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
               inactive: "text-muted bg-elevated/50 border-zinc-700/50",
-              draft: "text-amber-400 bg-amber-500/10 border-amber-500/20",
+              draft: "text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20",
             };
             return (
               <motion.tr
@@ -350,7 +350,7 @@ function AgentTable({ data }: { data: FullDashboardStats["agentUsage"] }) {
                 initial={{ opacity: 0, x: -6 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.035 }}
-                className="group border-b border-white/[0.04] last:border-0"
+                className="group border-b border-line last:border-0"
               >
                 <td className="py-3 pr-4">
                   <div className="flex items-center gap-2.5">
@@ -377,7 +377,7 @@ function AgentTable({ data }: { data: FullDashboardStats["agentUsage"] }) {
                     <span className="font-mono text-sm text-body">{fmtT(a.tokens)}</span>
                   </div>
                 </td>
-                <td className="py-3 pr-4 font-mono text-sm font-semibold text-amber-400">${a.costUsd.toFixed(2)}</td>
+                <td className="py-3 pr-4 font-mono text-sm font-semibold text-amber-600 dark:text-amber-400">${a.costUsd.toFixed(2)}</td>
                 <td className="py-3 font-mono text-sm text-muted">{fmtT(a.tokensPerConv)}</td>
               </motion.tr>
             );
@@ -392,10 +392,10 @@ function AgentTable({ data }: { data: FullDashboardStats["agentUsage"] }) {
 
 function ActivityFeed({ data }: { data: FullDashboardStats["recentConversations"] }) {
   const STATUS_PILL: Record<string, string> = {
-    open: "text-violet-400 bg-violet-500/10",
-    escalated: "text-amber-400 bg-amber-500/10",
-    closed: "text-emerald-400 bg-emerald-500/10",
-    resolved: "text-emerald-400 bg-emerald-500/10",
+    open: "text-violet-600 dark:text-violet-400 bg-violet-500/10",
+    escalated: "text-amber-600 dark:text-amber-400 bg-amber-500/10",
+    closed: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10",
+    resolved: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10",
   };
   return (
     <div className="space-y-1">
@@ -523,7 +523,7 @@ export function DashboardClient({ stats, workspaceName, locale }: Props) {
               : null;
             const formatted = fmtDelta(delta);
             return {
-              icon: <Zap size={13} className="text-violet-400" />,
+              icon: <Zap size={13} className="text-violet-600 dark:text-violet-400" />,
               label: "Tokens este mes",
               value: fmtT(stats.totalTokensMonth),
               sub: formatted ? `${formatted} vs mes ant.` : "primer mes",
@@ -532,7 +532,7 @@ export function DashboardClient({ stats, workspaceName, locale }: Props) {
             };
           })(),
           {
-            icon: <DollarSign size={13} className="text-amber-400" />,
+            icon: <DollarSign size={13} className="text-amber-600 dark:text-amber-400" />,
             label: "Costo estimado",
             value: `$${stats.totalCostMonth.toFixed(2)}`,
             sub: `$${stats.conversationsMonth > 0 ? (stats.totalCostMonth / stats.conversationsMonth).toFixed(3) : "—"} / conv`,
@@ -550,7 +550,7 @@ export function DashboardClient({ stats, workspaceName, locale }: Props) {
             delta: stats.conversationsLastMonth > 0 ? pctChange(stats.conversationsMonth, stats.conversationsLastMonth) : null,
           },
           {
-            icon: <Clock size={13} className="text-blue-400" />,
+            icon: <Clock size={13} className="text-blue-600 dark:text-blue-400" />,
             label: "Dur. media",
             value: fmtDur(stats.avgDurationSeconds),
             sub: `${fmtT(stats.avgTokensPerConv)} tokens / conv`,
@@ -660,7 +660,7 @@ export function DashboardClient({ stats, workspaceName, locale }: Props) {
                     </div>
                     <p className="mt-0.5 text-[10px] text-faint">{fmtT(t.tokens)} tok</p>
                   </div>
-                  <span className="shrink-0 font-mono text-xs font-semibold text-amber-400">${t.costUsd.toFixed(2)}</span>
+                  <span className="shrink-0 font-mono text-xs font-semibold text-amber-600 dark:text-amber-400">${t.costUsd.toFixed(2)}</span>
                 </div>
               );
             })}
@@ -791,7 +791,7 @@ export function DashboardClient({ stats, workspaceName, locale }: Props) {
               : <ActivityFeed data={stats.recentConversations} />
             }
           </div>
-          <div className="border-t border-white/[0.04] px-5 py-2.5">
+          <div className="border-t border-line px-5 py-2.5">
             <a href={`/${locale}/conversations`} className="flex items-center gap-1 text-[10px] text-faint hover:text-muted transition-colors">
               <span>Ver todas las conversaciones</span>
               <ArrowRight size={10} />
