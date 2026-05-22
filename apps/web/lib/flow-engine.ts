@@ -5,6 +5,7 @@ import { eq, and, inArray, lt } from "drizzle-orm";
 import { llmCall } from "./llm-call";
 import { enqueue, JOB_FLOW_RUN } from "./queue";
 import { assertPublicUrl } from "./net-guard";
+import { logWithContext, recordMetric } from "./observability";
 
 export type FlowNodeType =
   | "trigger"
@@ -295,6 +296,7 @@ export async function executeFlow({
   if (!flow) throw new Error("Flow not found");
 
   const runId = existingRunId ?? createId();
+  const runStartedAt = Date.now(); // sólo para la métrica de duración (D2)
   if (existingRunId) {
     await db
       .update(schema.flowRuns)
@@ -340,6 +342,7 @@ export async function executeFlow({
       .where(eq(schema.flowRuns.id, runId));
     await db.update(schema.flows).set({ lastRunAt: new Date() }).where(eq(schema.flows.id, flowId));
     onEvent?.({ type: "run_finish", status: "succeeded" });
+    recordMetric("flow.run.duration_ms", Date.now() - runStartedAt, { flowId, status: "succeeded" });
     return { runId, status: "succeeded" };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -348,6 +351,7 @@ export async function executeFlow({
       .set({ status: "failed", error: msg, completedAt: new Date() })
       .where(eq(schema.flowRuns.id, runId));
     onEvent?.({ type: "run_finish", status: "failed", error: msg });
+    recordMetric("flow.run.duration_ms", Date.now() - runStartedAt, { flowId, status: "failed" });
     return { runId, status: "failed", error: msg };
   }
 }
@@ -376,6 +380,8 @@ async function runFromNode(
     input: { ...ctx.variables },
   });
   ctx.emit?.({ type: "step_start", nodeId: node.id, nodeType: node.type });
+  // Log correlacionado por `runId` para trazar pasos en logs (D1).
+  logWithContext("info", "flow step start", { correlationId: runId, runId, nodeId: node.id, nodeType: node.type });
 
   let nextHandle: string | undefined;
   let stepOutput: Record<string, unknown> = {};
@@ -399,6 +405,7 @@ async function runFromNode(
       .set({ status: "succeeded", output: stepOutput, completedAt: new Date() })
       .where(eq(schema.flowRunSteps.id, stepId));
     ctx.emit?.({ type: "step_finish", nodeId: node.id, status: "succeeded" });
+    logWithContext("info", "flow step finish", { correlationId: runId, runId, nodeId: node.id, status: "succeeded" });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await db
@@ -406,6 +413,7 @@ async function runFromNode(
       .set({ status: "failed", error: msg, completedAt: new Date() })
       .where(eq(schema.flowRunSteps.id, stepId));
     ctx.emit?.({ type: "step_finish", nodeId: node.id, status: "failed", error: msg });
+    logWithContext("error", "flow step finish", { correlationId: runId, runId, nodeId: node.id, status: "failed", error: msg });
     throw e;
   }
 

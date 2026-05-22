@@ -99,8 +99,15 @@ export async function sendTestEvent(
   }
 }
 
+/**
+ * Tras N fallos consecutivos (env `WEBHOOK_MAX_FAILURES`, default 15) se
+ * deshabilita el subscriber (enabled=false) para no seguir martillando un
+ * endpoint muerto. El contador se resetea a 0 en cada éxito.
+ */
+const WEBHOOK_MAX_FAILURES = Math.max(1, Number(process.env.WEBHOOK_MAX_FAILURES) || 15);
+
 async function deliver(
-  sub: { id: string; workspaceId: string; url: string; secret: string },
+  sub: { id: string; workspaceId: string; url: string; secret: string; failureCount?: number },
   event: WebhookEvent,
   payload: Record<string, unknown>
 ): Promise<void> {
@@ -181,17 +188,35 @@ async function deliver(
     })
     .where(eq(schema.webhookDeliveries.id, deliveryId));
 
+  if (success) {
+    await db
+      .update(schema.outboundWebhooks)
+      // Reset del contador de fallas consecutivas en cada éxito.
+      .set({ lastDeliveredAt: new Date(), failureCount: 0 })
+      .where(eq(schema.outboundWebhooks.id, sub.id));
+    return;
+  }
+
+  // Fallo: incremento real de fallas consecutivas. `sub.failureCount` viene del
+  // SELECT previo (estado antes de este intento); el nuevo conteo es +1.
+  const newFailureCount = (sub.failureCount ?? 0) + 1;
+  const shouldDisable = newFailureCount >= WEBHOOK_MAX_FAILURES;
   await db
     .update(schema.outboundWebhooks)
-    .set(
-      success
-        ? { lastDeliveredAt: new Date(), failureCount: 0 }
-        : {
-            lastErrorAt: new Date(),
-            lastError,
-            // Incremento real de fallas consecutivas (antes quedaba siempre en 1).
-            failureCount: sql`${schema.outboundWebhooks.failureCount} + 1`,
-          }
-    )
+    .set({
+      lastErrorAt: new Date(),
+      lastError,
+      failureCount: sql`${schema.outboundWebhooks.failureCount} + 1`,
+      // Auto-disable (C6): tras N fallos consecutivos apagamos el subscriber.
+      ...(shouldDisable ? { enabled: false } : {}),
+    })
     .where(eq(schema.outboundWebhooks.id, sub.id));
+
+  if (shouldDisable) {
+    const { safeLogError } = await import("./safe-log");
+    safeLogError(
+      `[webhooks-out] subscriber ${sub.id} deshabilitado tras ${newFailureCount} fallos consecutivos (>= WEBHOOK_MAX_FAILURES=${WEBHOOK_MAX_FAILURES}).`,
+      lastError
+    );
+  }
 }

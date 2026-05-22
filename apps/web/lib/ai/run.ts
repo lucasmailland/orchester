@@ -2,6 +2,7 @@ import "server-only";
 import { getDb, schema } from "@orchester/db";
 import { createId } from "@paralleldrive/cuid2";
 import { llmCall, llmStream, type LlmCallParams, type LlmCallResult, type LlmStreamChunk } from "../llm-call";
+import { defaultIsRetryable } from "../http-util";
 import { resolveModel } from "./catalog";
 import { loadCredential } from "./credentials";
 import { generateImageWith } from "./adapters/images";
@@ -76,19 +77,50 @@ export async function recordAiUsage(args: RecordAiUsageArgs): Promise<void> {
   }
 }
 
-export async function runChat(params: LlmCallParams): Promise<LlmCallResult> {
+/**
+ * Opciones extra de `runChat`. `fallbackModels` (C4) es una cadena OPCIONAL de
+ * modelos de respaldo: si el modelo primario falla con un error retryable de
+ * provider (DESPUÉS de que http-util agotó sus reintentos por-llamada), se prueba
+ * el siguiente modelo de la lista. El comportamiento por defecto (sin la lista) es
+ * idéntico al histórico: una sola resolución de modelo y se propaga el error.
+ */
+export interface RunChatOpts {
+  fallbackModels?: string[];
+}
+
+export async function runChat(params: LlmCallParams, opts?: RunChatOpts): Promise<LlmCallResult> {
   await assertWithinSpend(params.workspaceId);
-  const res = await llmCall(params);
-  // `tokensUsed` es el total; sin split de provider lo tratamos como output.
-  await recordAiUsage({
-    workspaceId: params.workspaceId,
-    capability: "chat",
-    model: res.model,
-    tokensOut: res.tokensUsed,
-    tokensTotal: res.tokensUsed,
-    costUsd: calculateChatCostUsd(res.model, 0, res.tokensUsed),
-  });
-  return res;
+
+  const chain = [params.model, ...(opts?.fallbackModels ?? [])];
+  let lastErr: unknown;
+  for (let i = 0; i < chain.length; i++) {
+    const model = chain[i]!;
+    try {
+      const res = await llmCall({ ...params, model });
+      // `tokensUsed` es el total; sin split de provider lo tratamos como output.
+      await recordAiUsage({
+        workspaceId: params.workspaceId,
+        capability: "chat",
+        model: res.model,
+        tokensOut: res.tokensUsed,
+        tokensTotal: res.tokensUsed,
+        costUsd: calculateChatCostUsd(res.model, 0, res.tokensUsed),
+      });
+      return res;
+    } catch (e) {
+      lastErr = e;
+      const hasNext = i < chain.length - 1;
+      // Sólo caemos al siguiente modelo ante un fallo transitorio/de provider.
+      // Errores no-retryables (modelo inválido, provider no configurado, etc.)
+      // se propagan tal cual — el fallback no los enmascara.
+      if (!hasNext || !defaultIsRetryable(e)) throw e;
+      safeLogError(
+        `[ai/run] runChat: model "${model}" falló (retryable), probando fallback "${chain[i + 1]}":`,
+        e
+      );
+    }
+  }
+  throw lastErr;
 }
 
 export function runChatStream(params: LlmCallParams): AsyncGenerator<LlmStreamChunk> {
