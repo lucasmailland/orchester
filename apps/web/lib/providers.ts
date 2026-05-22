@@ -6,19 +6,10 @@ const PROVIDER_TEST_TIMEOUT_MS = 30_000;
 
 export type ProviderType = "anthropic" | "openai" | "google" | "azure_openai";
 
-export function routeToProvider(model: string): ProviderType | null {
-  if (model.startsWith("claude-")) return "anthropic";
-  if (
-    model.startsWith("gpt-") ||
-    model.startsWith("o1-") ||
-    model.startsWith("o3-") ||
-    model.startsWith("o4-")
-  )
-    return "openai";
-  if (model.startsWith("gemini-")) return "google";
-  if (model.startsWith("azure/") || model.startsWith("azure-")) return "azure_openai";
-  return null;
-}
+// Nota: el ruteo modelo→proveedor vive en el catálogo (`lib/ai/catalog/index.ts`
+// → `legacyChatProvider`/`resolveModel`). Las funciones `routeToProvider` y
+// `defaultModelsFor` que vivían acá quedaron obsoletas y se removieron (A3/A4).
+// Los arrays de abajo se conservan: `testProviderConnection` los usa de fallback.
 
 const ANTHROPIC: ModelInfo[] = [
   { id: "claude-opus-4-7", name: "Claude Opus 4.7", contextWindow: 200_000, tier: "powerful" },
@@ -35,19 +26,6 @@ const GOOGLE: ModelInfo[] = [
   { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", contextWindow: 1_000_000, tier: "fast" },
   { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", contextWindow: 1_000_000, tier: "smart" },
 ];
-
-export function defaultModelsFor(provider: ProviderType): ModelInfo[] {
-  switch (provider) {
-    case "anthropic":
-      return ANTHROPIC;
-    case "openai":
-      return OPENAI;
-    case "google":
-      return GOOGLE;
-    case "azure_openai":
-      return [];
-  }
-}
 
 /** Test connection by calling the provider's models endpoint. */
 export async function testProviderConnection(

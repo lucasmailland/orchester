@@ -7,35 +7,44 @@ import type { ModelDef, Capability } from "./types";
  */
 
 type Tier = "fast" | "smart" | "powerful";
-function m(provider: string, model: string, name: string, capability: Capability, opts: { tier?: Tier; ctx?: number; notes?: string } = {}): ModelDef {
+function m(
+  provider: string,
+  model: string,
+  name: string,
+  capability: Capability,
+  opts: { tier?: Tier; ctx?: number; notes?: string; cin?: number; cout?: number } = {}
+): ModelDef {
   const d: ModelDef = { id: `${provider}:${model}`, provider, name, capability };
   if (opts.tier) d.tier = opts.tier;
   if (opts.ctx) d.contextWindow = opts.ctx;
+  // cin/cout = USD por 1k tokens (input/output) — pricing A4.
+  if (opts.cin != null) d.costPer1kIn = opts.cin;
+  if (opts.cout != null) d.costPer1kOut = opts.cout;
   if (opts.notes) d.notes = opts.notes;
   return d;
 }
 
 export const MODELS: ModelDef[] = [
   // ── Chat ─────────────────────────────────────────────────────────────────────
-  m("openai", "gpt-4o", "GPT-4o", "chat", { tier: "smart", ctx: 128_000 }),
-  m("openai", "gpt-4o-mini", "GPT-4o mini", "chat", { tier: "fast", ctx: 128_000 }),
-  m("openai", "gpt-4.1", "GPT-4.1", "chat", { tier: "smart", ctx: 1_000_000 }),
-  m("openai", "o3", "o3", "chat", { tier: "powerful", ctx: 200_000 }),
-  m("openai", "o4-mini", "o4-mini", "chat", { tier: "fast", ctx: 200_000 }),
-  m("anthropic", "claude-opus-4-7", "Claude Opus 4.7", "chat", { tier: "powerful", ctx: 200_000 }),
-  m("anthropic", "claude-sonnet-4-6", "Claude Sonnet 4.6", "chat", { tier: "smart", ctx: 200_000 }),
-  m("anthropic", "claude-haiku-4-5", "Claude Haiku 4.5", "chat", { tier: "fast", ctx: 200_000 }),
-  m("google", "gemini-3-pro-preview", "Gemini 3 Pro", "chat", { tier: "powerful", ctx: 1_000_000 }),
-  m("google", "gemini-2.5-pro", "Gemini 2.5 Pro", "chat", { tier: "powerful", ctx: 1_000_000 }),
-  m("google", "gemini-2.5-flash", "Gemini 2.5 Flash", "chat", { tier: "smart", ctx: 1_000_000 }),
-  m("google", "gemini-2.5-flash-lite", "Gemini 2.5 Flash-Lite", "chat", { tier: "fast", ctx: 1_000_000 }),
-  m("google", "gemini-2.0-flash", "Gemini 2.0 Flash", "chat", { tier: "fast", ctx: 1_000_000 }),
-  m("xai", "grok-4", "Grok 4", "chat", { tier: "powerful", ctx: 256_000 }),
-  m("xai", "grok-3", "Grok 3", "chat", { tier: "smart", ctx: 131_072 }),
-  m("deepseek", "deepseek-chat", "DeepSeek V3", "chat", { tier: "smart", ctx: 64_000 }),
-  m("deepseek", "deepseek-reasoner", "DeepSeek R1", "chat", { tier: "powerful", ctx: 64_000 }),
-  m("mistral", "mistral-large-latest", "Mistral Large", "chat", { tier: "smart", ctx: 131_072 }),
-  m("mistral", "mistral-small-latest", "Mistral Small", "chat", { tier: "fast", ctx: 131_072 }),
+  m("openai", "gpt-4o", "GPT-4o", "chat", { tier: "smart", ctx: 128_000, cin: 0.0025, cout: 0.01 }),
+  m("openai", "gpt-4o-mini", "GPT-4o mini", "chat", { tier: "fast", ctx: 128_000, cin: 0.00015, cout: 0.0006 }),
+  m("openai", "gpt-4.1", "GPT-4.1", "chat", { tier: "smart", ctx: 1_000_000, cin: 0.002, cout: 0.008 }),
+  m("openai", "o3", "o3", "chat", { tier: "powerful", ctx: 200_000, cin: 0.002, cout: 0.008 }),
+  m("openai", "o4-mini", "o4-mini", "chat", { tier: "fast", ctx: 200_000, cin: 0.0011, cout: 0.0044 }),
+  m("anthropic", "claude-opus-4-7", "Claude Opus 4.7", "chat", { tier: "powerful", ctx: 200_000, cin: 0.015, cout: 0.075 }),
+  m("anthropic", "claude-sonnet-4-6", "Claude Sonnet 4.6", "chat", { tier: "smart", ctx: 200_000, cin: 0.003, cout: 0.015 }),
+  m("anthropic", "claude-haiku-4-5", "Claude Haiku 4.5", "chat", { tier: "fast", ctx: 200_000, cin: 0.0008, cout: 0.004 }),
+  m("google", "gemini-3-pro-preview", "Gemini 3 Pro", "chat", { tier: "powerful", ctx: 1_000_000, cin: 0.00125, cout: 0.005 }),
+  m("google", "gemini-2.5-pro", "Gemini 2.5 Pro", "chat", { tier: "powerful", ctx: 1_000_000, cin: 0.00125, cout: 0.005 }),
+  m("google", "gemini-2.5-flash", "Gemini 2.5 Flash", "chat", { tier: "smart", ctx: 1_000_000, cin: 0.0003, cout: 0.0012 }),
+  m("google", "gemini-2.5-flash-lite", "Gemini 2.5 Flash-Lite", "chat", { tier: "fast", ctx: 1_000_000, cin: 0.0001, cout: 0.0004 }),
+  m("google", "gemini-2.0-flash", "Gemini 2.0 Flash", "chat", { tier: "fast", ctx: 1_000_000, cin: 0.0001, cout: 0.0004 }),
+  m("xai", "grok-4", "Grok 4", "chat", { tier: "powerful", ctx: 256_000, cin: 0.003, cout: 0.015 }),
+  m("xai", "grok-3", "Grok 3", "chat", { tier: "smart", ctx: 131_072, cin: 0.003, cout: 0.015 }),
+  m("deepseek", "deepseek-chat", "DeepSeek V3", "chat", { tier: "smart", ctx: 64_000, cin: 0.00027, cout: 0.0011 }),
+  m("deepseek", "deepseek-reasoner", "DeepSeek R1", "chat", { tier: "powerful", ctx: 64_000, cin: 0.00055, cout: 0.00219 }),
+  m("mistral", "mistral-large-latest", "Mistral Large", "chat", { tier: "smart", ctx: 131_072, cin: 0.002, cout: 0.006 }),
+  m("mistral", "mistral-small-latest", "Mistral Small", "chat", { tier: "fast", ctx: 131_072, cin: 0.0002, cout: 0.0006 }),
   m("groq", "llama-3.3-70b-versatile", "Llama 3.3 70B (Groq)", "chat", { tier: "fast", ctx: 131_072 }),
   m("groq", "openai/gpt-oss-120b", "GPT-OSS 120B (Groq)", "chat", { tier: "smart", ctx: 131_072 }),
   m("cerebras", "llama-3.3-70b", "Llama 3.3 70B (Cerebras)", "chat", { tier: "fast", ctx: 131_072 }),
