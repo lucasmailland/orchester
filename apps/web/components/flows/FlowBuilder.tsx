@@ -30,6 +30,8 @@ import { CopilotPanel } from "./CopilotPanel";
 import { getNodeDef, type Locale } from "@/lib/flows/node-registry";
 import { autoLayout } from "@/lib/flows/layout";
 import { validateFlow, type ValidationIssue } from "@/lib/flows/validate";
+import { buildGraphFromSpec } from "@/lib/flows/copilot-tools";
+import { FLOW_TEMPLATES, type FlowTemplate } from "@/lib/flows/templates";
 import {
   Save, Play, Loader2, History, ArrowLeft, Variable, X, Sparkles,
   Undo2, Redo2, LayoutGrid, ShieldCheck,
@@ -160,6 +162,13 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   function runAutoLayout() {
     pushHistory();
     setNodes((nds) => autoLayout(nds, edges.map((e) => ({ source: e.source, target: e.target }))));
+  }
+  function useTemplate(tpl: FlowTemplate) {
+    pushHistory();
+    const built = buildGraphFromSpec(tpl.spec, () => createId());
+    setNodes(built.nodes as Node[]);
+    setEdges(built.edges as Edge[]);
+    setSelected(null);
   }
   const [feedback, setFeedback] = useState<string | null>(null);
   const [runModalOpen, setRunModalOpen] = useState(false);
@@ -414,12 +423,12 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     if (iss.nodeId) (issuesByNode[iss.nodeId] ??= []).push(iss.message);
   }
 
-  const displayNodes = nodes.map((n) => {
+  const displayNodes: Node[] = nodes.map((n) => {
     const st = runStatus[n.id];
     const badge = issuesByNode[n.id]?.join("\n") ?? null;
+    const subtitle = cardSubtitle(n);
     const cls = st === "succeeded" ? "flow-node-ok" : st === "failed" ? "flow-node-fail" : st === "running" ? "flow-node-running" : undefined;
-    if (!cls && !badge) return n;
-    return { ...n, ...(cls ? { className: cls } : {}), data: { ...n.data, badge } };
+    return { ...n, ...(cls ? { className: cls } : {}), data: { ...n.data, badge, subtitle } };
   });
 
   return (
@@ -588,7 +597,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               <Controls className="!border-line !bg-surface" />
               <MiniMap pannable zoomable className="!border-line !bg-surface" />
             </ReactFlow>
-            {nodes.length === 0 && <EmptyCanvasGuide onAdd={addNode} />}
+            {nodes.length === 0 && <EmptyCanvasGuide onAdd={addNode} onUseTemplate={useTemplate} />}
           </div>
           <div className="w-72 shrink-0 overflow-y-auto border-l border-line bg-surface">
             <InspectorForm
@@ -763,35 +772,64 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   );
 }
 
-/** Guía amigable cuando el lienzo está vacío: explica cómo arrancar. */
-function EmptyCanvasGuide({ onAdd }: { onAdd: (nodeId: string) => void }) {
+/** Guía amigable cuando el lienzo está vacío: plantillas + cómo arrancar de cero. */
+function EmptyCanvasGuide({
+  onAdd,
+  onUseTemplate,
+}: {
+  onAdd: (nodeId: string) => void;
+  onUseTemplate: (tpl: FlowTemplate) => void;
+}) {
   const starters: Array<{ id: string; label: string; emoji: string }> = [
-    { id: "trigger_manual", label: "Empezar cuando lo ejecuto yo", emoji: "▶️" },
-    { id: "trigger_message", label: "Empezar cuando llega un mensaje", emoji: "💬" },
-    { id: "trigger_schedule", label: "Empezar en un horario", emoji: "🕒" },
-    { id: "trigger_webhook", label: "Empezar con un webhook", emoji: "🔗" },
+    { id: "trigger_manual", label: "Cuando lo ejecuto yo", emoji: "▶️" },
+    { id: "trigger_message", label: "Cuando llega un mensaje", emoji: "💬" },
+    { id: "trigger_schedule", label: "En un horario", emoji: "🕒" },
+    { id: "trigger_webhook", label: "Con un webhook", emoji: "🔗" },
   ];
   return (
-    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-      <div className="pointer-events-auto max-w-md rounded-2xl border border-line bg-surface/90 p-6 text-center shadow-xl backdrop-blur">
-        <div className="text-2xl">🚀</div>
-        <h3 className="mt-2 text-sm font-semibold text-strong">Armemos tu primer flujo</h3>
-        <p className="mt-1 text-xs leading-relaxed text-muted">
-          Un flujo es una secuencia de pasos automáticos. Empezá eligiendo
-          <strong className="text-body"> cuándo arranca</strong>. Después sumás pasos
-          desde el panel de la izquierda o le pedís al copiloto que lo arme por vos.
-        </p>
-        <div className="mt-4 grid gap-2">
-          {starters.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => onAdd(s.id)}
-              className="flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-left text-xs text-body transition-colors hover:bg-elevated"
-            >
-              <span>{s.emoji}</span> {s.label}
-            </button>
-          ))}
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-y-auto p-4">
+      <div className="pointer-events-auto my-auto w-full max-w-xl rounded-2xl border border-line bg-surface/95 p-6 shadow-xl backdrop-blur">
+        <div className="text-center">
+          <div className="text-2xl">🚀</div>
+          <h3 className="mt-2 text-sm font-semibold text-strong">Armemos tu primer flujo</h3>
+          <p className="mt-1 text-xs leading-relaxed text-muted">
+            Un flujo es una secuencia de pasos automáticos. Empezá con una plantilla
+            lista, desde cero, o pedile al copiloto que lo arme por vos.
+          </p>
+        </div>
+
+        <div className="mt-5">
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted">Plantillas para empezar</p>
+          <div className="grid grid-cols-2 gap-2">
+            {FLOW_TEMPLATES.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => onUseTemplate(t)}
+                className="flex flex-col gap-1 rounded-lg border border-line bg-card p-3 text-left transition-colors hover:bg-elevated hover:border-violet-500/40"
+              >
+                <span className="text-base">{t.emoji}</span>
+                <span className="text-xs font-medium text-body">{t.name}</span>
+                <span className="text-[10px] leading-tight text-faint">{t.description}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted">…o empezá de cero</p>
+          <div className="flex flex-wrap gap-1.5">
+            {starters.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => onAdd(s.id)}
+                className="flex items-center gap-1.5 rounded-lg border border-line bg-card px-2.5 py-1.5 text-xs text-body transition-colors hover:bg-elevated"
+              >
+                <span>{s.emoji}</span> {s.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -908,6 +946,40 @@ function RunInspector({
       </div>
     </div>
   );
+}
+
+/** Resumen de una línea para la tarjeta del nodo, derivado de su configuración actual. */
+function cardSubtitle(n: Node): string {
+  const d = n.data as { nodeId?: string; config?: Record<string, unknown> } | undefined;
+  const cfg = d?.config ?? {};
+  const def = getNodeDef(String(d?.nodeId ?? n.type ?? ""));
+  const eng = def?.engine ?? n.type ?? "";
+  const s = (v: unknown, max = 30) => {
+    const str = String(v ?? "").trim();
+    return str.length > max ? `${str.slice(0, max)}…` : str;
+  };
+  switch (eng) {
+    case "http":
+      return cfg.url ? s(cfg.url, 34) : "";
+    case "integration": {
+      const action = String(cfg.integrationId ?? "").split("::")[1];
+      return action ? `acción: ${s(action)}` : "";
+    }
+    case "kb_search":
+      return cfg.query ? `busca: ${s(cfg.query)}` : "";
+    case "condition":
+      return cfg.left ? `${s(cfg.left, 14)} ${s(cfg.op, 8)} ${s(cfg.right, 14)}` : "";
+    case "delay":
+      return cfg.duration ? `espera ${s(cfg.duration, 12)}` : "";
+    case "notify":
+      return cfg.to ? `a ${s(cfg.to)}` : "";
+    case "spreadsheet":
+      return cfg.formula ? s(cfg.formula, 30) : "";
+    case "subflow":
+      return cfg.flowId ? "flujo elegido" : "";
+    default:
+      return "";
+  }
 }
 
 /** Datos disponibles para usar en los campos (variables del flujo + salidas de pasos). */
