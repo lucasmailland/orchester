@@ -9,6 +9,11 @@ interface ChatMsg {
   content: string;
 }
 
+interface Proposal {
+  nodes: Node[];
+  edges: Edge[];
+}
+
 /**
  * Copiloto del Flow Builder. El usuario describe lo que quiere (y opcionalmente
  * una URL de API) y el copiloto arma el flujo solo. Copys en lenguaje simple.
@@ -23,7 +28,7 @@ export function CopilotPanel({
   flowId: string;
   open: boolean;
   onClose: () => void;
-  onApplyGraph: (nodes: Node[], edges: Edge[]) => void;
+  onApplyGraph: (nodes: Node[], edges: Edge[], mode: "replace" | "merge") => void;
   /** Resumen en texto del flujo actual (para explicar/revisar). "" si está vacío. */
   describeFlow: () => string;
 }) {
@@ -33,9 +38,16 @@ export function CopilotPanel({
   const [showUrl, setShowUrl] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState<Proposal | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   if (!open) return null;
+
+  function applyPending(mode: "replace" | "merge") {
+    if (!pending) return;
+    onApplyGraph(pending.nodes, pending.edges, mode);
+    setPending(null);
+  }
 
   async function send() {
     const prompt = input.trim();
@@ -71,7 +83,7 @@ export function CopilotPanel({
       }
       setMessages((m) => [...m, { role: "assistant", content: j.message ?? "Listo." }]);
       if (j.graph && Array.isArray(j.graph.nodes) && j.graph.nodes.length > 0) {
-        onApplyGraph(j.graph.nodes as Node[], (j.graph.edges ?? []) as Edge[]);
+        setPending({ nodes: j.graph.nodes as Node[], edges: (j.graph.edges ?? []) as Edge[] });
       }
       if (Array.isArray(j.errors) && j.errors.length > 0) {
         setError(`Algunos pasos no se pudieron crear: ${j.errors.join(" ")}`);
@@ -155,6 +167,46 @@ export function CopilotPanel({
         {error && (
           <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-3 text-red-600 dark:text-red-400">
             {error}
+          </div>
+        )}
+        {pending && (
+          <div className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-3">
+            <p className="text-[11px] font-medium text-body">
+              Propuesta: {pending.nodes.length} paso{pending.nodes.length === 1 ? "" : "s"}
+            </p>
+            <ul className="mt-1.5 space-y-0.5">
+              {pending.nodes.slice(0, 8).map((n) => (
+                <li key={n.id} className="truncate text-[11px] text-muted">
+                  • {(n.data as { label?: string })?.label ?? "Paso"}
+                </li>
+              ))}
+              {pending.nodes.length > 8 && (
+                <li className="text-[11px] text-faint">…y {pending.nodes.length - 8} más</li>
+              )}
+            </ul>
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => applyPending("replace")}
+                className="rounded-lg bg-violet-500 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-violet-400"
+              >
+                Reemplazar el flujo
+              </button>
+              <button
+                type="button"
+                onClick={() => applyPending("merge")}
+                className="rounded-lg border border-line bg-card px-2.5 py-1 text-[11px] text-body hover:bg-elevated"
+              >
+                Sumar al flujo
+              </button>
+              <button
+                type="button"
+                onClick={() => setPending(null)}
+                className="rounded-lg px-2.5 py-1 text-[11px] text-muted hover:text-body"
+              >
+                Descartar
+              </button>
+            </div>
           </div>
         )}
       </div>
