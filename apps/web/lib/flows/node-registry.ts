@@ -89,6 +89,21 @@ export const NODE_REGISTRY: Record<string, NodeDef> = {
     ],
     defaults: { topK: 5 },
   },
+  generate_image: {
+    id: "generate_image", engine: "generate_image", category: "ai", icon: "Image", accent: "#ec4899",
+    title: i("Crear imagen", "Create image", "Criar imagem"),
+    summary: i("Genera una imagen con IA a partir de un texto.", "Generates an AI image from a text prompt.", "Gera uma imagem de IA a partir de um texto."),
+    fields: [
+      { key: "model", label: "Modelo de imagen", type: "model-picker", capability: "image", required: true, help: "Con qué modelo generar (gpt-image-1, FLUX, Imagen…). Conectá proveedores en Ajustes." },
+      { key: "prompt", label: "Descripción de la imagen", type: "variable", required: true, help: "Qué querés que muestre. Podés usar {{variables}}.", example: "Invitación de cumpleaños para {{nombre}}, estilo acuarela" },
+      { key: "size", label: "Tamaño", type: "select", advanced: true, options: [
+        { value: "1024x1024", label: "Cuadrada (1024×1024)" },
+        { value: "1024x1536", label: "Vertical (1024×1536)" },
+        { value: "1536x1024", label: "Horizontal (1536×1024)" },
+      ] },
+      { key: "outputVar", label: "Guardar resultado en", type: "text", advanced: true, placeholder: "image", help: "Nombre de la variable que tendrá la URL de la imagen." },
+    ],
+  },
 
   // ── Lógica ──────────────────────────────────────────────────────────────────
   condition: {
@@ -182,6 +197,16 @@ export const NODE_REGISTRY: Record<string, NodeDef> = {
     summary: i("Hacé cálculos con fórmulas tipo Excel (SUM, IF, BUSCARV…).", "Run Excel-style formulas (SUM, IF, VLOOKUP…).", "Rode fórmulas tipo Excel (SUM, IF, PROCV…)."),
     fields: [
       { key: "grid", label: "Planilla", type: "spreadsheet", help: "Escribí valores o fórmulas (empezando con =) en las celdas, como en Excel. Elegí qué celda es el resultado." },
+    ],
+  },
+  embed_text: {
+    id: "embed_text", engine: "embed_text", category: "data", icon: "Binary", accent: "#22c55e",
+    title: i("Vectorizar / embeddings", "Vectorize / embeddings", "Vetorizar / embeddings"),
+    summary: i("Convierte un texto en vector (números) para búsquedas por significado.", "Turns text into a vector for semantic search.", "Converte texto em vetor para busca semântica."),
+    fields: [
+      { key: "model", label: "Modelo de embeddings", type: "model-picker", capability: "embedding", required: true, help: "Con qué modelo vectorizar (OpenAI, Voyage, Google…)." },
+      { key: "input", label: "Texto a vectorizar", type: "variable", required: true, help: "El texto que se convierte en vector. Podés usar {{variables}}.", example: "{{message}}" },
+      { key: "outputVar", label: "Guardar en", type: "text", advanced: true, placeholder: "vector", help: "Nombre de la variable con el vector resultante." },
     ],
   },
 

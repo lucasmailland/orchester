@@ -59,6 +59,8 @@ const nodeTypes = {
   kb_search: RegistryNode,
   spreadsheet: RegistryNode,
   note: RegistryNode,
+  generate_image: RegistryNode,
+  embed_text: RegistryNode,
 };
 
 /** Deriva el id del registry a partir del nodo guardado (que sólo tiene engine type). */
