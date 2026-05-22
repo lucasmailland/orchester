@@ -60,10 +60,14 @@ export function AIProvidersSection() {
     );
   };
 
-  // Disponibles (no conectados) agrupados por capacidad primaria.
+  // Disponibles (no conectados). Si hay filtro de capacidad activo, agrupamos bajo
+  // ESA capacidad; si no, bajo la capacidad primaria de cada proveedor.
   const available = PROVIDERS.filter((p) => !connectedIds.has(p.id) && matches(p));
   const byPrimary: Record<string, ProviderDef[]> = {};
-  for (const p of available) (byPrimary[p.capabilities[0]!] ??= []).push(p);
+  for (const p of available) {
+    const group = capFilter !== "all" ? capFilter : p.capabilities[0]!;
+    (byPrimary[group] ??= []).push(p);
+  }
 
   if (loading)
     return (
