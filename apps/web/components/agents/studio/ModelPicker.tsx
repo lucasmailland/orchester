@@ -28,28 +28,29 @@ const TIER_ICON: Record<string, ReactNode> = {
   powerful: <Rocket className="h-3.5 w-3.5" />,
 };
 
-const PROVIDER_NAME: Record<string, string> = {
-  anthropic: "Anthropic",
-  openai: "OpenAI",
-  google: "Google AI",
-  azure_openai: "Azure OpenAI",
-};
-
 export function ModelPicker({ value, onChange }: Props) {
   const [groups, setGroups] = useState<ProviderGroup[]>([]);
+  const [providerName, setProviderName] = useState<Record<string, string>>({});
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    fetch("/api/providers")
+    // Modelos de chat del catálogo, sólo de proveedores conectados.
+    fetch("/api/ai/models?capability=chat")
       .then((r) => r.json())
-      .then((rows: Array<{ provider: string; enabled: boolean; models: Model[] }>) => {
-        setGroups(
-          (Array.isArray(rows) ? rows : []).map((r) => ({
-            provider: r.provider,
-            enabled: r.enabled,
-            models: r.models ?? [],
-          }))
-        );
+      .then((d: { models?: Array<{ id: string; name: string; provider: string; tier: string | null; ctx: number | null }>; providers?: Array<{ id: string; name: string }> }) => {
+        const names: Record<string, string> = {};
+        for (const p of d.providers ?? []) names[p.id] = p.name;
+        setProviderName(names);
+        const byProvider: Record<string, Model[]> = {};
+        for (const m of d.models ?? []) {
+          (byProvider[m.provider] ??= []).push({
+            id: m.id,
+            name: m.name,
+            tier: (m.tier as Model["tier"]) ?? "smart",
+            contextWindow: m.ctx ?? 0,
+          });
+        }
+        setGroups(Object.entries(byProvider).map(([provider, models]) => ({ provider, enabled: true, models })));
       })
       .catch(() => setGroups([]));
   }, []);
@@ -79,7 +80,7 @@ export function ModelPicker({ value, onChange }: Props) {
           {groups.map((g) => (
             <div key={g.provider}>
               <div className="border-b border-line bg-surface/80 px-3 py-1.5 text-[10px] uppercase tracking-wider text-muted">
-                {PROVIDER_NAME[g.provider] ?? g.provider}
+                {providerName[g.provider] ?? g.provider}
               </div>
               {g.models.length === 0 && (
                 <div className="px-3 py-2 text-[11px] text-faint">
@@ -102,9 +103,9 @@ export function ModelPicker({ value, onChange }: Props) {
                   <span className="flex items-center gap-2 text-body">
                     {TIER_ICON[m.tier]} {m.name}
                   </span>
-                  <span className="text-[10px] text-muted">
-                    {Math.round(m.contextWindow / 1000)}k
-                  </span>
+                  {m.contextWindow > 0 && (
+                    <span className="text-[10px] text-muted">{Math.round(m.contextWindow / 1000)}k</span>
+                  )}
                 </button>
               ))}
             </div>

@@ -80,7 +80,7 @@ export async function POST(req: Request) {
   if (!ws || !session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json();
   const { provider, apiKey, endpoint } = body as {
-    provider: "anthropic" | "openai" | "google" | "azure_openai";
+    provider: string;
     apiKey: string;
     endpoint?: string;
   };
