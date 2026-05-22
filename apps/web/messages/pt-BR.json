@@ -25,6 +25,22 @@
     "noResults": "Nenhum resultado encontrado",
     "learnMore": "Saiba mais"
   },
+  "errors": {
+    "generic": {
+      "title": "Algo deu errado",
+      "description": "Ocorreu um erro inesperado. Você pode tentar novamente ou voltar ao início.",
+      "retry": "Tentar novamente",
+      "backHome": "Voltar ao início",
+      "backDashboard": "Ir para o dashboard"
+    },
+    "notFound": {
+      "code": "404",
+      "title": "Página não encontrada",
+      "description": "A página que você procura não existe ou foi movida.",
+      "backDashboard": "Voltar ao dashboard"
+    },
+    "loading": "Carregando…"
+  },
   "themes": {
     "light": "Claro",
     "dark": "Escuro",
