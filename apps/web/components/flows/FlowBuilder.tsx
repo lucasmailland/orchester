@@ -25,6 +25,7 @@ import { TriggerNode } from "./nodes/TriggerNode";
 import { FlowRunsPanel } from "./FlowRunsPanel";
 import { Save, Play, Loader2, History, ArrowLeft, Variable, X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import { toast } from "sonner";
 
 const nodeTypes = {
@@ -66,6 +67,8 @@ interface FlowDTO {
 
 export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const router = useRouter();
+  const { resolvedTheme } = useTheme();
+  const isLight = resolvedTheme === "light";
   const [nodes, setNodes] = useState<Node[]>(
     flow.nodes.map((n) => ({
       id: n.id,
@@ -317,9 +320,10 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               onPaneClick={() => setSelected(null)}
               nodeTypes={nodeTypes}
               fitView
+              colorMode={isLight ? "light" : "dark"}
               proOptions={{ hideAttribution: true }}
             >
-              <Background color="#27272a" gap={20} />
+              <Background color={isLight ? "#d4d4d8" : "#27272a"} gap={20} />
               <Controls className="!border-line !bg-surface" />
               <MiniMap pannable zoomable className="!border-line !bg-surface" />
             </ReactFlow>
