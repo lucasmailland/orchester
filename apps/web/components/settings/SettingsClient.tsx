@@ -176,7 +176,7 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
             <SettingsCard
               icon={<Sparkles size={16} />}
               title="Proveedores de IA"
-              description="Conectá Anthropic, OpenAI, Google AI o Azure. Los modelos disponibles aparecen en el editor de agentes y los flujos."
+              description="Conectá proveedores de IA (chat, imagen, embeddings, video, audio y más) con tu propia API key. Los modelos disponibles aparecen en el editor de agentes y los flujos."
             >
               <AIProvidersSection />
             </SettingsCard>
