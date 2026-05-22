@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 interface ModelOpt {
   id: string;
@@ -70,7 +71,7 @@ export function ModelPicker({
     return (
       <div className="rounded-lg border border-line bg-card p-2.5 text-[11px] text-muted">
         No tenés proveedores de IA conectados para esto. Andá a{" "}
-        <a href="/settings" className="text-violet-600 dark:text-violet-400 hover:underline">Ajustes → IA</a>{" "}
+        <Link href="/settings" className="text-violet-600 dark:text-violet-400 hover:underline">Ajustes → IA</Link>{" "}
         y conectá uno (OpenAI, Google, Replicate…).
       </div>
     );
