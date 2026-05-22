@@ -4,9 +4,11 @@ import { resolveModel } from "./catalog";
 import { loadCredential } from "./credentials";
 import { generateImageWith } from "./adapters/images";
 import { embedWith } from "./adapters/embeddings";
-import { generateVideoWith, speakWith, transcribeWith } from "./adapters/media";
+import { generateVideoWith, generateMusicWith, speakWith, transcribeWith } from "./adapters/media";
 import { rerankWith } from "./adapters/rerank";
-import type { ImageResult, EmbeddingResult, VideoResult, AudioResult, TranscriptResult, RerankResult } from "./capabilities";
+import { generateAvatarWith } from "./adapters/avatar";
+import { ocrWith } from "./adapters/ocr";
+import type { ImageResult, EmbeddingResult, VideoResult, AudioResult, TranscriptResult, RerankResult, AvatarResult, MusicResult, OcrResult, AvatarParams } from "./capabilities";
 
 /**
  * Punto de entrada unificado de IA. El resto de la app llama acá; cada función
@@ -99,6 +101,27 @@ export async function rerank(workspaceId: string, modelId: string, query: string
   if (!resolved || resolved.capability !== "rerank") throw new Error(`"${modelId}" no es un modelo de rerank válido.`);
   const cred = await loadCredential(workspaceId, resolved.provider.id);
   return rerankWith(resolved.provider.id, { model: resolved.model, query, documents, ...(topN ? { topN } : {}) }, cred);
+}
+
+export async function generateAvatar(workspaceId: string, modelId: string, opts: Omit<AvatarParams, "model">): Promise<AvatarResult> {
+  const resolved = resolveModel(modelId);
+  if (!resolved || resolved.capability !== "avatar") throw new Error(`"${modelId}" no es un modelo de avatar válido.`);
+  const cred = await loadCredential(workspaceId, resolved.provider.id);
+  return generateAvatarWith(resolved.provider.id, resolved.provider.family, { model: resolved.model, ...opts }, cred);
+}
+
+export async function generateMusic(workspaceId: string, modelId: string, prompt: string): Promise<MusicResult> {
+  const resolved = resolveModel(modelId);
+  if (!resolved || resolved.capability !== "music") throw new Error(`"${modelId}" no es un modelo de música válido.`);
+  const cred = await loadCredential(workspaceId, resolved.provider.id);
+  return generateMusicWith(resolved.provider.id, resolved.provider.family, { model: resolved.model, prompt }, cred);
+}
+
+export async function ocr(workspaceId: string, modelId: string, documentUrl: string): Promise<OcrResult> {
+  const resolved = resolveModel(modelId);
+  if (!resolved || resolved.capability !== "ocr") throw new Error(`"${modelId}" no es un modelo de OCR válido.`);
+  const cred = await loadCredential(workspaceId, resolved.provider.id);
+  return ocrWith(resolved.provider.id, { model: resolved.model, documentUrl }, cred);
 }
 
 export type { LlmCallParams, LlmCallResult, LlmStreamChunk };

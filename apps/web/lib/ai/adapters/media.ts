@@ -1,5 +1,5 @@
 import "server-only";
-import type { Cred, VideoParams, VideoResult, TtsParams, SttParams, TranscriptResult } from "../capabilities";
+import type { Cred, VideoParams, VideoResult, TtsParams, SttParams, TranscriptResult, MusicParams, MusicResult } from "../capabilities";
 
 /**
  * Adaptadores de video, voz (TTS) y transcripción (STT). Video se hace por los
@@ -44,6 +44,25 @@ async function falVideo(p: VideoParams, cred: Cred): Promise<VideoResult> {
   if (!r.ok) throw new Error(`fal ${r.status}: ${await r.text()}`);
   const j = await r.json();
   return { url: j.video?.url ?? j.url ?? "", model: p.model };
+}
+
+// ── Música (Replicate / fal por polling) ─────────────────────────────────────
+export async function generateMusicWith(providerId: string, family: string, p: MusicParams, cred: Cred): Promise<MusicResult> {
+  if (providerId === "replicate" || family === "replicate") {
+    const v = await replicateVideo({ model: p.model, prompt: p.prompt }, cred); // mismo polling, output = audio url
+    return { url: v.url, model: p.model };
+  }
+  if (providerId === "fal" || family === "fal") {
+    const r = await fetch(`https://fal.run/${p.model}`, {
+      method: "POST",
+      headers: { Authorization: `Key ${cred.apiKey}`, "content-type": "application/json" },
+      body: JSON.stringify({ prompt: p.prompt }),
+    });
+    if (!r.ok) throw new Error(`fal ${r.status}: ${await r.text()}`);
+    const j = await r.json();
+    return { url: j.audio?.url ?? j.audio_file?.url ?? j.url ?? "", model: p.model };
+  }
+  throw new Error(`Música con ${providerId} todavía no está implementada. Probá un modelo vía Replicate o fal.`);
 }
 
 // ── TTS ──────────────────────────────────────────────────────────────────────

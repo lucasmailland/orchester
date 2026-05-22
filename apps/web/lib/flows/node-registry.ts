@@ -146,6 +146,29 @@ export const NODE_REGISTRY: Record<string, NodeDef> = {
       { key: "outputVar", label: "Guardar en", type: "text", advanced: true, placeholder: "texto", help: "Variable con el texto transcripto." },
     ],
   },
+  generate_avatar: {
+    id: "generate_avatar", engine: "generate_avatar", category: "ai", icon: "Drama", accent: "#a855f7",
+    title: i("Avatar que habla", "Talking avatar", "Avatar que fala"),
+    summary: i("Genera un video de una persona diciendo un texto (ideal: 'video con el nombre').", "Generates a video of a person saying a text.", "Gera um vídeo de uma pessoa dizendo um texto."),
+    fields: [
+      { key: "model", label: "Modelo de avatar", type: "model-picker", capability: "avatar", required: true, help: "HeyGen, D-ID… Conectá uno." },
+      { key: "text", label: "Qué dice", type: "variable", required: true, help: "El texto que dirá el avatar. Podés usar {{variables}}.", example: "¡Hola {{nombre}}, feliz cumple!" },
+      { key: "avatarId", label: "Avatar id (HeyGen)", type: "text", advanced: true, help: "Id del avatar en HeyGen." },
+      { key: "imageUrl", label: "Foto de la persona (D-ID)", type: "variable", advanced: true, help: "URL de una imagen (para D-ID)." },
+      { key: "voiceId", label: "Voz (id)", type: "text", advanced: true },
+      { key: "outputVar", label: "Guardar en", type: "text", advanced: true, placeholder: "video" },
+    ],
+  },
+  generate_music: {
+    id: "generate_music", engine: "generate_music", category: "ai", icon: "Music", accent: "#ec4899",
+    title: i("Crear música", "Create music", "Criar música"),
+    summary: i("Genera música o sonido a partir de un texto.", "Generates music/sound from a text prompt.", "Gera música/som a partir de um texto."),
+    fields: [
+      { key: "model", label: "Modelo de música", type: "model-picker", capability: "music", required: true, help: "Hoy se ejecuta vía Replicate o fal." },
+      { key: "prompt", label: "Descripción", type: "variable", required: true, example: "Lo-fi hip hop relajado para estudiar" },
+      { key: "outputVar", label: "Guardar en", type: "text", advanced: true, placeholder: "musica" },
+    ],
+  },
 
   // ── Lógica ──────────────────────────────────────────────────────────────────
   condition: {
@@ -261,6 +284,16 @@ export const NODE_REGISTRY: Record<string, NodeDef> = {
       { key: "documents", label: "Lista de textos", type: "variable", required: true, help: "Una lista (array) de textos a ordenar. Ej. {{resultados}}.", example: "{{resultados}}" },
       { key: "topN", label: "Cuántos traer", type: "number", advanced: true, help: "Cantidad de resultados top (opcional)." },
       { key: "outputVar", label: "Guardar en", type: "text", advanced: true, placeholder: "ranked", help: "Variable con los resultados ordenados." },
+    ],
+  },
+  ocr_extract: {
+    id: "ocr_extract", engine: "ocr_extract", category: "data", icon: "ScanText", accent: "#3b82f6",
+    title: i("Leer documento (OCR)", "Read document (OCR)", "Ler documento (OCR)"),
+    summary: i("Extrae el texto de un PDF o imagen escaneada.", "Extracts text from a PDF or scanned image.", "Extrai o texto de um PDF ou imagem."),
+    fields: [
+      { key: "model", label: "Modelo de OCR", type: "model-picker", capability: "ocr", required: true, help: "Mistral OCR… Conectá uno." },
+      { key: "documentUrl", label: "URL del documento", type: "variable", required: true, help: "Link al PDF o imagen. Podés usar {{variables}}.", example: "{{archivo}}" },
+      { key: "outputVar", label: "Guardar en", type: "text", advanced: true, placeholder: "texto" },
     ],
   },
 

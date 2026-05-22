@@ -142,4 +142,44 @@ export interface RerankAdapter {
   rerank(p: RerankParams, cred: Cred): Promise<RerankResult>;
 }
 
-// Puertos futuros (fase 2): AvatarAdapter, MusicAdapter, OcrAdapter.
+// ── Avatar / talking-head ────────────────────────────────────────────────────
+export interface AvatarParams {
+  model: string;
+  text: string;
+  avatarId?: string; // HeyGen avatar id
+  voiceId?: string;
+  imageUrl?: string; // D-ID source image
+}
+export interface AvatarResult {
+  url: string;
+  model: string;
+}
+export interface AvatarAdapter {
+  generateAvatar(p: AvatarParams, cred: Cred): Promise<AvatarResult>;
+}
+
+// ── Música ───────────────────────────────────────────────────────────────────
+export interface MusicParams {
+  model: string;
+  prompt: string;
+}
+export interface MusicResult {
+  url: string;
+  model: string;
+}
+export interface MusicAdapter {
+  generateMusic(p: MusicParams, cred: Cred): Promise<MusicResult>;
+}
+
+// ── OCR / documentos ──────────────────────────────────────────────────────────
+export interface OcrParams {
+  model: string;
+  documentUrl: string;
+}
+export interface OcrResult {
+  text: string;
+  model: string;
+}
+export interface OcrAdapter {
+  extract(p: OcrParams, cred: Cred): Promise<OcrResult>;
+}
