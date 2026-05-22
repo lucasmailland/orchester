@@ -2,7 +2,8 @@ import "server-only";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { decrypt } from "./encryption";
-import { routeToProvider, type ProviderType } from "./providers";
+import { type ProviderType } from "./providers";
+import { resolveModel } from "./ai/catalog";
 
 export interface ToolDefinitionForLlm {
   name: string;
@@ -63,13 +64,13 @@ export type LlmStreamChunk =
   | { type: "error"; error: string };
 
 export class ProviderNotConfiguredError extends Error {
-  constructor(public provider: ProviderType) {
-    super(`Provider ${provider} is not configured`);
+  constructor(public provider: string) {
+    super(`El proveedor "${provider}" no está conectado. Agregá su API key en Ajustes.`);
     this.name = "ProviderNotConfiguredError";
   }
 }
 
-async function getProviderKey(workspaceId: string, provider: ProviderType) {
+async function getProviderKey(workspaceId: string, provider: string) {
   const db = getDb();
   const rows = await db
     .select()
@@ -87,15 +88,25 @@ async function getProviderKey(workspaceId: string, provider: ProviderType) {
 }
 
 export async function llmCall(p: LlmCallParams): Promise<LlmCallResult> {
-  const provider = routeToProvider(p.model);
-  if (!provider) throw new Error(`Unknown model: ${p.model}`);
-  const { apiKey, endpoint } = await getProviderKey(p.workspaceId, provider);
+  const resolved = resolveModel(p.model);
+  if (!resolved || resolved.capability !== "chat")
+    throw new Error(`No reconozco el modelo de chat "${p.model}".`);
+  const { apiKey, endpoint } = await getProviderKey(p.workspaceId, resolved.provider.id);
+  const params = { ...p, model: resolved.model };
 
-  if (provider === "anthropic") return callAnthropic(p, apiKey);
-  if (provider === "openai") return callOpenAI(p, apiKey);
-  if (provider === "google") return callGoogle(p, apiKey);
-  if (provider === "azure_openai") return callAzure(p, apiKey, endpoint);
-  throw new Error(`Provider ${provider} not implemented`);
+  if (resolved.provider.id === "azure_openai") return callAzure(params, apiKey, endpoint);
+  switch (resolved.provider.family) {
+    case "anthropic":
+      return callAnthropic(params, apiKey);
+    case "gemini":
+      return callGoogle(params, apiKey);
+    case "openai-compatible": {
+      const baseURL = (endpoint?.replace(/\/$/, "") || resolved.provider.baseURL)!;
+      return callOpenAICompatible(params, apiKey, baseURL);
+    }
+    default:
+      throw new Error(`${resolved.provider.name} todavía no soporta chat.`);
+  }
 }
 
 async function callAnthropic(p: LlmCallParams, apiKey: string): Promise<LlmCallResult> {
@@ -181,28 +192,80 @@ async function callAnthropic(p: LlmCallParams, apiKey: string): Promise<LlmCallR
   return result;
 }
 
-async function callOpenAI(p: LlmCallParams, apiKey: string): Promise<LlmCallResult> {
-  // Strip non-text fields for OpenAI (tool-calling not supported in this iteration)
-  const messages = p.messages
-    .filter((m) => m.role !== "tool")
-    .map((m) => ({ role: m.role as "user" | "assistant" | "system", content: m.content }));
-  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+/** Encode our ChatMessage[] into OpenAI Chat Completions format (with tools). */
+function toOpenAIMessages(p: LlmCallParams) {
+  const out: Array<Record<string, unknown>> = [{ role: "system", content: p.systemPrompt }];
+  for (const m of p.messages) {
+    if (m.role === "tool") {
+      for (const tr of m.toolResults ?? []) {
+        out.push({
+          role: "tool",
+          tool_call_id: tr.id,
+          content: tr.error ? `Error: ${tr.error}` : typeof tr.output === "string" ? tr.output : JSON.stringify(tr.output ?? null),
+        });
+      }
+      continue;
+    }
+    if (m.role === "assistant" && m.toolCalls && m.toolCalls.length > 0) {
+      out.push({
+        role: "assistant",
+        content: m.content || null,
+        tool_calls: m.toolCalls.map((tc) => ({
+          id: tc.id,
+          type: "function",
+          function: { name: tc.name, arguments: JSON.stringify(tc.input ?? {}) },
+        })),
+      });
+      continue;
+    }
+    out.push({ role: m.role, content: m.content });
+  }
+  return out;
+}
+
+function toOpenAITools(tools?: ToolDefinitionForLlm[]) {
+  if (!tools || tools.length === 0) return undefined;
+  return tools.map((t) => ({
+    type: "function" as const,
+    function: { name: t.name, description: t.description, parameters: t.inputSchema },
+  }));
+}
+
+async function callOpenAICompatible(
+  p: LlmCallParams,
+  apiKey: string,
+  baseURL: string
+): Promise<LlmCallResult> {
+  const body: Record<string, unknown> = {
+    model: p.model,
+    messages: toOpenAIMessages(p),
+    temperature: p.temperature ?? 0.7,
+    max_tokens: p.maxTokens ?? 1024,
+  };
+  const tools = toOpenAITools(p.tools);
+  if (tools) body.tools = tools;
+  const r = await fetch(`${baseURL}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-    body: JSON.stringify({
-      model: p.model,
-      messages: [{ role: "system", content: p.systemPrompt }, ...messages],
-      temperature: p.temperature ?? 0.7,
-      max_tokens: p.maxTokens ?? 1024,
-    }),
+    body: JSON.stringify(body),
   });
-  if (!r.ok) throw new Error(`OpenAI ${r.status}: ${await r.text()}`);
+  if (!r.ok) throw new Error(`Proveedor de chat ${r.status}: ${await r.text()}`);
   const j = await r.json();
-  return {
-    content: j.choices?.[0]?.message?.content ?? "",
+  const msg = j.choices?.[0]?.message ?? {};
+  const toolCalls: ToolUseBlock[] = (msg.tool_calls ?? []).map(
+    (tc: { id: string; function: { name: string; arguments: string } }) => ({
+      id: tc.id,
+      name: tc.function?.name ?? "",
+      input: safeJsonParse(tc.function?.arguments ?? "{}") ?? {},
+    })
+  );
+  const result: LlmCallResult = {
+    content: msg.content ?? "",
     tokensUsed: j.usage?.total_tokens ?? 0,
     model: p.model,
   };
+  if (toolCalls.length > 0) result.toolCalls = toolCalls;
+  return result;
 }
 
 async function callGoogle(p: LlmCallParams, apiKey: string): Promise<LlmCallResult> {
@@ -281,22 +344,23 @@ async function callAzure(
  *   }
  */
 export async function* llmStream(p: LlmCallParams): AsyncGenerator<LlmStreamChunk> {
-  const provider = routeToProvider(p.model);
-  if (!provider) {
-    yield { type: "error", error: `Unknown model: ${p.model}` };
+  const resolved = resolveModel(p.model);
+  if (!resolved || resolved.capability !== "chat") {
+    yield { type: "error", error: `No reconozco el modelo de chat "${p.model}".` };
     return;
   }
-  const { apiKey } = await getProviderKey(p.workspaceId, provider);
+  const { apiKey } = await getProviderKey(p.workspaceId, resolved.provider.id);
+  const params = { ...p, model: resolved.model };
 
-  if (provider === "anthropic") {
-    yield* streamAnthropic(p, apiKey);
+  if (resolved.provider.id !== "azure_openai" && resolved.provider.family === "anthropic") {
+    yield* streamAnthropic(params, apiKey);
     return;
   }
-  if (provider === "openai") {
-    yield* streamOpenAI(p, apiKey);
+  if (resolved.provider.id !== "azure_openai" && resolved.provider.family === "openai-compatible") {
+    yield* streamOpenAI(params, apiKey, resolved.provider.baseURL!);
     return;
   }
-  // Google / Azure → fallback blocking, emit como un solo chunk al final.
+  // Gemini / Azure → fallback blocking, un solo chunk al final.
   try {
     const result = await llmCall(p);
     if (result.content) yield { type: "text", delta: result.content };
@@ -445,44 +509,52 @@ async function* streamAnthropic(
 
 async function* streamOpenAI(
   p: LlmCallParams,
-  apiKey: string
+  apiKey: string,
+  baseURL: string
 ): AsyncGenerator<LlmStreamChunk> {
-  const messages = p.messages
-    .filter((m) => m.role !== "tool")
-    .map((m) => ({ role: m.role as "user" | "assistant" | "system", content: m.content }));
+  const body: Record<string, unknown> = {
+    model: p.model,
+    messages: toOpenAIMessages(p),
+    temperature: p.temperature ?? 0.7,
+    max_tokens: p.maxTokens ?? 1024,
+    stream: true,
+    stream_options: { include_usage: true },
+  };
+  const tools = toOpenAITools(p.tools);
+  if (tools) body.tools = tools;
 
-  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+  const r = await fetch(`${baseURL}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-    body: JSON.stringify({
-      model: p.model,
-      messages: [{ role: "system", content: p.systemPrompt }, ...messages],
-      temperature: p.temperature ?? 0.7,
-      max_tokens: p.maxTokens ?? 1024,
-      stream: true,
-      stream_options: { include_usage: true },
-    }),
+    body: JSON.stringify(body),
   });
   if (!r.ok || !r.body) {
     const txt = await r.text().catch(() => "");
-    yield { type: "error", error: `OpenAI ${r.status}: ${txt}` };
+    yield { type: "error", error: `Proveedor de chat ${r.status}: ${txt}` };
     return;
   }
 
   let totalTokens = 0;
+  // Acumula tool_calls que llegan en deltas (por índice).
+  const toolByIndex: Record<number, { id: string; name: string; args: string }> = {};
   for await (const ev of parseSSE(r.body)) {
-    if (ev.data === "[DONE]") {
-      yield { type: "done", tokensUsed: totalTokens, model: p.model };
-      return;
-    }
+    if (ev.data === "[DONE]") break;
     const data = safeJsonParse(ev.data);
     const delta = data?.choices?.[0]?.delta;
     if (typeof delta?.content === "string" && delta.content) {
       yield { type: "text", delta: delta.content };
     }
-    if (data?.usage?.total_tokens) {
-      totalTokens = data.usage.total_tokens;
+    for (const tc of delta?.tool_calls ?? []) {
+      const idx = tc.index ?? 0;
+      const cur = (toolByIndex[idx] ??= { id: "", name: "", args: "" });
+      if (tc.id) cur.id = tc.id;
+      if (tc.function?.name) cur.name = tc.function.name;
+      if (tc.function?.arguments) cur.args += tc.function.arguments;
     }
+    if (data?.usage?.total_tokens) totalTokens = data.usage.total_tokens;
+  }
+  for (const t of Object.values(toolByIndex)) {
+    if (t.name) yield { type: "toolCall", toolCall: { id: t.id, name: t.name, input: safeJsonParse(t.args || "{}") ?? {} } };
   }
   yield { type: "done", tokensUsed: totalTokens, model: p.model };
 }
