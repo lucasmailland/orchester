@@ -404,11 +404,22 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     }
   }
 
+  // Mapa de avisos de validación por nodo (para el badge ⚠️ sobre cada paso).
+  const issuesByNode: Record<string, string[]> = {};
+  for (const iss of validateFlow(
+    nodes.map((n) => ({ id: n.id, type: n.type, data: n.data as { nodeId?: string; label?: string; config?: Record<string, unknown> } })),
+    edges.map((e) => ({ id: e.id, source: e.source, target: e.target, ...(e.sourceHandle ? { sourceHandle: e.sourceHandle } : {}) })),
+    LOCALE
+  )) {
+    if (iss.nodeId) (issuesByNode[iss.nodeId] ??= []).push(iss.message);
+  }
+
   const displayNodes = nodes.map((n) => {
     const st = runStatus[n.id];
-    if (!st) return n;
-    const cls = st === "succeeded" ? "flow-node-ok" : st === "failed" ? "flow-node-fail" : "flow-node-running";
-    return { ...n, className: cls };
+    const badge = issuesByNode[n.id]?.join("\n") ?? null;
+    const cls = st === "succeeded" ? "flow-node-ok" : st === "failed" ? "flow-node-fail" : st === "running" ? "flow-node-running" : undefined;
+    if (!cls && !badge) return n;
+    return { ...n, ...(cls ? { className: cls } : {}), data: { ...n.data, badge } };
   });
 
   return (
