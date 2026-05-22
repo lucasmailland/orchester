@@ -27,7 +27,12 @@ import { InspectorForm } from "./inspector/InspectorForm";
 import { NodePalette } from "./NodePalette";
 import { CopilotPanel } from "./CopilotPanel";
 import { getNodeDef, type Locale } from "@/lib/flows/node-registry";
-import { Save, Play, Loader2, History, ArrowLeft, Variable, X, Sparkles } from "lucide-react";
+import { autoLayout } from "@/lib/flows/layout";
+import { validateFlow, type ValidationIssue } from "@/lib/flows/validate";
+import {
+  Save, Play, Loader2, History, ArrowLeft, Variable, X, Sparkles,
+  Undo2, Redo2, LayoutGrid, ShieldCheck,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
@@ -115,6 +120,45 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const [runStatus, setRunStatus] = useState<Record<string, "running" | "succeeded" | "failed">>({});
   const [runLog, setRunLog] = useState<Array<{ nodeId: string; status: "running" | "succeeded" | "failed"; error?: string }>>([]);
   const [runInspectorOpen, setRunInspectorOpen] = useState(false);
+  const [validationOpen, setValidationOpen] = useState(false);
+  const historyRef = useRef<{ past: Array<{ nodes: Node[]; edges: Edge[] }>; future: Array<{ nodes: Node[]; edges: Edge[] }> }>({ past: [], future: [] });
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  function pushHistory() {
+    const h = historyRef.current;
+    h.past.push({ nodes, edges });
+    if (h.past.length > 50) h.past.shift();
+    h.future = [];
+    setCanUndo(true);
+    setCanRedo(false);
+  }
+  function undo() {
+    const h = historyRef.current;
+    const prev = h.past.pop();
+    if (!prev) return;
+    h.future.push({ nodes, edges });
+    setNodes(prev.nodes);
+    setEdges(prev.edges);
+    setSelected(null);
+    setCanUndo(h.past.length > 0);
+    setCanRedo(true);
+  }
+  function redo() {
+    const h = historyRef.current;
+    const next = h.future.pop();
+    if (!next) return;
+    h.past.push({ nodes, edges });
+    setNodes(next.nodes);
+    setEdges(next.edges);
+    setSelected(null);
+    setCanUndo(true);
+    setCanRedo(h.future.length > 0);
+  }
+  function runAutoLayout() {
+    pushHistory();
+    setNodes((nds) => autoLayout(nds, edges.map((e) => ({ source: e.source, target: e.target }))));
+  }
   const [feedback, setFeedback] = useState<string | null>(null);
   const [runModalOpen, setRunModalOpen] = useState(false);
   const [runInputDraft, setRunInputDraft] = useState("{\n  \n}");
@@ -140,6 +184,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   function addNode(nodeId: string) {
     const def = getNodeDef(nodeId);
     if (!def) return;
+    pushHistory();
     const id = createId();
     const config = { ...(def.defaults ?? {}), ...(def.fixedConfig ?? {}) };
     setNodes((nds) => [
@@ -210,6 +255,23 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, edges, variables]);
+
+  // Atajos de teclado: Cmd/Ctrl+Z deshacer, Cmd/Ctrl+Shift+Z rehacer.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      const typing = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+      if (typing) return;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, edges]);
 
   function openRunModal() {
     // Pre-llená el input con las variables actuales del flow para que el operador
@@ -343,6 +405,40 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             )}
             <button
               type="button"
+              onClick={undo}
+              disabled={!canUndo}
+              className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover disabled:opacity-30"
+              title="Deshacer (Cmd/Ctrl+Z)"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={redo}
+              disabled={!canRedo}
+              className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover disabled:opacity-30"
+              title="Rehacer (Cmd/Ctrl+Shift+Z)"
+            >
+              <Redo2 className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={runAutoLayout}
+              className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover"
+              title="Ordenar los pasos automáticamente"
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setValidationOpen((o) => !o)}
+              className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover"
+              title="Revisar el flujo"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
               onClick={() => setCopilotOpen((o) => !o)}
               className={
                 copilotOpen
@@ -435,6 +531,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
                 setSelected(updated);
               }}
               onDelete={(id) => {
+                pushHistory();
                 setNodes((nds) => nds.filter((n) => n.id !== id));
                 setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
                 setSelected(null);
@@ -447,6 +544,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             onClose={() => setCopilotOpen(false)}
             describeFlow={() => describeGraph(nodes, edges)}
             onApplyGraph={(newNodes, newEdges) => {
+              pushHistory();
               setNodes(newNodes);
               setEdges(newEdges);
               setSelected(null);
@@ -458,6 +556,17 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               running={running}
               nodes={nodes}
               onClose={() => setRunInspectorOpen(false)}
+            />
+          )}
+          {validationOpen && (
+            <ValidationPanel
+              nodes={nodes}
+              edges={edges}
+              onClose={() => setValidationOpen(false)}
+              onSelect={(id) => {
+                const n = nodes.find((x) => x.id === id);
+                if (n) setSelected(n);
+              }}
             />
           )}
           <FlowRunsPanel
@@ -567,6 +676,66 @@ function EmptyCanvasGuide({ onAdd }: { onAdd: (nodeId: string) => void }) {
             </button>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Panel de revisión: lista los problemas del flujo en lenguaje simple. */
+function ValidationPanel({
+  nodes,
+  edges,
+  onClose,
+  onSelect,
+}: {
+  nodes: Node[];
+  edges: Edge[];
+  onClose: () => void;
+  onSelect: (id: string) => void;
+}) {
+  const issues: ValidationIssue[] = validateFlow(
+    nodes.map((n) => ({ id: n.id, type: n.type, data: n.data as { nodeId?: string; label?: string; config?: Record<string, unknown> } })),
+    edges.map((e) => ({ id: e.id, source: e.source, target: e.target, ...(e.sourceHandle ? { sourceHandle: e.sourceHandle } : {}) })),
+    LOCALE
+  );
+  const errors = issues.filter((i) => i.level === "error");
+  const warnings = issues.filter((i) => i.level === "warning");
+  return (
+    <div className="flex w-80 shrink-0 flex-col border-l border-line bg-surface">
+      <div className="flex items-center justify-between border-b border-line px-4 py-3">
+        <span className="flex items-center gap-2 text-sm font-medium text-strong">
+          <ShieldCheck className="h-4 w-4" /> Revisión del flujo
+        </span>
+        <button type="button" onClick={onClose} aria-label="Cerrar" className="text-muted hover:text-body">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="flex-1 space-y-2 overflow-y-auto p-3 text-xs">
+        {issues.length === 0 && (
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-emerald-600 dark:text-emerald-400">
+            ✅ Todo en orden. El flujo está listo para ejecutarse.
+          </div>
+        )}
+        {errors.map((iss, i) => (
+          <button
+            key={`e${i}`}
+            type="button"
+            onClick={() => iss.nodeId && onSelect(iss.nodeId)}
+            className="block w-full rounded-lg border border-red-500/30 bg-red-500/5 p-2.5 text-left text-red-600 dark:text-red-400 hover:bg-red-500/10"
+          >
+            ⛔ {iss.message}
+          </button>
+        ))}
+        {warnings.map((iss, i) => (
+          <button
+            key={`w${i}`}
+            type="button"
+            onClick={() => iss.nodeId && onSelect(iss.nodeId)}
+            className="block w-full rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5 text-left text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+          >
+            ⚠️ {iss.message}
+          </button>
+        ))}
       </div>
     </div>
   );
