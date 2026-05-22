@@ -126,12 +126,12 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
   return (
     <>
       <div className="flex h-screen flex-col bg-black">
-        <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-3">
+        <div className="flex items-center justify-between border-b border-line px-6 py-3">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => router.back()}
-              className="text-zinc-400 hover:text-zinc-100"
+              className="text-muted hover:text-strong"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
@@ -151,13 +151,13 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="bg-transparent text-sm font-medium text-zinc-100 outline-none focus:underline"
+              className="bg-transparent text-sm font-medium text-strong outline-none focus:underline"
             />
-            <span className="text-zinc-600">·</span>
+            <span className="text-faint">·</span>
             <input
               value={role}
               onChange={(e) => setRole(e.target.value)}
-              className="bg-transparent text-xs text-zinc-400 outline-none focus:underline"
+              className="bg-transparent text-xs text-muted outline-none focus:underline"
             />
             <span
               className={
@@ -183,7 +183,7 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
         </div>
 
         <div className="flex flex-1 overflow-hidden">
-          <div className="flex w-[60%] flex-col gap-3 overflow-y-auto border-r border-white/[0.06] p-4">
+          <div className="flex w-[60%] flex-col gap-3 overflow-y-auto border-r border-line p-4">
             <div className="flex gap-1.5">
               {(["config", "advanced", "versions"] as const).map((t) => (
                 <button
@@ -192,8 +192,8 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
                   onClick={() => setTab(t)}
                   className={
                     tab === t
-                      ? "rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-zinc-100"
-                      : "rounded-lg px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-300"
+                      ? "rounded-lg bg-elevated px-3 py-1.5 text-xs text-strong"
+                      : "rounded-lg px-3 py-1.5 text-xs text-muted hover:text-body"
                   }
                 >
                   {t === "config" ? "Prompt + Modelo" : t === "advanced" ? "Avanzado" : "Versiones"}
@@ -209,7 +209,7 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
                       <WorkflowIcon className="h-4 w-4" />
                       <span className="font-medium">Agente driven by flow</span>
                     </div>
-                    <p className="text-xs text-zinc-400">
+                    <p className="text-xs text-muted">
                       Este agente no usa prompt. Cada mensaje ejecuta el flujo seleccionado en la
                       pestaña <strong>Avanzado</strong>.
                     </p>
@@ -238,13 +238,13 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
                     </div>
                     <div className="grid gap-3 sm:grid-cols-3">
                       <div>
-                        <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-zinc-500">
+                        <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
                           Modelo
                         </label>
                         <ModelPicker value={model} onChange={setModel} />
                       </div>
                       <div>
-                        <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-zinc-500">
+                        <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
                           Temperature: {temperature.toFixed(2)}
                         </label>
                         <input
@@ -258,7 +258,7 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
                         />
                       </div>
                       <div>
-                        <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-zinc-500">
+                        <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
                           Max tokens
                         </label>
                         <input
@@ -268,7 +268,7 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
                             setMaxTokens(e.target.value ? Number(e.target.value) : undefined)
                           }
                           placeholder="default"
-                          className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2.5 py-2 text-sm text-zinc-100 outline-none focus:border-violet-500/60"
+                          className="w-full rounded-lg border border-line bg-elevated px-2.5 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
                         />
                       </div>
                     </div>

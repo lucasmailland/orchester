@@ -85,13 +85,13 @@ export function AgentConfigPanel({ value, onChange }: Props) {
         </div>
         {value.kind === "flow" && (
           <div className="mt-3">
-            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-zinc-500">
+            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
               Flujo a ejecutar
             </label>
             <select
               value={value.flowId ?? ""}
               onChange={(e) => onChange({ flowId: e.target.value || null })}
-              className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-violet-500/60"
+              className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
             >
               <option value="">— elegir —</option>
               {flows.map((f) => (
@@ -116,12 +116,12 @@ export function AgentConfigPanel({ value, onChange }: Props) {
           subtitle="El agente puede llamarlas durante la conversación"
         >
           {tools.length === 0 ? (
-            <div className="text-xs text-zinc-500">Cargando…</div>
+            <div className="text-xs text-muted">Cargando…</div>
           ) : (
             <div className="space-y-3">
               {Object.entries(toolsByCategory).map(([cat, list]) => (
                 <div key={cat}>
-                  <div className="mb-1.5 text-[10px] uppercase tracking-wider text-zinc-500">
+                  <div className="mb-1.5 text-[10px] uppercase tracking-wider text-muted">
                     {cat}
                   </div>
                   <div className="grid grid-cols-2 gap-1.5">
@@ -141,14 +141,14 @@ export function AgentConfigPanel({ value, onChange }: Props) {
                           className={cn(
                             "flex items-start gap-2 rounded-lg border px-2.5 py-2 text-left text-xs transition",
                             enabled
-                              ? "border-violet-500/40 bg-violet-500/10 text-zinc-100"
-                              : "border-white/[0.08] bg-zinc-900/30 text-zinc-400 hover:bg-zinc-800/40"
+                              ? "border-violet-500/40 bg-violet-500/10 text-strong"
+                              : "border-line bg-card text-muted hover:bg-elevated"
                           )}
                         >
                           <span className="text-base leading-none">{t.emoji}</span>
                           <span className="min-w-0 flex-1">
                             <span className="block font-medium">{t.label}</span>
-                            <span className="line-clamp-2 text-[10px] text-zinc-500">
+                            <span className="line-clamp-2 text-[10px] text-muted">
                               {t.description}
                             </span>
                           </span>
@@ -176,7 +176,7 @@ export function AgentConfigPanel({ value, onChange }: Props) {
       <Section title="Branding" subtitle="Personalidad visual del agente">
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-zinc-500">
+            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
               Color
             </label>
             <div className="flex flex-wrap gap-1.5">
@@ -197,14 +197,14 @@ export function AgentConfigPanel({ value, onChange }: Props) {
             </div>
           </div>
           <div>
-            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-zinc-500">
+            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
               URL del avatar
             </label>
             <input
               value={value.avatarUrl}
               onChange={(e) => onChange({ avatarUrl: e.target.value })}
               placeholder="https://…"
-              className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2.5 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-violet-500/60"
+              className="w-full rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-xs text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
             />
           </div>
         </div>
@@ -214,29 +214,29 @@ export function AgentConfigPanel({ value, onChange }: Props) {
       <Section title="Conversación" subtitle="Cómo arranca y termina cada chat">
         <div className="space-y-3">
           <div>
-            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-zinc-500">
+            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
               Saludo inicial
             </label>
             <input
               value={value.greeting}
               onChange={(e) => onChange({ greeting: e.target.value })}
               placeholder="¡Hola! ¿En qué puedo ayudarte hoy?"
-              className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2.5 py-1.5 text-sm text-zinc-100 placeholder-zinc-600 outline-none focus:border-violet-500/60"
+              className="w-full rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-sm text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-zinc-500">
+            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
               Mensaje de fallback
             </label>
             <input
               value={value.fallback}
               onChange={(e) => onChange({ fallback: e.target.value })}
               placeholder="No pude entenderte, ¿podés reformular?"
-              className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2.5 py-1.5 text-sm text-zinc-100 placeholder-zinc-600 outline-none focus:border-violet-500/60"
+              className="w-full rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-sm text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
             />
           </div>
           <div>
-            <div className="mb-1.5 flex items-center justify-between text-[11px] uppercase tracking-wider text-zinc-500">
+            <div className="mb-1.5 flex items-center justify-between text-[11px] uppercase tracking-wider text-muted">
               <span id="starters-label">Sugerencias iniciales (botones que el usuario puede tocar)</span>
               <button
                 type="button"
@@ -259,25 +259,25 @@ export function AgentConfigPanel({ value, onChange }: Props) {
                       onChange({ starters: next });
                     }}
                     placeholder="¿Cómo me suscribo?"
-                    className="flex-1 rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2.5 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-violet-500/60"
+                    className="flex-1 rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-xs text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
                   />
                   <button
                     type="button"
                     aria-label={`Eliminar sugerencia ${i + 1}`}
                     onClick={() => onChange({ starters: value.starters.filter((_, j) => j !== i) })}
-                    className="text-zinc-500 hover:text-red-400"
+                    className="text-muted hover:text-red-400"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
               ))}
               {value.starters.length === 0 && (
-                <p className="text-[10px] text-zinc-600">Sin sugerencias</p>
+                <p className="text-[10px] text-faint">Sin sugerencias</p>
               )}
             </div>
           </div>
           <div>
-            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-zinc-500">
+            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
               Máximo de turnos (corta el chat tras N intercambios)
             </label>
             <input
@@ -286,7 +286,7 @@ export function AgentConfigPanel({ value, onChange }: Props) {
               max={100}
               value={value.maxTurns}
               onChange={(e) => onChange({ maxTurns: Number(e.target.value) || 20 })}
-              className="w-32 rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2.5 py-1.5 text-sm text-zinc-100 outline-none focus:border-violet-500/60"
+              className="w-32 rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-sm text-strong outline-none focus:border-violet-500/60"
             />
           </div>
         </div>
@@ -304,7 +304,7 @@ export function AgentConfigPanel({ value, onChange }: Props) {
                 "rounded-lg border px-3 py-2 text-xs font-medium transition",
                 value.responseFormat === rf
                   ? "border-violet-500/40 bg-violet-500/15 text-violet-200"
-                  : "border-white/[0.08] text-zinc-400 hover:border-white/20"
+                  : "border-line text-muted hover:border-white/20"
               )}
             >
               {rf === "text" ? "Texto plano" : rf === "json" ? "JSON estructurado" : "Markdown"}
@@ -313,7 +313,7 @@ export function AgentConfigPanel({ value, onChange }: Props) {
         </div>
         {value.responseFormat === "json" && (
           <div className="mt-3">
-            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-zinc-500">
+            <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
               JSON Schema (opcional)
             </label>
             <textarea
@@ -321,7 +321,7 @@ export function AgentConfigPanel({ value, onChange }: Props) {
               onChange={(e) => onChange({ outputSchema: e.target.value })}
               rows={4}
               placeholder='{ "type": "object", "properties": { "score": { "type": "number" } } }'
-              className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2.5 py-1.5 font-mono text-[11px] text-zinc-100 placeholder-zinc-600 outline-none focus:border-violet-500/60"
+              className="w-full rounded-lg border border-line bg-elevated px-2.5 py-1.5 font-mono text-[11px] text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
             />
           </div>
         )}
@@ -340,12 +340,12 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-zinc-900/30 p-4">
+    <div className="rounded-2xl border border-line bg-card p-4">
       <div className="mb-3 flex items-center gap-2">
         <Sparkles className="h-3.5 w-3.5 text-violet-400" />
-        <span className="text-sm font-semibold text-zinc-100">{title}</span>
+        <span className="text-sm font-semibold text-strong">{title}</span>
       </div>
-      {subtitle && <p className="-mt-2 mb-3 text-[11px] text-zinc-500">{subtitle}</p>}
+      {subtitle && <p className="-mt-2 mb-3 text-[11px] text-muted">{subtitle}</p>}
       {children}
     </div>
   );
@@ -372,14 +372,14 @@ function KindCard({
         "rounded-xl border p-3 text-left transition",
         active
           ? "border-violet-500/40 bg-violet-500/10"
-          : "border-white/[0.08] bg-zinc-900/30 hover:border-white/20"
+          : "border-line bg-card hover:border-white/20"
       )}
     >
-      <div className="mb-1.5 flex items-center gap-2 text-zinc-100">
+      <div className="mb-1.5 flex items-center gap-2 text-strong">
         {icon}
         <span className="text-sm font-medium">{title}</span>
       </div>
-      <p className="text-[11px] text-zinc-500">{desc}</p>
+      <p className="text-[11px] text-muted">{desc}</p>
     </button>
   );
 }
@@ -405,14 +405,14 @@ function VariablesEditor({
               onChange(next);
             }}
             placeholder="nombre"
-            className="w-1/3 rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2.5 py-1.5 font-mono text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-violet-500/60"
+            className="w-1/3 rounded-lg border border-line bg-elevated px-2.5 py-1.5 font-mono text-xs text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
           />
-          <span className="text-zinc-600">=</span>
+          <span className="text-faint">=</span>
           <input
             value={v}
             onChange={(e) => onChange({ ...value, [k]: e.target.value })}
             placeholder="valor"
-            className="flex-1 rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2.5 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-violet-500/60"
+            className="flex-1 rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-xs text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
           />
           <button
             type="button"
@@ -421,7 +421,7 @@ function VariablesEditor({
               delete next[k];
               onChange(next);
             }}
-            className="text-zinc-500 hover:text-red-400"
+            className="text-muted hover:text-red-400"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>

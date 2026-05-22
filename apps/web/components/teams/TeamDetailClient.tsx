@@ -22,7 +22,7 @@ const STATUS_DOT: Record<string, string> = {
 
 const STATUS_LABEL: Record<string, string> = {
   active: "text-emerald-400",
-  inactive: "text-zinc-500",
+  inactive: "text-muted",
   draft: "text-amber-400",
 };
 
@@ -124,7 +124,7 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
       {/* Back */}
       <Link
         href=".."
-        className="inline-flex items-center gap-1.5 text-sm text-zinc-500 transition-colors hover:text-zinc-300"
+        className="inline-flex items-center gap-1.5 text-sm text-muted transition-colors hover:text-body"
       >
         <ArrowLeft size={14} />
         {labels.back}
@@ -135,7 +135,7 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: APPLE_EASE }}
-        className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03]"
+        className="relative overflow-hidden rounded-2xl border border-line bg-card"
       >
         <div
           className="h-[2px] w-full"
@@ -150,18 +150,18 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
               {initials}
             </div>
             <div>
-              <h1 className="font-display text-xl font-bold text-zinc-100">{team.name}</h1>
+              <h1 className="font-display text-xl font-bold text-strong">{team.name}</h1>
               {team.description && (
-                <p className="mt-1 max-w-xl text-sm leading-relaxed text-zinc-500">{team.description}</p>
+                <p className="mt-1 max-w-xl text-sm leading-relaxed text-muted">{team.description}</p>
               )}
               <div className="mt-2 flex items-center gap-4">
-                <span className="flex items-center gap-1.5 text-xs text-zinc-500">
-                  <Bot size={12} className="text-zinc-600" />
-                  <span className="font-semibold text-zinc-300">{agents.length}</span> {labels.agents}
+                <span className="flex items-center gap-1.5 text-xs text-muted">
+                  <Bot size={12} className="text-faint" />
+                  <span className="font-semibold text-body">{agents.length}</span> {labels.agents}
                 </span>
-                <span className="flex items-center gap-1.5 text-xs text-zinc-500">
-                  <Radio size={12} className="text-zinc-600" />
-                  <span className="font-semibold text-zinc-300">{channels.length}</span> canales
+                <span className="flex items-center gap-1.5 text-xs text-muted">
+                  <Radio size={12} className="text-faint" />
+                  <span className="font-semibold text-body">{channels.length}</span> canales
                 </span>
               </div>
             </div>
@@ -170,7 +170,7 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
           <div className="flex items-center gap-2">
             <button
               onClick={() => setEditTeamOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl border border-white/[0.08] px-3 py-2 text-xs text-zinc-400 transition-colors hover:bg-white/[0.05] hover:text-zinc-200"
+              className="flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-xs text-muted transition-colors hover:bg-white/[0.05] hover:text-body"
             >
               <Pencil size={13} />
               {labels.editTeam}
@@ -191,12 +191,12 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
         {/* Agents — spans 2 cols */}
         <div className="lg:col-span-2 space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-500">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-muted">
               Agentes del equipo
             </h2>
             <Link
               href={`/${labels.locale}/agents`}
-              className="flex items-center gap-1 text-[11px] text-zinc-600 transition-colors hover:text-violet-400"
+              className="flex items-center gap-1 text-[11px] text-faint transition-colors hover:text-violet-400"
             >
               Gestionar agentes
               <ExternalLink size={10} />
@@ -204,9 +204,9 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
           </div>
 
           {agents.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-white/[0.08] py-10 text-center">
+            <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-line py-10 text-center">
               <Bot size={20} className="text-zinc-700" />
-              <p className="text-xs text-zinc-600">Este equipo no tiene agentes.</p>
+              <p className="text-xs text-faint">Este equipo no tiene agentes.</p>
               <Link
                 href={`/${labels.locale}/agents`}
                 className="rounded-lg bg-violet-600/20 px-3 py-1.5 text-xs font-medium text-violet-400 hover:bg-violet-600/30"
@@ -220,7 +220,7 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
                 <motion.div
                   key={agent.id}
                   variants={staggerItem}
-                  className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3"
+                  className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-card px-4 py-3"
                 >
                   {/* Status indicator */}
                   <span className="relative flex h-2 w-2 shrink-0">
@@ -231,15 +231,15 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
                   </span>
 
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-zinc-100">{agent.name}</p>
-                    <p className="truncate text-xs text-zinc-600">{agent.role}</p>
+                    <p className="truncate text-sm font-semibold text-strong">{agent.name}</p>
+                    <p className="truncate text-xs text-faint">{agent.role}</p>
                   </div>
 
                   <div className="flex shrink-0 items-center gap-2">
-                    <span className="rounded border border-zinc-700/50 bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">
+                    <span className="rounded border border-zinc-700/50 bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-muted">
                       {MODEL_SHORT[agent.model] ?? agent.model}
                     </span>
-                    <span className={cn("text-[10px] font-semibold uppercase tracking-wide", STATUS_LABEL[agent.status] ?? "text-zinc-500")}>
+                    <span className={cn("text-[10px] font-semibold uppercase tracking-wide", STATUS_LABEL[agent.status] ?? "text-muted")}>
                       {agent.status}
                     </span>
                   </div>
@@ -252,12 +252,12 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
         {/* Channels — 1 col */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-500">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-muted">
               Canales conectados
             </h2>
             <Link
               href={`/${labels.locale}/channels`}
-              className="flex items-center gap-1 text-[11px] text-zinc-600 transition-colors hover:text-violet-400"
+              className="flex items-center gap-1 text-[11px] text-faint transition-colors hover:text-violet-400"
             >
               Ver canales
               <ExternalLink size={10} />
@@ -265,9 +265,9 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
           </div>
 
           {channels.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/[0.08] py-8 text-center">
+            <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-line py-8 text-center">
               <Radio size={18} className="text-zinc-700" />
-              <p className="text-xs text-zinc-600">Sin canales activos.</p>
+              <p className="text-xs text-faint">Sin canales activos.</p>
             </div>
           ) : (
             <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="space-y-2">
@@ -278,7 +278,7 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
                   <motion.div
                     key={ch.id}
                     variants={staggerItem}
-                    className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3"
+                    className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-card px-4 py-3"
                   >
                     <div
                       className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
@@ -287,8 +287,8 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
                       {chIcon}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-zinc-200">{ch.name}</p>
-                      <p className="text-[10px] capitalize text-zinc-600">{ch.type}</p>
+                      <p className="truncate text-sm font-medium text-body">{ch.name}</p>
+                      <p className="text-[10px] capitalize text-faint">{ch.type}</p>
                     </div>
                     <span
                       className={cn(

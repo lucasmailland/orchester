@@ -36,10 +36,10 @@ export default async function TeamsPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-zinc-100">
+          <h1 className="font-display text-2xl font-bold tracking-tight text-strong">
             {t("title")}
           </h1>
-          <p className="mt-1 text-sm text-zinc-500">{t("subtitle")}</p>
+          <p className="mt-1 text-sm text-muted">{t("subtitle")}</p>
         </div>
         <TeamsPageClient addTeamLabel={t("addTeam")} formLabels={formLabels} />
       </div>

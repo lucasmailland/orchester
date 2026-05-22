@@ -26,7 +26,7 @@ export default async function ShellLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#09090b]">
+    <div className="flex h-screen overflow-hidden bg-app">
       <Sidebar locale={locale} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar

@@ -54,6 +54,20 @@ const config: Config = {
             foreground: "#FFFFFF",
           },
         },
+        // Tokens semánticos de tema (definidos como CSS vars en globals.css,
+        // cambian entre light :root y .dark). Usar estas clases en vez de
+        // zinc/white literales: bg-app, bg-surface, bg-card, bg-elevated,
+        // border-line, bg-hover, text-strong/base/muted/faint.
+        app: "rgb(var(--app) / <alpha-value>)",
+        surface: "rgb(var(--surface) / <alpha-value>)",
+        card: "rgb(var(--card) / <alpha-value>)",
+        elevated: "rgb(var(--elevated) / <alpha-value>)",
+        line: "rgb(var(--line) / <alpha-value>)",
+        hover: "rgb(var(--hover) / <alpha-value>)",
+        strong: "rgb(var(--text-strong) / <alpha-value>)",
+        body: "rgb(var(--text-base) / <alpha-value>)",
+        muted: "rgb(var(--text-muted) / <alpha-value>)",
+        faint: "rgb(var(--text-faint) / <alpha-value>)",
       },
       borderRadius: {
         sm: "0.375rem",

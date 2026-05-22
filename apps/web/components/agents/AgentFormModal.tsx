@@ -83,8 +83,8 @@ export function AgentFormModal({ open, onClose, teamId, teams, initial, labels }
   }
 
   const inputClass = cn(
-    "w-full rounded-xl border border-white/[0.08] bg-zinc-800/60 px-3.5 py-2.5",
-    "text-sm text-zinc-100 placeholder-zinc-600",
+    "w-full rounded-xl border border-line bg-elevated px-3.5 py-2.5",
+    "text-sm text-strong placeholder:text-faint",
     "outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30",
     "transition-all"
   );
@@ -113,12 +113,12 @@ export function AgentFormModal({ open, onClose, teamId, teams, initial, labels }
             <div className="max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-violet-500/20 bg-zinc-900 shadow-2xl shadow-black/80 ring-1 ring-violet-500/10">
               {/* Header */}
               <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-4">
-                <h2 className="font-display text-base font-bold text-zinc-100">
+                <h2 className="font-display text-base font-bold text-strong">
                   {isEdit ? labels.editTitle : labels.createTitle}
                 </h2>
                 <button
                   onClick={onClose}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-white/[0.07] hover:text-zinc-300"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-hover hover:text-body"
                 >
                   <X size={15} />
                 </button>
@@ -128,7 +128,7 @@ export function AgentFormModal({ open, onClose, teamId, teams, initial, labels }
               <form onSubmit={handleSubmit} className="space-y-5 p-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-400">{labels.nameLabel}</label>
+                    <label className="text-xs font-medium text-muted">{labels.nameLabel}</label>
                     <input
                       value={name}
                       onChange={e => setName(e.target.value)}
@@ -138,7 +138,7 @@ export function AgentFormModal({ open, onClose, teamId, teams, initial, labels }
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-400">{labels.roleLabel}</label>
+                    <label className="text-xs font-medium text-muted">{labels.roleLabel}</label>
                     <input
                       value={role}
                       onChange={e => setRole(e.target.value)}
@@ -150,7 +150,7 @@ export function AgentFormModal({ open, onClose, teamId, teams, initial, labels }
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-400">{labels.promptLabel}</label>
+                  <label className="text-xs font-medium text-muted">{labels.promptLabel}</label>
                   <textarea
                     value={systemPrompt}
                     onChange={e => setSystemPrompt(e.target.value)}
@@ -163,7 +163,7 @@ export function AgentFormModal({ open, onClose, teamId, teams, initial, labels }
 
                 {teams && teams.length > 0 && (
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-400">{labels.teamLabel ?? "Equipo"}</label>
+                    <label className="text-xs font-medium text-muted">{labels.teamLabel ?? "Equipo"}</label>
                     <select
                       value={selectedTeamId}
                       onChange={e => setSelectedTeamId(e.target.value)}
@@ -178,7 +178,7 @@ export function AgentFormModal({ open, onClose, teamId, teams, initial, labels }
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-400">{labels.modelLabel}</label>
+                    <label className="text-xs font-medium text-muted">{labels.modelLabel}</label>
                     <select
                       value={model}
                       onChange={e => setModel(e.target.value)}
@@ -190,7 +190,7 @@ export function AgentFormModal({ open, onClose, teamId, teams, initial, labels }
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-400">{labels.statusLabel}</label>
+                    <label className="text-xs font-medium text-muted">{labels.statusLabel}</label>
                     <select
                       value={status}
                       onChange={e => setStatus(e.target.value)}
@@ -211,7 +211,7 @@ export function AgentFormModal({ open, onClose, teamId, teams, initial, labels }
                   <button
                     type="button"
                     onClick={onClose}
-                    className="rounded-xl border border-white/[0.08] px-4 py-2 text-sm text-zinc-400 transition-colors hover:bg-white/[0.05] hover:text-zinc-200"
+                    className="rounded-xl border border-line px-4 py-2 text-sm text-muted transition-colors hover:bg-white/[0.05] hover:text-body"
                   >
                     {labels.cancel}
                   </button>

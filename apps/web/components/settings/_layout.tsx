@@ -34,18 +34,18 @@ export function SettingsCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.15 }}
       className={cn(
-        "rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5 space-y-4",
+        "rounded-2xl border border-white/[0.07] bg-card p-5 space-y-4",
         className
       )}
     >
       <header className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-white/[0.05] text-zinc-400">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-white/[0.05] text-muted">
             {icon}
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-zinc-100">{title}</h2>
-            {description && <p className="text-xs text-zinc-500">{description}</p>}
+            <h2 className="text-sm font-semibold text-strong">{title}</h2>
+            {description && <p className="text-xs text-muted">{description}</p>}
           </div>
         </div>
         {action}
@@ -72,11 +72,11 @@ export function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={htmlFor} className="text-xs font-medium text-zinc-400">
+      <label htmlFor={htmlFor} className="text-xs font-medium text-muted">
         {label}
       </label>
       {children}
-      {hint && <p className="text-[11px] text-zinc-600">{hint}</p>}
+      {hint && <p className="text-[11px] text-faint">{hint}</p>}
     </div>
   );
 }

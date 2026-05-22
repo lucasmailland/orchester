@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Avatar } from "@heroui/react";
+import { ThemeToggle } from "./ThemeToggle";
 import { LanguageSelector } from "./LanguageSelector";
 import { PresentationModeToggle } from "./PresentationModeToggle";
 import { fadeInDown } from "@/lib/motion";
@@ -33,7 +34,7 @@ export function Topbar({ locale: _locale, userName, userImage }: TopbarProps) {
       animate="visible"
       className={cn(
         "flex h-14 shrink-0 items-center justify-between px-5",
-        "border-b border-white/[0.06] bg-zinc-950/80 backdrop-blur-md"
+        "border-b border-line bg-surface/80 backdrop-blur-md"
       )}
     >
       {/* Left: live indicator */}
@@ -43,7 +44,7 @@ export function Topbar({ locale: _locale, userName, userImage }: TopbarProps) {
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
           </span>
-          <span className="text-[11px] font-medium uppercase tracking-wider text-zinc-600">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-faint">
             Live
           </span>
         </div>
@@ -63,9 +64,10 @@ export function Topbar({ locale: _locale, userName, userImage }: TopbarProps) {
       {/* Right: controls */}
       <div className="flex items-center gap-1">
         <PresentationModeToggle />
+        <ThemeToggle />
         <LanguageSelector />
 
-        <div className="ml-2 h-5 w-px bg-white/[0.08]" />
+        <div className="ml-2 h-5 w-px bg-line" />
 
         <div className="ml-2 cursor-pointer">
           <Avatar

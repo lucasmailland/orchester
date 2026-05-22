@@ -27,7 +27,7 @@ const ROLE_BADGE: Record<Member["role"], string> = {
   owner: "border-violet-500/40 bg-violet-500/10 text-violet-200",
   admin: "border-blue-500/40 bg-blue-500/10 text-blue-200",
   editor: "border-emerald-500/40 bg-emerald-500/10 text-emerald-200",
-  viewer: "border-zinc-500/40 bg-zinc-500/10 text-zinc-300",
+  viewer: "border-zinc-500/40 bg-zinc-500/10 text-body",
 };
 
 /**
@@ -138,31 +138,31 @@ export function MembersSection() {
   return (
     <div className="space-y-6">
       {/* Miembros activos */}
-      <div className="rounded-2xl border border-white/[0.06] bg-zinc-900/40 p-4">
+      <div className="rounded-2xl border border-line bg-card p-4">
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
             Miembros activos {members ? `· ${members.length}` : ""}
           </h3>
         </div>
         {members === null ? (
-          <div className="flex items-center gap-2 text-xs text-zinc-500">
+          <div className="flex items-center gap-2 text-xs text-muted">
             <Loader2 className="h-3 w-3 animate-spin" /> Cargando…
           </div>
         ) : members.length === 0 ? (
-          <p className="text-xs text-zinc-500">Sin miembros aún.</p>
+          <p className="text-xs text-muted">Sin miembros aún.</p>
         ) : (
           <ul className="space-y-1">
             {members.map((m) => (
               <li
                 key={m.userId}
-                className="flex items-center gap-3 rounded-lg border border-white/[0.05] bg-zinc-800/30 px-3 py-2 text-xs"
+                className="flex items-center gap-3 rounded-lg border border-line bg-elevated px-3 py-2 text-xs"
               >
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-blue-600 text-[11px] font-bold text-white">
                   {m.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-zinc-100">{m.name}</div>
-                  <div className="truncate text-[10px] text-zinc-500">{m.email}</div>
+                  <div className="truncate text-strong">{m.name}</div>
+                  <div className="truncate text-[10px] text-muted">{m.email}</div>
                 </div>
                 {canManage && m.role !== "owner" ? (
                   <RoleSelect
@@ -187,7 +187,7 @@ export function MembersSection() {
                     onClick={() => void removeMember(m)}
                     disabled={busyMember === m.userId}
                     aria-label={`Remover a ${m.name}`}
-                    className="text-zinc-500 hover:text-red-400 disabled:opacity-50"
+                    className="text-muted hover:text-red-400 disabled:opacity-50"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -199,8 +199,8 @@ export function MembersSection() {
       </div>
 
       {/* Invitaciones */}
-      <div className="rounded-2xl border border-white/[0.06] bg-zinc-900/40 p-4">
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+      <div className="rounded-2xl border border-line bg-card p-4">
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
           Invitaciones {invites.length > 0 && `· ${invites.length}`}
         </h3>
 
@@ -208,14 +208,14 @@ export function MembersSection() {
           <div className="mb-3 rounded-lg border border-violet-500/30 bg-violet-500/10 p-2.5 text-xs">
             <div className="mb-1 text-violet-200">Link de invitación (también enviado por email):</div>
             <div className="flex items-center gap-2 rounded bg-black/30 px-2 py-1.5">
-              <code className="flex-1 break-all font-mono text-[10px] text-zinc-200">
+              <code className="flex-1 break-all font-mono text-[10px] text-body">
                 {lastInviteUrl}
               </code>
               <button
                 onClick={copyInviteUrl}
                 type="button"
                 aria-label="Copiar link"
-                className="text-zinc-400 hover:text-zinc-100"
+                className="text-muted hover:text-strong"
               >
                 {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
               </button>
@@ -228,11 +228,11 @@ export function MembersSection() {
             {invites.map((i) => (
               <li
                 key={i.id}
-                className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-zinc-800/30 px-3 py-2 text-xs"
+                className="flex items-center justify-between rounded-lg border border-line bg-elevated px-3 py-2 text-xs"
               >
                 <div className="min-w-0">
-                  <div className="truncate text-zinc-100">{i.email}</div>
-                  <div className="text-[10px] text-zinc-500">
+                  <div className="truncate text-strong">{i.email}</div>
+                  <div className="text-[10px] text-muted">
                     {i.role} · {i.status} · expira{" "}
                     {new Date(i.expiresAt).toLocaleDateString()}
                   </div>
@@ -241,7 +241,7 @@ export function MembersSection() {
                   type="button"
                   onClick={() => void revokeInvite(i.id)}
                   aria-label={`Revocar invitación a ${i.email}`}
-                  className="text-zinc-500 hover:text-red-400"
+                  className="text-muted hover:text-red-400"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -251,11 +251,11 @@ export function MembersSection() {
         )}
 
         {canManage && (
-          <div className="flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-3">
+          <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
             <label htmlFor="member-invite-email" className="sr-only">
               Email del invitado
             </label>
-            <Mail className="h-3.5 w-3.5 text-zinc-500" aria-hidden="true" />
+            <Mail className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
             <input
               id="member-invite-email"
               name="invite-email"
@@ -264,7 +264,7 @@ export function MembersSection() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="email@empresa.com"
-              className="flex-1 min-w-[200px] rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-1.5 text-xs text-zinc-100 outline-none focus:border-violet-500/60"
+              className="flex-1 min-w-[200px] rounded-lg border border-line bg-elevated px-3 py-1.5 text-xs text-strong outline-none focus:border-violet-500/60"
             />
             <label htmlFor="member-invite-role" className="sr-only">
               Rol
@@ -274,7 +274,7 @@ export function MembersSection() {
               name="invite-role"
               value={role}
               onChange={(e) => setRole(e.target.value as "admin" | "editor" | "viewer")}
-              className="rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-xs text-zinc-100 outline-none"
+              className="rounded-lg border border-line bg-elevated px-2 py-1.5 text-xs text-strong outline-none"
             >
               <option value="viewer">Viewer</option>
               <option value="editor">Editor</option>

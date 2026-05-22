@@ -222,25 +222,25 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
 
   return (
     <ReactFlowProvider>
-      <div className="flex h-screen flex-col bg-black text-zinc-100">
-        <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
+      <div className="flex h-screen flex-col bg-black text-strong">
+        <div className="flex items-center justify-between border-b border-line px-5 py-3">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => router.back()}
-              className="text-zinc-400 hover:text-zinc-100"
+              className="text-muted hover:text-strong"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
             <span className="text-sm font-medium">{flow.name}</span>
           </div>
           <div className="flex items-center gap-2">
-            {feedback && <span className="text-[11px] text-zinc-400">{feedback}</span>}
+            {feedback && <span className="text-[11px] text-muted">{feedback}</span>}
             {autoSaveStatus !== "idle" && (
               <span
                 className={
                   autoSaveStatus === "saving"
-                    ? "text-[11px] text-zinc-500"
+                    ? "text-[11px] text-muted"
                     : autoSaveStatus === "error"
                     ? "text-[11px] text-red-400"
                     : "text-[11px] text-emerald-400"
@@ -256,7 +256,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             <button
               type="button"
               onClick={() => setVarsOpen((o) => !o)}
-              className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-zinc-300 hover:bg-white/5"
+              className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover"
               title="Variables del flujo"
             >
               <Variable className="h-3.5 w-3.5" />
@@ -264,7 +264,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             <button
               type="button"
               onClick={() => setRunsOpen((o) => !o)}
-              className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-zinc-300 hover:bg-white/5"
+              className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover"
               title="Historial de ejecuciones"
             >
               <History className="h-3.5 w-3.5" />
@@ -273,7 +273,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               type="button"
               onClick={() => save()}
               disabled={saving}
-              className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs hover:bg-white/5 disabled:opacity-40"
+              className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs hover:bg-hover disabled:opacity-40"
             >
               {saving ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -320,8 +320,8 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               proOptions={{ hideAttribution: true }}
             >
               <Background color="#27272a" gap={20} />
-              <Controls className="!border-white/10 !bg-zinc-900" />
-              <MiniMap pannable zoomable className="!border-white/10 !bg-zinc-900" />
+              <Controls className="!border-line !bg-zinc-900" />
+              <MiniMap pannable zoomable className="!border-line !bg-zinc-900" />
             </ReactFlow>
           </div>
           <Inspector
@@ -352,13 +352,13 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               if (e.target === e.currentTarget) setRunModalOpen(false);
             }}
           >
-            <div className="w-full max-w-lg rounded-2xl border border-white/[0.08] bg-zinc-950 p-5 shadow-2xl">
+            <div className="w-full max-w-lg rounded-2xl border border-line bg-surface p-5 shadow-2xl">
               <div className="mb-3 flex items-start justify-between">
                 <div>
-                  <h2 id="run-modal-title" className="text-sm font-semibold text-zinc-100">
+                  <h2 id="run-modal-title" className="text-sm font-semibold text-strong">
                     Ejecutar flujo
                   </h2>
-                  <p className="mt-0.5 text-xs text-zinc-500">
+                  <p className="mt-0.5 text-xs text-muted">
                     Pegá el JSON con el input que recibirá el nodo trigger.
                   </p>
                 </div>
@@ -366,12 +366,12 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
                   type="button"
                   aria-label="Cerrar"
                   onClick={() => setRunModalOpen(false)}
-                  className="rounded-lg p-1 text-zinc-500 hover:bg-white/[0.05] hover:text-zinc-300"
+                  className="rounded-lg p-1 text-muted hover:bg-white/[0.05] hover:text-body"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <label htmlFor="run-input-json" className="mb-1 block text-[10px] uppercase tracking-wider text-zinc-500">
+              <label htmlFor="run-input-json" className="mb-1 block text-[10px] uppercase tracking-wider text-muted">
                 Input
               </label>
               <textarea
@@ -384,7 +384,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
                 }}
                 rows={10}
                 spellCheck={false}
-                className="w-full resize-none rounded-lg border border-white/[0.08] bg-zinc-900 px-3 py-2 font-mono text-xs text-zinc-100 outline-none focus:border-violet-500/60"
+                className="w-full resize-none rounded-lg border border-line bg-zinc-900 px-3 py-2 font-mono text-xs text-strong outline-none focus:border-violet-500/60"
               />
               {runInputError && (
                 <p className="mt-2 text-xs text-red-400">⚠ {runInputError}</p>
@@ -393,7 +393,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
                 <button
                   type="button"
                   onClick={() => setRunModalOpen(false)}
-                  className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/[0.05]"
+                  className="rounded-lg border border-line px-3 py-1.5 text-xs text-body hover:bg-white/[0.05]"
                 >
                   Cancelar
                 </button>
@@ -477,10 +477,10 @@ function Sidebar({ onAdd }: { onAdd: (type: string) => void }) {
     },
   ];
   return (
-    <div className="w-48 overflow-y-auto border-r border-white/[0.06] bg-zinc-950 p-3">
+    <div className="w-48 overflow-y-auto border-r border-line bg-surface p-3">
       {groups.map((g) => (
         <div key={g.heading} className="mb-3">
-          <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+          <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted">
             {g.heading}
           </div>
           {g.items.map((t) => (
@@ -488,7 +488,7 @@ function Sidebar({ onAdd }: { onAdd: (type: string) => void }) {
               key={t.id}
               type="button"
               onClick={() => onAdd(t.id)}
-              className="mb-1 flex w-full items-center gap-2 rounded-lg border border-white/[0.06] bg-zinc-900/40 px-2.5 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800/60"
+              className="mb-1 flex w-full items-center gap-2 rounded-lg border border-line bg-card px-2.5 py-1.5 text-xs text-body hover:bg-elevated"
             >
               <span>{t.emoji}</span> {t.label}
             </button>
@@ -518,7 +518,7 @@ function Inspector({
 
   if (!node) {
     return (
-      <div className="w-72 border-l border-white/[0.06] bg-zinc-950 p-4 text-xs text-zinc-500">
+      <div className="w-72 border-l border-line bg-surface p-4 text-xs text-muted">
         Seleccioná un nodo para configurarlo.
       </div>
     );
@@ -535,9 +535,9 @@ function Inspector({
   }
 
   return (
-    <div className="w-72 space-y-3 overflow-y-auto border-l border-white/[0.06] bg-zinc-950 p-4 text-xs">
+    <div className="w-72 space-y-3 overflow-y-auto border-l border-line bg-surface p-4 text-xs">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+        <span className="text-[10px] font-medium uppercase tracking-wider text-muted">
           {node.type}
         </span>
         <button
@@ -551,16 +551,16 @@ function Inspector({
       <input
         value={data.label}
         onChange={(e) => update({ label: e.target.value })}
-        className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2.5 py-1.5 text-zinc-100 outline-none focus:border-violet-500/60"
+        className="w-full rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-strong outline-none focus:border-violet-500/60"
       />
 
       {node.type === "agent" && (
         <>
-          <label className="block text-zinc-500">Agente</label>
+          <label className="block text-muted">Agente</label>
           <select
             value={(config.agentId as string) ?? ""}
             onChange={(e) => update({ config: { agentId: e.target.value } })}
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
           >
             <option value="">— elegir —</option>
             {agents.map((a) => (
@@ -569,27 +569,27 @@ function Inspector({
               </option>
             ))}
           </select>
-          <label className="block text-zinc-500">Mensaje (template)</label>
+          <label className="block text-muted">Mensaje (template)</label>
           <textarea
             value={(config.message as string) ?? ""}
             onChange={(e) => update({ config: { message: e.target.value } })}
             placeholder="Hola {{nombre}}, …"
             rows={3}
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none focus:border-violet-500/60"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none focus:border-violet-500/60"
           />
-          <label className="block text-zinc-500">Output var</label>
+          <label className="block text-muted">Output var</label>
           <input
             value={(config.outputVar as string) ?? ""}
             onChange={(e) => update({ config: { outputVar: e.target.value } })}
             placeholder="agentResult"
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
           />
         </>
       )}
 
       {node.type === "condition" && (
         <>
-          <label className="block text-zinc-500">left</label>
+          <label className="block text-muted">left</label>
           <input
             value={((config.condition as { left?: string })?.left) ?? ""}
             onChange={(e) =>
@@ -600,9 +600,9 @@ function Inspector({
               })
             }
             placeholder="{{score}}"
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
           />
-          <label className="block text-zinc-500">op</label>
+          <label className="block text-muted">op</label>
           <select
             value={((config.condition as { op?: string })?.op) ?? "=="}
             onChange={(e) =>
@@ -612,13 +612,13 @@ function Inspector({
                 },
               })
             }
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
           >
             {["==", "!=", ">", "<", ">=", "<=", "contains"].map((o) => (
               <option key={o}>{o}</option>
             ))}
           </select>
-          <label className="block text-zinc-500">right</label>
+          <label className="block text-muted">right</label>
           <input
             value={((config.condition as { right?: string })?.right) ?? ""}
             onChange={(e) =>
@@ -629,31 +629,31 @@ function Inspector({
               })
             }
             placeholder="50"
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
           />
         </>
       )}
 
       {node.type === "http" && (
         <>
-          <label className="block text-zinc-500">Method</label>
+          <label className="block text-muted">Method</label>
           <select
             value={(config.method as string) ?? "GET"}
             onChange={(e) => update({ config: { method: e.target.value } })}
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
           >
             {["GET", "POST", "PUT", "PATCH", "DELETE"].map((m) => (
               <option key={m}>{m}</option>
             ))}
           </select>
-          <label className="block text-zinc-500">URL</label>
+          <label className="block text-muted">URL</label>
           <input
             value={(config.url as string) ?? ""}
             onChange={(e) => update({ config: { url: e.target.value } })}
             placeholder="https://api.example.com/{{id}}"
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
           />
-          <label className="block text-zinc-500">Auth</label>
+          <label className="block text-muted">Auth</label>
           <select
             value={((config.auth as { kind?: string })?.kind) ?? "none"}
             onChange={(e) => {
@@ -664,7 +664,7 @@ function Inspector({
                 },
               });
             }}
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
           >
             <option value="none">Sin auth</option>
             <option value="bearer">Bearer token</option>
@@ -678,7 +678,7 @@ function Inspector({
                 update({ config: { auth: { ...((config.auth as object) ?? {}), token: e.target.value } } })
               }
               placeholder="Token o {{var}}"
-              className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+              className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
             />
           )}
           {((config.auth as { kind?: string })?.kind) === "basic" && (
@@ -689,7 +689,7 @@ function Inspector({
                   update({ config: { auth: { ...((config.auth as object) ?? {}), user: e.target.value } } })
                 }
                 placeholder="user"
-                className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+                className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
               />
               <input
                 value={((config.auth as { pass?: string })?.pass) ?? ""}
@@ -697,7 +697,7 @@ function Inspector({
                   update({ config: { auth: { ...((config.auth as object) ?? {}), pass: e.target.value } } })
                 }
                 placeholder="pass o {{var}}"
-                className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+                className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
               />
             </>
           )}
@@ -709,7 +709,7 @@ function Inspector({
                   update({ config: { auth: { ...((config.auth as object) ?? {}), header: e.target.value } } })
                 }
                 placeholder="X-API-Key"
-                className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+                className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
               />
               <input
                 value={((config.auth as { key?: string })?.key) ?? ""}
@@ -717,32 +717,32 @@ function Inspector({
                   update({ config: { auth: { ...((config.auth as object) ?? {}), key: e.target.value } } })
                 }
                 placeholder="API key o {{var}}"
-                className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+                className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
               />
             </>
           )}
-          <label className="block text-zinc-500">Body (JSON, opcional)</label>
+          <label className="block text-muted">Body (JSON, opcional)</label>
           <textarea
             value={(config.body as string) ?? ""}
             onChange={(e) => update({ config: { body: e.target.value } })}
             rows={3}
             placeholder='{ "key": "{{var}}" }'
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none focus:border-violet-500/60"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none focus:border-violet-500/60"
           />
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-zinc-500">Reintentos</label>
+              <label className="block text-muted">Reintentos</label>
               <input
                 type="number"
                 min={1}
                 max={5}
                 value={(config.maxAttempts as number) ?? 1}
                 onChange={(e) => update({ config: { maxAttempts: Number(e.target.value) } })}
-                className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+                className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
               />
             </div>
             <div>
-              <label className="block text-zinc-500">Timeout (ms)</label>
+              <label className="block text-muted">Timeout (ms)</label>
               <input
                 type="number"
                 min={1000}
@@ -750,63 +750,63 @@ function Inspector({
                 step={1000}
                 value={(config.timeoutMs as number) ?? 30000}
                 onChange={(e) => update({ config: { timeoutMs: Number(e.target.value) } })}
-                className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+                className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
               />
             </div>
           </div>
-          <label className="block text-zinc-500">Output var</label>
+          <label className="block text-muted">Output var</label>
           <input
             value={(config.outputVar as string) ?? ""}
             onChange={(e) => update({ config: { outputVar: e.target.value } })}
             placeholder="httpResult"
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
           />
         </>
       )}
 
       {node.type === "transform" && (
         <>
-          <label className="block text-zinc-500">Variable destino</label>
+          <label className="block text-muted">Variable destino</label>
           <input
             value={(config.target as string) ?? ""}
             onChange={(e) => update({ config: { target: e.target.value } })}
             placeholder="result"
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
           />
-          <label className="block text-zinc-500">Valor (template)</label>
+          <label className="block text-muted">Valor (template)</label>
           <textarea
             value={(config.value as string) ?? ""}
             onChange={(e) => update({ config: { value: e.target.value } })}
             placeholder="Hola {{nombre}}"
             rows={2}
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none focus:border-violet-500/60"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none focus:border-violet-500/60"
           />
         </>
       )}
 
       {node.type === "delay" && (
         <>
-          <label className="block text-zinc-500">ms</label>
+          <label className="block text-muted">ms</label>
           <input
             type="number"
             value={(config.ms as number) ?? 1000}
             onChange={(e) => update({ config: { ms: Number(e.target.value) } })}
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
           />
         </>
       )}
 
       {node.type === "code" && (
         <>
-          <label className="block text-zinc-500">Source (DSL)</label>
+          <label className="block text-muted">Source (DSL)</label>
           <textarea
             value={(config.source as string) ?? ""}
             onChange={(e) => update({ config: { source: e.target.value } })}
             rows={6}
             placeholder={`set total = {{score}}\nset greeting = "hola {{nombre}}"`}
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none focus:border-violet-500/60"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none focus:border-violet-500/60"
           />
-          <p className="text-[10px] text-zinc-600">
+          <p className="text-[10px] text-faint">
             Sintaxis: <code>set var = expr</code> con interpolación <code>{`{{var}}`}</code>. Una línea por sentencia.
           </p>
         </>
@@ -814,40 +814,40 @@ function Inspector({
 
       {node.type === "loop_for_each" && (
         <>
-          <label className="block text-zinc-500">Variable array</label>
+          <label className="block text-muted">Variable array</label>
           <input
             value={(config.arrayVar as string) ?? ""}
             onChange={(e) => update({ config: { arrayVar: e.target.value } })}
             placeholder="items"
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
           />
-          <label className="block text-zinc-500">Variable item</label>
+          <label className="block text-muted">Variable item</label>
           <input
             value={(config.itemVar as string) ?? "item"}
             onChange={(e) => update({ config: { itemVar: e.target.value } })}
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
           />
-          <p className="text-[10px] text-zinc-600">
+          <p className="text-[10px] text-faint">
             Conectá el handle <code>body</code> al primer nodo del loop.
           </p>
         </>
       )}
 
       {node.type === "parallel" && (
-        <p className="text-[11px] text-zinc-500">
+        <p className="text-[11px] text-muted">
           Conectá múltiples nodos como hijos. Se ejecutan en paralelo y el flujo continúa cuando todos terminan.
         </p>
       )}
 
       {node.type === "try_catch" && (
         <>
-          <label className="block text-zinc-500">Variable error</label>
+          <label className="block text-muted">Variable error</label>
           <input
             value={(config.errorVar as string) ?? "error"}
             onChange={(e) => update({ config: { errorVar: e.target.value } })}
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
           />
-          <p className="text-[10px] text-zinc-600">
+          <p className="text-[10px] text-faint">
             Usá los handles <code>try</code> y <code>catch</code> para conectar las dos ramas.
           </p>
         </>
@@ -855,14 +855,14 @@ function Inspector({
 
       {node.type === "switch" && (
         <>
-          <label className="block text-zinc-500">Expresión</label>
+          <label className="block text-muted">Expresión</label>
           <input
             value={(config.expression as string) ?? ""}
             onChange={(e) => update({ config: { expression: e.target.value } })}
             placeholder="{{tipo}}"
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
           />
-          <p className="text-[10px] text-zinc-600">
+          <p className="text-[10px] text-faint">
             Cada edge saliente debe tener un <code>sourceHandle</code> con el valor a matchear, o <code>default</code>.
           </p>
         </>
@@ -877,43 +877,43 @@ function Inspector({
 
       {node.type === "wait_human" && (
         <>
-          <label className="block text-zinc-500">Mensaje</label>
+          <label className="block text-muted">Mensaje</label>
           <input
             value={(config.message as string) ?? ""}
             onChange={(e) => update({ config: { message: e.target.value } })}
             placeholder="Aprobar pedido {{id}}"
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
           />
-          <label className="block text-zinc-500">Asignado a (email)</label>
+          <label className="block text-muted">Asignado a (email)</label>
           <input
             value={(config.assignee as string) ?? ""}
             onChange={(e) => update({ config: { assignee: e.target.value } })}
             placeholder="manager@company.com"
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
           />
         </>
       )}
 
       {node.type === "notify" && (
         <>
-          <label className="block text-zinc-500">Canal</label>
+          <label className="block text-muted">Canal</label>
           <select
             value={(config.channel as string) ?? "log"}
             onChange={(e) => update({ config: { channel: e.target.value } })}
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
           >
             <option value="log">Log (consola)</option>
             <option value="email">Email</option>
             <option value="slack">Slack</option>
             <option value="webhook">Webhook</option>
           </select>
-          <label className="block text-zinc-500">Mensaje</label>
+          <label className="block text-muted">Mensaje</label>
           <textarea
             value={(config.message as string) ?? ""}
             onChange={(e) => update({ config: { message: e.target.value } })}
             rows={2}
             placeholder="Lead nuevo: {{nombre}}"
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none focus:border-violet-500/60"
+            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none focus:border-violet-500/60"
           />
         </>
       )}
@@ -937,11 +937,11 @@ function SubflowPicker({
   }, []);
   return (
     <>
-      <label className="block text-zinc-500">Flujo a invocar</label>
+      <label className="block text-muted">Flujo a invocar</label>
       <select
         value={currentFlowId}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+        className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
       >
         <option value="">— elegir —</option>
         {flows.map((f) => (
@@ -985,17 +985,17 @@ function VariablesPanel({
   }
 
   return (
-    <div className="absolute left-48 top-0 z-30 flex h-full w-[340px] flex-col border-r border-white/[0.06] bg-zinc-950">
-      <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
-        <span className="flex items-center gap-2 text-sm text-zinc-200">
+    <div className="absolute left-48 top-0 z-30 flex h-full w-[340px] flex-col border-r border-line bg-surface">
+      <div className="flex items-center justify-between border-b border-line px-4 py-3">
+        <span className="flex items-center gap-2 text-sm text-body">
           <Variable className="h-4 w-4" /> Variables
         </span>
-        <button onClick={onClose} type="button" className="text-zinc-500 hover:text-zinc-200">
+        <button onClick={onClose} type="button" className="text-muted hover:text-body">
           <X className="h-4 w-4" />
         </button>
       </div>
       <div className="flex-1 space-y-2 overflow-y-auto p-3 text-xs">
-        <p className="mb-1 text-[11px] text-zinc-500">
+        <p className="mb-1 text-[11px] text-muted">
           Variables iniciales del flujo (también se usan como defaults para los runs).
         </p>
         {pending.map((row, i) => (
@@ -1009,7 +1009,7 @@ function VariablesPanel({
               }}
               onBlur={() => commit(pending)}
               placeholder="nombre"
-              className="w-1/3 rounded-md border border-white/[0.08] bg-zinc-800/40 px-2 py-1 font-mono text-zinc-100 outline-none focus:border-violet-500/60"
+              className="w-1/3 rounded-md border border-line bg-elevated px-2 py-1 font-mono text-strong outline-none focus:border-violet-500/60"
             />
             <input
               value={row.value}
@@ -1020,7 +1020,7 @@ function VariablesPanel({
               }}
               onBlur={() => commit(pending)}
               placeholder='"valor" o 42 o {…}'
-              className="flex-1 rounded-md border border-white/[0.08] bg-zinc-800/40 px-2 py-1 font-mono text-zinc-100 outline-none focus:border-violet-500/60"
+              className="flex-1 rounded-md border border-line bg-elevated px-2 py-1 font-mono text-strong outline-none focus:border-violet-500/60"
             />
             <button
               type="button"
@@ -1029,7 +1029,7 @@ function VariablesPanel({
                 setPending(next);
                 commit(next);
               }}
-              className="text-zinc-500 hover:text-red-400"
+              className="text-muted hover:text-red-400"
               aria-label="Eliminar"
             >
               <X className="h-3 w-3" />
@@ -1039,7 +1039,7 @@ function VariablesPanel({
         <button
           type="button"
           onClick={() => setPending([...pending, { key: "", value: "" }])}
-          className="mt-1 w-full rounded-md border border-dashed border-white/10 py-1.5 text-[11px] text-zinc-500 hover:border-violet-500/40 hover:text-violet-300"
+          className="mt-1 w-full rounded-md border border-dashed border-line py-1.5 text-[11px] text-muted hover:border-violet-500/40 hover:text-violet-300"
         >
           + agregar variable
         </button>

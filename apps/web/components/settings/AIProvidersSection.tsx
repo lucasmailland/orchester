@@ -38,7 +38,7 @@ export function AIProvidersSection() {
 
   if (loading)
     return (
-      <div className="flex h-32 items-center justify-center text-zinc-500">
+      <div className="flex h-32 items-center justify-center text-muted">
         <Loader2 className="h-5 w-5 animate-spin" />
       </div>
     );
@@ -144,7 +144,7 @@ function ProviderCard({
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl border border-white/[0.08] bg-zinc-900/40 p-5"
+      className="rounded-2xl border border-line bg-card p-5"
     >
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -152,24 +152,24 @@ function ProviderCard({
             <Sparkles className="h-4 w-4" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-zinc-100">{meta.name}</div>
-            <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+            <div className="text-sm font-semibold text-strong">{meta.name}</div>
+            <div className="flex items-center gap-1.5 text-xs text-muted">
               <span className={cn("h-1.5 w-1.5 rounded-full", dot)} />
               {statusLabel}
             </div>
           </div>
         </div>
         {row && (
-          <button onClick={remove} className="text-xs text-zinc-500 hover:text-red-400" type="button">
+          <button onClick={remove} className="text-xs text-muted hover:text-red-400" type="button">
             Quitar
           </button>
         )}
       </div>
 
       {row && (
-        <div className="mb-3 flex items-center justify-between rounded-lg border border-white/5 bg-zinc-800/40 px-3 py-2 text-xs">
-          <span className="font-mono text-zinc-400">{row.apiKeyMasked}</span>
-          <span className="text-zinc-500">{row.models.length} modelos</span>
+        <div className="mb-3 flex items-center justify-between rounded-lg border border-line bg-elevated px-3 py-2 text-xs">
+          <span className="font-mono text-muted">{row.apiKeyMasked}</span>
+          <span className="text-muted">{row.models.length} modelos</span>
         </div>
       )}
 
@@ -178,7 +178,7 @@ function ProviderCard({
           <label htmlFor={`provider-key-${provider}`} className="sr-only">
             API key de {meta.name}
           </label>
-          <KeyRound className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-zinc-500" aria-hidden="true" />
+          <KeyRound className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted" aria-hidden="true" />
           <input
             id={`provider-key-${provider}`}
             name={`provider-key-${provider}`}
@@ -187,13 +187,13 @@ function ProviderCard({
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder={row ? "Reemplazar key…" : meta.placeholder}
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/60 py-2 pl-9 pr-9 text-sm text-zinc-100 placeholder-zinc-600 outline-none focus:border-violet-500/60"
+            className="w-full rounded-lg border border-line bg-elevated py-2 pl-9 pr-9 text-sm text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
           />
           <button
             onClick={() => setShow((s) => !s)}
             type="button"
             aria-label={show ? "Ocultar API key" : "Mostrar API key"}
-            className="absolute right-2.5 top-2.5 text-zinc-500 hover:text-zinc-300"
+            className="absolute right-2.5 top-2.5 text-muted hover:text-body"
           >
             {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
@@ -211,7 +211,7 @@ function ProviderCard({
               value={endpoint}
               onChange={(e) => setEndpoint(e.target.value)}
               placeholder="https://my-resource.openai.azure.com"
-              className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/60 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 outline-none focus:border-violet-500/60"
+              className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
             />
           </>
         )}
@@ -229,7 +229,7 @@ function ProviderCard({
           <button
             onClick={test}
             disabled={testing}
-            className="rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 disabled:opacity-40"
+            className="rounded-lg border border-line px-3 py-2 text-xs text-body hover:bg-hover disabled:opacity-40"
           >
             {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Probar"}
           </button>
@@ -250,14 +250,14 @@ function ProviderCard({
 
       {row?.models && row.models.length > 0 && (
         <details className="mt-3 text-xs">
-          <summary className="cursor-pointer text-zinc-500 hover:text-zinc-300">
+          <summary className="cursor-pointer text-muted hover:text-body">
             Ver modelos disponibles
           </summary>
-          <ul className="mt-2 space-y-1 text-zinc-400">
+          <ul className="mt-2 space-y-1 text-muted">
             {row.models.map((m) => (
               <li key={m.id} className="flex items-center justify-between">
                 <span className="font-mono">{m.id}</span>
-                <span className="text-zinc-600">{m.tier}</span>
+                <span className="text-faint">{m.tier}</span>
               </li>
             ))}
           </ul>

@@ -31,7 +31,7 @@ export function ConversationChart({ data, noDataLabel }: ConversationChartProps)
   if (!data.length) {
     return (
       <div className="flex h-52 items-center justify-center">
-        <p className="text-xs text-zinc-600">{noDataLabel}</p>
+        <p className="text-xs text-faint">{noDataLabel}</p>
       </div>
     );
   }

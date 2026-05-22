@@ -61,7 +61,7 @@ export function BillingSection() {
     else toast.error(j.error ?? "No hay cliente Stripe asociado");
   }
 
-  if (loading) return <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />;
+  if (loading) return <Loader2 className="h-4 w-4 animate-spin text-muted" />;
   if (!data) return null;
 
   const tokensTotal = data.usage.tokensIn + data.usage.tokensOut;
@@ -70,13 +70,13 @@ export function BillingSection() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-white/[0.08] bg-zinc-900/40 p-4">
+      <div className="rounded-2xl border border-line bg-card p-4">
         <div className="mb-3 flex items-center justify-between">
           <div>
-            <div className="text-xs uppercase tracking-wider text-zinc-500">Plan actual</div>
-            <div className="text-lg font-semibold text-zinc-100">
+            <div className="text-xs uppercase tracking-wider text-muted">Plan actual</div>
+            <div className="text-lg font-semibold text-strong">
               {data.planMeta.name}{" "}
-              <span className="text-sm text-zinc-500">
+              <span className="text-sm text-muted">
                 {data.stripeEnabled === false ? "· sin límites" : `· $${data.planMeta.priceUsd}/mes`}
               </span>
             </div>
@@ -95,7 +95,7 @@ export function BillingSection() {
               type="button"
               onClick={openPortal}
               disabled={busy}
-              className="flex items-center gap-1 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/5"
+              className="flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-xs text-body hover:bg-hover"
             >
               Gestionar suscripción <ExternalLink className="h-3 w-3" />
             </button>
@@ -115,9 +115,9 @@ export function BillingSection() {
             limit={data.limits.tokensPerMonth}
             pct={tokensPct}
           />
-          <div className="grid grid-cols-2 gap-3 text-zinc-500">
-            <span>Flow runs: <strong className="text-zinc-300">{data.usage.flowRuns}</strong></span>
-            <span>KB queries: <strong className="text-zinc-300">{data.usage.kbQueries}</strong></span>
+          <div className="grid grid-cols-2 gap-3 text-muted">
+            <span>Flow runs: <strong className="text-body">{data.usage.flowRuns}</strong></span>
+            <span>KB queries: <strong className="text-body">{data.usage.kbQueries}</strong></span>
           </div>
         </div>
       </div>
@@ -134,13 +134,13 @@ function UsageBar({ label, current, limit, pct }: { label: string; current: numb
   const limitTxt = limit != null && isFinite(limit) ? fmt(limit) : "∞";
   return (
     <div>
-      <div className="mb-1 flex justify-between text-zinc-400">
+      <div className="mb-1 flex justify-between text-muted">
         <span>{label}</span>
         <span className="font-mono text-[10px]">
           {fmt(current)} / {limitTxt}
         </span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
+      <div className="h-1.5 overflow-hidden rounded-full bg-elevated">
         <div className={`h-full rounded-full ${tone}`} style={{ width: `${pct}%` }} />
       </div>
     </div>

@@ -74,27 +74,27 @@ export function MemoryPanel({ agentId }: { agentId: string }) {
   }
 
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-zinc-900/40 p-4">
-      <div className="mb-3 flex items-center gap-2 text-sm font-medium text-zinc-200">
+    <div className="rounded-2xl border border-line bg-card p-4">
+      <div className="mb-3 flex items-center gap-2 text-sm font-medium text-body">
         <Brain className="h-4 w-4 text-violet-400" /> Memoria persistente
       </div>
-      <p className="mb-3 text-[11px] text-zinc-500">
+      <p className="mb-3 text-[11px] text-muted">
         El agente puede leer/escribir estas memorias a través de las tools{" "}
-        <code className="rounded bg-zinc-800 px-1 font-mono">memory_get</code> /{" "}
-        <code className="rounded bg-zinc-800 px-1 font-mono">memory_set</code>. También se inyectan
+        <code className="rounded bg-elevated px-1 font-mono">memory_get</code> /{" "}
+        <code className="rounded bg-elevated px-1 font-mono">memory_set</code>. También se inyectan
         automáticamente en el system prompt al inicio de cada conversación.
       </p>
 
       {loading ? (
-        <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
+        <Loader2 className="h-4 w-4 animate-spin text-muted" />
       ) : rows.length === 0 ? (
-        <p className="text-xs text-zinc-500">Sin memorias guardadas todavía.</p>
+        <p className="text-xs text-muted">Sin memorias guardadas todavía.</p>
       ) : (
         <div className="space-y-2">
           {rows.map((row) => (
             <div
               key={row.id}
-              className="rounded-lg border border-white/[0.06] bg-zinc-800/30 p-3"
+              className="rounded-lg border border-line bg-elevated p-3"
             >
               <div className="mb-1.5 flex items-center gap-2 text-[11px]">
                 <span
@@ -103,30 +103,30 @@ export function MemoryPanel({ agentId }: { agentId: string }) {
                   {SCOPE_LABEL[row.scope]}
                 </span>
                 {row.conversationId && (
-                  <span className="font-mono text-[10px] text-zinc-500">
+                  <span className="font-mono text-[10px] text-muted">
                     conv: {row.conversationId.slice(0, 8)}
                   </span>
                 )}
                 {row.employeeId && (
-                  <span className="font-mono text-[10px] text-zinc-500">
+                  <span className="font-mono text-[10px] text-muted">
                     emp: {row.employeeId.slice(0, 8)}
                   </span>
                 )}
-                <span className="ml-auto text-[10px] text-zinc-600">
+                <span className="ml-auto text-[10px] text-faint">
                   {new Date(row.updatedAt).toLocaleString()}
                 </span>
               </div>
               <ul className="space-y-1 text-xs">
                 {Object.entries(row.data).map(([k, v]) => (
                   <li key={k} className="flex items-start gap-2">
-                    <span className="font-mono text-zinc-400">{k}:</span>
-                    <span className="flex-1 break-all text-zinc-200">
+                    <span className="font-mono text-muted">{k}:</span>
+                    <span className="flex-1 break-all text-body">
                       {typeof v === "string" ? v : JSON.stringify(v)}
                     </span>
                     <button
                       type="button"
                       onClick={() => removeKey(row, k)}
-                      className="text-zinc-500 hover:text-red-400"
+                      className="text-muted hover:text-red-400"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
@@ -138,7 +138,7 @@ export function MemoryPanel({ agentId }: { agentId: string }) {
         </div>
       )}
 
-      <div className="mt-4 space-y-2 border-t border-white/[0.06] pt-3">
+      <div className="mt-4 space-y-2 border-t border-line pt-3">
         <div className="flex flex-wrap items-center gap-2 text-[11px]">
           {(["global", "conversation", "employee"] as const).map((s) => (
             <button
@@ -148,7 +148,7 @@ export function MemoryPanel({ agentId }: { agentId: string }) {
               className={
                 scope === s
                   ? "rounded-md bg-violet-500/25 px-2 py-1 text-violet-200"
-                  : "rounded-md border border-white/[0.08] px-2 py-1 text-zinc-500 hover:text-zinc-300"
+                  : "rounded-md border border-line px-2 py-1 text-muted hover:text-body"
               }
             >
               {SCOPE_LABEL[s]}
@@ -160,13 +160,13 @@ export function MemoryPanel({ agentId }: { agentId: string }) {
             value={key}
             onChange={(e) => setKey(e.target.value)}
             placeholder="key (ej. preferred_language)"
-            className="flex-1 rounded-md border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-xs text-zinc-100 outline-none focus:border-violet-500/60"
+            className="flex-1 rounded-md border border-line bg-elevated px-2 py-1.5 font-mono text-xs text-strong outline-none focus:border-violet-500/60"
           />
           <input
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder='value (JSON o texto)'
-            className="flex-[2] rounded-md border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-xs text-zinc-100 outline-none focus:border-violet-500/60"
+            className="flex-[2] rounded-md border border-line bg-elevated px-2 py-1.5 font-mono text-xs text-strong outline-none focus:border-violet-500/60"
           />
           <button
             type="button"

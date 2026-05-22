@@ -22,8 +22,8 @@ export function PromptEditor({ value, onChange, onGenerate, onTemplates }: Props
       : "text-red-400 border-red-500/30 bg-red-500/10";
 
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-white/[0.08] bg-zinc-900/40">
-      <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-2.5">
+    <div className="flex h-full flex-col rounded-2xl border border-line bg-card">
+      <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
         <div className="flex items-center gap-2">
           <button
             onClick={onGenerate}
@@ -35,7 +35,7 @@ export function PromptEditor({ value, onChange, onGenerate, onTemplates }: Props
           <button
             onClick={onTemplates}
             type="button"
-            className="flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-zinc-300 hover:bg-white/5"
+            className="flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover"
           >
             <BookOpen className="h-3.5 w-3.5" /> Plantillas
           </button>
@@ -48,10 +48,10 @@ export function PromptEditor({ value, onChange, onGenerate, onTemplates }: Props
         value={value}
         onChange={(e) => onChange(e.target.value)}
         spellCheck={false}
-        className="min-h-[260px] flex-1 resize-none bg-transparent px-4 py-3 font-mono text-[13px] leading-relaxed text-zinc-100 placeholder-zinc-600 outline-none"
+        className="min-h-[260px] flex-1 resize-none bg-transparent px-4 py-3 font-mono text-[13px] leading-relaxed text-strong placeholder:text-faint outline-none"
         placeholder="Escribí el system prompt del agente o usá el generador con IA…"
       />
-      <div className="flex items-center justify-between border-t border-white/[0.06] px-4 py-2 text-[11px] text-zinc-500">
+      <div className="flex items-center justify-between border-t border-line px-4 py-2 text-[11px] text-muted">
         <span>{q.chars} chars</span>
         <span>~{q.tokens} tokens</span>
       </div>

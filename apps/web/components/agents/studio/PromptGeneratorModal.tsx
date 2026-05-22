@@ -56,12 +56,12 @@ export function PromptGeneratorModal({ open, agentId, onClose, onPick }: Props) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-white/[0.08] px-5 py-4">
-          <div className="flex items-center gap-2.5 text-sm font-medium text-zinc-100">
+      <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl">
+        <div className="flex items-center justify-between border-b border-line px-5 py-4">
+          <div className="flex items-center gap-2.5 text-sm font-medium text-strong">
             <Sparkles className="h-4 w-4 text-violet-400" /> Generador de prompts con IA · Paso {step}/3
           </div>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200" type="button">
+          <button onClick={onClose} className="text-muted hover:text-body" type="button">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -69,7 +69,7 @@ export function PromptGeneratorModal({ open, agentId, onClose, onPick }: Props) 
         <div className="flex-1 overflow-y-auto p-5">
           {step === 1 && (
             <div>
-              <label className="mb-2 block text-xs font-medium text-zinc-300">
+              <label className="mb-2 block text-xs font-medium text-body">
                 ¿Qué hace este agente?
               </label>
               <textarea
@@ -77,9 +77,9 @@ export function PromptGeneratorModal({ open, agentId, onClose, onPick }: Props) 
                 onChange={(e) => setDescription(e.target.value)}
                 rows={6}
                 placeholder="Necesito un agente que califique leads B2B según BANT y los enrute al vendedor correcto…"
-                className="w-full rounded-xl border border-white/[0.08] bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 outline-none focus:border-violet-500/60"
+                className="w-full rounded-xl border border-line bg-zinc-900 px-3 py-2.5 text-sm text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
               />
-              <p className="mt-1.5 text-[11px] text-zinc-500">
+              <p className="mt-1.5 text-[11px] text-muted">
                 {description.length} / 50–500 caracteres
               </p>
             </div>
@@ -87,7 +87,7 @@ export function PromptGeneratorModal({ open, agentId, onClose, onPick }: Props) 
           {step === 2 && (
             <div className="space-y-4">
               <div>
-                <label className="mb-2 block text-xs font-medium text-zinc-300">Tono</label>
+                <label className="mb-2 block text-xs font-medium text-body">Tono</label>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {TONES.map((t) => (
                     <button
@@ -98,7 +98,7 @@ export function PromptGeneratorModal({ open, agentId, onClose, onPick }: Props) 
                         "rounded-lg border px-2 py-2 text-xs",
                         tone === t
                           ? "border-violet-500/50 bg-violet-500/15 text-violet-200"
-                          : "border-white/[0.08] text-zinc-400 hover:border-white/20"
+                          : "border-line text-muted hover:border-white/20"
                       )}
                     >
                       {t}
@@ -107,23 +107,23 @@ export function PromptGeneratorModal({ open, agentId, onClose, onPick }: Props) 
                 </div>
               </div>
               <div>
-                <label className="mb-2 block text-xs font-medium text-zinc-300">
+                <label className="mb-2 block text-xs font-medium text-body">
                   Empresa (opcional)
                 </label>
                 <input
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  className="w-full rounded-xl border border-white/[0.08] bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-violet-500/60"
+                  className="w-full rounded-xl border border-line bg-zinc-900 px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
                 />
               </div>
               <div>
-                <label className="mb-2 block text-xs font-medium text-zinc-300">
+                <label className="mb-2 block text-xs font-medium text-body">
                   Industria (opcional)
                 </label>
                 <input
                   value={industry}
                   onChange={(e) => setIndustry(e.target.value)}
-                  className="w-full rounded-xl border border-white/[0.08] bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-violet-500/60"
+                  className="w-full rounded-xl border border-line bg-zinc-900 px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
                 />
               </div>
             </div>
@@ -143,10 +143,10 @@ export function PromptGeneratorModal({ open, agentId, onClose, onPick }: Props) 
                     onPick(v);
                     onClose();
                   }}
-                  className="block w-full rounded-xl border border-white/[0.08] bg-zinc-900/60 p-4 text-left hover:border-violet-500/40 hover:bg-zinc-900"
+                  className="block w-full rounded-xl border border-line bg-card p-4 text-left hover:border-violet-500/40 hover:bg-zinc-900"
                 >
                   <div className="mb-1 text-xs font-medium text-violet-300">Variación {i + 1}</div>
-                  <pre className="whitespace-pre-wrap font-mono text-[12px] text-zinc-200">
+                  <pre className="whitespace-pre-wrap font-mono text-[12px] text-body">
                     {v.length > 400 ? v.slice(0, 400) + "…" : v}
                   </pre>
                 </button>
@@ -155,7 +155,7 @@ export function PromptGeneratorModal({ open, agentId, onClose, onPick }: Props) 
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-white/[0.06] bg-zinc-950 px-5 py-3">
+        <div className="flex items-center justify-between border-t border-line bg-surface px-5 py-3">
           <button
             type="button"
             onClick={() => {
@@ -165,7 +165,7 @@ export function PromptGeneratorModal({ open, agentId, onClose, onPick }: Props) 
               } else if (step === 2) setStep(1);
               else onClose();
             }}
-            className="text-xs text-zinc-500 hover:text-zinc-300"
+            className="text-xs text-muted hover:text-body"
           >
             {step === 1 ? "Cancelar" : "Atrás"}
           </button>
@@ -174,7 +174,7 @@ export function PromptGeneratorModal({ open, agentId, onClose, onPick }: Props) 
               <button
                 type="button"
                 onClick={generate}
-                className="flex items-center gap-1 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-200 hover:bg-white/5"
+                className="flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-xs text-body hover:bg-hover"
               >
                 <RotateCcw className="h-3.5 w-3.5" /> Regenerar
               </button>

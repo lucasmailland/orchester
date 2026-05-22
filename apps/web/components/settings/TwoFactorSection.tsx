@@ -94,7 +94,7 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
           <span>2FA activado. Tu cuenta está protegida con autenticación de dos factores.</span>
         </div>
         <div className="space-y-2">
-          <label htmlFor="2fa-disable-pw" className="text-xs text-zinc-400">
+          <label htmlFor="2fa-disable-pw" className="text-xs text-muted">
             Para desactivar, ingresá tu password:
           </label>
           <input
@@ -127,7 +127,7 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
           loguearte si perdés acceso a tu app de autenticador. Cada código se
           puede usar UNA SOLA VEZ.
         </div>
-        <div className="rounded-lg border border-white/10 bg-zinc-900 p-3 font-mono text-xs">
+        <div className="rounded-lg border border-line bg-zinc-900 p-3 font-mono text-xs">
           <pre className="whitespace-pre-wrap break-all">{backupCodes.join("\n")}</pre>
         </div>
         <div className="flex gap-2">
@@ -158,12 +158,12 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
   if (state === "setup") {
     return (
       <div className="space-y-3">
-        <p className="text-xs text-zinc-400">
+        <p className="text-xs text-muted">
           Escaneá el QR con tu app de autenticador (Google Authenticator, Authy,
           1Password, etc.) y luego ingresá el código de 6 dígitos.
         </p>
         {totpURI && (
-          <div className="flex justify-center rounded-lg border border-white/10 bg-white p-4">
+          <div className="flex justify-center rounded-lg border border-line bg-white p-4">
             {/* QR como image vía Google Charts API (funciona offline también si pegás otro QR generator) */}
             <img
               src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(totpURI)}`}
@@ -173,14 +173,14 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
             />
           </div>
         )}
-        <details className="text-[10px] text-zinc-500">
+        <details className="text-[10px] text-muted">
           <summary className="cursor-pointer">¿No podés escanear?</summary>
           <p className="mt-1">Pegá esta URL en tu app:</p>
           <code className="mt-1 block break-all rounded bg-zinc-900 p-2 font-mono">
             {totpURI}
           </code>
         </details>
-        <label htmlFor="2fa-code" className="text-xs text-zinc-400">
+        <label htmlFor="2fa-code" className="text-xs text-muted">
           Código de 6 dígitos
         </label>
         <input
@@ -222,11 +222,11 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
   // disabled
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 text-xs text-zinc-400">
+      <div className="flex items-center gap-2 text-xs text-muted">
         <Shield className="h-4 w-4" />
         <span>2FA no está activado. Recomendado para cuentas owner/admin.</span>
       </div>
-      <label htmlFor="2fa-enable-pw" className="text-xs text-zinc-400">
+      <label htmlFor="2fa-enable-pw" className="text-xs text-muted">
         Confirmá con tu password:
       </label>
       <input

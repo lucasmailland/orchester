@@ -22,7 +22,7 @@ export function SidebarItem({ href, icon, label, collapsed }: SidebarItemProps) 
         <>
           <motion.div
             layoutId="sidebar-active-bg"
-            className="absolute inset-y-0 left-2 right-2 rounded-lg bg-white/[0.07]"
+            className="absolute inset-y-0 left-2 right-2 rounded-lg bg-hover"
             transition={{ type: "spring", stiffness: 500, damping: 35 }}
           />
           <motion.div
@@ -35,14 +35,14 @@ export function SidebarItem({ href, icon, label, collapsed }: SidebarItemProps) 
       <div
         className={cn(
           "relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium",
-          "transition-colors duration-150 hover:bg-white/[0.04]",
-          isActive ? "text-white" : "text-zinc-500 hover:text-zinc-200"
+          "transition-colors duration-150 hover:bg-hover",
+          isActive ? "text-strong" : "text-muted hover:text-body"
         )}
       >
         <span
           className={cn(
             "flex-shrink-0 transition-colors duration-150",
-            isActive ? "text-violet-400" : "text-zinc-600 group-hover:text-zinc-400"
+            isActive ? "text-violet-400" : "text-faint group-hover:text-muted"
           )}
         >
           {icon}

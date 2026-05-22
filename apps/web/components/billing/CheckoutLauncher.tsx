@@ -43,7 +43,7 @@ export function CheckoutLauncher({ locale, plan }: { locale: string; plan: strin
       <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-violet-500 to-blue-500 text-white">
         <CreditCard className="h-6 w-6" />
       </div>
-      <p className="mt-5 flex items-center gap-2 text-sm text-zinc-400">
+      <p className="mt-5 flex items-center gap-2 text-sm text-muted">
         <Loader2 className="h-4 w-4 animate-spin" /> {msg}
       </p>
     </div>

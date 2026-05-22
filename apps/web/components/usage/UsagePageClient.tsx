@@ -24,7 +24,7 @@ const MODEL_COLOR: Record<string, string> = {
 };
 
 const KPI_STYLES = {
-  primary:  { bg: "bg-zinc-950", border: "border-zinc-800/80", text: "text-white", sub: "text-zinc-500", icon: "text-blue-400" },
+  primary:  { bg: "bg-surface", border: "border-zinc-800/80", text: "text-white", sub: "text-muted", icon: "text-blue-400" },
   accent:   { bg: "bg-violet-600", border: "border-violet-500/40", text: "text-white", sub: "text-violet-200/70", icon: "text-violet-100" },
   success:  { bg: "bg-blue-600", border: "border-blue-500/40", text: "text-white", sub: "text-blue-100/70", icon: "text-blue-100" },
   warning:  { bg: "bg-teal-600", border: "border-teal-500/40", text: "text-white", sub: "text-teal-100/70", icon: "text-teal-100" },
@@ -87,8 +87,8 @@ export function UsagePageClient({ kpis, tokensByDay, agentUsage, labels }: Usage
     <div className="space-y-6">
       {/* Header */}
       <motion.div variants={fadeInDown} initial="hidden" animate="visible">
-        <h1 className="font-display text-2xl font-bold tracking-tight text-zinc-100">{labels.title}</h1>
-        <p className="mt-1 text-sm text-zinc-500">{labels.subtitle}</p>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-strong">{labels.title}</h1>
+        <p className="mt-1 text-sm text-muted">{labels.subtitle}</p>
       </motion.div>
 
       {/* KPI Cards */}
@@ -135,17 +135,17 @@ export function UsagePageClient({ kpis, tokensByDay, agentUsage, labels }: Usage
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.2, ease: APPLE_EASE }}
-        className="rounded-2xl border border-white/[0.07] bg-zinc-900/50 p-6"
+        className="rounded-2xl border border-white/[0.07] bg-card p-6"
       >
         <div className="mb-1 flex items-center justify-between">
-          <h2 className="font-display text-sm font-bold text-zinc-300">{labels.chartTitle}</h2>
-          <span className="text-[10px] font-mono text-zinc-600">LAST 30 DAYS</span>
+          <h2 className="font-display text-sm font-bold text-body">{labels.chartTitle}</h2>
+          <span className="text-[10px] font-mono text-faint">LAST 30 DAYS</span>
         </div>
-        <p className="mb-4 text-xs text-zinc-600">Total tokens processed by all agents</p>
+        <p className="mb-4 text-xs text-faint">Total tokens processed by all agents</p>
 
         {tokensByDay.length === 0 ? (
           <div className="flex h-48 items-center justify-center">
-            <p className="text-xs text-zinc-600">{labels.noData}</p>
+            <p className="text-xs text-faint">{labels.noData}</p>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={220}>
@@ -210,24 +210,24 @@ export function UsagePageClient({ kpis, tokensByDay, agentUsage, labels }: Usage
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.35, ease: APPLE_EASE }}
-        className="rounded-2xl border border-white/[0.07] bg-zinc-900/50"
+        className="rounded-2xl border border-white/[0.07] bg-card"
       >
         <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-4">
-          <h2 className="font-display text-sm font-bold text-zinc-300">{labels.agentTableTitle}</h2>
-          <span className="text-[10px] font-mono text-zinc-600">ALL TIME</span>
+          <h2 className="font-display text-sm font-bold text-body">{labels.agentTableTitle}</h2>
+          <span className="text-[10px] font-mono text-faint">ALL TIME</span>
         </div>
 
         {agentUsage.length === 0 ? (
           <div className="flex h-32 items-center justify-center">
-            <p className="text-xs text-zinc-600">{labels.noData}</p>
+            <p className="text-xs text-faint">{labels.noData}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-white/[0.05]">
+                <tr className="border-b border-line">
                   {[labels.agent, labels.model, labels.conversations, labels.tokens, labels.cost].map(h => (
-                    <th key={h} className="px-6 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-zinc-600">{h}</th>
+                    <th key={h} className="px-6 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-faint">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -237,36 +237,36 @@ export function UsagePageClient({ kpis, tokensByDay, agentUsage, labels }: Usage
                   return (
                     <tr
                       key={agent.id}
-                      className="group border-b border-white/[0.04] transition-colors hover:bg-white/[0.03]"
+                      className="group border-b border-white/[0.04] transition-colors hover:bg-card"
                     >
                       <td className="px-6 py-3.5">
                         <div className="flex items-center gap-2.5">
                           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 font-mono text-[10px] font-bold text-violet-400">
                             {idx + 1}
                           </span>
-                          <span className="font-medium text-zinc-200">{agent.name}</span>
+                          <span className="font-medium text-body">{agent.name}</span>
                         </div>
                       </td>
                       <td className="px-6 py-3.5">
                         <span className={cn(
                           "rounded border px-2 py-0.5 font-mono text-[10px]",
-                          MODEL_COLOR[agent.model] ?? "text-zinc-400 bg-zinc-900 border-zinc-700/50"
+                          MODEL_COLOR[agent.model] ?? "text-muted bg-zinc-900 border-zinc-700/50"
                         )}>
                           {MODEL_SHORT[agent.model] ?? agent.model}
                         </span>
                       </td>
-                      <td className="px-6 py-3.5 font-mono text-sm text-zinc-400">
+                      <td className="px-6 py-3.5 font-mono text-sm text-muted">
                         {agent.conversations.toLocaleString()}
                       </td>
                       <td className="px-6 py-3.5">
                         <div className="flex items-center gap-2.5">
-                          <div className="h-1 w-20 overflow-hidden rounded-full bg-zinc-800">
+                          <div className="h-1 w-20 overflow-hidden rounded-full bg-elevated">
                             <div
                               className="h-full rounded-full bg-violet-500"
                               style={{ width: `${pct}%` }}
                             />
                           </div>
-                          <span className="font-mono text-sm text-zinc-300">{formatTokens(agent.tokens)}</span>
+                          <span className="font-mono text-sm text-body">{formatTokens(agent.tokens)}</span>
                         </div>
                       </td>
                       <td className="px-6 py-3.5 font-mono text-sm text-emerald-400">

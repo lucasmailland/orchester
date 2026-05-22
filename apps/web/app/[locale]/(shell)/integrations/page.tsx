@@ -4,10 +4,10 @@ export default async function IntegrationsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-zinc-100">
+        <h1 className="font-display text-2xl font-bold tracking-tight text-strong">
           Integraciones
         </h1>
-        <p className="mt-1 text-sm text-zinc-500">
+        <p className="mt-1 text-sm text-muted">
           Conectá Orchester con las herramientas que ya usás. Las credenciales se guardan
           encriptadas y cada integración expone acciones que tus agentes pueden ejecutar.
         </p>

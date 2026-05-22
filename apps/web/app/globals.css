@@ -14,6 +14,34 @@
     --sidebar-width: 240px;
     --sidebar-collapsed-width: 64px;
     --topbar-height: 56px;
+
+    /* ── Semantic theme tokens (LIGHT por defecto) ─────────────────────────
+       RGB triplets para <alpha-value>. Usar SIEMPRE estas clases (bg-app,
+       bg-surface, bg-card, bg-elevated, border-line, text-strong, text-base,
+       text-muted, text-faint, bg-hover) en vez de zinc/white literales. */
+    --app: 250 250 250;
+    --surface: 255 255 255;
+    --card: 255 255 255;
+    --elevated: 244 244 245;
+    --line: 228 228 231;
+    --hover: 244 244 245;
+    --text-strong: 24 24 27;
+    --text-base: 39 39 42;
+    --text-muted: 113 113 122;
+    --text-faint: 161 161 170;
+  }
+
+  .dark {
+    --app: 0 0 0;
+    --surface: 9 9 11;
+    --card: 18 18 21;
+    --elevated: 34 34 38;
+    --line: 39 39 42;
+    --hover: 39 39 42;
+    --text-strong: 244 244 245;
+    --text-base: 212 212 216;
+    --text-muted: 113 113 122;
+    --text-faint: 82 82 91;
   }
 
   html {
@@ -44,8 +72,8 @@
 @layer components {
   /* Form primitives reutilizadas en Settings y formularios. */
   .input {
-    @apply w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-2
-           text-sm text-zinc-100 placeholder-zinc-600
+    @apply w-full rounded-lg border border-line bg-elevated px-3 py-2
+           text-sm text-strong placeholder:text-faint
            outline-none transition-all
            focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30
            disabled:opacity-60 disabled:cursor-not-allowed;
@@ -59,9 +87,9 @@
   }
 
   .btn-secondary {
-    @apply inline-flex items-center gap-1.5 rounded-lg border border-white/10
-           bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-zinc-200
-           transition-colors hover:bg-white/[0.06]
+    @apply inline-flex items-center gap-1.5 rounded-lg border border-line
+           bg-card px-3 py-1.5 text-xs font-medium text-body
+           transition-colors hover:bg-hover
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
 

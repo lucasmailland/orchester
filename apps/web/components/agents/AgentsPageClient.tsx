@@ -22,8 +22,8 @@ const STATUS_CONFIG = {
   inactive: {
     dot: "bg-zinc-600",
     ping: false,
-    label: "text-zinc-500",
-    badge: "border-zinc-700/50 bg-zinc-800/50 text-zinc-500",
+    label: "text-muted",
+    badge: "border-zinc-700/50 bg-elevated/50 text-muted",
     text: "Inactivo",
   },
   draft: {
@@ -149,8 +149,8 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-zinc-100">Agentes</h1>
-          <p className="mt-1 text-sm text-zinc-500">
+          <h1 className="font-display text-2xl font-bold tracking-tight text-strong">Agentes</h1>
+          <p className="mt-1 text-sm text-muted">
             Configura y gestiona todos los agentes de IA de tu workspace.
           </p>
         </div>
@@ -165,7 +165,7 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
 
       {/* Filter chips */}
       <div className="flex items-center gap-2">
-        <Filter size={13} className="text-zinc-600" />
+        <Filter size={13} className="text-faint" />
         {FILTERS.map(f => (
           <button
             key={f.value}
@@ -174,13 +174,13 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
               "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
               filter === f.value
                 ? "bg-violet-600/20 text-violet-300 ring-1 ring-violet-500/30"
-                : "text-zinc-500 hover:bg-white/[0.05] hover:text-zinc-300"
+                : "text-muted hover:bg-white/[0.05] hover:text-body"
             )}
           >
             {f.label}
             <span className={cn(
               "rounded-md px-1.5 py-0.5 font-mono text-[10px]",
-              filter === f.value ? "bg-violet-500/20 text-violet-300" : "bg-zinc-800 text-zinc-600"
+              filter === f.value ? "bg-violet-500/20 text-violet-300" : "bg-elevated text-faint"
             )}>
               {f.count}
             </span>
@@ -190,9 +190,9 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
 
       {/* Empty */}
       {filtered.length === 0 && (
-        <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-white/[0.08] py-16">
+        <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-line py-16">
           <Bot size={24} className="text-zinc-700" />
-          <p className="text-sm text-zinc-600">No hay agentes que mostrar.</p>
+          <p className="text-sm text-faint">No hay agentes que mostrar.</p>
           <button
             onClick={() => setCreateOpen(true)}
             className="rounded-xl bg-violet-600/20 px-4 py-2 text-sm font-medium text-violet-400 hover:bg-violet-600/30"
@@ -215,10 +215,10 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
                     style={{ backgroundColor: group.teamColor }}
                   />
                 )}
-                <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-500">
+                <h2 className="text-xs font-bold uppercase tracking-widest text-muted">
                   {group.teamName}
                 </h2>
-                <div className="flex-1 border-t border-white/[0.05]" />
+                <div className="flex-1 border-t border-line" />
                 <span className="font-mono text-[10px] text-zinc-700">
                   {group.agents.length} {group.agents.length === 1 ? "agente" : "agentes"}
                 </span>
@@ -244,7 +244,7 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
                         router.push(`/${locale}/agents/${agent.id}`);
                       }}
                       className={cn(
-                        "group relative cursor-pointer overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.03]",
+                        "group relative cursor-pointer overflow-hidden rounded-2xl border border-white/[0.07] bg-card",
                         "transition-all hover:border-violet-500/30 hover:bg-white/[0.05]"
                       )}
                     >
@@ -270,8 +270,8 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
                               </span>
                             </div>
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-zinc-100">{agent.name}</p>
-                              <p className="truncate text-xs text-zinc-500">{agent.role}</p>
+                              <p className="truncate text-sm font-semibold text-strong">{agent.name}</p>
+                              <p className="truncate text-xs text-muted">{agent.role}</p>
                             </div>
                           </div>
 
@@ -281,7 +281,7 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
                               type="button"
                               aria-label={`Editar ${agent.name}`}
                               onClick={() => setEditingAgent(agent)}
-                              className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 hover:bg-white/[0.08] hover:text-zinc-200"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-line hover:text-body"
                             >
                               <Pencil size={12} />
                             </button>
@@ -289,7 +289,7 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
                               type="button"
                               aria-label={`Eliminar ${agent.name}`}
                               onClick={() => handleDelete(agent.id)}
-                              className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 hover:bg-red-500/10 hover:text-red-400"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-red-500/10 hover:text-red-400"
                             >
                               <Trash2 size={12} />
                             </button>
@@ -298,7 +298,7 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
 
                         {/* System prompt preview */}
                         {agent.systemPrompt && (
-                          <p className="mt-2.5 line-clamp-2 text-[11px] leading-relaxed text-zinc-600">
+                          <p className="mt-2.5 line-clamp-2 text-[11px] leading-relaxed text-faint">
                             {agent.systemPrompt}
                           </p>
                         )}

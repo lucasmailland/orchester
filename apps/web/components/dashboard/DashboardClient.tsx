@@ -95,7 +95,7 @@ function pctChange(now: number, prev: number) {
 
 function Card({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("rounded-2xl border border-white/[0.07] bg-zinc-900/60 backdrop-blur-sm", className)}>
+    <div className={cn("rounded-2xl border border-white/[0.07] bg-card backdrop-blur-sm", className)}>
       {children}
     </div>
   );
@@ -105,7 +105,7 @@ function CardHeader({ title, sub, action }: { title: string; sub?: string; actio
   return (
     <div className="flex items-center justify-between px-5 pt-5 pb-3">
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-500">{title}</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted">{title}</p>
         {sub && <p className="mt-0.5 text-[10px] text-zinc-700">{sub}</p>}
       </div>
       {action}
@@ -153,7 +153,7 @@ function KPI({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-5"
+      className="rounded-2xl border border-white/[0.07] bg-card p-5"
     >
       <div className="flex items-start justify-between gap-3">
         <div className={cn("flex h-9 w-9 items-center justify-center rounded-xl ring-1", a.bg, a.text, a.ring)}>
@@ -164,7 +164,7 @@ function KPI({
       <p className="mt-3 font-mono text-[1.6rem] font-bold leading-none tracking-tight text-zinc-50">
         {value}
       </p>
-      <p className="mt-1.5 text-[11px] font-medium text-zinc-500">{label}</p>
+      <p className="mt-1.5 text-[11px] font-medium text-muted">{label}</p>
       {sub && <p className="mt-0.5 text-[10px] text-zinc-700">{sub}</p>}
     </motion.div>
   );
@@ -214,7 +214,7 @@ function HourlyChart({ data }: { data: FullDashboardStats["hourlyDist"] }) {
   return (
     <div>
       <p className="mb-1 text-[10px] text-zinc-700">
-        Pico: <span className="text-zinc-400">{peakHour.hour}:00 h</span>
+        Pico: <span className="text-muted">{peakHour.hour}:00 h</span>
       </p>
       <ResponsiveContainer width="100%" height={90}>
         <BarChart data={data} margin={{ top: 0, right: 0, left: -32, bottom: 0 }} barCategoryGap={2}>
@@ -258,7 +258,7 @@ function MiniDonut({ data, colors, center }: {
       </ResponsiveContainer>
       {center && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <span className="font-mono text-sm font-bold text-zinc-300">{center}</span>
+          <span className="font-mono text-sm font-bold text-body">{center}</span>
         </div>
       )}
     </div>
@@ -277,14 +277,14 @@ function LegendList({ items, colors }: {
         <div key={item.key} className="flex items-center gap-2">
           <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: colors[item.key] ?? "#52525b" }} />
           <div className="flex flex-1 items-center justify-between min-w-0 gap-2">
-            <span className="truncate text-[11px] text-zinc-500 capitalize">{item.label}</span>
+            <span className="truncate text-[11px] text-muted capitalize">{item.label}</span>
             <div className="flex shrink-0 items-center gap-2">
               {item.pct !== undefined && (
-                <div className="h-1 w-12 overflow-hidden rounded-full bg-zinc-800">
+                <div className="h-1 w-12 overflow-hidden rounded-full bg-elevated">
                   <div className="h-full rounded-full" style={{ width: `${item.pct}%`, backgroundColor: colors[item.key] ?? "#52525b" }} />
                 </div>
               )}
-              <span className="font-mono text-[11px] text-zinc-400">{item.value}</span>
+              <span className="font-mono text-[11px] text-muted">{item.value}</span>
             </div>
           </div>
         </div>
@@ -332,7 +332,7 @@ function AgentTable({ data }: { data: FullDashboardStats["agentUsage"] }) {
         <thead>
           <tr>
             {["Agente", "Modelo", "Estado", "Conversaciones", "Tokens consumidos", "Costo USD", "Tok / Conv"].map(h => (
-              <th key={h} className="pb-3 pr-4 text-left text-[9px] font-bold uppercase tracking-[0.12em] text-zinc-600 first:pl-0 last:pr-0">{h}</th>
+              <th key={h} className="pb-3 pr-4 text-left text-[9px] font-bold uppercase tracking-[0.12em] text-faint first:pl-0 last:pr-0">{h}</th>
             ))}
           </tr>
         </thead>
@@ -341,7 +341,7 @@ function AgentTable({ data }: { data: FullDashboardStats["agentUsage"] }) {
             const color = mColor(a.model);
             const STATUS_BADGE: Record<string, string> = {
               active: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
-              inactive: "text-zinc-500 bg-zinc-800/50 border-zinc-700/50",
+              inactive: "text-muted bg-elevated/50 border-zinc-700/50",
               draft: "text-amber-400 bg-amber-500/10 border-amber-500/20",
             };
             return (
@@ -355,11 +355,11 @@ function AgentTable({ data }: { data: FullDashboardStats["agentUsage"] }) {
                 <td className="py-3 pr-4">
                   <div className="flex items-center gap-2.5">
                     <div className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-                    <span className="text-sm font-semibold text-zinc-100">{a.name}</span>
+                    <span className="text-sm font-semibold text-strong">{a.name}</span>
                   </div>
                 </td>
                 <td className="py-3 pr-4">
-                  <span className="rounded border border-zinc-800 bg-zinc-950 px-1.5 py-0.5 font-mono text-[9px]" style={{ color }}>
+                  <span className="rounded border border-zinc-800 bg-surface px-1.5 py-0.5 font-mono text-[9px]" style={{ color }}>
                     {a.model.replace("claude-", "").replace("-20251001", "")}
                   </span>
                 </td>
@@ -368,17 +368,17 @@ function AgentTable({ data }: { data: FullDashboardStats["agentUsage"] }) {
                     {a.status}
                   </span>
                 </td>
-                <td className="py-3 pr-4 font-mono text-sm text-zinc-300">{a.conversations.toLocaleString()}</td>
+                <td className="py-3 pr-4 font-mono text-sm text-body">{a.conversations.toLocaleString()}</td>
                 <td className="py-3 pr-4">
                   <div className="flex items-center gap-3">
-                    <div className="h-[3px] w-24 overflow-hidden rounded-full bg-zinc-800">
+                    <div className="h-[3px] w-24 overflow-hidden rounded-full bg-elevated">
                       <div className="h-full rounded-full transition-all" style={{ width: `${(a.tokens / maxTokens) * 100}%`, backgroundColor: color }} />
                     </div>
-                    <span className="font-mono text-sm text-zinc-300">{fmtT(a.tokens)}</span>
+                    <span className="font-mono text-sm text-body">{fmtT(a.tokens)}</span>
                   </div>
                 </td>
                 <td className="py-3 pr-4 font-mono text-sm font-semibold text-amber-400">${a.costUsd.toFixed(2)}</td>
-                <td className="py-3 font-mono text-sm text-zinc-500">{fmtT(a.tokensPerConv)}</td>
+                <td className="py-3 font-mono text-sm text-muted">{fmtT(a.tokensPerConv)}</td>
               </motion.tr>
             );
           })}
@@ -400,7 +400,7 @@ function ActivityFeed({ data }: { data: FullDashboardStats["recentConversations"
   return (
     <div className="space-y-1">
       {data.slice(0, 6).map((c) => (
-        <div key={c.id} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-white/[0.03] transition-colors">
+        <div key={c.id} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-card transition-colors">
           <div className={cn(
             "h-1.5 w-1.5 shrink-0 rounded-full",
             c.status === "open" ? "bg-violet-400" :
@@ -408,9 +408,9 @@ function ActivityFeed({ data }: { data: FullDashboardStats["recentConversations"
           )} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="truncate text-xs font-medium text-zinc-300">{c.employeeName ?? "Anon"}</span>
+              <span className="truncate text-xs font-medium text-body">{c.employeeName ?? "Anon"}</span>
               <ArrowRight size={10} className="shrink-0 text-zinc-700" />
-              <span className="truncate text-xs text-zinc-500">{c.agentName ?? "—"}</span>
+              <span className="truncate text-xs text-muted">{c.agentName ?? "—"}</span>
             </div>
             <div className="flex items-center gap-2 mt-0.5">
               {c.channelType && (
@@ -429,7 +429,7 @@ function ActivityFeed({ data }: { data: FullDashboardStats["recentConversations"
             </div>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
-            <span className={cn("rounded-md px-1.5 py-0.5 text-[9px] font-semibold capitalize", STATUS_PILL[c.status] ?? "text-zinc-500 bg-zinc-800")}>
+            <span className={cn("rounded-md px-1.5 py-0.5 text-[9px] font-semibold capitalize", STATUS_PILL[c.status] ?? "text-muted bg-elevated")}>
               {c.status}
             </span>
             <span className="font-mono text-[9px] text-zinc-700">{fmtTime(c.startedAt)}</span>
@@ -474,7 +474,7 @@ export function DashboardClient({ stats, workspaceName, locale }: Props) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold tracking-tight text-zinc-50">Command Center</h1>
-          <p className="mt-0.5 text-sm text-zinc-600">
+          <p className="mt-0.5 text-sm text-faint">
             {workspaceName} &nbsp;·&nbsp;
             {now.toLocaleDateString("es", { weekday: "long", day: "numeric", month: "long" })}
           </p>
@@ -482,11 +482,11 @@ export function DashboardClient({ stats, workspaceName, locale }: Props) {
         <div className="flex items-center gap-4">
           <div className="hidden text-right sm:block">
             <p className="text-[10px] text-zinc-700">Últimos 30 días</p>
-            <p className="font-mono text-xs font-bold text-zinc-400">{totalConvs30d.toLocaleString()} convs · {fmtT(totalTokens30d)} tokens</p>
+            <p className="font-mono text-xs font-bold text-muted">{totalConvs30d.toLocaleString()} convs · {fmtT(totalTokens30d)} tokens</p>
           </div>
-          <div className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-1.5">
+          <div className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-card px-3 py-1.5">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-            <span className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">Live</span>
+            <span className="font-mono text-[10px] uppercase tracking-widest text-muted">Live</span>
           </div>
         </div>
       </div>
@@ -562,7 +562,7 @@ export function DashboardClient({ stats, workspaceName, locale }: Props) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 mb-1">
                 {m.icon}
-                <span className="text-[10px] text-zinc-600">{m.label}</span>
+                <span className="text-[10px] text-faint">{m.label}</span>
               </div>
               <p className="font-mono text-xl font-bold text-zinc-50">{m.value}</p>
               <div className="mt-0.5 flex items-center gap-2">
@@ -591,7 +591,7 @@ export function DashboardClient({ stats, workspaceName, locale }: Props) {
         <Card className="xl:col-span-3">
           <CardHeader title="Actividad — últimos 30 días"
             action={
-              <div className="flex items-center gap-4 text-[10px] text-zinc-600">
+              <div className="flex items-center gap-4 text-[10px] text-faint">
                 <span className="flex items-center gap-1.5"><span className="h-2 w-3 rounded-sm bg-violet-500/60" />Conversaciones</span>
                 <span className="flex items-center gap-1.5"><span className="h-px w-4 bg-cyan-400" />Tokens</span>
               </div>
@@ -651,14 +651,14 @@ export function DashboardClient({ stats, workspaceName, locale }: Props) {
                   <span className="font-mono text-[10px] text-zinc-700 w-3 shrink-0">{i + 1}</span>
                   <div className="h-2 w-2 shrink-0 rounded-sm" style={{ backgroundColor: t.teamColor ?? "#52525b" }} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-medium text-zinc-200">{t.teamName}</p>
+                    <p className="truncate text-xs font-medium text-body">{t.teamName}</p>
                     <div className="mt-1 flex items-center gap-2">
-                      <div className="h-[2px] flex-1 overflow-hidden rounded-full bg-zinc-800">
+                      <div className="h-[2px] flex-1 overflow-hidden rounded-full bg-elevated">
                         <div className="h-full rounded-full" style={{ width: `${(t.conversations / maxConvs) * 100}%`, backgroundColor: t.teamColor ?? "#8b5cf6", opacity: 0.7 }} />
                       </div>
-                      <span className="shrink-0 font-mono text-[10px] text-zinc-600">{t.conversations} convs</span>
+                      <span className="shrink-0 font-mono text-[10px] text-faint">{t.conversations} convs</span>
                     </div>
-                    <p className="mt-0.5 text-[10px] text-zinc-600">{fmtT(t.tokens)} tok</p>
+                    <p className="mt-0.5 text-[10px] text-faint">{fmtT(t.tokens)} tok</p>
                   </div>
                   <span className="shrink-0 font-mono text-xs font-semibold text-amber-400">${t.costUsd.toFixed(2)}</span>
                 </div>
@@ -680,9 +680,9 @@ export function DashboardClient({ stats, workspaceName, locale }: Props) {
                   .filter(d => d.hour >= start && d.hour < end)
                   .reduce((s, d) => s + d.count, 0);
                 return (
-                  <div key={label} className="rounded-lg bg-zinc-800/40 p-2 text-center">
-                    <p className="font-mono text-sm font-bold text-zinc-200">{total}</p>
-                    <p className="text-[9px] text-zinc-600">{label}</p>
+                  <div key={label} className="rounded-lg bg-elevated p-2 text-center">
+                    <p className="font-mono text-sm font-bold text-body">{total}</p>
+                    <p className="text-[9px] text-faint">{label}</p>
                   </div>
                 );
               })}
@@ -765,16 +765,16 @@ export function DashboardClient({ stats, workspaceName, locale }: Props) {
                 <div key={e.id} className="flex items-center gap-3">
                   <span className="font-mono text-[10px] text-zinc-700 w-3 shrink-0">{i + 1}</span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-medium text-zinc-200">{e.name}</p>
+                    <p className="truncate text-xs font-medium text-body">{e.name}</p>
                     <div className="mt-0.5 flex items-center gap-2">
-                      <div className="h-[2px] flex-1 overflow-hidden rounded-full bg-zinc-800">
+                      <div className="h-[2px] flex-1 overflow-hidden rounded-full bg-elevated">
                         <div className="h-full rounded-full bg-violet-500/60" style={{ width: `${(e.conversations / max) * 100}%` }} />
                       </div>
-                      <span className="shrink-0 font-mono text-[10px] text-zinc-500">{e.conversations}</span>
+                      <span className="shrink-0 font-mono text-[10px] text-muted">{e.conversations}</span>
                     </div>
                   </div>
                   {e.area && (
-                    <span className="shrink-0 rounded bg-zinc-800/60 px-1.5 py-0.5 text-[9px] text-zinc-600">{e.area}</span>
+                    <span className="shrink-0 rounded bg-elevated px-1.5 py-0.5 text-[9px] text-faint">{e.area}</span>
                   )}
                 </div>
               );
@@ -792,7 +792,7 @@ export function DashboardClient({ stats, workspaceName, locale }: Props) {
             }
           </div>
           <div className="border-t border-white/[0.04] px-5 py-2.5">
-            <a href={`/${locale}/conversations`} className="flex items-center gap-1 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">
+            <a href={`/${locale}/conversations`} className="flex items-center gap-1 text-[10px] text-faint hover:text-muted transition-colors">
               <span>Ver todas las conversaciones</span>
               <ArrowRight size={10} />
             </a>

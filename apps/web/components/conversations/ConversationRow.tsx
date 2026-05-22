@@ -30,7 +30,7 @@ const STATUS_DOT: Record<ConvStatus, string> = {
 
 const STATUS_TEXT: Record<ConvStatus, string> = {
   open: "text-blue-400",
-  closed: "text-zinc-500",
+  closed: "text-muted",
   escalated: "text-red-400",
 };
 
@@ -73,7 +73,7 @@ export function ConversationRow({
       transition={{ duration: 0.28, ease: APPLE_EASE }}
       className={cn(
         "flex items-center gap-4 px-4 py-3",
-        "border-b border-white/[0.05] last:border-0",
+        "border-b border-line last:border-0",
         "hover:bg-white/[0.025] transition-colors duration-150"
       )}
     >
@@ -84,10 +84,10 @@ export function ConversationRow({
 
       {/* Names */}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-zinc-200">
+        <p className="truncate text-sm font-medium text-body">
           {employeeName ?? "Unknown employee"}
         </p>
-        <p className="truncate text-xs text-zinc-500">
+        <p className="truncate text-xs text-muted">
           {agentName ?? "Unknown agent"} · {formatTime(startedAt)}
         </p>
       </div>
@@ -96,7 +96,7 @@ export function ConversationRow({
       <div className="flex shrink-0 items-center gap-3">
         {/* Channel badge */}
         {channelType && (
-          <span className="hidden items-center gap-1 rounded-md border border-zinc-700/50 bg-zinc-900 px-2 py-0.5 text-[11px] text-zinc-400 sm:flex">
+          <span className="hidden items-center gap-1 rounded-md border border-zinc-700/50 bg-zinc-900 px-2 py-0.5 text-[11px] text-muted sm:flex">
             {CHANNEL_ICONS[channelType]}
             {channelLabels[channelType]}
           </span>
@@ -111,7 +111,7 @@ export function ConversationRow({
         </div>
 
         {/* Count */}
-        <span className="hidden text-[11px] text-zinc-600 sm:block">
+        <span className="hidden text-[11px] text-faint sm:block">
           {messageCount} {messagesLabel}
           {durationSeconds ? ` · ${durationSeconds}${durationLabel}` : ""}
         </span>

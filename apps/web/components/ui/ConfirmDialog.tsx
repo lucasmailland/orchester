@@ -63,7 +63,7 @@ export function ConfirmDialogHost(): ReactNode {
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.15 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl"
+            className="w-full max-w-sm rounded-2xl border border-line bg-surface p-5 shadow-2xl"
           >
             <div className="mb-3 flex items-start gap-3">
               {state.destructive && (
@@ -72,9 +72,9 @@ export function ConfirmDialogHost(): ReactNode {
                 </div>
               )}
               <div>
-                <h3 className="text-sm font-semibold text-zinc-100">{state.title}</h3>
+                <h3 className="text-sm font-semibold text-strong">{state.title}</h3>
                 {state.description && (
-                  <p className="mt-1 text-xs text-zinc-400">{state.description}</p>
+                  <p className="mt-1 text-xs text-muted">{state.description}</p>
                 )}
               </div>
             </div>
@@ -82,7 +82,7 @@ export function ConfirmDialogHost(): ReactNode {
               <button
                 type="button"
                 onClick={() => close(false)}
-                className="rounded-lg px-3 py-1.5 text-xs text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
+                className="rounded-lg px-3 py-1.5 text-xs text-muted hover:bg-hover hover:text-body"
               >
                 {state.cancelText ?? "Cancelar"}
               </button>

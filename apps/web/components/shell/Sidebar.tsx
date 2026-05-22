@@ -72,11 +72,11 @@ export function Sidebar({ locale }: SidebarProps) {
       transition={{ duration: 0.25, ease: APPLE_EASE }}
       className={cn(
         "relative flex h-full flex-col",
-        "border-r border-white/[0.06] bg-zinc-950"
+        "border-r border-line bg-surface"
       )}
     >
       {/* Logo */}
-      <div className="flex h-14 shrink-0 items-center overflow-hidden border-b border-white/[0.06] px-4">
+      <div className="flex h-14 shrink-0 items-center overflow-hidden border-b border-line px-4">
         <motion.div className="flex items-center gap-3 overflow-hidden">
           <div className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg">
             <div className="absolute inset-0 bg-gradient-to-br from-violet-500 via-blue-500 to-violet-700" />
@@ -84,10 +84,10 @@ export function Sidebar({ locale }: SidebarProps) {
           </div>
           <AnimatePresenceWrapper show={!collapsed}>
             <div className="flex flex-col gap-px leading-none">
-              <span className="whitespace-nowrap font-display text-sm font-bold tracking-tight text-white">
+              <span className="whitespace-nowrap font-display text-sm font-bold tracking-tight text-strong">
                 Orchester
               </span>
-              <span className="whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.12em] text-zinc-600">
+              <span className="whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.12em] text-faint">
                 AI Platform
               </span>
             </div>
@@ -99,10 +99,10 @@ export function Sidebar({ locale }: SidebarProps) {
       <nav className="flex-1 overflow-y-auto py-3">
         {groups.map((group, idx) => (
           <div key={group.label}>
-            {idx > 0 && <div className="my-3 mx-3 border-t border-white/[0.06]" />}
+            {idx > 0 && <div className="my-3 mx-3 border-t border-line" />}
             <AnimatePresenceWrapper show={!collapsed}>
               <div className="mb-1.5 px-4">
-                <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-zinc-600">
+                <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-faint">
                   {group.label}
                 </span>
               </div>
@@ -117,13 +117,13 @@ export function Sidebar({ locale }: SidebarProps) {
       </nav>
 
       {/* Collapse toggle */}
-      <div className="shrink-0 border-t border-white/[0.06] p-2">
+      <div className="shrink-0 border-t border-line p-2">
         <button
           onClick={() => setCollapsed((c) => !c)}
           className={cn(
             "flex w-full items-center justify-center rounded-lg p-2",
-            "text-zinc-600 transition-colors duration-150",
-            "hover:bg-white/[0.05] hover:text-zinc-300"
+            "text-faint transition-colors duration-150",
+            "hover:bg-white/[0.05] hover:text-body"
           )}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >

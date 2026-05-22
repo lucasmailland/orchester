@@ -23,7 +23,7 @@ export function PresentationModeToggle() {
           "transition-colors duration-200",
           isPresenting
             ? "text-fichap-primary"
-            : "text-zinc-500 hover:text-zinc-100"
+            : "text-muted hover:text-strong"
         )}
       >
         <motion.div

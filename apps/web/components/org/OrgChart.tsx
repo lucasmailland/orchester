@@ -20,7 +20,7 @@ const STATUS_DOT: Record<string, string> = {
 
 const STATUS_LABEL: Record<string, string> = {
   active: "text-emerald-400",
-  inactive: "text-zinc-500",
+  inactive: "text-muted",
   draft: "text-amber-400",
 };
 
@@ -161,16 +161,16 @@ export function OrgChart({ workspaceName, teams }: OrgChartProps) {
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-violet-400/70">
               Workspace
             </p>
-            <p className="text-lg font-bold text-zinc-100">{workspaceName}</p>
+            <p className="text-lg font-bold text-strong">{workspaceName}</p>
           </div>
-          <div className="ml-2 flex items-center gap-5 border-l border-white/[0.08] pl-5">
+          <div className="ml-2 flex items-center gap-5 border-l border-line pl-5">
             <div className="text-center">
               <p className="text-2xl font-bold tabular-nums text-violet-400">{teams.length}</p>
-              <p className="text-[10px] font-medium uppercase tracking-widest text-zinc-500">Teams</p>
+              <p className="text-[10px] font-medium uppercase tracking-widest text-muted">Teams</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold tabular-nums text-blue-400">{totalAgents}</p>
-              <p className="text-[10px] font-medium uppercase tracking-widest text-zinc-500">Agents</p>
+              <p className="text-[10px] font-medium uppercase tracking-widest text-muted">Agents</p>
             </div>
           </div>
         </motion.div>
@@ -191,7 +191,7 @@ export function OrgChart({ workspaceName, teams }: OrgChartProps) {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.45, delay: 0.25 + ti * 0.1, ease: APPLE_EASE }}
                   whileHover={{ y: -4, transition: { duration: 0.18 } }}
-                  className="w-56 cursor-default rounded-2xl border bg-zinc-900/60 p-4 shadow-lg"
+                  className="w-56 cursor-default rounded-2xl border bg-card p-4 shadow-lg"
                   style={{
                     borderColor: `${color}45`,
                     boxShadow: `0 4px 28px ${color}1A`,
@@ -205,16 +205,16 @@ export function OrgChart({ workspaceName, teams }: OrgChartProps) {
                       {initials}
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-zinc-100">
+                      <p className="truncate text-sm font-bold text-strong">
                         {team.name}
                       </p>
-                      <p className="text-[11px] text-zinc-500">
+                      <p className="text-[11px] text-muted">
                         {team.agents.length} agent{team.agents.length !== 1 ? "s" : ""}
                       </p>
                     </div>
                   </div>
                   {team.description && (
-                    <p className="mt-2.5 line-clamp-2 text-[11px] leading-relaxed text-zinc-500">
+                    <p className="mt-2.5 line-clamp-2 text-[11px] leading-relaxed text-muted">
                       {team.description}
                     </p>
                   )}
@@ -230,7 +230,7 @@ export function OrgChart({ workspaceName, teams }: OrgChartProps) {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.38, delay: 0.65 + ti * 0.1 + ai * 0.07, ease: APPLE_EASE }}
                       whileHover={{ y: -2, scale: 1.015, transition: { duration: 0.15 } }}
-                      className="w-56 cursor-default rounded-xl border border-white/[0.06] bg-zinc-900/40 p-3"
+                      className="w-56 cursor-default rounded-xl border border-line bg-card p-3"
                     >
                       <div className="flex items-center gap-2.5">
                         <div
@@ -240,19 +240,19 @@ export function OrgChart({ workspaceName, teams }: OrgChartProps) {
                           <Bot size={13} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-[12px] font-semibold text-zinc-200">
+                          <p className="truncate text-[12px] font-semibold text-body">
                             {agent.name}
                           </p>
-                          <p className="truncate text-[10px] text-zinc-500">{agent.role}</p>
+                          <p className="truncate text-[10px] text-muted">{agent.role}</p>
                         </div>
                         <div className="flex items-center gap-1">
                           <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_DOT[agent.status] ?? "bg-zinc-600")} />
-                          <span className={cn("text-[9px] font-semibold uppercase", STATUS_LABEL[agent.status] ?? "text-zinc-500")}>
+                          <span className={cn("text-[9px] font-semibold uppercase", STATUS_LABEL[agent.status] ?? "text-muted")}>
                             {agent.status}
                           </span>
                         </div>
                       </div>
-                      <span className="mt-2 inline-block rounded border border-zinc-700/50 bg-zinc-900 px-1.5 py-0.5 font-mono text-[9px] text-zinc-400">
+                      <span className="mt-2 inline-block rounded border border-zinc-700/50 bg-zinc-900 px-1.5 py-0.5 font-mono text-[9px] text-muted">
                         {MODEL_SHORT[agent.model] ?? agent.model}
                       </span>
                     </motion.div>
