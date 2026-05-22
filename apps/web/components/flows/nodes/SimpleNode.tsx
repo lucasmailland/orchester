@@ -5,6 +5,7 @@ import type { LucideIcon } from "lucide-react";
 interface NodeData {
   label: string;
   subtitle?: string;
+  badge?: string | null;
 }
 
 export function SimpleNode({
@@ -22,9 +23,17 @@ export function SimpleNode({
 }) {
   return (
     <div
-      className="flex min-w-[180px] items-center gap-2.5 rounded-xl border border-line bg-surface/95 px-3 py-2.5 shadow-md"
+      className="relative flex min-w-[180px] items-center gap-2.5 rounded-xl border border-line bg-surface/95 px-3 py-2.5 shadow-md"
       style={{ borderLeftWidth: 3, borderLeftColor: accent }}
     >
+      {data.badge && (
+        <div
+          className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-white shadow"
+          title={data.badge}
+        >
+          !
+        </div>
+      )}
       {showTargetHandle && <Handle type="target" position={Position.Left} />}
       <div
         className="flex h-8 w-8 items-center justify-center rounded-lg"
