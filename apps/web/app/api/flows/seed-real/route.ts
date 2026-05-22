@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
 import { and, eq, inArray } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import type { FlowNodeData, FlowEdgeData } from "@orchester/db";
 
 /**
@@ -23,8 +23,8 @@ import type { FlowNodeData, FlowEdgeData } from "@orchester/db";
  * Devuelve `{ created: [...], skipped: [...] }` con los nombres.
  */
 export async function POST() {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
   const db = getDb();
 
   // Para los flows necesitamos referenciar agentes existentes por rol — los
@@ -33,7 +33,7 @@ export async function POST() {
   const agents = await db
     .select({ id: schema.agents.id, name: schema.agents.name })
     .from(schema.agents)
-    .where(eq(schema.agents.workspaceId, ws.workspace.id));
+    .where(eq(schema.agents.workspaceId, ctx.workspace.id));
 
   const byName = new Map(agents.map((a) => [a.name.toLowerCase(), a.id] as const));
   const refAgent = (name: string) => byName.get(name.toLowerCase()) ?? "";
@@ -360,7 +360,7 @@ export async function POST() {
     .from(schema.flows)
     .where(
       and(
-        eq(schema.flows.workspaceId, ws.workspace.id),
+        eq(schema.flows.workspaceId, ctx.workspace.id),
         inArray(
           schema.flows.name,
           flowsSpec.map((f) => f.name)
@@ -378,7 +378,7 @@ export async function POST() {
     }
     await db.insert(schema.flows).values({
       id: createId(),
-      workspaceId: ws.workspace.id,
+      workspaceId: ctx.workspace.id,
       name: f.name,
       description: f.description,
       status: "draft",

@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { sendEmail } from "@/lib/email";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
 import { safeLogError } from "@/lib/safe-log";
+
+const testEmailSchema = z.object({
+  to: z.string().optional(),
+});
 
 /**
  * POST /api/admin/test-email
@@ -17,8 +23,9 @@ export async function POST(req: Request) {
   const ctx = await requireAuth({ minRole: "admin" });
   if (!isAuthContext(ctx)) return ctx;
 
-  const body = (await req.json().catch(() => ({}))) as { to?: string };
-  const to = body.to ?? ctx.user.email;
+  const parsed = await parseBody(req, testEmailSchema);
+  if (!parsed.ok) return parsed.response;
+  const to = parsed.data.to ?? ctx.user.email;
   if (!/^[^@]+@[^@]+\.[^@]+$/.test(to)) {
     return NextResponse.json({ error: "Invalid email" }, { status: 400 });
   }

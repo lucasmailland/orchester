@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
   const db = getDb();
   const deleted = await db
@@ -13,7 +13,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     .where(
       and(
         eq(schema.conversationLabels.id, id),
-        eq(schema.conversationLabels.workspaceId, ws.workspace.id)
+        eq(schema.conversationLabels.workspaceId, ctx.workspace.id)
       )
     )
     .returning({ id: schema.conversationLabels.id });

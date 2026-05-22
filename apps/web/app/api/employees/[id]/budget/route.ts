@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getDb, schema } from "@orchester/db";
 import { and, eq } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
 import { checkEmployeeBudget } from "@/lib/employee-budget";
+
+const updateBudgetSchema = z.object({
+  monthlyBudgetUsd: z.number().nonnegative().nullable(),
+});
 
 /**
  * GET /api/employees/[id]/budget
@@ -22,24 +29,19 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
  * Setea o limpia el budget mensual.
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "admin" });
+  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
-  const body = (await req.json().catch(() => ({}))) as { monthlyBudgetUsd?: number | null };
-  const value = body.monthlyBudgetUsd;
-  if (value !== null && (typeof value !== "number" || value < 0 || !Number.isFinite(value))) {
-    return NextResponse.json(
-      { error: "monthlyBudgetUsd must be a non-negative number or null" },
-      { status: 400 }
-    );
-  }
+  const parsed = await parseBody(req, updateBudgetSchema);
+  if (!parsed.ok) return parsed.response;
+  const value = parsed.data.monthlyBudgetUsd;
 
   const db = getDb();
   const updated = await db
     .update(schema.employees)
     .set({ monthlyBudgetUsd: value == null ? null : String(value) })
     .where(
-      and(eq(schema.employees.id, id), eq(schema.employees.workspaceId, ws.workspace.id))
+      and(eq(schema.employees.id, id), eq(schema.employees.workspaceId, ctx.workspace.id))
     )
     .returning({ id: schema.employees.id, monthlyBudgetUsd: schema.employees.monthlyBudgetUsd });
   const row = updated[0];

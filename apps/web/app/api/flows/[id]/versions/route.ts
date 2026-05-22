@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
 import { eq, and, desc } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
+
+const createFlowVersionSchema = z.object({
+  label: z.string().nullable().optional(),
+});
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ws = await getCurrentWorkspace();
@@ -23,16 +30,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
-  const body = await req.json().catch(() => ({}));
+  const parsed = await parseBody(req, createFlowVersionSchema);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
   const db = getDb();
 
   const flowRows = await db
     .select()
     .from(schema.flows)
-    .where(and(eq(schema.flows.id, id), eq(schema.flows.workspaceId, ws.workspace.id)))
+    .where(and(eq(schema.flows.id, id), eq(schema.flows.workspaceId, ctx.workspace.id)))
     .limit(1);
   const flow = flowRows[0];
   if (!flow) return NextResponse.json({ error: "Flow not found" }, { status: 404 });
@@ -49,7 +58,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .values({
       id: createId(),
       flowId: id,
-      workspaceId: ws.workspace.id,
+      workspaceId: ctx.workspace.id,
       version: flow.version ?? 1,
       label: body.label ?? null,
       nodes: flow.nodes ?? [],

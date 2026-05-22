@@ -12,7 +12,7 @@ import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { getDb, schema } from "@orchester/db";
 import { eq, sql } from "drizzle-orm";
-import { executeFlow } from "@/lib/flow-engine";
+import { enqueueFlowRun } from "@/lib/flow-engine";
 import { rateLimit } from "@/lib/rate-limit";
 
 /** Headers seguros para pasar al flow (evita filtrar Authorization/Cookie). */
@@ -101,11 +101,13 @@ async function handle(req: Request, p: { secret: string }) {
     .where(eq(schema.flowWebhooks.id, wh.id))
     .catch(() => {});
 
-  const result = await executeFlow({
+  // Encolamos la ejecución (async) en vez de correrla inline: un webhook no debe
+  // mantener abierta la conexión HTTP mientras el flow hace polling de video/IA.
+  const result = await enqueueFlowRun({
     flowId: wh.flowId,
     workspaceId: wh.workspaceId,
     triggerSource: "webhook",
     input,
   });
-  return NextResponse.json(result);
+  return NextResponse.json(result, { status: 202 });
 }

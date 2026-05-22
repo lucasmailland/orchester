@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
 import { eq, asc } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
+
+const createLabelSchema = z.object({
+  name: z.string().trim().min(1, "name required"),
+  color: z.string().optional(),
+});
 
 export async function GET() {
   const ws = await getCurrentWorkspace();
@@ -17,18 +25,19 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const body = await req.json();
-  if (!body?.name?.trim()) return NextResponse.json({ error: "name required" }, { status: 400 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
+  const parsed = await parseBody(req, createLabelSchema);
+  if (!parsed.ok) return parsed.response;
+  const { name, color } = parsed.data;
   const db = getDb();
   const inserted = await db
     .insert(schema.conversationLabels)
     .values({
       id: createId(),
-      workspaceId: ws.workspace.id,
-      name: body.name.trim(),
-      color: body.color ?? "#8b5cf6",
+      workspaceId: ctx.workspace.id,
+      name: name.trim(),
+      color: color ?? "#8b5cf6",
     })
     .returning();
   return NextResponse.json(inserted[0]!, { status: 201 });

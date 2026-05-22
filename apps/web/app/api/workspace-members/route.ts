@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getDb, schema } from "@orchester/db";
 import { and, eq } from "drizzle-orm";
-import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
+import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { logAudit } from "@/lib/audit";
 
 /**
@@ -41,13 +42,8 @@ export async function GET() {
 const VALID_ROLES = new Set(["owner", "admin", "editor", "viewer"]);
 
 export async function PATCH(req: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "No workspace" }, { status: 404 });
-  if (ws.role !== "owner" && ws.role !== "admin") {
-    return NextResponse.json({ error: "Insufficient role" }, { status: 403 });
-  }
+  const ctx = await requireAuth({ minRole: "admin" });
+  if (!isAuthContext(ctx)) return ctx;
 
   const url = new URL(req.url);
   const userId = url.searchParams.get("userId");
@@ -60,7 +56,7 @@ export async function PATCH(req: Request) {
   }
 
   // Solo el owner puede crear otros owners.
-  if (role === "owner" && ws.role !== "owner") {
+  if (role === "owner" && ctx.role !== "owner") {
     return NextResponse.json({ error: "Only owner can promote to owner" }, { status: 403 });
   }
 
@@ -73,7 +69,7 @@ export async function PATCH(req: Request) {
       .from(schema.workspaceMembers)
       .where(
         and(
-          eq(schema.workspaceMembers.workspaceId, ws.workspace.id),
+          eq(schema.workspaceMembers.workspaceId, ctx.workspace.id),
           eq(schema.workspaceMembers.userId, userId)
         )
       )
@@ -87,7 +83,7 @@ export async function PATCH(req: Request) {
       .from(schema.workspaceMembers)
       .where(
         and(
-          eq(schema.workspaceMembers.workspaceId, ws.workspace.id),
+          eq(schema.workspaceMembers.workspaceId, ctx.workspace.id),
           eq(schema.workspaceMembers.role, "owner")
         )
       );
@@ -102,8 +98,8 @@ export async function PATCH(req: Request) {
     .where(eq(schema.workspaceMembers.id, target.id));
 
   await logAudit({
-    workspaceId: ws.workspace.id,
-    userId: session.user.id,
+    workspaceId: ctx.workspace.id,
+    userId: ctx.user.id,
     action: "member.role_change",
     resource: "workspace_member",
     resourceId: target.id,
@@ -115,13 +111,8 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "No workspace" }, { status: 404 });
-  if (ws.role !== "owner" && ws.role !== "admin") {
-    return NextResponse.json({ error: "Insufficient role" }, { status: 403 });
-  }
+  const ctx = await requireAuth({ minRole: "admin" });
+  if (!isAuthContext(ctx)) return ctx;
 
   const url = new URL(req.url);
   const userId = url.searchParams.get("userId");
@@ -134,7 +125,7 @@ export async function DELETE(req: Request) {
       .from(schema.workspaceMembers)
       .where(
         and(
-          eq(schema.workspaceMembers.workspaceId, ws.workspace.id),
+          eq(schema.workspaceMembers.workspaceId, ctx.workspace.id),
           eq(schema.workspaceMembers.userId, userId)
         )
       )
@@ -150,8 +141,8 @@ export async function DELETE(req: Request) {
     .where(eq(schema.workspaceMembers.id, target.id));
 
   await logAudit({
-    workspaceId: ws.workspace.id,
-    userId: session.user.id,
+    workspaceId: ctx.workspace.id,
+    userId: ctx.user.id,
     action: "member.remove",
     resource: "workspace_member",
     resourceId: target.id,

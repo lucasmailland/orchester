@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
 import { and, eq, isNull, or } from "drizzle-orm";
 import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
+import { parseBody } from "@/lib/validation";
+
+const updatePrefSchema = z.object({
+  key: z.string(),
+  enabled: z.boolean(),
+});
 
 /**
  * Notification preferences API.
@@ -79,15 +86,14 @@ export async function PATCH(req: Request) {
   const ws = await getCurrentWorkspace();
   if (!ws) return NextResponse.json({ error: "No workspace" }, { status: 404 });
 
-  const body = (await req.json().catch(() => ({}))) as { key?: string; enabled?: boolean };
-  if (!body.key || !isKnownKey(body.key)) {
+  const parsed = await parseBody(req, updatePrefSchema);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+  if (!isKnownKey(body.key)) {
     return NextResponse.json(
       { error: `key required, must be one of: ${Object.keys(NOTIFICATION_KEYS).join(", ")}` },
       { status: 400 }
     );
-  }
-  if (typeof body.enabled !== "boolean") {
-    return NextResponse.json({ error: "enabled (boolean) required" }, { status: 400 });
   }
 
   const db = getDb();

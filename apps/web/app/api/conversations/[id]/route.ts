@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
 import { checkEmployeeBudget } from "@/lib/employee-budget";
+
+const updateConversationSchema = z.object({
+  status: z.enum(["open", "closed", "escalated"]).optional(),
+  tags: z.array(z.string()).optional(),
+  csat: z.number().optional(),
+  summary: z.string().optional(),
+  assignedToUserId: z.string().nullable().optional(),
+});
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ws = await getCurrentWorkspace();
@@ -32,10 +43,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
-  const body = await req.json();
+  const parsed = await parseBody(req, updateConversationSchema);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
   const db = getDb();
   const set: Record<string, unknown> = {};
   if (body.status !== undefined) set.status = body.status;
@@ -47,7 +60,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .update(schema.conversations)
     .set(set)
     .where(
-      and(eq(schema.conversations.id, id), eq(schema.conversations.workspaceId, ws.workspace.id))
+      and(eq(schema.conversations.id, id), eq(schema.conversations.workspaceId, ctx.workspace.id))
     )
     .returning();
   const row = updated[0];

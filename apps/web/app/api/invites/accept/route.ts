@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
 import { getCurrentSession } from "@/lib/workspace";
+import { parseBody } from "@/lib/validation";
+
+const acceptInviteSchema = z.object({
+  token: z.string().optional(),
+});
 
 /**
  * POST /api/invites/accept
@@ -12,8 +18,9 @@ import { getCurrentSession } from "@/lib/workspace";
 export async function POST(req: Request) {
   const session = await getCurrentSession();
   if (!session) return NextResponse.json({ error: "Unauthorized — login first" }, { status: 401 });
-  const body = await req.json();
-  const token = String(body?.token ?? "");
+  const parsed = await parseBody(req, acceptInviteSchema);
+  if (!parsed.ok) return parsed.response;
+  const token = String(parsed.data.token ?? "");
   if (!token) return NextResponse.json({ error: "token required" }, { status: 400 });
 
   const db = getDb();

@@ -1,8 +1,17 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getDb, schema } from "@orchester/db";
 import { and, eq } from "drizzle-orm";
 import { getCurrentSession } from "@/lib/workspace";
 import { logAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validation";
+import { getStorage } from "@/lib/storage";
+import { safeLogError } from "@/lib/safe-log";
+
+const updateWorkspaceSchema = z.object({
+  name: z.string().optional(),
+  timezone: z.string().optional(),
+});
 
 /**
  * Endpoints del workspace. Validamos que el caller sea miembro Y que su rol
@@ -69,10 +78,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "Insufficient role" }, { status: 403 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as {
-    name?: string;
-    timezone?: string;
-  };
+  const parsed = await parseBody(req, updateWorkspaceSchema);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
 
   const set: Record<string, unknown> = { updatedAt: new Date() };
   if (typeof body.name === "string" && body.name.trim()) {
@@ -153,5 +161,20 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   });
   await db.delete(schema.workspaces).where(eq(schema.workspaces.id, id));
   // Cascade en schema borra members, agents, conversations, etc.
+
+  // M4-1: el cascade de la DB NO toca el object storage. Borramos todo lo
+  // subido bajo este workspace (KB docs, imágenes/audio generados, etc.).
+  // Las keys se generan con makeKey() como `${workspaceId}/<prefix>/...`,
+  // así que el prefix del workspace es `${id}/`. Resiliente: un fallo de
+  // storage no debe bloquear el delete del workspace (ya hecho arriba).
+  try {
+    const deleted = await getStorage().deleteByPrefix(`${id}/`);
+    if (deleted > 0) {
+      console.log(`[workspaces] deleted ${deleted} storage object(s) for ws=${id}`);
+    }
+  } catch (e) {
+    safeLogError(`[workspaces] storage cleanup failed for ws=${id}:`, e);
+  }
+
   return NextResponse.json({ ok: true });
 }

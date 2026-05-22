@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { z } from "zod";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
 import { previewCells, type Cells } from "@/lib/flows/spreadsheet-core";
+
+// `cells` es un mapa cellRef → fórmula/valor, dinámico por su naturaleza.
+const previewSchema = z.object({
+  cells: z.record(z.string(), z.unknown()).optional(),
+});
 
 /**
  * POST /api/flows/spreadsheet-preview
@@ -10,10 +17,11 @@ import { previewCells, type Cells } from "@/lib/flows/spreadsheet-core";
  * así el preview coincide con el resultado. Sin datos del flujo (input vacío).
  */
 export async function POST(req: Request) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const body = await req.json().catch(() => ({}));
-  const cells = (body?.cells ?? {}) as Cells;
+  const authCtx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(authCtx)) return authCtx;
+  const parsed = await parseBody(req, previewSchema);
+  if (!parsed.ok) return parsed.response;
+  const cells = (parsed.data.cells ?? {}) as Cells;
 
   const vm = await import("node:vm");
   const formulajs = await import("@formulajs/formulajs");

@@ -1,19 +1,19 @@
 import { NextResponse } from "next/server";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { decrypt } from "@/lib/encryption";
 import { testProviderConnection } from "@/lib/providers";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "admin" });
+  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
   const db = getDb();
   const rows = await db
     .select()
     .from(schema.aiProviders)
-    .where(and(eq(schema.aiProviders.id, id), eq(schema.aiProviders.workspaceId, ws.workspace.id)))
+    .where(and(eq(schema.aiProviders.id, id), eq(schema.aiProviders.workspaceId, ctx.workspace.id)))
     .limit(1);
   const row = rows[0];
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });

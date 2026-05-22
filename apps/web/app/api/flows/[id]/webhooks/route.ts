@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import crypto from "node:crypto";
 import { getDb, schema } from "@orchester/db";
 import { eq, and, desc } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
+
+const createFlowWebhookSchema = z.object({
+  hmac: z.boolean().optional(),
+});
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ws = await getCurrentWorkspace();
@@ -24,18 +31,19 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
-  const body = await req.json().catch(() => ({}));
-  const useHmac = Boolean(body?.hmac);
+  const parsed = await parseBody(req, createFlowWebhookSchema);
+  if (!parsed.ok) return parsed.response;
+  const useHmac = Boolean(parsed.data.hmac);
   const db = getDb();
   const inserted = await db
     .insert(schema.flowWebhooks)
     .values({
       id: createId(),
       flowId: id,
-      workspaceId: ws.workspace.id,
+      workspaceId: ctx.workspace.id,
       secret: crypto.randomBytes(24).toString("hex"),
       hmacKey: useHmac ? crypto.randomBytes(32).toString("hex") : null,
     })
