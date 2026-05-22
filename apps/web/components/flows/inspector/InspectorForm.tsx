@@ -18,6 +18,8 @@ interface Props {
   locale: Locale;
   onChange: (n: Node) => void;
   onDelete: (id: string) => void;
+  /** Datos disponibles para insertar en campos (variables del flujo + salidas). */
+  availableData?: string[];
 }
 
 interface PickerOption {
@@ -25,7 +27,7 @@ interface PickerOption {
   label: string;
 }
 
-export function InspectorForm({ node, locale, onChange, onDelete }: Props) {
+export function InspectorForm({ node, locale, onChange, onDelete, availableData = [] }: Props) {
   if (!node) {
     return (
       <div className="p-4 text-xs text-muted">
@@ -104,7 +106,7 @@ export function InspectorForm({ node, locale, onChange, onDelete }: Props) {
 
       <div className="space-y-3">
         {basicFields.filter(visible).map((f) => (
-          <FieldRenderer key={f.key} field={f} value={config[f.key]} onChange={(v) => update({ config: { [f.key]: v } })} />
+          <FieldRenderer key={f.key} field={f} value={config[f.key]} availableData={availableData} onChange={(v) => update({ config: { [f.key]: v } })} />
         ))}
       </div>
 
@@ -115,7 +117,7 @@ export function InspectorForm({ node, locale, onChange, onDelete }: Props) {
           </summary>
           <div className="space-y-3 px-3 pb-3">
             {advancedFields.filter(visible).map((f) => (
-              <FieldRenderer key={f.key} field={f} value={config[f.key]} onChange={(v) => update({ config: { [f.key]: v } })} />
+              <FieldRenderer key={f.key} field={f} value={config[f.key]} availableData={availableData} onChange={(v) => update({ config: { [f.key]: v } })} />
             ))}
           </div>
         </details>
@@ -146,8 +148,35 @@ function FieldLabel({ label, help, example, required }: { label: string; help?: 
 const inputCls =
   "w-full rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-strong placeholder:text-faint outline-none focus:border-violet-500/60";
 
-function FieldRenderer({ field, value, onChange }: { field: FieldDef; value: unknown; onChange: (v: unknown) => void }) {
+/**
+ * Selector visual de datos: en vez de obligar a escribir {{variable}}, muestra
+ * los datos disponibles como chips. Al hacer click, inserta el dato por vos.
+ */
+function DataPicker({ data, onPick }: { data: string[]; onPick: (name: string) => void }) {
+  if (data.length === 0) return null;
+  return (
+    <div className="mt-1.5">
+      <p className="mb-1 text-[10px] text-faint">Insertá un dato (lo trae de pasos anteriores):</p>
+      <div className="flex flex-wrap gap-1">
+        {data.map((name) => (
+          <button
+            key={name}
+            type="button"
+            onClick={() => onPick(name)}
+            className="rounded-full border border-line bg-card px-2 py-0.5 text-[10px] text-violet-600 dark:text-violet-400 hover:bg-violet-500/10"
+            title={`Insertar ${name}`}
+          >
+            + {name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FieldRenderer({ field, value, onChange, availableData = [] }: { field: FieldDef; value: unknown; onChange: (v: unknown) => void; availableData?: string[] }) {
   const common = <FieldLabel label={field.label} help={field.help} example={field.example} required={field.required} />;
+  const showPicker = field.type === "variable" || field.type === "textarea";
 
   switch (field.type) {
     case "textarea":
@@ -163,6 +192,9 @@ function FieldRenderer({ field, value, onChange }: { field: FieldDef; value: unk
             rows={field.type === "code" ? 5 : 3}
             className={`${inputCls} resize-y ${field.type === "code" ? "font-mono text-[11px]" : ""}`}
           />
+          {showPicker && (
+            <DataPicker data={availableData} onPick={(name) => onChange(`${String(value ?? "")}{{${name}}}`)} />
+          )}
         </div>
       );
     case "number":
