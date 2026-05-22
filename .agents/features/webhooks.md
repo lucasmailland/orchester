@@ -53,6 +53,24 @@ workspace events happen.
 
 ## Execution (changelog — newest first)
 
+### 2026-05-21 — completeness + security hardening
+- **Event catalog** expanded to 14 events (`WEBHOOK_EVENTS` in `webhooks-out.ts`):
+  added `agent.created`, `conversation.closed`, `conversation.csat`,
+  `message.received`, `integration.connected`. New `GET /api/webhooks-out/events`.
+- **Test/ping:** `sendTestEvent()` + `POST /api/webhooks-out/[id] {action:"test"}`
+  delivers a signed synthetic event; "Probar" button in DevelopersSection.
+- **Deliveries viewer:** `GET /api/webhooks-out/[id]/deliveries` (last 25).
+- `integration.connected` dispatched from `lib/integrations/store.ts`.
+- **Security (audit fixes):**
+  - Inbound `/api/webhooks/[secret]`: HMAC compare now timing-safe
+    (`crypto.timingSafeEqual`, was `!==`); per-secret rate limit (60/min);
+    1MB body cap; forwards only a safe header whitelist (was leaking
+    Authorization/Cookie into the flow input).
+  - Outbound: SSRF guard (`lib/net-guard.ts` `assertPublicUrl`) on create, edit,
+    and before each delivery — blocks loopback/RFC1918/link-local (cloud metadata).
+    PATCH previously had NO URL validation.
+  - `failureCount` now increments (SQL `+ 1`) instead of being stuck at 0/1.
+
 ### 2026-04-28 — outbound webhooks
 - `outbound_webhook` + `webhook_delivery` tables.
 - 4 endpoints (CRUD + delivery list).

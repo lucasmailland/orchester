@@ -110,6 +110,26 @@ undocumented surface area.
 - After a major change, append a note to the relevant `.agents/<spec>.md`
   under a "Changelog" section if it materially changes behavior.
 
+## UI & Design (MANDATORY)
+
+**Before building or changing ANY UI, read
+[`docs/UI-DESIGN-SYSTEM.md`](./docs/UI-DESIGN-SYSTEM.md)** (pointer:
+[`.agents/reference/ui-design-system.md`](./.agents/reference/ui-design-system.md)).
+Non-negotiables:
+
+- **Dark-only.** No light mode, no theme toggles, no `light:`/`dark:` variants.
+- Accent = **violet**; status = emerald/amber/rose/blue with the
+  `text-300 + bg-500/10 + border-500/30` pattern; neutrals = **zinc** scale +
+  `white/[opacity]`. Never `gray`/`slate`/`neutral` or ad-hoc colors.
+- Radii: `rounded-2xl` cards, `rounded-xl` sub-blocks, `rounded-lg`
+  buttons/inputs/badges. Borders `white/[0.06]`–`[0.08]`.
+- HeroUI Inputs: `labelPlacement="outside"` + `text-foreground` (never
+  `dark:text-default-*`). Forms: `flex flex-col gap-4` (NOT `space-y` — collides
+  with HeroUI's floating-label margin).
+- Icons: lucide-react only. Motion: variants from `@/lib/motion` + `APPLE_EASE`.
+
+When in doubt, copy the closest existing component's classes. **Consistency > creativity.**
+
 ## When Adding a New Screen
 
 1. Create the route under `apps/web/app/[locale]/(shell)/<name>/page.tsx`
