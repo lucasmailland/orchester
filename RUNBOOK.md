@@ -35,7 +35,7 @@ curl -s $DOMAIN/api/health | jq .
 | Check rojo | Causa más probable | Fix |
 | --- | --- | --- |
 | `db_ping` | Postgres caído o connection string mal | `pg_isready -d "$DATABASE_URL"`. Restart Postgres si es local. Verificá password rotado. |
-| `db_schema` | `pgvector` no instalado o schema sin pushear | `CREATE EXTENSION vector;` + `pnpm --filter @orchester/db push`. |
+| `db_schema` | schema sin aplicar | `pnpm --filter @orchester/db migrate` (la migración baseline ya corre `CREATE EXTENSION IF NOT EXISTS vector;`). |
 
 Si `db_ping` ok pero el latency es >1000ms (warning): mirá `pg_stat_activity` por queries lentas, vacuum.
 

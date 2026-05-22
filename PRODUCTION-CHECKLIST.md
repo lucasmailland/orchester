@@ -30,7 +30,7 @@ Si tira ✗ en algo, arreglalo antes de seguir.
 ## 2. Database
 
 - [ ] Postgres 16 con `pgvector >=0.8` instalado (`CREATE EXTENSION vector`).
-- [ ] Schema aplicado (`pnpm --filter @orchester/db push`).
+- [ ] Schema aplicado (`pnpm --filter @orchester/db migrate`).
 - [ ] **TLS forzado** en la connection string: `?sslmode=require` (NO disable).
 - [ ] Connection pool dimensionado: para `web` 10-20 conns, `worker` 5-10.
 - [ ] Backups automáticos: `crontab -e`
@@ -138,7 +138,7 @@ Si tira ✗ en algo, arreglalo antes de seguir.
 - [ ] Build de prod en lugar de `next dev` (`pnpm --filter web build && pnpm --filter web start`).
 - [ ] LCP < 2.5s en dashboard (medido con Lighthouse).
 - [ ] TTFB < 600ms en endpoints autenticados warm.
-- [ ] Indices DB cargados (`.agents/reference/init-indices.sql` ya aplicado por `db:push`).
+- [ ] Indices DB cargados (`.agents/reference/init-indices.sql` ya aplicado por `db:migrate`).
 
 ## 14. Disaster recovery
 

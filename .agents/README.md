@@ -9,6 +9,7 @@
 .agents/
 ├── README.md                  ← you are here (index + conventions)
 ├── architecture.md            ← stack, layout, key flows
+├── audit-playbook.md          ← on-demand full-system audit (A–N); run only when asked
 ├── screens/                   ← one file per user-facing route
 │   ├── dashboard.md
 │   ├── agent-studio.md
