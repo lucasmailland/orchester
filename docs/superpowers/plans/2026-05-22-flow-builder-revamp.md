@@ -10,6 +10,15 @@
 
 **Restricción legal:** NO copiar código de n8n (Sustainable Use License, prohíbe uso comercial competidor). Inspiración de taxonomía OK. Fuentes permisivas a mirar: Node-RED (Apache-2.0), Activepieces/Pipedream (MIT). Todos los nodos se diseñan propios.
 
+**🗣️ PRINCIPIO DE COPYS (no-negociable, aplica a TODO el plan):** cada texto que ve
+el usuario — nombres de nodos, ayudas, errores, botones, mensajes del copiloto,
+estados de ejecución — DEBE entenderlo cualquier persona sin conocimientos
+técnicos. Regla práctica: si tu mamá no lo entiende, está mal escrito. Nada de
+jerga (`payload`, `boolean`, `stdout`, `HTTP 500`, `null`). Errores en lenguaje
+humano + qué hacer para resolverlo (ej. NO "Request failed 401" → SÍ "La conexión
+con Stripe fue rechazada: revisá que la API key sea correcta en Integraciones").
+Lo técnico (JSON crudo, códigos) sólo en "modo avanzado".
+
 ---
 
 ## File Structure
@@ -304,14 +313,88 @@ Agregar al `NODE_REGISTRY` los 15 nodos que el engine ya ejecuta, con copys huma
 - [ ] **Step 2:** Quick prompts: "Pegá una URL de API y decime qué querés hacer", "Armá un flujo de soporte". Aceptar pegar una URL → el copiloto crea el nodo HTTP configurado.
 - [ ] **Step 3:** Commit `feat(flows): AI copilot panel — builds/edits the flow conversationally`.
 
+### Task 15: Copiloto que EXPLICA y DEBUGGEA (no solo construye)
+
+**Files:**
+- Modify: `apps/web/lib/flows/copilot-tools.ts` (tools `read_flow`, `read_last_run`)
+- Modify: `apps/web/app/api/flows/[id]/copilot/route.ts`
+
+- [ ] **Step 1:** Agregar tools de lectura: `read_flow()` (devuelve el grafo en lenguaje simple) y `read_last_run(runId?)` (devuelve qué hizo cada paso y dónde falló). El system prompt suma: "Si te preguntan qué hace el flujo, explicalo en lenguaje simple paso a paso. Si te preguntan por qué falló, leé la última corrida y explicá la causa + cómo arreglarlo, sin jerga."
+- [ ] **Step 2:** Quick prompts en el panel: "¿Qué hace este flujo?" y "¿Por qué falló la última vez?".
+- [ ] **Step 3:** Commit `feat(flows): copilot explains + debugs flows in plain language`.
+
 ---
 
-## Phase 5 — Copys i18n + docs
+## Phase 5 — Observabilidad & debugging (ver el flujo correr)
 
-### Task 15: Catálogos i18n + docs
+### Task 16: Estado de ejecución en vivo sobre el canvas
 
-- [ ] **Step 1:** Mover todos los copys del registry a los catálogos `next-intl` (es/en/pt-BR) o mantener el registry trilingüe (ya lo es). Asegurar que el palette/inspector usan el locale activo.
-- [ ] **Step 2:** Actualizar `.agents/features/flow-engine.md` (changelog: registry, nodos nuevos, copiloto) y `docs/UI-DESIGN-SYSTEM.md` si se agregan patrones (node card, inspector field).
+**Files:**
+- Modify: `apps/web/lib/flow-engine.ts` (emitir eventos de progreso por nodo)
+- Create: `apps/web/app/api/flows/[id]/run-stream/route.ts` (SSE de progreso)
+- Modify: `apps/web/components/flows/FlowBuilder.tsx` (pintar estado por nodo)
+
+- [ ] **Step 1:** El engine emite, por cada nodo: `running` → `done`/`failed` + duración + tokens/costo (si es nodo de IA, reusa el cost tracking ya existente). Persistir en `flow_run` el detalle por nodo (input/output/estado).
+- [ ] **Step 2:** Endpoint SSE que streamea esos eventos al ejecutar. El canvas ilumina el nodo activo, marca ✓/✗, y muestra un badge con duración + costo. Aristas "animan" el paso de datos.
+- [ ] **Step 3:** Copys: estados en humano — "Ejecutando…", "Listo", "Falló" (no "running/success/error"). Commit `feat(flows): live per-node execution state on the canvas (with cost)`.
+
+### Task 17: Inspector de corridas (debugging — qué recibió y devolvió cada nodo)
+
+**Files:**
+- Create: `apps/web/components/flows/RunInspector.tsx`
+- Modify: `apps/web/app/api/flows/[id]/runs/route.ts` (incluir detalle por nodo)
+
+- [ ] **Step 1:** Panel "Corridas": lista de ejecuciones pasadas (cuándo, resultado, duración, costo). Al abrir una, se ve cada paso con **qué entró y qué salió** en formato legible (no JSON crudo salvo "modo avanzado"). El nodo que falló se muestra en rojo con el error **en lenguaje humano + cómo resolverlo**.
+- [ ] **Step 2:** Botón "Reintentar esta corrida" (replay con el mismo input).
+- [ ] **Step 3:** Commit `feat(flows): run inspector — per-node input/output + plain-language errors`.
+
+### Task 18: Errores inline en el nodo
+
+- [ ] **Step 1:** Si un nodo falló en la última corrida, mostrar un badge rojo sobre el nodo en el canvas con tooltip = mensaje humano. Click → abre el RunInspector en ese paso.
+- [ ] **Step 2:** Commit `feat(flows): inline node error badges linking to the run inspector`.
+
+---
+
+## Phase 6 — Productividad de autoría
+
+### Task 19: Pin data + dry-run (probar sin efectos reales)
+
+**Files:**
+- Modify: `apps/web/lib/flow-engine.ts` (modo `dryRun` + `pinnedData` por nodo)
+- Modify: `InspectorForm.tsx` (UI de pin)
+
+- [ ] **Step 1:** "Fijar datos de prueba" por nodo: guardás un input de ejemplo y al iterar el flujo usa ese input fijo en vez de re-ejecutar lo anterior (acelera el armado). Copy: "Usar estos datos de prueba".
+- [ ] **Step 2:** Modo "Probar sin enviar nada" (dry-run): los nodos con efectos (email, DB write, integración) se simulan y muestran "qué haría" sin hacerlo. Toggle visible en el botón Ejecutar: "Ejecutar" / "Probar (sin efectos)".
+- [ ] **Step 3:** Commit `feat(flows): pin test data per node + dry-run (no real side effects)`.
+
+### Task 20: Panel de validación (avisar problemas antes de ejecutar)
+
+**Files:**
+- Create: `apps/web/lib/flows/validate.ts` + `.test.ts`
+- Modify: `FlowBuilder.tsx`
+
+- [ ] **Step 1 (TDD):** `validateFlow(graph, registry)` detecta: nodos sin configurar (campos `required` vacíos), nodos desconectados, flujo sin trigger, ciclos no permitidos. Devuelve issues con mensaje humano + el nodo culpable.
+- [ ] **Step 2:** Banner/panel "Este flujo tiene N cosas para revisar" con lista clickeable (lleva al nodo). Bloquea "Ejecutar" si hay errores graves. Copys humanos ("Al nodo 'Avisar' le falta elegir a quién avisar").
+- [ ] **Step 3:** Commit `feat(flows): pre-run validation panel with human-friendly issues`.
+
+### Task 21: Edición cómoda (undo/redo, copiar/pegar, notas, auto-orden)
+
+**Files:**
+- Modify: `FlowBuilder.tsx`
+- Create: `apps/web/components/flows/nodes/StickyNote.tsx`
+
+- [ ] **Step 1:** Undo/redo (Cmd+Z / Cmd+Shift+Z) sobre el grafo; copiar/pegar/duplicar nodos (Cmd+C/V/D); multi-select.
+- [ ] **Step 2:** Nodo "Nota" (sticky) para comentar el flujo. Botón "Ordenar" (auto-layout con dagre — MIT).
+- [ ] **Step 3:** Commit `feat(flows): undo/redo, copy/paste, sticky notes, auto-layout`.
+
+---
+
+## Phase 7 — Copys i18n + docs
+
+### Task 22: Catálogos i18n + docs
+
+- [ ] **Step 1:** Mover todos los copys del registry a los catálogos `next-intl` (es/en/pt-BR) o mantener el registry trilingüe (ya lo es). Asegurar que el palette/inspector/estados/errores usan el locale activo. **Pasada final de copys**: revisar que TODO (nodos, ayudas, errores, estados, copiloto) cumpla el principio "lo entiende cualquier persona".
+- [ ] **Step 2:** Actualizar `.agents/features/flow-engine.md` (changelog: registry, nodos nuevos, copiloto, observabilidad, autoría) y `docs/UI-DESIGN-SYSTEM.md` (patrones de node card, inspector field, estados de ejecución).
 - [ ] **Step 3:** Commit `docs(flows): i18n copy + spec changelog for flow revamp`.
 
 ---
@@ -328,11 +411,19 @@ Agregar al `NODE_REGISTRY` los 15 nodos que el engine ya ejecuta, con copys huma
 - Nodo Excel con fórmulas → Task 10 ✓
 - Inspector con instrucciones → Phase 2 ✓
 - Biblioteca grande de nodos → registry + connectors auto-expuestos ✓
+- Copiloto explica + debuggea → Task 15 ✓
+- Ejecución en vivo + costo por nodo → Task 16 ✓
+- Inspector de corridas (input/output por nodo, errores humanos) → Task 17, 18 ✓
+- Pin data + dry-run → Task 19 ✓
+- Validación pre-ejecución → Task 20 ✓
+- Undo/redo, copiar/pegar, notas, auto-orden → Task 21 ✓
+- Copys para cualquier humano → principio global + pasada final Task 22 ✓
 
 **Riesgos / decisiones:**
-- `formulajs` (MIT) para fórmulas Excel — verificar licencia al agregar.
+- `formulajs` (MIT) para fórmulas Excel y `dagre` (MIT) para auto-layout — verificar licencia al agregar.
 - El copiloto aplica mutaciones en el cliente (preview) antes de guardar → el usuario revisa.
 - NO se copia código de n8n (licencia). Diseño propio inspirado en taxonomía.
+- Ejecución en vivo: si los flujos corren en el worker (pg-boss), el SSE de progreso lee el detalle persistido en `flow_run` (no requiere conexión directa al worker).
 
 **Type consistency:** `NodeDef.id` matchea `FlowNodeType` del engine para nodos core; los nodos nuevos (`integration`, `kb_search`, `spreadsheet`, triggers) se agregan al `FlowNodeType` union en `flow-engine.ts` en su task.
 
