@@ -42,12 +42,16 @@ Max recursion depth = 100. Cycles produce `Flow exceeded max depth (100)`.
 - `transform` — set a variable from a template.
 - `delay` — `setTimeout` capped at 60 s.
 - `notify` — record-only (channel integration future).
-- `code` — mini-DSL `set <var> = <expr>` (sandboxed, no JS evaluator).
-- `loop_for_each` — iterate array variable, run `body` sub-flow per item.
+- `code` — real JS in a `node:vm` sandbox (`runUserJs`); legacy mini-DSL fallback.
+- `loop_for_each` — iterate `items` template (resolved to a real array), run `body` per item.
 - `parallel` — run all child branches with `Promise.all`.
 - `try_catch` — `try`/`catch` source handles; on error feed `errorVar`.
 - `subflow` — call `executeFlow()` recursively, merge output.
 - `wait_human` — set `_pendingApproval`, mark step paused.
+- `kb_search` — semantic search over a knowledge base (`searchKnowledgeBase`).
+- `integration` — run a connector action (`integrationId::action` + `input`).
+- `spreadsheet` — evaluate an Excel-style formula via formulajs in a vm sandbox.
+- `note` — no-op visual comment.
 
 ### Decisions & trade-offs
 - **Single-process synchronous execution.** Long flows hit serverless 60 s
@@ -60,6 +64,30 @@ Max recursion depth = 100. Cycles produce `Flow exceeded max depth (100)`.
 - **wait_human is a stub** — no real pause/resume worker yet.
 
 ## Execution (changelog — newest first)
+
+### 2026-05-22 — Flow Builder revamp (registry + copilot + observability)
+- **Node registry** (`lib/flows/node-registry.ts`) is now the single source of
+  truth for the palette, the auto-generated inspector and the copilot. Each
+  node declares engine type + trilingual copy + typed fields.
+- **4 new node executors:** `kb_search` (semantic search via shared
+  `lib/knowledge-search.ts`), `integration` (reuses the connector framework via
+  `runIntegrationAction`), `spreadsheet` (Excel-style formulas via
+  `@formulajs/formulajs` in a `node:vm` sandbox), `note` (no-op comment).
+- **Field-key reconciliation:** executors now read the registry field keys
+  (`prompt`, `left/op/right`, `value`, `template`, `duration`, `items`,
+  `instructions`, `code`, `formula`) with legacy fallbacks. New helpers
+  `resolveValue`, `deepInterpolate`, `parseDuration`.
+- **Code node now runs real JavaScript** in a `node:vm` sandbox (`runUserJs`):
+  receives `input`, returns an object merged into variables. 1 s timeout, no
+  `require`/globals. The old mini-DSL remains as a `source` fallback.
+- **Live observability:** `executeFlow` accepts `onEvent` (threaded via
+  `RunContext.emit`) emitting `run_start`/`step_start`/`step_finish`/`run_finish`.
+  New SSE endpoint `app/api/flows/[id]/run-stream` streams them so the canvas
+  lights up per-node live and a Run Inspector lists steps with plain-language
+  errors.
+- **Enum:** `flow_node_type` extended with `kb_search`, `integration`,
+  `spreadsheet`, `note` (applied via `ALTER TYPE ... ADD VALUE`).
+- All user-facing engine error messages rewritten in plain Spanish.
 
 ### 2026-04-29 — Phase 2 pro
 - 7 new node types (switch, code, loop_for_each, parallel, try_catch, subflow,
@@ -78,8 +106,13 @@ Max recursion depth = 100. Cycles produce `Flow exceeded max depth (100)`.
 - Use `parallel` for independent fan-outs.
 
 ## Open issues / TODO
-- Async execution via BullMQ or pg-boss (CRITICAL for production).
+- Async execution via BullMQ or pg-boss (CRITICAL for production). The SSE
+  run-stream keeps the request open for the whole run — fine locally, but long
+  flows still risk serverless timeouts.
 - Visual debugger: pause at breakpoint, inspect ctx.
-- SSE streaming of run progress to the UI.
+- ~~SSE streaming of run progress to the UI.~~ Done (2026-05-22).
 - Idempotency keys for webhook-triggered runs.
 - Cron worker that picks up `flow_schedule` rows and triggers runs.
+- `node:vm` is not a hard security boundary; acceptable because flow code is
+  authored by the workspace owner. Revisit if flows become shareable/runnable
+  across tenants.
