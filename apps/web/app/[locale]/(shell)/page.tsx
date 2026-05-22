@@ -1,7 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { getFullDashboardStats } from "@/lib/db-queries";
 import { getCurrentWorkspace } from "@/lib/workspace";
-import { DashboardClient } from "@/components/dashboard/DashboardClient";
+import { DashboardClientLazy } from "@/components/dashboard/DashboardClientLazy";
 
 /**
  * Cache the 22-query dashboard payload per workspace for 30 seconds.
@@ -39,7 +39,7 @@ export default async function DashboardPage({
   }
 
   return (
-    <DashboardClient
+    <DashboardClientLazy
       stats={stats}
       workspaceName={workspace?.workspace.name ?? ""}
       locale={locale}

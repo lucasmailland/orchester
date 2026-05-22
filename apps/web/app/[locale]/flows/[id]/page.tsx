@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
-import { FlowBuilder } from "@/components/flows/FlowBuilder";
+import { FlowBuilderLazy } from "@/components/flows/FlowBuilderLazy";
 
 export default async function FlowDetailPage({
   params,
@@ -21,7 +21,7 @@ export default async function FlowDetailPage({
   const f = rows[0];
   if (!f) notFound();
   return (
-    <FlowBuilder
+    <FlowBuilderLazy
       flow={{
         id: f.id,
         name: f.name,
