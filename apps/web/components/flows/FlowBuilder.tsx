@@ -23,10 +23,15 @@ import { ConditionNode } from "./nodes/ConditionNode";
 import { HttpNode } from "./nodes/HttpNode";
 import { TriggerNode } from "./nodes/TriggerNode";
 import { FlowRunsPanel } from "./FlowRunsPanel";
+import { InspectorForm } from "./inspector/InspectorForm";
+import { NodePalette } from "./NodePalette";
+import { getNodeDef, type Locale } from "@/lib/flows/node-registry";
 import { Save, Play, Loader2, History, ArrowLeft, Variable, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
+
+const LOCALE: Locale = "es";
 
 const nodeTypes = {
   trigger: TriggerNode,
@@ -43,7 +48,21 @@ const nodeTypes = {
   try_catch: ConditionNode,
   subflow: AgentNode,
   wait_human: AgentNode,
+  // nuevos del registry (reutilizan visuales existentes por ahora)
+  integration: HttpNode,
+  kb_search: AgentNode,
+  spreadsheet: AgentNode,
+  note: AgentNode,
 };
+
+/** Deriva el id del registry a partir del nodo guardado (que sólo tiene engine type). */
+function deriveNodeId(n: { type: string; config?: Record<string, unknown> }): string {
+  if (n.type === "trigger") {
+    const kind = (n.config?.triggerKind as string) ?? "manual";
+    return `trigger_${kind}`;
+  }
+  return n.type;
+}
 
 interface FlowDTO {
   id: string;
@@ -74,7 +93,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
       id: n.id,
       type: n.type,
       position: n.position,
-      data: { label: n.label, subtitle: subtitleFor(n), config: n.config },
+      data: { label: n.label, subtitle: subtitleFor(n), config: n.config, nodeId: deriveNodeId(n) },
     }))
   );
   const [edges, setEdges] = useState<Edge[]>(
@@ -113,15 +132,18 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     []
   );
 
-  function addNode(type: string) {
+  function addNode(nodeId: string) {
+    const def = getNodeDef(nodeId);
+    if (!def) return;
     const id = createId();
+    const config = { ...(def.defaults ?? {}), ...(def.fixedConfig ?? {}) };
     setNodes((nds) => [
       ...nds,
       {
         id,
-        type,
+        type: def.engine,
         position: { x: 350 + Math.random() * 100, y: 200 + Math.random() * 100 },
-        data: { label: defaultLabel(type), config: {} },
+        data: { label: def.title[LOCALE], config, nodeId: def.id },
       },
     ]);
   }
@@ -301,7 +323,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
           </div>
         </div>
         <div className="relative flex flex-1 overflow-hidden">
-          <Sidebar onAdd={addNode} />
+          <NodePalette onAdd={addNode} locale={LOCALE} />
           {varsOpen && (
             <VariablesPanel
               variables={variables}
@@ -328,18 +350,21 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               <MiniMap pannable zoomable className="!border-line !bg-surface" />
             </ReactFlow>
           </div>
-          <Inspector
-            node={selected}
-            onChange={(updated) => {
-              setNodes((nds) => nds.map((n) => (n.id === updated.id ? updated : n)));
-              setSelected(updated);
-            }}
-            onDelete={(id) => {
-              setNodes((nds) => nds.filter((n) => n.id !== id));
-              setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
-              setSelected(null);
-            }}
-          />
+          <div className="w-72 shrink-0 overflow-y-auto border-l border-line bg-surface">
+            <InspectorForm
+              node={selected}
+              locale={LOCALE}
+              onChange={(updated) => {
+                setNodes((nds) => nds.map((n) => (n.id === updated.id ? updated : n)));
+                setSelected(updated);
+              }}
+              onDelete={(id) => {
+                setNodes((nds) => nds.filter((n) => n.id !== id));
+                setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
+                setSelected(null);
+              }}
+            />
+          </div>
           <FlowRunsPanel
             flowId={flow.id}
             open={runsOpen}
@@ -417,545 +442,11 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   );
 }
 
-function defaultLabel(type: string): string {
-  const map: Record<string, string> = {
-    trigger: "Inicio",
-    agent: "Agente",
-    condition: "Condición",
-    switch: "Switch",
-    http: "HTTP",
-    transform: "Transformar",
-    delay: "Esperar",
-    notify: "Notificar",
-    code: "Código",
-    loop_for_each: "Loop foreach",
-    parallel: "Paralelo",
-    try_catch: "Try / Catch",
-    subflow: "Subflujo",
-    wait_human: "Esperar aprobación",
-  };
-  return map[type] ?? type;
-}
-
 function subtitleFor(n: { type: string; config: Record<string, unknown> }): string {
   if (n.type === "agent" && n.config.agentId)
     return `agentId: ${(n.config.agentId as string).slice(0, 8)}`;
   if (n.type === "http" && n.config.url) return String(n.config.url).slice(0, 32);
   return "";
-}
-
-function Sidebar({ onAdd }: { onAdd: (type: string) => void }) {
-  const groups: Array<{ heading: string; items: { id: string; label: string; emoji: string }[] }> = [
-    {
-      heading: "AI",
-      items: [
-        { id: "agent", label: "Agente", emoji: "🤖" },
-        { id: "subflow", label: "Subflujo", emoji: "🧩" },
-      ],
-    },
-    {
-      heading: "Lógica",
-      items: [
-        { id: "condition", label: "Condición", emoji: "🔀" },
-        { id: "switch", label: "Switch", emoji: "🎚" },
-        { id: "loop_for_each", label: "Loop", emoji: "🔁" },
-        { id: "parallel", label: "Paralelo", emoji: "🪢" },
-        { id: "try_catch", label: "Try/Catch", emoji: "🛟" },
-        { id: "code", label: "Código", emoji: "💻" },
-      ],
-    },
-    {
-      heading: "Datos",
-      items: [
-        { id: "http", label: "HTTP", emoji: "🌐" },
-        { id: "transform", label: "Transformar", emoji: "🔧" },
-      ],
-    },
-    {
-      heading: "Acciones",
-      items: [
-        { id: "delay", label: "Esperar", emoji: "⏱" },
-        { id: "wait_human", label: "Aprobación", emoji: "🙋" },
-        { id: "notify", label: "Notificar", emoji: "📨" },
-      ],
-    },
-  ];
-  return (
-    <div className="w-48 overflow-y-auto border-r border-line bg-surface p-3">
-      {groups.map((g) => (
-        <div key={g.heading} className="mb-3">
-          <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted">
-            {g.heading}
-          </div>
-          {g.items.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onAdd(t.id)}
-              className="mb-1 flex w-full items-center gap-2 rounded-lg border border-line bg-card px-2.5 py-1.5 text-xs text-body hover:bg-elevated"
-            >
-              <span>{t.emoji}</span> {t.label}
-            </button>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function Inspector({
-  node,
-  onChange,
-  onDelete,
-}: {
-  node: Node | null;
-  onChange: (n: Node) => void;
-  onDelete: (id: string) => void;
-}) {
-  const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([]);
-  useEffect(() => {
-    fetch("/api/agents")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((d) => setAgents(Array.isArray(d) ? d : []))
-      .catch(() => setAgents([]));
-  }, []);
-
-  if (!node) {
-    return (
-      <div className="w-72 border-l border-line bg-surface p-4 text-xs text-muted">
-        Seleccioná un nodo para configurarlo.
-      </div>
-    );
-  }
-
-  const data = node.data as { label: string; config?: Record<string, unknown> };
-  const config = data.config ?? {};
-
-  function update(patch: Partial<{ label: string; config: Record<string, unknown> }>) {
-    onChange({
-      ...node!,
-      data: { ...data, ...patch, config: { ...config, ...(patch.config ?? {}) } },
-    });
-  }
-
-  return (
-    <div className="w-72 space-y-3 overflow-y-auto border-l border-line bg-surface p-4 text-xs">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-medium uppercase tracking-wider text-muted">
-          {node.type}
-        </span>
-        <button
-          type="button"
-          onClick={() => onDelete(node.id)}
-          className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
-        >
-          Eliminar
-        </button>
-      </div>
-      <input
-        value={data.label}
-        onChange={(e) => update({ label: e.target.value })}
-        className="w-full rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-strong outline-none focus:border-violet-500/60"
-      />
-
-      {node.type === "agent" && (
-        <>
-          <label className="block text-muted">Agente</label>
-          <select
-            value={(config.agentId as string) ?? ""}
-            onChange={(e) => update({ config: { agentId: e.target.value } })}
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
-          >
-            <option value="">— elegir —</option>
-            {agents.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-          <label className="block text-muted">Mensaje (template)</label>
-          <textarea
-            value={(config.message as string) ?? ""}
-            onChange={(e) => update({ config: { message: e.target.value } })}
-            placeholder="Hola {{nombre}}, …"
-            rows={3}
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none focus:border-violet-500/60"
-          />
-          <label className="block text-muted">Output var</label>
-          <input
-            value={(config.outputVar as string) ?? ""}
-            onChange={(e) => update({ config: { outputVar: e.target.value } })}
-            placeholder="agentResult"
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
-          />
-        </>
-      )}
-
-      {node.type === "condition" && (
-        <>
-          <label className="block text-muted">left</label>
-          <input
-            value={((config.condition as { left?: string })?.left) ?? ""}
-            onChange={(e) =>
-              update({
-                config: {
-                  condition: { ...((config.condition as object) ?? {}), left: e.target.value },
-                },
-              })
-            }
-            placeholder="{{score}}"
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
-          />
-          <label className="block text-muted">op</label>
-          <select
-            value={((config.condition as { op?: string })?.op) ?? "=="}
-            onChange={(e) =>
-              update({
-                config: {
-                  condition: { ...((config.condition as object) ?? {}), op: e.target.value },
-                },
-              })
-            }
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
-          >
-            {["==", "!=", ">", "<", ">=", "<=", "contains"].map((o) => (
-              <option key={o}>{o}</option>
-            ))}
-          </select>
-          <label className="block text-muted">right</label>
-          <input
-            value={((config.condition as { right?: string })?.right) ?? ""}
-            onChange={(e) =>
-              update({
-                config: {
-                  condition: { ...((config.condition as object) ?? {}), right: e.target.value },
-                },
-              })
-            }
-            placeholder="50"
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
-          />
-        </>
-      )}
-
-      {node.type === "http" && (
-        <>
-          <label className="block text-muted">Method</label>
-          <select
-            value={(config.method as string) ?? "GET"}
-            onChange={(e) => update({ config: { method: e.target.value } })}
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
-          >
-            {["GET", "POST", "PUT", "PATCH", "DELETE"].map((m) => (
-              <option key={m}>{m}</option>
-            ))}
-          </select>
-          <label className="block text-muted">URL</label>
-          <input
-            value={(config.url as string) ?? ""}
-            onChange={(e) => update({ config: { url: e.target.value } })}
-            placeholder="https://api.example.com/{{id}}"
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
-          />
-          <label className="block text-muted">Auth</label>
-          <select
-            value={((config.auth as { kind?: string })?.kind) ?? "none"}
-            onChange={(e) => {
-              const kind = e.target.value;
-              update({
-                config: {
-                  auth: kind === "none" ? undefined : { ...((config.auth as object) ?? {}), kind },
-                },
-              });
-            }}
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
-          >
-            <option value="none">Sin auth</option>
-            <option value="bearer">Bearer token</option>
-            <option value="basic">Basic auth</option>
-            <option value="api_key">API key (header)</option>
-          </select>
-          {((config.auth as { kind?: string })?.kind) === "bearer" && (
-            <input
-              value={((config.auth as { token?: string })?.token) ?? ""}
-              onChange={(e) =>
-                update({ config: { auth: { ...((config.auth as object) ?? {}), token: e.target.value } } })
-              }
-              placeholder="Token o {{var}}"
-              className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
-            />
-          )}
-          {((config.auth as { kind?: string })?.kind) === "basic" && (
-            <>
-              <input
-                value={((config.auth as { user?: string })?.user) ?? ""}
-                onChange={(e) =>
-                  update({ config: { auth: { ...((config.auth as object) ?? {}), user: e.target.value } } })
-                }
-                placeholder="user"
-                className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
-              />
-              <input
-                value={((config.auth as { pass?: string })?.pass) ?? ""}
-                onChange={(e) =>
-                  update({ config: { auth: { ...((config.auth as object) ?? {}), pass: e.target.value } } })
-                }
-                placeholder="pass o {{var}}"
-                className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
-              />
-            </>
-          )}
-          {((config.auth as { kind?: string })?.kind) === "api_key" && (
-            <>
-              <input
-                value={((config.auth as { header?: string })?.header) ?? "X-API-Key"}
-                onChange={(e) =>
-                  update({ config: { auth: { ...((config.auth as object) ?? {}), header: e.target.value } } })
-                }
-                placeholder="X-API-Key"
-                className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
-              />
-              <input
-                value={((config.auth as { key?: string })?.key) ?? ""}
-                onChange={(e) =>
-                  update({ config: { auth: { ...((config.auth as object) ?? {}), key: e.target.value } } })
-                }
-                placeholder="API key o {{var}}"
-                className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
-              />
-            </>
-          )}
-          <label className="block text-muted">Body (JSON, opcional)</label>
-          <textarea
-            value={(config.body as string) ?? ""}
-            onChange={(e) => update({ config: { body: e.target.value } })}
-            rows={3}
-            placeholder='{ "key": "{{var}}" }'
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none focus:border-violet-500/60"
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-muted">Reintentos</label>
-              <input
-                type="number"
-                min={1}
-                max={5}
-                value={(config.maxAttempts as number) ?? 1}
-                onChange={(e) => update({ config: { maxAttempts: Number(e.target.value) } })}
-                className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-muted">Timeout (ms)</label>
-              <input
-                type="number"
-                min={1000}
-                max={60000}
-                step={1000}
-                value={(config.timeoutMs as number) ?? 30000}
-                onChange={(e) => update({ config: { timeoutMs: Number(e.target.value) } })}
-                className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
-              />
-            </div>
-          </div>
-          <label className="block text-muted">Output var</label>
-          <input
-            value={(config.outputVar as string) ?? ""}
-            onChange={(e) => update({ config: { outputVar: e.target.value } })}
-            placeholder="httpResult"
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
-          />
-        </>
-      )}
-
-      {node.type === "transform" && (
-        <>
-          <label className="block text-muted">Variable destino</label>
-          <input
-            value={(config.target as string) ?? ""}
-            onChange={(e) => update({ config: { target: e.target.value } })}
-            placeholder="result"
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
-          />
-          <label className="block text-muted">Valor (template)</label>
-          <textarea
-            value={(config.value as string) ?? ""}
-            onChange={(e) => update({ config: { value: e.target.value } })}
-            placeholder="Hola {{nombre}}"
-            rows={2}
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none focus:border-violet-500/60"
-          />
-        </>
-      )}
-
-      {node.type === "delay" && (
-        <>
-          <label className="block text-muted">ms</label>
-          <input
-            type="number"
-            value={(config.ms as number) ?? 1000}
-            onChange={(e) => update({ config: { ms: Number(e.target.value) } })}
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
-          />
-        </>
-      )}
-
-      {node.type === "code" && (
-        <>
-          <label className="block text-muted">Source (DSL)</label>
-          <textarea
-            value={(config.source as string) ?? ""}
-            onChange={(e) => update({ config: { source: e.target.value } })}
-            rows={6}
-            placeholder={`set total = {{score}}\nset greeting = "hola {{nombre}}"`}
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none focus:border-violet-500/60"
-          />
-          <p className="text-[10px] text-faint">
-            Sintaxis: <code>set var = expr</code> con interpolación <code>{`{{var}}`}</code>. Una línea por sentencia.
-          </p>
-        </>
-      )}
-
-      {node.type === "loop_for_each" && (
-        <>
-          <label className="block text-muted">Variable array</label>
-          <input
-            value={(config.arrayVar as string) ?? ""}
-            onChange={(e) => update({ config: { arrayVar: e.target.value } })}
-            placeholder="items"
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
-          />
-          <label className="block text-muted">Variable item</label>
-          <input
-            value={(config.itemVar as string) ?? "item"}
-            onChange={(e) => update({ config: { itemVar: e.target.value } })}
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
-          />
-          <p className="text-[10px] text-faint">
-            Conectá el handle <code>body</code> al primer nodo del loop.
-          </p>
-        </>
-      )}
-
-      {node.type === "parallel" && (
-        <p className="text-[11px] text-muted">
-          Conectá múltiples nodos como hijos. Se ejecutan en paralelo y el flujo continúa cuando todos terminan.
-        </p>
-      )}
-
-      {node.type === "try_catch" && (
-        <>
-          <label className="block text-muted">Variable error</label>
-          <input
-            value={(config.errorVar as string) ?? "error"}
-            onChange={(e) => update({ config: { errorVar: e.target.value } })}
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
-          />
-          <p className="text-[10px] text-faint">
-            Usá los handles <code>try</code> y <code>catch</code> para conectar las dos ramas.
-          </p>
-        </>
-      )}
-
-      {node.type === "switch" && (
-        <>
-          <label className="block text-muted">Expresión</label>
-          <input
-            value={(config.expression as string) ?? ""}
-            onChange={(e) => update({ config: { expression: e.target.value } })}
-            placeholder="{{tipo}}"
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
-          />
-          <p className="text-[10px] text-faint">
-            Cada edge saliente debe tener un <code>sourceHandle</code> con el valor a matchear, o <code>default</code>.
-          </p>
-        </>
-      )}
-
-      {node.type === "subflow" && (
-        <SubflowPicker
-          currentFlowId={(config.flowId as string) ?? ""}
-          onChange={(id) => update({ config: { flowId: id } })}
-        />
-      )}
-
-      {node.type === "wait_human" && (
-        <>
-          <label className="block text-muted">Mensaje</label>
-          <input
-            value={(config.message as string) ?? ""}
-            onChange={(e) => update({ config: { message: e.target.value } })}
-            placeholder="Aprobar pedido {{id}}"
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none"
-          />
-          <label className="block text-muted">Asignado a (email)</label>
-          <input
-            value={(config.assignee as string) ?? ""}
-            onChange={(e) => update({ config: { assignee: e.target.value } })}
-            placeholder="manager@company.com"
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
-          />
-        </>
-      )}
-
-      {node.type === "notify" && (
-        <>
-          <label className="block text-muted">Canal</label>
-          <select
-            value={(config.channel as string) ?? "log"}
-            onChange={(e) => update({ config: { channel: e.target.value } })}
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
-          >
-            <option value="log">Log (consola)</option>
-            <option value="email">Email</option>
-            <option value="slack">Slack</option>
-            <option value="webhook">Webhook</option>
-          </select>
-          <label className="block text-muted">Mensaje</label>
-          <textarea
-            value={(config.message as string) ?? ""}
-            onChange={(e) => update({ config: { message: e.target.value } })}
-            rows={2}
-            placeholder="Lead nuevo: {{nombre}}"
-            className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none focus:border-violet-500/60"
-          />
-        </>
-      )}
-    </div>
-  );
-}
-
-function SubflowPicker({
-  currentFlowId,
-  onChange,
-}: {
-  currentFlowId: string;
-  onChange: (id: string) => void;
-}) {
-  const [flows, setFlows] = useState<Array<{ id: string; name: string }>>([]);
-  useEffect(() => {
-    fetch("/api/flows")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((d) => setFlows(Array.isArray(d) ? d : []))
-      .catch(() => setFlows([]));
-  }, []);
-  return (
-    <>
-      <label className="block text-muted">Flujo a invocar</label>
-      <select
-        value={currentFlowId}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
-      >
-        <option value="">— elegir —</option>
-        {flows.map((f) => (
-          <option key={f.id} value={f.id}>
-            {f.name}
-          </option>
-        ))}
-      </select>
-    </>
-  );
 }
 
 function VariablesPanel({
