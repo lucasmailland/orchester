@@ -648,6 +648,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             open={copilotOpen}
             onClose={() => setCopilotOpen(false)}
             describeFlow={() => describeGraph(nodes, edges)}
+            currentGraph={() => graphSpec(nodes, edges)}
             onApplyGraph={(newNodes, newEdges, mode) => {
               pushHistory();
               if (mode === "merge") {
@@ -1048,6 +1049,27 @@ function defaultSourceHandle(n: Node): string | undefined {
   if (eng === "loop_for_each") return "body";
   if (eng === "switch") return "default";
   return undefined;
+}
+
+/** Spec estructurada del flujo para que el copiloto pueda editarlo (no de cero). */
+function graphSpec(nodes: Node[], edges: Edge[]): { nodes: unknown[]; edges: unknown[] } {
+  return {
+    nodes: nodes.map((n) => {
+      const d = n.data as { nodeId?: string; label?: string; config?: Record<string, unknown> } | undefined;
+      return {
+        id: n.id,
+        nodeId: d?.nodeId ?? n.type,
+        label: d?.label ?? "",
+        config: d?.config ?? {},
+      };
+    }),
+    edges: edges.map((e) => ({
+      source: e.source,
+      target: e.target,
+      ...(e.sourceHandle ? { sourceHandle: e.sourceHandle } : {}),
+      ...(typeof e.label === "string" ? { label: e.label } : {}),
+    })),
+  };
 }
 
 /** Resume el grafo en texto plano para que el copiloto pueda explicarlo/revisarlo. */
