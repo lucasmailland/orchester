@@ -19,7 +19,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { createId } from "@paralleldrive/cuid2";
 import { AgentNode } from "./nodes/AgentNode";
-import { ConditionNode } from "./nodes/ConditionNode";
+import { ConditionNode, TryCatchNode, LoopNode, SwitchNode } from "./nodes/BranchNode";
 import { HttpNode } from "./nodes/HttpNode";
 import { TriggerNode } from "./nodes/TriggerNode";
 import { FlowRunsPanel } from "./FlowRunsPanel";
@@ -43,15 +43,15 @@ const nodeTypes = {
   trigger: TriggerNode,
   agent: AgentNode,
   condition: ConditionNode,
-  switch: ConditionNode,
+  switch: SwitchNode,
   http: HttpNode,
   transform: AgentNode,
   delay: AgentNode,
   notify: AgentNode,
   code: AgentNode,
-  loop_for_each: ConditionNode,
+  loop_for_each: LoopNode,
   parallel: AgentNode,
-  try_catch: ConditionNode,
+  try_catch: TryCatchNode,
   subflow: AgentNode,
   wait_human: AgentNode,
   // nuevos del registry (reutilizan visuales existentes por ahora)
@@ -181,21 +181,34 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     []
   );
 
-  function addNode(nodeId: string) {
+  function addNode(nodeId: string, at?: { x: number; y: number }) {
     const def = getNodeDef(nodeId);
     if (!def) return;
     pushHistory();
     const id = createId();
     const config = { ...(def.defaults ?? {}), ...(def.fixedConfig ?? {}) };
-    setNodes((nds) => [
-      ...nds,
-      {
-        id,
-        type: def.engine,
-        position: { x: 350 + Math.random() * 100, y: 200 + Math.random() * 100 },
-        data: { label: def.title[LOCALE], config, nodeId: def.id },
-      },
-    ]);
+    // Posición: donde se soltó (drag&drop), o al lado del paso seleccionado para
+    // poder encadenar, o un lugar libre por defecto.
+    const position =
+      at ??
+      (selected
+        ? { x: selected.position.x + 260, y: selected.position.y }
+        : { x: 350 + Math.random() * 80, y: 180 + Math.random() * 80 });
+    const newNode: Node = {
+      id,
+      type: def.engine,
+      position,
+      data: { label: def.title[LOCALE], config, nodeId: def.id },
+    };
+    setNodes((nds) => [...nds, newNode]);
+    // Auto-conectar desde el paso seleccionado (salvo que sea un disparador el nuevo).
+    if (selected && !at && def.engine !== "trigger") {
+      const handle = defaultSourceHandle(selected);
+      const edge: Edge = { id: createId(), source: selected.id, target: id };
+      if (handle) edge.sourceHandle = handle;
+      setEdges((eds) => [...eds, edge]);
+    }
+    setSelected(newNode);
   }
 
   const buildPayload = useCallback(
@@ -791,6 +804,18 @@ function RunInspector({
       </div>
     </div>
   );
+}
+
+/** Handle de salida por defecto al auto-conectar desde un paso con varios caminos. */
+function defaultSourceHandle(n: Node): string | undefined {
+  const d = n.data as { nodeId?: string } | undefined;
+  const def = getNodeDef(String(d?.nodeId ?? n.type ?? ""));
+  const eng = def?.engine ?? n.type;
+  if (eng === "condition") return "true";
+  if (eng === "try_catch") return "try";
+  if (eng === "loop_for_each") return "body";
+  if (eng === "switch") return "default";
+  return undefined;
 }
 
 /** Resume el grafo en texto plano para que el copiloto pueda explicarlo/revisarlo. */

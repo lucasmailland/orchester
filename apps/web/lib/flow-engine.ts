@@ -421,10 +421,13 @@ async function executeNode(
 
   if (node.type === "switch") {
     // El valor evaluado se usa como nombre del camino (sourceHandle del edge).
+    // Si ningún camino coincide con el valor, seguimos por "default" (Siguiente).
     const value = interpolate((cfg.value as string) ?? (cfg.expression as string) ?? "", ctx.variables);
     const cases = (cfg.cases as Array<{ value: string; handle: string }>) ?? [];
     const matched = cases.find((c) => c.value === value);
-    const handle = matched?.handle ?? (value || "default");
+    let handle = matched?.handle ?? (value || "default");
+    const hasEdge = edges.some((e) => e.source === node.id && e.sourceHandle === handle);
+    if (!hasEdge) handle = "default";
     helpers.setHandle(handle);
     helpers.setOutput({ value, matched: handle });
     return;
