@@ -40,7 +40,7 @@ const PERMISSIONS: Record<Role, Action[]> = {
     "conversation.read",
     "settings.read",
     "billing.read",
-    "audit.read",
+    // audit.read removido: los logs de auditoría son sensibles → admin+ only.
   ],
   editor: [
     "agent.create",
@@ -61,7 +61,7 @@ const PERMISSIONS: Record<Role, Action[]> = {
     "conversation.takeover",
     "settings.read",
     "billing.read",
-    "audit.read",
+    // audit.read removido de editor: logs de auditoría son admin+ only.
   ],
   admin: [
     "agent.create",

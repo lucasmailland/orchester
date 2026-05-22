@@ -54,28 +54,51 @@ export async function POST(req: Request, { params }: { params: Promise<{ channel
   }
 
   const encoder = new TextEncoder();
+  // L5: cancelar el consumo del LLM upstream cuando el cliente se desconecta.
+  const abort = new AbortController();
+  if (req.signal.aborted) abort.abort();
+  else req.signal.addEventListener("abort", () => abort.abort(), { once: true });
+
   const stream = new ReadableStream({
     async start(controller) {
+      let closed = false;
       const send = (chunk: unknown) => {
+        if (closed) return;
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
       };
       try {
-        for await (const chunk of handleInboundStream(channel.workspaceId, {
-          channelId: channel.id,
-          externalId: visitorId,
-          text,
-          customerName: body?.customerName ?? undefined,
-          customerEmail: body?.customerEmail ?? undefined,
-          metadata: { source: "widget" },
-        })) {
+        for await (const chunk of handleInboundStream(
+          channel.workspaceId,
+          {
+            channelId: channel.id,
+            externalId: visitorId,
+            text,
+            customerName: body?.customerName ?? undefined,
+            customerEmail: body?.customerEmail ?? undefined,
+            metadata: { source: "widget" },
+          },
+          abort.signal
+        )) {
+          if (abort.signal.aborted) break;
           send(chunk);
         }
       } catch (e) {
-        safeLogError("[widget-stream]", e);
-        send({ type: "error", error: e instanceof Error ? e.message : String(e) });
+        if (!abort.signal.aborted) {
+          safeLogError("[widget-stream]", e);
+          send({ type: "error", error: e instanceof Error ? e.message : String(e) });
+        }
       } finally {
-        controller.close();
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          /* ya cerrado */
+        }
       }
+    },
+    // Disparado cuando el consumidor (cliente) cancela el stream.
+    cancel() {
+      abort.abort();
     },
   });
 

@@ -1,7 +1,7 @@
 import "server-only";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
-import { eq, and, inArray, lt } from "drizzle-orm";
+import { eq, and, inArray, lt, count } from "drizzle-orm";
 import { llmCall } from "./llm-call";
 import { enqueue, JOB_FLOW_RUN } from "./queue";
 import { assertPublicUrl } from "./net-guard";
@@ -205,6 +205,58 @@ async function runUserCode(source: string, ctx: RunContext): Promise<Record<stri
  */
 const CODE_EXECUTION_ENABLED = process.env.FLOW_CODE_EXECUTION === "1";
 
+/**
+ * B3 — Cap de concurrencia por flow. Antes de encolar un run nuevo contamos los
+ * runs activos (`pending`/`running`) de ese flow; si llega al cap, rechazamos.
+ * Evita que un trigger ruidoso (webhook en loop, schedule muy seguido) dispare
+ * copias ilimitadas del mismo flow saturando providers/DB.
+ * `0` o sin setear = sin límite. Default 25.
+ */
+const FLOW_MAX_CONCURRENT_RUNS_PER_FLOW = (() => {
+  const raw = Number(process.env.FLOW_MAX_CONCURRENT_RUNS_PER_FLOW ?? 25);
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 0;
+})();
+
+/**
+ * B7 — Tope de fan-out para nodos `parallel` y `loop_for_each`. Sin esto,
+ * `Promise.all` sobre todas las ramas/items dispara N llamadas simultáneas a
+ * providers/DB sin límite. Default 10.
+ */
+const FLOW_MAX_FANOUT = (() => {
+  const raw = Number(process.env.FLOW_MAX_FANOUT ?? 10);
+  return Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : 10;
+})();
+
+/**
+ * Corre `fn` sobre `items` con un límite de concurrencia, preservando el orden
+ * de los resultados. Semántica de error idéntica a `Promise.all`: el primer
+ * rechazo se propaga (y no se lanzan items nuevos después de un fallo).
+ */
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  const effectiveLimit = Math.max(1, Math.min(limit, items.length || 1));
+  let next = 0;
+  let failed = false;
+  const worker = async (): Promise<void> => {
+    while (!failed) {
+      const i = next++;
+      if (i >= items.length) return;
+      try {
+        results[i] = await fn(items[i]!, i);
+      } catch (e) {
+        failed = true;
+        throw e;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: effectiveLimit }, () => worker()));
+  return results;
+}
+
 function assertCodeExecutionAllowed(kind: "código JavaScript" | "fórmulas"): void {
   if (!CODE_EXECUTION_ENABLED) {
     throw new Error(
@@ -336,11 +388,18 @@ export async function executeFlow({
 
   try {
     await runFromNode(start.id, nodes, edges, ctx, runId, workspaceId, db);
-    await db
-      .update(schema.flowRuns)
-      .set({ status: "succeeded", output: ctx.variables, completedAt: new Date() })
-      .where(eq(schema.flowRuns.id, runId));
-    await db.update(schema.flows).set({ lastRunAt: new Date() }).where(eq(schema.flows.id, flowId));
+    // C3: el cierre del run son dos escrituras relacionadas (status del run +
+    // lastRunAt del flow). Las hacemos en una sola transacción para que un crash
+    // no deje el run en `succeeded` con el `lastRunAt` del flow desincronizado.
+    // Es atómico y barato (sin llamadas externas adentro). El reaper cubre el
+    // caso en que el proceso muera ANTES de llegar acá (run queda en `running`).
+    await db.transaction(async (tx) => {
+      await tx
+        .update(schema.flowRuns)
+        .set({ status: "succeeded", output: ctx.variables, completedAt: new Date() })
+        .where(eq(schema.flowRuns.id, runId));
+      await tx.update(schema.flows).set({ lastRunAt: new Date() }).where(eq(schema.flows.id, flowId));
+    });
     onEvent?.({ type: "run_finish", status: "succeeded" });
     recordMetric("flow.run.duration_ms", Date.now() - runStartedAt, { flowId, status: "succeeded" });
     return { runId, status: "succeeded" };
@@ -854,10 +913,11 @@ async function executeNode(
 
   if (node.type === "parallel") {
     const branchEdges = edges.filter((e) => e.source === node.id);
-    await Promise.all(
-      branchEdges.map((ed) =>
-        runFromNode(ed.target, nodes, edges, ctx, runId, workspaceId, db, depth + 1)
-      )
+    // B7: fan-out acotado. Antes era `Promise.all` sobre TODAS las ramas a la
+    // vez (concurrencia ilimitada hacia providers/DB). Mismo orden de resultados
+    // y misma semántica de error (el primer fallo se propaga).
+    await mapWithConcurrency(branchEdges, FLOW_MAX_FANOUT, (ed) =>
+      runFromNode(ed.target, nodes, edges, ctx, runId, workspaceId, db, depth + 1)
     );
     helpers.setOutput({ branches: branchEdges.length });
     helpers.skipChildren();
@@ -946,6 +1006,26 @@ export async function enqueueFlowRun({
     .where(and(eq(schema.flows.id, flowId), eq(schema.flows.workspaceId, workspaceId)))
     .limit(1);
   if (!flowRows[0]) throw new Error("Flow not found");
+
+  // B3: cap de concurrencia por flow. Una sola query de count de runs activos.
+  if (FLOW_MAX_CONCURRENT_RUNS_PER_FLOW > 0) {
+    const activeRows = await db
+      .select({ value: count() })
+      .from(schema.flowRuns)
+      .where(
+        and(
+          eq(schema.flowRuns.flowId, flowId),
+          inArray(schema.flowRuns.status, ["running", "pending"])
+        )
+      );
+    const active = activeRows[0]?.value ?? 0;
+    if (active >= FLOW_MAX_CONCURRENT_RUNS_PER_FLOW) {
+      throw new Error(
+        `Este flujo ya tiene ${active} ejecuciones activas (máximo ${FLOW_MAX_CONCURRENT_RUNS_PER_FLOW}). ` +
+          `Esperá a que terminen algunas antes de lanzar otra.`
+      );
+    }
+  }
 
   const runId = createId();
   await db.insert(schema.flowRuns).values({

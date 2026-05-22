@@ -53,6 +53,13 @@ export interface LlmCallParams {
   tools?: ToolDefinitionForLlm[];
   /** Id de correlación opcional para atar logs/errores de esta llamada (D1). */
   correlationId?: string;
+  /**
+   * Signal de cancelación opcional (L5). Cuando el cliente de un endpoint SSE
+   * se desconecta, su `req.signal` se aborta → en el path de streaming abortamos
+   * el `fetch` upstream y cortamos la lectura del generador, así dejamos de
+   * consumir (y facturar) tokens del LLM. En el path bloqueante se ignora.
+   */
+  signal?: AbortSignal;
 }
 
 export interface LlmCallResult {
@@ -494,8 +501,13 @@ async function* streamAnthropic(
     }));
   }
 
+  // Si el cliente ya se fue antes de arrancar, no abrimos la conexión.
+  if (p.signal?.aborted) return;
+
   // Timeout sólo para establecer la conexión (TTFB). Una vez que llegan los
   // headers, el body se lee con su propio reader sin abortar mid-stream.
+  // El `signal` del caller (L5) se pasa al fetch para abortar el upstream si el
+  // cliente se desconecta; además se chequea al leer el body en `parseSSE`.
   const r = await fetchStreamWithConnectTimeout(
     "https://api.anthropic.com/v1/messages",
     {
@@ -506,6 +518,7 @@ async function* streamAnthropic(
         "content-type": "application/json",
       },
       body: JSON.stringify(body),
+      ...(p.signal ? { signal: p.signal } : {}),
     },
     LLM_STREAM_CONNECT_TIMEOUT_MS
   );
@@ -522,7 +535,7 @@ async function* streamAnthropic(
   let inputTokens = 0;
   let outputTokens = 0;
 
-  for await (const ev of parseSSE(r.body)) {
+  for await (const ev of parseSSE(r.body, p.signal)) {
     if (ev.event === "message_start") {
       const data = safeJsonParse(ev.data);
       inputTokens = data?.message?.usage?.input_tokens ?? 0;
@@ -593,12 +606,16 @@ async function* streamOpenAI(
 ): AsyncGenerator<LlmStreamChunk> {
   const body = buildOpenAIChatBody(p, { stream: true, stream_options: { include_usage: true } });
 
+  // Si el cliente ya se fue antes de arrancar, no abrimos la conexión.
+  if (p.signal?.aborted) return;
+
   const r = await fetchStreamWithConnectTimeout(
     `${baseURL}/chat/completions`,
     {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
       body: JSON.stringify(body),
+      ...(p.signal ? { signal: p.signal } : {}),
     },
     LLM_STREAM_CONNECT_TIMEOUT_MS
   );
@@ -611,7 +628,7 @@ async function* streamOpenAI(
   let totalTokens = 0;
   // Acumula tool_calls que llegan en deltas (por índice).
   const toolByIndex: Record<number, { id: string; name: string; args: string }> = {};
-  for await (const ev of parseSSE(r.body)) {
+  for await (const ev of parseSSE(r.body, p.signal)) {
     if (ev.data === "[DONE]") break;
     const data = safeJsonParse(ev.data);
     const delta = data?.choices?.[0]?.delta;
@@ -636,15 +653,41 @@ async function* streamOpenAI(
 /**
  * Parser minimal de Server-Sent Events. Lee el body como Uint8Array stream y
  * devuelve {event, data} por cada bloque vacío-line-separated.
+ *
+ * Si se pasa un `signal` (L5) y éste se aborta, dejamos de leer y cancelamos el
+ * reader — esto cierra el body de la respuesta y la conexión TCP upstream, así
+ * el provider deja de generar (y facturar) tokens cuando el cliente se va.
  */
 async function* parseSSE(
-  body: ReadableStream<Uint8Array>
+  body: ReadableStream<Uint8Array>,
+  signal?: AbortSignal
 ): AsyncGenerator<{ event: string; data: string }> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buf = "";
+  // Si el signal se aborta mientras estamos bloqueados en `reader.read()`,
+  // cancelar el reader hace que la promesa pendiente resuelva/rechace y salimos.
+  const onAbort = () => {
+    reader.cancel().catch(() => {});
+  };
+  if (signal) {
+    if (signal.aborted) {
+      await reader.cancel().catch(() => {});
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+  }
+  try {
   while (true) {
-    const { value, done } = await reader.read();
+    if (signal?.aborted) break;
+    let value: Uint8Array | undefined;
+    let done: boolean;
+    try {
+      ({ value, done } = await reader.read());
+    } catch {
+      // El reader fue cancelado (abort) o el stream se rompió: cortamos limpio.
+      break;
+    }
     if (done) break;
     buf += decoder.decode(value, { stream: true });
     let idx;
@@ -661,6 +704,11 @@ async function* parseSSE(
         yield { event, data: dataLines.join("\n") };
       }
     }
+  }
+  } finally {
+    if (signal) signal.removeEventListener("abort", onAbort);
+    // Asegura que el body upstream se libere si salimos por break (no por done).
+    reader.cancel().catch(() => {});
   }
 }
 
