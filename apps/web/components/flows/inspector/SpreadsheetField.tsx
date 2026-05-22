@@ -51,8 +51,11 @@ export function SpreadsheetField({
     setCell(sel, `=${syntax}`);
   }
 
-  const refs = Array.from({ length: grid.rows }, (_, r) =>
-    Array.from({ length: grid.cols }, (_, c) => `${colName(c)}${r + 1}`)
+  // Mostramos una grilla generosa (que llena el alto) aunque tenga pocos datos.
+  const displayCols = Math.max(grid.cols, 6);
+  const displayRows = Math.max(grid.rows, 16);
+  const refs = Array.from({ length: displayRows }, (_, r) =>
+    Array.from({ length: displayCols }, (_, c) => `${colName(c)}${r + 1}`)
   );
   const usedRefs = Object.keys(grid.cells).filter((k) => grid.cells[k]?.trim());
 
@@ -105,76 +108,82 @@ export function SpreadsheetField({
 
             <div className="flex min-h-0 flex-1">
               {/* grid */}
-              <div className="min-h-0 flex-1 overflow-auto p-3">
-                <table className="border-collapse">
-                  <thead>
-                    <tr>
-                      <th className="sticky left-0 z-10 w-8 bg-surface" />
-                      {Array.from({ length: grid.cols }, (_, c) => (
-                        <th key={c} className="min-w-[96px] border border-line bg-elevated px-2 py-1 text-[10px] font-medium text-muted">
-                          {colName(c)}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {refs.map((row, r) => (
-                      <tr key={r}>
-                        <td className="sticky left-0 z-10 border border-line bg-elevated px-2 py-1 text-center text-[10px] font-medium text-muted">
-                          {r + 1}
-                        </td>
-                        {row.map((ref) => (
-                          <td key={ref} className="border border-line p-0">
-                            <input
-                              value={grid.cells[ref] ?? ""}
-                              onFocus={() => setSel(ref)}
-                              onChange={(e) => setCell(ref, e.target.value)}
-                              className={`h-7 w-full bg-transparent px-1.5 text-[11px] text-strong outline-none focus:bg-violet-500/10 ${
-                                sel === ref ? "ring-1 ring-inset ring-violet-500/60" : ""
-                              } ${grid.outputCell === ref ? "bg-emerald-500/10" : ""}`}
-                            />
-                          </td>
+              <div className="flex min-h-0 flex-1 flex-col p-3">
+                <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-line">
+                  <table className="w-full table-fixed border-collapse">
+                    <thead className="sticky top-0 z-20">
+                      <tr>
+                        <th className="sticky left-0 z-30 w-9 border-b border-r border-line bg-elevated" />
+                        {Array.from({ length: displayCols }, (_, c) => (
+                          <th key={c} className="border-b border-r border-line bg-elevated px-2 py-1.5 text-[10px] font-medium text-muted">
+                            {colName(c)}
+                          </th>
                         ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <p className="mt-2 text-[10px] text-faint">
-                  Tip: los datos del paso anterior están en <code className="font-mono">input</code> (ej. <code className="font-mono">=SUM(input.ventas)</code>).
+                    </thead>
+                    <tbody>
+                      {refs.map((row, r) => (
+                        <tr key={r}>
+                          <td className="sticky left-0 z-10 w-9 border-b border-r border-line bg-elevated px-1 py-1 text-center text-[10px] font-medium text-muted">
+                            {r + 1}
+                          </td>
+                          {row.map((ref) => (
+                            <td key={ref} className="border-b border-r border-line p-0">
+                              <input
+                                value={grid.cells[ref] ?? ""}
+                                onFocus={() => setSel(ref)}
+                                onChange={(e) => setCell(ref, e.target.value)}
+                                className={`h-8 w-full bg-transparent px-2 text-[11px] text-strong outline-none focus:bg-violet-500/10 ${
+                                  sel === ref ? "bg-violet-500/10 ring-1 ring-inset ring-violet-500/60" : ""
+                                } ${grid.outputCell === ref ? "bg-emerald-500/10" : ""}`}
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-2 shrink-0 text-[10px] text-faint">
+                  Tip: los datos del paso anterior están en <code className="font-mono">input</code> (ej. <code className="font-mono">=SUM(input.ventas)</code>). La celda marcada en verde es el resultado.
                 </p>
               </div>
 
               {/* formula library */}
-              <div className="w-64 shrink-0 overflow-y-auto border-l border-line p-2">
-                <p className="px-1 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted">Fórmulas</p>
-                {FORMULA_LIBRARY.map((cat) => (
-                  <div key={cat.id} className="mb-1">
-                    <button
-                      type="button"
-                      onClick={() => setOpenCat((o) => (o === cat.id ? null : cat.id))}
-                      className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-[11px] font-medium text-body hover:bg-hover"
-                    >
-                      <span>{cat.emoji} {cat.label}</span>
-                      <ChevronDown className={`h-3 w-3 transition-transform ${openCat === cat.id ? "rotate-180" : ""}`} />
-                    </button>
-                    {openCat === cat.id && (
-                      <div className="space-y-0.5 pb-1">
-                        {cat.formulas.map((f) => (
-                          <button
-                            key={f.name}
-                            type="button"
-                            onClick={() => insertFormula(f.syntax)}
-                            title={`${f.syntax} — ${f.desc}`}
-                            className="block w-full rounded px-2 py-1 text-left hover:bg-violet-500/10"
-                          >
-                            <span className="font-mono text-[11px] text-violet-600 dark:text-violet-400">{f.name}</span>
-                            <span className="block truncate text-[10px] text-faint">{f.desc}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+              <div className="flex w-72 shrink-0 flex-col border-l border-line">
+                <p className="border-b border-line px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-muted">
+                  Fórmulas
+                </p>
+                <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                  {FORMULA_LIBRARY.map((cat) => (
+                    <div key={cat.id} className="mb-1">
+                      <button
+                        type="button"
+                        onClick={() => setOpenCat((o) => (o === cat.id ? null : cat.id))}
+                        className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-[11px] font-medium text-body hover:bg-hover"
+                      >
+                        <span>{cat.emoji} {cat.label}</span>
+                        <ChevronDown className={`h-3 w-3 transition-transform ${openCat === cat.id ? "rotate-180" : ""}`} />
+                      </button>
+                      {openCat === cat.id && (
+                        <div className="grid grid-cols-2 gap-1 pb-1.5 pt-0.5">
+                          {cat.formulas.map((f) => (
+                            <button
+                              key={f.name}
+                              type="button"
+                              onClick={() => insertFormula(f.syntax)}
+                              title={`${f.syntax}\n${f.desc}`}
+                              className="flex flex-col gap-0.5 rounded-md border border-line bg-card px-2 py-1.5 text-left transition-colors hover:border-violet-500/40 hover:bg-violet-500/10"
+                            >
+                              <span className="font-mono text-[11px] font-medium text-violet-600 dark:text-violet-400">{f.name}</span>
+                              <span className="line-clamp-2 text-[10px] leading-tight text-faint">{f.desc}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
