@@ -20,9 +20,9 @@ const SCOPE_LABEL: Record<MemoryRow["scope"], string> = {
 };
 
 const SCOPE_COLOR: Record<MemoryRow["scope"], string> = {
-  global: "text-violet-300 bg-violet-500/15",
-  conversation: "text-blue-300 bg-blue-500/15",
-  employee: "text-emerald-300 bg-emerald-500/15",
+  global: "text-violet-700 dark:text-violet-300 bg-violet-500/15",
+  conversation: "text-blue-700 dark:text-blue-300 bg-blue-500/15",
+  employee: "text-emerald-700 dark:text-emerald-300 bg-emerald-500/15",
 };
 
 export function MemoryPanel({ agentId }: { agentId: string }) {
@@ -76,7 +76,7 @@ export function MemoryPanel({ agentId }: { agentId: string }) {
   return (
     <div className="rounded-2xl border border-line bg-card p-4">
       <div className="mb-3 flex items-center gap-2 text-sm font-medium text-body">
-        <Brain className="h-4 w-4 text-violet-400" /> Memoria persistente
+        <Brain className="h-4 w-4 text-violet-600 dark:text-violet-400" /> Memoria persistente
       </div>
       <p className="mb-3 text-[11px] text-muted">
         El agente puede leer/escribir estas memorias a través de las tools{" "}
@@ -126,7 +126,7 @@ export function MemoryPanel({ agentId }: { agentId: string }) {
                     <button
                       type="button"
                       onClick={() => removeKey(row, k)}
-                      className="text-muted hover:text-red-400"
+                      className="text-muted hover:text-red-600 dark:hover:text-red-400"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
@@ -147,7 +147,7 @@ export function MemoryPanel({ agentId }: { agentId: string }) {
               onClick={() => setScope(s)}
               className={
                 scope === s
-                  ? "rounded-md bg-violet-500/25 px-2 py-1 text-violet-200"
+                  ? "rounded-md bg-violet-500/25 px-2 py-1 text-violet-700 dark:text-violet-200"
                   : "rounded-md border border-line px-2 py-1 text-muted hover:text-body"
               }
             >

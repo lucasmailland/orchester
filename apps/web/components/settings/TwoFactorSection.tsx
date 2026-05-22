@@ -89,7 +89,7 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
   if (state === "enabled") {
     return (
       <div className="space-y-3">
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-200">
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-700 dark:text-emerald-200">
           <ShieldCheck className="h-4 w-4" />
           <span>2FA activado. Tu cuenta está protegida con autenticación de dos factores.</span>
         </div>
@@ -122,7 +122,7 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
   if (state === "backup") {
     return (
       <div className="space-y-3">
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-200">
           <strong>Guardá estos códigos en un lugar seguro.</strong> Sirven para
           loguearte si perdés acceso a tu app de autenticador. Cada código se
           puede usar UNA SOLA VEZ.
@@ -136,7 +136,7 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
             onClick={() => void copyBackupCodes()}
             className="btn-secondary"
           >
-            {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
             {copied ? "Copiado" : "Copiar todos"}
           </button>
           <button

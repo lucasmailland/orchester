@@ -78,11 +78,11 @@ export function FlowRunsPanel({
                 <span
                   className={
                     r.status === "succeeded"
-                      ? "text-emerald-400"
+                      ? "text-emerald-600 dark:text-emerald-400"
                       : r.status === "failed"
-                      ? "text-red-400"
+                      ? "text-red-600 dark:text-red-400"
                       : r.status === "running"
-                      ? "text-amber-400"
+                      ? "text-amber-600 dark:text-amber-400"
                       : "text-muted"
                   }
                 >
@@ -108,7 +108,7 @@ export function FlowRunsPanel({
               {new Date(selected.run.startedAt).toLocaleString()}
             </div>
             {selected.run.error && (
-              <div className="mt-2 rounded border border-red-500/30 bg-red-500/10 p-2 text-red-300">
+              <div className="mt-2 rounded border border-red-500/30 bg-red-500/10 p-2 text-red-700 dark:text-red-300">
                 {selected.run.error}
               </div>
             )}
@@ -124,16 +124,16 @@ export function FlowRunsPanel({
                 <span
                   className={
                     s.status === "succeeded"
-                      ? "text-emerald-400"
+                      ? "text-emerald-600 dark:text-emerald-400"
                       : s.status === "failed"
-                      ? "text-red-400"
+                      ? "text-red-600 dark:text-red-400"
                       : "text-muted"
                   }
                 >
                   {s.status}
                 </span>
               </div>
-              {s.error && <div className="mt-1 text-red-300">{s.error}</div>}
+              {s.error && <div className="mt-1 text-red-700 dark:text-red-300">{s.error}</div>}
               {s.output != null && (
                 <pre className="mt-1 max-h-32 overflow-y-auto rounded bg-black/40 p-2 font-mono text-[10px] text-body">
                   {JSON.stringify(s.output, null, 2)}

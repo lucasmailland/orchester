@@ -32,7 +32,7 @@ export function TeamCard({ id, name, description, avatarColor, agentCount, chann
         className={cn(
           "group relative block overflow-hidden rounded-2xl",
           "border border-line bg-card",
-          "hover:border-white/[0.14] hover:bg-white/[0.055]",
+          "hover:border-line hover:bg-white/[0.055]",
           "transition-all duration-200"
         )}
       >

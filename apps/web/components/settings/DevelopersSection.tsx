@@ -136,12 +136,12 @@ export function DevelopersSection() {
       {/* API Keys */}
       <div>
         <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-body">
-          <Key className="h-4 w-4 text-violet-400" /> API Keys
+          <Key className="h-4 w-4 text-violet-600 dark:text-violet-400" /> API Keys
         </h3>
         <div className="space-y-2 rounded-2xl border border-line bg-card p-4">
           {revealedKey && (
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs">
-              <div className="mb-1 font-medium text-emerald-200">
+              <div className="mb-1 font-medium text-emerald-700 dark:text-emerald-200">
                 ⚠️ Copialo ahora — sólo se muestra una vez:
               </div>
               <div className="flex items-center gap-2 rounded bg-black/40 p-2">
@@ -154,7 +154,7 @@ export function DevelopersSection() {
                   className="text-muted hover:text-strong"
                 >
                   {copied === "key" ? (
-                    <Check className="h-3.5 w-3.5 text-emerald-400" />
+                    <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                   ) : (
                     <Copy className="h-3.5 w-3.5" />
                   )}
@@ -182,7 +182,7 @@ export function DevelopersSection() {
                 <div className="flex items-center gap-2 text-strong">
                   <span className="font-medium">{k.name}</span>
                   {k.revokedAt && (
-                    <span className="rounded-md bg-red-500/15 px-1.5 py-0.5 text-[10px] text-red-300">
+                    <span className="rounded-md bg-red-500/15 px-1.5 py-0.5 text-[10px] text-red-700 dark:text-red-300">
                       revocada
                     </span>
                   )}
@@ -198,7 +198,7 @@ export function DevelopersSection() {
                 <button
                   type="button"
                   onClick={() => revokeKey(k.id)}
-                  className="text-muted hover:text-red-400"
+                  className="text-muted hover:text-red-600 dark:hover:text-red-400"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -235,7 +235,7 @@ export function DevelopersSection() {
       {/* Outbound webhooks */}
       <div>
         <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-body">
-          <WebhookIcon className="h-4 w-4 text-amber-400" /> Webhooks (eventos salientes)
+          <WebhookIcon className="h-4 w-4 text-amber-600 dark:text-amber-400" /> Webhooks (eventos salientes)
         </h3>
         <div className="space-y-2 rounded-2xl border border-line bg-card p-4">
           {webhooks.length === 0 && (
@@ -261,7 +261,7 @@ export function DevelopersSection() {
                     onClick={() => toggleWebhook(w.id, !w.enabled)}
                     className={
                       w.enabled
-                        ? "rounded-md bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-300"
+                        ? "rounded-md bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300"
                         : "rounded-md bg-zinc-700/50 px-2 py-0.5 text-[10px] text-muted"
                     }
                   >
@@ -270,7 +270,7 @@ export function DevelopersSection() {
                   <button
                     type="button"
                     onClick={() => deleteWebhook(w.id)}
-                    className="text-muted hover:text-red-400"
+                    className="text-muted hover:text-red-600 dark:hover:text-red-400"
                   >
                     <Trash2 className="h-3 w-3" />
                   </button>
@@ -278,13 +278,13 @@ export function DevelopersSection() {
               </div>
               <div className="flex flex-wrap gap-1">
                 {w.events.map((e) => (
-                  <span key={e} className="rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[10px] text-violet-300">
+                  <span key={e} className="rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[10px] text-violet-700 dark:text-violet-300">
                     {e}
                   </span>
                 ))}
               </div>
               {w.lastError && (
-                <div className="text-[10px] text-red-400">⚠ {w.lastError}</div>
+                <div className="text-[10px] text-red-600 dark:text-red-400">⚠ {w.lastError}</div>
               )}
             </div>
           ))}
@@ -313,7 +313,7 @@ export function DevelopersSection() {
                   }
                   className={
                     newWhEvents.includes(e)
-                      ? "rounded-md bg-violet-500/25 px-2 py-1 text-[10px] text-violet-200"
+                      ? "rounded-md bg-violet-500/25 px-2 py-1 text-[10px] text-violet-700 dark:text-violet-200"
                       : "rounded-md border border-line px-2 py-1 text-[10px] text-muted hover:text-body"
                   }
                 >

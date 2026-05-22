@@ -90,7 +90,7 @@ export function EmployeeTable({ employees: initial, labels }: EmployeeTableProps
           variants={staggerContainer}
           initial="hidden"
           animate="visible"
-          className="overflow-hidden rounded-xl border border-white/[0.07]"
+          className="overflow-hidden rounded-xl border border-line"
         >
           {filtered.map((emp, idx) => (
             <motion.div
@@ -116,7 +116,7 @@ export function EmployeeTable({ employees: initial, labels }: EmployeeTableProps
                 )}
                 <div className="flex items-center gap-1.5">
                   <span className={cn("h-1.5 w-1.5 rounded-full", emp.active ? "bg-emerald-400" : "bg-zinc-600")} />
-                  <span className={cn("text-[11px] font-medium", emp.active ? "text-emerald-400" : "text-muted")}>
+                  <span className={cn("text-[11px] font-medium", emp.active ? "text-emerald-600 dark:text-emerald-400" : "text-muted")}>
                     {emp.active ? labels.active : labels.inactive}
                   </span>
                 </div>
@@ -129,7 +129,7 @@ export function EmployeeTable({ employees: initial, labels }: EmployeeTableProps
                 className={cn(
                   "ml-2 hidden shrink-0 items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] sm:inline-flex",
                   emp.monthlyBudgetUsd != null
-                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20"
                     : "border-line text-muted hover:bg-hover hover:text-body"
                 )}
                 aria-label={`Editar budget de ${emp.name}`}

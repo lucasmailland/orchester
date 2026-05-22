@@ -32,7 +32,7 @@ export function EmptyState({
       transition={{ duration: 0.35, ease: APPLE_EASE }}
       className={cn(
         "flex flex-col items-center justify-center gap-5 rounded-2xl",
-        "border border-dashed border-white/[0.09] bg-card p-14",
+        "border border-dashed border-line bg-card p-14",
         className
       )}
     >
@@ -40,7 +40,7 @@ export function EmptyState({
         <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl">
           <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-violet-600/25 to-blue-600/15" />
           <div className="absolute inset-0 rounded-2xl border border-violet-500/20" />
-          <div className="relative text-violet-400">{icon}</div>
+          <div className="relative text-violet-600 dark:text-violet-400">{icon}</div>
         </div>
       )}
 

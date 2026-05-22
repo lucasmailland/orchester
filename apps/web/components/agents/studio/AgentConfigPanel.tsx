@@ -101,7 +101,7 @@ export function AgentConfigPanel({ value, onChange }: Props) {
               ))}
             </select>
             {!value.flowId && (
-              <p className="mt-1.5 text-[11px] text-amber-400">
+              <p className="mt-1.5 text-[11px] text-amber-600 dark:text-amber-400">
                 El flujo debe devolver una variable `response` para que el agente conteste.
               </p>
             )}
@@ -152,7 +152,7 @@ export function AgentConfigPanel({ value, onChange }: Props) {
                               {t.description}
                             </span>
                           </span>
-                          {enabled && <Wrench className="h-3 w-3 text-violet-400" />}
+                          {enabled && <Wrench className="h-3 w-3 text-violet-600 dark:text-violet-400" />}
                         </button>
                       );
                     })}
@@ -242,7 +242,7 @@ export function AgentConfigPanel({ value, onChange }: Props) {
                 type="button"
                 aria-label="Agregar sugerencia inicial"
                 onClick={() => onChange({ starters: [...value.starters, ""] })}
-                className="flex items-center gap-1 text-[10px] text-violet-400 hover:text-violet-300"
+                className="flex items-center gap-1 text-[10px] text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300"
               >
                 <Plus className="h-3 w-3" /> Agregar
               </button>
@@ -265,7 +265,7 @@ export function AgentConfigPanel({ value, onChange }: Props) {
                     type="button"
                     aria-label={`Eliminar sugerencia ${i + 1}`}
                     onClick={() => onChange({ starters: value.starters.filter((_, j) => j !== i) })}
-                    className="text-muted hover:text-red-400"
+                    className="text-muted hover:text-red-600 dark:hover:text-red-400"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -303,7 +303,7 @@ export function AgentConfigPanel({ value, onChange }: Props) {
               className={cn(
                 "rounded-lg border px-3 py-2 text-xs font-medium transition",
                 value.responseFormat === rf
-                  ? "border-violet-500/40 bg-violet-500/15 text-violet-200"
+                  ? "border-violet-500/40 bg-violet-500/15 text-violet-700 dark:text-violet-200"
                   : "border-line text-muted hover:border-white/20"
               )}
             >
@@ -342,7 +342,7 @@ function Section({
   return (
     <div className="rounded-2xl border border-line bg-card p-4">
       <div className="mb-3 flex items-center gap-2">
-        <Sparkles className="h-3.5 w-3.5 text-violet-400" />
+        <Sparkles className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
         <span className="text-sm font-semibold text-strong">{title}</span>
       </div>
       {subtitle && <p className="-mt-2 mb-3 text-[11px] text-muted">{subtitle}</p>}
@@ -421,7 +421,7 @@ function VariablesEditor({
               delete next[k];
               onChange(next);
             }}
-            className="text-muted hover:text-red-400"
+            className="text-muted hover:text-red-600 dark:hover:text-red-400"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
@@ -430,7 +430,7 @@ function VariablesEditor({
       <button
         type="button"
         onClick={() => onChange({ ...value, [`var_${entries.length + 1}`]: "" })}
-        className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300"
+        className="flex items-center gap-1 text-[11px] text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300"
       >
         <Plus className="h-3 w-3" /> Agregar variable
       </button>

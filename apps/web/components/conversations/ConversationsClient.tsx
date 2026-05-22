@@ -323,14 +323,14 @@ export function ConversationsClient({
                     </span>
                   )}
                   {c.takenOverAt && (
-                    <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-amber-300">
+                    <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-amber-700 dark:text-amber-300">
                       take-over
                     </span>
                   )}
                   {(c.tags ?? []).map((t) => (
                     <span
                       key={t}
-                      className="rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[9px] text-violet-300"
+                      className="rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[9px] text-violet-700 dark:text-violet-300"
                     >
                       {t}
                     </span>
@@ -486,7 +486,7 @@ function ConversationDrawer({
         {/* Resumen de costo + budget del empleado (Sprint C3) */}
         {(totalCost > 0 || budget) && (
           <div className="flex flex-wrap items-center gap-3 border-b border-line bg-card px-5 py-2 text-[11px]">
-            <div className="flex items-center gap-1.5 text-emerald-300">
+            <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300">
               <DollarSign className="h-3 w-3" />
               <span className="font-medium">{fmtUsd(totalCost)}</span>
               <span className="text-faint">
@@ -519,7 +519,7 @@ function ConversationDrawer({
               type="button"
               onClick={takeOver}
               disabled={busy}
-              className="flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-1 text-amber-300 hover:bg-amber-500/25"
+              className="flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-1 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25"
             >
               <UserCheck className="h-3 w-3" /> Tomar
             </button>
@@ -528,7 +528,7 @@ function ConversationDrawer({
               type="button"
               onClick={release}
               disabled={busy}
-              className="rounded-md bg-emerald-500/15 px-2 py-1 text-emerald-300 hover:bg-emerald-500/25"
+              className="rounded-md bg-emerald-500/15 px-2 py-1 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25"
             >
               Devolver al agente
             </button>
@@ -542,7 +542,7 @@ function ConversationDrawer({
                 onClick={() => toggleTag(l.name)}
                 className={
                   tags.includes(l.name)
-                    ? "rounded-md bg-violet-500/25 px-1.5 py-0.5 text-[10px] text-violet-200"
+                    ? "rounded-md bg-violet-500/25 px-1.5 py-0.5 text-[10px] text-violet-700 dark:text-violet-200"
                     : "rounded-md border border-line px-1.5 py-0.5 text-[10px] text-muted hover:text-body"
                 }
               >
@@ -572,17 +572,17 @@ function ConversationDrawer({
                 }
               >
                 {m.fromOperator && (
-                  <div className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wider text-amber-400">
+                  <div className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400">
                     <UserCheck className="h-2.5 w-2.5" /> Operador
                   </div>
                 )}
                 {!m.fromOperator && m.role === "assistant" && !isBudgetExceeded && (
-                  <div className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wider text-violet-400">
+                  <div className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wider text-violet-600 dark:text-violet-400">
                     <Bot className="h-2.5 w-2.5" /> Agente
                   </div>
                 )}
                 {isBudgetExceeded && (
-                  <div className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wider text-rose-300">
+                  <div className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wider text-rose-700 dark:text-rose-300">
                     <DollarSign className="h-2.5 w-2.5" /> Budget excedido
                   </div>
                 )}
@@ -640,10 +640,10 @@ function BudgetMeter({ budget }: { budget: BudgetStatus }) {
   if (budget.budgetUsd == null) return null;
   const pct = Math.min(100, (budget.spentUsd / budget.budgetUsd) * 100);
   const tone = !budget.allowed || pct >= 90
-    ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
+    ? "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300"
     : pct >= 70
-    ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
-    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+    ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
   return (
     <span
       className={`flex items-center gap-1.5 rounded-md border px-2 py-0.5 ${tone}`}

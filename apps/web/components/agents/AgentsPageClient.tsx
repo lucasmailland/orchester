@@ -15,8 +15,8 @@ const STATUS_CONFIG = {
   active: {
     dot: "bg-emerald-400",
     ping: true,
-    label: "text-emerald-400",
-    badge: "border-emerald-500/20 bg-emerald-500/10 text-emerald-400",
+    label: "text-emerald-600 dark:text-emerald-400",
+    badge: "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     text: "Activo",
   },
   inactive: {
@@ -29,8 +29,8 @@ const STATUS_CONFIG = {
   draft: {
     dot: "bg-amber-400",
     ping: true,
-    label: "text-amber-400",
-    badge: "border-amber-500/20 bg-amber-500/10 text-amber-400",
+    label: "text-amber-600 dark:text-amber-400",
+    badge: "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400",
     text: "Borrador",
   },
 };
@@ -173,14 +173,14 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
             className={cn(
               "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
               filter === f.value
-                ? "bg-violet-600/20 text-violet-300 ring-1 ring-violet-500/30"
-                : "text-muted hover:bg-white/[0.05] hover:text-body"
+                ? "bg-violet-600/20 text-violet-700 dark:text-violet-300 ring-1 ring-violet-500/30"
+                : "text-muted hover:bg-hover hover:text-body"
             )}
           >
             {f.label}
             <span className={cn(
               "rounded-md px-1.5 py-0.5 font-mono text-[10px]",
-              filter === f.value ? "bg-violet-500/20 text-violet-300" : "bg-elevated text-faint"
+              filter === f.value ? "bg-violet-500/20 text-violet-700 dark:text-violet-300" : "bg-elevated text-faint"
             )}>
               {f.count}
             </span>
@@ -195,7 +195,7 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
           <p className="text-sm text-faint">No hay agentes que mostrar.</p>
           <button
             onClick={() => setCreateOpen(true)}
-            className="rounded-xl bg-violet-600/20 px-4 py-2 text-sm font-medium text-violet-400 hover:bg-violet-600/30"
+            className="rounded-xl bg-violet-600/20 px-4 py-2 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-600/30"
           >
             Crear primer agente
           </button>
@@ -244,8 +244,8 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
                         router.push(`/${locale}/agents/${agent.id}`);
                       }}
                       className={cn(
-                        "group relative cursor-pointer overflow-hidden rounded-2xl border border-white/[0.07] bg-card",
-                        "transition-all hover:border-violet-500/30 hover:bg-white/[0.05]"
+                        "group relative cursor-pointer overflow-hidden rounded-2xl border border-line bg-card",
+                        "transition-all hover:border-violet-500/30 hover:bg-hover"
                       )}
                     >
                       {/* Left color bar */}
@@ -258,7 +258,7 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
                         {/* Top row */}
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-2.5">
-                            <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-600/15 text-violet-400">
+                            <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-600/15 text-violet-600 dark:text-violet-400">
                               <Bot size={15} />
                               <span className="absolute -bottom-0.5 -right-0.5">
                                 <span className="relative flex h-2.5 w-2.5">
@@ -289,7 +289,7 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
                               type="button"
                               aria-label={`Eliminar ${agent.name}`}
                               onClick={() => handleDelete(agent.id)}
-                              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-red-500/10 hover:text-red-400"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
                             >
                               <Trash2 size={12} />
                             </button>

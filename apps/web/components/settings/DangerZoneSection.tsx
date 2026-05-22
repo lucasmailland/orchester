@@ -43,11 +43,11 @@ export function DangerZoneSection({ workspace }: Props) {
   return (
     <section className="rounded-2xl border border-red-500/20 bg-red-500/5 p-6">
       <header className="mb-4 flex items-start gap-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/10 text-red-400">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/10 text-red-600 dark:text-red-400">
           <AlertTriangle size={16} />
         </div>
         <div>
-          <h2 className="text-sm font-semibold text-red-400">Zona de peligro</h2>
+          <h2 className="text-sm font-semibold text-red-600 dark:text-red-400">Zona de peligro</h2>
           <p className="text-xs text-muted">
             Acción irreversible. Borra el workspace, todos sus agentes, conversaciones,
             knowledge bases y miembros.
@@ -83,7 +83,7 @@ export function DangerZoneSection({ workspace }: Props) {
           }}
         >
           <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-surface p-5 shadow-2xl">
-            <h3 id="delete-ws-title" className="text-sm font-semibold text-red-400">
+            <h3 id="delete-ws-title" className="text-sm font-semibold text-red-600 dark:text-red-400">
               ¿Eliminar el workspace &ldquo;{workspace.name}&rdquo;?
             </h3>
             <p className="mt-1 text-xs text-muted">

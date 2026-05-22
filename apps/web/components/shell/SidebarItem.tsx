@@ -42,7 +42,7 @@ export function SidebarItem({ href, icon, label, collapsed }: SidebarItemProps) 
         <span
           className={cn(
             "flex-shrink-0 transition-colors duration-150",
-            isActive ? "text-violet-400" : "text-faint group-hover:text-muted"
+            isActive ? "text-violet-600 dark:text-violet-400" : "text-faint group-hover:text-muted"
           )}
         >
           {icon}

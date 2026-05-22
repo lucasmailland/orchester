@@ -69,7 +69,7 @@ export function KpiCard({ label, value, icon, color = "primary", className }: Kp
   // ambos temas).
   const isPrimary = color === "primary";
   const labelCls = isPrimary ? "text-muted" : "text-white/60";
-  const iconCls = isPrimary ? "text-violet-400" : "text-white/80";
+  const iconCls = isPrimary ? "text-violet-600 dark:text-violet-400" : "text-white/80";
   const valueCls = isPrimary ? "text-strong" : "text-white";
   const liveCls = isPrimary ? "text-faint" : "text-white/40";
 

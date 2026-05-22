@@ -17,14 +17,14 @@ const MODEL_SHORT: Record<string, string> = {
 };
 
 const MODEL_COLOR: Record<string, string> = {
-  "claude-sonnet-4-6": "text-violet-400 bg-violet-500/10 border-violet-500/25",
-  "claude-opus-4-7": "text-blue-400 bg-blue-500/10 border-blue-500/25",
-  "claude-haiku-4-5": "text-teal-400 bg-teal-500/10 border-teal-500/25",
-  "claude-haiku-4-5-20251001": "text-teal-400 bg-teal-500/10 border-teal-500/25",
+  "claude-sonnet-4-6": "text-violet-600 dark:text-violet-400 bg-violet-500/10 border-violet-500/25",
+  "claude-opus-4-7": "text-blue-600 dark:text-blue-400 bg-blue-500/10 border-blue-500/25",
+  "claude-haiku-4-5": "text-teal-700 dark:text-teal-400 bg-teal-500/10 border-teal-500/25",
+  "claude-haiku-4-5-20251001": "text-teal-700 dark:text-teal-400 bg-teal-500/10 border-teal-500/25",
 };
 
 const KPI_STYLES = {
-  primary:  { bg: "bg-card", border: "border-line", text: "text-strong", sub: "text-muted", icon: "text-blue-400" },
+  primary:  { bg: "bg-card", border: "border-line", text: "text-strong", sub: "text-muted", icon: "text-blue-600 dark:text-blue-400" },
   accent:   { bg: "bg-violet-600", border: "border-violet-500/40", text: "text-white", sub: "text-violet-200/70", icon: "text-violet-100" },
   success:  { bg: "bg-blue-600", border: "border-blue-500/40", text: "text-white", sub: "text-blue-100/70", icon: "text-blue-100" },
   warning:  { bg: "bg-teal-600", border: "border-teal-500/40", text: "text-white", sub: "text-teal-100/70", icon: "text-teal-100" },
@@ -135,7 +135,7 @@ export function UsagePageClient({ kpis, tokensByDay, agentUsage, labels }: Usage
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.2, ease: APPLE_EASE }}
-        className="rounded-2xl border border-white/[0.07] bg-card p-6"
+        className="rounded-2xl border border-line bg-card p-6"
       >
         <div className="mb-1 flex items-center justify-between">
           <h2 className="font-display text-sm font-bold text-body">{labels.chartTitle}</h2>
@@ -210,9 +210,9 @@ export function UsagePageClient({ kpis, tokensByDay, agentUsage, labels }: Usage
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.35, ease: APPLE_EASE }}
-        className="rounded-2xl border border-white/[0.07] bg-card"
+        className="rounded-2xl border border-line bg-card"
       >
-        <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-4">
+        <div className="flex items-center justify-between border-b border-line px-6 py-4">
           <h2 className="font-display text-sm font-bold text-body">{labels.agentTableTitle}</h2>
           <span className="text-[10px] font-mono text-faint">ALL TIME</span>
         </div>
@@ -237,11 +237,11 @@ export function UsagePageClient({ kpis, tokensByDay, agentUsage, labels }: Usage
                   return (
                     <tr
                       key={agent.id}
-                      className="group border-b border-white/[0.04] transition-colors hover:bg-card"
+                      className="group border-b border-line transition-colors hover:bg-card"
                     >
                       <td className="px-6 py-3.5">
                         <div className="flex items-center gap-2.5">
-                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 font-mono text-[10px] font-bold text-violet-400">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 font-mono text-[10px] font-bold text-violet-600 dark:text-violet-400">
                             {idx + 1}
                           </span>
                           <span className="font-medium text-body">{agent.name}</span>
@@ -269,7 +269,7 @@ export function UsagePageClient({ kpis, tokensByDay, agentUsage, labels }: Usage
                           <span className="font-mono text-sm text-body">{formatTokens(agent.tokens)}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-3.5 font-mono text-sm text-emerald-400">
+                      <td className="px-6 py-3.5 font-mono text-sm text-emerald-600 dark:text-emerald-400">
                         ${agent.costUsd.toFixed(2)}
                       </td>
                     </tr>

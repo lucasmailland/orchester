@@ -34,13 +34,13 @@ export function SettingsCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.15 }}
       className={cn(
-        "rounded-2xl border border-white/[0.07] bg-card p-5 space-y-4",
+        "rounded-2xl border border-line bg-card p-5 space-y-4",
         className
       )}
     >
       <header className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-white/[0.05] text-muted">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-hover text-muted">
             {icon}
           </div>
           <div>

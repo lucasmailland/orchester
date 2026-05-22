@@ -61,7 +61,7 @@ function WorkspaceNode({ data }: NodeProps) {
   const d = data as { label: string; meta?: { teamCount?: number; agentCount?: number; flowCount?: number } };
   return (
     <div className="relative flex min-w-[260px] items-center gap-3 rounded-2xl border border-violet-400/40 bg-gradient-to-br from-violet-500/15 via-zinc-900 to-zinc-900 px-4 py-3 shadow-[0_0_60px_-15px_rgba(139,92,246,0.5)]">
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/20 text-violet-200">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/20 text-violet-700 dark:text-violet-200">
         <Building2 className="h-5 w-5" />
       </div>
       <div className="min-w-0 flex-1">
@@ -84,7 +84,7 @@ function TeamNode({ data }: NodeProps) {
   const color = d.meta?.color ?? COLORS.team;
   return (
     <div
-      className="relative flex min-w-[200px] items-center gap-2.5 rounded-xl border border-white/[0.1] bg-surface/95 px-3.5 py-2.5 shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
+      className="relative flex min-w-[200px] items-center gap-2.5 rounded-xl border border-line bg-surface/95 px-3.5 py-2.5 shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
       style={{ borderTopWidth: 3, borderTopColor: color }}
     >
       <Handle type="target" position={Position.Top} style={{ background: color }} />
@@ -96,7 +96,7 @@ function TeamNode({ data }: NodeProps) {
         <div className="text-[10px] text-muted">
           {d.meta?.agentCount ?? 0} agentes
           {(d.meta?.activeCount ?? 0) > 0 && (
-            <span className="ml-1 text-emerald-400">· {d.meta?.activeCount} activos</span>
+            <span className="ml-1 text-emerald-600 dark:text-emerald-400">· {d.meta?.activeCount} activos</span>
           )}
         </div>
       </div>
@@ -124,7 +124,7 @@ function AgentNode({ data }: NodeProps) {
   const channelCount = d.meta?.channels?.length ?? 0;
   return (
     <div
-      className="relative min-w-[220px] rounded-xl border border-white/[0.1] bg-surface/95 px-3.5 py-2.5 shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
+      className="relative min-w-[220px] rounded-xl border border-line bg-surface/95 px-3.5 py-2.5 shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
       style={{ borderLeftWidth: 3, borderLeftColor: color }}
     >
       <Handle type="target" position={Position.Top} style={{ background: color }} />
@@ -154,7 +154,7 @@ function AgentNode({ data }: NodeProps) {
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted">
         <span className="font-mono">{d.meta?.model}</span>
         {isFlow && (
-          <span className="rounded bg-amber-500/15 px-1 py-0.5 text-[9px] uppercase tracking-wider text-amber-300">
+          <span className="rounded bg-amber-500/15 px-1 py-0.5 text-[9px] uppercase tracking-wider text-amber-700 dark:text-amber-300">
             Flow
           </span>
         )}
@@ -164,7 +164,7 @@ function AgentNode({ data }: NodeProps) {
           </span>
         )}
         {channelCount > 0 && (
-          <span className="flex items-center gap-0.5 text-blue-400">
+          <span className="flex items-center gap-0.5 text-blue-600 dark:text-blue-400">
             <Radio className="h-2.5 w-2.5" /> {channelCount}
           </span>
         )}
@@ -178,12 +178,12 @@ function FlowNode({ data }: NodeProps) {
   return (
     <div className="relative flex min-w-[180px] items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1.5 shadow-[0_8px_24px_rgba(245,158,11,0.15)]">
       <Handle type="source" position={Position.Bottom} style={{ background: COLORS.flow }} />
-      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/25 text-amber-300">
+      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/25 text-amber-700 dark:text-amber-300">
         <Workflow className="h-3 w-3" />
       </div>
       <span className="truncate text-xs font-medium text-amber-100">{d.label}</span>
       {d.meta?.live && (
-        <span className="ml-auto flex items-center gap-0.5 text-[9px] uppercase tracking-wider text-emerald-300">
+        <span className="ml-auto flex items-center gap-0.5 text-[9px] uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
           <Zap className="h-2.5 w-2.5" /> live
         </span>
       )}
@@ -553,7 +553,7 @@ export function OrgCanvas() {
               <span>
                 <strong className="text-body">{data.summary.flows}</strong> flujos
                 {data.summary.liveFlows > 0 && (
-                  <span className="text-emerald-400"> · {data.summary.liveFlows} live</span>
+                  <span className="text-emerald-600 dark:text-emerald-400"> · {data.summary.liveFlows} live</span>
                 )}
               </span>
             </>

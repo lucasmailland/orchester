@@ -131,7 +131,7 @@ export function AccountSection({ me }: Props) {
         <summary className="cursor-pointer text-xs font-medium text-body">
           Autenticación de dos factores (2FA)
           {me.twoFactorEnabled && (
-            <span className="ml-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-300">
+            <span className="ml-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">
               activo
             </span>
           )}
@@ -143,7 +143,7 @@ export function AccountSection({ me }: Props) {
 
       {/* GDPR delete account */}
       <details className="rounded-lg border border-red-500/20 bg-red-500/[0.03] p-3">
-        <summary className="cursor-pointer text-xs font-medium text-red-300">
+        <summary className="cursor-pointer text-xs font-medium text-red-700 dark:text-red-300">
           Eliminar cuenta (GDPR)
         </summary>
         <p className="mt-2 text-[11px] text-muted">
@@ -172,9 +172,9 @@ export function AccountSection({ me }: Props) {
         >
           <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-surface p-5 shadow-2xl">
             <div className="mb-3 flex items-start gap-2">
-              <AlertTriangle className="mt-0.5 h-4 w-4 text-red-400" />
+              <AlertTriangle className="mt-0.5 h-4 w-4 text-red-600 dark:text-red-400" />
               <div>
-                <h3 id="delete-account-title" className="text-sm font-semibold text-red-400">
+                <h3 id="delete-account-title" className="text-sm font-semibold text-red-600 dark:text-red-400">
                   Eliminar cuenta
                 </h3>
                 <p className="mt-1 text-xs text-muted">

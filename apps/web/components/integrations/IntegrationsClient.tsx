@@ -118,7 +118,7 @@ export function IntegrationsClient() {
                   className="rounded-2xl border border-line bg-card p-4"
                 >
                   <div className="mb-2 flex items-center gap-2.5">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/15 text-violet-300">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/15 text-violet-700 dark:text-violet-300">
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -126,11 +126,11 @@ export function IntegrationsClient() {
                       <div className="text-[10px] text-muted">{conn?.name ?? c.type}</div>
                     </div>
                     {c.status === "connected" ? (
-                      <span className="flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-300">
+                      <span className="flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">
                         <CheckCircle2 className="h-2.5 w-2.5" /> OK
                       </span>
                     ) : c.status === "error" ? (
-                      <span className="flex items-center gap-1 rounded-md border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.5 text-[10px] text-rose-300">
+                      <span className="flex items-center gap-1 rounded-md border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.5 text-[10px] text-rose-700 dark:text-rose-300">
                         <AlertCircle className="h-2.5 w-2.5" /> Error
                       </span>
                     ) : (
@@ -163,7 +163,7 @@ export function IntegrationsClient() {
                       type="button"
                       onClick={() => remove(c.id, c.name)}
                       aria-label={`Eliminar ${c.name}`}
-                      className="rounded-lg border border-line px-2 py-1.5 text-muted hover:bg-rose-500/10 hover:text-rose-400"
+                      className="rounded-lg border border-line px-2 py-1.5 text-muted hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -188,12 +188,12 @@ export function IntegrationsClient() {
                 className="flex h-full flex-col rounded-2xl border border-line bg-card p-4"
               >
                 <div className="mb-2 flex items-center gap-2.5">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
                     <Icon className="h-4 w-4" />
                   </div>
                   <div className="font-medium text-strong">{c.name}</div>
                   {c.needsOAuthApp && (
-                    <span className="ml-auto rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-300">
+                    <span className="ml-auto rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">
                       OAuth
                     </span>
                   )}
@@ -207,7 +207,7 @@ export function IntegrationsClient() {
                 <button
                   type="button"
                   onClick={() => setModal({ connector: c })}
-                  className="mt-3 flex items-center justify-center gap-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 py-2 text-xs font-medium text-violet-300 hover:bg-violet-500/20"
+                  className="mt-3 flex items-center justify-center gap-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 py-2 text-xs font-medium text-violet-700 dark:text-violet-300 hover:bg-violet-500/20"
                 >
                   <Plus className="h-3 w-3" /> {already ? "Agregar otra" : "Conectar"}
                 </button>
@@ -290,7 +290,7 @@ function ConfigModal({
           </button>
         </div>
         {connector.needsOAuthApp && (
-          <p className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-300">
+          <p className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300">
             Requiere registrar una app OAuth. Pegá tus client ID/secret; el flujo de autorización
             se completa después.
           </p>
@@ -308,7 +308,7 @@ function ConfigModal({
             <div key={f.key}>
               <label className="mb-1 block text-xs text-muted">
                 {f.label}
-                {f.required && <span className="text-rose-400"> *</span>}
+                {f.required && <span className="text-rose-600 dark:text-rose-400"> *</span>}
               </label>
               <input
                 type={f.type === "password" ? "password" : "text"}

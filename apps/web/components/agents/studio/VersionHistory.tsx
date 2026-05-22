@@ -104,7 +104,7 @@ export function VersionHistory({ agentId, current, onRestored }: Props) {
               </div>
               <button
                 onClick={() => restore(v.id)}
-                className="flex items-center gap-1 text-muted hover:text-violet-300"
+                className="flex items-center gap-1 text-muted hover:text-violet-700 dark:hover:text-violet-300"
                 type="button"
               >
                 <RotateCcw className="h-3.5 w-3.5" /> Restaurar
