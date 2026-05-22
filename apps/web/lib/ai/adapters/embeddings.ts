@@ -1,5 +1,8 @@
 import "server-only";
 import type { Cred, EmbeddingParams, EmbeddingResult } from "../capabilities";
+import { fetchWithTimeout } from "../../http-util";
+
+const EMBED_TIMEOUT_MS = 60_000;
 
 /**
  * Adaptadores de embeddings. La mayoría de proveedores exponen el endpoint
@@ -19,11 +22,11 @@ export async function embedWith(
 }
 
 async function openaiEmbed(p: EmbeddingParams, cred: Cred, baseURL: string): Promise<EmbeddingResult> {
-  const r = await fetch(`${baseURL.replace(/\/$/, "")}/embeddings`, {
+  const r = await fetchWithTimeout(`${baseURL.replace(/\/$/, "")}/embeddings`, {
     method: "POST",
     headers: { Authorization: `Bearer ${cred.apiKey}`, "content-type": "application/json" },
     body: JSON.stringify({ model: p.model, input: p.input }),
-  });
+  }, EMBED_TIMEOUT_MS);
   if (!r.ok) throw new Error(`Embeddings ${r.status}: ${await r.text()}`);
   const j = await r.json();
   const vectors = (j.data ?? []).map((d: { embedding: number[] }) => d.embedding);
@@ -32,11 +35,11 @@ async function openaiEmbed(p: EmbeddingParams, cred: Cred, baseURL: string): Pro
 
 async function googleEmbed(p: EmbeddingParams, cred: Cred): Promise<EmbeddingResult> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(p.model)}:batchEmbedContents?key=${encodeURIComponent(cred.apiKey)}`;
-  const r = await fetch(url, {
+  const r = await fetchWithTimeout(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ requests: p.input.map((t) => ({ model: `models/${p.model}`, content: { parts: [{ text: t }] } })) }),
-  });
+  }, EMBED_TIMEOUT_MS);
   if (!r.ok) throw new Error(`Google embeddings ${r.status}: ${await r.text()}`);
   const j = await r.json();
   const vectors = (j.embeddings ?? []).map((e: { values: number[] }) => e.values);

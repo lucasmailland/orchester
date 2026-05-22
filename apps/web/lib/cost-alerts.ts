@@ -1,10 +1,76 @@
 import "server-only";
 import { getDb, schema } from "@orchester/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 import { sendEmail } from "@/lib/email";
 import { dispatchEvent, type WebhookEvent } from "@/lib/webhooks-out";
 import { checkEmployeeBudget } from "@/lib/employee-budget";
 import { safeLogError } from "@/lib/safe-log";
+
+/** Error tipado para el spend guard (E3-1) — distinguible del resto. */
+export class SpendGuardError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SpendGuardError";
+  }
+}
+
+function monthStartUtc(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+/**
+ * Suma del gasto month-to-date del workspace en USD (sum de
+ * `usageEvents.costUsd` desde el 1ro del mes UTC). Best-effort: si falla, 0.
+ */
+async function monthToDateSpendUsd(workspaceId: string): Promise<number> {
+  const db = getDb();
+  const rows = await db
+    .select({ total: sql<string>`coalesce(sum(${schema.usageEvents.costUsd}), 0)` })
+    .from(schema.usageEvents)
+    .where(
+      and(
+        eq(schema.usageEvents.workspaceId, workspaceId),
+        gte(schema.usageEvents.createdAt, monthStartUtc())
+      )
+    );
+  return Number(rows[0]?.total ?? 0);
+}
+
+/**
+ * Guard pre-dispatch (E3-1). Tirar ANTES de cada llamada de IA para:
+ *   1. Kill-switch global: `AI_DISABLED=1` corta toda la IA del deployment.
+ *   2. Soft cap mensual: `AI_MONTHLY_SPEND_CAP_USD` (USD). Si el gasto
+ *      month-to-date del workspace lo supera, corta. Sin la env (o <= 0) no
+ *      hay tope.
+ *
+ * No agrega columnas: usa env + `usageEvents.costUsd` existente. Cualquier
+ * fallo de LECTURA del gasto se loguea pero NO bloquea (fail-open en el sumado
+ * para no romper la IA por un hipo de DB); el kill-switch y el cap sí cortan.
+ */
+export async function assertWithinSpend(workspaceId: string): Promise<void> {
+  if (process.env.AI_DISABLED === "1") {
+    throw new SpendGuardError("La IA está deshabilitada temporalmente (kill-switch global AI_DISABLED).");
+  }
+
+  const capRaw = process.env.AI_MONTHLY_SPEND_CAP_USD;
+  const cap = capRaw != null ? Number(capRaw) : NaN;
+  if (!Number.isFinite(cap) || cap <= 0) return; // sin tope configurado
+
+  let spent: number;
+  try {
+    spent = await monthToDateSpendUsd(workspaceId);
+  } catch (e) {
+    safeLogError("[cost-alerts] assertWithinSpend spend read failed:", e);
+    return; // fail-open: un error de lectura no debe cortar la IA
+  }
+
+  if (spent >= cap) {
+    throw new SpendGuardError(
+      `Se alcanzó el tope de gasto mensual de IA ($${cap.toFixed(2)}). Gasto actual: $${spent.toFixed(2)}. Contactá a tu administrador.`
+    );
+  }
+}
 
 /**
  * Niveles de alerta que disparamos. El orden importa para no "retroceder"

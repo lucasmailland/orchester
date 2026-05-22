@@ -1,4 +1,7 @@
 import "server-only";
+import { fetchWithTimeout } from "./http-util";
+
+const EMAIL_TIMEOUT_MS = 15_000;
 
 interface SendEmailParams {
   to: string;
@@ -20,7 +23,7 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
     console.log("[email:dev]", { to: params.to, subject: params.subject, text: params.text });
     return;
   }
-  const r = await fetch("https://api.resend.com/emails", {
+  const r = await fetchWithTimeout("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -33,7 +36,7 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
       text: params.text,
       html: params.html,
     }),
-  });
+  }, EMAIL_TIMEOUT_MS);
   if (!r.ok) {
     throw new Error(`Resend ${r.status}: ${await r.text()}`);
   }

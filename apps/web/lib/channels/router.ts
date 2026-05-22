@@ -115,6 +115,37 @@ async function resolveInbound(
 
   const baseMessageCount = conversation.messageCount ?? 0;
 
+  // 2.5 Plan quota check (conversations + tokens monthly limits). Si el
+  // workspace ya agotó su cuota mensual del plan, devolvemos un fallback
+  // amable sin consumir el LLM. Mismo estilo de short-circuit que el budget.
+  const { checkQuota } = await import("@/lib/billing/quotas");
+  const convQuota = await checkQuota(workspaceId, "conversations");
+  const tokenQuota = convQuota.allowed
+    ? await checkQuota(workspaceId, "tokens")
+    : convQuota;
+  if (!convQuota.allowed || !tokenQuota.allowed) {
+    const blocked = !convQuota.allowed ? convQuota : tokenQuota;
+    const reply =
+      agent.fallback ??
+      `Lo siento, este espacio de trabajo alcanzó su límite mensual del plan. ${
+        blocked.reason ?? ""
+      } Contactá a tu admin para ampliarlo.`.trim();
+    await db.insert(schema.messages).values({
+      id: createId(),
+      conversationId: conversation.id,
+      role: "assistant",
+      content: reply,
+      tokensUsed: 0,
+      costUsd: "0",
+      metadata: {
+        reason: "quota_exceeded",
+        limit: blocked.limit,
+        current: blocked.current,
+      },
+    });
+    return { kind: "terminal", conversationId: conversation.id, reply, tokensUsed: 0 };
+  }
+
   // 3. Persist user message
   await db.insert(schema.messages).values({
     id: createId(),

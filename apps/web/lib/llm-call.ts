@@ -4,6 +4,16 @@ import { eq, and } from "drizzle-orm";
 import { decrypt } from "./encryption";
 import { type ProviderType } from "./providers";
 import { resolveModel } from "./ai/catalog";
+import { fetchWithTimeout, fetchStreamWithConnectTimeout, withRetry, HttpError } from "./http-util";
+
+/** Timeout para obtener la respuesta completa de un LLM (block call). */
+const LLM_TIMEOUT_MS = 120_000;
+/**
+ * Timeout para ESTABLECER la conexión de streaming. El `fetch` resuelve cuando
+ * llegan los headers de respuesta; no abortamos mid-stream (el body se lee con
+ * su propio reader). 120s para acomodar TTFB lento de modelos de razonamiento.
+ */
+const LLM_STREAM_CONNECT_TIMEOUT_MS = 120_000;
 
 export interface ToolDefinitionForLlm {
   name: string;
@@ -155,17 +165,23 @@ async function callAnthropic(p: LlmCallParams, apiKey: string): Promise<LlmCallR
     }));
   }
 
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(body),
+  const j = await withRetry(async () => {
+    const r = await fetchWithTimeout(
+      "https://api.anthropic.com/v1/messages",
+      {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body),
+      },
+      LLM_TIMEOUT_MS
+    );
+    if (!r.ok) throw new HttpError(r.status, `Anthropic ${r.status}: ${await r.text()}`);
+    return r.json();
   });
-  if (!r.ok) throw new Error(`Anthropic ${r.status}: ${await r.text()}`);
-  const j = await r.json();
 
   // Extract text + tool_use blocks from response content
   const blocks = (j.content ?? []) as Array<{
@@ -256,13 +272,19 @@ async function callOpenAICompatible(
   baseURL: string
 ): Promise<LlmCallResult> {
   const body = buildOpenAIChatBody(p);
-  const r = await fetch(`${baseURL}/chat/completions`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-    body: JSON.stringify(body),
+  const j = await withRetry(async () => {
+    const r = await fetchWithTimeout(
+      `${baseURL}/chat/completions`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      LLM_TIMEOUT_MS
+    );
+    if (!r.ok) throw new HttpError(r.status, `Proveedor de chat ${r.status}: ${await r.text()}`);
+    return r.json();
   });
-  if (!r.ok) throw new Error(`Proveedor de chat ${r.status}: ${await r.text()}`);
-  const j = await r.json();
   const msg = j.choices?.[0]?.message ?? {};
   const toolCalls: ToolUseBlock[] = (msg.tool_calls ?? []).map(
     (tc: { id: string; function: { name: string; arguments: string } }) => ({
@@ -284,25 +306,31 @@ async function callGoogle(p: LlmCallParams, apiKey: string): Promise<LlmCallResu
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
     p.model
   )}:generateContent?key=${encodeURIComponent(apiKey)}`;
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: p.systemPrompt }] },
-      contents: p.messages
-        .filter((m) => m.role !== "tool" && m.role !== "system")
-        .map((m) => ({
-          role: m.role === "assistant" ? "model" : "user",
-          parts: [{ text: m.content }],
-        })),
-      generationConfig: {
-        temperature: p.temperature ?? 0.7,
-        maxOutputTokens: p.maxTokens ?? 1024,
+  const j = await withRetry(async () => {
+    const r = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: p.systemPrompt }] },
+          contents: p.messages
+            .filter((m) => m.role !== "tool" && m.role !== "system")
+            .map((m) => ({
+              role: m.role === "assistant" ? "model" : "user",
+              parts: [{ text: m.content }],
+            })),
+          generationConfig: {
+            temperature: p.temperature ?? 0.7,
+            maxOutputTokens: p.maxTokens ?? 1024,
+          },
+        }),
       },
-    }),
+      LLM_TIMEOUT_MS
+    );
+    if (!r.ok) throw new HttpError(r.status, `Google ${r.status}: ${await r.text()}`);
+    return r.json();
   });
-  if (!r.ok) throw new Error(`Google ${r.status}: ${await r.text()}`);
-  const j = await r.json();
   const content = j.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
   return {
     content,
@@ -323,17 +351,23 @@ async function callAzure(
   const messages = p.messages
     .filter((m) => m.role !== "tool")
     .map((m) => ({ role: m.role as "user" | "assistant" | "system", content: m.content }));
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { "api-key": apiKey, "content-type": "application/json" },
-    body: JSON.stringify({
-      messages: [{ role: "system", content: p.systemPrompt }, ...messages],
-      temperature: p.temperature ?? 0.7,
-      max_tokens: p.maxTokens ?? 1024,
-    }),
+  const j = await withRetry(async () => {
+    const r = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: { "api-key": apiKey, "content-type": "application/json" },
+        body: JSON.stringify({
+          messages: [{ role: "system", content: p.systemPrompt }, ...messages],
+          temperature: p.temperature ?? 0.7,
+          max_tokens: p.maxTokens ?? 1024,
+        }),
+      },
+      LLM_TIMEOUT_MS
+    );
+    if (!r.ok) throw new HttpError(r.status, `Azure ${r.status}: ${await r.text()}`);
+    return r.json();
   });
-  if (!r.ok) throw new Error(`Azure ${r.status}: ${await r.text()}`);
-  const j = await r.json();
   return {
     content: j.choices?.[0]?.message?.content ?? "",
     tokensUsed: j.usage?.total_tokens ?? 0,
@@ -433,15 +467,21 @@ async function* streamAnthropic(
     }));
   }
 
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
+  // Timeout sólo para establecer la conexión (TTFB). Una vez que llegan los
+  // headers, el body se lee con su propio reader sin abortar mid-stream.
+  const r = await fetchStreamWithConnectTimeout(
+    "https://api.anthropic.com/v1/messages",
+    {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
     },
-    body: JSON.stringify(body),
-  });
+    LLM_STREAM_CONNECT_TIMEOUT_MS
+  );
   if (!r.ok || !r.body) {
     const txt = await r.text().catch(() => "");
     yield { type: "error", error: `Anthropic ${r.status}: ${txt}` };
@@ -526,11 +566,15 @@ async function* streamOpenAI(
 ): AsyncGenerator<LlmStreamChunk> {
   const body = buildOpenAIChatBody(p, { stream: true, stream_options: { include_usage: true } });
 
-  const r = await fetch(`${baseURL}/chat/completions`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const r = await fetchStreamWithConnectTimeout(
+    `${baseURL}/chat/completions`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+      body: JSON.stringify(body),
+    },
+    LLM_STREAM_CONNECT_TIMEOUT_MS
+  );
   if (!r.ok || !r.body) {
     const txt = await r.text().catch(() => "");
     yield { type: "error", error: `Proveedor de chat ${r.status}: ${txt}` };

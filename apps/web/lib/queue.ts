@@ -154,7 +154,9 @@ export async function shutdownQueue(): Promise<void> {
 // ─── Job names (registro central, evita typos) ──────────────────
 
 export const JOB_FLOW_RUN = "flow:run";
+export const JOB_FLOW_REAP = "flow:reap";
 export const JOB_KB_INGEST = "kb:ingest";
 export const JOB_KB_REINDEX = "kb:reindex";
 export const JOB_WEBHOOK_DELIVER = "webhook:deliver";
 export const JOB_USAGE_AGGREGATE = "usage:aggregate";
+export const JOB_RETENTION = "data:retention";

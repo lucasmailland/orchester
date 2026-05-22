@@ -1,4 +1,8 @@
 import "server-only";
+import { assertPublicUrl } from "./net-guard";
+import { fetchWithTimeout } from "./http-util";
+
+const HTTP_REQUEST_TIMEOUT_MS = 30_000;
 
 export interface ToolDefinition {
   name: string;
@@ -308,22 +312,17 @@ export async function executeTool(
 
   if (name === "http_request") {
     const url = String(input.url ?? "");
-    if (!url || !/^https?:\/\//.test(url)) throw new Error("url must be http(s)");
-    const u = new URL(url);
-    if (
-      /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(u.hostname) ||
-      u.hostname === "localhost" ||
-      u.hostname === "0.0.0.0"
-    ) {
-      throw new Error("Private IPs are not allowed");
-    }
+    // Hardened SSRF guard: bloquea loopback, RFC1918, link-local (incl. cloud
+    // metadata 169.254.169.254), IPv6 ULA/link-local, *.local/*.internal y
+    // esquemas no http(s). Lanza si la URL no es pública.
+    assertPublicUrl(url);
     const method = (input.method as string) ?? "GET";
     const init: RequestInit = {
       method,
       headers: (input.headers as Record<string, string>) ?? { Accept: "application/json" },
     };
     if (method !== "GET" && input.body !== undefined) init.body = String(input.body);
-    const r = await fetch(url, init);
+    const r = await fetchWithTimeout(url, init, HTTP_REQUEST_TIMEOUT_MS);
     const text = await r.text();
     let body: unknown = text;
     try {
