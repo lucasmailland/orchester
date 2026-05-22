@@ -107,15 +107,50 @@ export async function DELETE(req: Request) {
     }
   }
 
-  // 2. Revocar todas las sessions del user.
+  // 2. Cerrar gaps de orphans: columnas que referencian al user por id PERO
+  // sin FK con onDelete (no las cubre el cascade del user row). Si no las
+  // limpiamos quedan apuntando a un user que ya no existe (GDPR Art. 17).
+  //
+  //   - messages.authorUserId : autor de mensajes "system" en takeover de
+  //     operador. Texto plano, sin FK → null.
+  //   - conversations.assignedToUserId : conversación asignada al operador.
+  //     Texto plano, sin FK → null.
+  //
+  // El contenido de los mensajes en sí queda (es del workspace que sobrevive),
+  // pero se desliga de la identidad del user borrado.
+  await db
+    .update(schema.messages)
+    .set({ authorUserId: null })
+    .where(eq(schema.messages.authorUserId, userId));
+
+  await db
+    .update(schema.conversations)
+    .set({ assignedToUserId: null })
+    .where(eq(schema.conversations.assignedToUserId, userId));
+
+  // 3. Revocar todas las sessions del user.
   const revoked = await db
     .delete(schema.sessions)
     .where(eq(schema.sessions.userId, userId))
     .returning({ id: schema.sessions.id });
 
-  // 3. Borrar user (cascade: account, verification, audit_log filas con userId
-  // se mantienen porque audit_log no tiene FK con onDelete cascade — es por
-  // diseño, los logs se preservan para forensics).
+  // 4. Scrub de PII en la fila del user ANTES del delete. Defense-in-depth:
+  // si por algún motivo (replica lag, backup en vuelo, soft-delete futuro) la
+  // fila no desaparece atómicamente, ya no contiene datos personales.
+  await db
+    .update(schema.users)
+    .set({
+      name: "[deleted]",
+      email: `deleted+${userId}@deleted.invalid`,
+      image: null,
+      emailVerified: false,
+    })
+    .where(eq(schema.users.id, userId));
+
+  // 5. Borrar user (cascade: account, verification, two_factor, sessions,
+  // workspace_member, notification_pref filas con FK onDelete cascade).
+  // audit_log filas con userId se mantienen porque audit_log NO tiene FK con
+  // onDelete cascade — es por diseño, los logs se preservan para forensics.
   await db.delete(schema.users).where(eq(schema.users.id, userId));
 
   // No podemos hacer logAudit DESPUÉS del user delete porque el user ya no
