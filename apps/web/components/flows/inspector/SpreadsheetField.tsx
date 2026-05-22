@@ -1,8 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Table2, X, FunctionSquare, ChevronDown } from "lucide-react";
 import { FORMULA_LIBRARY } from "@/lib/flows/formula-library";
+
+type CellPreview = Record<string, { value?: unknown; error?: boolean }>;
+
+function fmtPreview(v: unknown): string {
+  if (v == null || v === "") return "";
+  if (typeof v === "number") return Number.isInteger(v) ? String(v) : String(Math.round(v * 1e6) / 1e6);
+  if (typeof v === "boolean") return v ? "VERDADERO" : "FALSO";
+  if (Array.isArray(v) || typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
 
 interface GridValue {
   cells: Record<string, string>;
@@ -41,6 +51,43 @@ export function SpreadsheetField({
   const [open, setOpen] = useState(false);
   const [sel, setSel] = useState("A1");
   const [openCat, setOpenCat] = useState<string | null>("math");
+  const [previews, setPreviews] = useState<CellPreview>({});
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Preview en vivo: pedimos al server (mismo evaluador que la ejecución) los
+  // valores calculados, con un pequeño debounce mientras se escribe.
+  const cellsKey = JSON.stringify(grid.cells);
+  useEffect(() => {
+    if (!open) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetch("/api/flows/spreadsheet-preview", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ cells: grid.cells }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => j && setPreviews(j.previews ?? {}))
+        .catch(() => {});
+    }, 350);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, cellsKey]);
+
+  /** Qué mostrar en una celda: cruda si está seleccionada/no es fórmula; si no, el resultado. */
+  function cellDisplay(ref: string): string {
+    const raw = grid.cells[ref] ?? "";
+    if (sel === ref || !raw.trim().startsWith("=")) return raw;
+    const p = previews[ref];
+    if (!p) return raw;
+    return p.error ? "#ERROR" : fmtPreview(p.value);
+  }
+  function isComputed(ref: string): boolean {
+    const raw = grid.cells[ref] ?? "";
+    return sel !== ref && raw.trim().startsWith("=") && !!previews[ref];
+  }
 
   const filled = Object.values(grid.cells).filter((c) => c && c.trim()).length;
 
@@ -130,10 +177,13 @@ export function SpreadsheetField({
                           {row.map((ref) => (
                             <td key={ref} className="border-b border-r border-line p-0">
                               <input
-                                value={grid.cells[ref] ?? ""}
+                                value={cellDisplay(ref)}
                                 onFocus={() => setSel(ref)}
                                 onChange={(e) => setCell(ref, e.target.value)}
-                                className={`h-8 w-full bg-transparent px-2 text-[11px] text-strong outline-none focus:bg-violet-500/10 ${
+                                title={isComputed(ref) ? grid.cells[ref] : undefined}
+                                className={`h-8 w-full bg-transparent px-2 text-[11px] outline-none focus:bg-violet-500/10 ${
+                                  isComputed(ref) ? "italic text-emerald-600 dark:text-emerald-400" : "text-strong"
+                                } ${
                                   sel === ref ? "bg-violet-500/10 ring-1 ring-inset ring-violet-500/60" : ""
                                 } ${grid.outputCell === ref ? "bg-emerald-500/10" : ""}`}
                               />
