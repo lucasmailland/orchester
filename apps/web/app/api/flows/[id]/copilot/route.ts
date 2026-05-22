@@ -47,7 +47,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         }))
     : [];
 
-  const userContent = apiUrl ? `${prompt}\n\nURL de la API: ${apiUrl}` : prompt;
+  // Si ya hay un flujo, se lo damos al copiloto para que lo MODIFIQUE en lugar
+  // de armar uno de cero. Debe devolver el flujo completo actualizado.
+  const current = body?.currentGraph;
+  const hasCurrent =
+    current && Array.isArray(current.nodes) && current.nodes.length > 0;
+
+  const parts = [prompt];
+  if (apiUrl) parts.push(`URL de la API: ${apiUrl}`);
+  if (hasCurrent) {
+    parts.push(
+      "El flujo actual (en JSON) es el siguiente. Modificalo según lo que te pido y " +
+        "devolvé el flujo COMPLETO y actualizado con set_flow (incluí los pasos que se mantienen, " +
+        "conservando sus mismos id):\n" +
+        JSON.stringify(current)
+    );
+  }
+  const userContent = parts.join("\n\n");
   const messages: ChatMessage[] = [...history, { role: "user", content: userContent }];
 
   let result;

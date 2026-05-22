@@ -24,6 +24,7 @@ export function CopilotPanel({
   onClose,
   onApplyGraph,
   describeFlow,
+  currentGraph,
 }: {
   flowId: string;
   open: boolean;
@@ -31,6 +32,8 @@ export function CopilotPanel({
   onApplyGraph: (nodes: Node[], edges: Edge[], mode: "replace" | "merge") => void;
   /** Resumen en texto del flujo actual (para explicar/revisar). "" si está vacío. */
   describeFlow: () => string;
+  /** Spec estructurada del flujo actual, para que el copiloto pueda editarlo. */
+  currentGraph: () => { nodes: unknown[]; edges: unknown[] };
 }) {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
@@ -73,6 +76,7 @@ export function CopilotPanel({
           prompt: serverPrompt,
           apiUrl: apiUrl.trim() || undefined,
           history: messages,
+          currentGraph: currentGraph(),
         }),
       });
       const j = await r.json();
