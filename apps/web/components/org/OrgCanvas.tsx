@@ -62,13 +62,13 @@ function WorkspaceNode({ data }: NodeProps) {
   const d = data as { label: string; meta?: { teamCount?: number; agentCount?: number; flowCount?: number } };
   return (
     <div className="relative flex min-w-[260px] items-center gap-3 rounded-2xl border border-violet-400/40 bg-gradient-to-br from-violet-500/15 via-zinc-900 to-zinc-900 px-4 py-3 shadow-[0_0_60px_-15px_rgba(139,92,246,0.5)]">
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/20 text-violet-700 dark:text-violet-200">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/20 text-violet-200">
         <Building2 className="h-5 w-5" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-300/80">Workspace</div>
-        <div className="truncate text-base font-semibold text-strong">{d.label}</div>
-        <div className="mt-0.5 text-[10px] text-muted">
+        <div className="truncate text-base font-semibold text-white">{d.label}</div>
+        <div className="mt-0.5 text-[10px] text-white/60">
           {d.meta?.teamCount ?? 0} equipos · {d.meta?.agentCount ?? 0} agentes · {d.meta?.flowCount ?? 0} flujos
         </div>
       </div>
