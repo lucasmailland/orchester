@@ -165,6 +165,8 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const [runModalOpen, setRunModalOpen] = useState(false);
   const [runInputDraft, setRunInputDraft] = useState("{\n  \n}");
   const [runInputError, setRunInputError] = useState<string | null>(null);
+  const [runFields, setRunFields] = useState<Record<string, string>>({});
+  const [runJsonMode, setRunJsonMode] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextAutoSaveRef = useRef(true); // skip on first render
@@ -289,12 +291,32 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   }, [nodes, edges]);
 
   function openRunModal() {
-    // Pre-llená el input con las variables actuales del flow para que el operador
-    // arranque desde algo significativo en lugar de un objeto vacío.
-    const seed = Object.keys(variables).length > 0 ? variables : {};
-    setRunInputDraft(JSON.stringify(seed, null, 2));
+    // Pre-llená un formulario con las variables del flujo (más amigable que JSON).
+    const seed: Record<string, string> = {};
+    for (const [k, v] of Object.entries(variables)) {
+      seed[k] = typeof v === "string" ? v : JSON.stringify(v);
+    }
+    setRunFields(seed);
+    setRunInputDraft(JSON.stringify(Object.keys(variables).length > 0 ? variables : {}, null, 2));
     setRunInputError(null);
+    setRunJsonMode(false);
     setRunModalOpen(true);
+  }
+
+  /** Convierte el formulario en un objeto, parseando números/booleanos/JSON. */
+  function buildInputFromFields(): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const [k, raw] of Object.entries(runFields)) {
+      if (!k.trim()) continue;
+      let parsed: unknown = raw;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        /* dejar como string */
+      }
+      out[k] = parsed;
+    }
+    return out;
   }
 
   async function runWithInput(input: Record<string, unknown>) {
@@ -366,15 +388,19 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   }
 
   function submitRunModal() {
+    if (!runJsonMode) {
+      void runWithInput(buildInputFromFields());
+      return;
+    }
     try {
       const parsed = runInputDraft.trim() ? JSON.parse(runInputDraft) : {};
       if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-        setRunInputError("El input debe ser un objeto JSON ({…})");
+        setRunInputError("Los datos tienen que ser un objeto ({…}).");
         return;
       }
       void runWithInput(parsed as Record<string, unknown>);
     } catch (e) {
-      setRunInputError(e instanceof Error ? e.message : "JSON inválido");
+      setRunInputError(e instanceof Error ? e.message : "El JSON tiene un error.");
     }
   }
 
@@ -624,7 +650,9 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
                     Ejecutar flujo
                   </h2>
                   <p className="mt-0.5 text-xs text-muted">
-                    Pegá el JSON con el input que recibirá el nodo trigger.
+                    {Object.keys(runFields).length > 0
+                      ? "Completá los datos con los que querés probar el flujo."
+                      : "Este flujo no necesita datos para arrancar."}
                   </p>
                 </div>
                 <button
@@ -636,24 +664,62 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <label htmlFor="run-input-json" className="mb-1 block text-[10px] uppercase tracking-wider text-muted">
-                Input
-              </label>
-              <textarea
-                id="run-input-json"
-                name="run-input"
-                value={runInputDraft}
-                onChange={(e) => {
-                  setRunInputDraft(e.target.value);
-                  if (runInputError) setRunInputError(null);
-                }}
-                rows={10}
-                spellCheck={false}
-                className="w-full resize-none rounded-lg border border-line bg-surface px-3 py-2 font-mono text-xs text-strong outline-none focus:border-violet-500/60"
-              />
+
+              {!runJsonMode ? (
+                <div className="flex flex-col gap-3">
+                  {Object.keys(runFields).length === 0 && (
+                    <p className="rounded-lg border border-line bg-card p-3 text-xs text-muted">
+                      Hacé clic en “Ejecutar” para correrlo. Si querés, agregá variables al flujo
+                      desde el botón de variables.
+                    </p>
+                  )}
+                  {Object.entries(runFields).map(([key, val]) => (
+                    <div key={key}>
+                      <label className="mb-1 block text-[11px] font-medium text-body">{key}</label>
+                      <input
+                        value={val}
+                        onChange={(e) => setRunFields((f) => ({ ...f, [key]: e.target.value }))}
+                        className="w-full rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-xs text-strong outline-none focus:border-violet-500/60"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <label htmlFor="run-input-json" className="mb-1 block text-[10px] uppercase tracking-wider text-muted">
+                    Datos (JSON)
+                  </label>
+                  <textarea
+                    id="run-input-json"
+                    name="run-input"
+                    value={runInputDraft}
+                    onChange={(e) => {
+                      setRunInputDraft(e.target.value);
+                      if (runInputError) setRunInputError(null);
+                    }}
+                    rows={10}
+                    spellCheck={false}
+                    className="w-full resize-none rounded-lg border border-line bg-surface px-3 py-2 font-mono text-xs text-strong outline-none focus:border-violet-500/60"
+                  />
+                </>
+              )}
               {runInputError && (
                 <p className="mt-2 text-xs text-red-600 dark:text-red-400">⚠ {runInputError}</p>
               )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!runJsonMode) {
+                    // pasar a JSON con lo que haya en el form
+                    setRunInputDraft(JSON.stringify(buildInputFromFields(), null, 2));
+                  }
+                  setRunInputError(null);
+                  setRunJsonMode((m) => !m);
+                }}
+                className="mt-2 text-[11px] text-muted hover:text-body"
+              >
+                {runJsonMode ? "← Volver al formulario" : "Editar como JSON (avanzado)"}
+              </button>
               <div className="mt-4 flex justify-end gap-2">
                 <button
                   type="button"
