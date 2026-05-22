@@ -25,6 +25,22 @@
     "noResults": "No results found",
     "learnMore": "Learn more"
   },
+  "errors": {
+    "generic": {
+      "title": "Something went wrong",
+      "description": "An unexpected error occurred. You can retry or go back home.",
+      "retry": "Retry",
+      "backHome": "Go back home",
+      "backDashboard": "Go to dashboard"
+    },
+    "notFound": {
+      "code": "404",
+      "title": "Page not found",
+      "description": "The page you are looking for does not exist or has been moved.",
+      "backDashboard": "Back to dashboard"
+    },
+    "loading": "Loading…"
+  },
   "themes": {
     "light": "Light",
     "dark": "Dark",
