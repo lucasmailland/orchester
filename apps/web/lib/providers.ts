@@ -48,7 +48,7 @@ export function defaultModelsFor(provider: ProviderType): ModelInfo[] {
 
 /** Test connection by calling the provider's models endpoint. */
 export async function testProviderConnection(
-  provider: ProviderType,
+  provider: string,
   apiKey: string,
   endpoint?: string | null
 ): Promise<{ ok: boolean; models?: ModelInfo[]; error?: string }> {

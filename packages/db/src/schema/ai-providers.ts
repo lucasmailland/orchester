@@ -33,11 +33,15 @@ export const aiProviders = pgTable(
     workspaceId: text("workspace_id")
       .notNull()
       .references(() => workspaces.id, { onDelete: "cascade" }),
-    provider: aiProviderTypeEnum("provider").notNull(),
+    // Antes era un enum de 4 valores; ahora es texto abierto para soportar
+    // cualquier proveedor del catálogo (openai, replicate, elevenlabs, …).
+    provider: text("provider").notNull(),
     apiKey: text("api_key").notNull(), // AES-256-GCM encrypted
-    endpoint: text("endpoint"), // azure: https://{name}.openai.azure.com
+    endpoint: text("endpoint"), // azure / providers con endpoint propio
     enabled: boolean("enabled").notNull().default(true),
     modelsJson: jsonb("models_json").$type<ModelInfo[]>().default([]),
+    // Extras por proveedor (región Bedrock, account Cloudflare, etc.).
+    config: jsonb("config").$type<Record<string, unknown>>().default({}),
     lastTestedAt: timestamp("last_tested_at"),
     lastTestStatus: text("last_test_status"),
     lastTestError: text("last_test_error"),
