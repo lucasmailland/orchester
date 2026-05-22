@@ -424,3 +424,38 @@ therefore **medium-effort wiring**, not rewrites.
 - **Provider ToS** (F4) — requires the actual provider contracts.
 - **Schedule trigger wiring** — `flow_schedule` table exists; no code wires it to
   `boss.schedule`, suggesting schedule triggers may be inert (flagged, not fully traced).
+
+---
+
+## Remediation status (2026-05-22)
+
+All **P0 (7/7)** and **P1 (18/18)** findings are fixed, plus most P2. Shipped across
+~14 commits, full typecheck green (`apps/web` + `packages/db`).
+
+**Fixed:** L2-1, B1, C5, C7, N2-1, D4-1, E1-1, E2-1, E3-1, E4-1, J1-1, J1-2 · RBAC-1,
+I1-1, C1, C2, C3, B2 (retryLimit 0), B3, B4 (already wired), G1, M4, F1, F3, N1-1,
+N1-2, K2, K4, D3 · L2-3, http-SSRF, L1, L5, C4, C6, L4, D1, D2, F2, K1, K3, N2-2,
+D3-2, A6, G3, H2, H1-*, J3-2, A5 (helper).
+
+### Deliberately deferred — large maintainability refactors of critical paths
+
+These 4 are **maintainability-only** (no security/correctness/cost impact) and each
+rewrites a hot path that was just stabilized. Recommended as **dedicated, test-backed
+efforts**, not bundled into this sweep:
+
+- **A3 (full ports & adapters):** make every adapter implement the `capabilities.ts`
+  port interfaces + a typed error envelope, unify the family/provider dispatch. (The
+  low-risk slice — dedup duplicate `ChatMessage`, typed errors — can land first.)
+- **A4 (pricing in the catalog):** move per-model prices into `ModelDef` so adding a
+  model auto-prices it. Today prices live in `pricing.ts` (correct for known models;
+  unknowns degrade to a blended rate — no incorrect billing, just coarser).
+- **A5 (full response-envelope sweep):** adopt `lib/api-response.ts` across all ~80
+  routes + unify the 3 list shapes. Deferred because changing existing list/response
+  shapes is frontend-coupled; migrate incrementally.
+- **A7 (executeNode handler map):** replace the ~30-branch if-chain with a
+  `Record<NodeType, handler>` and derive the type union from one const. Regression-risky
+  on the core executor; do with golden-path tests.
+
+Rationale: after closing every critical and high finding, the right move is to NOT
+churn the AI dispatch, the flow engine, and all routes for cosmetic gains without a
+dedicated test pass.
