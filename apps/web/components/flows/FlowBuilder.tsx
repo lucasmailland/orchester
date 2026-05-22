@@ -612,10 +612,18 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             open={copilotOpen}
             onClose={() => setCopilotOpen(false)}
             describeFlow={() => describeGraph(nodes, edges)}
-            onApplyGraph={(newNodes, newEdges) => {
+            onApplyGraph={(newNodes, newEdges, mode) => {
               pushHistory();
-              setNodes(newNodes);
-              setEdges(newEdges);
+              if (mode === "merge") {
+                const maxY = nodes.reduce((m, n) => Math.max(m, n.position.y), 0);
+                const dy = nodes.length > 0 ? maxY + 160 : 0;
+                const shifted = newNodes.map((n) => ({ ...n, position: { x: n.position.x, y: n.position.y + dy } }));
+                setNodes((nds) => [...nds, ...shifted]);
+                setEdges((eds) => [...eds, ...newEdges]);
+              } else {
+                setNodes(newNodes);
+                setEdges(newEdges);
+              }
               setSelected(null);
             }}
           />
