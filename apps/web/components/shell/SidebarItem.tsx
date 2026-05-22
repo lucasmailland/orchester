@@ -22,12 +22,12 @@ export function SidebarItem({ href, icon, label, collapsed }: SidebarItemProps) 
         <>
           <motion.div
             layoutId="sidebar-active-bg"
-            className="absolute inset-0 rounded-lg bg-white/[0.07]"
+            className="absolute inset-y-0 left-2 right-2 rounded-lg bg-white/[0.07]"
             transition={{ type: "spring", stiffness: 500, damping: 35 }}
           />
           <motion.div
             layoutId="sidebar-active-bar"
-            className="absolute inset-y-1.5 left-2 w-[3px] rounded-full bg-violet-400"
+            className="absolute inset-y-1.5 left-2.5 w-[3px] rounded-full bg-violet-400"
             transition={{ type: "spring", stiffness: 500, damping: 35 }}
           />
         </>

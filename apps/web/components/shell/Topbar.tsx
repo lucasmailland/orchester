@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import { Avatar } from "@heroui/react";
-import { ThemeToggle } from "./ThemeToggle";
 import { LanguageSelector } from "./LanguageSelector";
 import { PresentationModeToggle } from "./PresentationModeToggle";
 import { fadeInDown } from "@/lib/motion";
@@ -64,7 +63,6 @@ export function Topbar({ locale: _locale, userName, userImage }: TopbarProps) {
       {/* Right: controls */}
       <div className="flex items-center gap-1">
         <PresentationModeToggle />
-        <ThemeToggle />
         <LanguageSelector />
 
         <div className="ml-2 h-5 w-px bg-white/[0.08]" />

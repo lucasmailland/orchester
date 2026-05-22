@@ -24,18 +24,11 @@ const LOCALES = [
   { value: "pt-BR", label: "🇧🇷 Português (BR)" },
 ];
 
-const THEMES = [
-  { value: "light", label: "Claro" },
-  { value: "dark", label: "Oscuro" },
-  { value: "system", label: "Sistema" },
-];
-
 export function AccountSection({ me }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [name, setName] = useState(me.name);
   const [locale, setLocale] = useState(me.preferredLocale);
-  const [theme, setTheme] = useState(me.preferredTheme);
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -43,8 +36,7 @@ export function AccountSection({ me }: Props) {
 
   const dirty =
     name.trim() !== me.name ||
-    locale !== me.preferredLocale ||
-    theme !== me.preferredTheme;
+    locale !== me.preferredLocale;
 
   async function save() {
     if (!dirty) return;
@@ -55,7 +47,6 @@ export function AccountSection({ me }: Props) {
       body: JSON.stringify({
         name: name.trim(),
         preferredLocale: locale,
-        preferredTheme: theme,
       }),
     });
     setSaving(false);
@@ -129,21 +120,6 @@ export function AccountSection({ me }: Props) {
             {LOCALES.map((l) => (
               <option key={l.value} value={l.value}>
                 {l.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Tema" htmlFor="me-theme" hint="Aplicado al recargar.">
-          <select
-            id="me-theme"
-            name="theme"
-            value={theme}
-            onChange={(e) => setTheme(e.target.value)}
-            className="input"
-          >
-            {THEMES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
               </option>
             ))}
           </select>
