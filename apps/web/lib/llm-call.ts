@@ -6,6 +6,15 @@ import { type ProviderType } from "./providers";
 import { resolveModel } from "./ai/catalog";
 import { fetchWithTimeout, fetchStreamWithConnectTimeout, withRetry, HttpError } from "./http-util";
 import { recordMetric, logWithContext } from "./observability";
+import type { ChatMessage as CapChatMessage, ToolUseBlock as CapToolUseBlock, ToolResultBlock as CapToolResultBlock } from "./ai/capabilities";
+
+// Tipos canónicos del port `chat` (capabilities.ts). Re-exportados acá para no
+// romper a los 5 callers históricos que importan `ChatMessage` desde llm-call.
+// A3: unificación de la duplicación previa de `ChatMessage`/`ToolUseBlock`/
+// `ToolResultBlock` que vivía localmente en este archivo.
+export type ChatMessage = CapChatMessage;
+export type ToolUseBlock = CapToolUseBlock;
+export type ToolResultBlock = CapToolResultBlock;
 
 /** Timeout para obtener la respuesta completa de un LLM (block call). */
 const LLM_TIMEOUT_MS = 120_000;
@@ -20,27 +29,6 @@ export interface ToolDefinitionForLlm {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
-}
-
-export interface ToolUseBlock {
-  id: string;
-  name: string;
-  input: unknown;
-}
-
-export interface ToolResultBlock {
-  id: string;
-  name: string;
-  input?: unknown;
-  output?: unknown;
-  error?: string;
-}
-
-export interface ChatMessage {
-  role: "user" | "assistant" | "system" | "tool";
-  content: string;
-  toolCalls?: ToolUseBlock[];
-  toolResults?: ToolResultBlock[];
 }
 
 export interface LlmCallParams {
