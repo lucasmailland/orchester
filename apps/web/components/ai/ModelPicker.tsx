@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { ConnectProviderModal } from "./ConnectProviderModal";
+import type { Capability } from "@/lib/ai/catalog";
 
 interface ModelOpt {
   id: string;
@@ -34,6 +35,8 @@ export function ModelPicker({
   const [models, setModels] = useState<ModelOpt[]>([]);
   const [providers, setProviders] = useState<ProviderOpt[]>([]);
   const [loading, setLoading] = useState(true);
+  const [connectOpen, setConnectOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -50,7 +53,9 @@ export function ModelPicker({
     return () => {
       alive = false;
     };
-  }, [capability]);
+  }, [capability, reloadKey]);
+
+  const connectedIds = providers.filter((p) => p.connected).map((p) => p.id);
 
   const grouped = useMemo(() => {
     const byProvider: Record<string, ModelOpt[]> = {};
@@ -63,17 +68,33 @@ export function ModelPicker({
     className ??
     "w-full rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-sm text-strong outline-none focus:border-violet-500/60";
 
+  const connectModal = connectOpen ? (
+    <ConnectProviderModal
+      capability={capability as Capability}
+      connectedIds={connectedIds}
+      onClose={() => setConnectOpen(false)}
+      onConnected={() => {
+        setConnectOpen(false);
+        setReloadKey((k) => k + 1);
+      }}
+    />
+  ) : null;
+
   if (loading) {
     return <div className="rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-xs text-faint">Cargando modelos…</div>;
   }
 
   if (models.length === 0) {
     return (
-      <div className="rounded-lg border border-line bg-card p-2.5 text-[11px] text-muted">
-        No tenés proveedores de IA conectados para esto. Andá a{" "}
-        <Link href="/settings" className="text-violet-600 dark:text-violet-400 hover:underline">Ajustes → IA</Link>{" "}
-        y conectá uno (OpenAI, Google, Replicate…).
-      </div>
+      <>
+        <div className="rounded-lg border border-line bg-card p-2.5 text-[11px] text-muted">
+          No tenés proveedores conectados para esto.
+          <button type="button" onClick={() => setConnectOpen(true)} className="ml-1 font-medium text-violet-600 dark:text-violet-400 hover:underline">
+            Conectá uno acá →
+          </button>
+        </div>
+        {connectModal}
+      </>
     );
   }
 
@@ -92,10 +113,17 @@ export function ModelPicker({
           </optgroup>
         ))}
       </select>
-      {/* valor fuera del catálogo (ej. id libre de agregador) sigue siendo válido */}
+      <button
+        type="button"
+        onClick={() => setConnectOpen(true)}
+        className="mt-1 text-[10px] text-violet-600 dark:text-violet-400 hover:underline"
+      >
+        + Conectar otro proveedor
+      </button>
       {value && !models.some((m) => m.id === value) && (
         <p className="mt-1 text-[10px] text-faint">Modelo actual: <code className="font-mono">{value}</code></p>
       )}
+      {connectModal}
     </>
   );
 }
