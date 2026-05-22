@@ -2,6 +2,7 @@ import "server-only";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { decrypt } from "../encryption";
+import { getProvider } from "./catalog";
 import type { Cred } from "./capabilities";
 
 export class ProviderNotConnectedError extends Error {
@@ -13,6 +14,15 @@ export class ProviderNotConnectedError extends Error {
 
 /** Carga y desencripta la conexión de un proveedor para un workspace. */
 export async function loadCredential(workspaceId: string, providerId: string): Promise<Cred> {
+  // Proveedores locales (Ollama/LM Studio) apuntan a localhost del SERVIDOR.
+  // En entornos compartidos sería un SSRF a la red interna: deshabilitados salvo
+  // que el operador lo habilite explícitamente (self-host).
+  const def = getProvider(providerId);
+  if (def?.kind === "local" && process.env["ALLOW_LOCAL_AI_PROVIDERS"] !== "1") {
+    throw new Error(
+      `Los proveedores locales (${providerId}) están deshabilitados en este entorno. Habilitalos con ALLOW_LOCAL_AI_PROVIDERS=1.`
+    );
+  }
   const db = getDb();
   const rows = await db
     .select()

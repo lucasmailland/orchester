@@ -231,19 +231,31 @@ function toOpenAITools(tools?: ToolDefinitionForLlm[]) {
   }));
 }
 
+/** Modelos de razonamiento de OpenAI: usan max_completion_tokens y no aceptan temperature. */
+function isReasoningModel(model: string): boolean {
+  return /^(o\d|gpt-5)/.test(model);
+}
+
+/** Arma el body de Chat Completions respetando las particularidades de los modelos. */
+function buildOpenAIChatBody(p: LlmCallParams, extra?: Record<string, unknown>): Record<string, unknown> {
+  const reasoning = isReasoningModel(p.model);
+  const body: Record<string, unknown> = {
+    model: p.model,
+    messages: toOpenAIMessages(p),
+    ...(reasoning ? { max_completion_tokens: p.maxTokens ?? 1024 } : { max_tokens: p.maxTokens ?? 1024, temperature: p.temperature ?? 0.7 }),
+    ...(extra ?? {}),
+  };
+  const tools = toOpenAITools(p.tools);
+  if (tools) body.tools = tools;
+  return body;
+}
+
 async function callOpenAICompatible(
   p: LlmCallParams,
   apiKey: string,
   baseURL: string
 ): Promise<LlmCallResult> {
-  const body: Record<string, unknown> = {
-    model: p.model,
-    messages: toOpenAIMessages(p),
-    temperature: p.temperature ?? 0.7,
-    max_tokens: p.maxTokens ?? 1024,
-  };
-  const tools = toOpenAITools(p.tools);
-  if (tools) body.tools = tools;
+  const body = buildOpenAIChatBody(p);
   const r = await fetch(`${baseURL}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
@@ -512,16 +524,7 @@ async function* streamOpenAI(
   apiKey: string,
   baseURL: string
 ): AsyncGenerator<LlmStreamChunk> {
-  const body: Record<string, unknown> = {
-    model: p.model,
-    messages: toOpenAIMessages(p),
-    temperature: p.temperature ?? 0.7,
-    max_tokens: p.maxTokens ?? 1024,
-    stream: true,
-    stream_options: { include_usage: true },
-  };
-  const tools = toOpenAITools(p.tools);
-  if (tools) body.tools = tools;
+  const body = buildOpenAIChatBody(p, { stream: true, stream_options: { include_usage: true } });
 
   const r = await fetch(`${baseURL}/chat/completions`, {
     method: "POST",
