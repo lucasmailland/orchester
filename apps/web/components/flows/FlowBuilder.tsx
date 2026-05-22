@@ -174,13 +174,14 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   }
   function runAutoLayout() {
     pushHistory();
-    setNodes((nds) => autoLayout(nds, edges.map((e) => ({ source: e.source, target: e.target }))));
+    setNodes((nds) => layoutGraph(nds, edges));
   }
   function useTemplate(tpl: FlowTemplate) {
     pushHistory();
     const built = buildGraphFromSpec(tpl.spec, () => createId());
-    setNodes(built.nodes as Node[]);
-    setEdges(built.edges as Edge[]);
+    const builtEdges = built.edges as Edge[];
+    setNodes(layoutGraph(built.nodes as Node[], builtEdges));
+    setEdges(builtEdges);
     setSelected(null);
   }
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -649,13 +650,12 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             onApplyGraph={(newNodes, newEdges, mode) => {
               pushHistory();
               if (mode === "merge") {
-                const maxY = nodes.reduce((m, n) => Math.max(m, n.position.y), 0);
-                const dy = nodes.length > 0 ? maxY + 160 : 0;
-                const shifted = newNodes.map((n) => ({ ...n, position: { x: n.position.x, y: n.position.y + dy } }));
-                setNodes((nds) => [...nds, ...shifted]);
-                setEdges((eds) => [...eds, ...newEdges]);
+                const combinedNodes = [...nodes, ...newNodes];
+                const combinedEdges = [...edges, ...newEdges];
+                setNodes(layoutGraph(combinedNodes, combinedEdges));
+                setEdges(combinedEdges);
               } else {
-                setNodes(newNodes);
+                setNodes(layoutGraph(newNodes, newEdges));
                 setEdges(newEdges);
               }
               setSelected(null);
@@ -1034,6 +1034,26 @@ function collectAvailableData(nodes: Node[], variables: Record<string, unknown>)
   }
   if (hasLoop) out.add("item");
   return Array.from(out);
+}
+
+/** Tamaño estimado de un nodo para que el auto-layout no los superponga. */
+function nodeSize(n: Node): { width: number; height: number } {
+  const d = n.data as { nodeId?: string; config?: Record<string, unknown> } | undefined;
+  const def = getNodeDef(String(d?.nodeId ?? n.type ?? ""));
+  const eng = def?.engine ?? n.type;
+  if (eng === "switch") {
+    const cases = Array.isArray(d?.config?.cases) ? (d!.config!.cases as unknown[]).length : 0;
+    return { width: 220, height: Math.max(72, (cases + 1) * 30 + 28) };
+  }
+  if (eng === "condition" || eng === "try_catch" || eng === "loop_for_each") {
+    return { width: 220, height: 100 };
+  }
+  return { width: 210, height: 64 };
+}
+
+/** Reordena un grafo (nodos + edges) con el motor de layout, listo para setNodes. */
+function layoutGraph(ns: Node[], es: Edge[]): Node[] {
+  return autoLayout(ns, es.map((e) => ({ source: e.source, target: e.target })), nodeSize);
 }
 
 /** Handle de salida por defecto al auto-conectar desde un paso con varios caminos. */
