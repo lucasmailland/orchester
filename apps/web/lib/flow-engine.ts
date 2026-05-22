@@ -8,6 +8,8 @@ export type FlowNodeType =
   | "trigger"
   | "agent"
   | "kb_search"
+  | "generate_image"
+  | "embed_text"
   | "condition"
   | "switch"
   | "http"
@@ -559,6 +561,36 @@ async function executeNode(
     const outputVar = (cfg.outputVar as string) ?? "knowledge";
     ctx.variables[outputVar] = results;
     helpers.setOutput({ count: results.length, topResult: results[0]?.text?.slice(0, 200) });
+    return;
+  }
+
+  if (node.type === "generate_image") {
+    const model = String(cfg.model ?? "");
+    if (!model) throw new Error("Falta elegir el modelo de imagen.");
+    const prompt = interpolate(String(cfg.prompt ?? ""), ctx.variables);
+    if (!prompt.trim()) throw new Error("Falta la descripción de la imagen.");
+    const { generateImage } = await import("./ai/run");
+    const res = await generateImage(workspaceId, model, {
+      prompt,
+      ...(cfg.size ? { size: String(cfg.size) } : {}),
+    });
+    const url = res.images[0]?.url ?? "";
+    const outputVar = (cfg.outputVar as string) || "image";
+    ctx.variables[outputVar] = url;
+    // No metemos data URLs gigantes en el trace del paso.
+    helpers.setOutput({ count: res.images.length, mime: res.images[0]?.mime });
+    return;
+  }
+
+  if (node.type === "embed_text") {
+    const model = String(cfg.model ?? "");
+    if (!model) throw new Error("Falta elegir el modelo de embeddings.");
+    const text = interpolate(String(cfg.input ?? "{{message}}"), ctx.variables);
+    const { embed } = await import("./ai/run");
+    const res = await embed(workspaceId, model, [text]);
+    const outputVar = (cfg.outputVar as string) || "vector";
+    ctx.variables[outputVar] = res.vectors[0] ?? [];
+    helpers.setOutput({ dims: res.vectors[0]?.length ?? 0 });
     return;
   }
 

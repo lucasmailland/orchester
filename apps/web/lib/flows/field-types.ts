@@ -24,7 +24,8 @@ export type FieldType =
   | "duration"
   | "cron"
   | "string-list"
-  | "spreadsheet";
+  | "spreadsheet"
+  | "model-picker";
 
 export interface FieldOption {
   value: string;
@@ -49,4 +50,6 @@ export interface FieldDef {
   options?: FieldOption[];
   /** Mostrar este campo sólo si otro campo tiene cierto valor. */
   dependsOn?: { key: string; value: string };
+  /** Para `model-picker`: qué capacidad listar (chat/image/embedding/…). */
+  capability?: string;
 }

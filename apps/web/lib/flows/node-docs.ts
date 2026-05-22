@@ -95,6 +95,31 @@ export const NODE_DOCS: Record<string, NodeDocs> = {
     ),
     tip: i("Combinalo con un paso 'Agente': primero buscás, después el agente responde con eso.", "Pair it with an 'Agent' step: search first, then let the agent answer using it.", "Combine com um passo 'Agente': busque primeiro, depois o agente responde com isso."),
   },
+  generate_image: {
+    whatFor: i(
+      "Crea una imagen con IA a partir de un texto (prompt). Devuelve el link de la imagen.",
+      "Creates an AI image from a text prompt. Returns the image link.",
+      "Cria uma imagem de IA a partir de um texto. Retorna o link da imagem."
+    ),
+    whenToUse: i(
+      "Para generar imágenes al vuelo: una invitación personalizada, un banner, una ilustración para un mensaje.",
+      "To generate images on the fly: a personalized invitation, a banner, an illustration for a message.",
+      "Para gerar imagens na hora: um convite personalizado, um banner, uma ilustração."
+    ),
+    tip: i("Para texto dentro de la imagen (ej. el nombre), modelos como Ideogram o Imagen funcionan mejor.", "For text inside the image (e.g. a name), models like Ideogram or Imagen work best.", "Para texto dentro da imagem, modelos como Ideogram ou Imagen funcionam melhor."),
+  },
+  embed_text: {
+    whatFor: i(
+      "Convierte un texto en un vector (lista de números) que representa su significado.",
+      "Turns text into a vector (list of numbers) that represents its meaning.",
+      "Converte texto em um vetor que representa seu significado."
+    ),
+    whenToUse: i(
+      "Cuando querés comparar textos por significado o preparar datos para una búsqueda semántica.",
+      "When you want to compare texts by meaning or prepare data for semantic search.",
+      "Quando quer comparar textos por significado ou preparar dados para busca semântica."
+    ),
+  },
   condition: {
     whatFor: i(
       "Hace que el flujo tome un camino u otro según si se cumple algo (Sí o No).",

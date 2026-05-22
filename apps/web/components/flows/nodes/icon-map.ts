@@ -1,7 +1,7 @@
 import {
   Play, MessageSquare, Clock, Webhook, Bot, BookOpen, GitBranch, Split,
   Repeat, Rows3, LifeBuoy, Code2, Plug, Globe, Wand2, Table2, Timer, Bell,
-  UserCheck, Workflow, StickyNote, Box, type LucideIcon,
+  UserCheck, Workflow, StickyNote, Image, Binary, Box, type LucideIcon,
 } from "lucide-react";
 
 /**
@@ -12,7 +12,7 @@ import {
 export const NODE_ICONS: Record<string, LucideIcon> = {
   Play, MessageSquare, Clock, Webhook, Bot, BookOpen, GitBranch, Split,
   Repeat, Rows3, LifeBuoy, Code2, Plug, Globe, Wand2, Table2, Timer, Bell,
-  UserCheck, Workflow, StickyNote,
+  UserCheck, Workflow, StickyNote, Image, Binary,
 };
 
 export function iconFor(name: string | undefined): LucideIcon {

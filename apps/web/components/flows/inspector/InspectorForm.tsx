@@ -6,6 +6,7 @@ import { Trash2, ChevronDown, HelpCircle, Lightbulb } from "lucide-react";
 import { getNodeDef, type Locale } from "@/lib/flows/node-registry";
 import { getNodeDocs } from "@/lib/flows/node-docs";
 import { SpreadsheetField } from "./SpreadsheetField";
+import { ModelPicker } from "@/components/ai/ModelPicker";
 import type { FieldDef } from "@/lib/flows/field-types";
 
 /**
@@ -261,6 +262,13 @@ function FieldRenderer({ field, value, onChange, availableData = [] }: { field: 
       );
     case "spreadsheet":
       return <SpreadsheetField value={value} onChange={onChange} label={common} />;
+    case "model-picker":
+      return (
+        <div>
+          {common}
+          <ModelPicker capability={field.capability ?? "chat"} value={String(value ?? "")} onChange={onChange} />
+        </div>
+      );
     case "string-list":
       return <StringListField value={value} onChange={onChange} label={common} />;
     case "key-value":

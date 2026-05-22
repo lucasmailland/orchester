@@ -27,6 +27,8 @@ export const flowNodeTypeEnum = pgEnum("flow_node_type", [
   "trigger",
   "agent",
   "kb_search",
+  "generate_image",
+  "embed_text",
   "condition",
   "switch",
   "http",
