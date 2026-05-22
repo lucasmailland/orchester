@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTheme } from "next-themes";
 import {
   ReactFlow,
   Background,
@@ -312,6 +313,8 @@ function layoutNodes(rawNodes: OrgNode[], rawEdges: OrgEdge[]): Node[] {
 
 export function OrgCanvas() {
   const router = useRouter();
+  const { resolvedTheme } = useTheme();
+  const isLight = resolvedTheme === "light";
   const params = useParams<{ locale: string }>();
   const locale = params?.locale ?? "es";
   const [data, setData] = useState<{ nodes: OrgNode[]; edges: OrgEdge[]; summary?: Summary }>({
@@ -506,8 +509,8 @@ export function OrgCanvas() {
           }
           if (e.label) {
             edge.label = e.label;
-            edge.labelStyle = { fill: "#a1a1aa", fontSize: 10 };
-            edge.labelBgStyle = { fill: "#0a0a0a" };
+            edge.labelStyle = { fill: isLight ? "#52525b" : "#a1a1aa", fontSize: 10 };
+            edge.labelBgStyle = { fill: isLight ? "#ffffff" : "#0a0a0a" };
           }
           return edge;
         }),
@@ -585,6 +588,7 @@ export function OrgCanvas() {
             fitViewOptions={{ padding: 0.15 }}
             minZoom={0.15}
             maxZoom={1.8}
+            colorMode={isLight ? "light" : "dark"}
             proOptions={{ hideAttribution: true }}
             nodesDraggable
             nodesConnectable={false}
@@ -596,7 +600,7 @@ export function OrgCanvas() {
             zoomOnScroll
             panOnScroll={false}
           >
-            <Background color="#27272a" gap={20} />
+            <Background color={isLight ? "#d4d4d8" : "#27272a"} gap={20} />
             <Controls className="!border-line !bg-surface" />
             <MiniMap
               pannable
