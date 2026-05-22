@@ -50,6 +50,11 @@ lib/ai/
 - **`transcribe`** ("Transcribir audio") → `run.transcribe` (Whisper/Deepgram) → text.
 - **`embed_text`** ("Vectorizar") → `run.embed` → vector.
 - **`rerank`** ("Ordenar por relevancia") → `run.rerank` (Cohere/Voyage/Jina) → ranked.
+- **`generate_avatar`** ("Avatar que habla") → `run.generateAvatar` (HeyGen/D-ID async + Replicate) → video URL.
+- **`generate_music`** ("Crear música") → `run.generateMusic` (Replicate/fal) → audio URL.
+- **`ocr_extract`** ("Leer documento") → `run.ocr` (Mistral OCR) → text.
+
+All 10 capabilities now have functional flow nodes.
 
 Every node with a model uses the `model-picker` field, which lists connected
 providers' models and lets you **connect a provider inline** (ConnectProviderModal)
