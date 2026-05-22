@@ -13,6 +13,22 @@ export async function register(): Promise<void> {
   // Solo Node.js runtime (no Edge).
   if (process.env["NEXT_RUNTIME"] !== "nodejs") return;
 
+  // ── Boot-time env validation (audit A6-1) ──────────────────────────
+  // Fail fast at boot on a misconfigured deploy instead of 500ing on the
+  // first request. Lazy import keeps this node-only module out of edge.
+  try {
+    const { validateEnv } = await import("./lib/env");
+    validateEnv();
+    console.log("[instrumentation] env validation OK");
+  } catch (e) {
+    console.error(
+      "[instrumentation] FATAL: environment validation failed.\n" +
+        (e instanceof Error ? e.message : String(e))
+    );
+    // Misconfigured env is unrecoverable — abort boot.
+    process.exit(1);
+  }
+
   // ── Redis rate-limit adapter (multi-node) ──────────────────────────
   // Activado solo si REDIS_URL está setteado. Sin Redis instalado se
   // mantiene el adapter in-memory default.
