@@ -23,6 +23,8 @@ export interface RunAgentParams {
     variables: Record<string, string> | null;
     tools: string[] | null;
     responseFormat: "text" | "json" | "markdown";
+    /** Schema opcional (almacenado como JSON) para validar la salida JSON (L4). */
+    outputSchema?: Record<string, unknown> | null;
     maxTurns: number | null;
   };
   messages: ChatMessage[];
@@ -50,6 +52,50 @@ export interface RunAgentResult {
 
 function interpolate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{([^}]+)\}\}/g, (_, k: string) => vars[k.trim()] ?? "");
+}
+
+/**
+ * Valida la salida de un agente con `responseFormat: "json"` (L4). Best-effort:
+ *   - intenta `JSON.parse` (tolera ```json fences```)
+ *   - si hay `outputSchema` con `required: string[]`, chequea que existan esas keys
+ * No lanza nunca: ante un fallo devuelve el `content` reemplazado por un string
+ * JSON `{ ok:false, error, raw }` para que el turno no se rompa. Si parsea OK,
+ * devuelve el content original sin cambios.
+ */
+function validateJsonOutput(
+  content: string,
+  outputSchema: Record<string, unknown> | null | undefined
+): string {
+  // Tolerar fences de markdown que algunos modelos agregan pese a la instrucción.
+  const stripped = content
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stripped);
+  } catch (e) {
+    return JSON.stringify({
+      ok: false,
+      error: `La salida del agente no es JSON válido: ${e instanceof Error ? e.message : String(e)}`,
+      raw: content,
+    });
+  }
+  // Validación best-effort de `required` si el schema lo declara.
+  const required = (outputSchema?.required as unknown);
+  if (Array.isArray(required) && parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    const obj = parsed as Record<string, unknown>;
+    const missing = required.filter((k) => typeof k === "string" && !(k in obj));
+    if (missing.length > 0) {
+      return JSON.stringify({
+        ok: false,
+        error: `Faltan campos requeridos en la salida JSON: ${missing.join(", ")}`,
+        raw: content,
+      });
+    }
+  }
+  return content;
 }
 
 export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
@@ -132,9 +178,14 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
     const r = await llmCall(callOpts);
     totalTokens += r.tokensUsed;
 
-    // No tool calls or unsupported provider → return immediately
+    // No tool calls or unsupported provider → return immediately.
+    // Para agentes json, validamos la salida sin romper el turno (L4).
     if (!r.toolCalls || r.toolCalls.length === 0) {
-      return { content: r.content, tokensUsed: totalTokens, model: r.model, toolCalls };
+      const content =
+        p.agent.responseFormat === "json"
+          ? validateJsonOutput(r.content, p.agent.outputSchema)
+          : r.content;
+      return { content, tokensUsed: totalTokens, model: r.model, toolCalls };
     }
 
     // Execute tool calls

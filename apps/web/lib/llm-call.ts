@@ -5,6 +5,7 @@ import { decrypt } from "./encryption";
 import { type ProviderType } from "./providers";
 import { resolveModel } from "./ai/catalog";
 import { fetchWithTimeout, fetchStreamWithConnectTimeout, withRetry, HttpError } from "./http-util";
+import { recordMetric, logWithContext } from "./observability";
 
 /** Timeout para obtener la respuesta completa de un LLM (block call). */
 const LLM_TIMEOUT_MS = 120_000;
@@ -50,6 +51,8 @@ export interface LlmCallParams {
   temperature?: number;
   maxTokens?: number;
   tools?: ToolDefinitionForLlm[];
+  /** Id de correlación opcional para atar logs/errores de esta llamada (D1). */
+  correlationId?: string;
 }
 
 export interface LlmCallResult {
@@ -98,6 +101,30 @@ async function getProviderKey(workspaceId: string, provider: string) {
 }
 
 export async function llmCall(p: LlmCallParams): Promise<LlmCallResult> {
+  const startedAt = Date.now();
+  try {
+    const res = await llmCallInner(p);
+    // Latencia de la llamada de IA (D2) — scrapeable desde logs.
+    recordMetric("ai.call.latency_ms", Date.now() - startedAt, { model: p.model, provider: providerOf(p.model) });
+    return res;
+  } catch (e) {
+    // Log correlacionado del error (D1) sin romper el flujo de propagación.
+    logWithContext("error", "[llm-call] llmCall failed", {
+      ...(p.correlationId ? { correlationId: p.correlationId } : {}),
+      model: p.model,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    recordMetric("ai.call.latency_ms", Date.now() - startedAt, { model: p.model, outcome: "error" });
+    throw e;
+  }
+}
+
+/** Devuelve el id del provider para taggear métricas; tolerante a modelos desconocidos. */
+function providerOf(model: string): string {
+  return resolveModel(model)?.provider.id ?? "unknown";
+}
+
+async function llmCallInner(p: LlmCallParams): Promise<LlmCallResult> {
   const resolved = resolveModel(p.model);
   if (!resolved || resolved.capability !== "chat")
     throw new Error(`No reconozco el modelo de chat "${p.model}".`);

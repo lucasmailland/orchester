@@ -68,6 +68,48 @@ export function captureException(err: unknown, ctx?: CaptureContext): void {
   }).catch(() => {});
 }
 
+/**
+ * Correlation IDs (D1). Genera un id corto y propagable que ata logs/errores de
+ * un mismo request o run a través de capas (flow → llm-call → providers). No es
+ * criptográfico: sólo para correlacionar líneas de log.
+ */
+export function newCorrelationId(): string {
+  return crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+}
+
+/**
+ * Helper de log estructurado con contexto de correlación. Emite una línea JSON
+ * (scrapeable) con el `correlationId` y cualquier contexto extra. No-op friendly:
+ * un contexto vacío sigue siendo válido.
+ */
+export function logWithContext(
+  level: "info" | "warn" | "error",
+  message: string,
+  ctx?: { correlationId?: string; [k: string]: unknown }
+): void {
+  const line = JSON.stringify({ level, message, ...(ctx ?? {}), ts: new Date().toISOString() });
+  if (level === "error") console.error(line);
+  else if (level === "warn") console.warn(line);
+  else console.log(line);
+}
+
+/**
+ * Métricas mínimas (D2). Por defecto structured-loggea la métrica como JSON
+ * (prefijo `metric` para grep/scrape desde logs). Es un seam barato: cuando haya
+ * un backend real (StatsD/OTel/Prometheus push) se cablea acá sin tocar callers.
+ */
+export function recordMetric(
+  name: string,
+  value: number,
+  tags?: Record<string, string | number>
+): void {
+  try {
+    console.log(JSON.stringify({ metric: name, value, ...(tags ?? {}), ts: new Date().toISOString() }));
+  } catch {
+    /* nunca romper el camino del caller por una métrica */
+  }
+}
+
 function parseStack(stack: string): Array<{ filename: string; function: string; lineno: number }> {
   return stack
     .split("\n")
