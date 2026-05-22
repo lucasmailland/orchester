@@ -8,7 +8,9 @@
     "./schema": "./src/schema/index.ts"
   },
   "scripts": {
+    "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
+    "//push": "LOCAL DEV ONLY — never run in prod/CI. Use generate+migrate for reviewable, versioned schema changes.",
     "push": "drizzle-kit push",
     "studio": "drizzle-kit studio",
     "seed": "tsx src/seed.ts",
