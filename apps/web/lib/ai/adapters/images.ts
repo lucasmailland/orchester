@@ -22,6 +22,14 @@ export async function generateImageWith(
       return replicateImages(p, cred);
     case "fal":
       return falImages(p, cred);
+    case "recraft":
+      return openaiImages(p, cred, "https://external.api.recraft.ai/v1"); // forma OpenAI
+    case "stability":
+      return stabilityImages(p, cred);
+    case "ideogram":
+      return ideogramImages(p, cred);
+    case "bfl":
+      return bflImages(p, cred);
     default:
       if (family === "replicate") return replicateImages(p, cred);
       if (family === "fal") return falImages(p, cred);
@@ -29,6 +37,59 @@ export async function generateImageWith(
         `La generación de imágenes con ${providerId} todavía no está implementada. Probá el mismo modelo vía Replicate o fal.`
       );
   }
+}
+
+async function stabilityImages(p: ImageParams, cred: Cred): Promise<ImageResult> {
+  const form = new FormData();
+  form.append("prompt", p.prompt);
+  form.append("output_format", "png");
+  const r = await fetch("https://api.stability.ai/v2beta/stable-image/generate/core", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cred.apiKey}`, Accept: "application/json" },
+    body: form,
+  });
+  if (!r.ok) throw new Error(`Stability ${r.status}: ${await r.text()}`);
+  const j = await r.json();
+  return { images: j.image ? [{ url: dataUrl(j.image), mime: "image/png" }] : [], model: p.model };
+}
+
+async function ideogramImages(p: ImageParams, cred: Cred): Promise<ImageResult> {
+  const form = new FormData();
+  form.append("prompt", p.prompt);
+  const r = await fetch("https://api.ideogram.ai/v1/ideogram-v3/generate", {
+    method: "POST",
+    headers: { "Api-Key": cred.apiKey },
+    body: form,
+  });
+  if (!r.ok) throw new Error(`Ideogram ${r.status}: ${await r.text()}`);
+  const j = await r.json();
+  const images: GeneratedImage[] = (j.data ?? []).map((d: { url: string }) => ({ url: d.url, mime: "image/png" }));
+  return { images, model: p.model };
+}
+
+async function bflImages(p: ImageParams, cred: Cred): Promise<ImageResult> {
+  const r = await fetch(`https://api.bfl.ai/v1/${p.model}`, {
+    method: "POST",
+    headers: { "x-key": cred.apiKey, "content-type": "application/json" },
+    body: JSON.stringify({ prompt: p.prompt }),
+  });
+  if (!r.ok) throw new Error(`Black Forest ${r.status}: ${await r.text()}`);
+  const start = await r.json();
+  const pollUrl = start.polling_url as string | undefined;
+  if (!pollUrl) throw new Error("Black Forest: respuesta inesperada.");
+  for (let i = 0; i < 60; i++) {
+    await new Promise((res) => setTimeout(res, 1500));
+    const pr = await fetch(pollUrl, { headers: { "x-key": cred.apiKey } });
+    const pj = await pr.json();
+    if (pj.status === "Ready") {
+      const url = pj.result?.sample as string | undefined;
+      return { images: url ? [{ url, mime: "image/png" }] : [], model: p.model };
+    }
+    if (pj.status && pj.status !== "Pending" && pj.status !== "Processing") {
+      throw new Error(`Black Forest: ${pj.status}`);
+    }
+  }
+  throw new Error("Black Forest: tardó demasiado.");
 }
 
 function dataUrl(b64: string, mime = "image/png"): string {
