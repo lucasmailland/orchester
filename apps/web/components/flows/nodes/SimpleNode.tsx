@@ -22,7 +22,7 @@ export function SimpleNode({
 }) {
   return (
     <div
-      className="flex min-w-[180px] items-center gap-2.5 rounded-xl border border-white/[0.08] bg-zinc-900/95 px-3 py-2.5 shadow-md"
+      className="flex min-w-[180px] items-center gap-2.5 rounded-xl border border-line bg-zinc-900/95 px-3 py-2.5 shadow-md"
       style={{ borderLeftWidth: 3, borderLeftColor: accent }}
     >
       {showTargetHandle && <Handle type="target" position={Position.Left} />}
@@ -33,8 +33,8 @@ export function SimpleNode({
         <Icon className="h-4 w-4" />
       </div>
       <div>
-        <div className="text-xs font-medium text-zinc-100">{data.label}</div>
-        {data.subtitle && <div className="text-[10px] text-zinc-500">{data.subtitle}</div>}
+        <div className="text-xs font-medium text-strong">{data.label}</div>
+        {data.subtitle && <div className="text-[10px] text-muted">{data.subtitle}</div>}
       </div>
       {showSourceHandle && <Handle type="source" position={Position.Right} />}
     </div>

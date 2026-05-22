@@ -67,7 +67,7 @@ function WorkspaceNode({ data }: NodeProps) {
       <div className="min-w-0 flex-1">
         <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-300/80">Workspace</div>
         <div className="truncate text-base font-semibold text-zinc-50">{d.label}</div>
-        <div className="mt-0.5 text-[10px] text-zinc-500">
+        <div className="mt-0.5 text-[10px] text-muted">
           {d.meta?.teamCount ?? 0} equipos · {d.meta?.agentCount ?? 0} agentes · {d.meta?.flowCount ?? 0} flujos
         </div>
       </div>
@@ -92,8 +92,8 @@ function TeamNode({ data }: NodeProps) {
         <Layers className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-zinc-100">{d.label}</div>
-        <div className="text-[10px] text-zinc-500">
+        <div className="truncate text-sm font-medium text-strong">{d.label}</div>
+        <div className="text-[10px] text-muted">
           {d.meta?.agentCount ?? 0} agentes
           {(d.meta?.activeCount ?? 0) > 0 && (
             <span className="ml-1 text-emerald-400">· {d.meta?.activeCount} activos</span>
@@ -136,7 +136,7 @@ function AgentNode({ data }: NodeProps) {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="truncate text-sm font-medium text-zinc-100">{d.label}</span>
+            <span className="truncate text-sm font-medium text-strong">{d.label}</span>
             <span
               className={
                 status === "active"
@@ -148,10 +148,10 @@ function AgentNode({ data }: NodeProps) {
               title={status}
             />
           </div>
-          <div className="truncate text-[10px] text-zinc-500">{d.meta?.role}</div>
+          <div className="truncate text-[10px] text-muted">{d.meta?.role}</div>
         </div>
       </div>
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-zinc-500">
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted">
         <span className="font-mono">{d.meta?.model}</span>
         {isFlow && (
           <span className="rounded bg-amber-500/15 px-1 py-0.5 text-[9px] uppercase tracking-wider text-amber-300">
@@ -159,7 +159,7 @@ function AgentNode({ data }: NodeProps) {
           </span>
         )}
         {(d.meta?.toolCount ?? 0) > 0 && (
-          <span className="flex items-center gap-0.5 text-zinc-400">
+          <span className="flex items-center gap-0.5 text-muted">
             <Wrench className="h-2.5 w-2.5" /> {d.meta?.toolCount}
           </span>
         )}
@@ -524,34 +524,34 @@ export function OrgCanvas() {
   return (
     <div className="flex h-[calc(100vh-160px)] flex-col">
       <div className="flex flex-wrap items-center gap-3 px-1 py-3">
-        <div className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-zinc-900/40 px-2.5 py-1.5">
-          <Search className="h-3.5 w-3.5 text-zinc-500" />
+        <div className="flex items-center gap-2 rounded-lg border border-line bg-card px-2.5 py-1.5">
+          <Search className="h-3.5 w-3.5 text-muted" />
           <input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder="Buscar agente, equipo, flujo…"
-            className="w-48 bg-transparent text-xs text-zinc-100 placeholder-zinc-600 outline-none"
+            className="w-48 bg-transparent text-xs text-strong placeholder:text-faint outline-none"
           />
         </div>
         <button
           type="button"
           onClick={resetLayout}
-          className="rounded-md border border-white/[0.08] px-2.5 py-1 text-xs text-zinc-400 hover:bg-white/5"
+          className="rounded-md border border-line px-2.5 py-1 text-xs text-muted hover:bg-hover"
           title="Volver al layout original"
         >
           Reset layout
         </button>
-        <div className="ml-auto flex items-center gap-3 text-[11px] text-zinc-500">
+        <div className="ml-auto flex items-center gap-3 text-[11px] text-muted">
           {data.summary && (
             <>
               <span>
-                <strong className="text-zinc-300">{data.summary.teams}</strong> equipos
+                <strong className="text-body">{data.summary.teams}</strong> equipos
               </span>
               <span>
-                <strong className="text-zinc-300">{data.summary.agents}</strong> agentes ({data.summary.activeAgents} activos)
+                <strong className="text-body">{data.summary.agents}</strong> agentes ({data.summary.activeAgents} activos)
               </span>
               <span>
-                <strong className="text-zinc-300">{data.summary.flows}</strong> flujos
+                <strong className="text-body">{data.summary.flows}</strong> flujos
                 {data.summary.liveFlows > 0 && (
                   <span className="text-emerald-400"> · {data.summary.liveFlows} live</span>
                 )}
@@ -561,9 +561,9 @@ export function OrgCanvas() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden rounded-2xl border border-white/[0.06] bg-zinc-950/40">
+      <div className="flex-1 overflow-hidden rounded-2xl border border-line bg-surface/40">
         {data.nodes.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-zinc-500">
+          <div className="flex h-full flex-col items-center justify-center text-muted">
             <Bot className="mb-3 h-10 w-10 text-zinc-700" />
             <p className="text-sm">Aún no hay agentes ni equipos.</p>
             <button
@@ -597,11 +597,11 @@ export function OrgCanvas() {
             panOnScroll={false}
           >
             <Background color="#27272a" gap={20} />
-            <Controls className="!border-white/10 !bg-zinc-900" />
+            <Controls className="!border-line !bg-zinc-900" />
             <MiniMap
               pannable
               zoomable
-              className="!border-white/10 !bg-zinc-900"
+              className="!border-line !bg-zinc-900"
               nodeColor={(n) => {
                 if (n.type === "workspace") return COLORS.workspace;
                 if (n.type === "team") return COLORS.team;

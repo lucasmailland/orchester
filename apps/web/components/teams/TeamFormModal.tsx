@@ -86,12 +86,12 @@ export function TeamFormModal({ open, onClose, initial, labels }: TeamFormModalP
             <div className="max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-violet-500/20 bg-zinc-900 shadow-2xl shadow-black/80 ring-1 ring-violet-500/10">
               {/* Header */}
               <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-4">
-                <h2 className="font-display text-base font-bold text-zinc-100">
+                <h2 className="font-display text-base font-bold text-strong">
                   {isEdit ? labels.editTitle : labels.createTitle}
                 </h2>
                 <button
                   onClick={onClose}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-white/[0.07] hover:text-zinc-300"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-hover hover:text-body"
                 >
                   <X size={15} />
                 </button>
@@ -100,15 +100,15 @@ export function TeamFormModal({ open, onClose, initial, labels }: TeamFormModalP
               {/* Form */}
               <form onSubmit={handleSubmit} className="space-y-5 p-6">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-400">{labels.nameLabel}</label>
+                  <label className="text-xs font-medium text-muted">{labels.nameLabel}</label>
                   <input
                     value={name}
                     onChange={e => setName(e.target.value)}
                     placeholder={labels.namePlaceholder}
                     required
                     className={cn(
-                      "w-full rounded-xl border border-white/[0.08] bg-zinc-800/60 px-3.5 py-2.5",
-                      "text-sm text-zinc-100 placeholder-zinc-600",
+                      "w-full rounded-xl border border-line bg-elevated px-3.5 py-2.5",
+                      "text-sm text-strong placeholder:text-faint",
                       "outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30",
                       "transition-all"
                     )}
@@ -116,15 +116,15 @@ export function TeamFormModal({ open, onClose, initial, labels }: TeamFormModalP
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-400">{labels.descriptionLabel}</label>
+                  <label className="text-xs font-medium text-muted">{labels.descriptionLabel}</label>
                   <textarea
                     value={description}
                     onChange={e => setDescription(e.target.value)}
                     placeholder={labels.descriptionPlaceholder}
                     rows={3}
                     className={cn(
-                      "w-full resize-none rounded-xl border border-white/[0.08] bg-zinc-800/60 px-3.5 py-2.5",
-                      "text-sm text-zinc-100 placeholder-zinc-600",
+                      "w-full resize-none rounded-xl border border-line bg-elevated px-3.5 py-2.5",
+                      "text-sm text-strong placeholder:text-faint",
                       "outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30",
                       "transition-all"
                     )}
@@ -132,7 +132,7 @@ export function TeamFormModal({ open, onClose, initial, labels }: TeamFormModalP
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-zinc-400">{labels.colorLabel}</label>
+                  <label className="text-xs font-medium text-muted">{labels.colorLabel}</label>
                   <div className="flex gap-2.5">
                     {COLORS.map(c => (
                       <button
@@ -157,7 +157,7 @@ export function TeamFormModal({ open, onClose, initial, labels }: TeamFormModalP
                   <button
                     type="button"
                     onClick={onClose}
-                    className="rounded-xl border border-white/[0.08] px-4 py-2 text-sm text-zinc-400 transition-colors hover:bg-white/[0.05] hover:text-zinc-200"
+                    className="rounded-xl border border-line px-4 py-2 text-sm text-muted transition-colors hover:bg-white/[0.05] hover:text-body"
                   >
                     {labels.cancel}
                   </button>

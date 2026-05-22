@@ -61,28 +61,28 @@ export function ModelPicker({ value, onChange }: Props) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between rounded-xl border border-white/[0.08] bg-zinc-800/40 px-3.5 py-2.5 text-sm text-zinc-100 hover:bg-zinc-800/60"
+        className="flex w-full items-center justify-between rounded-xl border border-line bg-elevated px-3.5 py-2.5 text-sm text-strong hover:bg-elevated"
       >
         <span className="flex items-center gap-2">
           {selected ? TIER_ICON[selected.tier] : null}
           {selected ? selected.name : value || "Elegir modelo…"}
         </span>
-        <ChevronDown className="h-4 w-4 text-zinc-500" />
+        <ChevronDown className="h-4 w-4 text-muted" />
       </button>
       {open && (
-        <div className="absolute z-50 mt-1.5 max-h-72 w-full overflow-y-auto rounded-xl border border-white/[0.08] bg-zinc-900 shadow-xl">
+        <div className="absolute z-50 mt-1.5 max-h-72 w-full overflow-y-auto rounded-xl border border-line bg-zinc-900 shadow-xl">
           {groups.length === 0 && (
-            <div className="px-3 py-3 text-xs text-zinc-500">
+            <div className="px-3 py-3 text-xs text-muted">
               Configurá un proveedor en Ajustes para ver modelos.
             </div>
           )}
           {groups.map((g) => (
             <div key={g.provider}>
-              <div className="border-b border-white/5 bg-zinc-900/80 px-3 py-1.5 text-[10px] uppercase tracking-wider text-zinc-500">
+              <div className="border-b border-line bg-zinc-900/80 px-3 py-1.5 text-[10px] uppercase tracking-wider text-muted">
                 {PROVIDER_NAME[g.provider] ?? g.provider}
               </div>
               {g.models.length === 0 && (
-                <div className="px-3 py-2 text-[11px] text-zinc-600">
+                <div className="px-3 py-2 text-[11px] text-faint">
                   No hay modelos. Probá la conexión.
                 </div>
               )}
@@ -95,14 +95,14 @@ export function ModelPicker({ value, onChange }: Props) {
                     setOpen(false);
                   }}
                   className={cn(
-                    "flex w-full items-center justify-between px-3 py-2 text-left text-xs hover:bg-white/5",
+                    "flex w-full items-center justify-between px-3 py-2 text-left text-xs hover:bg-hover",
                     m.id === value && "bg-violet-500/10 text-violet-200"
                   )}
                 >
-                  <span className="flex items-center gap-2 text-zinc-200">
+                  <span className="flex items-center gap-2 text-body">
                     {TIER_ICON[m.tier]} {m.name}
                   </span>
-                  <span className="text-[10px] text-zinc-500">
+                  <span className="text-[10px] text-muted">
                     {Math.round(m.contextWindow / 1000)}k
                   </span>
                 </button>

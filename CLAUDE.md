@@ -117,12 +117,18 @@ undocumented surface area.
 [`.agents/reference/ui-design-system.md`](./.agents/reference/ui-design-system.md)).
 Non-negotiables:
 
-- **Dark-only.** No light mode, no theme toggles, no `light:`/`dark:` variants.
+- **Dual-theme (light + dark) via semantic tokens.** For surfaces/borders/neutral
+  text ALWAYS use the token classes — `bg-app`, `bg-surface`, `bg-card`,
+  `bg-elevated`, `border-line`, `bg-hover`, `text-strong`, `text-body`,
+  `text-muted`, `text-faint` — NEVER literal `bg-zinc-*`/`text-zinc-*`/
+  `border-white/[…]` (they don't react to the theme and break light mode).
+  `text-white` only on solid color backgrounds (violet/gradient/KPI). Test BOTH
+  themes (toggle in the topbar).
 - Accent = **violet**; status = emerald/amber/rose/blue with the
-  `text-300 + bg-500/10 + border-500/30` pattern; neutrals = **zinc** scale +
-  `white/[opacity]`. Never `gray`/`slate`/`neutral` or ad-hoc colors.
+  `text-300 + bg-500/10 + border-500/30` pattern. Never `gray`/`slate`/`neutral`
+  or ad-hoc colors.
 - Radii: `rounded-2xl` cards, `rounded-xl` sub-blocks, `rounded-lg`
-  buttons/inputs/badges. Borders `white/[0.06]`–`[0.08]`.
+  buttons/inputs/badges. Borders `border-line`.
 - HeroUI Inputs: `labelPlacement="outside"` + `text-foreground` (never
   `dark:text-default-*`). Forms: `flex flex-col gap-4` (NOT `space-y` — collides
   with HeroUI's floating-label margin).

@@ -42,7 +42,7 @@ export function LanguageSelector() {
           variant="light"
           size="sm"
           startContent={<Globe size={14} className="shrink-0" />}
-          className="text-zinc-500 hover:text-zinc-100"
+          className="text-muted hover:text-strong"
         >
           <span className="hidden sm:inline">
             {LOCALE_FLAGS[locale]} {LOCALE_LABELS[locale]}

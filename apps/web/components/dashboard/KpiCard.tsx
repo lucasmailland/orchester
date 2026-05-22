@@ -13,14 +13,14 @@ interface KpiCardProps {
 }
 
 const CARD_BG: Record<NonNullable<KpiCardProps["color"]>, string> = {
-  primary: "bg-zinc-950 border-zinc-800/80",
+  primary: "bg-surface border-zinc-800/80",
   accent: "bg-violet-600 border-violet-500/40",
   success: "bg-blue-600 border-blue-500/40",
   warning: "bg-teal-600 border-teal-500/40",
 };
 
 const ICON_BG: Record<NonNullable<KpiCardProps["color"]>, string> = {
-  primary: "bg-white/[0.07]",
+  primary: "bg-hover",
   accent: "bg-white/20",
   success: "bg-white/20",
   warning: "bg-white/20",
@@ -93,7 +93,7 @@ export function KpiCard({ label, value, icon, color = "primary", className }: Kp
         </p>
       </div>
 
-      <div className="relative z-10 mt-4 border-t border-white/10 pt-2.5">
+      <div className="relative z-10 mt-4 border-t border-line pt-2.5">
         <span className="text-[10px] font-medium uppercase tracking-wider text-white/30">
           Live
         </span>

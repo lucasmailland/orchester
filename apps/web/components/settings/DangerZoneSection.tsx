@@ -48,7 +48,7 @@ export function DangerZoneSection({ workspace }: Props) {
         </div>
         <div>
           <h2 className="text-sm font-semibold text-red-400">Zona de peligro</h2>
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-muted">
             Acción irreversible. Borra el workspace, todos sus agentes, conversaciones,
             knowledge bases y miembros.
           </p>
@@ -66,8 +66,8 @@ export function DangerZoneSection({ workspace }: Props) {
         Eliminar workspace
       </button>
       {!isOwner && (
-        <p className="mt-2 text-[11px] text-zinc-500">
-          Tu rol es <strong className="text-zinc-300">{workspace.role}</strong>. Pedile al owner
+        <p className="mt-2 text-[11px] text-muted">
+          Tu rol es <strong className="text-body">{workspace.role}</strong>. Pedile al owner
           que ejecute esta acción.
         </p>
       )}
@@ -82,14 +82,14 @@ export function DangerZoneSection({ workspace }: Props) {
             if (e.target === e.currentTarget) setOpen(false);
           }}
         >
-          <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-zinc-950 p-5 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-surface p-5 shadow-2xl">
             <h3 id="delete-ws-title" className="text-sm font-semibold text-red-400">
               ¿Eliminar el workspace &ldquo;{workspace.name}&rdquo;?
             </h3>
-            <p className="mt-1 text-xs text-zinc-500">
+            <p className="mt-1 text-xs text-muted">
               Esta acción no se puede deshacer. Para confirmar, escribí el slug del workspace:
             </p>
-            <code className="mt-2 block rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-center font-mono text-sm text-zinc-100">
+            <code className="mt-2 block rounded-lg border border-line bg-zinc-900 px-3 py-2 text-center font-mono text-sm text-strong">
               {workspace.slug}
             </code>
             <label htmlFor="delete-confirm" className="sr-only">

@@ -98,8 +98,8 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
       <NoProviderBanner />
 
       <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-zinc-100">Canales</h1>
-        <p className="mt-1 text-sm text-zinc-500">
+        <h1 className="font-display text-2xl font-bold tracking-tight text-strong">Canales</h1>
+        <p className="mt-1 text-sm text-muted">
           Conectá tus agentes a los canales donde están tus clientes y empleados.
         </p>
       </div>
@@ -113,31 +113,31 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
             return (
               <div
                 key={t}
-                className="rounded-2xl border border-white/[0.08] bg-zinc-900/40 p-4"
+                className="rounded-2xl border border-line bg-card p-4"
               >
                 <div className="mb-3 flex items-center gap-2.5">
                   <div
                     className={
                       meta.supported
                         ? "flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-400"
-                        : "flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-800 text-zinc-500"
+                        : "flex h-9 w-9 items-center justify-center rounded-xl bg-elevated text-muted"
                     }
                   >
                     <meta.Icon className="h-4 w-4" />
                   </div>
-                  <div className="font-medium text-zinc-100">{meta.label}</div>
+                  <div className="font-medium text-strong">{meta.label}</div>
                   {!meta.supported && (
                     <span className="ml-auto rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-300">
                       Beta
                     </span>
                   )}
                 </div>
-                <p className="text-xs leading-relaxed text-zinc-500">{meta.description}</p>
+                <p className="text-xs leading-relaxed text-muted">{meta.description}</p>
                 <button
                   type="button"
                   disabled={!meta.supported}
                   onClick={() => setCreating(t)}
-                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/[0.08] bg-zinc-800/40 py-2 text-xs text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-line bg-elevated py-2 text-xs text-body hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Plus className="h-3.5 w-3.5" /> Conectar {meta.label}
                 </button>
@@ -147,20 +147,20 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
       </div>
 
       {creating && (
-        <div className="space-y-2 rounded-2xl border border-violet-500/30 bg-zinc-900/40 p-4">
-          <div className="text-sm font-medium text-zinc-100">
+        <div className="space-y-2 rounded-2xl border border-violet-500/30 bg-card p-4">
+          <div className="text-sm font-medium text-strong">
             Nuevo canal · {TYPE_META[creating].label}
           </div>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Nombre del canal (e.g. 'Soporte WhatsApp')"
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-violet-500/60"
+            className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
           />
           <select
             value={agentId}
             onChange={(e) => setAgentId(e.target.value)}
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-violet-500/60"
+            className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
           >
             <option value="">— Elegí un agente —</option>
             {agents.map((a) => (
@@ -180,7 +180,7 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
             <button
               type="button"
               onClick={() => setCreating(null)}
-              className="text-xs text-zinc-400 hover:text-zinc-200"
+              className="text-xs text-muted hover:text-body"
             >
               Cancelar
             </button>
@@ -190,7 +190,7 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
 
       {channels.length > 0 && (
         <div>
-          <h2 className="mb-2 text-sm font-medium text-zinc-300">Canales conectados</h2>
+          <h2 className="mb-2 text-sm font-medium text-body">Canales conectados</h2>
           <div className="space-y-2">
             {channels.map((c) => (
               <ConnectedChannelRow key={c.id} channel={c} agents={agents} />
@@ -289,14 +289,14 @@ function ConnectedChannelRow({
   const apiTriggerUrl = channel.secret ? `${origin}/api/widget/${channel.id}/messages` : "";
 
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-zinc-900/40 p-4">
+    <div className="rounded-2xl border border-line bg-card p-4">
       <div className="flex items-center gap-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-400">
           <meta.Icon className="h-4 w-4" />
         </div>
         <div className="flex-1">
-          <div className="text-sm font-medium text-zinc-100">{channel.name}</div>
-          <div className="text-[11px] text-zinc-500">
+          <div className="text-sm font-medium text-strong">{channel.name}</div>
+          <div className="text-[11px] text-muted">
             {meta.label} ·{" "}
             <span
               className={
@@ -310,34 +310,34 @@ function ConnectedChannelRow({
         <button
           type="button"
           onClick={toggleStatus}
-          className="rounded-lg border border-white/[0.08] px-2.5 py-1 text-[11px] text-zinc-300 hover:bg-white/5"
+          className="rounded-lg border border-line px-2.5 py-1 text-[11px] text-body hover:bg-hover"
         >
           {channel.status === "active" ? "Pausar" : "Activar"}
         </button>
         <button
           type="button"
           onClick={() => setExpanded((e) => !e)}
-          className="rounded-lg border border-white/[0.08] px-2.5 py-1 text-[11px] text-zinc-300 hover:bg-white/5"
+          className="rounded-lg border border-line px-2.5 py-1 text-[11px] text-body hover:bg-hover"
         >
           {expanded ? "Cerrar" : "Configurar"}
         </button>
         <button
           type="button"
           onClick={remove}
-          className="text-zinc-500 hover:text-red-400"
+          className="text-muted hover:text-red-400"
         >
           ✕
         </button>
       </div>
 
       {expanded && (
-        <div className="mt-4 space-y-3 border-t border-white/[0.06] pt-4 text-xs">
+        <div className="mt-4 space-y-3 border-t border-line pt-4 text-xs">
           <div>
-            <label className="block text-zinc-500">Agente</label>
+            <label className="block text-muted">Agente</label>
             <select
               value={agentId}
               onChange={(e) => updateAgent(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-zinc-100 outline-none"
+              className="mt-1 w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
             >
               <option value="">— Sin agente —</option>
               {agents.map((a) => (
@@ -350,20 +350,20 @@ function ConnectedChannelRow({
 
           {channel.type === "widget" && (
             <div>
-              <label className="block text-zinc-500">Snippet de instalación</label>
-              <div className="mt-1 flex items-center gap-2 rounded-lg border border-white/[0.08] bg-black/40 p-2">
-                <pre className="flex-1 overflow-x-auto font-mono text-[11px] text-zinc-300">
+              <label className="block text-muted">Snippet de instalación</label>
+              <div className="mt-1 flex items-center gap-2 rounded-lg border border-line bg-black/40 p-2">
+                <pre className="flex-1 overflow-x-auto font-mono text-[11px] text-body">
                   {embedSnippet}
                 </pre>
                 <button
                   type="button"
                   onClick={() => copy(embedSnippet, "embed")}
-                  className="text-zinc-500 hover:text-zinc-200"
+                  className="text-muted hover:text-body"
                 >
                   {copied === "embed" ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
               </div>
-              <p className="mt-1 text-[10px] text-zinc-600">
+              <p className="mt-1 text-[10px] text-faint">
                 Pegá este script antes de <code>&lt;/body&gt;</code> en cualquier página HTML.
               </p>
             </div>
@@ -372,14 +372,14 @@ function ConnectedChannelRow({
           {channel.type === "telegram" && (
             <>
               <div>
-                <label className="block text-zinc-500">Bot Token (@BotFather)</label>
+                <label className="block text-muted">Bot Token (@BotFather)</label>
                 <div className="mt-1 flex items-center gap-2">
                   <input
                     type="password"
                     value={credInput}
                     onChange={(e) => setCredInput(e.target.value)}
                     placeholder={channel.hasCredentials ? "•••••••• (ya configurado, pegá uno nuevo para reemplazar)" : "123456:ABC-DEF…"}
-                    className="flex-1 rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 font-mono text-zinc-100 outline-none focus:border-violet-500/60"
+                    className="flex-1 rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none focus:border-violet-500/60"
                   />
                   <button
                     type="button"
@@ -393,15 +393,15 @@ function ConnectedChannelRow({
               </div>
               {channel.hasCredentials && (
                 <div>
-                  <label className="block text-zinc-500">Webhook URL (auto-configurado)</label>
-                  <div className="mt-1 flex items-center gap-2 rounded-lg border border-white/[0.08] bg-black/40 p-2">
-                    <pre className="flex-1 overflow-x-auto font-mono text-[10px] text-zinc-300">
+                  <label className="block text-muted">Webhook URL (auto-configurado)</label>
+                  <div className="mt-1 flex items-center gap-2 rounded-lg border border-line bg-black/40 p-2">
+                    <pre className="flex-1 overflow-x-auto font-mono text-[10px] text-body">
                       {telegramWebhookUrl}
                     </pre>
                     <button
                       type="button"
                       onClick={() => copy(telegramWebhookUrl, "webhook")}
-                      className="text-zinc-500 hover:text-zinc-200"
+                      className="text-muted hover:text-body"
                     >
                       {copied === "webhook" ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                     </button>
@@ -413,20 +413,20 @@ function ConnectedChannelRow({
 
           {channel.type === "api" && (
             <div>
-              <label className="block text-zinc-500">Endpoint público</label>
-              <div className="mt-1 flex items-center gap-2 rounded-lg border border-white/[0.08] bg-black/40 p-2">
-                <pre className="flex-1 overflow-x-auto font-mono text-[10px] text-zinc-300">
+              <label className="block text-muted">Endpoint público</label>
+              <div className="mt-1 flex items-center gap-2 rounded-lg border border-line bg-black/40 p-2">
+                <pre className="flex-1 overflow-x-auto font-mono text-[10px] text-body">
                   POST {apiTriggerUrl}
                 </pre>
                 <button
                   type="button"
                   onClick={() => copy(apiTriggerUrl, "api")}
-                  className="text-zinc-500 hover:text-zinc-200"
+                  className="text-muted hover:text-body"
                 >
                   {copied === "api" ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
               </div>
-              <p className="mt-1 text-[10px] text-zinc-600">
+              <p className="mt-1 text-[10px] text-faint">
                 Body: <code>{`{ visitorId: string, text: string }`}</code>
               </p>
             </div>

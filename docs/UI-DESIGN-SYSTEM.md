@@ -12,17 +12,21 @@
 
 ## 0. Reglas de oro (leer primero)
 
-1. **Dark-only.** Orchester es exclusivamente tema oscuro. No hay light mode.
-   No agregues toggles de tema ni variantes `light:`/`dark:`. El fondo base es
-   negro/zinc-950 y todo se construye encima.
-2. **Paleta cerrada.** Usá SOLO los tokens de §1. Acento = **violet**. Estados =
-   emerald / amber / rose / blue. Neutros = escala **zinc** + `white/[opacity]`
-   para bordes y hovers. Nunca uses `gray`, `slate`, `neutral`, ni colores sueltos.
+1. **Dual-theme vía tokens semánticos.** Orchester soporta **light + dark**. El
+   tema se maneja con tokens CSS que cambian solos (`globals.css`: `:root` =
+   light, `.dark` = dark). **Para superficies/bordes/texto neutro usá SIEMPRE
+   los tokens semánticos** (`bg-app`, `bg-surface`, `bg-card`, `bg-elevated`,
+   `border-line`, `bg-hover`, `text-strong`, `text-body`, `text-muted`,
+   `text-faint`) — **NUNCA** `bg-zinc-*`, `text-zinc-*`, `border-white/[…]`
+   literales. Esos no responden al tema y rompen el light mode.
+2. **Paleta cerrada.** Neutros = tokens semánticos (regla #1). Acento =
+   **violet**. Estados = emerald / amber / rose / blue (con alpha, funcionan en
+   ambos temas). Nunca `gray`/`slate`/`neutral` ni colores sueltos.
 3. **Radios fijos:** `rounded-2xl` (contenedores/cards), `rounded-xl` (sub-bloques
    e inputs grandes), `rounded-lg` (botones, inputs, badges, ítems de lista),
    `rounded-md` (chips pequeños), `rounded-full` (pills, avatares, dots).
-4. **Bordes sutiles:** `border-white/[0.06]` (separadores/cards) y
-   `border-white/[0.08]` (inputs/elementos interactivos). Nunca bordes opacos.
+4. **Bordes sutiles:** `border-line` (separadores/cards) y
+   `border-line` (inputs/elementos interactivos). Nunca bordes opacos.
 5. **HeroUI para formularios complejos** (Input, Button, Select, Avatar, Chip):
    siempre `labelPlacement="outside"` en Inputs y usá tokens semánticos
    (`text-foreground`, `bg-default-100`), NUNCA `text-default-900 dark:...`.
@@ -33,32 +37,41 @@
 
 ---
 
-## 1. Tokens de color
+## 1. Tokens de color (semánticos — light + dark)
+
+Definidos como CSS vars en `apps/web/app/globals.css` (`:root` light, `.dark`
+dark) y mapeados a clases Tailwind en `tailwind.config.ts`. **Usar SIEMPRE estas
+clases**, no literales `zinc`/`white`.
 
 ### Superficies (de atrás hacia adelante)
-| Uso | Clase | Nota |
-|-----|-------|------|
-| Página / fondo raíz | `bg-black` | landing y áreas full-bleed |
-| Chrome (sidebar, topbar, drawer, modal) | `bg-zinc-950` | + `bg-zinc-950/80 backdrop-blur` en topbar |
-| Card / panel | `bg-zinc-900/40` | el contenedor estándar |
-| Sub-bloque dentro de card | `bg-zinc-900/50` ó `bg-zinc-800/30` | |
-| Input / control | `bg-zinc-800/40` (custom) ó `bg-default-100` (HeroUI) | |
-| Hover sutil | `hover:bg-white/[0.04]` … `hover:bg-white/5` | |
-| Selección activa (nav) | `bg-white/[0.07]` | |
+| Uso | Clase token | dark / light |
+|-----|-------------|--------------|
+| Página / fondo raíz | `bg-app` | negro / zinc-50 |
+| Chrome (sidebar, topbar, drawer, modal) | `bg-surface` | zinc-950 / blanco |
+| Card / panel | `bg-card` | `#121215` / blanco |
+| Sub-bloque / input | `bg-elevated` | `#222226` / zinc-100 |
+| Hover sutil / nav activo | `bg-hover` | zinc-800 / zinc-100 |
+
+> Topbar translúcido: `bg-surface/80 backdrop-blur-md`. Overlays de modal/drawer:
+> `bg-black/50`–`/60` (se dejan oscuros en ambos temas, es un scrim).
 
 ### Bordes
-- `border-white/[0.06]` — separadores, bordes de card.
-- `border-white/[0.08]` — inputs y elementos interactivos.
-- Divisor vertical: `w-px bg-white/[0.08]`.
+- `border-line` — todos los bordes y divisores (separadores, cards, inputs).
+- Divisor vertical: `w-px bg-line`.
 
 ### Texto
-| Nivel | Clase |
-|-------|-------|
-| Primario / títulos | `text-zinc-100` (o `text-white` en headings fuertes) |
-| Secundario | `text-zinc-300` / `text-zinc-400` |
-| Muted / labels | `text-zinc-500` |
-| Ultra-muted / hints | `text-zinc-600` |
+| Nivel | Clase token |
+|-------|-------------|
+| Primario / títulos | `text-strong` |
+| Secundario | `text-body` |
+| Muted / labels | `text-muted` |
+| Ultra-muted / hints | `text-faint` |
+| Sobre fondo de color (botón violet, KPI) | `text-white` (queda fijo) |
 | HeroUI (auto-contraste) | `text-foreground` / `text-default-500` |
+
+> **Regla:** `text-white` SÓLO sobre fondos de color sólido (violet, gradientes,
+> KPI cards). Sobre superficies neutras usá `text-strong` (en light, `text-white`
+> sería invisible).
 
 ### Acento (marca) — Violet
 - Base: `violet-500` (`#8b5cf6`). Hover: `violet-400`. Fondos: `violet-500/10`,
@@ -90,13 +103,13 @@ Regla: el patrón siempre es **`text-{color}-300` + `bg-{color}-500/10` +
 | Código / mono | Geist Mono | `font-mono` |
 
 Escala típica:
-- H1 página: `font-display text-2xl font-bold tracking-tight text-zinc-100`
+- H1 página: `font-display text-2xl font-bold tracking-tight text-strong`
 - H1 marketing/hero: `font-display text-4xl md:text-6xl font-bold`
-- Subtítulo de página: `text-sm text-zinc-500`
-- Card title: `text-base font-semibold text-zinc-100` (o `text-sm font-medium`)
-- Label de sección (sidebar/grupos): `text-[9px] font-bold uppercase tracking-[0.15em] text-zinc-600`
-- Body card: `text-xs/[13px] leading-relaxed text-zinc-400/500`
-- Micro / metadata: `text-[10px]` / `text-[11px] text-zinc-500/600`
+- Subtítulo de página: `text-sm text-muted`
+- Card title: `text-base font-semibold text-strong` (o `text-sm font-medium`)
+- Label de sección (sidebar/grupos): `text-[9px] font-bold uppercase tracking-[0.15em] text-faint`
+- Body card: `text-xs`/`text-[13px] leading-relaxed text-muted`
+- Micro / metadata: `text-[10px]` / `text-[11px] text-faint`
 
 ---
 
@@ -117,22 +130,22 @@ Escala típica:
 
 ### Card
 ```tsx
-<div className="rounded-2xl border border-white/[0.08] bg-zinc-900/40 p-4">
+<div className="rounded-2xl border border-line bg-card p-4">
   …
 </div>
 ```
 Variante destacada (recomendado/seleccionado):
-`border-violet-500/40 bg-zinc-900/60 shadow-[0_0_60px_-20px_rgba(139,92,246,0.4)]`.
+`border-violet-500/40 bg-card shadow-[0_0_60px_-20px_rgba(139,92,246,0.4)]`.
 
 ### Botones
 - **Primario:** `rounded-lg bg-violet-500 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-violet-400 disabled:opacity-40`.
-- **Secundario / ghost:** `rounded-lg border border-white/[0.08] px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/5`.
-- **Peligro (icon):** `text-zinc-500 hover:text-rose-400`.
+- **Secundario / ghost:** `rounded-lg border border-line px-3 py-1.5 text-xs text-body hover:bg-hover`.
+- **Peligro (icon):** `text-muted hover:text-rose-400`.
 - HeroUI `Button color="primary"` → forzar `className="bg-[#3B3BFF] font-semibold"` o usar violet.
 
 ### Inputs
 - **HeroUI (forms):** `<Input labelPlacement="outside" classNames={{ inputWrapper: "bg-default-100" }} />`.
-- **Custom (filtros, search):** `rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 outline-none focus:border-violet-500/60`.
+- **Custom (filtros, search):** `rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong placeholder:text-faint outline-none focus:border-violet-500/60`.
 
 ### Badge / chip de estado
 ```tsx
@@ -148,17 +161,17 @@ Variante destacada (recomendado/seleccionado):
 
 ### Modal
 Overlay `fixed inset-0 z-50 flex items-center justify-center p-4` + `absolute inset-0 bg-black/60` (click cierra) + panel
-`relative w-full max-w-md rounded-2xl border border-white/[0.08] bg-zinc-950 p-5`. Header con título `font-display text-lg font-semibold` + botón `X` (`lucide` `X`, `text-zinc-500 hover:text-zinc-200`).
+`relative w-full max-w-md rounded-2xl border border-line bg-surface p-5`. Header con título `font-display text-lg font-semibold` + botón `X` (`lucide` `X`, `text-muted hover:text-body`).
 
 ### Drawer (lateral)
 `fixed inset-0 z-40 flex` → `flex-1 bg-black/50` (backdrop) + panel
-`flex h-full w-[560px] flex-col border-l border-white/[0.06] bg-zinc-950`.
+`flex h-full w-[560px] flex-col border-l border-line bg-surface`.
 
 ### Lista / tabla
-Filas: `border-b border-white/[0.05] bg-zinc-900/30 px-4 py-3 text-xs hover:bg-zinc-900/60 last:border-b-0`. Contenedor: `overflow-hidden rounded-2xl border border-white/[0.06]`.
+Filas: `border-b border-line bg-card px-4 py-3 text-xs hover:bg-card last:border-b-0`. Contenedor: `overflow-hidden rounded-2xl border border-line`.
 
 ### Empty state
-Centro, `rounded-2xl border border-dashed border-white/10 p-10 text-center` con ícono `lucide` `mx-auto mb-3 h-8 w-8 text-zinc-600`, título `text-sm font-medium text-zinc-200` y subtítulo `text-xs text-zinc-500`.
+Centro, `rounded-2xl border border-dashed border-line p-10 text-center` con ícono `lucide` `mx-auto mb-3 h-8 w-8 text-faint`, título `text-sm font-medium text-body` y subtítulo `text-xs text-muted`.
 
 ### Iconos
 - Librería única: **lucide-react**. Tamaños: `h-4 w-4` (UI), `h-3.5 w-3.5` /
@@ -170,17 +183,17 @@ Centro, `rounded-2xl border border-dashed border-white/10 p-10 text-center` con 
 
 ## 5. Shell & navegación
 
-- **Sidebar** (`components/shell/Sidebar.tsx`): `bg-zinc-950`, `border-r
-  border-white/[0.06]`. Grupos con label `uppercase tracking-[0.15em] text-zinc-600`
-  separados por `border-t border-white/[0.06]`. Orden fijo: **Workspace ·
+- **Sidebar** (`components/shell/Sidebar.tsx`): `bg-surface`, `border-r
+  border-line`. Grupos con label `uppercase tracking-[0.15em] text-faint`
+  separados por `border-t border-line`. Orden fijo: **Workspace ·
   Automatización · Datos · Sistema**.
-- **Ítem activo** (`SidebarItem.tsx`): fondo `bg-white/[0.07]` **inseteado**
+- **Ítem activo** (`SidebarItem.tsx`): fondo `bg-hover` **inseteado**
   (`absolute inset-y-0 left-2 right-2`, NUNCA `inset-0` — choca con el borde) +
-  barra violet `left-2.5 w-[3px] bg-violet-400`. Texto activo `text-white`, ícono
+  barra violet `left-2.5 w-[3px] bg-violet-400`. Texto activo `text-strong`, ícono
   `text-violet-400`. Transición con `layoutId` (spring).
-- **Topbar:** `h-14 bg-zinc-950/80 backdrop-blur-md border-b`. Indicador "Live"
-  (dot emerald con ping), modo presentación, selector de idioma, avatar. **Sin
-  toggle de tema** (dark-only).
+- **Topbar:** `h-14 bg-surface/80 backdrop-blur-md border-b`. Indicador "Live"
+  (dot emerald con ping), modo presentación, **toggle de tema** (light/dark),
+  selector de idioma, avatar.
 
 ---
 
@@ -203,19 +216,23 @@ Centro, `rounded-2xl border border-dashed border-white/10 p-10 text-center` con 
 - Foco visible: `focus:border-violet-500/60` en inputs custom; HeroUI lo maneja.
 - Strings de producto vía `next-intl` (`useTranslations`). No hardcodear en
   componentes de cara al usuario.
-- Contraste: respetar la escala de texto de §1 (no usar `text-zinc-700-` para
-  texto sobre fondo oscuro — queda ilegible).
+- Contraste: usar SIEMPRE los tokens de texto de §1 (`text-strong/body/muted/
+  faint`). Nunca literales `text-zinc-*` — no responden al tema y rompen el light
+  mode (texto claro sobre fondo claro = ilegible).
 
 ---
 
 ## 8. Checklist para una pantalla/feature nueva
 
-- [ ] ¿Fondo y card usan `bg-zinc-900/40` + `border-white/[0.08]` + `rounded-2xl`?
+- [ ] ¿Superficies/bordes/texto usan **tokens semánticos** (`bg-card`,
+      `border-line`, `text-strong/body/muted/faint`) y NO literales `zinc`/`white`?
+- [ ] ¿Probaste en **light Y dark**? (toggle en el topbar). ¿Nada ilegible?
+- [ ] ¿`text-white` sólo sobre fondos de color (violet/gradiente/KPI)?
+- [ ] ¿Card = `bg-card` + `border-line` + `rounded-2xl`?
 - [ ] ¿Acento = violet, estados = emerald/amber/rose/blue con el patrón 300/500-10/500-30?
 - [ ] ¿Títulos con `font-display`, jerarquía de texto según §2?
 - [ ] ¿Inputs HeroUI con `labelPlacement="outside"` y forms con `flex flex-col gap-4`?
 - [ ] ¿Íconos lucide, tamaños consistentes?
-- [ ] ¿Sin colores/ radios/ librerías fuera de este doc? ¿Sin light mode?
 - [ ] ¿Strings traducibles? ¿`aria-label` en controles sin texto?
 - [ ] ¿Motion con variants de `@/lib/motion` y `APPLE_EASE`?
 

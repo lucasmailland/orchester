@@ -34,7 +34,7 @@ const STATUS_CONFIG = {
     dot: "bg-zinc-600",
     pulse: null,
     leftBorder: "border-l-zinc-700/40",
-    label: "text-zinc-500",
+    label: "text-muted",
   },
   draft: {
     dot: "bg-amber-400",
@@ -87,7 +87,7 @@ export function AgentRow({ id, name, role, model, status, teamId, teamName, syst
         whileHover={{ x: 2, transition: { duration: 0.15 } }}
         className={cn(
           "group relative flex items-center gap-4 rounded-xl border border-l-2 p-4",
-          "border-white/[0.07] bg-white/[0.03] hover:bg-white/[0.05]",
+          "border-white/[0.07] bg-card hover:bg-white/[0.05]",
           "transition-colors duration-200",
           s.leftBorder
         )}
@@ -110,8 +110,8 @@ export function AgentRow({ id, name, role, model, status, teamId, teamName, syst
 
         {/* Info */}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-zinc-100">{name}</p>
-          <p className="truncate text-xs text-zinc-500">{role}</p>
+          <p className="truncate text-sm font-semibold text-strong">{name}</p>
+          <p className="truncate text-xs text-muted">{role}</p>
         </div>
 
         {/* Status label + model */}
@@ -119,14 +119,14 @@ export function AgentRow({ id, name, role, model, status, teamId, teamName, syst
           <span
             className={cn(
               "rounded-md border border-zinc-700/50 bg-zinc-900 px-2 py-0.5 font-mono text-[11px]",
-              "text-zinc-400"
+              "text-muted"
             )}
           >
             {model}
           </span>
           <div className="flex items-center gap-1.5">
             {teamName && (
-              <span className="text-[11px] text-zinc-600">{teamName} ·</span>
+              <span className="text-[11px] text-faint">{teamName} ·</span>
             )}
             <span className={cn("text-[11px] font-medium", s.label)}>
               {statusLabels[status]}
@@ -139,13 +139,13 @@ export function AgentRow({ id, name, role, model, status, teamId, teamName, syst
           <div className="ml-2 flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
             <button
               onClick={() => setEditOpen(true)}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 hover:bg-white/[0.07] hover:text-zinc-300 transition-colors"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-body transition-colors"
             >
               <Pencil size={13} />
             </button>
             <button
               onClick={handleDelete}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-red-500/10 hover:text-red-400 transition-colors"
             >
               <Trash2 size={13} />
             </button>

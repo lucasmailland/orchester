@@ -23,7 +23,7 @@ interface Doc {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  pending: "text-zinc-500",
+  pending: "text-muted",
   parsing: "text-blue-400",
   embedding: "text-amber-400",
   ready: "text-emerald-400",
@@ -116,13 +116,13 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
         <button
           type="button"
           onClick={() => router.push(`/${locale}/knowledge`)}
-          className="text-zinc-400 hover:text-zinc-100"
+          className="text-muted hover:text-strong"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
         <div>
-          <h1 className="text-xl font-semibold text-zinc-100">{kb.name}</h1>
-          <p className="text-xs text-zinc-500">
+          <h1 className="text-xl font-semibold text-strong">{kb.name}</h1>
+          <p className="text-xs text-muted">
             {kb.description ?? "—"} ·{" "}
             <span className="font-mono">
               {kb.embeddingProvider}/{kb.embeddingModel}
@@ -139,8 +139,8 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
             onClick={() => setTab(t)}
             className={
               tab === t
-                ? "rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-zinc-100"
-                : "rounded-lg px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-300"
+                ? "rounded-lg bg-elevated px-3 py-1.5 text-xs text-strong"
+                : "rounded-lg px-3 py-1.5 text-xs text-muted hover:text-body"
             }
           >
             {t === "docs" ? "Documentos" : "Probar búsqueda"}
@@ -161,12 +161,12 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
           </div>
 
           {adding && (
-            <div className="space-y-2 rounded-xl border border-violet-500/30 bg-zinc-900/40 p-4">
+            <div className="space-y-2 rounded-xl border border-violet-500/30 bg-card p-4">
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Título del documento"
-                className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-violet-500/60"
+                className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
                 autoFocus
               />
               <div className="flex gap-2">
@@ -178,7 +178,7 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
                     className={
                       source === s
                         ? "rounded-md bg-violet-500/20 px-2.5 py-1 text-xs text-violet-300"
-                        : "rounded-md border border-white/[0.08] px-2.5 py-1 text-xs text-zinc-400 hover:bg-white/5"
+                        : "rounded-md border border-line px-2.5 py-1 text-xs text-muted hover:bg-hover"
                     }
                   >
                     {s === "text" ? "Pegar texto" : s === "url" ? "Desde URL" : "Subir PDF / DOCX"}
@@ -191,7 +191,7 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
                   onChange={(e) => setContent(e.target.value)}
                   rows={8}
                   placeholder="Pegá el texto del documento aquí…"
-                  className="w-full resize-none rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-2 font-mono text-xs text-zinc-100 outline-none focus:border-violet-500/60"
+                  className="w-full resize-none rounded-lg border border-line bg-elevated px-3 py-2 font-mono text-xs text-strong outline-none focus:border-violet-500/60"
                 />
               )}
               {source === "url" && (
@@ -199,7 +199,7 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="https://docs.midominio.com/article"
-                  className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-2 font-mono text-xs text-zinc-100 outline-none focus:border-violet-500/60"
+                  className="w-full rounded-lg border border-line bg-elevated px-3 py-2 font-mono text-xs text-strong outline-none focus:border-violet-500/60"
                 />
               )}
               {source === "file" && (
@@ -212,10 +212,10 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
                       setFile(f);
                       if (f && !title) setTitle(f.name);
                     }}
-                    className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-2 text-xs text-zinc-100 file:mr-3 file:rounded-md file:border-0 file:bg-violet-500/20 file:px-2 file:py-1 file:text-violet-300"
+                    className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-xs text-strong file:mr-3 file:rounded-md file:border-0 file:bg-violet-500/20 file:px-2 file:py-1 file:text-violet-300"
                   />
                   {file && (
-                    <p className="text-[10px] text-zinc-500">
+                    <p className="text-[10px] text-muted">
                       {file.name} · {(file.size / 1024).toFixed(1)} KB · {file.type || "?"}
                     </p>
                   )}
@@ -233,7 +233,7 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
                 <button
                   type="button"
                   onClick={() => setAdding(false)}
-                  className="text-xs text-zinc-400 hover:text-zinc-200"
+                  className="text-xs text-muted hover:text-body"
                 >
                   Cancelar
                 </button>
@@ -242,25 +242,25 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
           )}
 
           {docs.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-white/10 p-10 text-center">
-              <FileText className="mx-auto mb-3 h-8 w-8 text-zinc-600" />
-              <h3 className="text-sm font-medium text-zinc-200">Sin documentos</h3>
-              <p className="mt-1 text-xs text-zinc-500">Subí el primero arriba.</p>
+            <div className="rounded-2xl border border-dashed border-line p-10 text-center">
+              <FileText className="mx-auto mb-3 h-8 w-8 text-faint" />
+              <h3 className="text-sm font-medium text-body">Sin documentos</h3>
+              <p className="mt-1 text-xs text-muted">Subí el primero arriba.</p>
             </div>
           ) : (
             <div className="space-y-1.5">
               {docs.map((d) => (
                 <div
                   key={d.id}
-                  className="flex items-center justify-between rounded-xl border border-white/[0.08] bg-zinc-900/40 px-4 py-2.5"
+                  className="flex items-center justify-between rounded-xl border border-line bg-card px-4 py-2.5"
                 >
                   <div className="flex items-center gap-3">
-                    <FileText className="h-4 w-4 text-zinc-500" />
+                    <FileText className="h-4 w-4 text-muted" />
                     <div>
-                      <div className="text-sm text-zinc-100">{d.title}</div>
-                      <div className="text-[10px] text-zinc-600">
+                      <div className="text-sm text-strong">{d.title}</div>
+                      <div className="text-[10px] text-faint">
                         {d.source} · {d.chunkCount} chunks ·{" "}
-                        <span className={STATUS_COLOR[d.status] ?? "text-zinc-500"}>{d.status}</span>
+                        <span className={STATUS_COLOR[d.status] ?? "text-muted"}>{d.status}</span>
                         {d.error && <span className="text-red-400"> · {d.error}</span>}
                       </div>
                     </div>
@@ -268,7 +268,7 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
                   <button
                     type="button"
                     onClick={() => deleteDoc(d.id)}
-                    className="text-zinc-500 hover:text-red-400"
+                    className="text-muted hover:text-red-400"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -287,7 +287,7 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && search()}
               placeholder="Probá una búsqueda semántica…"
-              className="flex-1 rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-violet-500/60"
+              className="flex-1 rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
             />
             <button
               type="button"
@@ -304,15 +304,15 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
               {results.map((r, i) => (
                 <div
                   key={r.id}
-                  className="rounded-xl border border-white/[0.08] bg-zinc-900/40 p-3.5"
+                  className="rounded-xl border border-line bg-card p-3.5"
                 >
-                  <div className="mb-1.5 flex items-center justify-between text-[10px] uppercase tracking-wider text-zinc-500">
+                  <div className="mb-1.5 flex items-center justify-between text-[10px] uppercase tracking-wider text-muted">
                     <span>
                       #{i + 1} · {r.docTitle}
                     </span>
                     <span className="font-mono">score {r.score.toFixed(3)}</span>
                   </div>
-                  <p className="text-xs text-zinc-300">{r.text}</p>
+                  <p className="text-xs text-body">{r.text}</p>
                 </div>
               ))}
             </div>

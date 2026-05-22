@@ -183,10 +183,10 @@ export function ConversationsClient({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-zinc-100">
+          <h1 className="font-display text-2xl font-bold tracking-tight text-strong">
             Conversaciones
           </h1>
-          <p className="mt-1 text-sm text-zinc-500">
+          <p className="mt-1 text-sm text-muted">
             Cada interacción con un agente, en cada canal.
           </p>
         </div>
@@ -194,19 +194,19 @@ export function ConversationsClient({
           type="button"
           onClick={exportCsv}
           disabled={conversations.length === 0}
-          className="rounded-lg border border-white/[0.08] px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/5 disabled:opacity-40"
+          className="rounded-lg border border-line px-3 py-1.5 text-xs text-body hover:bg-hover disabled:opacity-40"
         >
           Exportar CSV
         </button>
       </div>
 
       {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.08] bg-zinc-900/40 p-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-card p-3">
         <div className="relative flex-1 min-w-[180px]">
           <label htmlFor="conv-search" className="sr-only">
             Buscar conversaciones
           </label>
-          <Search className="pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5 text-zinc-500" aria-hidden="true" />
+          <Search className="pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5 text-muted" aria-hidden="true" />
           <input
             id="conv-search"
             name="conv-search"
@@ -214,7 +214,7 @@ export function ConversationsClient({
             value={filters.search}
             onChange={(e) => setFilters({ ...filters, search: e.target.value })}
             placeholder="Buscar nombre, email o resumen…"
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 py-1.5 pl-8 pr-2 text-xs text-zinc-100 outline-none focus:border-violet-500/60"
+            className="w-full rounded-lg border border-line bg-elevated py-1.5 pl-8 pr-2 text-xs text-strong outline-none focus:border-violet-500/60"
           />
         </div>
         <label htmlFor="conv-filter-status" className="sr-only">
@@ -225,7 +225,7 @@ export function ConversationsClient({
           name="status"
           value={filters.status}
           onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-          className="rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-xs text-zinc-300 outline-none"
+          className="rounded-lg border border-line bg-elevated px-2 py-1.5 text-xs text-body outline-none"
         >
           <option value="">Estado · Todos</option>
           <option value="open">Abiertas</option>
@@ -240,7 +240,7 @@ export function ConversationsClient({
           name="channel"
           value={filters.channel}
           onChange={(e) => setFilters({ ...filters, channel: e.target.value })}
-          className="rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-xs text-zinc-300 outline-none"
+          className="rounded-lg border border-line bg-elevated px-2 py-1.5 text-xs text-body outline-none"
         >
           <option value="">Canal · Todos</option>
           <option value="widget">Web Widget</option>
@@ -258,7 +258,7 @@ export function ConversationsClient({
           name="agent"
           value={filters.agentId}
           onChange={(e) => setFilters({ ...filters, agentId: e.target.value })}
-          className="rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-xs text-zinc-300 outline-none"
+          className="rounded-lg border border-line bg-elevated px-2 py-1.5 text-xs text-body outline-none"
         >
           <option value="">Agente · Todos</option>
           {agents.map((a) => (
@@ -271,7 +271,7 @@ export function ConversationsClient({
           <select
             value={filters.tag}
             onChange={(e) => setFilters({ ...filters, tag: e.target.value })}
-            className="rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-xs text-zinc-300 outline-none"
+            className="rounded-lg border border-line bg-elevated px-2 py-1.5 text-xs text-body outline-none"
           >
             <option value="">Tag · Todos</option>
             {labels.map((l) => (
@@ -285,23 +285,23 @@ export function ConversationsClient({
 
       {/* List */}
       {loading ? (
-        <div className="text-xs text-zinc-500">Cargando…</div>
+        <div className="text-xs text-muted">Cargando…</div>
       ) : conversations.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-white/10 p-10 text-center">
-          <MessageSquare className="mx-auto mb-3 h-8 w-8 text-zinc-600" />
-          <h3 className="text-sm font-medium text-zinc-200">Sin conversaciones</h3>
-          <p className="mt-1 text-xs text-zinc-500">
+        <div className="rounded-2xl border border-dashed border-line p-10 text-center">
+          <MessageSquare className="mx-auto mb-3 h-8 w-8 text-faint" />
+          <h3 className="text-sm font-medium text-body">Sin conversaciones</h3>
+          <p className="mt-1 text-xs text-muted">
             Cuando un agente reciba mensajes, vas a verlos acá.
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-white/[0.06]">
+        <div className="overflow-hidden rounded-2xl border border-line">
           {conversations.map((c) => (
             <button
               key={c.id}
               type="button"
               onClick={() => setSelected(c)}
-              className="flex w-full items-center gap-3 border-b border-white/[0.05] bg-zinc-900/30 px-4 py-3 text-left text-xs hover:bg-zinc-900/60 last:border-b-0"
+              className="flex w-full items-center gap-3 border-b border-line bg-card px-4 py-3 text-left text-xs hover:bg-card last:border-b-0"
             >
               <div
                 className={
@@ -313,13 +313,13 @@ export function ConversationsClient({
                 }
               />
               <div className="flex-1">
-                <div className="flex items-center gap-2 text-zinc-100">
+                <div className="flex items-center gap-2 text-strong">
                   <span className="font-medium">
                     {c.employeeName ?? c.customerName ?? c.customerEmail ?? c.employeeEmail ?? "Anónimo"}
                   </span>
                   {c.agentName && (
-                    <span className="text-[10px] text-zinc-500">
-                      con <span className="text-zinc-300">{c.agentName}</span>
+                    <span className="text-[10px] text-muted">
+                      con <span className="text-body">{c.agentName}</span>
                     </span>
                   )}
                   {c.takenOverAt && (
@@ -336,7 +336,7 @@ export function ConversationsClient({
                     </span>
                   ))}
                 </div>
-                <div className="mt-0.5 text-[10px] text-zinc-500">
+                <div className="mt-0.5 text-[10px] text-muted">
                   {c.channelType ?? "—"} · {c.messageCount} mensajes ·{" "}
                   {new Date(c.startedAt).toLocaleString()}
                   {c.csat != null && ` · CSAT ${c.csat}/5`}
@@ -347,22 +347,22 @@ export function ConversationsClient({
                   )}
                 </div>
               </div>
-              <span className="text-[10px] text-zinc-600">{STATUS_LABEL[c.status]}</span>
+              <span className="text-[10px] text-faint">{STATUS_LABEL[c.status]}</span>
             </button>
           ))}
           {hasMore && (
-            <div className="flex items-center justify-center border-t border-white/[0.05] bg-zinc-900/40 py-3">
+            <div className="flex items-center justify-center border-t border-line bg-card py-3">
               <button
                 type="button"
                 onClick={loadMore}
                 disabled={loadingMore}
-                className="rounded-lg border border-white/10 bg-white/[0.02] px-4 py-1.5 text-xs text-zinc-300 transition-colors hover:border-violet-500/40 hover:bg-violet-500/5 disabled:opacity-50"
+                className="rounded-lg border border-line bg-card px-4 py-1.5 text-xs text-body transition-colors hover:border-violet-500/40 hover:bg-violet-500/5 disabled:opacity-50"
               >
                 {loadingMore ? "Cargando…" : `Cargar ${PAGE_SIZE} más`}
               </button>
             </div>
           )}
-          <div className="border-t border-white/[0.05] bg-zinc-900/20 px-4 py-2 text-center text-[10px] text-zinc-600">
+          <div className="border-t border-line bg-card px-4 py-2 text-center text-[10px] text-faint">
             Mostrando {conversations.length} {hasMore ? "(hay más)" : ""}
           </div>
         </div>
@@ -466,30 +466,30 @@ function ConversationDrawer({
   return (
     <div className="fixed inset-0 z-40 flex">
       <div className="flex-1 bg-black/50" onClick={onClose} />
-      <div className="flex h-full w-[560px] flex-col border-l border-white/[0.06] bg-zinc-950">
-        <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
-          <div className="flex items-center gap-2 text-sm text-zinc-100">
-            <User className="h-4 w-4 text-zinc-500" />
+      <div className="flex h-full w-[560px] flex-col border-l border-line bg-surface">
+        <div className="flex items-center justify-between border-b border-line px-5 py-3">
+          <div className="flex items-center gap-2 text-sm text-strong">
+            <User className="h-4 w-4 text-muted" />
             <span className="font-medium">
               {conversation.employeeName ?? conversation.customerName ?? conversation.customerEmail ?? conversation.employeeEmail ?? "Anónimo"}
             </span>
             {conversation.agentName && (
-              <span className="text-[11px] text-zinc-500">· con {conversation.agentName}</span>
+              <span className="text-[11px] text-muted">· con {conversation.agentName}</span>
             )}
-            <span className="text-[11px] text-zinc-500">· {conversation.channelType}</span>
+            <span className="text-[11px] text-muted">· {conversation.channelType}</span>
           </div>
-          <button onClick={onClose} type="button" className="text-zinc-500 hover:text-zinc-200">
+          <button onClick={onClose} type="button" className="text-muted hover:text-body">
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Resumen de costo + budget del empleado (Sprint C3) */}
         {(totalCost > 0 || budget) && (
-          <div className="flex flex-wrap items-center gap-3 border-b border-white/[0.06] bg-zinc-900/40 px-5 py-2 text-[11px]">
+          <div className="flex flex-wrap items-center gap-3 border-b border-line bg-card px-5 py-2 text-[11px]">
             <div className="flex items-center gap-1.5 text-emerald-300">
               <DollarSign className="h-3 w-3" />
               <span className="font-medium">{fmtUsd(totalCost)}</span>
-              <span className="text-zinc-600">
+              <span className="text-faint">
                 · {totalTokens.toLocaleString()} tokens
               </span>
             </div>
@@ -497,18 +497,18 @@ function ConversationDrawer({
               <BudgetMeter budget={budget} />
             )}
             {budget && budget.budgetUsd == null && budget.spentUsd > 0 && (
-              <span className="text-zinc-500">
+              <span className="text-muted">
                 Empleado: {fmtUsd(budget.spentUsd)} este mes (sin límite)
               </span>
             )}
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] px-5 py-2.5 text-xs">
+        <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-2.5 text-xs">
           <select
             value={status}
             onChange={(e) => changeStatus(e.target.value as "open" | "closed" | "escalated")}
-            className="rounded-md border border-white/[0.08] bg-zinc-800/40 px-2 py-1 text-zinc-200 outline-none"
+            className="rounded-md border border-line bg-elevated px-2 py-1 text-body outline-none"
           >
             <option value="open">Abierta</option>
             <option value="escalated">Escalada</option>
@@ -534,7 +534,7 @@ function ConversationDrawer({
             </button>
           )}
           <div className="flex items-center gap-1.5">
-            <TagIcon className="h-3 w-3 text-zinc-500" />
+            <TagIcon className="h-3 w-3 text-muted" />
             {labels.map((l) => (
               <button
                 key={l.id}
@@ -543,7 +543,7 @@ function ConversationDrawer({
                 className={
                   tags.includes(l.name)
                     ? "rounded-md bg-violet-500/25 px-1.5 py-0.5 text-[10px] text-violet-200"
-                    : "rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-zinc-500 hover:text-zinc-300"
+                    : "rounded-md border border-line px-1.5 py-0.5 text-[10px] text-muted hover:text-body"
                 }
               >
                 {l.name}
@@ -565,10 +565,10 @@ function ConversationDrawer({
                 key={m.id}
                 className={
                   m.role === "user"
-                    ? "ml-auto max-w-[80%] rounded-2xl rounded-br-sm bg-zinc-800 px-3 py-2 text-sm text-zinc-100"
+                    ? "ml-auto max-w-[80%] rounded-2xl rounded-br-sm bg-elevated px-3 py-2 text-sm text-strong"
                     : isBudgetExceeded
                     ? "mr-auto max-w-[80%] rounded-2xl rounded-bl-sm border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-100"
-                    : "mr-auto max-w-[80%] rounded-2xl rounded-bl-sm border border-white/5 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-100"
+                    : "mr-auto max-w-[80%] rounded-2xl rounded-bl-sm border border-line bg-card px-3 py-2 text-sm text-strong"
                 }
               >
                 {m.fromOperator && (
@@ -590,10 +590,10 @@ function ConversationDrawer({
                 {/* Footer: tokens + costo + modelo. Solo en mensajes del agente que sí
                     consumieron LLM (budget_exceeded los muestra el banner rojo). */}
                 {m.role === "assistant" && !m.fromOperator && (m.tokensUsed ?? 0) > 0 && (
-                  <div className="mt-1 flex items-center gap-2 border-t border-white/5 pt-1 text-[9px] text-zinc-500">
+                  <div className="mt-1 flex items-center gap-2 border-t border-line pt-1 text-[9px] text-muted">
                     <span>{m.tokensUsed} tokens</span>
                     {cost > 0 && <span className="text-emerald-400/70">{fmtUsd(cost)}</span>}
-                    {m.model && <span className="text-zinc-600">{m.model}</span>}
+                    {m.model && <span className="text-faint">{m.model}</span>}
                   </div>
                 )}
               </div>
@@ -601,7 +601,7 @@ function ConversationDrawer({
           })}
         </div>
 
-        <div className="border-t border-white/[0.06] p-3">
+        <div className="border-t border-line p-3">
           <textarea
             value={reply}
             onChange={(e) => setReply(e.target.value)}
@@ -616,7 +616,7 @@ function ConversationDrawer({
               conversation.takenOverAt ? "Responder como operador…" : "Tomá la conversación para escribir como humano"
             }
             disabled={!conversation.takenOverAt && conversation.status !== "escalated"}
-            className="w-full resize-none rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 outline-none focus:border-violet-500/60 disabled:opacity-50"
+            className="w-full resize-none rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong placeholder:text-faint outline-none focus:border-violet-500/60 disabled:opacity-50"
           />
           <button
             type="button"

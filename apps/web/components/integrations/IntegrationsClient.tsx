@@ -98,7 +98,7 @@ export function IntegrationsClient() {
     load();
   }
 
-  if (loading) return <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />;
+  if (loading) return <Loader2 className="h-5 w-5 animate-spin text-muted" />;
 
   const configuredByType = new Set(configured.map((c) => c.type));
 
@@ -107,7 +107,7 @@ export function IntegrationsClient() {
       {/* Configured */}
       {configured.length > 0 && (
         <div>
-          <h2 className="mb-2 text-sm font-medium text-zinc-300">Conectadas</h2>
+          <h2 className="mb-2 text-sm font-medium text-body">Conectadas</h2>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             {configured.map((c) => {
               const Icon = ICONS[c.type] ?? Plug;
@@ -115,15 +115,15 @@ export function IntegrationsClient() {
               return (
                 <div
                   key={c.id}
-                  className="rounded-2xl border border-white/[0.08] bg-zinc-900/40 p-4"
+                  className="rounded-2xl border border-line bg-card p-4"
                 >
                   <div className="mb-2 flex items-center gap-2.5">
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/15 text-violet-300">
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium text-zinc-100">{c.name}</div>
-                      <div className="text-[10px] text-zinc-500">{conn?.name ?? c.type}</div>
+                      <div className="truncate font-medium text-strong">{c.name}</div>
+                      <div className="text-[10px] text-muted">{conn?.name ?? c.type}</div>
                     </div>
                     {c.status === "connected" ? (
                       <span className="flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-300">
@@ -134,7 +134,7 @@ export function IntegrationsClient() {
                         <AlertCircle className="h-2.5 w-2.5" /> Error
                       </span>
                     ) : (
-                      <span className="rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-zinc-500">
+                      <span className="rounded-md border border-line px-1.5 py-0.5 text-[10px] text-muted">
                         sin probar
                       </span>
                     )}
@@ -146,7 +146,7 @@ export function IntegrationsClient() {
                     <button
                       type="button"
                       onClick={() => test(c.id)}
-                      className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-white/10 py-1.5 text-xs text-zinc-300 hover:bg-white/5"
+                      className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-line py-1.5 text-xs text-body hover:bg-hover"
                     >
                       <RefreshCw className="h-3 w-3" /> Probar
                     </button>
@@ -154,7 +154,7 @@ export function IntegrationsClient() {
                       <button
                         type="button"
                         onClick={() => setModal({ connector: conn, editId: c.id })}
-                        className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/5"
+                        className="rounded-lg border border-line px-3 py-1.5 text-xs text-body hover:bg-hover"
                       >
                         Editar
                       </button>
@@ -163,7 +163,7 @@ export function IntegrationsClient() {
                       type="button"
                       onClick={() => remove(c.id, c.name)}
                       aria-label={`Eliminar ${c.name}`}
-                      className="rounded-lg border border-white/10 px-2 py-1.5 text-zinc-500 hover:bg-rose-500/10 hover:text-rose-400"
+                      className="rounded-lg border border-line px-2 py-1.5 text-muted hover:bg-rose-500/10 hover:text-rose-400"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -177,7 +177,7 @@ export function IntegrationsClient() {
 
       {/* Catalog */}
       <div>
-        <h2 className="mb-2 text-sm font-medium text-zinc-300">Disponibles</h2>
+        <h2 className="mb-2 text-sm font-medium text-body">Disponibles</h2>
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {catalog.map((c) => {
             const Icon = ICONS[c.id] ?? Plug;
@@ -185,22 +185,22 @@ export function IntegrationsClient() {
             return (
               <div
                 key={c.id}
-                className="flex h-full flex-col rounded-2xl border border-white/[0.08] bg-zinc-900/40 p-4"
+                className="flex h-full flex-col rounded-2xl border border-line bg-card p-4"
               >
                 <div className="mb-2 flex items-center gap-2.5">
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400">
                     <Icon className="h-4 w-4" />
                   </div>
-                  <div className="font-medium text-zinc-100">{c.name}</div>
+                  <div className="font-medium text-strong">{c.name}</div>
                   {c.needsOAuthApp && (
                     <span className="ml-auto rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-300">
                       OAuth
                     </span>
                   )}
                 </div>
-                <p className="flex-1 text-xs leading-relaxed text-zinc-500">{c.description}</p>
+                <p className="flex-1 text-xs leading-relaxed text-muted">{c.description}</p>
                 {c.actions.length > 0 && (
-                  <p className="mt-2 text-[10px] text-zinc-600">
+                  <p className="mt-2 text-[10px] text-faint">
                     {c.actions.length} acción{c.actions.length !== 1 && "es"} para agentes
                   </p>
                 )}
@@ -217,7 +217,7 @@ export function IntegrationsClient() {
         </div>
       </div>
 
-      <p className="rounded-xl border border-white/[0.06] bg-zinc-900/30 p-4 text-xs text-zinc-500">
+      <p className="rounded-xl border border-line bg-card p-4 text-xs text-muted">
         💡 Las integraciones conectadas exponen sus acciones como <strong>tools</strong> que los
         agentes pueden usar. Las credenciales se guardan encriptadas (AES-256-GCM).
       </p>
@@ -280,12 +280,12 @@ function ConfigModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-2xl border border-white/[0.08] bg-zinc-950 p-5">
+      <div className="relative w-full max-w-md rounded-2xl border border-line bg-surface p-5">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-display text-lg font-semibold text-zinc-100">
+          <h3 className="font-display text-lg font-semibold text-strong">
             Conectar {connector.name}
           </h3>
-          <button onClick={onClose} type="button" className="text-zinc-500 hover:text-zinc-200">
+          <button onClick={onClose} type="button" className="text-muted hover:text-body">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -297,16 +297,16 @@ function ConfigModal({
         )}
         <div className="space-y-3">
           <div>
-            <label className="mb-1 block text-xs text-zinc-400">Nombre</label>
+            <label className="mb-1 block text-xs text-muted">Nombre</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-violet-500/60"
+              className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
             />
           </div>
           {connector.fields.map((f) => (
             <div key={f.key}>
-              <label className="mb-1 block text-xs text-zinc-400">
+              <label className="mb-1 block text-xs text-muted">
                 {f.label}
                 {f.required && <span className="text-rose-400"> *</span>}
               </label>
@@ -315,9 +315,9 @@ function ConfigModal({
                 placeholder={f.placeholder}
                 value={config[f.key] ?? ""}
                 onChange={(e) => setConfig((p) => ({ ...p, [f.key]: e.target.value }))}
-                className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 outline-none focus:border-violet-500/60"
+                className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
               />
-              {f.help && <p className="mt-1 text-[10px] text-zinc-600">{f.help}</p>}
+              {f.help && <p className="mt-1 text-[10px] text-faint">{f.help}</p>}
             </div>
           ))}
         </div>

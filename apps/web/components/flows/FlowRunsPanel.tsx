@@ -47,30 +47,30 @@ export function FlowRunsPanel({
 
   if (!open) return null;
   return (
-    <div className="absolute right-0 top-0 z-30 flex h-full w-[420px] flex-col border-l border-white/[0.06] bg-zinc-950">
-      <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
-        <span className="flex items-center gap-2 text-sm text-zinc-200">
+    <div className="absolute right-0 top-0 z-30 flex h-full w-[420px] flex-col border-l border-line bg-surface">
+      <div className="flex items-center justify-between border-b border-line px-4 py-3">
+        <span className="flex items-center gap-2 text-sm text-body">
           <History className="h-4 w-4" /> Ejecuciones
         </span>
-        <button onClick={onClose} type="button" className="text-zinc-500 hover:text-zinc-200">
+        <button onClick={onClose} type="button" className="text-muted hover:text-body">
           <X className="h-4 w-4" />
         </button>
       </div>
       {!selected ? (
         <div className="flex-1 overflow-y-auto p-3">
           {runs.length === 0 && (
-            <div className="text-xs text-zinc-500">Aún no hubo ejecuciones.</div>
+            <div className="text-xs text-muted">Aún no hubo ejecuciones.</div>
           )}
           {runs.map((r) => (
             <button
               key={r.id}
               type="button"
               onClick={() => pickRun(r)}
-              className="mb-1.5 flex w-full items-center justify-between rounded-lg border border-white/[0.06] bg-zinc-900/40 px-3 py-2 text-left text-xs hover:bg-zinc-900"
+              className="mb-1.5 flex w-full items-center justify-between rounded-lg border border-line bg-card px-3 py-2 text-left text-xs hover:bg-zinc-900"
             >
               <div>
-                <div className="text-zinc-200">{r.triggerSource ?? "trigger"}</div>
-                <div className="text-[10px] text-zinc-500">
+                <div className="text-body">{r.triggerSource ?? "trigger"}</div>
+                <div className="text-[10px] text-muted">
                   {new Date(r.startedAt).toLocaleString()}
                 </div>
               </div>
@@ -83,12 +83,12 @@ export function FlowRunsPanel({
                       ? "text-red-400"
                       : r.status === "running"
                       ? "text-amber-400"
-                      : "text-zinc-500"
+                      : "text-muted"
                   }
                 >
                   {r.status}
                 </span>
-                <ChevronRight className="h-3 w-3 text-zinc-600" />
+                <ChevronRight className="h-3 w-3 text-faint" />
               </div>
             </button>
           ))}
@@ -98,13 +98,13 @@ export function FlowRunsPanel({
           <button
             type="button"
             onClick={() => setSelected(null)}
-            className="mb-2 text-[11px] text-zinc-500 hover:text-zinc-200"
+            className="mb-2 text-[11px] text-muted hover:text-body"
           >
             ← Volver
           </button>
-          <div className="mb-3 rounded-lg border border-white/[0.06] bg-zinc-900/40 p-3 text-xs">
-            <div className="text-zinc-200">{selected.run.status}</div>
-            <div className="text-[10px] text-zinc-500">
+          <div className="mb-3 rounded-lg border border-line bg-card p-3 text-xs">
+            <div className="text-body">{selected.run.status}</div>
+            <div className="text-[10px] text-muted">
               {new Date(selected.run.startedAt).toLocaleString()}
             </div>
             {selected.run.error && (
@@ -113,21 +113,21 @@ export function FlowRunsPanel({
               </div>
             )}
           </div>
-          <div className="text-[10px] uppercase tracking-wider text-zinc-500">Pasos</div>
+          <div className="text-[10px] uppercase tracking-wider text-muted">Pasos</div>
           {selected.steps.map((s) => (
             <div
               key={s.id}
-              className="mt-1.5 rounded-lg border border-white/[0.06] bg-zinc-900/40 px-3 py-2 text-[11px]"
+              className="mt-1.5 rounded-lg border border-line bg-card px-3 py-2 text-[11px]"
             >
               <div className="flex items-center justify-between">
-                <span className="text-zinc-200">{s.nodeType}</span>
+                <span className="text-body">{s.nodeType}</span>
                 <span
                   className={
                     s.status === "succeeded"
                       ? "text-emerald-400"
                       : s.status === "failed"
                       ? "text-red-400"
-                      : "text-zinc-500"
+                      : "text-muted"
                   }
                 >
                   {s.status}
@@ -135,7 +135,7 @@ export function FlowRunsPanel({
               </div>
               {s.error && <div className="mt-1 text-red-300">{s.error}</div>}
               {s.output != null && (
-                <pre className="mt-1 max-h-32 overflow-y-auto rounded bg-black/40 p-2 font-mono text-[10px] text-zinc-300">
+                <pre className="mt-1 max-h-32 overflow-y-auto rounded bg-black/40 p-2 font-mono text-[10px] text-body">
                   {JSON.stringify(s.output, null, 2)}
                 </pre>
               )}

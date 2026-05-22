@@ -59,7 +59,7 @@ export function NotificationsSection() {
       description="Elegí qué eventos te disparan un mail. Tus preferencias son personales — no afectan al resto del workspace."
     >
       {prefs === null ? (
-        <div className="flex items-center gap-2 text-xs text-zinc-500">
+        <div className="flex items-center gap-2 text-xs text-muted">
           <Loader2 className="h-3 w-3 animate-spin" /> Cargando…
         </div>
       ) : (
@@ -67,8 +67,8 @@ export function NotificationsSection() {
           {prefs.map((p) => (
             <div key={p.key} className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-sm text-zinc-200">{p.label}</p>
-                <p className="text-xs text-zinc-600">{p.description}</p>
+                <p className="text-sm text-body">{p.label}</p>
+                <p className="text-xs text-faint">{p.description}</p>
                 {p.source !== "user" && (
                   <p className="mt-0.5 text-[10px] text-zinc-700">
                     Default {p.source === "workspace" ? "del workspace" : "del sistema"} · cambialo
@@ -78,7 +78,7 @@ export function NotificationsSection() {
               </div>
               <div className="flex items-center gap-2">
                 {busyKey === p.key && (
-                  <Loader2 className="h-3 w-3 animate-spin text-zinc-500" />
+                  <Loader2 className="h-3 w-3 animate-spin text-muted" />
                 )}
                 <Toggle
                   checked={p.enabled}

@@ -116,7 +116,7 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
 
   if (!workspace || !me) {
     return (
-      <div className="flex h-64 items-center justify-center text-sm text-zinc-500">
+      <div className="flex h-64 items-center justify-center text-sm text-muted">
         No se pudo cargar el workspace.
       </div>
     );
@@ -125,10 +125,10 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-zinc-100">
+        <h1 className="font-display text-2xl font-bold tracking-tight text-strong">
           {labels.title}
         </h1>
-        <p className="mt-1 text-sm text-zinc-500">{labels.subtitle}</p>
+        <p className="mt-1 text-sm text-muted">{labels.subtitle}</p>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
@@ -155,7 +155,7 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
                           : "bg-violet-500/15 text-violet-200"
                         : isDanger
                         ? "text-red-400/80 hover:bg-red-500/5 hover:text-red-300"
-                        : "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-200"
+                        : "text-muted hover:bg-hover hover:text-body"
                     )}
                   >
                     <tab.icon size={14} aria-hidden="true" />

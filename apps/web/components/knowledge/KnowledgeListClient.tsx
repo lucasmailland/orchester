@@ -52,8 +52,8 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-zinc-100">Conocimiento</h1>
-          <p className="text-sm text-zinc-500">
+          <h1 className="text-xl font-semibold text-strong">Conocimiento</h1>
+          <p className="text-sm text-muted">
             Subí documentos para que tus agentes puedan responder con tu información (RAG).
           </p>
         </div>
@@ -67,26 +67,26 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
       </div>
 
       {creating && (
-        <div className="space-y-2 rounded-2xl border border-violet-500/30 bg-zinc-900/40 p-4">
+        <div className="space-y-2 rounded-2xl border border-violet-500/30 bg-card p-4">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Nombre — ej. Documentación interna"
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-violet-500/60"
+            className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
             autoFocus
           />
           <input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Descripción (opcional)"
-            className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-violet-500/60"
+            className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
           />
           <div className="flex items-center gap-2">
-            <label className="text-xs text-zinc-500">Embeddings:</label>
+            <label className="text-xs text-muted">Embeddings:</label>
             <select
               value={provider}
               onChange={(e) => setProvider(e.target.value as "openai" | "google")}
-              className="rounded-lg border border-white/[0.08] bg-zinc-800/40 px-2 py-1.5 text-xs text-zinc-100 outline-none"
+              className="rounded-lg border border-line bg-elevated px-2 py-1.5 text-xs text-strong outline-none"
             >
               <option value="openai">OpenAI · text-embedding-3-small (1536d)</option>
               <option value="google">Google · text-embedding-004 (768d)</option>
@@ -103,7 +103,7 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
             <button
               type="button"
               onClick={() => setCreating(false)}
-              className="text-xs text-zinc-400 hover:text-zinc-200"
+              className="text-xs text-muted hover:text-body"
             >
               Cancelar
             </button>
@@ -112,10 +112,10 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
       )}
 
       {kbs.length === 0 && !creating && (
-        <div className="rounded-2xl border border-dashed border-white/10 p-10 text-center">
-          <BookOpen className="mx-auto mb-3 h-8 w-8 text-zinc-600" />
-          <h3 className="text-sm font-medium text-zinc-200">Aún no hay bases de conocimiento</h3>
-          <p className="mt-1 text-xs text-zinc-500">
+        <div className="rounded-2xl border border-dashed border-line p-10 text-center">
+          <BookOpen className="mx-auto mb-3 h-8 w-8 text-faint" />
+          <h3 className="text-sm font-medium text-body">Aún no hay bases de conocimiento</h3>
+          <p className="mt-1 text-xs text-muted">
             Creá la primera y subí documentos para alimentar a tus agentes.
           </p>
         </div>
@@ -129,14 +129,14 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             onClick={() => router.push(`/${locale}/knowledge/${kb.id}`)}
-            className="rounded-2xl border border-white/[0.08] bg-zinc-900/40 p-4 text-left hover:border-violet-500/40"
+            className="rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
           >
             <div className="mb-2 flex items-center gap-2">
               <BookOpen className="h-4 w-4 text-violet-400" />
-              <span className="font-medium text-zinc-100">{kb.name}</span>
+              <span className="font-medium text-strong">{kb.name}</span>
             </div>
-            <p className="line-clamp-2 text-xs text-zinc-500">{kb.description ?? "—"}</p>
-            <div className="mt-3 flex items-center gap-1.5 text-[10px] text-zinc-600">
+            <p className="line-clamp-2 text-xs text-muted">{kb.description ?? "—"}</p>
+            <div className="mt-3 flex items-center gap-1.5 text-[10px] text-faint">
               <Sparkles className="h-3 w-3" />
               <span className="font-mono">{kb.embeddingProvider}/{kb.embeddingModel}</span>
             </div>

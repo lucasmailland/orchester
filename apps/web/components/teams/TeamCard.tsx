@@ -31,7 +31,7 @@ export function TeamCard({ id, name, description, avatarColor, agentCount, chann
         href={`/${locale}/teams/${id}`}
         className={cn(
           "group relative block overflow-hidden rounded-2xl",
-          "border border-white/[0.08] bg-white/[0.03]",
+          "border border-line bg-card",
           "hover:border-white/[0.14] hover:bg-white/[0.055]",
           "transition-all duration-200"
         )}
@@ -58,22 +58,22 @@ export function TeamCard({ id, name, description, avatarColor, agentCount, chann
 
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
-                <h3 className="truncate text-sm font-semibold text-zinc-100">{name}</h3>
-                <ChevronRight size={14} className="shrink-0 text-zinc-600 transition-colors group-hover:text-zinc-400" />
+                <h3 className="truncate text-sm font-semibold text-strong">{name}</h3>
+                <ChevronRight size={14} className="shrink-0 text-faint transition-colors group-hover:text-muted" />
               </div>
               {description && (
-                <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-zinc-500">{description}</p>
+                <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted">{description}</p>
               )}
               {/* Stats row */}
               <div className="mt-3 flex items-center gap-4">
-                <span className="flex items-center gap-1.5 text-xs text-zinc-500">
-                  <Bot size={11} className="text-zinc-600" />
-                  <span className="font-semibold text-zinc-300">{agentCount}</span>
+                <span className="flex items-center gap-1.5 text-xs text-muted">
+                  <Bot size={11} className="text-faint" />
+                  <span className="font-semibold text-body">{agentCount}</span>
                   {agentCount === 1 ? " agente" : " agentes"}
                 </span>
-                <span className="flex items-center gap-1.5 text-xs text-zinc-500">
-                  <Radio size={11} className="text-zinc-600" />
-                  <span className="font-semibold text-zinc-300">{channelCount}</span>
+                <span className="flex items-center gap-1.5 text-xs text-muted">
+                  <Radio size={11} className="text-faint" />
+                  <span className="font-semibold text-body">{channelCount}</span>
                   {channelCount === 1 ? " canal" : " canales"}
                 </span>
               </div>

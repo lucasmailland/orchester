@@ -7,7 +7,7 @@ export function ConditionNode({ data }: NodeProps) {
   const d = data as { label: string; subtitle?: string };
   return (
     <div
-      className="relative min-w-[200px] rounded-xl border border-white/[0.08] bg-zinc-900/95 px-3 py-3 shadow-md"
+      className="relative min-w-[200px] rounded-xl border border-line bg-zinc-900/95 px-3 py-3 shadow-md"
       style={{ borderLeftWidth: 3, borderLeftColor: "#f59e0b" }}
     >
       <Handle type="target" position={Position.Left} />
@@ -16,8 +16,8 @@ export function ConditionNode({ data }: NodeProps) {
           <GitBranch className="h-4 w-4" />
         </div>
         <div>
-          <div className="text-xs font-medium text-zinc-100">{d.label}</div>
-          {d.subtitle && <div className="text-[10px] text-zinc-500">{d.subtitle}</div>}
+          <div className="text-xs font-medium text-strong">{d.label}</div>
+          {d.subtitle && <div className="text-[10px] text-muted">{d.subtitle}</div>}
         </div>
       </div>
       <Handle

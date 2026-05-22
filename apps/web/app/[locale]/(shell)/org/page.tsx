@@ -12,10 +12,10 @@ export default async function OrgPage({
   return (
     <div className="space-y-3">
       <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-zinc-100">
+        <h1 className="font-display text-2xl font-bold tracking-tight text-strong">
           {t("title")}
         </h1>
-        <p className="mt-1 text-sm text-zinc-500">
+        <p className="mt-1 text-sm text-muted">
           La jerarquía de tu IA: equipos de agentes que orquestan flujos. Click en un nodo para abrirlo.
         </p>
       </div>

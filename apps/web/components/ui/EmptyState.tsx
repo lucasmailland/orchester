@@ -32,7 +32,7 @@ export function EmptyState({
       transition={{ duration: 0.35, ease: APPLE_EASE }}
       className={cn(
         "flex flex-col items-center justify-center gap-5 rounded-2xl",
-        "border border-dashed border-white/[0.09] bg-white/[0.02] p-14",
+        "border border-dashed border-white/[0.09] bg-card p-14",
         className
       )}
     >
@@ -45,9 +45,9 @@ export function EmptyState({
       )}
 
       <div className="space-y-1.5 text-center">
-        <h3 className="text-sm font-semibold text-zinc-200">{title}</h3>
+        <h3 className="text-sm font-semibold text-body">{title}</h3>
         {description && (
-          <p className="max-w-xs text-sm leading-relaxed text-zinc-500">{description}</p>
+          <p className="max-w-xs text-sm leading-relaxed text-muted">{description}</p>
         )}
       </div>
 

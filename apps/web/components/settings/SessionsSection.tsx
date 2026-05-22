@@ -81,11 +81,11 @@ export function SessionsSection() {
   return (
     <div className="space-y-4">
       {sessions === null ? (
-        <div className="flex items-center gap-2 text-xs text-zinc-500">
+        <div className="flex items-center gap-2 text-xs text-muted">
           <Loader2 className="h-3 w-3 animate-spin" /> Cargando…
         </div>
       ) : sessions.length === 0 ? (
-        <p className="text-xs text-zinc-500">Sin sesiones activas.</p>
+        <p className="text-xs text-muted">Sin sesiones activas.</p>
       ) : (
         <ul className="space-y-2">
           {sessions
@@ -94,21 +94,21 @@ export function SessionsSection() {
               <li
                 key={s.id}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg border bg-zinc-900/40 px-3 py-2.5 text-xs",
-                  s.isCurrent ? "border-emerald-500/30" : "border-white/[0.06]"
+                  "flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5 text-xs",
+                  s.isCurrent ? "border-emerald-500/30" : "border-line"
                 )}
               >
-                <div className="text-zinc-400">{deviceIcon(s.userAgent)}</div>
+                <div className="text-muted">{deviceIcon(s.userAgent)}</div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-zinc-100">{deviceLabel(s.userAgent)}</span>
+                    <span className="text-strong">{deviceLabel(s.userAgent)}</span>
                     {s.isCurrent && (
                       <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-emerald-300">
                         actual
                       </span>
                     )}
                   </div>
-                  <div className="text-[10px] text-zinc-500">
+                  <div className="text-[10px] text-muted">
                     {s.ipAddress ?? "IP desconocida"} · creada{" "}
                     {new Date(s.createdAt).toLocaleString()} · expira{" "}
                     {new Date(s.expiresAt).toLocaleDateString()}
@@ -120,7 +120,7 @@ export function SessionsSection() {
                     onClick={() => void revoke(s.id)}
                     disabled={busyId === s.id}
                     aria-label="Cerrar esta sesión"
-                    className="text-zinc-500 hover:text-red-400 disabled:opacity-50"
+                    className="text-muted hover:text-red-400 disabled:opacity-50"
                   >
                     {busyId === s.id ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -135,7 +135,7 @@ export function SessionsSection() {
       )}
 
       {sessions && sessions.length > 1 && (
-        <div className="border-t border-white/[0.06] pt-3">
+        <div className="border-t border-line pt-3">
           <button
             type="button"
             onClick={() => void revokeAll()}
@@ -145,7 +145,7 @@ export function SessionsSection() {
             {busyAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldOff className="h-3.5 w-3.5" />}
             Cerrar todas las otras sesiones
           </button>
-          <p className="mt-1.5 text-[11px] text-zinc-500">
+          <p className="mt-1.5 text-[11px] text-muted">
             Útil si sospechás que alguien tiene acceso a tu cuenta. Tu sesión actual no se cierra.
           </p>
         </div>

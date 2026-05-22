@@ -30,7 +30,7 @@ const ACTION_TONE: Record<string, string> = {
 function actionTone(action: string): string {
   const verb = action.split(".").pop() ?? "";
   return (
-    ACTION_TONE[verb] ?? "text-zinc-300 bg-zinc-500/10 border-zinc-500/30"
+    ACTION_TONE[verb] ?? "text-body bg-zinc-500/10 border-zinc-500/30"
   );
 }
 
@@ -91,21 +91,21 @@ export function AuditLogSection() {
       </div>
 
       {rows === null ? (
-        <div className="flex items-center gap-2 text-xs text-zinc-500">
+        <div className="flex items-center gap-2 text-xs text-muted">
           <Loader2 className="h-3 w-3 animate-spin" /> Cargando…
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex items-center gap-2 rounded-lg border border-dashed border-white/10 px-3 py-6 text-xs text-zinc-500">
+        <div className="flex items-center gap-2 rounded-lg border border-dashed border-line px-3 py-6 text-xs text-muted">
           <ScrollText className="h-4 w-4" />
           {rows.length === 0 ? "Sin actividad registrada todavía." : "Sin matches."}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-white/[0.06]">
+        <div className="overflow-hidden rounded-xl border border-line">
           <ul>
             {filtered.map((r) => (
               <li
                 key={r.id}
-                className="grid grid-cols-[110px_1fr_auto] items-start gap-3 border-b border-white/[0.04] bg-zinc-900/30 px-3 py-2 text-xs last:border-b-0"
+                className="grid grid-cols-[110px_1fr_auto] items-start gap-3 border-b border-white/[0.04] bg-card px-3 py-2 text-xs last:border-b-0"
               >
                 <span
                   className={cn(
@@ -116,18 +116,18 @@ export function AuditLogSection() {
                   {r.action}
                 </span>
                 <div className="min-w-0">
-                  <div className="text-zinc-200">
+                  <div className="text-body">
                     {r.resource}
                     {r.resourceId && (
-                      <span className="font-mono text-[10px] text-zinc-500">
+                      <span className="font-mono text-[10px] text-muted">
                         {" "}
                         · {r.resourceId.slice(0, 12)}…
                       </span>
                     )}
                   </div>
                   {(r.before || r.after) && (
-                    <details className="mt-0.5 text-[10px] text-zinc-500">
-                      <summary className="cursor-pointer hover:text-zinc-300">
+                    <details className="mt-0.5 text-[10px] text-muted">
+                      <summary className="cursor-pointer hover:text-body">
                         ver diff
                       </summary>
                       <pre className="mt-1 overflow-x-auto rounded bg-black/40 p-2 font-mono text-[10px]">
@@ -140,7 +140,7 @@ export function AuditLogSection() {
                     </details>
                   )}
                 </div>
-                <span className="whitespace-nowrap text-[10px] text-zinc-600">
+                <span className="whitespace-nowrap text-[10px] text-faint">
                   {new Date(r.createdAt).toLocaleString()}
                 </span>
               </li>

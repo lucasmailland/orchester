@@ -32,7 +32,7 @@ export default async function DashboardPage({
 
   if (!stats) {
     return (
-      <div className="flex h-64 items-center justify-center text-sm text-zinc-600">
+      <div className="flex h-64 items-center justify-center text-sm text-faint">
         Sin datos de workspace.
       </div>
     );

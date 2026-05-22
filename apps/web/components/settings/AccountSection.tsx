@@ -127,8 +127,8 @@ export function AccountSection({ me }: Props) {
       </FieldRow>
 
       {/* 2FA */}
-      <details className="rounded-lg border border-white/[0.08] bg-zinc-900/40 p-3">
-        <summary className="cursor-pointer text-xs font-medium text-zinc-200">
+      <details className="rounded-lg border border-line bg-card p-3">
+        <summary className="cursor-pointer text-xs font-medium text-body">
           Autenticación de dos factores (2FA)
           {me.twoFactorEnabled && (
             <span className="ml-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-300">
@@ -146,7 +146,7 @@ export function AccountSection({ me }: Props) {
         <summary className="cursor-pointer text-xs font-medium text-red-300">
           Eliminar cuenta (GDPR)
         </summary>
-        <p className="mt-2 text-[11px] text-zinc-500">
+        <p className="mt-2 text-[11px] text-muted">
           Borra tu cuenta y todos tus datos. Si sos owner único de algún workspace,
           el workspace y todo su contenido también se eliminan.
         </p>
@@ -170,20 +170,20 @@ export function AccountSection({ me }: Props) {
             if (e.target === e.currentTarget) setDeleteOpen(false);
           }}
         >
-          <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-zinc-950 p-5 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-surface p-5 shadow-2xl">
             <div className="mb-3 flex items-start gap-2">
               <AlertTriangle className="mt-0.5 h-4 w-4 text-red-400" />
               <div>
                 <h3 id="delete-account-title" className="text-sm font-semibold text-red-400">
                   Eliminar cuenta
                 </h3>
-                <p className="mt-1 text-xs text-zinc-500">
+                <p className="mt-1 text-xs text-muted">
                   Esto borra tu user de la DB. No se puede deshacer. Para confirmar,
                   escribí tu email:
                 </p>
               </div>
             </div>
-            <code className="block rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-center font-mono text-sm text-zinc-100">
+            <code className="block rounded-lg border border-line bg-zinc-900 px-3 py-2 text-center font-mono text-sm text-strong">
               {me.email}
             </code>
             <input

@@ -135,23 +135,23 @@ export function DevelopersSection() {
     <div className="space-y-8">
       {/* API Keys */}
       <div>
-        <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-zinc-200">
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-body">
           <Key className="h-4 w-4 text-violet-400" /> API Keys
         </h3>
-        <div className="space-y-2 rounded-2xl border border-white/[0.08] bg-zinc-900/40 p-4">
+        <div className="space-y-2 rounded-2xl border border-line bg-card p-4">
           {revealedKey && (
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs">
               <div className="mb-1 font-medium text-emerald-200">
                 ⚠️ Copialo ahora — sólo se muestra una vez:
               </div>
               <div className="flex items-center gap-2 rounded bg-black/40 p-2">
-                <code className="flex-1 break-all font-mono text-[11px] text-zinc-200">
+                <code className="flex-1 break-all font-mono text-[11px] text-body">
                   {revealedKey.key}
                 </code>
                 <button
                   type="button"
                   onClick={() => copy(revealedKey.key, "key")}
-                  className="text-zinc-400 hover:text-zinc-100"
+                  className="text-muted hover:text-strong"
                 >
                   {copied === "key" ? (
                     <Check className="h-3.5 w-3.5 text-emerald-400" />
@@ -171,15 +171,15 @@ export function DevelopersSection() {
           )}
 
           {keys.length === 0 && (
-            <p className="text-xs text-zinc-500">Aún no creaste ninguna API key.</p>
+            <p className="text-xs text-muted">Aún no creaste ninguna API key.</p>
           )}
           {keys.map((k) => (
             <div
               key={k.id}
-              className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-zinc-800/30 px-3 py-2 text-xs"
+              className="flex items-center justify-between rounded-lg border border-line bg-elevated px-3 py-2 text-xs"
             >
               <div>
-                <div className="flex items-center gap-2 text-zinc-100">
+                <div className="flex items-center gap-2 text-strong">
                   <span className="font-medium">{k.name}</span>
                   {k.revokedAt && (
                     <span className="rounded-md bg-red-500/15 px-1.5 py-0.5 text-[10px] text-red-300">
@@ -187,7 +187,7 @@ export function DevelopersSection() {
                     </span>
                   )}
                 </div>
-                <div className="mt-0.5 font-mono text-[10px] text-zinc-500">
+                <div className="mt-0.5 font-mono text-[10px] text-muted">
                   {k.prefix} ·{" "}
                   {k.lastUsedAt
                     ? `usada ${new Date(k.lastUsedAt).toLocaleDateString()}`
@@ -198,7 +198,7 @@ export function DevelopersSection() {
                 <button
                   type="button"
                   onClick={() => revokeKey(k.id)}
-                  className="text-zinc-500 hover:text-red-400"
+                  className="text-muted hover:text-red-400"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -206,7 +206,7 @@ export function DevelopersSection() {
             </div>
           ))}
 
-          <div className="mt-2 flex items-center gap-2 border-t border-white/[0.06] pt-3">
+          <div className="mt-2 flex items-center gap-2 border-t border-line pt-3">
             <label htmlFor="api-key-name" className="sr-only">
               Nombre de la nueva API key
             </label>
@@ -217,7 +217,7 @@ export function DevelopersSection() {
               value={newKeyName}
               onChange={(e) => setNewKeyName(e.target.value)}
               placeholder="Nombre — ej. 'Production server'"
-              className="flex-1 rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-1.5 text-xs text-zinc-100 outline-none focus:border-violet-500/60"
+              className="flex-1 rounded-lg border border-line bg-elevated px-3 py-1.5 text-xs text-strong outline-none focus:border-violet-500/60"
             />
             <button
               type="button"
@@ -234,25 +234,25 @@ export function DevelopersSection() {
 
       {/* Outbound webhooks */}
       <div>
-        <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-zinc-200">
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-body">
           <WebhookIcon className="h-4 w-4 text-amber-400" /> Webhooks (eventos salientes)
         </h3>
-        <div className="space-y-2 rounded-2xl border border-white/[0.08] bg-zinc-900/40 p-4">
+        <div className="space-y-2 rounded-2xl border border-line bg-card p-4">
           {webhooks.length === 0 && (
-            <p className="text-xs text-zinc-500">Sin webhooks configurados.</p>
+            <p className="text-xs text-muted">Sin webhooks configurados.</p>
           )}
           {webhooks.map((w) => (
             <div
               key={w.id}
-              className="space-y-1.5 rounded-lg border border-white/[0.06] bg-zinc-800/30 px-3 py-2 text-xs"
+              className="space-y-1.5 rounded-lg border border-line bg-elevated px-3 py-2 text-xs"
             >
               <div className="flex items-center justify-between">
-                <code className="break-all font-mono text-zinc-200">{w.url}</code>
+                <code className="break-all font-mono text-body">{w.url}</code>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => testWebhook(w.id)}
-                    className="rounded-md border border-white/10 px-2 py-0.5 text-[10px] text-zinc-300 hover:bg-white/5"
+                    className="rounded-md border border-line px-2 py-0.5 text-[10px] text-body hover:bg-hover"
                   >
                     Probar
                   </button>
@@ -262,7 +262,7 @@ export function DevelopersSection() {
                     className={
                       w.enabled
                         ? "rounded-md bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-300"
-                        : "rounded-md bg-zinc-700/50 px-2 py-0.5 text-[10px] text-zinc-400"
+                        : "rounded-md bg-zinc-700/50 px-2 py-0.5 text-[10px] text-muted"
                     }
                   >
                     {w.enabled ? "Activo" : "Pausado"}
@@ -270,7 +270,7 @@ export function DevelopersSection() {
                   <button
                     type="button"
                     onClick={() => deleteWebhook(w.id)}
-                    className="text-zinc-500 hover:text-red-400"
+                    className="text-muted hover:text-red-400"
                   >
                     <Trash2 className="h-3 w-3" />
                   </button>
@@ -288,7 +288,7 @@ export function DevelopersSection() {
               )}
             </div>
           ))}
-          <div className="space-y-2 border-t border-white/[0.06] pt-3">
+          <div className="space-y-2 border-t border-line pt-3">
             <label htmlFor="webhook-url" className="sr-only">
               URL del webhook saliente
             </label>
@@ -299,7 +299,7 @@ export function DevelopersSection() {
               value={newWhUrl}
               onChange={(e) => setNewWhUrl(e.target.value)}
               placeholder="https://your-server.com/orchester-events"
-              className="w-full rounded-lg border border-white/[0.08] bg-zinc-800/40 px-3 py-1.5 font-mono text-xs text-zinc-100 outline-none focus:border-violet-500/60"
+              className="w-full rounded-lg border border-line bg-elevated px-3 py-1.5 font-mono text-xs text-strong outline-none focus:border-violet-500/60"
             />
             <div className="flex flex-wrap gap-1">
               {ALL_EVENTS.map((e) => (
@@ -314,7 +314,7 @@ export function DevelopersSection() {
                   className={
                     newWhEvents.includes(e)
                       ? "rounded-md bg-violet-500/25 px-2 py-1 text-[10px] text-violet-200"
-                      : "rounded-md border border-white/[0.08] px-2 py-1 text-[10px] text-zinc-500 hover:text-zinc-300"
+                      : "rounded-md border border-line px-2 py-1 text-[10px] text-muted hover:text-body"
                   }
                 >
                   {e}
@@ -334,10 +334,10 @@ export function DevelopersSection() {
       </div>
 
       {/* Public API docs hint */}
-      <div className="rounded-2xl border border-white/[0.06] bg-zinc-900/30 p-4 text-xs text-zinc-500">
-        💡 Usá tu API key con <code className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-300">Authorization: Bearer ok_live_...</code>{" "}
-        en <code className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-300">/api/v1/agents</code> y{" "}
-        <code className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-300">/api/v1/flows</code>. Rate limit: 60 req/min.
+      <div className="rounded-2xl border border-line bg-card p-4 text-xs text-muted">
+        💡 Usá tu API key con <code className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[10px] text-body">Authorization: Bearer ok_live_...</code>{" "}
+        en <code className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[10px] text-body">/api/v1/agents</code> y{" "}
+        <code className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[10px] text-body">/api/v1/flows</code>. Rate limit: 60 req/min.
       </div>
     </div>
   );
