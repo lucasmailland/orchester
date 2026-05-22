@@ -112,6 +112,9 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const [running, setRunning] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(false);
+  const [runStatus, setRunStatus] = useState<Record<string, "running" | "succeeded" | "failed">>({});
+  const [runLog, setRunLog] = useState<Array<{ nodeId: string; status: "running" | "succeeded" | "failed"; error?: string }>>([]);
+  const [runInspectorOpen, setRunInspectorOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [runModalOpen, setRunModalOpen] = useState(false);
   const [runInputDraft, setRunInputDraft] = useState("{\n  \n}");
@@ -221,17 +224,68 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     setRunModalOpen(false);
     setRunning(true);
     setFeedback(null);
-    const r = await fetch(`/api/flows/${flow.id}/run`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ input }),
-    });
+    setRunStatus({});
+    setRunLog([]);
+    setRunInspectorOpen(true);
+    let finalStatus: "succeeded" | "failed" | null = null;
+    let finalError: string | undefined;
+    try {
+      const r = await fetch(`/api/flows/${flow.id}/run-stream`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ input }),
+      });
+      if (!r.ok || !r.body) throw new Error(`No se pudo iniciar (${r.status})`);
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf("\n\n")) !== -1) {
+          const block = buf.slice(0, idx);
+          buf = buf.slice(idx + 2);
+          const line = block.split("\n").find((l) => l.startsWith("data:"));
+          if (!line) continue;
+          let ev: { type: string; nodeId?: string; status?: "succeeded" | "failed"; error?: string };
+          try {
+            ev = JSON.parse(line.slice(5).trim());
+          } catch {
+            continue;
+          }
+          if (ev.type === "step_start" && ev.nodeId) {
+            const nid = ev.nodeId;
+            setRunStatus((s) => ({ ...s, [nid]: "running" }));
+            setRunLog((l) => [...l, { nodeId: nid, status: "running" }]);
+          } else if (ev.type === "step_finish" && ev.nodeId && ev.status) {
+            const nid = ev.nodeId;
+            const st = ev.status;
+            setRunStatus((s) => ({ ...s, [nid]: st }));
+            setRunLog((l) => {
+              const copy = [...l];
+              for (let i = copy.length - 1; i >= 0; i--) {
+                if (copy[i]!.nodeId === nid && copy[i]!.status === "running") {
+                  copy[i] = { nodeId: nid, status: st, ...(ev.error ? { error: ev.error } : {}) };
+                  return copy;
+                }
+              }
+              return [...copy, { nodeId: nid, status: st, ...(ev.error ? { error: ev.error } : {}) }];
+            });
+          } else if (ev.type === "run_finish" && ev.status) {
+            finalStatus = ev.status;
+            finalError = ev.error;
+          }
+        }
+      }
+    } catch (e) {
+      finalStatus = "failed";
+      finalError = e instanceof Error ? e.message : String(e);
+    }
     setRunning(false);
-    const j = await r.json();
-    if (j.status === "succeeded") toast.success("Ejecución completada");
-    else toast.error(`Ejecución ${j.status}${j.error ? `: ${j.error}` : ""}`);
-    if (runsOpen) setRunsOpen(false);
-    setTimeout(() => setRunsOpen(true), 300);
+    if (finalStatus === "succeeded") toast.success("Ejecución completada");
+    else toast.error(`La ejecución falló${finalError ? `: ${finalError}` : ""}`);
   }
 
   function submitRunModal() {
@@ -246,6 +300,13 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
       setRunInputError(e instanceof Error ? e.message : "JSON inválido");
     }
   }
+
+  const displayNodes = nodes.map((n) => {
+    const st = runStatus[n.id];
+    if (!st) return n;
+    const cls = st === "succeeded" ? "flow-node-ok" : st === "failed" ? "flow-node-fail" : "flow-node-running";
+    return { ...n, className: cls };
+  });
 
   return (
     <ReactFlowProvider>
@@ -347,7 +408,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
           )}
           <div className="relative flex-1">
             <ReactFlow
-              nodes={nodes}
+              nodes={displayNodes}
               edges={edges}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
@@ -391,6 +452,14 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               setSelected(null);
             }}
           />
+          {runInspectorOpen && (
+            <RunInspector
+              log={runLog}
+              running={running}
+              nodes={nodes}
+              onClose={() => setRunInspectorOpen(false)}
+            />
+          )}
           <FlowRunsPanel
             flowId={flow.id}
             open={runsOpen}
@@ -498,6 +567,58 @@ function EmptyCanvasGuide({ onAdd }: { onAdd: (nodeId: string) => void }) {
             </button>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Panel que muestra, paso a paso y en vivo, qué pasó en la última ejecución. */
+function RunInspector({
+  log,
+  running,
+  nodes,
+  onClose,
+}: {
+  log: Array<{ nodeId: string; status: "running" | "succeeded" | "failed"; error?: string }>;
+  running: boolean;
+  nodes: Node[];
+  onClose: () => void;
+}) {
+  const labelOf = (id: string) => {
+    const n = nodes.find((x) => x.id === id);
+    const d = n?.data as { label?: string; nodeId?: string } | undefined;
+    if (d?.label) return d.label;
+    const def = getNodeDef(String(d?.nodeId ?? n?.type ?? ""));
+    return def ? def.title[LOCALE] : id;
+  };
+  const icon = (s: string) => (s === "succeeded" ? "✅" : s === "failed" ? "❌" : "⏳");
+  return (
+    <div className="flex w-80 shrink-0 flex-col border-l border-line bg-surface">
+      <div className="flex items-center justify-between border-b border-line px-4 py-3">
+        <span className="text-sm font-medium text-strong">
+          {running ? "Ejecutando…" : "Resultado de la ejecución"}
+        </span>
+        <button type="button" onClick={onClose} aria-label="Cerrar" className="text-muted hover:text-body">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="flex-1 space-y-2 overflow-y-auto p-3 text-xs">
+        {log.length === 0 && (
+          <p className="text-muted">Todavía no se ejecutó ningún paso.</p>
+        )}
+        {log.map((s, i) => (
+          <div key={i} className="rounded-lg border border-line bg-card p-2.5">
+            <div className="flex items-center gap-2 text-body">
+              <span>{icon(s.status)}</span>
+              <span className="font-medium">{labelOf(s.nodeId)}</span>
+            </div>
+            {s.error && (
+              <p className="mt-1 rounded-md bg-red-500/5 px-2 py-1 text-[11px] leading-relaxed text-red-600 dark:text-red-400">
+                {s.error}
+              </p>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );

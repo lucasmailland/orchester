@@ -40,9 +40,20 @@ export interface FlowEdge {
   label?: string;
 }
 
+/** Evento de ejecución en vivo (para visualizar el run en el lienzo). */
+export type FlowRunEvent =
+  | { type: "run_start"; runId: string }
+  | { type: "step_start"; nodeId: string; nodeType: string }
+  | { type: "step_finish"; nodeId: string; status: "succeeded" | "failed"; error?: string }
+  | { type: "run_finish"; status: "succeeded" | "failed"; error?: string };
+
+export type FlowEmit = (ev: FlowRunEvent) => void;
+
 export interface RunContext {
   variables: Record<string, unknown>;
   output: Record<string, unknown>;
+  /** Hook opcional para emitir eventos en vivo. */
+  emit?: FlowEmit;
 }
 
 export function interpolate(template: string, ctx: Record<string, unknown>): string {
@@ -215,11 +226,13 @@ export async function executeFlow({
   workspaceId,
   triggerSource,
   input,
+  onEvent,
 }: {
   flowId: string;
   workspaceId: string;
   triggerSource: string;
   input: Record<string, unknown>;
+  onEvent?: FlowEmit;
 }): Promise<{ runId: string; status: "succeeded" | "failed"; error?: string }> {
   const db = getDb();
   const flowRows = await db
@@ -240,20 +253,25 @@ export async function executeFlow({
     input,
   });
 
+  onEvent?.({ type: "run_start", runId });
+
   const ctx: RunContext = {
     variables: { ...(flow.variables ?? {}), ...input },
     output: {},
+    ...(onEvent ? { emit: onEvent } : {}),
   };
 
   const nodes = (flow.nodes ?? []) as FlowNode[];
   const edges = (flow.edges ?? []) as FlowEdge[];
   const start = nodes.find((n) => n.type === "trigger");
   if (!start) {
+    const err = "Este flujo no tiene un paso de inicio (disparador). Agregá uno para poder ejecutarlo.";
     await db
       .update(schema.flowRuns)
-      .set({ status: "failed", error: "No trigger node", completedAt: new Date() })
+      .set({ status: "failed", error: err, completedAt: new Date() })
       .where(eq(schema.flowRuns.id, runId));
-    return { runId, status: "failed", error: "No trigger node" };
+    onEvent?.({ type: "run_finish", status: "failed", error: err });
+    return { runId, status: "failed", error: err };
   }
 
   try {
@@ -263,6 +281,7 @@ export async function executeFlow({
       .set({ status: "succeeded", output: ctx.variables, completedAt: new Date() })
       .where(eq(schema.flowRuns.id, runId));
     await db.update(schema.flows).set({ lastRunAt: new Date() }).where(eq(schema.flows.id, flowId));
+    onEvent?.({ type: "run_finish", status: "succeeded" });
     return { runId, status: "succeeded" };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -270,6 +289,7 @@ export async function executeFlow({
       .update(schema.flowRuns)
       .set({ status: "failed", error: msg, completedAt: new Date() })
       .where(eq(schema.flowRuns.id, runId));
+    onEvent?.({ type: "run_finish", status: "failed", error: msg });
     return { runId, status: "failed", error: msg };
   }
 }
@@ -297,6 +317,7 @@ async function runFromNode(
     status: "running",
     input: { ...ctx.variables },
   });
+  ctx.emit?.({ type: "step_start", nodeId: node.id, nodeType: node.type });
 
   let nextHandle: string | undefined;
   let stepOutput: Record<string, unknown> = {};
@@ -319,12 +340,14 @@ async function runFromNode(
       .update(schema.flowRunSteps)
       .set({ status: "succeeded", output: stepOutput, completedAt: new Date() })
       .where(eq(schema.flowRunSteps.id, stepId));
+    ctx.emit?.({ type: "step_finish", nodeId: node.id, status: "succeeded" });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await db
       .update(schema.flowRunSteps)
       .set({ status: "failed", error: msg, completedAt: new Date() })
       .where(eq(schema.flowRunSteps.id, stepId));
+    ctx.emit?.({ type: "step_finish", nodeId: node.id, status: "failed", error: msg });
     throw e;
   }
 
