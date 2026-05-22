@@ -258,6 +258,8 @@ function FieldRenderer({ field, value, onChange, availableData = [] }: { field: 
           <textarea value={typeof value === "string" ? value : JSON.stringify(value ?? {}, null, 2)} onChange={(e) => onChange(e.target.value)} rows={4} placeholder={field.placeholder ?? "{ }"} className={`${inputCls} resize-y font-mono text-[11px]`} />
         </div>
       );
+    case "string-list":
+      return <StringListField value={value} onChange={onChange} label={common} />;
     case "key-value":
       return <KeyValueField field={field} value={value} onChange={onChange} label={common} />;
     case "agent-picker":
@@ -277,6 +279,47 @@ function FieldRenderer({ field, value, onChange, availableData = [] }: { field: 
         </div>
       );
   }
+}
+
+function StringListField({ value, onChange, label }: { value: unknown; onChange: (v: unknown) => void; label: React.ReactNode }) {
+  const list = Array.isArray(value) ? (value as string[]) : [];
+  const setAt = (idx: number, v: string) => {
+    const next = list.slice();
+    next[idx] = v;
+    onChange(next);
+  };
+  return (
+    <div>
+      {label}
+      <div className="space-y-1.5">
+        {list.map((v, idx) => (
+          <div key={idx} className="flex gap-1.5">
+            <input
+              value={v}
+              onChange={(e) => setAt(idx, e.target.value)}
+              placeholder="valor del camino"
+              className={`${inputCls} flex-1`}
+            />
+            <button
+              type="button"
+              onClick={() => onChange(list.filter((_, j) => j !== idx))}
+              className="rounded-md px-2 text-muted hover:text-red-600 dark:hover:text-red-400"
+              aria-label="Quitar"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => onChange([...list, ""])}
+          className="text-[11px] text-violet-600 dark:text-violet-400 hover:underline"
+        >
+          + Agregar camino
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function KeyValueField({ value, onChange, label }: { field: FieldDef; value: unknown; onChange: (v: unknown) => void; label: React.ReactNode }) {

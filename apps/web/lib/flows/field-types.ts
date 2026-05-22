@@ -22,7 +22,8 @@ export type FieldType =
   | "channel-picker"
   | "variable"
   | "duration"
-  | "cron";
+  | "cron"
+  | "string-list";
 
 export interface FieldOption {
   value: string;
