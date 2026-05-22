@@ -331,7 +331,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               onClose={() => setVarsOpen(false)}
             />
           )}
-          <div className="flex-1">
+          <div className="relative flex-1">
             <ReactFlow
               nodes={nodes}
               edges={edges}
@@ -349,6 +349,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               <Controls className="!border-line !bg-surface" />
               <MiniMap pannable zoomable className="!border-line !bg-surface" />
             </ReactFlow>
+            {nodes.length === 0 && <EmptyCanvasGuide onAdd={addNode} />}
           </div>
           <div className="w-72 shrink-0 overflow-y-auto border-l border-line bg-surface">
             <InspectorForm
@@ -439,6 +440,41 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
         )}
       </div>
     </ReactFlowProvider>
+  );
+}
+
+/** Guía amigable cuando el lienzo está vacío: explica cómo arrancar. */
+function EmptyCanvasGuide({ onAdd }: { onAdd: (nodeId: string) => void }) {
+  const starters: Array<{ id: string; label: string; emoji: string }> = [
+    { id: "trigger_manual", label: "Empezar cuando lo ejecuto yo", emoji: "▶️" },
+    { id: "trigger_message", label: "Empezar cuando llega un mensaje", emoji: "💬" },
+    { id: "trigger_schedule", label: "Empezar en un horario", emoji: "🕒" },
+    { id: "trigger_webhook", label: "Empezar con un webhook", emoji: "🔗" },
+  ];
+  return (
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+      <div className="pointer-events-auto max-w-md rounded-2xl border border-line bg-surface/90 p-6 text-center shadow-xl backdrop-blur">
+        <div className="text-2xl">🚀</div>
+        <h3 className="mt-2 text-sm font-semibold text-strong">Armemos tu primer flujo</h3>
+        <p className="mt-1 text-xs leading-relaxed text-muted">
+          Un flujo es una secuencia de pasos automáticos. Empezá eligiendo
+          <strong className="text-body"> cuándo arranca</strong>. Después sumás pasos
+          desde el panel de la izquierda o le pedís al copiloto que lo arme por vos.
+        </p>
+        <div className="mt-4 grid gap-2">
+          {starters.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => onAdd(s.id)}
+              className="flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-left text-xs text-body transition-colors hover:bg-elevated"
+            >
+              <span>{s.emoji}</span> {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
