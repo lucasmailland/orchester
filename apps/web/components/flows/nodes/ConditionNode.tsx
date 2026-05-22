@@ -7,7 +7,7 @@ export function ConditionNode({ data }: NodeProps) {
   const d = data as { label: string; subtitle?: string };
   return (
     <div
-      className="relative min-w-[200px] rounded-xl border border-line bg-zinc-900/95 px-3 py-3 shadow-md"
+      className="relative min-w-[200px] rounded-xl border border-line bg-surface/95 px-3 py-3 shadow-md"
       style={{ borderLeftWidth: 3, borderLeftColor: "#f59e0b" }}
     >
       <Handle type="target" position={Position.Left} />

@@ -96,7 +96,7 @@ export function ConversationRow({
       <div className="flex shrink-0 items-center gap-3">
         {/* Channel badge */}
         {channelType && (
-          <span className="hidden items-center gap-1 rounded-md border border-zinc-700/50 bg-zinc-900 px-2 py-0.5 text-[11px] text-muted sm:flex">
+          <span className="hidden items-center gap-1 rounded-md border border-zinc-700/50 bg-surface px-2 py-0.5 text-[11px] text-muted sm:flex">
             {CHANNEL_ICONS[channelType]}
             {channelLabels[channelType]}
           </span>

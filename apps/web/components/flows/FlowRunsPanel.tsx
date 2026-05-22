@@ -66,7 +66,7 @@ export function FlowRunsPanel({
               key={r.id}
               type="button"
               onClick={() => pickRun(r)}
-              className="mb-1.5 flex w-full items-center justify-between rounded-lg border border-line bg-card px-3 py-2 text-left text-xs hover:bg-zinc-900"
+              className="mb-1.5 flex w-full items-center justify-between rounded-lg border border-line bg-card px-3 py-2 text-left text-xs hover:bg-surface"
             >
               <div>
                 <div className="text-body">{r.triggerSource ?? "trigger"}</div>

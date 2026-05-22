@@ -83,7 +83,7 @@ export function TeamFormModal({ open, onClose, initial, labels }: TeamFormModalP
             transition={{ duration: 0.2 }}
             className="w-full max-w-md"
           >
-            <div className="max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-violet-500/20 bg-zinc-900 shadow-2xl shadow-black/80 ring-1 ring-violet-500/10">
+            <div className="max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-violet-500/20 bg-surface shadow-2xl shadow-black/80 ring-1 ring-violet-500/10">
               {/* Header */}
               <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-4">
                 <h2 className="font-display text-base font-bold text-strong">

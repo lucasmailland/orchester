@@ -13,7 +13,7 @@ interface KpiCardProps {
 }
 
 const CARD_BG: Record<NonNullable<KpiCardProps["color"]>, string> = {
-  primary: "bg-surface border-zinc-800/80",
+  primary: "bg-card border-line",
   accent: "bg-violet-600 border-violet-500/40",
   success: "bg-blue-600 border-blue-500/40",
   warning: "bg-teal-600 border-teal-500/40",
@@ -64,6 +64,15 @@ function DecorShapes({ color }: { color: NonNullable<KpiCardProps["color"]> }) {
 }
 
 export function KpiCard({ label, value, icon, color = "primary", className }: KpiCardProps) {
+  // El variant "primary" usa bg-surface (theme-aware) → texto con tokens. Los
+  // variants de color tienen fondo saturado oscuro → texto blanco fijo (OK en
+  // ambos temas).
+  const isPrimary = color === "primary";
+  const labelCls = isPrimary ? "text-muted" : "text-white/60";
+  const iconCls = isPrimary ? "text-violet-400" : "text-white/80";
+  const valueCls = isPrimary ? "text-strong" : "text-white";
+  const liveCls = isPrimary ? "text-faint" : "text-white/40";
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 14 }}
@@ -80,21 +89,21 @@ export function KpiCard({ label, value, icon, color = "primary", className }: Kp
 
       <div className="relative z-10">
         <div className="flex items-start justify-between gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-white/50">
+          <p className={cn("text-[11px] font-semibold uppercase tracking-widest", labelCls)}>
             {label}
           </p>
           <div className={cn("shrink-0 rounded-xl p-2.5", ICON_BG[color])}>
-            <div className="h-4 w-4 text-white/75">{icon}</div>
+            <div className={cn("h-4 w-4", iconCls)}>{icon}</div>
           </div>
         </div>
 
-        <p className="mt-3 font-mono text-[2.1rem] font-bold leading-none tracking-tight text-white">
+        <p className={cn("mt-3 font-mono text-[2.1rem] font-bold leading-none tracking-tight", valueCls)}>
           {value}
         </p>
       </div>
 
       <div className="relative z-10 mt-4 border-t border-line pt-2.5">
-        <span className="text-[10px] font-medium uppercase tracking-wider text-white/30">
+        <span className={cn("text-[10px] font-medium uppercase tracking-wider", liveCls)}>
           Live
         </span>
       </div>

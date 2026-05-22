@@ -110,7 +110,7 @@ export function AgentFormModal({ open, onClose, teamId, teams, initial, labels }
             transition={{ duration: 0.2 }}
             className="w-full max-w-lg"
           >
-            <div className="max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-violet-500/20 bg-zinc-900 shadow-2xl shadow-black/80 ring-1 ring-violet-500/10">
+            <div className="max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-violet-500/20 bg-surface shadow-2xl shadow-black/80 ring-1 ring-violet-500/10">
               {/* Header */}
               <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-4">
                 <h2 className="font-display text-base font-bold text-strong">
@@ -170,7 +170,7 @@ export function AgentFormModal({ open, onClose, teamId, teams, initial, labels }
                       className={cn(inputClass, "cursor-pointer")}
                     >
                       {teams.map(t => (
-                        <option key={t.id} value={t.id} className="bg-zinc-900">{t.name}</option>
+                        <option key={t.id} value={t.id} className="bg-surface">{t.name}</option>
                       ))}
                     </select>
                   </div>
@@ -185,7 +185,7 @@ export function AgentFormModal({ open, onClose, teamId, teams, initial, labels }
                       className={cn(inputClass, "cursor-pointer")}
                     >
                       {MODELS.map(m => (
-                        <option key={m.value} value={m.value} className="bg-zinc-900">{m.label}</option>
+                        <option key={m.value} value={m.value} className="bg-surface">{m.label}</option>
                       ))}
                     </select>
                   </div>
@@ -197,7 +197,7 @@ export function AgentFormModal({ open, onClose, teamId, teams, initial, labels }
                       className={cn(inputClass, "cursor-pointer")}
                     >
                       {STATUSES.map(s => (
-                        <option key={s.value} value={s.value} className="bg-zinc-900">{s.label}</option>
+                        <option key={s.value} value={s.value} className="bg-surface">{s.label}</option>
                       ))}
                     </select>
                   </div>

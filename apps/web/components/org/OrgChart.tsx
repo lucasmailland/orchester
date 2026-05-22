@@ -252,7 +252,7 @@ export function OrgChart({ workspaceName, teams }: OrgChartProps) {
                           </span>
                         </div>
                       </div>
-                      <span className="mt-2 inline-block rounded border border-zinc-700/50 bg-zinc-900 px-1.5 py-0.5 font-mono text-[9px] text-muted">
+                      <span className="mt-2 inline-block rounded border border-zinc-700/50 bg-surface px-1.5 py-0.5 font-mono text-[9px] text-muted">
                         {MODEL_SHORT[agent.model] ?? agent.model}
                       </span>
                     </motion.div>

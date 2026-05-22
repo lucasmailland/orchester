@@ -77,7 +77,7 @@ export function PromptGeneratorModal({ open, agentId, onClose, onPick }: Props) 
                 onChange={(e) => setDescription(e.target.value)}
                 rows={6}
                 placeholder="Necesito un agente que califique leads B2B según BANT y los enrute al vendedor correcto…"
-                className="w-full rounded-xl border border-line bg-zinc-900 px-3 py-2.5 text-sm text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
               />
               <p className="mt-1.5 text-[11px] text-muted">
                 {description.length} / 50–500 caracteres
@@ -113,7 +113,7 @@ export function PromptGeneratorModal({ open, agentId, onClose, onPick }: Props) 
                 <input
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  className="w-full rounded-xl border border-line bg-zinc-900 px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
+                  className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
                 />
               </div>
               <div>
@@ -123,7 +123,7 @@ export function PromptGeneratorModal({ open, agentId, onClose, onPick }: Props) 
                 <input
                   value={industry}
                   onChange={(e) => setIndustry(e.target.value)}
-                  className="w-full rounded-xl border border-line bg-zinc-900 px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
+                  className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
                 />
               </div>
             </div>
@@ -143,7 +143,7 @@ export function PromptGeneratorModal({ open, agentId, onClose, onPick }: Props) 
                     onPick(v);
                     onClose();
                   }}
-                  className="block w-full rounded-xl border border-line bg-card p-4 text-left hover:border-violet-500/40 hover:bg-zinc-900"
+                  className="block w-full rounded-xl border border-line bg-card p-4 text-left hover:border-violet-500/40 hover:bg-surface"
                 >
                   <div className="mb-1 text-xs font-medium text-violet-300">Variación {i + 1}</div>
                   <pre className="whitespace-pre-wrap font-mono text-[12px] text-body">

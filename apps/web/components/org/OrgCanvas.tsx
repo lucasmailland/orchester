@@ -66,7 +66,7 @@ function WorkspaceNode({ data }: NodeProps) {
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-300/80">Workspace</div>
-        <div className="truncate text-base font-semibold text-zinc-50">{d.label}</div>
+        <div className="truncate text-base font-semibold text-strong">{d.label}</div>
         <div className="mt-0.5 text-[10px] text-muted">
           {d.meta?.teamCount ?? 0} equipos · {d.meta?.agentCount ?? 0} agentes · {d.meta?.flowCount ?? 0} flujos
         </div>
@@ -84,7 +84,7 @@ function TeamNode({ data }: NodeProps) {
   const color = d.meta?.color ?? COLORS.team;
   return (
     <div
-      className="relative flex min-w-[200px] items-center gap-2.5 rounded-xl border border-white/[0.1] bg-zinc-900/95 px-3.5 py-2.5 shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
+      className="relative flex min-w-[200px] items-center gap-2.5 rounded-xl border border-white/[0.1] bg-surface/95 px-3.5 py-2.5 shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
       style={{ borderTopWidth: 3, borderTopColor: color }}
     >
       <Handle type="target" position={Position.Top} style={{ background: color }} />
@@ -124,7 +124,7 @@ function AgentNode({ data }: NodeProps) {
   const channelCount = d.meta?.channels?.length ?? 0;
   return (
     <div
-      className="relative min-w-[220px] rounded-xl border border-white/[0.1] bg-zinc-900/95 px-3.5 py-2.5 shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
+      className="relative min-w-[220px] rounded-xl border border-white/[0.1] bg-surface/95 px-3.5 py-2.5 shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
       style={{ borderLeftWidth: 3, borderLeftColor: color }}
     >
       <Handle type="target" position={Position.Top} style={{ background: color }} />
@@ -564,7 +564,7 @@ export function OrgCanvas() {
       <div className="flex-1 overflow-hidden rounded-2xl border border-line bg-surface/40">
         {data.nodes.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-muted">
-            <Bot className="mb-3 h-10 w-10 text-zinc-700" />
+            <Bot className="mb-3 h-10 w-10 text-faint" />
             <p className="text-sm">Aún no hay agentes ni equipos.</p>
             <button
               type="button"
@@ -597,11 +597,11 @@ export function OrgCanvas() {
             panOnScroll={false}
           >
             <Background color="#27272a" gap={20} />
-            <Controls className="!border-line !bg-zinc-900" />
+            <Controls className="!border-line !bg-surface" />
             <MiniMap
               pannable
               zoomable
-              className="!border-line !bg-zinc-900"
+              className="!border-line !bg-surface"
               nodeColor={(n) => {
                 if (n.type === "workspace") return COLORS.workspace;
                 if (n.type === "team") return COLORS.team;

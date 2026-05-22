@@ -191,7 +191,7 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
       {/* Empty */}
       {filtered.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-line py-16">
-          <Bot size={24} className="text-zinc-700" />
+          <Bot size={24} className="text-faint" />
           <p className="text-sm text-faint">No hay agentes que mostrar.</p>
           <button
             onClick={() => setCreateOpen(true)}
@@ -219,7 +219,7 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
                   {group.teamName}
                 </h2>
                 <div className="flex-1 border-t border-line" />
-                <span className="font-mono text-[10px] text-zinc-700">
+                <span className="font-mono text-[10px] text-faint">
                   {group.agents.length} {group.agents.length === 1 ? "agente" : "agentes"}
                 </span>
               </div>

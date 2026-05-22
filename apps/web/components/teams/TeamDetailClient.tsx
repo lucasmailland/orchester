@@ -205,7 +205,7 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
 
           {agents.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-line py-10 text-center">
-              <Bot size={20} className="text-zinc-700" />
+              <Bot size={20} className="text-faint" />
               <p className="text-xs text-faint">Este equipo no tiene agentes.</p>
               <Link
                 href={`/${labels.locale}/agents`}
@@ -236,7 +236,7 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
                   </div>
 
                   <div className="flex shrink-0 items-center gap-2">
-                    <span className="rounded border border-zinc-700/50 bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-muted">
+                    <span className="rounded border border-zinc-700/50 bg-surface px-1.5 py-0.5 font-mono text-[10px] text-muted">
                       {MODEL_SHORT[agent.model] ?? agent.model}
                     </span>
                     <span className={cn("text-[10px] font-semibold uppercase tracking-wide", STATUS_LABEL[agent.status] ?? "text-muted")}>
@@ -266,7 +266,7 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
 
           {channels.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-line py-8 text-center">
-              <Radio size={18} className="text-zinc-700" />
+              <Radio size={18} className="text-faint" />
               <p className="text-xs text-faint">Sin canales activos.</p>
             </div>
           ) : (
