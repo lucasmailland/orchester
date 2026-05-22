@@ -19,10 +19,8 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { createId } from "@paralleldrive/cuid2";
-import { AgentNode } from "./nodes/AgentNode";
+import { RegistryNode } from "./nodes/RegistryNode";
 import { ConditionNode, TryCatchNode, LoopNode, SwitchNode } from "./nodes/BranchNode";
-import { HttpNode } from "./nodes/HttpNode";
-import { TriggerNode } from "./nodes/TriggerNode";
 import { FlowRunsPanel } from "./FlowRunsPanel";
 import { InspectorForm } from "./inspector/InspectorForm";
 import { NodePalette } from "./NodePalette";
@@ -43,25 +41,24 @@ import { toast } from "sonner";
 const LOCALE: Locale = "es";
 
 const nodeTypes = {
-  trigger: TriggerNode,
-  agent: AgentNode,
+  trigger: RegistryNode,
+  agent: RegistryNode,
   condition: ConditionNode,
   switch: SwitchNode,
-  http: HttpNode,
-  transform: AgentNode,
-  delay: AgentNode,
-  notify: AgentNode,
-  code: AgentNode,
+  http: RegistryNode,
+  transform: RegistryNode,
+  delay: RegistryNode,
+  notify: RegistryNode,
+  code: RegistryNode,
   loop_for_each: LoopNode,
-  parallel: AgentNode,
+  parallel: RegistryNode,
   try_catch: TryCatchNode,
-  subflow: AgentNode,
-  wait_human: AgentNode,
-  // nuevos del registry (reutilizan visuales existentes por ahora)
-  integration: HttpNode,
-  kb_search: AgentNode,
-  spreadsheet: AgentNode,
-  note: AgentNode,
+  subflow: RegistryNode,
+  wait_human: RegistryNode,
+  integration: RegistryNode,
+  kb_search: RegistryNode,
+  spreadsheet: RegistryNode,
+  note: RegistryNode,
 };
 
 /** Deriva el id del registry a partir del nodo guardado (que sólo tiene engine type). */

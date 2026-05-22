@@ -4,8 +4,8 @@ import type { LucideIcon } from "lucide-react";
 
 interface NodeData {
   label: string;
-  subtitle?: string;
-  badge?: string | null;
+  subtitle?: string | undefined;
+  badge?: string | null | undefined;
 }
 
 export function SimpleNode({
