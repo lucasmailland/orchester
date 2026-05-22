@@ -112,6 +112,17 @@ agree.
 
 ## Execution (changelog — newest first)
 
+### 2026-05-22 — Spreadsheet, icons & layout polish
+- **Spreadsheet node = real grid**: cell grid (A1-style) + formula bar +
+  categorized formula library sidebar (`lib/flows/formula-library.ts`); engine
+  evaluates via pure `lib/flows/spreadsheet.ts` (cell/range refs, `input`,
+  formulajs in vm, circular-ref guard).
+- **Per-node icons fixed**: new `nodes/RegistryNode.tsx` derives icon+accent from
+  the registry (before, canvas steps shared the Bot/Globe icon). Shared
+  `nodes/icon-map.ts`. Removed orphaned AgentNode/HttpNode/TriggerNode.
+- **Dagre auto-layout** (`lib/flows/layout.ts`): layered LR, size-aware, no
+  overlaps; auto-applied after copilot/template generation.
+
 ### 2026-05-22 — Finishing touches
 - **Copy/paste/duplicate** steps (Cmd/Ctrl+C/V/D), undoable.
 - **Switch routing by value**: a "Caminos posibles" list (new `string-list`
