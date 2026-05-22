@@ -467,49 +467,10 @@ export async function executeTool(
   if (name === "knowledge_search") {
     const kbId = String(input.kbId ?? "");
     const query = String(input.query ?? "");
-    const topK = Math.min(20, Number(input.topK ?? 5));
     if (!kbId || !query) throw new Error("kbId and query required");
-
-    const { getDb, schema } = await import("@orchester/db");
-    const { eq, and, sql } = await import("drizzle-orm");
-    const { embed } = await import("./embeddings");
-
-    const db = getDb();
-    const kbs = await db
-      .select()
-      .from(schema.knowledgeBases)
-      .where(
-        and(
-          eq(schema.knowledgeBases.id, kbId),
-          eq(schema.knowledgeBases.workspaceId, ctx.workspaceId)
-        )
-      )
-      .limit(1);
-    const kb = kbs[0];
-    if (!kb) throw new Error(`Knowledge base ${kbId} not found`);
-
-    const { vectors } = await embed(
-      ctx.workspaceId,
-      kb.embeddingProvider as "openai" | "google",
-      kb.embeddingModel,
-      [query]
-    );
-    const v = vectors[0];
-    if (!v) return { results: [] };
-    const vec = `[${v.join(",")}]`;
-    const rows = await db.execute(sql`
-      select c.id, c.doc_id as "docId", c.ordinal, c.text,
-             d.title as "docTitle",
-             1 - (c.embedding <=> ${vec}::vector) as score
-      from knowledge_chunk c
-      inner join knowledge_doc d on d.id = c.doc_id
-      where c.workspace_id = ${ctx.workspaceId}
-        and c.kb_id = ${kbId}
-        and c.embedding is not null
-      order by c.embedding <=> ${vec}::vector
-      limit ${topK}
-    `);
-    return { results: rows };
+    const { searchKnowledgeBase } = await import("./knowledge-search");
+    const results = await searchKnowledgeBase(ctx.workspaceId, kbId, query, Number(input.topK ?? 5));
+    return { results };
   }
 
   if (name === "run_integration") {
