@@ -15,6 +15,7 @@ import {
   type Connection,
   type NodeChange,
   type EdgeChange,
+  type ReactFlowInstance,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { createId } from "@paralleldrive/cuid2";
@@ -124,6 +125,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const historyRef = useRef<{ past: Array<{ nodes: Node[]; edges: Edge[] }>; future: Array<{ nodes: Node[]; edges: Edge[] }> }>({ past: [], future: [] });
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
+  const rfRef = useRef<ReactFlowInstance | null>(null);
 
   function pushHistory() {
     const h = historyRef.current;
@@ -515,10 +517,26 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               onClose={() => setVarsOpen(false)}
             />
           )}
-          <div className="relative flex-1">
+          <div
+            className="relative flex-1"
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              const nodeId = e.dataTransfer.getData("application/flow-node");
+              if (!nodeId) return;
+              const pos = rfRef.current?.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+              addNode(nodeId, pos ?? { x: e.clientX, y: e.clientY });
+            }}
+          >
             <ReactFlow
               nodes={displayNodes}
               edges={edges}
+              onInit={(inst) => {
+                rfRef.current = inst;
+              }}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}

@@ -95,9 +95,14 @@ function PaletteItem({
   return (
     <button
       type="button"
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData("application/flow-node", node.id);
+        e.dataTransfer.effectAllowed = "move";
+      }}
       onClick={() => onAdd(node.id)}
       title={tooltip}
-      className="group mb-1 flex w-full items-start gap-2 rounded-lg border border-line bg-card px-2 py-1.5 text-left transition-colors hover:bg-elevated"
+      className="group mb-1 flex w-full cursor-grab items-start gap-2 rounded-lg border border-line bg-card px-2 py-1.5 text-left transition-colors hover:bg-elevated active:cursor-grabbing"
     >
       <span
         className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md"
