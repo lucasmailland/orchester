@@ -80,7 +80,7 @@ function deriveNodeId(n: { type: string; config?: Record<string, unknown> }): st
   return n.type;
 }
 
-interface FlowDTO {
+export interface FlowDTO {
   id: string;
   name: string;
   nodes: Array<{

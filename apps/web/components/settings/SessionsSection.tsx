@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Loader2, Monitor, Smartphone, Laptop, Trash2, ShieldOff } from "lucide-react";
+import { useState } from "react";
+import { Loader2, Monitor, Smartphone, Laptop, Trash2, ShieldOff, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useApi } from "@/lib/use-api";
 
 interface Session {
   id: string;
@@ -21,20 +22,12 @@ interface Session {
  * No permite revocar la sesión actual desde acá — para eso está el logout.
  */
 export function SessionsSection() {
-  const [sessions, setSessions] = useState<Session[] | null>(null);
+  // K1: SWR replaces the manual useState(null)+useEffect+fetch+load() pattern.
+  // `error` is now surfaced, fixing the "spinner forever" gap when /api/sessions fails.
+  const { data, error, isLoading, mutate } = useApi<{ sessions: Session[] }>("/api/sessions");
+  const sessions = data?.sessions ?? null;
   const [busyId, setBusyId] = useState<string | null>(null);
   const [busyAll, setBusyAll] = useState(false);
-
-  useEffect(() => {
-    void load();
-  }, []);
-
-  async function load() {
-    const r = await fetch("/api/sessions");
-    if (!r.ok) return;
-    const j = await r.json();
-    setSessions(j.sessions);
-  }
 
   async function revoke(id: string) {
     setBusyId(id);
@@ -42,7 +35,7 @@ export function SessionsSection() {
     setBusyId(null);
     if (r.ok) {
       toast.success("Sesión revocada");
-      void load();
+      void mutate();
     } else {
       const j = await r.json().catch(() => ({}));
       toast.error(j.error ?? "No se pudo revocar");
@@ -57,7 +50,7 @@ export function SessionsSection() {
     if (r.ok) {
       const j = await r.json();
       toast.success(`${j.revoked} sesiones cerradas`);
-      void load();
+      void mutate();
     } else {
       toast.error("No se pudo revocar");
     }
@@ -80,11 +73,19 @@ export function SessionsSection() {
 
   return (
     <div className="space-y-4">
-      {sessions === null ? (
+      {isLoading ? (
         <div className="flex items-center gap-2 text-xs text-muted">
           <Loader2 className="h-3 w-3 animate-spin" /> Cargando…
         </div>
-      ) : sessions.length === 0 ? (
+      ) : error ? (
+        <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-700 dark:text-red-300">
+          <AlertTriangle className="h-3.5 w-3.5" />
+          <span className="flex-1">No se pudieron cargar las sesiones.</span>
+          <button type="button" onClick={() => void mutate()} className="underline hover:no-underline">
+            Reintentar
+          </button>
+        </div>
+      ) : sessions === null || sessions.length === 0 ? (
         <p className="text-xs text-muted">Sin sesiones activas.</p>
       ) : (
         <ul className="space-y-2">

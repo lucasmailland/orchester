@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Loader2, ScrollText, RefreshCw } from "lucide-react";
+import { useState } from "react";
+import { Loader2, ScrollText, RefreshCw, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useApi } from "@/lib/use-api";
 
 interface AuditEntry {
   id: string;
@@ -39,20 +40,14 @@ function actionTone(action: string): string {
  * Filtrado mínimo client-side; si hace falta más profundo, migrar a server.
  */
 export function AuditLogSection() {
-  const [rows, setRows] = useState<AuditEntry[] | null>(null);
+  // K1: SWR replaces manual fetch+load(). `error` is now surfaced (the old code
+  // silently dropped failures, leaving the spinner stuck). The refresh button
+  // calls mutate(); isValidating drives its spinner.
+  const { data, error, isLoading, isValidating, mutate } =
+    useApi<AuditEntry[]>("/api/audit-logs?limit=200");
+  const rows = data ?? null;
+  const loading = isLoading || isValidating;
   const [filter, setFilter] = useState<string>("");
-  const [loading, setLoading] = useState(false);
-
-  async function load() {
-    setLoading(true);
-    const r = await fetch("/api/audit-logs?limit=200");
-    setLoading(false);
-    if (r.ok) setRows(await r.json());
-  }
-
-  useEffect(() => {
-    void load();
-  }, []);
 
   const filtered = (rows ?? []).filter((r) => {
     if (!filter) return true;
@@ -81,7 +76,7 @@ export function AuditLogSection() {
         />
         <button
           type="button"
-          onClick={() => void load()}
+          onClick={() => void mutate()}
           disabled={loading}
           aria-label="Recargar audit log"
           className="btn-secondary"
@@ -90,14 +85,22 @@ export function AuditLogSection() {
         </button>
       </div>
 
-      {rows === null ? (
+      {isLoading ? (
         <div className="flex items-center gap-2 text-xs text-muted">
           <Loader2 className="h-3 w-3 animate-spin" /> Cargando…
+        </div>
+      ) : error ? (
+        <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-700 dark:text-red-300">
+          <AlertTriangle className="h-3.5 w-3.5" />
+          <span className="flex-1">No se pudo cargar el audit log.</span>
+          <button type="button" onClick={() => void mutate()} className="underline hover:no-underline">
+            Reintentar
+          </button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex items-center gap-2 rounded-lg border border-dashed border-line px-3 py-6 text-xs text-muted">
           <ScrollText className="h-4 w-4" />
-          {rows.length === 0 ? "Sin actividad registrada todavía." : "Sin matches."}
+          {(rows?.length ?? 0) === 0 ? "Sin actividad registrada todavía." : "Sin matches."}
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-line">
