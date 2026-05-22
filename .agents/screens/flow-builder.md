@@ -112,6 +112,23 @@ agree.
 
 ## Execution (changelog — newest first)
 
+### 2026-05-22 — "Person-first" UX wave
+- **Rich per-node docs** (`lib/flows/node-docs.ts`): what it's for, when it's
+  ideal, a tip — in the inspector ("¿Cómo funciona este paso?"), palette
+  tooltips, and the copilot's catalogue.
+- **Auto-connect on add** + **drag-and-drop** from palette. Adding a step while
+  one is selected wires it (right default handle) and places it to the right.
+- **Labeled branch handles** on canvas (new `nodes/BranchNode.tsx`): condition
+  Sí/No, try_catch Intentar/Si falla, loop Por cada uno/Al terminar, switch
+  Siguiente. Fixes loop/try_catch which previously rendered the wrong handles.
+- **Visual data picker**: clickable chips insert `{{var}}` so users never type
+  the templating syntax. Available data = flow vars + each step's default output.
+- **Run form** instead of raw JSON (JSON kept as advanced toggle).
+- **Inline validation badges** (⚠️) on problematic steps, live.
+- **Copilot preview**: proposal card with Reemplazar / Sumar al flujo / Descartar.
+- **Templates gallery** in the empty state (`lib/flows/templates.ts`) + node
+  cards show a live one-line config summary.
+
 ### 2026-05-22 — Flow Builder revamp
 - **Declarative node registry** drives a registry-driven searchable
   `NodePalette` and an auto-generated `InspectorForm` (label + help + example +
