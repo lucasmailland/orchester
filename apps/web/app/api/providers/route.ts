@@ -1,10 +1,19 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
-import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
+import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { encrypt, maskKey, decrypt } from "@/lib/encryption";
 import { logAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validation";
+
+const connectProviderSchema = z.object({
+  provider: z.string().min(1, "provider and apiKey required"),
+  apiKey: z.string().min(1, "provider and apiKey required"),
+  endpoint: z.string().optional(),
+});
 
 function safeDecrypt(s: string): string {
   try {
@@ -75,16 +84,12 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const session = await getCurrentSession();
-  const ws = await getCurrentWorkspace();
-  if (!ws || !session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const body = await req.json();
-  const { provider, apiKey, endpoint } = body as {
-    provider: string;
-    apiKey: string;
-    endpoint?: string;
-  };
-  if (!provider || !apiKey?.trim())
+  const ctx = await requireAuth({ minRole: "admin" });
+  if (!isAuthContext(ctx)) return ctx;
+  const parsed = await parseBody(req, connectProviderSchema);
+  if (!parsed.ok) return parsed.response;
+  const { provider, apiKey, endpoint } = parsed.data;
+  if (!apiKey.trim())
     return NextResponse.json({ error: "provider and apiKey required" }, { status: 400 });
 
   const db = getDb();
@@ -93,7 +98,7 @@ export async function POST(req: Request) {
     .from(schema.aiProviders)
     .where(
       and(
-        eq(schema.aiProviders.workspaceId, ws.workspace.id),
+        eq(schema.aiProviders.workspaceId, ctx.workspace.id),
         eq(schema.aiProviders.provider, provider)
       )
     )
@@ -110,8 +115,8 @@ export async function POST(req: Request) {
     if (!row) return NextResponse.json({ error: "Update failed" }, { status: 500 });
     // No loguear la key, sólo el provider y el masked.
     await logAudit({
-      workspaceId: ws.workspace.id,
-      userId: session.user.id,
+      workspaceId: ctx.workspace.id,
+      userId: ctx.user.id,
       action: "provider.update",
       resource: "ai_provider",
       resourceId: row.id,
@@ -123,7 +128,7 @@ export async function POST(req: Request) {
     .insert(schema.aiProviders)
     .values({
       id: createId(),
-      workspaceId: ws.workspace.id,
+      workspaceId: ctx.workspace.id,
       provider,
       apiKey: ciphertext,
       endpoint: endpoint ?? null,
@@ -132,8 +137,8 @@ export async function POST(req: Request) {
   const row = inserted[0];
   if (!row) return NextResponse.json({ error: "Insert failed" }, { status: 500 });
   await logAudit({
-    workspaceId: ws.workspace.id,
-    userId: session.user.id,
+    workspaceId: ctx.workspace.id,
+    userId: ctx.user.id,
     action: "provider.create",
     resource: "ai_provider",
     resourceId: row.id,

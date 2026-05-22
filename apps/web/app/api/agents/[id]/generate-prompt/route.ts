@@ -1,6 +1,20 @@
 import { NextResponse } from "next/server";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { z } from "zod";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
 import { llmCall, pickAvailableModel } from "@/lib/llm-call";
+
+const generatePromptSchema = z.object({
+  description: z.string().trim().min(1, "description required"),
+  tone: z.enum(["professional", "friendly", "formal", "direct"]).optional(),
+  context: z
+    .object({
+      companyName: z.string().optional(),
+      industry: z.string().optional(),
+      extraDetails: z.string().optional(),
+    })
+    .optional(),
+});
 
 const META_PROMPT = `You are an expert prompt engineer. Generate THREE distinct system prompt variations for an AI agent.
 
@@ -14,19 +28,14 @@ Return ONLY a JSON array of three strings, no markdown, no commentary:
 ["prompt1...", "prompt2...", "prompt3..."]`;
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
   await params;
-  const body = await req.json();
-  const { description, tone, context } = body as {
-    description: string;
-    tone?: "professional" | "friendly" | "formal" | "direct";
-    context?: { companyName?: string; industry?: string; extraDetails?: string };
-  };
-  if (!description?.trim())
-    return NextResponse.json({ error: "description required" }, { status: 400 });
+  const parsed = await parseBody(req, generatePromptSchema);
+  if (!parsed.ok) return parsed.response;
+  const { description, tone, context } = parsed.data;
 
-  const pick = await pickAvailableModel(ws.workspace.id);
+  const pick = await pickAvailableModel(ctx.workspace.id);
   if (!pick)
     return NextResponse.json({ error: "PROVIDER_NOT_CONFIGURED" }, { status: 401 });
 
@@ -42,7 +51,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   try {
     const r = await llmCall({
-      workspaceId: ws.workspace.id,
+      workspaceId: ctx.workspace.id,
       model: pick.model,
       systemPrompt: META_PROMPT,
       messages: [{ role: "user", content: userMsg }],

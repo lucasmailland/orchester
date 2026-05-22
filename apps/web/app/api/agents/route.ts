@@ -1,8 +1,22 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
 import { eq, desc } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
+import { logAudit } from "@/lib/audit";
+import { checkQuota } from "@/lib/billing/quotas";
+
+const createAgentSchema = z.object({
+  name: z.string().trim().min(1, "Name is required"),
+  role: z.string().trim().min(1, "Role is required"),
+  systemPrompt: z.string().trim().min(1, "System prompt is required"),
+  model: z.string().optional(),
+  status: z.enum(["active", "inactive", "draft"]).optional(),
+  teamId: z.string().optional().nullable(),
+});
 
 export async function GET() {
   const ws = await getCurrentWorkspace();
@@ -17,22 +31,27 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const workspace = await getCurrentWorkspace();
-  if (!workspace) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
 
-  const body = await req.json();
-  const { name, role, systemPrompt, model, status, teamId } = body;
+  const quota = await checkQuota(ctx.workspace.id, "agents");
+  if (!quota.allowed) {
+    return NextResponse.json(
+      { error: quota.reason ?? "Agent quota exceeded for your plan" },
+      { status: 402 }
+    );
+  }
 
-  if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
-  if (!role?.trim()) return NextResponse.json({ error: "Role is required" }, { status: 400 });
-  if (!systemPrompt?.trim()) return NextResponse.json({ error: "System prompt is required" }, { status: 400 });
+  const parsed = await parseBody(req, createAgentSchema);
+  if (!parsed.ok) return parsed.response;
+  const { name, role, systemPrompt, model, status, teamId } = parsed.data;
 
   const db = getDb();
   const [agent] = await db
     .insert(schema.agents)
     .values({
       id: createId(),
-      workspaceId: workspace.workspace.id,
+      workspaceId: ctx.workspace.id,
       teamId: teamId || null,
       name: name.trim(),
       role: role.trim(),
@@ -41,6 +60,17 @@ export async function POST(req: Request) {
       status: status || "draft",
     })
     .returning();
+
+  if (agent) {
+    await logAudit({
+      workspaceId: ctx.workspace.id,
+      userId: ctx.user.id,
+      action: "agent.create",
+      resource: "agent",
+      resourceId: agent.id,
+      after: { name: agent.name, role: agent.role },
+    });
+  }
 
   return NextResponse.json(agent, { status: 201 });
 }

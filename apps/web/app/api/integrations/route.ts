@@ -1,7 +1,18 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
+import { logAudit } from "@/lib/audit";
 import { listConnectors } from "@/lib/integrations/registry";
 import { listIntegrations, upsertIntegration } from "@/lib/integrations/store";
+
+const upsertIntegrationSchema = z.object({
+  type: z.string().min(1),
+  name: z.string().min(1),
+  // config son credenciales/ajustes libres por conector — no se loguean.
+  config: z.record(z.string(), z.string()),
+});
 
 /**
  * GET /api/integrations
@@ -20,22 +31,25 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const body = (await req.json().catch(() => ({}))) as {
-    type?: string;
-    name?: string;
-    config?: Record<string, string>;
-  };
-  if (!body.type || !body.name || !body.config) {
-    return NextResponse.json({ error: "type, name y config son requeridos" }, { status: 400 });
-  }
+  const ctx = await requireAuth({ minRole: "admin" });
+  if (!isAuthContext(ctx)) return ctx;
+  const parsed = await parseBody(req, upsertIntegrationSchema);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
   try {
     const result = await upsertIntegration({
-      workspaceId: ws.workspace.id,
+      workspaceId: ctx.workspace.id,
       type: body.type,
       name: body.name,
       config: body.config,
+    });
+    await logAudit({
+      workspaceId: ctx.workspace.id,
+      userId: ctx.user.id,
+      action: "integration.connect",
+      resource: "integration",
+      resourceId: result.id,
+      after: { type: body.type, name: body.name },
     });
     return NextResponse.json(result);
   } catch (e) {

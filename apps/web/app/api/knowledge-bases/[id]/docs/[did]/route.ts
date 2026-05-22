@@ -1,16 +1,15 @@
 import { NextResponse } from "next/server";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
-import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { logAudit } from "@/lib/audit";
 
 export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string; did: string }> }
 ) {
-  const ws = await getCurrentWorkspace();
-  const session = await getCurrentSession();
-  if (!ws || !session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
   const { did } = await params;
   const db = getDb();
   const before = (
@@ -20,7 +19,7 @@ export async function DELETE(
       .where(
         and(
           eq(schema.knowledgeDocs.id, did),
-          eq(schema.knowledgeDocs.workspaceId, ws.workspace.id)
+          eq(schema.knowledgeDocs.workspaceId, ctx.workspace.id)
         )
       )
       .limit(1)
@@ -30,14 +29,14 @@ export async function DELETE(
     .where(
       and(
         eq(schema.knowledgeDocs.id, did),
-        eq(schema.knowledgeDocs.workspaceId, ws.workspace.id)
+        eq(schema.knowledgeDocs.workspaceId, ctx.workspace.id)
       )
     )
     .returning({ id: schema.knowledgeDocs.id });
   if (!deleted[0]) return NextResponse.json({ error: "Not found" }, { status: 404 });
   await logAudit({
-    workspaceId: ws.workspace.id,
-    userId: session.user.id,
+    workspaceId: ctx.workspace.id,
+    userId: ctx.user.id,
     action: "kb.doc.delete",
     resource: "knowledge_doc",
     resourceId: did,

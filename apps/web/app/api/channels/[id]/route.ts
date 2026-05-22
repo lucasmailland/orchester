@@ -1,12 +1,29 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { encrypt } from "@/lib/encryption";
 import { telegramSetWebhook, telegramGetMe } from "@/lib/channels/telegram";
 import { slackAuthTest } from "@/lib/channels/slack";
 import { logAudit } from "@/lib/audit";
-import { getCurrentSession } from "@/lib/workspace";
+import { parseBody } from "@/lib/validation";
+
+const updateChannelSchema = z.object({
+  name: z.string().optional(),
+  status: z.enum(["active", "inactive"]).optional(),
+  agentId: z.string().nullable().optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
+  // credentials es libre por canal (botToken/signingSecret/etc.). No se loguea.
+  credentials: z
+    .object({
+      botToken: z.string().optional(),
+      signingSecret: z.string().optional(),
+    })
+    .loose()
+    .optional(),
+});
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ws = await getCurrentWorkspace();
@@ -25,10 +42,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
-  const body = await req.json();
+  const parsed = await parseBody(req, updateChannelSchema);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
   const db = getDb();
 
   const set: Record<string, unknown> = { updatedAt: new Date() };
@@ -46,10 +65,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const updated = await db
     .update(schema.channels)
     .set(set)
-    .where(and(eq(schema.channels.id, id), eq(schema.channels.workspaceId, ws.workspace.id)))
+    .where(and(eq(schema.channels.id, id), eq(schema.channels.workspaceId, ctx.workspace.id)))
     .returning();
   const row = updated[0];
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Audit: registramos la actualización SIN credenciales (sólo identificadores).
+  await logAudit({
+    workspaceId: ctx.workspace.id,
+    userId: ctx.user.id,
+    action: "channel.update",
+    resource: "channel",
+    resourceId: row.id,
+    after: { name: row.name, type: row.type, credentialsUpdated: body.credentials !== undefined },
+  });
 
   // Telegram: auto-register webhook when credentials updated
   if (
@@ -131,9 +160,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  const session = await getCurrentSession();
-  if (!ws || !session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
   const db = getDb();
   // Snapshot before delete para el audit log.
@@ -141,17 +169,17 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     await db
       .select({ name: schema.channels.name, type: schema.channels.type })
       .from(schema.channels)
-      .where(and(eq(schema.channels.id, id), eq(schema.channels.workspaceId, ws.workspace.id)))
+      .where(and(eq(schema.channels.id, id), eq(schema.channels.workspaceId, ctx.workspace.id)))
       .limit(1)
   )[0];
   const deleted = await db
     .delete(schema.channels)
-    .where(and(eq(schema.channels.id, id), eq(schema.channels.workspaceId, ws.workspace.id)))
+    .where(and(eq(schema.channels.id, id), eq(schema.channels.workspaceId, ctx.workspace.id)))
     .returning({ id: schema.channels.id });
   if (!deleted[0]) return NextResponse.json({ error: "Not found" }, { status: 404 });
   await logAudit({
-    workspaceId: ws.workspace.id,
-    userId: session.user.id,
+    workspaceId: ctx.workspace.id,
+    userId: ctx.user.id,
     action: "channel.delete",
     resource: "channel",
     resourceId: id,

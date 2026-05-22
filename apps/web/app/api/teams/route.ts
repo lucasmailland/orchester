@@ -1,23 +1,30 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
+
+const createTeamSchema = z.object({
+  name: z.string().trim().min(1, "Name is required"),
+  description: z.string().optional(),
+  avatarColor: z.string().optional(),
+});
 
 export async function POST(req: Request) {
-  const workspace = await getCurrentWorkspace();
-  if (!workspace) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "admin" });
+  if (!isAuthContext(ctx)) return ctx;
 
-  const body = await req.json();
-  const { name, description, avatarColor } = body;
-
-  if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
+  const parsed = await parseBody(req, createTeamSchema);
+  if (!parsed.ok) return parsed.response;
+  const { name, description, avatarColor } = parsed.data;
 
   const db = getDb();
   const [team] = await db
     .insert(schema.teams)
     .values({
       id: createId(),
-      workspaceId: workspace.workspace.id,
+      workspaceId: ctx.workspace.id,
       name: name.trim(),
       description: description?.trim() || null,
       avatarColor: avatarColor || "#7C3AED",

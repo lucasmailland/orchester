@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getDb, schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
 import { getCurrentSession } from "@/lib/workspace";
+import { parseBody } from "@/lib/validation";
+
+const updateMeSchema = z.object({
+  name: z.string().optional(),
+  preferredLocale: z.enum(["en", "es", "pt-BR"]).optional(),
+  preferredTheme: z.enum(["light", "dark", "system"]).optional(),
+});
 
 /**
  * GET /api/me
@@ -12,9 +20,6 @@ import { getCurrentSession } from "@/lib/workspace";
  * Permite que el user actualice sus preferencias personales. NO toca campos
  * sensibles (email, emailVerified, password) — esos van por el flujo de auth.
  */
-
-const ALLOWED_LOCALES = new Set(["en", "es", "pt-BR"]);
-const ALLOWED_THEMES = new Set(["light", "dark", "system"]);
 
 export async function GET() {
   const session = await getCurrentSession();
@@ -33,11 +38,9 @@ export async function PATCH(req: Request) {
   const session = await getCurrentSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = (await req.json().catch(() => ({}))) as {
-    name?: string;
-    preferredLocale?: string;
-    preferredTheme?: string;
-  };
+  const parsed = await parseBody(req, updateMeSchema);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
 
   const set: Record<string, unknown> = { updatedAt: new Date() };
   if (typeof body.name === "string" && body.name.trim()) {
@@ -47,21 +50,9 @@ export async function PATCH(req: Request) {
     set["name"] = body.name.trim();
   }
   if (body.preferredLocale !== undefined) {
-    if (!ALLOWED_LOCALES.has(body.preferredLocale)) {
-      return NextResponse.json(
-        { error: `preferredLocale must be one of ${[...ALLOWED_LOCALES].join(", ")}` },
-        { status: 400 }
-      );
-    }
     set["preferredLocale"] = body.preferredLocale;
   }
   if (body.preferredTheme !== undefined) {
-    if (!ALLOWED_THEMES.has(body.preferredTheme)) {
-      return NextResponse.json(
-        { error: `preferredTheme must be one of ${[...ALLOWED_THEMES].join(", ")}` },
-        { status: 400 }
-      );
-    }
     set["preferredTheme"] = body.preferredTheme;
   }
 

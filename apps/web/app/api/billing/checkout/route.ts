@@ -1,14 +1,20 @@
 import { NextResponse } from "next/server";
-import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
+import { z } from "zod";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
 import { createCheckoutSession } from "@/lib/billing/stripe";
 import { PLANS, type Plan } from "@/lib/billing/plans";
 
+const checkoutSchema = z.object({
+  plan: z.string().optional(),
+});
+
 export async function POST(req: Request) {
-  const ws = await getCurrentWorkspace();
-  const session = await getCurrentSession();
-  if (!ws || !session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const body = await req.json();
-  const plan = String(body?.plan ?? "") as Plan;
+  const ctx = await requireAuth({ minRole: "admin" });
+  if (!isAuthContext(ctx)) return ctx;
+  const parsed = await parseBody(req, checkoutSchema);
+  if (!parsed.ok) return parsed.response;
+  const plan = String(parsed.data.plan ?? "") as Plan;
   if (!PLANS[plan]) return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
   const priceEnv = PLANS[plan].stripePriceEnv;
   if (!priceEnv)
@@ -23,11 +29,11 @@ export async function POST(req: Request) {
   const base = process.env["NEXT_PUBLIC_APP_URL"] ?? "http://localhost:3333";
   try {
     const checkout = await createCheckoutSession({
-      customerEmail: session.user.email,
+      customerEmail: ctx.user.email,
       priceId,
       successUrl: `${base}/settings?billing=success`,
       cancelUrl: `${base}/pricing?billing=cancel`,
-      workspaceId: ws.workspace.id,
+      workspaceId: ctx.workspace.id,
     });
     return NextResponse.json({ url: checkout.url });
   } catch (e) {

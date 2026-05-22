@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getDb, schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
 import { handleInbound } from "@/lib/channels/router";
@@ -9,13 +10,30 @@ const CORS_HEADERS = {
   "access-control-allow-headers": "content-type",
 };
 
+// Endpoint público con CORS: validamos forma pero devolvemos los errores con
+// los CORS_HEADERS, por eso no usamos el helper parseBody acá.
+const widgetMessageSchema = z.object({
+  visitorId: z.string().optional(),
+  text: z.string().optional(),
+  customerName: z.string().optional(),
+  customerEmail: z.string().optional(),
+});
+
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ channelId: string }> }) {
   const { channelId } = await params;
-  const body = await req.json().catch(() => ({}));
+  const raw = await req.json().catch(() => ({}));
+  const result0 = widgetMessageSchema.safeParse(raw);
+  if (!result0.success) {
+    return NextResponse.json(
+      { error: "Validación fallida", issues: result0.error.issues.map((i) => i.message) },
+      { status: 400, headers: CORS_HEADERS }
+    );
+  }
+  const body = result0.data;
   const visitorId = String(body?.visitorId ?? "").trim();
   const text = String(body?.text ?? "").trim();
   if (!visitorId || !text) {
@@ -45,8 +63,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ channel
       channelId: channel.id,
       externalId: visitorId,
       text,
-      customerName: body?.customerName ?? undefined,
-      customerEmail: body?.customerEmail ?? undefined,
+      ...(body?.customerName ? { customerName: body.customerName } : {}),
+      ...(body?.customerEmail ? { customerEmail: body.customerEmail } : {}),
       metadata: { source: "widget" },
     });
     return NextResponse.json(

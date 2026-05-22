@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string; vid: string }> }
 ) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
   const { id, vid } = await params;
   const db = getDb();
   const versions = await db
@@ -18,7 +18,7 @@ export async function POST(
       and(
         eq(schema.agentVersions.id, vid),
         eq(schema.agentVersions.agentId, id),
-        eq(schema.agentVersions.workspaceId, ws.workspace.id)
+        eq(schema.agentVersions.workspaceId, ctx.workspace.id)
       )
     )
     .limit(1);
@@ -34,7 +34,7 @@ export async function POST(
       maxTokens: v.maxTokens ?? null,
       updatedAt: new Date(),
     })
-    .where(and(eq(schema.agents.id, id), eq(schema.agents.workspaceId, ws.workspace.id)))
+    .where(and(eq(schema.agents.id, id), eq(schema.agents.workspaceId, ctx.workspace.id)))
     .returning();
   const row = updated[0];
   if (!row) return NextResponse.json({ error: "Agent not found" }, { status: 404 });

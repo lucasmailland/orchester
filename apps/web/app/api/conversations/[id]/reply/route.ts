@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
-import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
 import { decodeTelegramCredentials, telegramSend } from "@/lib/channels/telegram";
 import { decodeSlackCredentials, slackSend } from "@/lib/channels/slack";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { safeLogError } from "@/lib/safe-log";
+
+const replySchema = z.object({
+  text: z.string().optional(),
+});
 
 /**
  * POST /api/conversations/[id]/reply
@@ -16,19 +22,19 @@ import { safeLogError } from "@/lib/safe-log";
  * page polls the conversation transcript via the public messages API.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  const session = await getCurrentSession();
-  if (!ws || !session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
 
   const limited = await enforceRateLimit(
-    `reply:${ws.workspace.id}:${session.user.id}`,
+    `reply:${ctx.workspace.id}:${ctx.user.id}`,
     RATE_LIMITS.MUTATION
   );
   if (limited) return limited;
 
   const { id } = await params;
-  const body = await req.json();
-  const text = String(body?.text ?? "").trim();
+  const parsed = await parseBody(req, replySchema);
+  if (!parsed.ok) return parsed.response;
+  const text = String(parsed.data.text ?? "").trim();
   if (!text) return NextResponse.json({ error: "text required" }, { status: 400 });
 
   const db = getDb();
@@ -36,7 +42,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .select()
     .from(schema.conversations)
     .where(
-      and(eq(schema.conversations.id, id), eq(schema.conversations.workspaceId, ws.workspace.id))
+      and(eq(schema.conversations.id, id), eq(schema.conversations.workspaceId, ctx.workspace.id))
     )
     .limit(1);
   const conv = convs[0];
@@ -48,7 +54,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     role: "assistant",
     content: text,
     fromOperator: true,
-    authorUserId: session.user.id,
+    authorUserId: ctx.user.id,
   });
   await db
     .update(schema.conversations)

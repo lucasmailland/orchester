@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
 import { getDb, schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { createBillingPortalSession } from "@/lib/billing/stripe";
 
 export async function POST() {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "admin" });
+  if (!isAuthContext(ctx)) return ctx;
   const db = getDb();
   const rows = await db
     .select()
     .from(schema.workspaceBilling)
-    .where(eq(schema.workspaceBilling.workspaceId, ws.workspace.id))
+    .where(eq(schema.workspaceBilling.workspaceId, ctx.workspace.id))
     .limit(1);
   const row = rows[0];
   if (!row?.stripeCustomerId)

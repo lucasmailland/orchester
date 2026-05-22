@@ -1,10 +1,22 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
 import { eq, and, desc } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
 import { embed } from "@/lib/embeddings";
 import { chunkText, extractTextFromBuffer, isParsable } from "@/lib/chunking";
+
+const ingestJsonSchema = z.object({
+  title: z.string().optional(),
+  source: z.enum(["text", "url", "file"]),
+  content: z.string().optional(),
+  url: z.string().optional(),
+  contentType: z.string().optional(),
+  binaryBase64: z.string().optional(),
+});
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ws = await getCurrentWorkspace();
@@ -45,8 +57,8 @@ interface IngestPayload {
  *   parse → chunk → embed → persist → ready.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
   const { id: kbId } = await params;
   const reqContentType = req.headers.get("content-type") ?? "";
 
@@ -68,7 +80,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       contentType: detectedFileType,
     };
   } else {
-    payload = (await req.json()) as IngestPayload;
+    const parsed = await parseBody(req, ingestJsonSchema);
+    if (!parsed.ok) return parsed.response;
+    payload = { ...parsed.data, title: parsed.data.title ?? "" } as IngestPayload;
     if (payload.source === "file" && payload.binaryBase64) {
       fileBuffer = Buffer.from(payload.binaryBase64, "base64");
       detectedFileType = payload.contentType ?? null;
@@ -90,7 +104,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .where(
       and(
         eq(schema.knowledgeBases.id, kbId),
-        eq(schema.knowledgeBases.workspaceId, ws.workspace.id)
+        eq(schema.knowledgeBases.workspaceId, ctx.workspace.id)
       )
     )
     .limit(1);
@@ -104,7 +118,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   await db.insert(schema.knowledgeDocs).values({
     id: docId,
     kbId,
-    workspaceId: ws.workspace.id,
+    workspaceId: ctx.workspace.id,
     title: payload.title.trim(),
     source: payload.source,
     url: payload.url ?? null,
@@ -158,7 +172,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       .where(eq(schema.knowledgeDocs.id, docId));
 
     const { vectors } = await embed(
-      ws.workspace.id,
+      ctx.workspace.id,
       kb.embeddingProvider as "openai" | "google",
       kb.embeddingModel,
       chunks
@@ -168,7 +182,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       id: createId(),
       docId,
       kbId,
-      workspaceId: ws.workspace.id,
+      workspaceId: ctx.workspace.id,
       ordinal: i,
       text: c,
       embedding: vectors[i] ?? null,

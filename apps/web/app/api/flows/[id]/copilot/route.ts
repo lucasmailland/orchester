@@ -1,7 +1,17 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
 import { llmCall, pickAvailableModel, type ChatMessage } from "@/lib/llm-call";
+
+const copilotSchema = z.object({
+  prompt: z.string().optional(),
+  apiUrl: z.string().optional(),
+  // history y currentGraph son estructuras dinámicas validadas más abajo.
+  history: z.array(z.unknown()).optional(),
+  currentGraph: z.record(z.string(), z.unknown()).optional(),
+});
 import {
   COPILOT_TOOLS,
   buildSystemPrompt,
@@ -18,16 +28,18 @@ import {
  * devolvemos para que el cliente lo aplique al lienzo.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
   await params; // flowId no se usa para construir, pero valida la ruta
 
-  const body = await req.json().catch(() => ({}));
+  const parsed = await parseBody(req, copilotSchema);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
   const prompt = String(body?.prompt ?? "").trim();
   const apiUrl = body?.apiUrl ? String(body.apiUrl).trim() : "";
   if (!prompt) return NextResponse.json({ error: "Contanos qué querés que haga el flujo." }, { status: 400 });
 
-  const picked = await pickAvailableModel(ws.workspace.id);
+  const picked = await pickAvailableModel(ctx.workspace.id);
   if (!picked) {
     return NextResponse.json(
       { error: "Primero conectá un proveedor de IA en Ajustes para usar el copiloto." },
@@ -69,7 +81,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   let result;
   try {
     result = await llmCall({
-      workspaceId: ws.workspace.id,
+      workspaceId: ctx.workspace.id,
       model: picked.model,
       systemPrompt: buildSystemPrompt("es"),
       messages,

@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
 import { eq, and, desc } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
+
+const createAgentVersionSchema = z.object({
+  systemPrompt: z.string().min(1, "systemPrompt and model required"),
+  model: z.string().min(1, "systemPrompt and model required"),
+  temperature: z.union([z.number(), z.string()]).optional(),
+  maxTokens: z.number().optional(),
+  label: z.string().optional(),
+});
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ws = await getCurrentWorkspace();
@@ -23,20 +34,19 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
-  const body = await req.json();
-  const { systemPrompt, model, temperature, maxTokens, label } = body;
-  if (!systemPrompt || !model)
-    return NextResponse.json({ error: "systemPrompt and model required" }, { status: 400 });
+  const parsed = await parseBody(req, createAgentVersionSchema);
+  if (!parsed.ok) return parsed.response;
+  const { systemPrompt, model, temperature, maxTokens, label } = parsed.data;
   const db = getDb();
   const inserted = await db
     .insert(schema.agentVersions)
     .values({
       id: createId(),
       agentId: id,
-      workspaceId: ws.workspace.id,
+      workspaceId: ctx.workspace.id,
       systemPrompt,
       model,
       temperature: temperature !== undefined ? String(temperature) : null,

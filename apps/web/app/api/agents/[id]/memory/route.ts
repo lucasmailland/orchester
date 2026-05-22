@@ -1,6 +1,18 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
 import { listMemoryRows, setMemory, removeMemory } from "@/lib/memory";
+
+const setMemorySchema = z.object({
+  scope: z.enum(["global", "conversation", "employee"]),
+  key: z.string().min(1),
+  // value es contenido arbitrario que el agente persiste.
+  value: z.unknown().optional(),
+  conversationId: z.string().optional(),
+  employeeId: z.string().optional(),
+});
 
 /** GET — list every memory row for an agent (admin / debug view). */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -13,17 +25,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
 /** POST — upsert a key into a scope. Body: { scope, key, value, conversationId?, employeeId? } */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
-  const body = await req.json();
-  const scope = body?.scope as "global" | "conversation" | "employee";
-  const key = String(body?.key ?? "").trim();
-  if (!scope || !key) return NextResponse.json({ error: "scope and key required" }, { status: 400 });
+  const parsed = await parseBody(req, setMemorySchema);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+  const key = body.key.trim();
+  if (!key) return NextResponse.json({ error: "scope and key required" }, { status: 400 });
   const out = await setMemory({
     agentId: id,
-    workspaceId: ws.workspace.id,
-    scope,
+    workspaceId: ctx.workspace.id,
+    scope: body.scope,
     key,
     value: body.value,
     conversationId: body.conversationId,
@@ -34,8 +47,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
 /** DELETE — remove a key (or whole scope row if key omitted). */
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
   const url = new URL(req.url);
   const scope = url.searchParams.get("scope") as "global" | "conversation" | "employee" | null;
@@ -45,7 +58,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   if (!scope) return NextResponse.json({ error: "scope required" }, { status: 400 });
   await removeMemory({
     agentId: id,
-    workspaceId: ws.workspace.id,
+    workspaceId: ctx.workspace.id,
     scope,
     key,
     ...(conversationId ? { conversationId } : {}),

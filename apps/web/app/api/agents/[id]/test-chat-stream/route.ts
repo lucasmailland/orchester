@@ -1,9 +1,22 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
 import { ProviderNotConfiguredError, llmStream } from "@/lib/llm-call";
 import { loadAgent } from "@/lib/agent-runtime";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { safeLogError } from "@/lib/safe-log";
+import { parseBody } from "@/lib/validation";
+
+const testChatStreamSchema = z.object({
+  messages: z.array(
+    z.object({ role: z.enum(["user", "assistant"]), content: z.string() })
+  ),
+  systemPrompt: z.string(),
+  model: z.string(),
+  temperature: z.number().optional(),
+  maxTokens: z.number().optional(),
+  variables: z.record(z.string(), z.string()).optional(),
+});
 
 /** Inline interpolation: reemplaza {{var}} en el prompt con `vars[var]`. */
 function interpolate(template: string, vars: Record<string, string>): string {
@@ -41,15 +54,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (limited) return limited;
 
   const { id } = await params;
-  const body = await req.json().catch(() => ({}));
-  const { messages, systemPrompt, model, temperature, maxTokens, variables } = body as {
-    messages: Array<{ role: "user" | "assistant"; content: string }>;
-    systemPrompt: string;
-    model: string;
-    temperature?: number;
-    maxTokens?: number;
-    variables?: Record<string, string>;
-  };
+  const parsed = await parseBody(req, testChatStreamSchema);
+  if (!parsed.ok) return parsed.response;
+  const { messages, systemPrompt, model, temperature, maxTokens, variables } = parsed.data;
   if (!messages?.length || !systemPrompt || !model) {
     return NextResponse.json(
       { error: "messages, systemPrompt, model required" },

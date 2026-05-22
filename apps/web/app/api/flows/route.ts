@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
 import { eq, and, or, desc } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
+import { logAudit } from "@/lib/audit";
+import { checkQuota } from "@/lib/billing/quotas";
+
+const createFlowSchema = z.object({
+  name: z.string().trim().min(1, "name required"),
+  description: z.string().nullable().optional(),
+  templateId: z.string().optional(),
+});
 
 export async function GET() {
   const ws = await getCurrentWorkspace();
@@ -17,11 +28,18 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const body = await req.json();
-  const { name, description, templateId } = body;
-  if (!name?.trim()) return NextResponse.json({ error: "name required" }, { status: 400 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
+  const quota = await checkQuota(ctx.workspace.id, "flows");
+  if (!quota.allowed) {
+    return NextResponse.json(
+      { error: quota.reason ?? "Flow quota exceeded for your plan" },
+      { status: 402 }
+    );
+  }
+  const parsed = await parseBody(req, createFlowSchema);
+  if (!parsed.ok) return parsed.response;
+  const { name, description, templateId } = parsed.data;
   const db = getDb();
 
   // Optional: load template
@@ -37,7 +55,7 @@ export async function POST(req: Request) {
           eq(schema.flowTemplates.id, templateId),
           or(
             eq(schema.flowTemplates.isPublic, true),
-            eq(schema.flowTemplates.workspaceId, ws.workspace.id)
+            eq(schema.flowTemplates.workspaceId, ctx.workspace.id)
           )
         )
       )
@@ -56,7 +74,7 @@ export async function POST(req: Request) {
     .insert(schema.flows)
     .values({
       id: createId(),
-      workspaceId: ws.workspace.id,
+      workspaceId: ctx.workspace.id,
       name: name.trim(),
       description: description ?? null,
       nodes: initialNodes as never,
@@ -66,5 +84,13 @@ export async function POST(req: Request) {
     .returning();
   const row = inserted[0];
   if (!row) return NextResponse.json({ error: "Insert failed" }, { status: 500 });
+  await logAudit({
+    workspaceId: ctx.workspace.id,
+    userId: ctx.user.id,
+    action: "flow.create",
+    resource: "flow",
+    resourceId: row.id,
+    after: { name: row.name },
+  });
   return NextResponse.json(row, { status: 201 });
 }

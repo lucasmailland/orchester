@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
 import { eq, desc } from "drizzle-orm";
-import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
+import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { generateApiKey } from "@/lib/api-auth/key";
 import { logAudit } from "@/lib/audit";
 
@@ -27,9 +28,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const ws = await getCurrentWorkspace();
-  const session = await getCurrentSession();
-  if (!ws || !session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "admin" });
+  if (!isAuthContext(ctx)) return ctx;
   const body = await req.json().catch(() => ({}));
   const name = String(body?.name ?? "API key").trim();
   const { plain, hashed, prefix } = generateApiKey();
@@ -38,16 +38,16 @@ export async function POST(req: Request) {
     .insert(schema.apiKeys)
     .values({
       id: createId(),
-      workspaceId: ws.workspace.id,
+      workspaceId: ctx.workspace.id,
       name,
       hashedKey: hashed,
       prefix,
-      createdByUserId: session.user.id,
+      createdByUserId: ctx.user.id,
     })
     .returning();
   await logAudit({
-    workspaceId: ws.workspace.id,
-    userId: session.user.id,
+    workspaceId: ctx.workspace.id,
+    userId: ctx.user.id,
     action: "apikey.create",
     resource: "api_key",
     resourceId: inserted[0]?.id,

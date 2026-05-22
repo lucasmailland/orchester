@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
 import { eq, and, desc } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
 
 // Bare-bones cron validation: allow 5 fields with digits, *, /, ,, -
 const CRON_RE = /^(\S+\s+){4}\S+$/;
+
+const createScheduleSchema = z.object({
+  cron: z.string().optional(),
+  timezone: z.string().optional(),
+});
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ws = await getCurrentWorkspace();
@@ -26,21 +34,22 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
-  const body = await req.json();
-  const cron = (body?.cron as string)?.trim();
+  const parsed = await parseBody(req, createScheduleSchema);
+  if (!parsed.ok) return parsed.response;
+  const cron = parsed.data.cron?.trim();
   if (!cron || !CRON_RE.test(cron))
     return NextResponse.json({ error: "Invalid cron expression (need 5 fields)" }, { status: 400 });
-  const tz = (body?.timezone as string) || "UTC";
+  const tz = parsed.data.timezone || "UTC";
   const db = getDb();
   const inserted = await db
     .insert(schema.flowSchedules)
     .values({
       id: createId(),
       flowId: id,
-      workspaceId: ws.workspace.id,
+      workspaceId: ctx.workspace.id,
       cron,
       timezone: tz,
     })

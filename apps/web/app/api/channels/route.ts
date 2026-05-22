@@ -1,9 +1,19 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import crypto from "node:crypto";
 import { getDb, schema } from "@orchester/db";
 import { eq, desc } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
+import { logAudit } from "@/lib/audit";
+
+const createChannelSchema = z.object({
+  name: z.string().trim().min(1, "name required"),
+  type: z.enum(["widget", "web", "telegram", "slack", "whatsapp", "email", "api"]),
+  agentId: z.string().optional(),
+});
 
 export async function GET() {
   const ws = await getCurrentWorkspace();
@@ -24,22 +34,17 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const body = await req.json();
-  const { name, type, agentId } = body as {
-    name: string;
-    type: "widget" | "web" | "telegram" | "slack" | "whatsapp" | "email" | "api";
-    agentId?: string;
-  };
-  if (!name?.trim()) return NextResponse.json({ error: "name required" }, { status: 400 });
-  if (!type) return NextResponse.json({ error: "type required" }, { status: 400 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
+  const parsed = await parseBody(req, createChannelSchema);
+  if (!parsed.ok) return parsed.response;
+  const { name, type, agentId } = parsed.data;
   const db = getDb();
   const inserted = await db
     .insert(schema.channels)
     .values({
       id: createId(),
-      workspaceId: ws.workspace.id,
+      workspaceId: ctx.workspace.id,
       name: name.trim(),
       type,
       status: "inactive",
@@ -50,5 +55,13 @@ export async function POST(req: Request) {
     .returning();
   const row = inserted[0];
   if (!row) return NextResponse.json({ error: "Insert failed" }, { status: 500 });
+  await logAudit({
+    workspaceId: ctx.workspace.id,
+    userId: ctx.user.id,
+    action: "channel.create",
+    resource: "channel",
+    resourceId: row.id,
+    after: { name: row.name, type: row.type },
+  });
   return NextResponse.json(row, { status: 201 });
 }

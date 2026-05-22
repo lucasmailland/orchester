@@ -1,5 +1,12 @@
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { z } from "zod";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
 import { executeFlow, type FlowRunEvent } from "@/lib/flow-engine";
+
+// `input` es JSON arbitrario definido por el trigger del flujo: no se restringe.
+const runStreamSchema = z.object({
+  input: z.unknown().optional(),
+});
 
 export const dynamic = "force-dynamic";
 
@@ -9,11 +16,12 @@ export const dynamic = "force-dynamic";
  * step_finish, run_finish) para visualizar el progreso en el lienzo.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return new Response("Unauthorized", { status: 401 });
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
-  const body = await req.json().catch(() => ({}));
-  const input = (body?.input as Record<string, unknown>) ?? {};
+  const parsed = await parseBody(req, runStreamSchema);
+  if (!parsed.ok) return parsed.response;
+  const input = (parsed.data.input ?? {}) as Record<string, unknown>;
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -28,7 +36,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       try {
         await executeFlow({
           flowId: id,
-          workspaceId: ws.workspace.id,
+          workspaceId: ctx.workspace.id,
           triggerSource: "manual",
           input,
           onEvent: send,

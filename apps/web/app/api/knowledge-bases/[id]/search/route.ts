@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getDb, schema } from "@orchester/db";
 import { eq, and, sql } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
+import { parseBody } from "@/lib/validation";
 import { embed } from "@/lib/embeddings";
+
+const kbSearchSchema = z.object({
+  query: z.string().optional(),
+  topK: z.number().optional(),
+});
 
 /**
  * POST /api/knowledge-bases/[id]/search
@@ -13,9 +20,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const ws = await getCurrentWorkspace();
   if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id: kbId } = await params;
-  const body = await req.json();
-  const query = String(body?.query ?? "").trim();
-  const topK = Math.min(20, Number(body?.topK ?? 5));
+  const parsed = await parseBody(req, kbSearchSchema);
+  if (!parsed.ok) return parsed.response;
+  const query = String(parsed.data.query ?? "").trim();
+  const topK = Math.min(20, Number(parsed.data.topK ?? 5));
   if (!query) return NextResponse.json({ error: "query required" }, { status: 400 });
 
   const db = getDb();
