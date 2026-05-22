@@ -155,6 +155,28 @@ Causas:
 
 ---
 
+## Backups & DR
+
+**Cron:** `./scripts/backup.sh` corre diario a las 03:00 vía crontab:
+
+```cron
+0 3 * * *  cd /opt/orchester && ./scripts/backup.sh >> /var/log/orchester-backup.log 2>&1
+```
+
+Hace `pg_dump → gzip` en `BACKUP_DIR` (default `./backups`) y, si hay MinIO,
+copia el bucket. Retención: `RETAIN_DAYS=14` por default.
+
+**Verificación periódica:**
+- Revisar `/var/log/orchester-backup.log` semanalmente (exit code 0 + archivo nuevo).
+- Confirmar que el `.sql.gz` del día existe y pesa lo esperado.
+
+**Recordatorio de restore-rehearsal:** un backup que nunca se restauró no es un
+backup. Ensayar el restore en un entorno limpio **al menos una vez por trimestre**
+siguiendo "Restore de backup tras DB destruida" más abajo, y anotar la fecha del
+último ensayo exitoso. Si pasaron más de 3 meses sin ensayo, agendalo.
+
+---
+
 ## Sospecho compromise de credenciales
 
 Procedimiento (tomá 5 minutos):
