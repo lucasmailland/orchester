@@ -119,6 +119,20 @@
     );
   }
 
+  /* Estado en vivo de los nodos durante una ejecución */
+  .react-flow__node.flow-node-running {
+    box-shadow: 0 0 0 2px rgb(124 58 237), 0 0 16px 2px rgba(124, 58, 237, 0.45);
+    border-radius: 12px;
+  }
+  .react-flow__node.flow-node-ok {
+    box-shadow: 0 0 0 2px rgb(34 197 94);
+    border-radius: 12px;
+  }
+  .react-flow__node.flow-node-fail {
+    box-shadow: 0 0 0 2px rgb(239 68 68), 0 0 16px 2px rgba(239, 68, 68, 0.4);
+    border-radius: 12px;
+  }
+
   /* Gradient text utility */
   .text-gradient {
     background: linear-gradient(135deg, #7c3aed 0%, #3b3bff 100%);
