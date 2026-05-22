@@ -15,6 +15,9 @@ export type FlowNodeType =
   | "text_to_speech"
   | "transcribe"
   | "rerank"
+  | "generate_avatar"
+  | "generate_music"
+  | "ocr_extract"
   | "condition"
   | "switch"
   | "http"
@@ -643,6 +646,46 @@ async function executeNode(
     if (!audioUrl.trim()) throw new Error("Falta la URL del audio.");
     const { transcribe } = await import("./ai/run");
     const res = await transcribe(workspaceId, model, audioUrl);
+    ctx.variables[(cfg.outputVar as string) || "texto"] = res.text;
+    helpers.setOutput({ chars: res.text.length });
+    return;
+  }
+
+  if (node.type === "generate_avatar") {
+    const model = String(cfg.model ?? "");
+    if (!model) throw new Error("Falta elegir el modelo de avatar.");
+    const text = interpolate(String(cfg.text ?? ""), ctx.variables);
+    if (!text.trim()) throw new Error("Falta el texto que dirá el avatar.");
+    const { generateAvatar } = await import("./ai/run");
+    const res = await generateAvatar(workspaceId, model, {
+      text,
+      ...(cfg.avatarId ? { avatarId: String(cfg.avatarId) } : {}),
+      ...(cfg.voiceId ? { voiceId: String(cfg.voiceId) } : {}),
+      ...(cfg.imageUrl ? { imageUrl: interpolate(String(cfg.imageUrl), ctx.variables) } : {}),
+    });
+    ctx.variables[(cfg.outputVar as string) || "video"] = res.url;
+    helpers.setOutput({ url: res.url });
+    return;
+  }
+
+  if (node.type === "generate_music") {
+    const model = String(cfg.model ?? "");
+    if (!model) throw new Error("Falta elegir el modelo de música.");
+    const prompt = interpolate(String(cfg.prompt ?? ""), ctx.variables);
+    const { generateMusic } = await import("./ai/run");
+    const res = await generateMusic(workspaceId, model, prompt);
+    ctx.variables[(cfg.outputVar as string) || "musica"] = res.url;
+    helpers.setOutput({ url: res.url });
+    return;
+  }
+
+  if (node.type === "ocr_extract") {
+    const model = String(cfg.model ?? "");
+    if (!model) throw new Error("Falta elegir el modelo de OCR.");
+    const documentUrl = interpolate(String(cfg.documentUrl ?? ""), ctx.variables);
+    if (!documentUrl.trim()) throw new Error("Falta la URL del documento.");
+    const { ocr } = await import("./ai/run");
+    const res = await ocr(workspaceId, model, documentUrl);
     ctx.variables[(cfg.outputVar as string) || "texto"] = res.text;
     helpers.setOutput({ chars: res.text.length });
     return;

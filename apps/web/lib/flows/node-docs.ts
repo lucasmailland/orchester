@@ -142,6 +142,19 @@ export const NODE_DOCS: Record<string, NodeDocs> = {
     whatFor: i("Ordena una lista de textos según cuán relevantes son a una consulta.", "Ranks a list of texts by relevance to a query.", "Ordena textos por relevância a uma consulta."),
     whenToUse: i("Después de 'Buscar en conocimiento', para quedarte con los resultados más relevantes (mejora el RAG).", "After 'Search knowledge', to keep the most relevant results (improves RAG).", "Depois de 'Buscar no conhecimento', para ficar com os mais relevantes."),
   },
+  generate_avatar: {
+    whatFor: i("Genera un video de una persona (avatar) diciendo un texto.", "Generates a video of a person (avatar) saying a text.", "Gera um vídeo de uma pessoa dizendo um texto."),
+    whenToUse: i("Justo para 'un video diciendo el nombre de la persona': invitaciones, bienvenidas personalizadas.", "Exactly for 'a video saying the person's name': invitations, personalized welcomes.", "Para 'um vídeo dizendo o nome da pessoa': convites, boas-vindas."),
+    tip: i("HeyGen usa un 'avatar id'; D-ID usa la foto de una persona (URL).", "HeyGen uses an 'avatar id'; D-ID uses a person's photo URL.", "HeyGen usa um 'avatar id'; D-ID usa a foto de uma pessoa."),
+  },
+  generate_music: {
+    whatFor: i("Genera música o sonido a partir de una descripción.", "Generates music or sound from a description.", "Gera música ou som a partir de uma descrição."),
+    whenToUse: i("Para fondos musicales, jingles o efectos. Hoy se ejecuta vía Replicate o fal.", "For background music, jingles or effects. Runs via Replicate or fal.", "Para trilhas, jingles ou efeitos. Roda via Replicate ou fal."),
+  },
+  ocr_extract: {
+    whatFor: i("Extrae el texto de un PDF o imagen escaneada.", "Extracts text from a PDF or scanned image.", "Extrai o texto de um PDF ou imagem."),
+    whenToUse: i("Para leer documentos (facturas, contratos) y después usar ese texto en el flujo (resumir, vectorizar, etc.).", "To read documents and use the text downstream (summarize, vectorize…).", "Para ler documentos e usar o texto depois."),
+  },
   condition: {
     whatFor: i(
       "Hace que el flujo tome un camino u otro según si se cumple algo (Sí o No).",

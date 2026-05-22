@@ -104,6 +104,8 @@ export const MODELS: ModelDef[] = [
   m("bytedance", "seedance-1.0-pro", "Seedance 1.0 Pro", "video"),
   m("vidu", "vidu-q1", "Vidu Q1", "video"),
   m("lightricks", "ltx-video", "LTX Video", "video"),
+  m("replicate", "minimax/video-01", "Hailuo (Replicate)", "video"),
+  m("fal", "fal-ai/minimax/video-01", "Hailuo (fal)", "video"),
 
   // ── Avatar (catálogo) ────────────────────────────────────────────────────────
   m("heygen", "avatar-iv", "HeyGen Avatar IV", "avatar"),
@@ -134,6 +136,8 @@ export const MODELS: ModelDef[] = [
   m("stability", "stable-audio-2.5", "Stable Audio 2.5", "music"),
   m("google_lyria", "lyria-2", "Lyria 2", "music"),
   m("elevenlabs", "eleven-music", "ElevenLabs Music", "music"),
+  m("replicate", "meta/musicgen", "MusicGen (Replicate)", "music"),
+  m("fal", "fal-ai/stable-audio", "Stable Audio (fal)", "music"),
 
   // ── Rerank (catálogo) ────────────────────────────────────────────────────────
   m("cohere", "rerank-v3.5", "Cohere Rerank v3.5", "rerank"),

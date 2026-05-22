@@ -66,6 +66,9 @@ const nodeTypes = {
   text_to_speech: RegistryNode,
   transcribe: RegistryNode,
   rerank: RegistryNode,
+  generate_avatar: RegistryNode,
+  generate_music: RegistryNode,
+  ocr_extract: RegistryNode,
 };
 
 /** Deriva el id del registry a partir del nodo guardado (que sólo tiene engine type). */
