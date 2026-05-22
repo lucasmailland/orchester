@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Node } from "@xyflow/react";
-import { Trash2, ChevronDown } from "lucide-react";
+import { Trash2, ChevronDown, HelpCircle, Lightbulb } from "lucide-react";
 import { getNodeDef, type Locale } from "@/lib/flows/node-registry";
+import { getNodeDocs } from "@/lib/flows/node-docs";
 import type { FieldDef } from "@/lib/flows/field-types";
 
 /**
@@ -46,6 +47,7 @@ export function InspectorForm({ node, locale, onChange, onDelete }: Props) {
 
   const title = def ? def.title[locale] : (node.type as string);
   const summary = def?.summary[locale];
+  const docs = def ? getNodeDocs(def.id) : undefined;
   const fields = def?.fields ?? [];
   const basicFields = fields.filter((f) => !f.advanced);
   const advancedFields = fields.filter((f) => f.advanced);
@@ -69,6 +71,28 @@ export function InspectorForm({ node, locale, onChange, onDelete }: Props) {
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
+
+      {/* Documentación del paso: qué hace, cuándo conviene, consejo */}
+      {docs && (
+        <details className="mb-3 rounded-lg border border-line bg-card">
+          <summary className="flex cursor-pointer items-center gap-1.5 px-3 py-2 text-[11px] font-medium text-violet-600 dark:text-violet-400">
+            <HelpCircle className="h-3.5 w-3.5" /> ¿Cómo funciona este paso?
+          </summary>
+          <div className="space-y-2 px-3 pb-3 text-[11px] leading-relaxed text-muted">
+            <p>{docs.whatFor[locale]}</p>
+            <p>
+              <span className="font-medium text-body">Cuándo conviene: </span>
+              {docs.whenToUse[locale]}
+            </p>
+            {docs.tip && (
+              <p className="flex items-start gap-1.5 rounded-md bg-amber-500/5 p-2 text-amber-700 dark:text-amber-300">
+                <Lightbulb className="mt-0.5 h-3 w-3 shrink-0" />
+                <span>{docs.tip[locale]}</span>
+              </p>
+            )}
+          </div>
+        </details>
+      )}
 
       {/* Nombre del paso (siempre editable) */}
       <FieldLabel label="Nombre de este paso" help="Cómo aparece en el flujo." />

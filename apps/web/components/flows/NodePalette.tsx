@@ -9,6 +9,7 @@ import {
 import {
   listNodesByCategory, CATEGORY_LABELS, type Locale, type NodeDef,
 } from "@/lib/flows/node-registry";
+import { getNodeDocs } from "@/lib/flows/node-docs";
 
 const ICONS: Record<string, LucideIcon> = {
   Play, MessageSquare, Clock, Webhook, Bot, BookOpen, GitBranch, Split,
@@ -89,11 +90,13 @@ function PaletteItem({
   onAdd: (nodeId: string) => void;
 }) {
   const Icon = ICONS[node.icon] ?? Plug;
+  const docs = getNodeDocs(node.id);
+  const tooltip = docs ? `${node.summary[locale]}\n\nCuándo conviene: ${docs.whenToUse[locale]}` : node.summary[locale];
   return (
     <button
       type="button"
       onClick={() => onAdd(node.id)}
-      title={node.summary[locale]}
+      title={tooltip}
       className="group mb-1 flex w-full items-start gap-2 rounded-lg border border-line bg-card px-2 py-1.5 text-left transition-colors hover:bg-elevated"
     >
       <span
