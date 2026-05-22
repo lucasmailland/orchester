@@ -324,6 +324,18 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, edges, selected]);
 
+  // Al abrir un flujo guardado, si los pasos se superponen, los ordenamos una vez
+  // para que se vea prolijo (no tocamos flujos ya bien acomodados a mano).
+  const didTidyRef = useRef(false);
+  useEffect(() => {
+    if (didTidyRef.current) return;
+    didTidyRef.current = true;
+    if (nodes.length > 1 && hasOverlap(nodes)) {
+      setNodes((nds) => layoutGraph(nds, edges));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function openRunModal() {
     // Pre-llená un formulario con las variables del flujo (más amigable que JSON).
     const seed: Record<string, string> = {};
@@ -1054,6 +1066,24 @@ function nodeSize(n: Node): { width: number; height: number } {
 /** Reordena un grafo (nodos + edges) con el motor de layout, listo para setNodes. */
 function layoutGraph(ns: Node[], es: Edge[]): Node[] {
   return autoLayout(ns, es.map((e) => ({ source: e.source, target: e.target })), nodeSize);
+}
+
+/** ¿Hay pasos que se superponen en el lienzo? (para auto-ordenar al abrir). */
+function hasOverlap(nodes: Node[]): boolean {
+  const boxes = nodes.map((n) => {
+    const s = nodeSize(n);
+    return { x1: n.position.x, y1: n.position.y, x2: n.position.x + s.width, y2: n.position.y + s.height };
+  });
+  const pad = 8;
+  for (let i = 0; i < boxes.length; i++) {
+    for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i]!;
+      const b = boxes[j]!;
+      const apart = a.x2 + pad <= b.x1 || b.x2 + pad <= a.x1 || a.y2 + pad <= b.y1 || b.y2 + pad <= a.y1;
+      if (!apart) return true;
+    }
+  }
+  return false;
 }
 
 /** Handle de salida por defecto al auto-conectar desde un paso con varios caminos. */
