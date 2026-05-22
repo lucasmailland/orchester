@@ -577,10 +577,19 @@ async function executeNode(
   }
 
   if (node.type === "spreadsheet") {
-    const formula = String(cfg.formula ?? "").trim();
-    if (!formula) throw new Error("Falta escribir la fórmula.");
-    const result = await runFormula(formula, ctx.variables);
     const outputVar = (cfg.outputVar as string) ?? "result";
+    // Formato nuevo: grilla de celdas. Legado: una sola fórmula.
+    const grid = cfg.grid as { cells?: Record<string, string>; outputCell?: string } | undefined;
+    if (grid && grid.cells && Object.keys(grid.cells).length > 0) {
+      const { evaluateSheet } = await import("./flows/spreadsheet");
+      const result = await evaluateSheet(grid.cells, ctx.variables, grid.outputCell);
+      ctx.variables[outputVar] = result;
+      helpers.setOutput({ [outputVar]: result });
+      return;
+    }
+    const formula = String(cfg.formula ?? "").trim();
+    if (!formula) throw new Error("Falta completar la planilla o escribir una fórmula.");
+    const result = await runFormula(formula, ctx.variables);
     ctx.variables[outputVar] = result;
     helpers.setOutput({ [outputVar]: result });
     return;

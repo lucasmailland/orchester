@@ -23,7 +23,8 @@ export type FieldType =
   | "variable"
   | "duration"
   | "cron"
-  | "string-list";
+  | "string-list"
+  | "spreadsheet";
 
 export interface FieldOption {
   value: string;

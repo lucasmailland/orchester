@@ -5,6 +5,7 @@ import type { Node } from "@xyflow/react";
 import { Trash2, ChevronDown, HelpCircle, Lightbulb } from "lucide-react";
 import { getNodeDef, type Locale } from "@/lib/flows/node-registry";
 import { getNodeDocs } from "@/lib/flows/node-docs";
+import { SpreadsheetField } from "./SpreadsheetField";
 import type { FieldDef } from "@/lib/flows/field-types";
 
 /**
@@ -258,6 +259,8 @@ function FieldRenderer({ field, value, onChange, availableData = [] }: { field: 
           <textarea value={typeof value === "string" ? value : JSON.stringify(value ?? {}, null, 2)} onChange={(e) => onChange(e.target.value)} rows={4} placeholder={field.placeholder ?? "{ }"} className={`${inputCls} resize-y font-mono text-[11px]`} />
         </div>
       );
+    case "spreadsheet":
+      return <SpreadsheetField value={value} onChange={onChange} label={common} />;
     case "string-list":
       return <StringListField value={value} onChange={onChange} label={common} />;
     case "key-value":
