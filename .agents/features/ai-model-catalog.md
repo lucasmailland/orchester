@@ -41,10 +41,19 @@ lib/ai/
   providers (via `/api/ai/models?capability=…`). Used by the `model-picker` field
   type and the agent editor.
 
-## Flow nodes
+## Flow nodes (AI suite)
 
-- **`generate_image`** ("Crear imagen") → `run.generateImage` → image URL in a var.
-- **`embed_text`** ("Vectorizar") → `run.embed` → vector in a var.
+- **`llm_prompt`** ("Generar texto") → `runChat` → text.
+- **`generate_image`** ("Crear imagen") → `run.generateImage` → image URL (base64 saved to storage).
+- **`generate_video`** ("Crear video") → `run.generateVideo` (Replicate/fal polled) → video URL.
+- **`text_to_speech`** ("Texto a voz") → `run.textToSpeech` (ElevenLabs/OpenAI) → audio URL.
+- **`transcribe`** ("Transcribir audio") → `run.transcribe` (Whisper/Deepgram) → text.
+- **`embed_text`** ("Vectorizar") → `run.embed` → vector.
+- **`rerank`** ("Ordenar por relevancia") → `run.rerank` (Cohere/Voyage/Jina) → ranked.
+
+Every node with a model uses the `model-picker` field, which lists connected
+providers' models and lets you **connect a provider inline** (ConnectProviderModal)
+without leaving the editor.
 
 ## Changelog
 
@@ -57,11 +66,16 @@ lib/ai/
 - Settings provider directory by capability; ModelPicker; generate_image &
   embed_text nodes.
 
+## Audit fixes applied (2026-05-22)
+- Reasoning models (o3/o4-mini/gpt-5*) use max_completion_tokens, no temperature.
+- Local providers (ollama/lmstudio) gated behind ALLOW_LOCAL_AI_PROVIDERS (SSRF).
+- Generated images saved to app storage (no base64 in flow_runs.output).
+- Replicate/fal send only {prompt} (avoid 422 on unknown input keys).
+- Azure deployment ids (azure/<deploy>) resolve; pickers merge tested modelsJson.
+- Bespoke image adapters: Recraft, Stability, Ideogram, BFL (no longer aggregator-only).
+
 ## Open issues / TODO
-- Video/avatar/tts/stt/music/rerank/ocr: connectable + catalogued, executors are a
-  follow-up (async jobs for video/avatar).
-- Store generated images to app storage instead of returning data URLs (avoid large
-  flow-run payloads for base64 providers like gpt-image-1).
-- Some bespoke image providers (Ideogram/Recraft/BFL/Stability direct) fall back to
-  "use via Replicate/fal" until their adapters land.
+- Avatar / music / OCR: connectable + catalogued, executors are a follow-up.
+- Some bespoke endpoints (Ideogram/BFL/Stability) are best-effort — verify per key.
 - Per-provider "test" is generic for non-core providers (key-shape only).
+- Catalog model ids/baseURLs are curated/best-effort; validate vs live APIs.
