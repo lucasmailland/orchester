@@ -49,19 +49,8 @@ export async function POST(req: Request) {
     initialVars = (t.variables as Record<string, unknown>) ?? {};
   }
 
-  // Empty starter: a single trigger node
-  if (initialNodes.length === 0) {
-    const triggerNodeId = createId();
-    initialNodes = [
-      {
-        id: triggerNodeId,
-        type: "trigger",
-        label: "Inicio",
-        config: { trigger: "manual" },
-        position: { x: 100, y: 100 },
-      },
-    ];
-  }
+  // Sin template, el flujo arranca vacío: así el builder muestra el estado guiado
+  // con plantillas y disparadores para empezar (el usuario elige cómo arrancar).
 
   const inserted = await db
     .insert(schema.flows)
