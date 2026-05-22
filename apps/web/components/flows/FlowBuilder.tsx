@@ -557,6 +557,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             <InspectorForm
               node={selected}
               locale={LOCALE}
+              availableData={collectAvailableData(nodes, variables)}
               onChange={(updated) => {
                 setNodes((nds) => nds.map((n) => (n.id === updated.id ? updated : n)));
                 setSelected(updated);
@@ -822,6 +823,35 @@ function RunInspector({
       </div>
     </div>
   );
+}
+
+/** Datos disponibles para usar en los campos (variables del flujo + salidas de pasos). */
+function collectAvailableData(nodes: Node[], variables: Record<string, unknown>): string[] {
+  const out = new Set<string>();
+  for (const k of Object.keys(variables)) out.add(k);
+  // Salida por defecto de cada tipo de paso.
+  const outputByEngine: Record<string, string> = {
+    trigger: "message",
+    agent: "agentResult",
+    http: "httpResult",
+    kb_search: "knowledge",
+    integration: "appResult",
+    spreadsheet: "result",
+    transform: "result",
+    loop_for_each: "loopResults",
+  };
+  let hasLoop = false;
+  for (const n of nodes) {
+    const d = n.data as { nodeId?: string; config?: Record<string, unknown> } | undefined;
+    const def = getNodeDef(String(d?.nodeId ?? n.type ?? ""));
+    const eng = def?.engine ?? n.type ?? "";
+    const custom = d?.config?.outputVar;
+    if (typeof custom === "string" && custom.trim()) out.add(custom.trim());
+    else if (outputByEngine[eng]) out.add(outputByEngine[eng]!);
+    if (eng === "loop_for_each") hasLoop = true;
+  }
+  if (hasLoop) out.add("item");
+  return Array.from(out);
 }
 
 /** Handle de salida por defecto al auto-conectar desde un paso con varios caminos. */
