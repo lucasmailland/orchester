@@ -181,7 +181,7 @@ export const NODE_REGISTRY: Record<string, NodeDef> = {
     title: i("Planilla / fórmulas", "Spreadsheet / formulas", "Planilha / fórmulas"),
     summary: i("Hacé cálculos con fórmulas tipo Excel (SUM, IF, BUSCARV…).", "Run Excel-style formulas (SUM, IF, VLOOKUP…).", "Rode fórmulas tipo Excel (SUM, IF, PROCV…)."),
     fields: [
-      { key: "formula", label: "Fórmula", type: "code", required: true, help: "Una fórmula tipo Excel. Los datos del paso anterior están en `input`.", example: "=SUM(input.ventas)" },
+      { key: "grid", label: "Planilla", type: "spreadsheet", help: "Escribí valores o fórmulas (empezando con =) en las celdas, como en Excel. Elegí qué celda es el resultado." },
     ],
   },
 
