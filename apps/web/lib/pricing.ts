@@ -1,4 +1,24 @@
 import "server-only";
+import { MODELS } from "./ai/catalog/models";
+
+/**
+ * Fuente de verdad de pricing chat (A4): el catálogo. Construimos un índice por
+ * "bare model" (la parte después de "provider:") desde los `ModelDef` que tienen
+ * `costPer1kIn/Out`. Las tablas locales de abajo quedan SOLO como fallback para
+ * ids legacy que no están en el catálogo (gemini-1.5-*, gpt-4-turbo, alias con
+ * fecha, etc.), y de ahí al rate blended por defecto. Así, agregar un modelo con
+ * precio al catálogo lo cotiza automáticamente, sin tocar este archivo.
+ */
+const CATALOG_CHAT_PRICE: Record<string, { in: number; out: number }> = (() => {
+  const out: Record<string, { in: number; out: number }> = {};
+  for (const md of MODELS) {
+    if (md.capability !== "chat") continue;
+    if (md.costPer1kIn == null && md.costPer1kOut == null) continue;
+    const bare = md.id.slice(md.id.indexOf(":") + 1);
+    out[bare] = { in: md.costPer1kIn ?? md.costPer1kOut ?? 0, out: md.costPer1kOut ?? md.costPer1kIn ?? 0 };
+  }
+  return out;
+})();
 
 /**
  * Tabla de pricing — USD por 1k tokens. Estimación blended (input+output).
@@ -81,9 +101,16 @@ const CAPABILITY_PRICE: Record<string, { unit: string; perUnit: number }> = {
   ocr: { unit: "document", perUnit: 0.005 },
 };
 
+/** Rate blended USD/1k para `model`: catálogo (promedio in/out) → tabla legacy → default. */
+function blendedRate(model: string): number {
+  const cat = CATALOG_CHAT_PRICE[model];
+  if (cat) return (cat.in + cat.out) / 2;
+  return COST_PER_1K_USD[model] ?? DEFAULT_COST_PER_1K;
+}
+
 /** Costo USD para `tokens` consumidos por `model`. Usa fallback si no conoce el model. */
 export function calculateCostUsd(model: string, tokens: number): number {
-  const rate = COST_PER_1K_USD[model] ?? DEFAULT_COST_PER_1K;
+  const rate = blendedRate(model);
   // Math.round para evitar floats sucios; precisión 6 decimales (matching numeric(10,6))
   return Math.round((tokens / 1000) * rate * 1_000_000) / 1_000_000;
 }
@@ -94,7 +121,8 @@ export function calculateCostUsd(model: string, tokens: number): number {
  * resultado que `calculateCostUsd(model, tokensIn + tokensOut)`.
  */
 export function calculateChatCostUsd(model: string, tokensIn: number, tokensOut: number): number {
-  const split = CHAT_COST_PER_1K_USD[model];
+  // Catálogo primero (A4), luego la tabla legacy, luego el rate blended.
+  const split = CATALOG_CHAT_PRICE[model] ?? CHAT_COST_PER_1K_USD[model];
   if (!split) return calculateCostUsd(model, tokensIn + tokensOut);
   const usd = (tokensIn / 1000) * split.in + (tokensOut / 1000) * split.out;
   return Math.round(usd * 1_000_000) / 1_000_000;
@@ -113,10 +141,10 @@ export function calculateCapabilityCostUsd(capability: string, units: number): n
 
 /** Cost-per-1k para ese model (informativo, ej. mostrar al user). */
 export function getCostPer1k(model: string): number {
-  return COST_PER_1K_USD[model] ?? DEFAULT_COST_PER_1K;
+  return blendedRate(model);
 }
 
 /** Lista de models conocidos (para UI de selección). */
 export function listKnownModels(): string[] {
-  return Object.keys(COST_PER_1K_USD);
+  return Array.from(new Set([...Object.keys(CATALOG_CHAT_PRICE), ...Object.keys(COST_PER_1K_USD)]));
 }

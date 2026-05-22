@@ -60,6 +60,13 @@ export interface ModelDef {
   tier?: "fast" | "smart" | "powerful";
   /** Ventana de contexto para chat. */
   contextWindow?: number;
+  /**
+   * Pricing chat — USD por 1k tokens (input/output). Si están presentes, son la
+   * fuente de verdad de costo (A4): `lib/pricing.ts` los lee del catálogo. Si no,
+   * cae a la tabla legacy de pricing.ts y de ahí al rate blended por defecto.
+   */
+  costPer1kIn?: number;
+  costPer1kOut?: number;
   notes?: string;
 }
 
