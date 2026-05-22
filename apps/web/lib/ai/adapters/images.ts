@@ -91,10 +91,12 @@ async function googleImages(p: ImageParams, cred: Cred): Promise<ImageResult> {
 
 async function replicateImages(p: ImageParams, cred: Cred): Promise<ImageResult> {
   // p.model = "owner/name" (sin prefijo replicate:). Usa el endpoint por modelo.
+  // Sólo `prompt`: cada modelo de Replicate valida su propio schema de input y
+  // devuelve 422 ante claves desconocidas, así que no asumimos num_outputs/etc.
   const r = await fetch(`https://api.replicate.com/v1/models/${p.model}/predictions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${cred.apiKey}`, "content-type": "application/json", Prefer: "wait" },
-    body: JSON.stringify({ input: { prompt: p.prompt, num_outputs: p.n ?? 1 } }),
+    body: JSON.stringify({ input: { prompt: p.prompt } }),
   });
   if (!r.ok) throw new Error(`Replicate ${r.status}: ${await r.text()}`);
   let pred = await r.json();
@@ -116,7 +118,7 @@ async function falImages(p: ImageParams, cred: Cred): Promise<ImageResult> {
   const r = await fetch(`https://fal.run/${p.model}`, {
     method: "POST",
     headers: { Authorization: `Key ${cred.apiKey}`, "content-type": "application/json" },
-    body: JSON.stringify({ prompt: p.prompt, num_images: p.n ?? 1 }),
+    body: JSON.stringify({ prompt: p.prompt }),
   });
   if (!r.ok) throw new Error(`fal ${r.status}: ${await r.text()}`);
   const j = await r.json();

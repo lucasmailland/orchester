@@ -71,6 +71,7 @@ function stripPrefix(modelId: string, provider: string): string {
 }
 
 function legacyChatProvider(model: string): string | null {
+  if (model.startsWith("azure/") || model.startsWith("azure-")) return "azure_openai";
   if (model.startsWith("claude-")) return "anthropic";
   if (model.startsWith("gpt-") || model.startsWith("o1-") || model.startsWith("o3") || model.startsWith("o4")) return "openai";
   if (model.startsWith("gemini-")) return "google";

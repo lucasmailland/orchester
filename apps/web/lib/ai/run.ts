@@ -32,13 +32,30 @@ export async function generateImage(
   if (!resolved || resolved.capability !== "image")
     throw new Error(`"${modelId}" no es un modelo de imagen válido.`);
   const cred = await loadCredential(workspaceId, resolved.provider.id);
-  return generateImageWith(
+  const res = await generateImageWith(
     resolved.provider.id,
     resolved.provider.family,
     { model: resolved.model, prompt: opts.prompt, ...(opts.size ? { size: opts.size } : {}), ...(opts.n ? { n: opts.n } : {}) },
     cred,
     resolved.provider.baseURL
   );
+  // Las imágenes en base64 (ej. gpt-image-1) se guardan en el storage y se
+  // reemplazan por una URL corta — así no metemos megabytes en flow_runs.output.
+  const { getStorage, makeKey } = await import("../storage");
+  const storage = getStorage();
+  res.images = await Promise.all(
+    res.images.map(async (img) => {
+      if (!img.url.startsWith("data:")) return img;
+      const parts = /^data:([^;]+);base64,(.*)$/.exec(img.url);
+      if (!parts) return img;
+      const mime = parts[1] || "image/png";
+      const fileExt = mime.split("/")[1] || "png";
+      const key = makeKey(workspaceId, "ai-images", `image.${fileExt}`);
+      await storage.put(key, Buffer.from(parts[2]!, "base64"), mime);
+      return { url: storage.url(key), mime };
+    })
+  );
+  return res;
 }
 
 export async function embed(workspaceId: string, modelId: string, input: string[]): Promise<EmbeddingResult> {
