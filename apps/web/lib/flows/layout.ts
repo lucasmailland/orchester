@@ -1,6 +1,8 @@
+import dagre from "@dagrejs/dagre";
+
 /**
- * Auto-organización del lienzo: ubica los pasos en columnas de izquierda a
- * derecha según su profundidad desde los disparadores. Puro y testeable.
+ * Auto-organización del lienzo con dagre: layout por capas de izquierda a
+ * derecha, sin superposiciones, respetando el tamaño de cada paso. Puro.
  */
 
 export interface LayoutNode {
@@ -12,52 +14,34 @@ export interface LayoutEdge {
   target: string;
 }
 
-const COL_GAP = 240;
-const ROW_GAP = 140;
-const ORIGIN_X = 80;
-const ORIGIN_Y = 80;
+const DEFAULT_W = 210;
+const DEFAULT_H = 64;
 
-export function autoLayout<T extends LayoutNode>(nodes: T[], edges: LayoutEdge[]): T[] {
+export function autoLayout<T extends LayoutNode>(
+  nodes: T[],
+  edges: LayoutEdge[],
+  sizeOf?: (n: T) => { width: number; height: number }
+): T[] {
   if (nodes.length === 0) return nodes;
-  const adj: Record<string, string[]> = {};
-  const indeg: Record<string, number> = {};
+
+  const g = new dagre.graphlib.Graph();
+  g.setGraph({ rankdir: "LR", nodesep: 56, ranksep: 96, marginx: 40, marginy: 40 });
+  g.setDefaultEdgeLabel(() => ({}));
+
   for (const n of nodes) {
-    adj[n.id] = [];
-    indeg[n.id] = 0;
+    const s = sizeOf?.(n) ?? { width: DEFAULT_W, height: DEFAULT_H };
+    g.setNode(n.id, { width: s.width, height: s.height });
   }
   for (const e of edges) {
-    const list = adj[e.source];
-    if (list && e.target in indeg) {
-      list.push(e.target);
-      indeg[e.target] = (indeg[e.target] ?? 0) + 1;
-    }
+    if (g.hasNode(e.source) && g.hasNode(e.target)) g.setEdge(e.source, e.target);
   }
 
-  const depth: Record<string, number> = {};
-  const queue = nodes.filter((n) => (indeg[n.id] ?? 0) === 0).map((n) => n.id);
-  for (const id of queue) depth[id] = 0;
-  let head = 0;
-  let guard = 0;
-  while (head < queue.length && guard++ < 100_000) {
-    const id = queue[head++]!;
-    for (const next of adj[id] ?? []) {
-      const cand = (depth[id] ?? 0) + 1;
-      if (depth[next] === undefined || cand > depth[next]) {
-        depth[next] = cand;
-        queue.push(next);
-      }
-    }
-  }
+  dagre.layout(g);
 
-  // Cualquier nodo que no quedó alcanzado (ciclos/islas) va a la columna 0.
-  for (const n of nodes) if (depth[n.id] === undefined) depth[n.id] = 0;
-
-  // Reparte por columna.
-  const perColCount: Record<number, number> = {};
   return nodes.map((n) => {
-    const d = depth[n.id] ?? 0;
-    const row = perColCount[d] ?? 0;
-    perColCount[d] = row + 1;
-    return { ...n, position: { x: ORIGIN_X + d * COL_GAP, y: ORIGIN_Y + row * ROW_GAP } };
+    const p = g.node(n.id);
+    if (!p) return n;
+    // dagre da el centro; convertimos a esquina superior-izquierda.
+    return { ...n, position: { x: p.x - p.width / 2, y: p.y - p.height / 2 } };
   });
 }
