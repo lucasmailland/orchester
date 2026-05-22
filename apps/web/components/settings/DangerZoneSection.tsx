@@ -89,7 +89,7 @@ export function DangerZoneSection({ workspace }: Props) {
             <p className="mt-1 text-xs text-muted">
               Esta acción no se puede deshacer. Para confirmar, escribí el slug del workspace:
             </p>
-            <code className="mt-2 block rounded-lg border border-line bg-zinc-900 px-3 py-2 text-center font-mono text-sm text-strong">
+            <code className="mt-2 block rounded-lg border border-line bg-surface px-3 py-2 text-center font-mono text-sm text-strong">
               {workspace.slug}
             </code>
             <label htmlFor="delete-confirm" className="sr-only">

@@ -106,7 +106,7 @@ function CardHeader({ title, sub, action }: { title: string; sub?: string; actio
     <div className="flex items-center justify-between px-5 pt-5 pb-3">
       <div>
         <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted">{title}</p>
-        {sub && <p className="mt-0.5 text-[10px] text-zinc-700">{sub}</p>}
+        {sub && <p className="mt-0.5 text-[10px] text-faint">{sub}</p>}
       </div>
       {action}
     </div>
@@ -161,11 +161,11 @@ function KPI({
         </div>
         {trend && <Delta now={trend.now} prev={trend.prev} />}
       </div>
-      <p className="mt-3 font-mono text-[1.6rem] font-bold leading-none tracking-tight text-zinc-50">
+      <p className="mt-3 font-mono text-[1.6rem] font-bold leading-none tracking-tight text-strong">
         {value}
       </p>
       <p className="mt-1.5 text-[11px] font-medium text-muted">{label}</p>
-      {sub && <p className="mt-0.5 text-[10px] text-zinc-700">{sub}</p>}
+      {sub && <p className="mt-0.5 text-[10px] text-faint">{sub}</p>}
     </motion.div>
   );
 }
@@ -213,7 +213,7 @@ function HourlyChart({ data }: { data: FullDashboardStats["hourlyDist"] }) {
   const peakHour = data.reduce((a, b) => b.count > a.count ? b : a, data[0]!);
   return (
     <div>
-      <p className="mb-1 text-[10px] text-zinc-700">
+      <p className="mb-1 text-[10px] text-faint">
         Pico: <span className="text-muted">{peakHour.hour}:00 h</span>
       </p>
       <ResponsiveContainer width="100%" height={90}>
@@ -315,7 +315,7 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
 
 function Empty({ h }: { h: number }) {
   return (
-    <div className={`flex items-center justify-center text-[10px] text-zinc-700`} style={{ height: h }}>
+    <div className={`flex items-center justify-center text-[10px] text-faint`} style={{ height: h }}>
       Sin datos
     </div>
   );
@@ -409,21 +409,21 @@ function ActivityFeed({ data }: { data: FullDashboardStats["recentConversations"
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 min-w-0">
               <span className="truncate text-xs font-medium text-body">{c.employeeName ?? "Anon"}</span>
-              <ArrowRight size={10} className="shrink-0 text-zinc-700" />
+              <ArrowRight size={10} className="shrink-0 text-faint" />
               <span className="truncate text-xs text-muted">{c.agentName ?? "—"}</span>
             </div>
             <div className="flex items-center gap-2 mt-0.5">
               {c.channelType && (
-                <span className="flex items-center gap-0.5 text-[9px] text-zinc-700 capitalize">
+                <span className="flex items-center gap-0.5 text-[9px] text-faint capitalize">
                   {CH_ICON[c.channelType]} {c.channelType}
                 </span>
               )}
-              <span className="text-[9px] text-zinc-700">·</span>
-              <span className="text-[9px] text-zinc-700">{c.messageCount} msgs</span>
+              <span className="text-[9px] text-faint">·</span>
+              <span className="text-[9px] text-faint">{c.messageCount} msgs</span>
               {c.durationSeconds && (
                 <>
-                  <span className="text-[9px] text-zinc-700">·</span>
-                  <span className="text-[9px] text-zinc-700">{fmtDur(c.durationSeconds)}</span>
+                  <span className="text-[9px] text-faint">·</span>
+                  <span className="text-[9px] text-faint">{fmtDur(c.durationSeconds)}</span>
                 </>
               )}
             </div>
@@ -432,7 +432,7 @@ function ActivityFeed({ data }: { data: FullDashboardStats["recentConversations"
             <span className={cn("rounded-md px-1.5 py-0.5 text-[9px] font-semibold capitalize", STATUS_PILL[c.status] ?? "text-muted bg-elevated")}>
               {c.status}
             </span>
-            <span className="font-mono text-[9px] text-zinc-700">{fmtTime(c.startedAt)}</span>
+            <span className="font-mono text-[9px] text-faint">{fmtTime(c.startedAt)}</span>
           </div>
         </div>
       ))}
@@ -473,7 +473,7 @@ export function DashboardClient({ stats, workspaceName, locale }: Props) {
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-zinc-50">Command Center</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-strong">Command Center</h1>
           <p className="mt-0.5 text-sm text-faint">
             {workspaceName} &nbsp;·&nbsp;
             {now.toLocaleDateString("es", { weekday: "long", day: "numeric", month: "long" })}
@@ -481,7 +481,7 @@ export function DashboardClient({ stats, workspaceName, locale }: Props) {
         </div>
         <div className="flex items-center gap-4">
           <div className="hidden text-right sm:block">
-            <p className="text-[10px] text-zinc-700">Últimos 30 días</p>
+            <p className="text-[10px] text-faint">Últimos 30 días</p>
             <p className="font-mono text-xs font-bold text-muted">{totalConvs30d.toLocaleString()} convs · {fmtT(totalTokens30d)} tokens</p>
           </div>
           <div className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-card px-3 py-1.5">
@@ -564,9 +564,9 @@ export function DashboardClient({ stats, workspaceName, locale }: Props) {
                 {m.icon}
                 <span className="text-[10px] text-faint">{m.label}</span>
               </div>
-              <p className="font-mono text-xl font-bold text-zinc-50">{m.value}</p>
+              <p className="font-mono text-xl font-bold text-strong">{m.value}</p>
               <div className="mt-0.5 flex items-center gap-2">
-                <span className="text-[10px] text-zinc-700">{m.sub}</span>
+                <span className="text-[10px] text-faint">{m.sub}</span>
                 {(() => {
                   const txt = fmtDelta(m.delta);
                   if (!txt || m.delta == null) return null;
@@ -648,7 +648,7 @@ export function DashboardClient({ stats, workspaceName, locale }: Props) {
               const maxConvs = stats.teamStats[0]?.conversations ?? 1;
               return (
                 <div key={t.teamId} className="flex items-center gap-3">
-                  <span className="font-mono text-[10px] text-zinc-700 w-3 shrink-0">{i + 1}</span>
+                  <span className="font-mono text-[10px] text-faint w-3 shrink-0">{i + 1}</span>
                   <div className="h-2 w-2 shrink-0 rounded-sm" style={{ backgroundColor: t.teamColor ?? "#52525b" }} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-medium text-body">{t.teamName}</p>
@@ -763,7 +763,7 @@ export function DashboardClient({ stats, workspaceName, locale }: Props) {
               const max = stats.topEmployees[0]?.conversations ?? 1;
               return (
                 <div key={e.id} className="flex items-center gap-3">
-                  <span className="font-mono text-[10px] text-zinc-700 w-3 shrink-0">{i + 1}</span>
+                  <span className="font-mono text-[10px] text-faint w-3 shrink-0">{i + 1}</span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-medium text-body">{e.name}</p>
                     <div className="mt-0.5 flex items-center gap-2">

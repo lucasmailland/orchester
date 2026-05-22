@@ -125,7 +125,7 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
 
   return (
     <>
-      <div className="flex h-screen flex-col bg-black">
+      <div className="flex h-screen flex-col bg-app">
         <div className="flex items-center justify-between border-b border-line px-6 py-3">
           <div className="flex items-center gap-3">
             <button

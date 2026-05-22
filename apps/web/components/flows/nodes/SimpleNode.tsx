@@ -22,7 +22,7 @@ export function SimpleNode({
 }) {
   return (
     <div
-      className="flex min-w-[180px] items-center gap-2.5 rounded-xl border border-line bg-zinc-900/95 px-3 py-2.5 shadow-md"
+      className="flex min-w-[180px] items-center gap-2.5 rounded-xl border border-line bg-surface/95 px-3 py-2.5 shadow-md"
       style={{ borderLeftWidth: 3, borderLeftColor: accent }}
     >
       {showTargetHandle && <Handle type="target" position={Position.Left} />}

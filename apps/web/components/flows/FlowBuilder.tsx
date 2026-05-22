@@ -222,7 +222,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
 
   return (
     <ReactFlowProvider>
-      <div className="flex h-screen flex-col bg-black text-strong">
+      <div className="flex h-screen flex-col bg-app text-strong">
         <div className="flex items-center justify-between border-b border-line px-5 py-3">
           <div className="flex items-center gap-3">
             <button
@@ -320,8 +320,8 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               proOptions={{ hideAttribution: true }}
             >
               <Background color="#27272a" gap={20} />
-              <Controls className="!border-line !bg-zinc-900" />
-              <MiniMap pannable zoomable className="!border-line !bg-zinc-900" />
+              <Controls className="!border-line !bg-surface" />
+              <MiniMap pannable zoomable className="!border-line !bg-surface" />
             </ReactFlow>
           </div>
           <Inspector
@@ -347,7 +347,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="run-modal-title"
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-app/60 p-4"
             onClick={(e) => {
               if (e.target === e.currentTarget) setRunModalOpen(false);
             }}
@@ -384,7 +384,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
                 }}
                 rows={10}
                 spellCheck={false}
-                className="w-full resize-none rounded-lg border border-line bg-zinc-900 px-3 py-2 font-mono text-xs text-strong outline-none focus:border-violet-500/60"
+                className="w-full resize-none rounded-lg border border-line bg-surface px-3 py-2 font-mono text-xs text-strong outline-none focus:border-violet-500/60"
               />
               {runInputError && (
                 <p className="mt-2 text-xs text-red-400">⚠ {runInputError}</p>

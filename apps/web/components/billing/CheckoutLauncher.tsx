@@ -39,7 +39,7 @@ export function CheckoutLauncher({ locale, plan }: { locale: string; plan: strin
   }, [locale, plan, router]);
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-black px-4 text-center">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-app px-4 text-center">
       <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-violet-500 to-blue-500 text-white">
         <CreditCard className="h-6 w-6" />
       </div>

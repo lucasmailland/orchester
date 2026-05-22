@@ -118,7 +118,7 @@ export function AgentRow({ id, name, role, model, status, teamId, teamName, syst
         <div className="hidden shrink-0 flex-col items-end gap-1.5 sm:flex">
           <span
             className={cn(
-              "rounded-md border border-zinc-700/50 bg-zinc-900 px-2 py-0.5 font-mono text-[11px]",
+              "rounded-md border border-zinc-700/50 bg-surface px-2 py-0.5 font-mono text-[11px]",
               "text-muted"
             )}
           >

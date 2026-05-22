@@ -70,7 +70,7 @@ export function ModelPicker({ value, onChange }: Props) {
         <ChevronDown className="h-4 w-4 text-muted" />
       </button>
       {open && (
-        <div className="absolute z-50 mt-1.5 max-h-72 w-full overflow-y-auto rounded-xl border border-line bg-zinc-900 shadow-xl">
+        <div className="absolute z-50 mt-1.5 max-h-72 w-full overflow-y-auto rounded-xl border border-line bg-surface shadow-xl">
           {groups.length === 0 && (
             <div className="px-3 py-3 text-xs text-muted">
               Configurá un proveedor en Ajustes para ver modelos.
@@ -78,7 +78,7 @@ export function ModelPicker({ value, onChange }: Props) {
           )}
           {groups.map((g) => (
             <div key={g.provider}>
-              <div className="border-b border-line bg-zinc-900/80 px-3 py-1.5 text-[10px] uppercase tracking-wider text-muted">
+              <div className="border-b border-line bg-surface/80 px-3 py-1.5 text-[10px] uppercase tracking-wider text-muted">
                 {PROVIDER_NAME[g.provider] ?? g.provider}
               </div>
               {g.models.length === 0 && (

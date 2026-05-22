@@ -70,7 +70,7 @@ export function NotificationsSection() {
                 <p className="text-sm text-body">{p.label}</p>
                 <p className="text-xs text-faint">{p.description}</p>
                 {p.source !== "user" && (
-                  <p className="mt-0.5 text-[10px] text-zinc-700">
+                  <p className="mt-0.5 text-[10px] text-faint">
                     Default {p.source === "workspace" ? "del workspace" : "del sistema"} · cambialo
                     para fijar tu preferencia personal.
                   </p>

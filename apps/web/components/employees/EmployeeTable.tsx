@@ -79,7 +79,7 @@ export function EmployeeTable({ employees: initial, labels }: EmployeeTableProps
         onValueChange={setQuery}
         placeholder={labels.search}
         startContent={<Search size={15} className="shrink-0 text-muted" />}
-        classNames={{ inputWrapper: "bg-zinc-900 border-line max-w-sm" }}
+        classNames={{ inputWrapper: "bg-surface border-line max-w-sm" }}
         size="sm"
       />
 
@@ -110,7 +110,7 @@ export function EmployeeTable({ employees: initial, labels }: EmployeeTableProps
               </div>
               <div className="hidden shrink-0 flex-col items-end gap-1.5 sm:flex">
                 {emp.area && (
-                  <span className="rounded-md border border-zinc-700/50 bg-zinc-900 px-2 py-0.5 text-[11px] text-muted">
+                  <span className="rounded-md border border-zinc-700/50 bg-surface px-2 py-0.5 text-[11px] text-muted">
                     {emp.area}
                   </span>
                 )}

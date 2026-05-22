@@ -127,7 +127,7 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
           loguearte si perdés acceso a tu app de autenticador. Cada código se
           puede usar UNA SOLA VEZ.
         </div>
-        <div className="rounded-lg border border-line bg-zinc-900 p-3 font-mono text-xs">
+        <div className="rounded-lg border border-line bg-surface p-3 font-mono text-xs">
           <pre className="whitespace-pre-wrap break-all">{backupCodes.join("\n")}</pre>
         </div>
         <div className="flex gap-2">
@@ -176,7 +176,7 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
         <details className="text-[10px] text-muted">
           <summary className="cursor-pointer">¿No podés escanear?</summary>
           <p className="mt-1">Pegá esta URL en tu app:</p>
-          <code className="mt-1 block break-all rounded bg-zinc-900 p-2 font-mono">
+          <code className="mt-1 block break-all rounded bg-surface p-2 font-mono">
             {totpURI}
           </code>
         </details>

@@ -24,7 +24,7 @@ const MODEL_COLOR: Record<string, string> = {
 };
 
 const KPI_STYLES = {
-  primary:  { bg: "bg-surface", border: "border-zinc-800/80", text: "text-white", sub: "text-muted", icon: "text-blue-400" },
+  primary:  { bg: "bg-card", border: "border-line", text: "text-strong", sub: "text-muted", icon: "text-blue-400" },
   accent:   { bg: "bg-violet-600", border: "border-violet-500/40", text: "text-white", sub: "text-violet-200/70", icon: "text-violet-100" },
   success:  { bg: "bg-blue-600", border: "border-blue-500/40", text: "text-white", sub: "text-blue-100/70", icon: "text-blue-100" },
   warning:  { bg: "bg-teal-600", border: "border-teal-500/40", text: "text-white", sub: "text-teal-100/70", icon: "text-teal-100" },
@@ -250,7 +250,7 @@ export function UsagePageClient({ kpis, tokensByDay, agentUsage, labels }: Usage
                       <td className="px-6 py-3.5">
                         <span className={cn(
                           "rounded border px-2 py-0.5 font-mono text-[10px]",
-                          MODEL_COLOR[agent.model] ?? "text-muted bg-zinc-900 border-zinc-700/50"
+                          MODEL_COLOR[agent.model] ?? "text-muted bg-surface border-zinc-700/50"
                         )}>
                           {MODEL_SHORT[agent.model] ?? agent.model}
                         </span>
