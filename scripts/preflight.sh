@@ -99,7 +99,7 @@ if [ -n "${DATABASE_URL:-}" ] && command -v psql >/dev/null 2>&1; then
     if psql "$DATABASE_URL" -c "SELECT 1 FROM workspace LIMIT 1" >/dev/null 2>&1; then
       ok "Schema aplicado (tabla workspace existe)"
     else
-      warn "Schema NO aplicado. Run: pnpm --filter @orchester/db push"
+      warn "Schema NO aplicado. Run: pnpm --filter @orchester/db migrate"
     fi
   else
     fail "Postgres NO pingable con DATABASE_URL"

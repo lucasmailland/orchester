@@ -66,11 +66,15 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # Defensive: the baseline migration (0000_baseline.sql) also runs
+      # `CREATE EXTENSION IF NOT EXISTS vector;` as its first statement, so this
+      # is redundant but harmless and keeps CI robust to migration reordering.
       - name: Enable pgvector
         run: psql "$DATABASE_URL" -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
-      - name: Push schema
-        run: pnpm --filter @orchester/db push --force
+      # Apply committed SQL migrations (reviewable, versioned) — NOT push --force.
+      - name: Apply migrations
+        run: pnpm --filter @orchester/db migrate
 
       - name: TypeScript check
         run: pnpm --filter web tsc --noEmit
