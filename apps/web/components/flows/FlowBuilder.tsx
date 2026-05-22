@@ -25,8 +25,9 @@ import { TriggerNode } from "./nodes/TriggerNode";
 import { FlowRunsPanel } from "./FlowRunsPanel";
 import { InspectorForm } from "./inspector/InspectorForm";
 import { NodePalette } from "./NodePalette";
+import { CopilotPanel } from "./CopilotPanel";
 import { getNodeDef, type Locale } from "@/lib/flows/node-registry";
-import { Save, Play, Loader2, History, ArrowLeft, Variable, X } from "lucide-react";
+import { Save, Play, Loader2, History, ArrowLeft, Variable, X, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
@@ -110,6 +111,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
+  const [copilotOpen, setCopilotOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [runModalOpen, setRunModalOpen] = useState(false);
   const [runInputDraft, setRunInputDraft] = useState("{\n  \n}");
@@ -280,6 +282,18 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             )}
             <button
               type="button"
+              onClick={() => setCopilotOpen((o) => !o)}
+              className={
+                copilotOpen
+                  ? "flex items-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-500/10 px-2.5 py-1.5 text-xs font-medium text-violet-600 dark:text-violet-300"
+                  : "flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover"
+              }
+              title="Copiloto: armá el flujo hablando"
+            >
+              <Sparkles className="h-3.5 w-3.5" /> Copiloto
+            </button>
+            <button
+              type="button"
               onClick={() => setVarsOpen((o) => !o)}
               className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover"
               title="Variables del flujo"
@@ -366,6 +380,17 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               }}
             />
           </div>
+          <CopilotPanel
+            flowId={flow.id}
+            open={copilotOpen}
+            onClose={() => setCopilotOpen(false)}
+            describeFlow={() => describeGraph(nodes, edges)}
+            onApplyGraph={(newNodes, newEdges) => {
+              setNodes(newNodes);
+              setEdges(newEdges);
+              setSelected(null);
+            }}
+          />
           <FlowRunsPanel
             flowId={flow.id}
             open={runsOpen}
@@ -476,6 +501,26 @@ function EmptyCanvasGuide({ onAdd }: { onAdd: (nodeId: string) => void }) {
       </div>
     </div>
   );
+}
+
+/** Resume el grafo en texto plano para que el copiloto pueda explicarlo/revisarlo. */
+function describeGraph(nodes: Node[], edges: Edge[]): string {
+  if (nodes.length === 0) return "";
+  const byId = new Map(nodes.map((n) => [n.id, n] as const));
+  const lines = nodes.map((n) => {
+    const d = n.data as { label?: string; nodeId?: string; config?: Record<string, unknown> };
+    const def = getNodeDef(String(d.nodeId ?? n.type ?? ""));
+    const kind = def ? def.title["es"] : String(n.type);
+    const cfg = d.config && Object.keys(d.config).length ? ` config=${JSON.stringify(d.config)}` : "";
+    return `• ${d.label ?? kind} [${kind}]${cfg}`;
+  });
+  const conns = edges.map((e) => {
+    const s = byId.get(e.source)?.data as { label?: string } | undefined;
+    const t = byId.get(e.target)?.data as { label?: string } | undefined;
+    const handle = e.sourceHandle ? ` (${e.sourceHandle})` : "";
+    return `• ${s?.label ?? e.source}${handle} → ${t?.label ?? e.target}`;
+  });
+  return `Pasos:\n${lines.join("\n")}\n\nConexiones:\n${conns.join("\n") || "(ninguna)"}`;
 }
 
 function subtitleFor(n: { type: string; config: Record<string, unknown> }): string {
