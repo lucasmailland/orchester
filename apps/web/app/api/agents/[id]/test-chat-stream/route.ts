@@ -73,9 +73,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   );
 
   const encoder = new TextEncoder();
+  // L5: si el cliente se desconecta, `req.signal` se aborta. Lo combinamos con
+  // un controller propio (también abortado en `cancel()`) y lo pasamos a
+  // `llmStream`, que corta la lectura del upstream y deja de facturar tokens.
+  const abort = new AbortController();
+  if (req.signal.aborted) abort.abort();
+  else req.signal.addEventListener("abort", () => abort.abort(), { once: true });
+
   const stream = new ReadableStream({
     async start(controller) {
+      let closed = false;
       const send = (chunk: unknown) => {
+        if (closed) return;
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
       };
       try {
@@ -84,21 +93,34 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           model,
           systemPrompt: finalSystem,
           messages,
+          signal: abort.signal,
           ...(temperature !== undefined ? { temperature } : {}),
           ...(maxTokens !== undefined ? { maxTokens } : {}),
         })) {
+          if (abort.signal.aborted) break;
           send(chunk);
         }
       } catch (e) {
-        if (e instanceof ProviderNotConfiguredError) {
+        if (abort.signal.aborted) {
+          // Cliente desconectado: no es un error real, salimos en silencio.
+        } else if (e instanceof ProviderNotConfiguredError) {
           send({ type: "error", error: `Provider ${e.provider} not configured` });
         } else {
           safeLogError("[test-chat-stream]", e);
           send({ type: "error", error: e instanceof Error ? e.message : String(e) });
         }
       } finally {
-        controller.close();
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          /* ya cerrado */
+        }
       }
+    },
+    // Disparado cuando el consumidor (cliente) cancela el stream.
+    cancel() {
+      abort.abort();
     },
   });
 

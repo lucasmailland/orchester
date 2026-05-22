@@ -5,6 +5,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { llmCall, llmStream, type ChatMessage } from "@/lib/llm-call";
 import { getToolDefinitions, executeTool } from "@/lib/tools";
 import { executeFlow } from "@/lib/flow-engine";
+import { UNTRUSTED_CONTENT_GUARDRAIL, wrapUntrusted } from "@/lib/agent-runtime";
 
 export interface InboundMessage {
   channelId: string;
@@ -304,8 +305,19 @@ async function buildConversationContext(ctx: ConvCtx): Promise<{
   });
   return {
     chatMsgs,
-    systemPrompt: agent.systemPrompt + formatMemoriesAsPromptBlock(memories),
+    // L1: la memoria es contenido recuperado no confiable → la delimitamos en un
+    // bloque etiquetado y agregamos la línea de guardrail al system prompt.
+    systemPrompt: agent.systemPrompt + wrapMemoryBlock(formatMemoriesAsPromptBlock(memories)) + UNTRUSTED_CONTENT_GUARDRAIL,
   };
+}
+
+/**
+ * Envuelve el bloque de memoria (si lo hay) en un `<untrusted_context>` para
+ * que el modelo lo trate como datos (L1). Si no hay memoria, devuelve "".
+ */
+function wrapMemoryBlock(memoryBlock: string): string {
+  if (!memoryBlock.trim()) return "";
+  return "\n\n" + wrapUntrusted(memoryBlock.trim(), "memory");
 }
 
 /**
@@ -359,7 +371,14 @@ async function runConversationalTurn(ctx: ConvCtx): Promise<OutboundResponse> {
             conversationId: conversation.id,
             ...(conversation.employeeId ? { employeeId: conversation.employeeId } : {}),
           });
-          toolResults.push({ id: tc.id, name: tc.name, input: tc.input, output: out });
+          // L1/F2: el output de la tool es contenido no confiable → delimitado
+          // (y con PII redactada si el operador hizo opt-in) antes de mandarlo
+          // al modelo.
+          const wrapped = wrapUntrusted(
+            typeof out === "string" ? out : JSON.stringify(out ?? null),
+            `tool_${tc.name}`
+          );
+          toolResults.push({ id: tc.id, name: tc.name, input: tc.input, output: wrapped });
           if (tc.name === "agent_handoff" && (out as { ok?: boolean })?.ok) {
             didHandoff = true;
           }
@@ -404,7 +423,9 @@ async function runConversationalTurn(ctx: ConvCtx): Promise<OutboundResponse> {
               employeeId: conversation.employeeId ?? undefined,
             });
             activeSystemPrompt =
-              activeAgent.systemPrompt + formatMemoriesAsPromptBlock(newMems);
+              activeAgent.systemPrompt +
+              wrapMemoryBlock(formatMemoriesAsPromptBlock(newMems)) +
+              UNTRUSTED_CONTENT_GUARDRAIL;
           }
         }
       }
@@ -468,7 +489,13 @@ export type InboundStreamChunk =
  */
 export async function* handleInboundStream(
   workspaceId: string,
-  msg: InboundMessage
+  msg: InboundMessage,
+  /**
+   * Signal de cancelación (L5). Cuando el cliente del endpoint SSE se
+   * desconecta, se aborta → se thread hacia `llmStream` para cortar el consumo
+   * del upstream LLM y dejar de facturar tokens.
+   */
+  signal?: AbortSignal
 ): AsyncGenerator<InboundStreamChunk> {
   let res: Resolution;
   try {
@@ -524,7 +551,10 @@ export async function* handleInboundStream(
       messages: chatMsgs,
       temperature: agent.temperature ? Number(agent.temperature) : 0.7,
       ...(agent.maxTokens != null && { maxTokens: agent.maxTokens }),
+      ...(signal ? { signal } : {}),
     })) {
+      // Si el cliente se desconectó, dejamos de emitir/persistir.
+      if (signal?.aborted) return;
       if (chunk.type === "text") {
         reply += chunk.delta;
         yield { type: "text", delta: chunk.delta };

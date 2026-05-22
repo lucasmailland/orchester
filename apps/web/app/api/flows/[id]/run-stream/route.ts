@@ -24,9 +24,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const input = (parsed.data.input ?? {}) as Record<string, unknown>;
 
   const encoder = new TextEncoder();
+  // L5: cuando el cliente se desconecta dejamos de emitir eventos. (El flow
+  // engine no expone un signal de cancelación, así que sólo cortamos el push
+  // de eventos SSE; no abortamos la ejecución del flujo en sí.)
+  const abort = new AbortController();
+  if (req.signal.aborted) abort.abort();
+  else req.signal.addEventListener("abort", () => abort.abort(), { once: true });
+
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      let closed = false;
       const send = (ev: FlowRunEvent) => {
+        if (closed || abort.signal.aborted) return;
         try {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(ev)}\n\n`));
         } catch {
@@ -44,8 +53,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       } catch (e) {
         send({ type: "run_finish", status: "failed", error: e instanceof Error ? e.message : String(e) });
       } finally {
-        controller.close();
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          /* ya cerrado */
+        }
       }
+    },
+    // Disparado cuando el consumidor (cliente) cancela el stream.
+    cancel() {
+      abort.abort();
     },
   });
 

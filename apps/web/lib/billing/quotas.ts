@@ -25,14 +25,67 @@ export async function getWorkspacePlan(workspaceId: string): Promise<Plan> {
   return (rows[0]?.plan ?? "free") as Plan;
 }
 
-/**
- * Returns current month's usage for a workspace.
- */
-export async function getMonthlyUsage(workspaceId: string) {
-  const db = getDb();
+/** Inicio del mes calendario UTC actual. Fallback cuando no hay suscripción. */
+function calendarMonthStart(): Date {
   const start = new Date();
   start.setUTCDate(1);
   start.setUTCHours(0, 0, 0, 0);
+  return start;
+}
+
+/**
+ * Calcula el inicio de la ventana de uso actual.
+ *
+ * Si el workspace tiene suscripción Stripe (`currentPeriodEnd` presente),
+ * la ventana se alinea al período de facturación: el inicio es el último
+ * ancla mensual <= ahora, derivado restando meses a `currentPeriodEnd`.
+ * Así un upgrade/uso a mitad de ciclo cuenta contra el período correcto y
+ * no contra el mes calendario.
+ *
+ * Sin suscripción (plan free / self-host), usa el mes calendario UTC.
+ */
+async function getUsageWindowStart(workspaceId: string): Promise<Date> {
+  if (isSelfHosted()) return calendarMonthStart();
+  const db = getDb();
+  const rows = await db
+    .select({ currentPeriodEnd: schema.workspaceBilling.currentPeriodEnd })
+    .from(schema.workspaceBilling)
+    .where(eq(schema.workspaceBilling.workspaceId, workspaceId))
+    .limit(1);
+  const periodEnd = rows[0]?.currentPeriodEnd;
+  if (!periodEnd) return calendarMonthStart();
+
+  const now = Date.now();
+  // El ancla `periodEnd` define el día/hora del ciclo. Retrocedemos en pasos
+  // mensuales desde `periodEnd` hasta encontrar el último anchor <= ahora.
+  const anchor = new Date(periodEnd);
+  // Avanzamos primero si el período termina en el futuro: el inicio del
+  // período actual es periodEnd menos un mes (caso típico).
+  let candidate = new Date(anchor);
+  candidate.setUTCMonth(candidate.getUTCMonth() - 1);
+  // Asegurar que candidate sea el inicio de período más reciente <= ahora.
+  while (candidate.getTime() > now) {
+    candidate.setUTCMonth(candidate.getUTCMonth() - 1);
+  }
+  // Si el período venció (anchor en el pasado), avanzar hasta el ciclo vigente.
+  while (true) {
+    const next = new Date(candidate);
+    next.setUTCMonth(next.getUTCMonth() + 1);
+    if (next.getTime() > now) break;
+    candidate = next;
+  }
+  return candidate;
+}
+
+/**
+ * Returns current month's usage for a workspace.
+ *
+ * La ventana se alinea al período de facturación de Stripe cuando hay
+ * suscripción; sino cae al mes calendario UTC.
+ */
+export async function getMonthlyUsage(workspaceId: string) {
+  const db = getDb();
+  const start = await getUsageWindowStart(workspaceId);
   const rows = await db
     .select({
       kind: schema.usageEvents.kind,
