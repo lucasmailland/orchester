@@ -15,7 +15,10 @@ interface NodeData {
   label?: string;
   subtitle?: string;
   badge?: string | null;
+  config?: Record<string, unknown>;
 }
+
+const CASE_COLORS = ["#3b82f6", "#8b5cf6", "#ec4899", "#06b6d4", "#f59e0b", "#10b981"];
 
 /**
  * Nodo con varias salidas etiquetadas (caminos). Muestra el nombre de cada
@@ -122,12 +125,19 @@ export function LoopNode(p: NodeProps) {
 }
 
 export function SwitchNode(p: NodeProps) {
-  return (
-    <BranchNode
-      data={p.data as NodeData}
-      Icon={Split}
-      accent="#f59e0b"
-      branches={[{ id: "default", label: "Siguiente", color: "#f59e0b", top: 0.5 }]}
-    />
+  const data = p.data as NodeData;
+  const cases = (Array.isArray(data.config?.cases) ? (data.config!.cases as string[]) : []).filter(
+    (c) => typeof c === "string" && c.trim()
   );
+  const all = [...cases, "__default__"];
+  const branches: BranchDef[] = all.map((value, idx) => {
+    const isDefault = value === "__default__";
+    return {
+      id: isDefault ? "default" : value,
+      label: isDefault ? "Siguiente" : value,
+      color: isDefault ? "#f59e0b" : CASE_COLORS[idx % CASE_COLORS.length]!,
+      top: (idx + 1) / (all.length + 1),
+    };
+  });
+  return <BranchNode data={data} Icon={Split} accent="#f59e0b" branches={branches} />;
 }

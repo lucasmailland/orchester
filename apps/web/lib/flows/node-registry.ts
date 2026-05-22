@@ -111,6 +111,7 @@ export const NODE_REGISTRY: Record<string, NodeDef> = {
     summary: i("Manda el flujo por uno de varios caminos según un valor.", "Routes the flow down one of several paths by value.", "Direciona o fluxo por um de vários caminhos."),
     fields: [
       { key: "value", label: "Valor a evaluar", type: "variable", required: true, example: "{{categoria}}" },
+      { key: "cases", label: "Caminos posibles", type: "string-list", help: "Escribí los valores que querés distinguir (ej. ventas, soporte). Cada uno crea una salida. Lo que no coincida sale por 'Siguiente'.", example: "ventas" },
     ],
   },
   loop_for_each: {
