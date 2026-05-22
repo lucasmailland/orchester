@@ -1,4 +1,5 @@
 import { getNodeDef, NODE_REGISTRY, type Locale } from "./node-registry";
+import { getNodeDocs } from "./node-docs";
 import type { ToolDefinitionForLlm } from "../llm-call";
 
 /**
@@ -139,7 +140,9 @@ export function nodeCatalogForPrompt(locale: Locale = "es"): string {
   return Object.values(NODE_REGISTRY)
     .map((d) => {
       const fields = d.fields.map((f) => f.key).join(", ");
-      return `- ${d.id}: ${d.title[locale]} — ${d.summary[locale]}${fields ? ` (campos: ${fields})` : ""}`;
+      const docs = getNodeDocs(d.id);
+      const when = docs ? ` Cuándo conviene: ${docs.whenToUse[locale]}` : "";
+      return `- ${d.id}: ${d.title[locale]} — ${d.summary[locale]}${when}${fields ? ` (campos: ${fields})` : ""}`;
     })
     .join("\n");
 }
