@@ -21,13 +21,17 @@ import {
   schedule,
   shutdownQueue,
   JOB_FLOW_RUN,
+  JOB_FLOW_REAP,
   JOB_WEBHOOK_DELIVER,
   JOB_USAGE_AGGREGATE,
+  JOB_RETENTION,
 } from "../lib/queue";
-import { executeFlow } from "../lib/flow-engine";
+import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
+import { purgeOldData } from "../lib/retention";
 
 interface FlowRunJob {
+  runId: string;
   flowId: string;
   workspaceId: string;
   triggerSource: string;
@@ -47,17 +51,23 @@ async function main(): Promise<void> {
   await registerWorker<FlowRunJob>(
     JOB_FLOW_RUN,
     async (job) => {
-      const { flowId, workspaceId, triggerSource, input } = job.data;
-      console.log(`[worker] flow:run flow=${flowId} ws=${workspaceId}`);
-      const result = await executeFlow({ flowId, workspaceId, triggerSource, input });
+      const { runId, flowId, workspaceId, triggerSource, input } = job.data;
+      console.log(`[worker] flow:run flow=${flowId} ws=${workspaceId} run=${runId}`);
+      // El estado del run (succeeded/failed) es la fuente de verdad y se persiste
+      // dentro de executeFlow. No relanzamos: el job se encola con retryLimit 0
+      // para no re-disparar side-effects. El reaper cubre crashes.
+      const result = await executeFlow({ runId, flowId, workspaceId, triggerSource, input });
       console.log(`[worker] flow:run flow=${flowId} → ${result.status} run=${result.runId}`);
-      if (result.status === "failed") {
-        // Lanza para que pg-boss aplique retry exponencial.
-        throw new Error(result.error ?? "flow failed");
-      }
     },
     { teamSize: 4, teamConcurrency: 2 }
   );
+
+  // ── Orphan-run reaper (cron, cada 5 min) ────────────────────
+  await registerWorker(JOB_FLOW_REAP, async () => {
+    const n = await reapStaleRuns();
+    if (n > 0) console.log(`[worker] flow:reap → marcó ${n} run(s) colgados como failed`);
+  });
+  await schedule(JOB_FLOW_REAP, "*/5 * * * *");
 
   // ── Webhook dispatch ────────────────────────────────────────
   await registerWorker<WebhookDeliverJob>(
@@ -76,6 +86,16 @@ async function main(): Promise<void> {
     // limpieza de runs antiguos, etc.). No-op por ahora.
   });
   await schedule(JOB_USAGE_AGGREGATE, "0 3 * * *"); // 03:00 UTC
+
+  // ── Data retention sweeper (cron, diario 03:30 UTC) ─────────
+  // G1-1: purga flow_runs/flow_run_steps y webhook_deliveries viejos.
+  await registerWorker(JOB_RETENTION, async () => {
+    const n = await purgeOldData();
+    console.log(
+      `[worker] data:retention → runs=${n.runsDeleted} deliveries=${n.deliveriesDeleted}`
+    );
+  });
+  await schedule(JOB_RETENTION, "30 3 * * *"); // 03:30 UTC
 
   console.log("[worker] ready, waiting for jobs…");
 }

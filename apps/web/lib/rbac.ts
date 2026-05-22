@@ -36,7 +36,7 @@ export type Action =
 
 const PERMISSIONS: Record<Role, Action[]> = {
   viewer: [
-    "agent.create", // can read agents (handled via list endpoints which always allow auth'd)
+    // Reads/lists are gated only by authentication, not by an Action.
     "conversation.read",
     "settings.read",
     "billing.read",

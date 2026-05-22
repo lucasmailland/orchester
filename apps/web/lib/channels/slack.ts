@@ -1,6 +1,9 @@
 import "server-only";
 import crypto from "node:crypto";
 import { decrypt } from "@/lib/encryption";
+import { fetchWithTimeout } from "@/lib/http-util";
+
+const SLACK_TIMEOUT_MS = 15_000;
 
 /**
  * Slack channel adapter — bot users via Slack Web API.
@@ -133,14 +136,14 @@ export async function slackSend(
   if (opts.threadTs) payload["thread_ts"] = opts.threadTs;
   if (opts.blocks && opts.blocks.length > 0) payload["blocks"] = opts.blocks;
 
-  const r = await fetch("https://slack.com/api/chat.postMessage", {
+  const r = await fetchWithTimeout("https://slack.com/api/chat.postMessage", {
     method: "POST",
     headers: {
       "content-type": "application/json; charset=utf-8",
       Authorization: `Bearer ${botToken}`,
     },
     body: JSON.stringify(payload),
-  });
+  }, SLACK_TIMEOUT_MS);
   const j = (await r.json()) as { ok: boolean; ts?: string; error?: string };
   if (!j.ok) {
     throw new Error(`Slack chat.postMessage failed: ${j.error ?? "unknown"}`);
@@ -161,14 +164,14 @@ export async function slackReact(
   messageTs: string,
   emojiName: string
 ): Promise<void> {
-  const r = await fetch("https://slack.com/api/reactions.add", {
+  const r = await fetchWithTimeout("https://slack.com/api/reactions.add", {
     method: "POST",
     headers: {
       "content-type": "application/json; charset=utf-8",
       Authorization: `Bearer ${botToken}`,
     },
     body: JSON.stringify({ channel: channelId, timestamp: messageTs, name: emojiName }),
-  });
+  }, SLACK_TIMEOUT_MS);
   const j = (await r.json()) as { ok: boolean; error?: string };
   // already_reacted no es un error real
   if (!j.ok && j.error !== "already_reacted") {
@@ -194,7 +197,7 @@ export async function slackSetThinkingStatus(
   status = "Pensando…"
 ): Promise<boolean> {
   try {
-    const r = await fetch("https://slack.com/api/assistant.threads.setStatus", {
+    const r = await fetchWithTimeout("https://slack.com/api/assistant.threads.setStatus", {
       method: "POST",
       headers: {
         "content-type": "application/json; charset=utf-8",
@@ -205,7 +208,7 @@ export async function slackSetThinkingStatus(
         thread_ts: threadTs,
         status,
       }),
-    });
+    }, SLACK_TIMEOUT_MS);
     const j = (await r.json()) as { ok: boolean; error?: string };
     return Boolean(j.ok);
   } catch {
@@ -217,9 +220,9 @@ export async function slackSetThinkingStatus(
 export async function slackAuthTest(
   botToken: string
 ): Promise<{ ok: boolean; team?: string; user?: string; bot_id?: string; error?: string }> {
-  const r = await fetch("https://slack.com/api/auth.test", {
+  const r = await fetchWithTimeout("https://slack.com/api/auth.test", {
     headers: { Authorization: `Bearer ${botToken}` },
-  });
+  }, SLACK_TIMEOUT_MS);
   return (await r.json()) as { ok: boolean; team?: string; user?: string; bot_id?: string; error?: string };
 }
 

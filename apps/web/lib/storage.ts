@@ -1,8 +1,12 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, writeFile, readFile, unlink } from "node:fs/promises";
+import { mkdir, writeFile, readFile, unlink, readdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { fetchWithTimeout } from "./http-util";
+import { safeLogError } from "./safe-log";
+
+const S3_TIMEOUT_MS = 30_000;
 
 /**
  * Object storage abstraction.
@@ -29,6 +33,12 @@ export interface Storage {
   put(key: string, body: Buffer, contentType: string): Promise<StorageObject>;
   get(key: string): Promise<{ body: Buffer; contentType: string } | null>;
   delete(key: string): Promise<void>;
+  /**
+   * Borra TODOS los objetos cuyo key empieza con `prefix`. Devuelve la cantidad
+   * de objetos borrados. Es resiliente: errores en objetos individuales se
+   * loguean (safeLogError) pero no abortan el barrido completo.
+   */
+  deleteByPrefix(prefix: string): Promise<number>;
   url(key: string): string;
 }
 
@@ -76,6 +86,78 @@ class LocalStorage implements Storage {
     const full = this.full(key);
     if (existsSync(full)) await unlink(full);
     if (existsSync(`${full}.meta`)) await unlink(`${full}.meta`);
+  }
+
+  async deleteByPrefix(prefix: string): Promise<number> {
+    // Guard path-traversal: el prefix debe resolver DENTRO del root.
+    if (prefix.includes("..") || path.isAbsolute(prefix)) {
+      safeLogError("[storage] deleteByPrefix rejected (traversal):", prefix);
+      return 0;
+    }
+    const target = path.resolve(this.root, prefix);
+    const rootResolved = path.resolve(this.root);
+    // target debe ser el root mismo o estar contenido en él.
+    if (target !== rootResolved && !target.startsWith(rootResolved + path.sep)) {
+      safeLogError("[storage] deleteByPrefix escaped root:", prefix);
+      return 0;
+    }
+
+    // El prefix puede apuntar a un directorio (ej "ws123/") o a un sub-path
+    // parcial. Recolectamos todos los archivos bajo `target` (si es dir) o
+    // archivos hermanos cuyo nombre arranca con el basename (si es path parcial).
+    let count = 0;
+
+    const countFiles = async (dir: string): Promise<number> => {
+      let n = 0;
+      let entries;
+      try {
+        entries = await readdir(dir, { withFileTypes: true });
+      } catch {
+        return 0;
+      }
+      for (const e of entries) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) {
+          n += await countFiles(p);
+        } else if (!e.name.endsWith(".meta")) {
+          // sólo contamos objetos reales, no los sidecars .meta
+          n += 1;
+        }
+      }
+      return n;
+    };
+
+    try {
+      if (existsSync(target)) {
+        // Caso típico: prefix es un directorio. Contamos y borramos recursivo.
+        count = await countFiles(target);
+        await rm(target, { recursive: true, force: true });
+      } else {
+        // Prefix parcial: borra archivos del directorio padre cuyo basename
+        // empiece con el último segmento del prefix.
+        const parent = path.dirname(target);
+        const base = path.basename(target);
+        let entries;
+        try {
+          entries = await readdir(parent, { withFileTypes: true });
+        } catch {
+          return 0;
+        }
+        for (const e of entries) {
+          if (!e.isFile() || !e.name.startsWith(base)) continue;
+          const p = path.join(parent, e.name);
+          try {
+            await unlink(p);
+            if (!e.name.endsWith(".meta")) count += 1;
+          } catch (err) {
+            safeLogError("[storage] deleteByPrefix unlink failed:", err);
+          }
+        }
+      }
+    } catch (err) {
+      safeLogError("[storage] deleteByPrefix failed:", err);
+    }
+    return count;
   }
 
   url(key: string): string {
@@ -189,12 +271,12 @@ class S3Storage implements Storage {
       "content-type": contentType,
       "content-length": String(body.length),
     });
-    const r = await fetch(url, {
+    const r = await fetchWithTimeout(url, {
       method: "PUT",
       headers,
       // Buffer is a Uint8Array; cast to satisfy lib.dom.d.ts BodyInit typing
       body: body as unknown as BodyInit,
-    });
+    }, S3_TIMEOUT_MS);
     if (!r.ok) {
       throw new Error(`S3 PUT ${r.status}: ${await r.text()}`);
     }
@@ -204,7 +286,7 @@ class S3Storage implements Storage {
   async get(key: string): Promise<{ body: Buffer; contentType: string } | null> {
     const url = this.objectUrl(key);
     const headers = await this.sign("GET", url, undefined, {});
-    const r = await fetch(url, { method: "GET", headers });
+    const r = await fetchWithTimeout(url, { method: "GET", headers }, S3_TIMEOUT_MS);
     if (r.status === 404) return null;
     if (!r.ok) throw new Error(`S3 GET ${r.status}: ${await r.text()}`);
     const buf = Buffer.from(await r.arrayBuffer());
@@ -214,10 +296,118 @@ class S3Storage implements Storage {
   async delete(key: string): Promise<void> {
     const url = this.objectUrl(key);
     const headers = await this.sign("DELETE", url, undefined, {});
-    const r = await fetch(url, { method: "DELETE", headers });
+    const r = await fetchWithTimeout(url, { method: "DELETE", headers }, S3_TIMEOUT_MS);
     if (!r.ok && r.status !== 404) {
       throw new Error(`S3 DELETE ${r.status}: ${await r.text()}`);
     }
+  }
+
+  /** URL del bucket (sin key) para operaciones a nivel bucket (list / batch delete). */
+  private bucketUrl(): string {
+    if (this.forcePathStyle) {
+      return `${this.endpoint}/${this.bucket}`;
+    }
+    const u = new URL(this.endpoint);
+    u.host = `${this.bucket}.${u.host}`;
+    return u.toString().replace(/\/$/, "");
+  }
+
+  /** Extrae los <Key>…</Key> de una respuesta XML de ListObjectsV2. */
+  private parseKeys(xml: string): string[] {
+    const keys: string[] = [];
+    const re = /<Key>([^<]*)<\/Key>/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(xml)) !== null) {
+      // Des-escapa las entidades XML básicas que S3 puede emitir.
+      const raw = (m[1] ?? "")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'");
+      if (raw) keys.push(raw);
+    }
+    return keys;
+  }
+
+  private parseContinuationToken(xml: string): string | null {
+    const truncated = /<IsTruncated>\s*true\s*<\/IsTruncated>/i.test(xml);
+    if (!truncated) return null;
+    const m = /<NextContinuationToken>([^<]*)<\/NextContinuationToken>/.exec(xml);
+    return m?.[1] ?? null;
+  }
+
+  /** Lista todas las keys bajo `prefix`, paginando con ListObjectsV2. */
+  private async listKeys(prefix: string): Promise<string[]> {
+    const all: string[] = [];
+    let token: string | null = null;
+    do {
+      const u = new URL(this.bucketUrl());
+      u.searchParams.set("list-type", "2");
+      u.searchParams.set("prefix", prefix);
+      u.searchParams.set("max-keys", "1000");
+      if (token) u.searchParams.set("continuation-token", token);
+      const url = u.toString();
+      const headers = await this.sign("GET", url, undefined, {});
+      const r = await fetchWithTimeout(url, { method: "GET", headers }, S3_TIMEOUT_MS);
+      if (!r.ok) {
+        safeLogError(`[storage] S3 ListObjectsV2 ${r.status}:`, await r.text());
+        break;
+      }
+      const xml = await r.text();
+      all.push(...this.parseKeys(xml));
+      token = this.parseContinuationToken(xml);
+    } while (token);
+    return all;
+  }
+
+  /** Borra un lote de keys con POST ?delete (DeleteObjects). Devuelve cuántas pidió borrar. */
+  private async deleteBatch(keys: string[]): Promise<number> {
+    if (keys.length === 0) return 0;
+    const objectsXml = keys
+      .map(
+        (k) =>
+          `<Object><Key>${k
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")}</Key></Object>`
+      )
+      .join("");
+    const body = Buffer.from(
+      `<?xml version="1.0" encoding="UTF-8"?><Delete><Quiet>true</Quiet>${objectsXml}</Delete>`,
+      "utf8"
+    );
+    const md5 = createHash("md5").update(body).digest("base64");
+    const url = `${this.bucketUrl()}/?delete`;
+    const headers = await this.sign("POST", url, body, {
+      "content-type": "application/xml",
+      "content-md5": md5,
+      "content-length": String(body.length),
+    });
+    const r = await fetchWithTimeout(
+      url,
+      { method: "POST", headers, body: body as unknown as BodyInit },
+      S3_TIMEOUT_MS
+    );
+    if (!r.ok) {
+      safeLogError(`[storage] S3 DeleteObjects ${r.status}:`, await r.text());
+      return 0;
+    }
+    return keys.length;
+  }
+
+  async deleteByPrefix(prefix: string): Promise<number> {
+    let count = 0;
+    try {
+      const keys = await this.listKeys(prefix);
+      for (let i = 0; i < keys.length; i += 1000) {
+        const batch = keys.slice(i, i + 1000);
+        count += await this.deleteBatch(batch);
+      }
+    } catch (err) {
+      safeLogError("[storage] S3 deleteByPrefix failed:", err);
+    }
+    return count;
   }
 
   url(key: string): string {

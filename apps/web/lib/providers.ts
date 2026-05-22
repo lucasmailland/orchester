@@ -1,5 +1,8 @@
 import "server-only";
 import type { ModelInfo } from "@orchester/db";
+import { fetchWithTimeout } from "./http-util";
+
+const PROVIDER_TEST_TIMEOUT_MS = 30_000;
 
 export type ProviderType = "anthropic" | "openai" | "google" | "azure_openai";
 
@@ -54,9 +57,9 @@ export async function testProviderConnection(
 ): Promise<{ ok: boolean; models?: ModelInfo[]; error?: string }> {
   try {
     if (provider === "anthropic") {
-      const r = await fetch("https://api.anthropic.com/v1/models", {
+      const r = await fetchWithTimeout("https://api.anthropic.com/v1/models", {
         headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      });
+      }, PROVIDER_TEST_TIMEOUT_MS);
       if (!r.ok) return { ok: false, error: `Anthropic returned ${r.status}` };
       const j = await r.json();
       const models: ModelInfo[] = (j.data || []).map(
@@ -74,9 +77,9 @@ export async function testProviderConnection(
       return { ok: true, models: models.length ? models : ANTHROPIC };
     }
     if (provider === "openai") {
-      const r = await fetch("https://api.openai.com/v1/models", {
+      const r = await fetchWithTimeout("https://api.openai.com/v1/models", {
         headers: { Authorization: `Bearer ${apiKey}` },
-      });
+      }, PROVIDER_TEST_TIMEOUT_MS);
       if (!r.ok) return { ok: false, error: `OpenAI returned ${r.status}` };
       const j = await r.json();
       const ids = new Set<string>((j.data || []).map((m: { id: string }) => m.id));
@@ -84,8 +87,10 @@ export async function testProviderConnection(
       return { ok: true, models: models.length ? models : OPENAI };
     }
     if (provider === "google") {
-      const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`
+      const r = await fetchWithTimeout(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`,
+        undefined,
+        PROVIDER_TEST_TIMEOUT_MS
       );
       if (!r.ok) return { ok: false, error: `Google returned ${r.status}` };
       const j = await r.json();
@@ -98,7 +103,7 @@ export async function testProviderConnection(
     if (provider === "azure_openai") {
       if (!endpoint) return { ok: false, error: "Azure requires an endpoint URL" };
       const url = `${endpoint.replace(/\/$/, "")}/openai/deployments?api-version=2024-02-01`;
-      const r = await fetch(url, { headers: { "api-key": apiKey } });
+      const r = await fetchWithTimeout(url, { headers: { "api-key": apiKey } }, PROVIDER_TEST_TIMEOUT_MS);
       if (!r.ok) return { ok: false, error: `Azure returned ${r.status}` };
       const j = await r.json();
       const models: ModelInfo[] = (j.data || []).map((d: { id: string }) => ({

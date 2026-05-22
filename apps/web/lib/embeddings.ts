@@ -2,6 +2,9 @@ import "server-only";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { decrypt } from "./encryption";
+import { fetchWithTimeout } from "./http-util";
+
+const EMBED_TIMEOUT_MS = 60_000;
 
 export type EmbeddingProvider = "openai" | "google" | "voyage";
 
@@ -63,14 +66,14 @@ async function embedOpenAI(
   model: string,
   texts: string[]
 ): Promise<EmbeddingResult> {
-  const r = await fetch("https://api.openai.com/v1/embeddings", {
+  const r = await fetchWithTimeout("https://api.openai.com/v1/embeddings", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "content-type": "application/json",
     },
     body: JSON.stringify({ model, input: texts }),
-  });
+  }, EMBED_TIMEOUT_MS);
   if (!r.ok) throw new Error(`OpenAI embeddings ${r.status}: ${await r.text()}`);
   const j = await r.json();
   const vectors = (j.data ?? []).map((d: { embedding: number[] }) =>
@@ -92,7 +95,7 @@ async function embedGoogle(
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
     model
   )}:batchEmbedContents?key=${encodeURIComponent(apiKey)}`;
-  const r = await fetch(url, {
+  const r = await fetchWithTimeout(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -101,7 +104,7 @@ async function embedGoogle(
         content: { parts: [{ text: t }] },
       })),
     }),
-  });
+  }, EMBED_TIMEOUT_MS);
   if (!r.ok) throw new Error(`Google embeddings ${r.status}: ${await r.text()}`);
   const j = await r.json();
   const vectors = (j.embeddings ?? []).map((e: { values: number[] }) =>

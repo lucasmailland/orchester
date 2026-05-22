@@ -1,8 +1,10 @@
 import "server-only";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray, lt } from "drizzle-orm";
 import { llmCall } from "./llm-call";
+import { enqueue, JOB_FLOW_RUN } from "./queue";
+import { assertPublicUrl } from "./net-guard";
 
 export type FlowNodeType =
   | "trigger"
@@ -187,12 +189,40 @@ async function runUserCode(source: string, ctx: RunContext): Promise<Record<stri
 }
 
 /**
+ * Gate de seguridad para la ejecución de código/fórmulas arbitrarias.
+ *
+ * `node:vm` NO es una frontera de seguridad: desde adentro, `({}).constructor.
+ * constructor("return process")()` escapa a Node completo (process.env con todos
+ * los secretos, fs, red). Por eso la ejecución de código de usuario está
+ * **deshabilitada por defecto** (fail-closed) y sólo se habilita explícitamente
+ * en entornos que corren los flujos en un aislamiento real (proceso/worker
+ * separado sin secretos en el env). Ver docs/superpowers/audits para el
+ * follow-up de aislamiento out-of-process (atado a la cola de jobs).
+ *
+ * El chequeo vive acá (en la ejecución) y no sólo en la ruta API, para cubrir
+ * TODOS los disparadores: manual, webhook y schedule.
+ */
+const CODE_EXECUTION_ENABLED = process.env.FLOW_CODE_EXECUTION === "1";
+
+function assertCodeExecutionAllowed(kind: "código JavaScript" | "fórmulas"): void {
+  if (!CODE_EXECUTION_ENABLED) {
+    throw new Error(
+      `La ejecución de ${kind} está deshabilitada en este entorno por seguridad. ` +
+        `Un administrador debe habilitar FLOW_CODE_EXECUTION=1, y sólo en un entorno ` +
+        `con aislamiento de procesos (sin secretos en el environment).`
+    );
+  }
+}
+
+/**
  * Corre JavaScript de usuario en un sandbox `node:vm`. Recibe `input` (copia de
- * las variables del flujo) y devuelve lo que retorne el código. Sin `require`,
- * sin acceso a globals peligrosos, con timeout. No es una frontera de seguridad
- * fuerte, pero el código lo escribe el dueño del workspace para su propio flujo.
+ * las variables del flujo) y devuelve lo que retorne el código. Con timeout.
+ *
+ * ADVERTENCIA: `node:vm` no aísla código malicioso (ver `assertCodeExecutionAllowed`).
+ * Sólo se ejecuta si el operador habilitó explícitamente FLOW_CODE_EXECUTION.
  */
 async function runUserJs(code: string, variables: Record<string, unknown>): Promise<unknown> {
+  assertCodeExecutionAllowed("código JavaScript");
   const vm = await import("node:vm");
   const input = structuredClone(variables);
   const sandbox = Object.create(null) as Record<string, unknown>;
@@ -218,6 +248,7 @@ async function runUserJs(code: string, variables: Record<string, unknown>): Prom
  * flujo) en un sandbox `node:vm`.
  */
 async function runFormula(formula: string, variables: Record<string, unknown>): Promise<unknown> {
+  assertCodeExecutionAllowed("fórmulas");
   const vm = await import("node:vm");
   const formulajs = await import("@formulajs/formulajs");
   const expr = formula.startsWith("=") ? formula.slice(1) : formula;
@@ -237,14 +268,24 @@ export async function executeFlow({
   triggerSource,
   input,
   onEvent,
+  runId: existingRunId,
 }: {
   flowId: string;
   workspaceId: string;
   triggerSource: string;
   input: Record<string, unknown>;
   onEvent?: FlowEmit;
+  /**
+   * Si se provee, la fila `flow_run` ya existe (creada por `enqueueFlowRun` con
+   * estado `pending`) y sólo la transicionamos a `running`. Si no, la creamos
+   * acá (ejecución inline, p.ej. dry-run interactivo). Reutilizar el runId hace
+   * que un reintento del mismo job sea idempotente a nivel de pasos.
+   */
+  runId?: string;
 }): Promise<{ runId: string; status: "succeeded" | "failed"; error?: string }> {
   const db = getDb();
+  // Siempre re-verificamos que el flow pertenezca al workspace (defensa IDOR
+  // incluso si el job fue encolado).
   const flowRows = await db
     .select()
     .from(schema.flows)
@@ -253,15 +294,22 @@ export async function executeFlow({
   const flow = flowRows[0];
   if (!flow) throw new Error("Flow not found");
 
-  const runId = createId();
-  await db.insert(schema.flowRuns).values({
-    id: runId,
-    flowId,
-    workspaceId,
-    status: "running",
-    triggerSource,
-    input,
-  });
+  const runId = existingRunId ?? createId();
+  if (existingRunId) {
+    await db
+      .update(schema.flowRuns)
+      .set({ status: "running", startedAt: new Date() })
+      .where(eq(schema.flowRuns.id, runId));
+  } else {
+    await db.insert(schema.flowRuns).values({
+      id: runId,
+      flowId,
+      workspaceId,
+      status: "running",
+      triggerSource,
+      input,
+    });
+  }
 
   onEvent?.({ type: "run_start", runId });
 
@@ -402,6 +450,10 @@ async function executeNode(
     const aRows = await db.select().from(schema.agents).where(eq(schema.agents.id, agentId)).limit(1);
     const agent = aRows[0];
     if (!agent) throw new Error(`agent not found: ${agentId}`);
+    // Este nodo usa `llmCall` directo (no runChat), así que el guard y el
+    // metering se hacen acá explícitamente (D4-1 / E3-1).
+    const { assertWithinSpend } = await import("./cost-alerts");
+    await assertWithinSpend(workspaceId);
     const result = await llmCall({
       workspaceId,
       model: agent.model,
@@ -409,6 +461,16 @@ async function executeNode(
       messages: [{ role: "user", content: userMessage }],
       temperature: agent.temperature ? Number(agent.temperature) : 0.7,
       ...(agent.maxTokens != null && { maxTokens: agent.maxTokens }),
+    });
+    const { recordAiUsage } = await import("./ai/run");
+    const { calculateChatCostUsd } = await import("./pricing");
+    await recordAiUsage({
+      workspaceId,
+      capability: "chat",
+      model: result.model,
+      tokensOut: result.tokensUsed,
+      tokensTotal: result.tokensUsed,
+      costUsd: calculateChatCostUsd(result.model, 0, result.tokensUsed),
     });
     const outputVar = (cfg.outputVar as string) ?? "agentResult";
     ctx.variables[outputVar] = result.content;
@@ -446,6 +508,18 @@ async function executeNode(
   if (node.type === "http") {
     const method = ((cfg.method as string) ?? "GET").toUpperCase();
     const url = interpolate(cfg.url as string, ctx.variables);
+    // Guard SSRF: bloquea IPs privadas, loopback, link-local y el endpoint de
+    // metadata cloud (169.254.169.254). Opt-out explícito para self-hosters que
+    // necesiten llamar servicios internos.
+    if (process.env.ALLOW_PRIVATE_HTTP !== "1") {
+      try {
+        assertPublicUrl(url);
+      } catch (e) {
+        throw new Error(
+          `La URL no está permitida por seguridad: ${e instanceof Error ? e.message : String(e)}`
+        );
+      }
+    }
     const headers: Record<string, string> = { ...((cfg.headers as Record<string, string>) ?? {}) };
     const auth = cfg.auth as
       | { kind?: string; token?: string; user?: string; pass?: string; key?: string; header?: string }
@@ -833,4 +907,104 @@ async function executeNode(
   }
 
   throw new Error(`Unknown node type: ${node.type}`);
+}
+
+/**
+ * Encola un flow para ejecución asíncrona en el worker (pg-boss). Crea la fila
+ * `flow_run` en estado `pending` y devuelve el `runId` para que el cliente haga
+ * polling de `/api/flow-runs/:id`. Re-verifica ownership del flow (defensa IDOR).
+ *
+ * Por qué async: ejecutar flows inline en el request bloquea un slot HTTP por
+ * minutos (polling de video/avatar) y muere por timeout de serverless dejando
+ * runs colgados. La cola lo saca del request loop y escala horizontalmente.
+ *
+ * En dev sin worker, poné FLOW_RUN_INLINE=1 para ejecutar inline.
+ */
+export async function enqueueFlowRun({
+  flowId,
+  workspaceId,
+  triggerSource,
+  input,
+}: {
+  flowId: string;
+  workspaceId: string;
+  triggerSource: string;
+  input: Record<string, unknown>;
+}): Promise<{ runId: string; status: "pending" | "succeeded" | "failed"; error?: string }> {
+  const db = getDb();
+  const flowRows = await db
+    .select({ id: schema.flows.id })
+    .from(schema.flows)
+    .where(and(eq(schema.flows.id, flowId), eq(schema.flows.workspaceId, workspaceId)))
+    .limit(1);
+  if (!flowRows[0]) throw new Error("Flow not found");
+
+  const runId = createId();
+  await db.insert(schema.flowRuns).values({
+    id: runId,
+    flowId,
+    workspaceId,
+    status: "pending",
+    triggerSource,
+    input,
+  });
+
+  // Fallback inline opcional para dev/test sin worker corriendo.
+  if (process.env.FLOW_RUN_INLINE === "1") {
+    return executeFlow({ runId, flowId, workspaceId, triggerSource, input });
+  }
+
+  try {
+    await enqueue(
+      JOB_FLOW_RUN,
+      { runId, flowId, workspaceId, triggerSource, input },
+      // retryLimit 0: NO reintentamos el flow completo automáticamente, para no
+      // re-disparar side-effects (http POST, notify, integraciones, IA paga).
+      // Los fallos transitorios se reintentan a nivel de llamada externa.
+      { retryLimit: 0, singletonKey: runId }
+    );
+  } catch (e) {
+    // Si la cola no está disponible, marcamos el run como failed con un mensaje
+    // claro en vez de dejarlo colgado en `pending` para siempre.
+    const msg = e instanceof Error ? e.message : String(e);
+    await db
+      .update(schema.flowRuns)
+      .set({ status: "failed", error: `No se pudo encolar la ejecución: ${msg}`, completedAt: new Date() })
+      .where(eq(schema.flowRuns.id, runId));
+    throw e;
+  }
+
+  return { runId, status: "pending" };
+}
+
+/**
+ * Reaper de runs huérfanos: marca como `failed` los runs (y sus pasos) que
+ * quedaron en `running`/`pending` más allá de `maxAgeMs` (crash del worker,
+ * timeout de serverless, OOM, deploy). Lo corre el worker periódicamente.
+ * Sin esto, un run interrumpido queda en `running` para siempre.
+ */
+export async function reapStaleRuns(maxAgeMs = 15 * 60_000): Promise<number> {
+  const db = getDb();
+  const cutoff = new Date(Date.now() - maxAgeMs);
+  const stale = await db
+    .select({ id: schema.flowRuns.id })
+    .from(schema.flowRuns)
+    .where(
+      and(
+        inArray(schema.flowRuns.status, ["running", "pending"]),
+        lt(schema.flowRuns.startedAt, cutoff)
+      )
+    );
+  if (stale.length === 0) return 0;
+  const ids = stale.map((r) => r.id);
+  const err = "La ejecución se interrumpió (timeout o reinicio del worker) y fue marcada como fallida.";
+  await db
+    .update(schema.flowRuns)
+    .set({ status: "failed", error: err, completedAt: new Date() })
+    .where(inArray(schema.flowRuns.id, ids));
+  await db
+    .update(schema.flowRunSteps)
+    .set({ status: "failed", error: err, completedAt: new Date() })
+    .where(and(inArray(schema.flowRunSteps.runId, ids), eq(schema.flowRunSteps.status, "running")));
+  return ids.length;
 }

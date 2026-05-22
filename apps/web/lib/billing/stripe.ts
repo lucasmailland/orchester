@@ -1,4 +1,7 @@
 import "server-only";
+import { fetchWithTimeout } from "@/lib/http-util";
+
+const STRIPE_TIMEOUT_MS = 30_000;
 
 /**
  * Tiny Stripe REST wrapper — avoids pulling the SDK to keep the bundle small.
@@ -39,7 +42,7 @@ async function stripeFetch(
     },
   };
   if (opts.method !== "GET") init.body = params.toString();
-  const r = await fetch(`https://api.stripe.com/v1${path}`, init);
+  const r = await fetchWithTimeout(`https://api.stripe.com/v1${path}`, init, STRIPE_TIMEOUT_MS);
   const j = await r.json();
   if (!r.ok) {
     throw new Error(`Stripe ${r.status}: ${j.error?.message ?? JSON.stringify(j)}`);
