@@ -164,24 +164,19 @@ sequenceDiagram
     participant W as Worker
     participant AI as AI provider
 
-    rect rgb(15,23,41)
-    Note over C,DB: 1 · Enqueue · synchronous · &lt;50ms
+    Note over C,DB: Phase 1 — Enqueue (synchronous, sub-50ms)
     C->>API: POST /api/flows/:id/run
     API->>API: zod · auth · assertCan
     API->>DB: pg_advisory_xact_lock(workspaceId)
     API->>DB: check plan quota + spend cap
     API->>DB: enqueue flow_run
     API-->>C: 202 Accepted · runId
-    end
 
-    rect rgb(11,19,34)
-    Note over C,W: 2 · Stream · server-sent events
+    Note over C,W: Phase 2 — Stream (server-sent events)
     C->>API: GET /api/flows/runs/:runId
-    API-->>C: stream: node_started, node_done, …
-    end
+    API-->>C: stream node_started, node_done, ...
 
-    rect rgb(15,23,41)
-    Note over W,AI: 3 · Execute · async · in worker
+    Note over W,AI: Phase 3 — Execute (async, in worker)
     W->>DB: claim job (SKIP LOCKED)
     loop For each node in the DAG
         W->>AI: invoke (with AbortSignal)
@@ -190,9 +185,8 @@ sequenceDiagram
         W->>DB: telemetry event
     end
     W->>DB: flow_run.status = succeeded
-    end
 
-    API-->>C: stream: flow_completed
+    API-->>C: stream flow_completed
 ```
 
 ### Multi-tenant safety is structural, not procedural
@@ -330,26 +324,31 @@ Five concrete shapes the platform is designed to support — each composable wit
 
 ## ⚖️ How it compares
 
-The honest version. Every row is verifiable from each project's docs as of mid-2026.
+The agent space has split in two: **frameworks you import** into your code (LangGraph, CrewAI, AutoGen, Swarm, MetaGPT) and **platforms you run** as a system (Dify, LangSmith, OpenAI Assistants). Frameworks are great at composing agent teams; they leave the platform concerns — tenancy, channels, KB, cost caps, audit, UI, MCP — to you. Hosted platforms solve those, then lock you in and take the multi-tenancy off the table.
 
-|                                   | **Orchester** |     n8n      | Flowise | Langflow |      Dify       | Activepieces |   AutoGen    |  Zapier / Make   | OpenAI Assistants |
-| --------------------------------- | :-----------: | :----------: | :-----: | :------: | :-------------: | :----------: | :----------: | :--------------: | :---------------: |
-| **License**                       | ✅ Apache 2.0 | ⚠️ fair-code | ✅ MIT  |  ✅ MIT  | ⚠️ source-avail |  ✅ MIT-ish  |    ✅ MIT    |        ❌        |     ❌ closed     |
-| **AI-native primitives**          |      ✅       | ⚠️ via nodes |   ✅    |    ✅    |       ✅        |      ❌      | ✅ framework |        ❌        |        ✅         |
-| **Visual flow builder**           |      ✅       |      ✅      |   ✅    |    ✅    |       ✅        |      ✅      |      ❌      | ✅ (proprietary) |        ❌         |
-| **Multi-tenant by design**        |      ✅       |      ❌      |   ❌    |    ❌    |  ⚠️ workspaces  |      ❌      |      ❌      |       n/a        |        ❌         |
-| **Self-host**                     |      ✅       |      ✅      |   ✅    |    ✅    |       ✅        |      ✅      | ✅ (library) |        ❌        |        ❌         |
-| **Conversations + channels**      |      ✅       |      ❌      |   ⚠️    |    ⚠️    |       ✅        |      ❌      |      ❌      |        ❌        |    ⚠️ threads     |
-| **Built-in cost cap + metering**  |      ✅       |      ❌      |   ❌    |    ❌    |   ⚠️ limited    |      ❌      |      ❌      |       n/a        |        ❌         |
-| **MCP server (HTTP + stdio)**     |      ✅       |      ❌      |   ❌    |    ❌    |       ❌        |      ❌      |      ❌      |        ❌        |        ❌         |
-| **Structural CI guards**          |      ✅       |      ❌      |   ❌    |    ❌    |       ❌        |      ❌      |      ❌      |       n/a        |        n/a        |
-| **BYO keys, encrypted at rest**   |      ✅       |      ⚠️      |   ✅    |    ✅    |       ✅        |      ✅      |      ✅      |        ❌        |        ❌         |
-| **Only required dep is Postgres** |      ✅       |      ❌      |   ❌    |    ❌    |       ❌        |      ❌      |     n/a      |       n/a        |        n/a        |
-| **Audit log + admin trail**       |      ✅       |   ✅ paid    |   ❌    |    ❌    |   ⚠️ partial    |      ❌      |      ❌      |        ✅        |        ⚠️         |
+**Orchester is a platform that doesn't make you choose** between OSS, multi-tenancy, and first-class agent teams.
 
-> n/a = the category doesn't apply (e.g. multi-tenancy on a hosted-only product). ⚠️ = partial, behind a paywall, or community-maintained. ✅ = first-class, default, documented.
+|                                            | **Orchester** |    LangGraph     |   CrewAI   |  AutoGen   | OpenAI Swarm |  MetaGPT   |       Dify       | OpenAI Assistants |
+| ------------------------------------------ | :-----------: | :--------------: | :--------: | :--------: | :----------: | :--------: | :--------------: | :---------------: |
+| **Shape**                                  |   platform    |    framework     | framework  | framework  |  framework   | framework  |     platform     |    hosted API     |
+| **License**                                | ✅ Apache 2.0 |      ✅ MIT      |   ✅ MIT   |   ✅ MIT   |    ✅ MIT    |   ✅ MIT   | ⚠️ source-avail. |     ❌ closed     |
+| **Visual flow builder**                    |      ✅       |        ❌        |     ❌     |     ❌     |      ❌      |     ❌     |        ✅        |        ❌         |
+| **Agents as first-class objects**          |      ✅       |        ✅        |     ✅     |     ✅     |      ✅      |     ✅     |        ✅        |        ✅         |
+| **Multi-agent teams · handoffs**           |      ✅       |        ✅        |     ✅     |     ✅     |      ✅      |     ✅     |     ⚠️ basic     |   ⚠️ assistants   |
+| **Multi-tenant by design**                 |      ✅       |        ❌        |     ❌     |     ❌     |      ❌      |     ❌     |  ⚠️ workspaces   |        ❌         |
+| **Conversations + channels (Slack, etc.)** |      ✅       |        ❌        |     ❌     |     ❌     |      ❌      |     ❌     |        ✅        |    ⚠️ threads     |
+| **Built-in cost cap + per-call metering**  |      ✅       |        ❌        |     ❌     |     ❌     |      ❌      |     ❌     |    ⚠️ limited    |        ❌         |
+| **MCP server (HTTP + stdio)**              |      ✅       |        ❌        |     ❌     |     ❌     |      ❌      |     ❌     |        ❌        |        ❌         |
+| **Knowledge base + retrieval built in**    |      ✅       |       DIY        |    DIY     |    DIY     |     DIY      |    DIY     |        ✅        |        ✅         |
+| **80+ AI providers behind one adapter**    |      ✅       | ✅ via langchain |     ⚠️     |     ⚠️     | OpenAI-only  |     ⚠️     |        ✅        |    OpenAI-only    |
+| **Self-host**                              |      ✅       |    ✅ library    | ✅ library | ✅ library |  ✅ library  | ✅ library |        ✅        |        ❌         |
+| **Structural CI safety guards**            |      ✅       |        ❌        |     ❌     |     ❌     |      ❌      |     ❌     |        ❌        |        n/a        |
+| **Audit log + admin trail**                |      ✅       |        ❌        |     ❌     |     ❌     |      ❌      |     ❌     |    ⚠️ partial    |        ⚠️         |
 
-Orchester is the only row that says ✅ to **all** of: multi-tenant, MCP, structural CI guards, cost cap, single-dependency self-host. That's the bet.
+<sub>⚠️ = partial / behind a paywall / community-maintained. ✅ = first-class, default, documented. DIY = "build it yourself with available primitives." n/a = the category doesn't apply (hosted-only products don't have multi-tenancy concerns).</sub>
+
+> [!IMPORTANT]
+> **Orchester is the only entry that says ✅ to all of**: visual builder, multi-agent teams, multi-tenant by design, conversations + channels, built-in cost cap, MCP, 80+ providers, self-host, and structural CI guards. That's the bet — give teams the agent-team primitives the frameworks have, plus the platform concerns they shouldn't have to rebuild.
 
 ---
 
@@ -505,10 +504,20 @@ It's actively used in production at small-team scale today. v0.1.0 is a public f
 </details>
 
 <details>
-<summary><b>How is this different from n8n, Flowise, or Langflow?</b></summary>
+<summary><b>How is this different from LangGraph, CrewAI, or AutoGen?</b></summary>
 <br/>
 
-Closest in spirit to Langflow + Flowise — a visual builder for AI workflows. The deltas: (1) **multi-tenant by design**, with structural CI enforcement; (2) **built-in cost cap + metering** per workspace, not bolted on; (3) **conversations + channels** as first-class objects, not just a chat node; (4) an **MCP server** so the platform itself is an MCP host; (5) **Apache 2.0**, not fair-code / source-available. See the [comparison matrix](#%EF%B8%8F-how-it-compares).
+Those are **agent frameworks** — Python libraries you import and wire up inside your application code. They're excellent at composing agents and orchestrating multi-agent teams, and Orchester deliberately learns from them. The deltas are everything _around_ the agents: **multi-tenant by design** with structural CI enforcement, a **visual flow builder**, **conversations + channels** (Slack/Telegram/webhooks) as first-class objects, **built-in cost cap + per-call metering**, an **MCP server** that exposes your data to any MCP-aware client, **80+ providers behind a single adapter**, **audit log**, and **self-hostable on a single Postgres**. You can keep using LangGraph or CrewAI inside an Orchester node if you want — Orchester gives you the platform, not the agent loop. See the [comparison matrix](#%EF%B8%8F-how-it-compares).
+
+</details>
+
+<details>
+<summary><b>How is this different from Dify or OpenAI Assistants?</b></summary>
+<br/>
+
+Dify is the closest platform-shaped peer: a visual LLM app builder with workspaces and KB. The differences are licensing (Orchester is Apache 2.0; Dify is source-available with commercial-use restrictions), multi-tenancy as a _structural_ property enforced by CI rather than as a workspace UI on top, a built-in **MCP server**, **80+ providers behind one adapter**, and **built-in cost cap + spend metering** rather than usage limits as a paid feature.
+
+OpenAI Assistants is a hosted API: powerful, OpenAI-only, not self-hostable, no multi-tenancy primitive, no audit, no provider portability. Excellent if you're locked into OpenAI; not a substitute if you want substrate.
 
 </details>
 
@@ -556,9 +565,67 @@ Yes — Apache 2.0 explicitly permits commercial use, modification, and redistri
 
 ## 🤝 Contributing
 
-Pull requests are welcome. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) first — it covers the development setup, project conventions, and the **DCO sign-off requirement** (`git commit -s`).
+> Every contribution makes Orchester better. Whether you fix a typo, file a thoughtful bug report, or design a new node type — you're shaping the project.
 
-Not sure where to start? Look for [`good first issue`](https://github.com/lucasmailland/orchester/labels/good%20first%20issue) or [`help wanted`](https://github.com/lucasmailland/orchester/labels/help%20wanted), or open a thread in [Discussions](https://github.com/lucasmailland/orchester/discussions).
+### Pick your path
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+#### 🐛 Found a bug
+
+[Open a **Bug report**](https://github.com/lucasmailland/orchester/issues/new?template=bug_report.yml) with reproduction steps. Reproductions get fixed faster than vibes.
+
+</td>
+<td width="33%" valign="top">
+
+#### 💡 Have an idea
+
+[Start a **Discussion**](https://github.com/lucasmailland/orchester/discussions/categories/ideas) before writing a 2,000-line PR. We'll align on shape and save you time.
+
+</td>
+<td width="34%" valign="top">
+
+#### 🛠️ Want to code
+
+Look for [`good first issue`](https://github.com/lucasmailland/orchester/labels/good%20first%20issue) or [`help wanted`](https://github.com/lucasmailland/orchester/labels/help%20wanted), then read [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+#### 📚 Improve docs
+
+Typos, examples, clarifications — docs PRs get merged the fastest of any kind. README, ADRs, ARCHITECTURE, RUNBOOK all welcome.
+
+</td>
+<td valign="top">
+
+#### 🌐 Translate
+
+The Studio UI is in Spanish + English today. Adding a locale is one folder under `apps/web/messages/`. Open an [Idea](https://github.com/lucasmailland/orchester/discussions/categories/ideas) first.
+
+</td>
+<td valign="top">
+
+#### ❓ Answer questions
+
+[Help others in **Q&A**](https://github.com/lucasmailland/orchester/discussions/categories/q-a). Peer support builds the community as much as code does.
+
+</td>
+</tr>
+</table>
+
+### How a PR lands
+
+1. **Fork & branch** from `main`. Descriptive name: `feat/llm-retry-backoff`, `fix/quota-edge-case`.
+2. **Code + tests.** Vitest. Cover the change meaningfully.
+3. **Run locally:** `make ci` (typecheck · vitest · prettier · invariants guard).
+4. **Sign off:** `git commit -s` — adds the DCO trailer. Required by CI.
+5. **Open the PR.** Fill the template. Screenshots for UI changes; rationale for behavior changes.
+6. **Iterate.** Maintainers respond within a few business days. Squash-merge is the default.
 
 By participating, you agree to abide by our [Code of Conduct](.github/CODE_OF_CONDUCT.md).
 
@@ -566,15 +633,46 @@ By participating, you agree to abide by our [Code of Conduct](.github/CODE_OF_CO
 
 ## 🔐 Security
 
-**Don't open public issues for vulnerabilities.** Use [GitHub's private vulnerability reporting](https://github.com/lucasmailland/orchester/security/advisories/new) so we can fix and disclose responsibly. See [`SECURITY.md`](SECURITY.md) for scope, SLAs, and safe harbour terms.
+> [!CAUTION]
+> **Do not** open a public issue for security vulnerabilities. That exposes the vulnerability before it's patched.
 
-Ships with `gitleaks`, `CodeQL` (security-extended), Dependabot security updates, and the structural invariants guard. Details in [`docs/AUDIT_PLAYBOOK.md`](docs/AUDIT_PLAYBOOK.md).
+### Reporting
+
+Use **[GitHub's private vulnerability reporting](https://github.com/lucasmailland/orchester/security/advisories/new)** — it routes directly to the maintainer, end-to-end private until disclosure.
+
+### Our commitment
+
+| Stage                                |                                 SLA                                  |
+| ------------------------------------ | :------------------------------------------------------------------: |
+| Acknowledge receipt                  |                         within **72 hours**                          |
+| Initial assessment (severity + plan) |                          within **7 days**                           |
+| Fix for high / critical issues       |                   aim **30 days** from validation                    |
+| Coordinated disclosure               | with the fix · credit to the reporter (unless they prefer anonymity) |
+
+### Layered defenses (already shipping)
+
+- **`gitleaks`** — scans every PR for accidentally-committed secrets
+- **`CodeQL`** (security-extended) — static analysis for vulnerability patterns
+- **`Dependabot`** — security updates + grouped dependency PRs
+- **Structural invariants guard** — fails any PR that breaks RBAC, spend cap, tenancy, or AbortSignal threading
+
+Full scope, safe-harbour terms, and out-of-scope items in [`SECURITY.md`](SECURITY.md). Threat model + remediation history in [`docs/AUDIT_PLAYBOOK.md`](docs/AUDIT_PLAYBOOK.md).
 
 ---
 
 ## 📖 Citing
 
-If you reference Orchester in academic or technical writing, citation metadata is in [`CITATION.cff`](CITATION.cff). GitHub renders a "Cite this repository" button automatically.
+If you reference Orchester in academic or technical writing, citation metadata is in [`CITATION.cff`](CITATION.cff). GitHub renders a **"Cite this repository"** button on the repo page automatically — visitors can copy a pre-formatted BibTeX, APA, or plain-text citation in one click.
+
+```bibtex
+@software{orchester,
+  title  = {Orchester: an open-source platform for AI agents and workflow orchestration},
+  author = {Mailland, Lucas},
+  year   = {2026},
+  url    = {https://github.com/lucasmailland/orchester},
+  license = {Apache-2.0}
+}
+```
 
 ---
 
