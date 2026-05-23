@@ -1,107 +1,214 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" role="img" aria-label="Orchester — Build and orchestrate AI agents">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" role="img" aria-label="Orchester — Build agents, orchestrate flows">
   <defs>
-    <!-- Background: deep slate with soft radial highlight -->
-    <radialGradient id="bgGlow" cx="20%" cy="15%" r="80%">
-      <stop offset="0%" stop-color="#1a2942" stop-opacity="1"/>
-      <stop offset="55%" stop-color="#0b1322" stop-opacity="1"/>
-      <stop offset="100%" stop-color="#05080f" stop-opacity="1"/>
+    <!-- Cinematic background: deep navy with off-center radial highlight -->
+    <radialGradient id="bgGlow" cx="22%" cy="18%" r="90%">
+      <stop offset="0%" stop-color="#1c2a4a" stop-opacity="1"/>
+      <stop offset="35%" stop-color="#101a32" stop-opacity="1"/>
+      <stop offset="70%" stop-color="#070b16" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#03060c" stop-opacity="1"/>
     </radialGradient>
-    <!-- Accent line gradient -->
+
+    <!-- Aurora accent on the right -->
+    <radialGradient id="aurora" cx="80%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#1a2a5e" stop-opacity="0.55"/>
+      <stop offset="40%" stop-color="#0b1024" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Headline gradient -->
     <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#7c8cff"/>
-      <stop offset="50%" stop-color="#22d3ee"/>
-      <stop offset="100%" stop-color="#a78bfa"/>
+      <stop offset="0%" stop-color="#8a98ff"/>
+      <stop offset="45%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#c084fc"/>
     </linearGradient>
-    <!-- Node glow -->
+
+    <!-- Soft node glow -->
     <filter id="nodeGlow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feGaussianBlur stdDeviation="4" result="blur"/>
       <feMerge>
         <feMergeNode in="blur"/>
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
+
+    <!-- Edge gradient (cyan→violet) -->
+    <linearGradient id="edge" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#a78bfa" stop-opacity="0.85"/>
+    </linearGradient>
+
     <!-- Subtle grid -->
     <pattern id="grid" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
-      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1c2742" stroke-width="0.5" stroke-opacity="0.4"/>
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1a2440" stroke-width="0.5" stroke-opacity="0.45"/>
     </pattern>
+
+    <!-- Noise texture for cinematic depth (purely SVG, no rasters) -->
+    <filter id="noise" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix values="0 0 0 0 0.6  0 0 0 0 0.65  0 0 0 0 0.8  0 0 0 0.035 0"/>
+    </filter>
+
+    <!-- Node base style -->
+    <linearGradient id="nodeBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#111a30"/>
+      <stop offset="100%" stop-color="#0a1224"/>
+    </linearGradient>
   </defs>
 
-  <!-- Background -->
+  <!-- Background layers -->
   <rect width="1280" height="640" fill="url(#bgGlow)"/>
+  <rect width="1280" height="640" fill="url(#aurora)"/>
   <rect width="1280" height="640" fill="url(#grid)"/>
+  <rect width="1280" height="640" filter="url(#noise)" opacity="0.6"/>
 
-  <!-- Subtle outer frame -->
-  <rect x="32" y="32" width="1216" height="576" rx="20" fill="none" stroke="#2a3a5e" stroke-width="1" stroke-opacity="0.6"/>
+  <!-- Refined outer frame -->
+  <rect x="28" y="28" width="1224" height="584" rx="22" fill="none" stroke="#2a3a5e" stroke-width="1" stroke-opacity="0.55"/>
+  <rect x="29" y="29" width="1222" height="582" rx="21" fill="none" stroke="#0f1a30" stroke-width="1" stroke-opacity="0.9"/>
 
-  <!-- Accent corner mark -->
-  <g transform="translate(72, 80)">
-    <rect width="44" height="44" rx="10" fill="none" stroke="url(#accent)" stroke-width="2"/>
-    <circle cx="22" cy="22" r="6" fill="url(#accent)"/>
+  <!-- Top-left brand mark -->
+  <g transform="translate(72, 76)">
+    <rect width="42" height="42" rx="11" fill="none" stroke="url(#accent)" stroke-width="1.8"/>
+    <rect width="42" height="42" rx="11" fill="#0a1224" opacity="0.35"/>
+    <circle cx="21" cy="21" r="5.5" fill="url(#accent)"/>
+    <circle cx="21" cy="21" r="10" fill="none" stroke="url(#accent)" stroke-width="0.8" opacity="0.45"/>
   </g>
-  <text x="132" y="111" font-family="ui-sans-serif, -apple-system, Segoe UI, Inter, sans-serif" font-size="22" font-weight="500" fill="#94a3b8" letter-spacing="0.18em">ORCHESTER</text>
+  <text x="130" y="105" font-family="ui-sans-serif, -apple-system, Segoe UI, Inter, sans-serif" font-size="20" font-weight="500" fill="#9aa8c4" letter-spacing="0.22em">ORCHESTER</text>
 
-  <!-- Wordmark -->
-  <text x="72" y="310" font-family="ui-sans-serif, -apple-system, Segoe UI, Inter, sans-serif" font-size="118" font-weight="800" fill="#f1f5f9" letter-spacing="-0.04em">Build agents.</text>
-  <text x="72" y="430" font-family="ui-sans-serif, -apple-system, Segoe UI, Inter, sans-serif" font-size="118" font-weight="800" fill="url(#accent)" letter-spacing="-0.04em">Orchestrate flows.</text>
-
-  <!-- Tagline -->
-  <text x="72" y="500" font-family="ui-sans-serif, -apple-system, Segoe UI, Inter, sans-serif" font-size="26" font-weight="400" fill="#94a3b8" letter-spacing="0.005em">Open-source platform for AI agents and workflow automation.</text>
-
-  <!-- Pills -->
-  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" fill="#cbd5e1">
-    <g transform="translate(72, 545)">
-      <rect width="138" height="34" rx="17" fill="#0f1729" stroke="#2a3a5e" stroke-width="1"/>
-      <text x="20" y="22">Multi-tenant</text>
-    </g>
-    <g transform="translate(222, 545)">
-      <rect width="148" height="34" rx="17" fill="#0f1729" stroke="#2a3a5e" stroke-width="1"/>
-      <text x="20" y="22">80+ providers</text>
-    </g>
-    <g transform="translate(382, 545)">
-      <rect width="128" height="34" rx="17" fill="#0f1729" stroke="#2a3a5e" stroke-width="1"/>
-      <text x="20" y="22">Self-hosted</text>
-    </g>
-    <g transform="translate(522, 545)">
-      <rect width="100" height="34" rx="17" fill="#0f1729" stroke="#2a3a5e" stroke-width="1"/>
-      <text x="20" y="22">Apache 2.0</text>
-    </g>
+  <!-- Top-right version pill -->
+  <g transform="translate(1078, 80)">
+    <rect width="130" height="34" rx="17" fill="#0f1729" stroke="#2a3a5e" stroke-width="1"/>
+    <circle cx="18" cy="17" r="4" fill="#22d3ee"/>
+    <circle cx="18" cy="17" r="6.5" fill="none" stroke="#22d3ee" stroke-width="0.8" opacity="0.55"/>
+    <text x="32" y="22" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#cbd5e1" letter-spacing="0.04em">v0.1.0 · stable</text>
   </g>
 
-  <!-- Flow graphic on the right -->
-  <g transform="translate(820, 180)" filter="url(#nodeGlow)">
-    <!-- Edges -->
-    <path d="M 90 50 C 200 50, 200 160, 310 160" fill="none" stroke="url(#accent)" stroke-width="2" opacity="0.7"/>
-    <path d="M 90 50 C 200 50, 200 -30, 310 -30" fill="none" stroke="url(#accent)" stroke-width="2" opacity="0.5"/>
-    <path d="M 400 160 C 510 160, 510 70, 620 70" fill="none" stroke="url(#accent)" stroke-width="2" opacity="0.7"/>
-    <path d="M 400 -30 C 510 -30, 510 70, 620 70" fill="none" stroke="url(#accent)" stroke-width="2" opacity="0.5"/>
+  <!-- HERO TYPOGRAPHY -->
+  <text x="72" y="300" font-family="ui-sans-serif, -apple-system, Segoe UI, Inter, sans-serif" font-size="116" font-weight="800" fill="#f4f7fc" letter-spacing="-0.045em">Build agents.</text>
+  <text x="72" y="416" font-family="ui-sans-serif, -apple-system, Segoe UI, Inter, sans-serif" font-size="116" font-weight="800" fill="url(#accent)" letter-spacing="-0.045em">Orchestrate flows.</text>
 
-    <!-- Node: trigger -->
-    <g transform="translate(0, 20)">
-      <rect width="90" height="60" rx="12" fill="#101a30" stroke="#3a4a72" stroke-width="1.5"/>
-      <circle cx="20" cy="30" r="6" fill="#22d3ee"/>
-      <text x="34" y="35" font-family="ui-monospace, monospace" font-size="13" fill="#cbd5e1">Trigger</text>
+  <!-- TAGLINE -->
+  <text x="72" y="478" font-family="ui-sans-serif, -apple-system, Segoe UI, Inter, sans-serif" font-size="22" font-weight="400" fill="#9aa8c4" letter-spacing="0.005em">The open-source platform for the AI-agent era. Multi-tenant from day one.</text>
+
+  <!-- PILLS -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" fill="#cbd5e1">
+    <g transform="translate(72, 522)">
+      <rect width="136" height="36" rx="18" fill="#0f1729" stroke="#2a3a5e" stroke-width="1"/>
+      <circle cx="20" cy="18" r="3.5" fill="#7c8cff"/>
+      <text x="34" y="23">Multi-tenant</text>
     </g>
-    <!-- Node: agent -->
-    <g transform="translate(310, -60)">
-      <rect width="90" height="60" rx="12" fill="#101a30" stroke="#7c8cff" stroke-width="1.5"/>
-      <circle cx="20" cy="30" r="6" fill="#7c8cff"/>
-      <text x="34" y="35" font-family="ui-monospace, monospace" font-size="13" fill="#cbd5e1">Agent</text>
+    <g transform="translate(220, 522)">
+      <rect width="146" height="36" rx="18" fill="#0f1729" stroke="#2a3a5e" stroke-width="1"/>
+      <circle cx="20" cy="18" r="3.5" fill="#22d3ee"/>
+      <text x="34" y="23">80+ providers</text>
     </g>
-    <!-- Node: tool -->
-    <g transform="translate(310, 130)">
-      <rect width="90" height="60" rx="12" fill="#101a30" stroke="#a78bfa" stroke-width="1.5"/>
-      <circle cx="20" cy="30" r="6" fill="#a78bfa"/>
-      <text x="34" y="35" font-family="ui-monospace, monospace" font-size="13" fill="#cbd5e1">Tool</text>
+    <g transform="translate(378, 522)">
+      <rect width="124" height="36" rx="18" fill="#0f1729" stroke="#2a3a5e" stroke-width="1"/>
+      <circle cx="20" cy="18" r="3.5" fill="#a78bfa"/>
+      <text x="34" y="23">Self-hosted</text>
     </g>
-    <!-- Node: output -->
-    <g transform="translate(620, 40)">
-      <rect width="90" height="60" rx="12" fill="#101a30" stroke="#22d3ee" stroke-width="1.5"/>
-      <circle cx="20" cy="30" r="6" fill="#22d3ee"/>
-      <text x="34" y="35" font-family="ui-monospace, monospace" font-size="13" fill="#cbd5e1">Output</text>
+    <g transform="translate(514, 522)">
+      <rect width="118" height="36" rx="18" fill="#0f1729" stroke="#2a3a5e" stroke-width="1"/>
+      <circle cx="20" cy="18" r="3.5" fill="#f472b6"/>
+      <text x="34" y="23">Apache 2.0</text>
+    </g>
+  </g>
+
+  <!-- ============================== -->
+  <!-- RIGHT-SIDE FLOW VISUALIZATION  -->
+  <!-- ============================== -->
+  <g transform="translate(740, 170)" filter="url(#nodeGlow)">
+    <!-- Edges (drawn first so nodes overlay) -->
+    <g stroke="url(#edge)" stroke-width="1.8" fill="none" opacity="0.75">
+      <!-- Trigger → Agent -->
+      <path d="M 105 38 C 165 38, 175 38, 220 38"/>
+      <!-- Agent → KB Search -->
+      <path d="M 325 38 C 380 38, 380 -30, 430 -30"/>
+      <!-- Agent → HTTP -->
+      <path d="M 325 38 C 380 38, 380 105, 430 105"/>
+      <!-- KB Search → Branch -->
+      <path d="M 540 -30 C 590 -30, 590 38, 640 38"/>
+      <!-- HTTP → Branch -->
+      <path d="M 540 105 C 590 105, 590 38, 640 38"/>
+      <!-- Branch → Generate -->
+      <path d="M 740 38 C 800 38, 800 -32, 850 -32"/>
+      <!-- Branch → Output -->
+      <path d="M 740 38 C 800 38, 800 105, 850 105"/>
+    </g>
+
+    <!-- ===== NODES ===== -->
+
+    <!-- Trigger -->
+    <g transform="translate(0, 14)">
+      <rect width="105" height="48" rx="11" fill="url(#nodeBg)" stroke="#22d3ee" stroke-width="1.4"/>
+      <rect width="105" height="48" rx="11" fill="#22d3ee" opacity="0.04"/>
+      <circle cx="16" cy="24" r="4.5" fill="#22d3ee"/>
+      <circle cx="16" cy="24" r="7" fill="none" stroke="#22d3ee" stroke-width="0.6" opacity="0.5"/>
+      <text x="28" y="22" font-family="ui-monospace, monospace" font-size="11" fill="#cbd5e1" letter-spacing="0.04em">TRIGGER</text>
+      <text x="28" y="36" font-family="ui-sans-serif, sans-serif" font-size="11" fill="#7d8aab">on webhook</text>
+    </g>
+
+    <!-- Agent (taller, with model chip) -->
+    <g transform="translate(220, 6)">
+      <rect width="105" height="64" rx="11" fill="url(#nodeBg)" stroke="#7c8cff" stroke-width="1.4"/>
+      <rect width="105" height="64" rx="11" fill="#7c8cff" opacity="0.04"/>
+      <circle cx="16" cy="22" r="4.5" fill="#7c8cff"/>
+      <text x="28" y="20" font-family="ui-monospace, monospace" font-size="11" fill="#cbd5e1" letter-spacing="0.04em">AGENT</text>
+      <text x="28" y="33" font-family="ui-sans-serif, sans-serif" font-size="11" fill="#7d8aab">Researcher</text>
+      <g transform="translate(8, 44)">
+        <rect width="76" height="14" rx="7" fill="#1a2440" stroke="#2a3a5e" stroke-width="0.6"/>
+        <text x="10" y="10" font-family="ui-monospace, monospace" font-size="9" fill="#9aa8c4">claude · sonnet</text>
+      </g>
+    </g>
+
+    <!-- KB Search (top branch) -->
+    <g transform="translate(430, -54)">
+      <rect width="110" height="48" rx="11" fill="url(#nodeBg)" stroke="#fbbf24" stroke-width="1.4"/>
+      <rect width="110" height="48" rx="11" fill="#fbbf24" opacity="0.04"/>
+      <circle cx="16" cy="24" r="4.5" fill="#fbbf24"/>
+      <text x="28" y="22" font-family="ui-monospace, monospace" font-size="11" fill="#cbd5e1" letter-spacing="0.04em">KB SEARCH</text>
+      <text x="28" y="36" font-family="ui-sans-serif, sans-serif" font-size="11" fill="#7d8aab">pgvector · top 5</text>
+    </g>
+
+    <!-- HTTP (bottom branch) -->
+    <g transform="translate(430, 81)">
+      <rect width="110" height="48" rx="11" fill="url(#nodeBg)" stroke="#34d399" stroke-width="1.4"/>
+      <rect width="110" height="48" rx="11" fill="#34d399" opacity="0.04"/>
+      <circle cx="16" cy="24" r="4.5" fill="#34d399"/>
+      <text x="28" y="22" font-family="ui-monospace, monospace" font-size="11" fill="#cbd5e1" letter-spacing="0.04em">HTTP</text>
+      <text x="28" y="36" font-family="ui-sans-serif, sans-serif" font-size="11" fill="#7d8aab">api.crm.com</text>
+    </g>
+
+    <!-- Branch (decision) -->
+    <g transform="translate(640, 14)">
+      <rect width="100" height="48" rx="11" fill="url(#nodeBg)" stroke="#f472b6" stroke-width="1.4"/>
+      <rect width="100" height="48" rx="11" fill="#f472b6" opacity="0.04"/>
+      <circle cx="16" cy="24" r="4.5" fill="#f472b6"/>
+      <text x="28" y="22" font-family="ui-monospace, monospace" font-size="11" fill="#cbd5e1" letter-spacing="0.04em">SWITCH</text>
+      <text x="28" y="36" font-family="ui-sans-serif, sans-serif" font-size="11" fill="#7d8aab">priority</text>
+    </g>
+
+    <!-- Generate (image) -->
+    <g transform="translate(850, -56)">
+      <rect width="110" height="48" rx="11" fill="url(#nodeBg)" stroke="#a78bfa" stroke-width="1.4"/>
+      <rect width="110" height="48" rx="11" fill="#a78bfa" opacity="0.04"/>
+      <circle cx="16" cy="24" r="4.5" fill="#a78bfa"/>
+      <text x="28" y="22" font-family="ui-monospace, monospace" font-size="11" fill="#cbd5e1" letter-spacing="0.04em">GENERATE</text>
+      <text x="28" y="36" font-family="ui-sans-serif, sans-serif" font-size="11" fill="#7d8aab">image · dall·e</text>
+    </g>
+
+    <!-- Reply (output) -->
+    <g transform="translate(850, 81)">
+      <rect width="110" height="48" rx="11" fill="url(#nodeBg)" stroke="#22d3ee" stroke-width="1.4"/>
+      <rect width="110" height="48" rx="11" fill="#22d3ee" opacity="0.04"/>
+      <circle cx="16" cy="24" r="4.5" fill="#22d3ee"/>
+      <circle cx="16" cy="24" r="7" fill="none" stroke="#22d3ee" stroke-width="0.6" opacity="0.5"/>
+      <text x="28" y="22" font-family="ui-monospace, monospace" font-size="11" fill="#cbd5e1" letter-spacing="0.04em">REPLY</text>
+      <text x="28" y="36" font-family="ui-sans-serif, sans-serif" font-size="11" fill="#7d8aab">to channel</text>
     </g>
   </g>
 
   <!-- Footer URL -->
-  <text x="1208" y="585" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" fill="#64748b">github.com/lucasmailland/orchester</text>
+  <text x="1208" y="585" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#5a6b8a">github.com/lucasmailland/orchester</text>
+  <text x="72" y="585" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#5a6b8a" letter-spacing="0.18em">OPEN · SOURCE</text>
 </svg>
