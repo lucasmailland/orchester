@@ -2,6 +2,31 @@
   "name": "orchester",
   "private": true,
   "version": "0.1.0",
+  "description": "Open-source platform for building AI agents and orchestrating them in workflows. Multi-tenant from day one, 80+ AI providers, self-hostable on Postgres.",
+  "license": "Apache-2.0",
+  "author": "Lucas Mailland <lucasmailland@gmail.com>",
+  "homepage": "https://github.com/lucasmailland/orchester#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lucasmailland/orchester.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lucasmailland/orchester/issues"
+  },
+  "keywords": [
+    "ai-agents",
+    "workflow-automation",
+    "multi-tenant",
+    "open-source",
+    "self-hosted",
+    "llm",
+    "anthropic",
+    "openai",
+    "mcp",
+    "pgvector",
+    "next.js",
+    "typescript"
+  ],
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",

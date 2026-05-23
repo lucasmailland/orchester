@@ -2,6 +2,18 @@
   "name": "@orchester/web",
   "version": "0.1.0",
   "private": true,
+  "description": "Orchester web app — Next.js studio, API routes, and worker.",
+  "license": "Apache-2.0",
+  "author": "Lucas Mailland <lucasmailland@gmail.com>",
+  "homepage": "https://github.com/lucasmailland/orchester#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lucasmailland/orchester.git",
+    "directory": "apps/web"
+  },
+  "bugs": {
+    "url": "https://github.com/lucasmailland/orchester/issues"
+  },
   "scripts": {
     "dev": "next dev",
     "dev:turbo": "next dev --turbopack",
