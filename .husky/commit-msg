@@ -1,0 +1,4 @@
+# Husky commit-msg — validates the commit message via commitlint.
+# Conventional Commits spec: https://www.conventionalcommits.org/
+
+pnpm exec commitlint --edit "$1"

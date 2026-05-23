@@ -1,0 +1,25 @@
+# Prettier ignore — files Prettier should not touch.
+# Defaults to .gitignore content plus these explicit entries.
+
+# Build artifacts
+.next/
+dist/
+build/
+out/
+coverage/
+
+# Generated
+**/.next/standalone/
+packages/db/drizzle/
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Vendor
+node_modules/
+
+# Don't format archived migrations or imported third-party SQL
+packages/db/drizzle/_archive_stale_0000/
+
+# Don't reformat the audit playbook output or git-managed artefacts
+apps/web/tsconfig.tsbuildinfo

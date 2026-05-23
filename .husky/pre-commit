@@ -1,0 +1,8 @@
+# Husky pre-commit — fast checks before the commit lands.
+# Skip with `git commit -n` if you really must (you usually mustn't).
+
+# 1. Format staged files with prettier (via lint-staged).
+pnpm exec lint-staged
+
+# 2. Run the structural invariants guard (fails on missing RBAC / spend / etc.).
+bash scripts/audit-invariants.sh
