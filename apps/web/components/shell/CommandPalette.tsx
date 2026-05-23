@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Command } from "cmdk";
+import { useTranslations } from "next-intl";
 import {
   Bot,
   Workflow,
@@ -23,21 +24,22 @@ interface QuickItem {
   label: string;
 }
 
-const NAV: Array<{ label: string; path: string; Icon: typeof Bot }> = [
-  { label: "Inicio", path: "/", Icon: Home },
-  { label: "Agentes", path: "/agents", Icon: Bot },
-  { label: "Flujos", path: "/flows", Icon: Workflow },
-  { label: "Conocimiento", path: "/knowledge", Icon: BookOpen },
-  { label: "Conversaciones", path: "/conversations", Icon: MessageSquare },
-  { label: "Equipos", path: "/teams", Icon: Layers },
-  { label: "Organigrama", path: "/org", Icon: Network },
-  { label: "Empleados", path: "/employees", Icon: Users },
-  { label: "Canales", path: "/channels", Icon: Radio },
-  { label: "Ajustes", path: "/settings", Icon: Settings },
+const NAV: Array<{ key: string; path: string; Icon: typeof Bot }> = [
+  { key: "home", path: "/", Icon: Home },
+  { key: "agents", path: "/agents", Icon: Bot },
+  { key: "flows", path: "/flows", Icon: Workflow },
+  { key: "knowledge", path: "/knowledge", Icon: BookOpen },
+  { key: "conversations", path: "/conversations", Icon: MessageSquare },
+  { key: "teams", path: "/teams", Icon: Layers },
+  { key: "org", path: "/org", Icon: Network },
+  { key: "employees", path: "/employees", Icon: Users },
+  { key: "channels", path: "/channels", Icon: Radio },
+  { key: "settings", path: "/settings", Icon: Settings },
 ];
 
 export function CommandPalette() {
   const router = useRouter();
+  const t = useTranslations("shell.commandPalette");
   const params = useParams<{ locale: string }>();
   const locale = params?.locale ?? "es";
   const [open, setOpen] = useState(false);
@@ -85,7 +87,7 @@ export function CommandPalette() {
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/60 px-4 pt-[15vh] backdrop-blur-sm">
       <Command
-        label="Command palette"
+        label={t("label")}
         className="w-full max-w-xl overflow-hidden rounded-xl border border-line bg-surface shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -94,7 +96,7 @@ export function CommandPalette() {
           <Command.Input
             value={q}
             onValueChange={setQ}
-            placeholder="Buscar agente, flujo, KB, página…"
+            placeholder={t("placeholder")}
             className="flex-1 bg-transparent text-sm text-strong placeholder:text-faint outline-none"
             autoFocus
           />
@@ -102,10 +104,13 @@ export function CommandPalette() {
         </div>
         <Command.List className="max-h-[400px] overflow-y-auto py-1">
           <Command.Empty className="px-4 py-6 text-center text-xs text-muted">
-            Sin resultados.
+            {t("empty")}
           </Command.Empty>
 
-          <Command.Group heading="Navegación" className="px-1 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted">
+          <Command.Group
+            heading={t("navigation")}
+            className="px-1 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted"
+          >
             {NAV.map((n) => (
               <Command.Item
                 key={n.path}
@@ -113,13 +118,16 @@ export function CommandPalette() {
                 className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm text-body aria-selected:bg-violet-500/15 aria-selected:text-violet-200"
               >
                 <n.Icon className="h-4 w-4 text-muted" />
-                {n.label}
+                {t(`nav.${n.key}`)}
               </Command.Item>
             ))}
           </Command.Group>
 
           {items.length > 0 && (
-            <Command.Group heading="Recursos" className="px-1 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted">
+            <Command.Group
+              heading={t("resources")}
+              className="px-1 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted"
+            >
               {items.map((it) => (
                 <Command.Item
                   key={`${it.type}-${it.id}`}
@@ -128,30 +136,34 @@ export function CommandPalette() {
                       it.type === "agent"
                         ? `/agents/${it.id}`
                         : it.type === "flow"
-                        ? `/flows/${it.id}`
-                        : it.type === "kb"
-                        ? `/knowledge/${it.id}`
-                        : `/channels`
+                          ? `/flows/${it.id}`
+                          : it.type === "kb"
+                            ? `/knowledge/${it.id}`
+                            : `/channels`
                     )
                   }
                   className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm text-body aria-selected:bg-violet-500/15 aria-selected:text-violet-200"
                 >
-                  {it.type === "agent" && <Bot className="h-4 w-4 text-violet-600 dark:text-violet-400" />}
-                  {it.type === "flow" && <Workflow className="h-4 w-4 text-amber-600 dark:text-amber-400" />}
-                  {it.type === "kb" && <BookOpen className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
-                  {it.type === "channel" && <Radio className="h-4 w-4 text-blue-600 dark:text-blue-400" />}
+                  {it.type === "agent" && (
+                    <Bot className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                  )}
+                  {it.type === "flow" && (
+                    <Workflow className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  )}
+                  {it.type === "kb" && (
+                    <BookOpen className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  )}
+                  {it.type === "channel" && (
+                    <Radio className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  )}
                   <span className="flex-1 truncate">{it.label}</span>
-                  <span className="text-[10px] uppercase tracking-wider text-faint">
-                    {it.type}
-                  </span>
+                  <span className="text-[10px] uppercase tracking-wider text-faint">{it.type}</span>
                 </Command.Item>
               ))}
             </Command.Group>
           )}
         </Command.List>
-        <div className="border-t border-line px-4 py-2 text-[10px] text-faint">
-          ↑↓ navegar · ↵ abrir · ⌘K cerrar
-        </div>
+        <div className="border-t border-line px-4 py-2 text-[10px] text-faint">{t("footer")}</div>
       </Command>
     </div>
   );

@@ -6,6 +6,7 @@ import { ArrowLeft, Save, Loader2, Workflow as WorkflowIcon } from "lucide-react
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { PromptEditor } from "./PromptEditor";
 import { ModelPicker } from "./ModelPicker";
 import { TestChat } from "./TestChat";
@@ -43,6 +44,7 @@ type Tab = "config" | "advanced" | "versions";
 
 export function AgentStudio({ agent }: { agent: AgentDTO }) {
   const router = useRouter();
+  const t = useTranslations("pages.agents.studio");
   const params = useParams<{ locale: string }>();
   const locale = params?.locale ?? "es";
   const [name, setName] = useState(agent.name);
@@ -83,7 +85,7 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
       try {
         parsedOutputSchema = JSON.parse(config.outputSchema);
       } catch {
-        toast.error("El JSON Schema no es válido");
+        toast.error(t("invalidJson"));
         setSaving(false);
         return;
       }
@@ -114,10 +116,10 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
     });
     setSaving(false);
     if (r.ok) {
-      toast.success("Agente guardado");
+      toast.success(t("agentSaved"));
       router.refresh();
     } else {
-      toast.error("No se pudo guardar");
+      toast.error(t("saveError"));
     }
   }
 
@@ -141,11 +143,13 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
             >
               {config.avatarUrl ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={config.avatarUrl} alt="" className="h-full w-full rounded-lg object-cover" />
+                <img
+                  src={config.avatarUrl}
+                  alt=""
+                  className="h-full w-full rounded-lg object-cover"
+                />
               ) : (
-                <span className="text-[11px] font-bold">
-                  {name.slice(0, 1).toUpperCase()}
-                </span>
+                <span className="text-[11px] font-bold">{name.slice(0, 1).toUpperCase()}</span>
               )}
             </div>
             <input
@@ -166,7 +170,7 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
                   : "ml-2 rounded-md border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-violet-700 dark:text-violet-300"
               }
             >
-              {isFlowKind ? "flow" : "conversacional"}
+              {isFlowKind ? t("kindFlow") : t("kindConversational")}
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -176,8 +180,12 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
               disabled={saving}
               className="flex items-center gap-1.5 rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-400 disabled:opacity-40"
             >
-              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-              Guardar
+              {saving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
+              {t("save")}
             </button>
           </div>
         </div>
@@ -185,18 +193,18 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
         <div className="flex flex-1 overflow-hidden">
           <div className="flex w-[60%] flex-col gap-3 overflow-y-auto border-r border-line p-4">
             <div className="flex gap-1.5">
-              {(["config", "advanced", "versions"] as const).map((t) => (
+              {(["config", "advanced", "versions"] as const).map((tabKey) => (
                 <button
-                  key={t}
+                  key={tabKey}
                   type="button"
-                  onClick={() => setTab(t)}
+                  onClick={() => setTab(tabKey)}
                   className={
-                    tab === t
+                    tab === tabKey
                       ? "rounded-lg bg-elevated px-3 py-1.5 text-xs text-strong"
                       : "rounded-lg px-3 py-1.5 text-xs text-muted hover:text-body"
                   }
                 >
-                  {t === "config" ? "Prompt + Modelo" : t === "advanced" ? "Avanzado" : "Versiones"}
+                  {t(`tabs.${tabKey}`)}
                 </button>
               ))}
             </div>
@@ -207,22 +215,21 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
                   <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5 text-sm">
                     <div className="mb-2 flex items-center gap-2 text-amber-700 dark:text-amber-300">
                       <WorkflowIcon className="h-4 w-4" />
-                      <span className="font-medium">Agente driven by flow</span>
+                      <span className="font-medium">{t("flowAgentTitle")}</span>
                     </div>
                     <p className="text-xs text-muted">
-                      Este agente no usa prompt. Cada mensaje ejecuta el flujo seleccionado en la
-                      pestaña <strong>Avanzado</strong>.
+                      {t.rich("flowAgentDescription", { b: (chunks) => <strong>{chunks}</strong> })}
                     </p>
                     {config.flowId ? (
                       <Link
                         href={`/${locale}/flows/${config.flowId}`}
                         className="mt-3 inline-block rounded-lg border border-amber-500/30 px-3 py-1.5 text-xs text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
                       >
-                        Editar el flujo →
+                        {t("editFlow")}
                       </Link>
                     ) : (
                       <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
-                        ⚠ Ningún flujo seleccionado. Andá a <strong>Avanzado</strong> y elegí uno.
+                        {t.rich("noFlowSelected", { b: (chunks) => <strong>{chunks}</strong> })}
                       </p>
                     )}
                   </div>
@@ -239,13 +246,13 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
                     <div className="grid gap-3 sm:grid-cols-3">
                       <div>
                         <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
-                          Modelo
+                          {t("model")}
                         </label>
                         <ModelPicker value={model} onChange={setModel} />
                       </div>
                       <div>
                         <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
-                          Temperature: {temperature.toFixed(2)}
+                          {t("temperature")}: {temperature.toFixed(2)}
                         </label>
                         <input
                           type="range"
@@ -259,7 +266,7 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
                       </div>
                       <div>
                         <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
-                          Max tokens
+                          {t("maxTokens")}
                         </label>
                         <input
                           type="number"
@@ -267,7 +274,7 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
                           onChange={(e) =>
                             setMaxTokens(e.target.value ? Number(e.target.value) : undefined)
                           }
-                          placeholder="default"
+                          placeholder={t("defaultPlaceholder")}
                           className="w-full rounded-lg border border-line bg-elevated px-2.5 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
                         />
                       </div>

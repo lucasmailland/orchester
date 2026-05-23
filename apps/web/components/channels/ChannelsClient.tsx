@@ -2,8 +2,20 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Globe, MessageCircle, Send, MessagesSquare, Mail, Webhook, Plus, Copy, Check, Loader2 } from "lucide-react";
+import {
+  Globe,
+  MessageCircle,
+  Send,
+  MessagesSquare,
+  Mail,
+  Webhook,
+  Plus,
+  Copy,
+  Check,
+  Loader2,
+} from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { NoProviderBanner } from "@/components/common/NoProviderBanner";
 
 type ChannelType = "widget" | "telegram" | "slack" | "whatsapp" | "email" | "api" | "web";
@@ -24,72 +36,56 @@ interface Agent {
   status: string;
 }
 
-const TYPE_META: Record<ChannelType, { label: string; Icon: typeof Globe; description: string; supported: boolean }> = {
-  widget: {
-    label: "Web Widget",
-    Icon: Globe,
-    description: "Embed un chat en cualquier sitio con un script.",
-    supported: true,
-  },
-  web: {
-    label: "Web Widget",
-    Icon: Globe,
-    description: "Alias de Widget.",
-    supported: true,
-  },
-  telegram: {
-    label: "Telegram",
-    Icon: Send,
-    description: "Bot de Telegram con respuesta automática del agente.",
-    supported: true,
-  },
-  whatsapp: {
-    label: "WhatsApp",
-    Icon: MessageCircle,
-    description: "Conectá vía Twilio o Meta Cloud API. (Adapter listo, requiere cuenta).",
-    supported: false,
-  },
-  slack: {
-    label: "Slack",
-    Icon: MessagesSquare,
-    description: "Slash commands y DMs. (Requiere Slack app).",
-    supported: false,
-  },
-  email: {
-    label: "Email",
-    Icon: Mail,
-    description: "Inbox virtual con Resend / Postmark.",
-    supported: false,
-  },
-  api: {
-    label: "API",
-    Icon: Webhook,
-    description: "Endpoint público con secret para disparar agentes desde código.",
-    supported: true,
-  },
+const TYPE_ICONS: Record<ChannelType, typeof Globe> = {
+  widget: Globe,
+  web: Globe,
+  telegram: Send,
+  whatsapp: MessageCircle,
+  slack: MessagesSquare,
+  email: Mail,
+  api: Webhook,
+};
+const TYPE_SUPPORTED: Record<ChannelType, boolean> = {
+  widget: true,
+  web: true,
+  telegram: true,
+  whatsapp: false,
+  slack: false,
+  email: false,
+  api: true,
 };
 
 export function ChannelsClient({ channels, agents }: { channels: Channel[]; agents: Agent[] }) {
   const router = useRouter();
+  const t = useTranslations("pages.channels");
   const [creating, setCreating] = useState<ChannelType | null>(null);
   const [name, setName] = useState("");
   const [agentId, setAgentId] = useState<string>(agents[0]?.id ?? "");
 
+  function typeMeta(typeKey: ChannelType) {
+    return {
+      label: t(`types.${typeKey}.label`),
+      description: t(`types.${typeKey}.description`),
+      Icon: TYPE_ICONS[typeKey],
+      supported: TYPE_SUPPORTED[typeKey],
+    };
+  }
+
   async function create(type: ChannelType) {
-    if (!name.trim()) return toast.error("Nombre requerido");
-    if (!agentId) return toast.error("Asigná un agente");
+    if (!name.trim()) return toast.error(t("nameRequired"));
+    if (!agentId) return toast.error(t("agentRequired"));
     const r = await fetch("/api/channels", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name, type, agentId }),
     });
     if (r.ok) {
-      toast.success("Canal creado");
+      toast.success(t("channelCreated"));
       setCreating(null);
       setName("");
       router.refresh();
     } else {
-      toast.error("No se pudo crear");
+      toast.error(t("createError"));
     }
   }
 
@@ -98,23 +94,18 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
       <NoProviderBanner />
 
       <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-strong">Canales</h1>
-        <p className="mt-1 text-sm text-muted">
-          Conectá tus agentes a los canales donde están tus clientes y empleados.
-        </p>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-strong">{t("title")}</h1>
+        <p className="mt-1 text-sm text-muted">{t("subtitle")}</p>
       </div>
 
       {/* Available types to create */}
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {(Object.keys(TYPE_META) as ChannelType[])
-          .filter((t) => t !== "web")
-          .map((t) => {
-            const meta = TYPE_META[t];
+        {(Object.keys(TYPE_ICONS) as ChannelType[])
+          .filter((typeKey) => typeKey !== "web")
+          .map((typeKey) => {
+            const meta = typeMeta(typeKey);
             return (
-              <div
-                key={t}
-                className="rounded-2xl border border-line bg-card p-4"
-              >
+              <div key={typeKey} className="rounded-2xl border border-line bg-card p-4">
                 <div className="mb-3 flex items-center gap-2.5">
                   <div
                     className={
@@ -128,7 +119,7 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
                   <div className="font-medium text-strong">{meta.label}</div>
                   {!meta.supported && (
                     <span className="ml-auto rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300">
-                      Beta
+                      {t("beta")}
                     </span>
                   )}
                 </div>
@@ -136,10 +127,10 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
                 <button
                   type="button"
                   disabled={!meta.supported}
-                  onClick={() => setCreating(t)}
+                  onClick={() => setCreating(typeKey)}
                   className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-line bg-elevated py-2 text-xs text-body hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  <Plus className="h-3.5 w-3.5" /> Conectar {meta.label}
+                  <Plus className="h-3.5 w-3.5" /> {t("connect", { label: meta.label })}
                 </button>
               </div>
             );
@@ -149,12 +140,12 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
       {creating && (
         <div className="space-y-2 rounded-2xl border border-violet-500/30 bg-card p-4">
           <div className="text-sm font-medium text-strong">
-            Nuevo canal · {TYPE_META[creating].label}
+            {t("newChannel", { label: typeMeta(creating).label })}
           </div>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Nombre del canal (e.g. 'Soporte WhatsApp')"
+            placeholder={t("namePlaceholder")}
             className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
           />
           <select
@@ -162,7 +153,7 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
             onChange={(e) => setAgentId(e.target.value)}
             className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
           >
-            <option value="">— Elegí un agente —</option>
+            <option value="">{t("selectAgent")}</option>
             {agents.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name} {a.status === "active" ? "" : `(${a.status})`}
@@ -175,14 +166,14 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
               onClick={() => create(creating)}
               className="rounded-lg bg-violet-500 px-3 py-1.5 text-xs text-white hover:bg-violet-400"
             >
-              Crear
+              {t("create")}
             </button>
             <button
               type="button"
               onClick={() => setCreating(null)}
               className="text-xs text-muted hover:text-body"
             >
-              Cancelar
+              {t("cancel")}
             </button>
           </div>
         </div>
@@ -190,7 +181,7 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
 
       {channels.length > 0 && (
         <div>
-          <h2 className="mb-2 text-sm font-medium text-body">Canales conectados</h2>
+          <h2 className="mb-2 text-sm font-medium text-body">{t("connectedHeading")}</h2>
           <div className="space-y-2">
             {channels.map((c) => (
               <ConnectedChannelRow key={c.id} channel={c} agents={agents} />
@@ -202,15 +193,13 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
   );
 }
 
-function ConnectedChannelRow({
-  channel,
-  agents,
-}: {
-  channel: Channel;
-  agents: Agent[];
-}) {
+function ConnectedChannelRow({ channel, agents }: { channel: Channel; agents: Agent[] }) {
   const router = useRouter();
-  const meta = TYPE_META[channel.type as ChannelType] ?? TYPE_META.api;
+  const t = useTranslations("pages.channels");
+  const channelType =
+    (channel.type as ChannelType) in TYPE_ICONS ? (channel.type as ChannelType) : "api";
+  const MetaIcon = TYPE_ICONS[channelType];
+  const channelLabel = t(`types.${channelType}.label`);
   const [expanded, setExpanded] = useState(false);
   const [credInput, setCredInput] = useState("");
   const [saving, setSaving] = useState(false);
@@ -220,19 +209,17 @@ function ConnectedChannelRow({
   async function copy(text: string, label: string) {
     await navigator.clipboard.writeText(text);
     setCopied(label);
-    toast.success("Copiado");
+    toast.success(t("copied"));
     setTimeout(() => setCopied(null), 1500);
   }
 
   async function saveCreds() {
     if (channel.type === "telegram" && !credInput.trim()) {
-      return toast.error("Pegá el bot token");
+      return toast.error(t("tokenRequired"));
     }
     setSaving(true);
     const credentials =
-      channel.type === "telegram"
-        ? { botToken: credInput.trim() }
-        : { token: credInput.trim() };
+      channel.type === "telegram" ? { botToken: credInput.trim() } : { token: credInput.trim() };
     const r = await fetch(`/api/channels/${channel.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -242,12 +229,12 @@ function ConnectedChannelRow({
     const j = await r.json();
     if (r.ok) {
       if (j.error) toast.error(j.error);
-      else if (j.webhookSet) toast.success(`Webhook configurado para @${j.botUsername}`);
-      else toast.success("Credenciales guardadas");
+      else if (j.webhookSet) toast.success(t("webhookSet", { username: j.botUsername }));
+      else toast.success(t("credsSaved"));
       setCredInput("");
       router.refresh();
     } else {
-      toast.error("No se pudo guardar");
+      toast.error(t("saveError"));
     }
   }
 
@@ -259,7 +246,7 @@ function ConnectedChannelRow({
       body: JSON.stringify({ status: next }),
     });
     if (r.ok) {
-      toast.success(next === "active" ? "Canal activado" : "Canal pausado");
+      toast.success(next === "active" ? t("channelActivated") : t("channelPaused"));
       router.refresh();
     }
   }
@@ -275,9 +262,9 @@ function ConnectedChannelRow({
   }
 
   async function remove() {
-    if (!confirm("¿Eliminar este canal?")) return;
+    if (!confirm(t("deleteConfirm"))) return;
     await fetch(`/api/channels/${channel.id}`, { method: "DELETE" });
-    toast.success("Eliminado");
+    toast.success(t("deleted"));
     router.refresh();
   }
 
@@ -292,15 +279,17 @@ function ConnectedChannelRow({
     <div className="rounded-2xl border border-line bg-card p-4">
       <div className="flex items-center gap-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
-          <meta.Icon className="h-4 w-4" />
+          <MetaIcon className="h-4 w-4" />
         </div>
         <div className="flex-1">
           <div className="text-sm font-medium text-strong">{channel.name}</div>
           <div className="text-[11px] text-muted">
-            {meta.label} ·{" "}
+            {channelLabel} ·{" "}
             <span
               className={
-                channel.status === "active" ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+                channel.status === "active"
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-amber-600 dark:text-amber-400"
               }
             >
               {channel.status}
@@ -312,14 +301,14 @@ function ConnectedChannelRow({
           onClick={toggleStatus}
           className="rounded-lg border border-line px-2.5 py-1 text-[11px] text-body hover:bg-hover"
         >
-          {channel.status === "active" ? "Pausar" : "Activar"}
+          {channel.status === "active" ? t("pause") : t("activate")}
         </button>
         <button
           type="button"
           onClick={() => setExpanded((e) => !e)}
           className="rounded-lg border border-line px-2.5 py-1 text-[11px] text-body hover:bg-hover"
         >
-          {expanded ? "Cerrar" : "Configurar"}
+          {expanded ? t("close") : t("configure")}
         </button>
         <button
           type="button"
@@ -333,13 +322,13 @@ function ConnectedChannelRow({
       {expanded && (
         <div className="mt-4 space-y-3 border-t border-line pt-4 text-xs">
           <div>
-            <label className="block text-muted">Agente</label>
+            <label className="block text-muted">{t("agentLabel")}</label>
             <select
               value={agentId}
               onChange={(e) => updateAgent(e.target.value)}
               className="mt-1 w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-strong outline-none"
             >
-              <option value="">— Sin agente —</option>
+              <option value="">{t("noAgent")}</option>
               {agents.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
@@ -350,7 +339,7 @@ function ConnectedChannelRow({
 
           {channel.type === "widget" && (
             <div>
-              <label className="block text-muted">Snippet de instalación</label>
+              <label className="block text-muted">{t("snippetLabel")}</label>
               <div className="mt-1 flex items-center gap-2 rounded-lg border border-line bg-black/40 p-2">
                 <pre className="flex-1 overflow-x-auto font-mono text-[11px] text-body">
                   {embedSnippet}
@@ -360,11 +349,18 @@ function ConnectedChannelRow({
                   onClick={() => copy(embedSnippet, "embed")}
                   className="text-muted hover:text-body"
                 >
-                  {copied === "embed" ? <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copied === "embed" ? (
+                    <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
                 </button>
               </div>
               <p className="mt-1 text-[10px] text-faint">
-                Pegá este script antes de <code>&lt;/body&gt;</code> en cualquier página HTML.
+                {t.rich("snippetHelp", {
+                  tag: "</body>",
+                  code: (chunks) => <code>{chunks}</code>,
+                })}
               </p>
             </div>
           )}
@@ -372,13 +368,17 @@ function ConnectedChannelRow({
           {channel.type === "telegram" && (
             <>
               <div>
-                <label className="block text-muted">Bot Token (@BotFather)</label>
+                <label className="block text-muted">{t("telegramTokenLabel")}</label>
                 <div className="mt-1 flex items-center gap-2">
                   <input
                     type="password"
                     value={credInput}
                     onChange={(e) => setCredInput(e.target.value)}
-                    placeholder={channel.hasCredentials ? "•••••••• (ya configurado, pegá uno nuevo para reemplazar)" : "123456:ABC-DEF…"}
+                    placeholder={
+                      channel.hasCredentials
+                        ? t("telegramReplacePlaceholder")
+                        : t("telegramPlaceholder")
+                    }
                     className="flex-1 rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none focus:border-violet-500/60"
                   />
                   <button
@@ -387,13 +387,13 @@ function ConnectedChannelRow({
                     disabled={saving || !credInput.trim()}
                     className="flex items-center gap-1 rounded-lg bg-violet-500 px-3 py-1.5 text-xs text-white hover:bg-violet-400 disabled:opacity-40"
                   >
-                    {saving && <Loader2 className="h-3 w-3 animate-spin" />} Guardar
+                    {saving && <Loader2 className="h-3 w-3 animate-spin" />} {t("save")}
                   </button>
                 </div>
               </div>
               {channel.hasCredentials && (
                 <div>
-                  <label className="block text-muted">Webhook URL (auto-configurado)</label>
+                  <label className="block text-muted">{t("webhookLabel")}</label>
                   <div className="mt-1 flex items-center gap-2 rounded-lg border border-line bg-black/40 p-2">
                     <pre className="flex-1 overflow-x-auto font-mono text-[10px] text-body">
                       {telegramWebhookUrl}
@@ -403,7 +403,11 @@ function ConnectedChannelRow({
                       onClick={() => copy(telegramWebhookUrl, "webhook")}
                       className="text-muted hover:text-body"
                     >
-                      {copied === "webhook" ? <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copied === "webhook" ? (
+                        <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -413,7 +417,7 @@ function ConnectedChannelRow({
 
           {channel.type === "api" && (
             <div>
-              <label className="block text-muted">Endpoint público</label>
+              <label className="block text-muted">{t("apiEndpointLabel")}</label>
               <div className="mt-1 flex items-center gap-2 rounded-lg border border-line bg-black/40 p-2">
                 <pre className="flex-1 overflow-x-auto font-mono text-[10px] text-body">
                   POST {apiTriggerUrl}
@@ -423,11 +427,15 @@ function ConnectedChannelRow({
                   onClick={() => copy(apiTriggerUrl, "api")}
                   className="text-muted hover:text-body"
                 >
-                  {copied === "api" ? <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copied === "api" ? (
+                    <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
                 </button>
               </div>
               <p className="mt-1 text-[10px] text-faint">
-                Body: <code>{`{ visitorId: string, text: string }`}</code>
+                {t("apiBodyHint")} <code>{`{ visitorId: string, text: string }`}</code>
               </p>
             </div>
           )}

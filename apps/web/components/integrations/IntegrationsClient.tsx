@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import {
   Boxes,
   CreditCard,
@@ -59,6 +60,7 @@ const ICONS: Record<string, typeof Database> = {
 };
 
 export function IntegrationsClient() {
+  const t = useTranslations("pages.integrations");
   const [catalog, setCatalog] = useState<Connector[]>([]);
   const [configured, setConfigured] = useState<Configured[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,23 +80,23 @@ export function IntegrationsClient() {
   }, []);
 
   async function test(id: string) {
-    const t = toast.loading("Probando conexión…");
+    const toastId = toast.loading(t("testing"));
     const r = await fetch(`/api/integrations/${id}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action: "test" }),
     });
     const j = await r.json();
-    toast.dismiss(t);
-    if (j.ok) toast.success("Conexión OK");
-    else toast.error(j.error ?? "Falló la conexión");
+    toast.dismiss(toastId);
+    if (j.ok) toast.success(t("connectionOk"));
+    else toast.error(j.error ?? t("connectionFailed"));
     load();
   }
 
   async function remove(id: string, name: string) {
-    if (!window.confirm(`¿Eliminar la integración "${name}"?`)) return;
+    if (!window.confirm(t("deleteConfirm", { name }))) return;
     await fetch(`/api/integrations/${id}`, { method: "DELETE" });
-    toast.success("Integración eliminada");
+    toast.success(t("deleted"));
     load();
   }
 
@@ -107,16 +109,13 @@ export function IntegrationsClient() {
       {/* Configured */}
       {configured.length > 0 && (
         <div>
-          <h2 className="mb-2 text-sm font-medium text-body">Conectadas</h2>
+          <h2 className="mb-2 text-sm font-medium text-body">{t("connectedHeading")}</h2>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             {configured.map((c) => {
               const Icon = ICONS[c.type] ?? Plug;
               const conn = catalog.find((k) => k.id === c.type);
               return (
-                <div
-                  key={c.id}
-                  className="rounded-2xl border border-line bg-card p-4"
-                >
+                <div key={c.id} className="rounded-2xl border border-line bg-card p-4">
                   <div className="mb-2 flex items-center gap-2.5">
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/15 text-violet-700 dark:text-violet-300">
                       <Icon className="h-4 w-4" />
@@ -135,7 +134,7 @@ export function IntegrationsClient() {
                       </span>
                     ) : (
                       <span className="rounded-md border border-line px-1.5 py-0.5 text-[10px] text-muted">
-                        sin probar
+                        {t("untested")}
                       </span>
                     )}
                   </div>
@@ -148,7 +147,7 @@ export function IntegrationsClient() {
                       onClick={() => test(c.id)}
                       className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-line py-1.5 text-xs text-body hover:bg-hover"
                     >
-                      <RefreshCw className="h-3 w-3" /> Probar
+                      <RefreshCw className="h-3 w-3" /> {t("test")}
                     </button>
                     {conn && (
                       <button
@@ -156,13 +155,13 @@ export function IntegrationsClient() {
                         onClick={() => setModal({ connector: conn, editId: c.id })}
                         className="rounded-lg border border-line px-3 py-1.5 text-xs text-body hover:bg-hover"
                       >
-                        Editar
+                        {t("edit")}
                       </button>
                     )}
                     <button
                       type="button"
                       onClick={() => remove(c.id, c.name)}
-                      aria-label={`Eliminar ${c.name}`}
+                      aria-label={t("removeAria", { name: c.name })}
                       className="rounded-lg border border-line px-2 py-1.5 text-muted hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -177,7 +176,7 @@ export function IntegrationsClient() {
 
       {/* Catalog */}
       <div>
-        <h2 className="mb-2 text-sm font-medium text-body">Disponibles</h2>
+        <h2 className="mb-2 text-sm font-medium text-body">{t("availableHeading")}</h2>
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {catalog.map((c) => {
             const Icon = ICONS[c.id] ?? Plug;
@@ -201,7 +200,9 @@ export function IntegrationsClient() {
                 <p className="flex-1 text-xs leading-relaxed text-muted">{c.description}</p>
                 {c.actions.length > 0 && (
                   <p className="mt-2 text-[10px] text-faint">
-                    {c.actions.length} acción{c.actions.length !== 1 && "es"} para agentes
+                    {c.actions.length === 1
+                      ? t("actionsCountOne", { count: c.actions.length })
+                      : t("actionsCount", { count: c.actions.length })}
                   </p>
                 )}
                 <button
@@ -209,7 +210,7 @@ export function IntegrationsClient() {
                   onClick={() => setModal({ connector: c })}
                   className="mt-3 flex items-center justify-center gap-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 py-2 text-xs font-medium text-violet-700 dark:text-violet-300 hover:bg-violet-500/20"
                 >
-                  <Plus className="h-3 w-3" /> {already ? "Agregar otra" : "Conectar"}
+                  <Plus className="h-3 w-3" /> {already ? t("addAnother") : t("connect")}
                 </button>
               </div>
             );
@@ -218,8 +219,7 @@ export function IntegrationsClient() {
       </div>
 
       <p className="rounded-xl border border-line bg-card p-4 text-xs text-muted">
-        💡 Las integraciones conectadas exponen sus acciones como <strong>tools</strong> que los
-        agentes pueden usar. Las credenciales se guardan encriptadas (AES-256-GCM).
+        {t.rich("footer", { b: (chunks) => <strong>{chunks}</strong> })}
       </p>
 
       {modal && (
@@ -248,6 +248,7 @@ function ConfigModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = useTranslations("pages.integrations");
   const [name, setName] = useState(connector.name);
   const [config, setConfig] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -255,7 +256,7 @@ function ConfigModal({
   async function save() {
     for (const f of connector.fields) {
       if (f.required && !config[f.key]?.trim()) {
-        toast.error(`${f.label} es requerido`);
+        toast.error(t("fieldRequired", { label: f.label }));
         return;
       }
     }
@@ -269,11 +270,11 @@ function ConfigModal({
     const j = await r.json();
     setBusy(false);
     if (!r.ok) {
-      toast.error(j.error ?? "Error al guardar");
+      toast.error(j.error ?? t("saveError"));
       return;
     }
-    if (j.status === "connected") toast.success("Conectado correctamente");
-    else toast.warning(`Guardado, pero la conexión falló: ${j.error ?? ""}`);
+    if (j.status === "connected") toast.success(t("connectedOk"));
+    else toast.warning(t("savedButFailed", { error: j.error ?? "" }));
     onSaved();
   }
 
@@ -283,7 +284,7 @@ function ConfigModal({
       <div className="relative w-full max-w-md rounded-2xl border border-line bg-surface p-5">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-display text-lg font-semibold text-strong">
-            Conectar {connector.name}
+            {t("connectTitle", { name: connector.name })}
           </h3>
           <button onClick={onClose} type="button" className="text-muted hover:text-body">
             <X className="h-4 w-4" />
@@ -291,13 +292,12 @@ function ConfigModal({
         </div>
         {connector.needsOAuthApp && (
           <p className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300">
-            Requiere registrar una app OAuth. Pegá tus client ID/secret; el flujo de autorización
-            se completa después.
+            {t("oauthNote")}
           </p>
         )}
         <div className="space-y-3">
           <div>
-            <label className="mb-1 block text-xs text-muted">Nombre</label>
+            <label className="mb-1 block text-xs text-muted">{t("nameLabel")}</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -327,7 +327,7 @@ function ConfigModal({
           disabled={busy}
           className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-violet-500 py-2 text-sm font-medium text-white hover:bg-violet-400 disabled:opacity-50"
         >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar y probar"}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t("saveAndTest")}
         </button>
       </div>
     </div>

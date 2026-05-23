@@ -37,7 +37,11 @@ export function Sidebar({ locale }: SidebarProps) {
   //   SISTEMA → infra del workspace (canales, integraciones, ajustes)
   const workspaceNav = [
     { href: `/${locale}`, icon: <Home size={16} />, label: t("home") },
-    { href: `/${locale}/conversations`, icon: <MessageSquare size={16} />, label: t("conversations") },
+    {
+      href: `/${locale}/conversations`,
+      icon: <MessageSquare size={16} />,
+      label: t("conversations"),
+    },
   ];
 
   const buildNav = [
@@ -59,10 +63,10 @@ export function Sidebar({ locale }: SidebarProps) {
   ];
 
   const groups: Array<{ label: string; items: typeof workspaceNav }> = [
-    { label: "Workspace", items: workspaceNav },
-    { label: "Automatización", items: buildNav },
-    { label: "Datos", items: dataNav },
-    { label: "Sistema", items: systemNav },
+    { label: t("group_workspace"), items: workspaceNav },
+    { label: t("group_automation"), items: buildNav },
+    { label: t("group_data"), items: dataNav },
+    { label: t("group_system"), items: systemNav },
   ];
 
   return (
@@ -70,10 +74,7 @@ export function Sidebar({ locale }: SidebarProps) {
       variants={sidebarVariants}
       animate={collapsed ? "collapsed" : "expanded"}
       transition={{ duration: 0.25, ease: APPLE_EASE }}
-      className={cn(
-        "relative flex h-full flex-col",
-        "border-r border-line bg-surface"
-      )}
+      className={cn("relative flex h-full flex-col", "border-r border-line bg-surface")}
     >
       {/* Logo */}
       <div className="flex h-14 shrink-0 items-center overflow-hidden border-b border-line px-4">
@@ -139,13 +140,7 @@ export function Sidebar({ locale }: SidebarProps) {
   );
 }
 
-function AnimatePresenceWrapper({
-  show,
-  children,
-}: {
-  show: boolean;
-  children: React.ReactNode;
-}) {
+function AnimatePresenceWrapper({ show, children }: { show: boolean; children: React.ReactNode }) {
   return (
     <AnimatePresence initial={false}>
       {show && (

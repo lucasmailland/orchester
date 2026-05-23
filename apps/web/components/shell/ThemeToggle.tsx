@@ -4,11 +4,13 @@ import { useTheme } from "next-themes";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sun, Moon } from "lucide-react";
 import { Button } from "@heroui/react";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const t = useTranslations("shell");
 
   useEffect(() => setMounted(true), []);
 
@@ -24,7 +26,7 @@ export function ThemeToggle() {
       variant="light"
       size="sm"
       onPress={() => setTheme(isDark ? "light" : "dark")}
-      aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+      aria-label={isDark ? t("themeLight") : t("themeDark")}
       className="text-muted hover:text-strong"
     >
       <AnimatePresence mode="wait" initial={false}>

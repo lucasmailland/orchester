@@ -14,6 +14,7 @@ import {
   ScrollText,
   type LucideIcon,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { GeneralSection } from "./GeneralSection";
 import { AccountSection } from "./AccountSection";
@@ -53,7 +54,6 @@ interface Props {
 
 interface Tab {
   id: string;
-  label: string;
   icon: LucideIcon;
   /** "danger" → estiliza distinto en el sidebar. */
   variant?: "danger";
@@ -62,44 +62,44 @@ interface Tab {
 }
 
 /**
- * Tabs estables → URL hash sincronizada para deep-link y back/forward del browser.
- * El orden refleja la frecuencia de uso (general/cuenta arriba, danger abajo).
+ * Stable tabs → URL hash sync for deep-links and browser back/forward.
+ * Order reflects usage frequency (general/account at top, danger at bottom).
  */
 const TABS: Tab[] = [
-  { id: "general", label: "General", icon: Building2 },
-  { id: "account", label: "Mi cuenta", icon: User },
-  { id: "notifications", label: "Notificaciones", icon: Bell },
-  { id: "providers", label: "Proveedores IA", icon: Sparkles },
+  { id: "general", icon: Building2 },
+  { id: "account", icon: User },
+  { id: "notifications", icon: Bell },
+  { id: "providers", icon: Sparkles },
   {
     id: "billing",
-    label: "Plan y uso",
     icon: CreditCard,
-    visible: (ctx) => ctx.stripeEnabled || true, // siempre visible — muestra "Self-hosted"
+    visible: (ctx) => ctx.stripeEnabled || true, // always visible — shows "Self-hosted"
   },
-  { id: "members", label: "Equipo", icon: UsersIcon },
-  { id: "sessions", label: "Sesiones", icon: Monitor },
-  { id: "audit", label: "Audit log", icon: ScrollText },
-  { id: "developers", label: "Desarrolladores", icon: Code },
-  { id: "danger", label: "Zona de peligro", icon: AlertTriangle, variant: "danger" },
+  { id: "members", icon: UsersIcon },
+  { id: "sessions", icon: Monitor },
+  { id: "audit", icon: ScrollText },
+  { id: "developers", icon: Code },
+  { id: "danger", icon: AlertTriangle, variant: "danger" },
 ];
 
 export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) {
+  const t = useTranslations("pages.settings");
   const visibleTabs = useMemo(
-    () => TABS.filter((t) => (t.visible ? t.visible({ stripeEnabled }) : true)),
+    () => TABS.filter((tab) => (tab.visible ? tab.visible({ stripeEnabled }) : true)),
     [stripeEnabled]
   );
 
   const [activeTab, setActiveTab] = useState<string>(() => {
     if (typeof window === "undefined") return "general";
     const hash = window.location.hash.replace("#", "");
-    return visibleTabs.find((t) => t.id === hash)?.id ?? "general";
+    return visibleTabs.find((tab) => tab.id === hash)?.id ?? "general";
   });
 
-  // Sincroniza con el hash del URL → permite deep-links a /settings#providers.
+  // Sync with URL hash → enables deep-links to /settings#providers.
   useEffect(() => {
     function onHash() {
       const hash = window.location.hash.replace("#", "");
-      if (hash && visibleTabs.find((t) => t.id === hash)) {
+      if (hash && visibleTabs.find((tab) => tab.id === hash)) {
         setActiveTab(hash);
       }
     }
@@ -117,7 +117,7 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
   if (!workspace || !me) {
     return (
       <div className="flex h-64 items-center justify-center text-sm text-muted">
-        No se pudo cargar el workspace.
+        {t("loadError")}
       </div>
     );
   }
@@ -132,11 +132,8 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
-        {/* Sidebar de tabs */}
-        <nav
-          aria-label="Secciones de configuración"
-          className="lg:sticky lg:top-4 lg:self-start"
-        >
+        {/* Tab sidebar */}
+        <nav aria-label={t("sidebarAria")} className="lg:sticky lg:top-4 lg:self-start">
           <ul className="flex gap-1 overflow-x-auto pb-2 lg:flex-col lg:gap-0.5 lg:pb-0">
             {visibleTabs.map((tab) => {
               const isActive = activeTab === tab.id;
@@ -154,12 +151,12 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
                           ? "bg-red-500/10 text-red-700 dark:text-red-300"
                           : "bg-violet-500/15 text-violet-700 dark:text-violet-200"
                         : isDanger
-                        ? "text-red-400/80 hover:bg-red-500/5 hover:text-red-700 dark:hover:text-red-300"
-                        : "text-muted hover:bg-hover hover:text-body"
+                          ? "text-red-400/80 hover:bg-red-500/5 hover:text-red-700 dark:hover:text-red-300"
+                          : "text-muted hover:bg-hover hover:text-body"
                     )}
                   >
                     <tab.icon size={14} aria-hidden="true" />
-                    <span>{tab.label}</span>
+                    <span>{t(`tabs.${tab.id}`)}</span>
                   </button>
                 </li>
               );
@@ -167,7 +164,7 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
           </ul>
         </nav>
 
-        {/* Contenido de la tab activa */}
+        {/* Active tab content */}
         <div className="min-w-0 space-y-6">
           {activeTab === "general" && <GeneralSection workspace={workspace} />}
           {activeTab === "account" && <AccountSection me={me} />}
@@ -175,8 +172,8 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
           {activeTab === "providers" && (
             <SettingsCard
               icon={<Sparkles size={16} />}
-              title="Proveedores de IA"
-              description="Conectá proveedores de IA (chat, imagen, embeddings, video, audio y más) con tu propia API key. Los modelos disponibles aparecen en el editor de agentes y los flujos."
+              title={t("sections.providersTitle")}
+              description={t("sections.providersDescription")}
             >
               <AIProvidersSection />
             </SettingsCard>
@@ -184,8 +181,8 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
           {activeTab === "billing" && (
             <SettingsCard
               icon={<CreditCard size={16} />}
-              title="Plan y uso"
-              description="Tu plan, uso del mes y límites."
+              title={t("sections.billingTitle")}
+              description={t("sections.billingDescription")}
             >
               <BillingSection />
             </SettingsCard>
@@ -193,8 +190,8 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
           {activeTab === "members" && (
             <SettingsCard
               icon={<UsersIcon size={16} />}
-              title="Equipo"
-              description="Miembros del workspace e invitaciones pendientes."
+              title={t("sections.membersTitle")}
+              description={t("sections.membersDescription")}
             >
               <MembersSection />
             </SettingsCard>
@@ -202,8 +199,8 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
           {activeTab === "sessions" && (
             <SettingsCard
               icon={<Monitor size={16} />}
-              title="Sesiones activas"
-              description="Devices conectados a tu cuenta. Cerralos remotamente si sospechás compromise."
+              title={t("sections.sessionsTitle")}
+              description={t("sections.sessionsDescription")}
             >
               <SessionsSection />
             </SettingsCard>
@@ -211,8 +208,8 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
           {activeTab === "audit" && (
             <SettingsCard
               icon={<ScrollText size={16} />}
-              title="Audit log"
-              description="Cada mutación crítica del workspace queda registrada acá. Read-only."
+              title={t("sections.auditTitle")}
+              description={t("sections.auditDescription")}
             >
               <AuditLogSection />
             </SettingsCard>
@@ -220,8 +217,8 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
           {activeTab === "developers" && (
             <SettingsCard
               icon={<Code size={16} />}
-              title="Desarrolladores"
-              description="API keys, webhooks salientes, y referencia de la API pública."
+              title={t("sections.developersTitle")}
+              description={t("sections.developersDescription")}
             >
               <DevelopersSection />
             </SettingsCard>

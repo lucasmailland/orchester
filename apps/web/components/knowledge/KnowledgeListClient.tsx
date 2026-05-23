@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { BookOpen, Plus, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { NoProviderBanner } from "@/components/common/NoProviderBanner";
 
 interface KB {
@@ -18,6 +19,7 @@ interface KB {
 
 export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
   const router = useRouter();
+  const t = useTranslations("pages.knowledge");
   const params = useParams<{ locale: string }>();
   const locale = params?.locale ?? "es";
   const [creating, setCreating] = useState(false);
@@ -39,10 +41,10 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
     });
     if (r.ok) {
       const j = await r.json();
-      toast.success("Base de conocimiento creada");
+      toast.success(t("created"));
       router.push(`/${locale}/knowledge/${j.id}`);
     } else {
-      toast.error("No se pudo crear");
+      toast.error(t("createError"));
     }
   }
 
@@ -52,17 +54,15 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-strong">Conocimiento</h1>
-          <p className="text-sm text-muted">
-            Subí documentos para que tus agentes puedan responder con tu información (RAG).
-          </p>
+          <h1 className="text-xl font-semibold text-strong">{t("title")}</h1>
+          <p className="text-sm text-muted">{t("subtitle")}</p>
         </div>
         <button
           type="button"
           onClick={() => setCreating(true)}
           className="flex items-center gap-1.5 rounded-lg bg-violet-500 px-3.5 py-2 text-sm font-medium text-white hover:bg-violet-400"
         >
-          <Plus className="h-4 w-4" /> Nueva base
+          <Plus className="h-4 w-4" /> {t("newBase")}
         </button>
       </div>
 
@@ -71,18 +71,18 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Nombre — ej. Documentación interna"
+            placeholder={t("namePlaceholder")}
             className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
             autoFocus
           />
           <input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Descripción (opcional)"
+            placeholder={t("descriptionPlaceholder")}
             className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
           />
           <div className="flex items-center gap-2">
-            <label className="text-xs text-muted">Embeddings:</label>
+            <label className="text-xs text-muted">{t("embeddingsLabel")}</label>
             <select
               value={provider}
               onChange={(e) => setProvider(e.target.value as "openai" | "google")}
@@ -98,14 +98,14 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
               onClick={create}
               className="rounded-lg bg-violet-500 px-3 py-1.5 text-xs text-white hover:bg-violet-400"
             >
-              Crear
+              {t("create")}
             </button>
             <button
               type="button"
               onClick={() => setCreating(false)}
               className="text-xs text-muted hover:text-body"
             >
-              Cancelar
+              {t("cancel")}
             </button>
           </div>
         </div>
@@ -114,10 +114,8 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
       {kbs.length === 0 && !creating && (
         <div className="rounded-2xl border border-dashed border-line p-10 text-center">
           <BookOpen className="mx-auto mb-3 h-8 w-8 text-faint" />
-          <h3 className="text-sm font-medium text-body">Aún no hay bases de conocimiento</h3>
-          <p className="mt-1 text-xs text-muted">
-            Creá la primera y subí documentos para alimentar a tus agentes.
-          </p>
+          <h3 className="text-sm font-medium text-body">{t("emptyTitle")}</h3>
+          <p className="mt-1 text-xs text-muted">{t("emptyDescription")}</p>
         </div>
       )}
 
@@ -138,7 +136,9 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
             <p className="line-clamp-2 text-xs text-muted">{kb.description ?? "—"}</p>
             <div className="mt-3 flex items-center gap-1.5 text-[10px] text-faint">
               <Sparkles className="h-3 w-3" />
-              <span className="font-mono">{kb.embeddingProvider}/{kb.embeddingModel}</span>
+              <span className="font-mono">
+                {kb.embeddingProvider}/{kb.embeddingModel}
+              </span>
             </div>
           </motion.button>
         ))}

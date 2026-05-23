@@ -1,8 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, X, MessageSquare, User, Bot, Tag as TagIcon, UserCheck, DollarSign } from "lucide-react";
+import {
+  Search,
+  X,
+  MessageSquare,
+  User,
+  Bot,
+  Tag as TagIcon,
+  UserCheck,
+  DollarSign,
+} from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 interface Conv {
   id: string;
@@ -62,19 +72,13 @@ interface Label {
   color: string;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  open: "Abierta",
-  closed: "Cerrada",
-  escalated: "Escalada",
-};
-
-export function ConversationsClient({
-  agents,
-  labels,
-}: {
-  agents: Agent[];
-  labels: Label[];
-}) {
+export function ConversationsClient({ agents, labels }: { agents: Agent[]; labels: Label[] }) {
+  const t = useTranslations("pages.conversations");
+  const STATUS_LABEL: Record<string, string> = {
+    open: t("status.open"),
+    closed: t("status.closed"),
+    escalated: t("status.escalated"),
+  };
   const [conversations, setConversations] = useState<Conv[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -176,7 +180,7 @@ export function ConversationsClient({
     a.download = `conversations-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("CSV descargado");
+    toast.success(t("csvDownloaded"));
   }
 
   return (
@@ -184,11 +188,9 @@ export function ConversationsClient({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold tracking-tight text-strong">
-            Conversaciones
+            {t("title")}
           </h1>
-          <p className="mt-1 text-sm text-muted">
-            Cada interacción con un agente, en cada canal.
-          </p>
+          <p className="mt-1 text-sm text-muted">{t("subtitle")}</p>
         </div>
         <button
           type="button"
@@ -196,7 +198,7 @@ export function ConversationsClient({
           disabled={conversations.length === 0}
           className="rounded-lg border border-line px-3 py-1.5 text-xs text-body hover:bg-hover disabled:opacity-40"
         >
-          Exportar CSV
+          {t("exportCsv")}
         </button>
       </div>
 
@@ -204,21 +206,24 @@ export function ConversationsClient({
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-card p-3">
         <div className="relative flex-1 min-w-[180px]">
           <label htmlFor="conv-search" className="sr-only">
-            Buscar conversaciones
+            {t("search")}
           </label>
-          <Search className="pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5 text-muted" aria-hidden="true" />
+          <Search
+            className="pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5 text-muted"
+            aria-hidden="true"
+          />
           <input
             id="conv-search"
             name="conv-search"
             type="search"
             value={filters.search}
             onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-            placeholder="Buscar nombre, email o resumen…"
+            placeholder={t("searchPlaceholder")}
             className="w-full rounded-lg border border-line bg-elevated py-1.5 pl-8 pr-2 text-xs text-strong outline-none focus:border-violet-500/60"
           />
         </div>
         <label htmlFor="conv-filter-status" className="sr-only">
-          Filtrar por estado
+          {t("filterByStatus")}
         </label>
         <select
           id="conv-filter-status"
@@ -227,13 +232,13 @@ export function ConversationsClient({
           onChange={(e) => setFilters({ ...filters, status: e.target.value })}
           className="rounded-lg border border-line bg-elevated px-2 py-1.5 text-xs text-body outline-none"
         >
-          <option value="">Estado · Todos</option>
-          <option value="open">Abiertas</option>
-          <option value="escalated">Escaladas</option>
-          <option value="closed">Cerradas</option>
+          <option value="">{t("statusFilter")}</option>
+          <option value="open">{t("status.openPl")}</option>
+          <option value="escalated">{t("status.escalatedPl")}</option>
+          <option value="closed">{t("status.closedPl")}</option>
         </select>
         <label htmlFor="conv-filter-channel" className="sr-only">
-          Filtrar por canal
+          {t("filterByChannel")}
         </label>
         <select
           id="conv-filter-channel"
@@ -242,16 +247,16 @@ export function ConversationsClient({
           onChange={(e) => setFilters({ ...filters, channel: e.target.value })}
           className="rounded-lg border border-line bg-elevated px-2 py-1.5 text-xs text-body outline-none"
         >
-          <option value="">Canal · Todos</option>
-          <option value="widget">Web Widget</option>
-          <option value="telegram">Telegram</option>
-          <option value="whatsapp">WhatsApp</option>
-          <option value="slack">Slack</option>
-          <option value="email">Email</option>
-          <option value="api">API</option>
+          <option value="">{t("channelFilter")}</option>
+          <option value="widget">{t("channel.widget")}</option>
+          <option value="telegram">{t("channel.telegram")}</option>
+          <option value="whatsapp">{t("channel.whatsapp")}</option>
+          <option value="slack">{t("channel.slack")}</option>
+          <option value="email">{t("channel.email")}</option>
+          <option value="api">{t("channel.api")}</option>
         </select>
         <label htmlFor="conv-filter-agent" className="sr-only">
-          Filtrar por agente
+          {t("filterByAgent")}
         </label>
         <select
           id="conv-filter-agent"
@@ -260,7 +265,7 @@ export function ConversationsClient({
           onChange={(e) => setFilters({ ...filters, agentId: e.target.value })}
           className="rounded-lg border border-line bg-elevated px-2 py-1.5 text-xs text-body outline-none"
         >
-          <option value="">Agente · Todos</option>
+          <option value="">{t("agentFilter")}</option>
           {agents.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name}
@@ -273,7 +278,7 @@ export function ConversationsClient({
             onChange={(e) => setFilters({ ...filters, tag: e.target.value })}
             className="rounded-lg border border-line bg-elevated px-2 py-1.5 text-xs text-body outline-none"
           >
-            <option value="">Tag · Todos</option>
+            <option value="">{t("tagFilter")}</option>
             {labels.map((l) => (
               <option key={l.id} value={l.name}>
                 {l.name}
@@ -285,14 +290,12 @@ export function ConversationsClient({
 
       {/* List */}
       {loading ? (
-        <div className="text-xs text-muted">Cargando…</div>
+        <div className="text-xs text-muted">{t("loading")}</div>
       ) : conversations.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-line p-10 text-center">
           <MessageSquare className="mx-auto mb-3 h-8 w-8 text-faint" />
-          <h3 className="text-sm font-medium text-body">Sin conversaciones</h3>
-          <p className="mt-1 text-xs text-muted">
-            Cuando un agente reciba mensajes, vas a verlos acá.
-          </p>
+          <h3 className="text-sm font-medium text-body">{t("emptyTitle")}</h3>
+          <p className="mt-1 text-xs text-muted">{t("emptyDescription")}</p>
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-line">
@@ -308,36 +311,40 @@ export function ConversationsClient({
                   c.status === "open"
                     ? "h-2 w-2 rounded-full bg-emerald-400"
                     : c.status === "escalated"
-                    ? "h-2 w-2 rounded-full bg-amber-400"
-                    : "h-2 w-2 rounded-full bg-zinc-700"
+                      ? "h-2 w-2 rounded-full bg-amber-400"
+                      : "h-2 w-2 rounded-full bg-zinc-700"
                 }
               />
               <div className="flex-1">
                 <div className="flex items-center gap-2 text-strong">
                   <span className="font-medium">
-                    {c.employeeName ?? c.customerName ?? c.customerEmail ?? c.employeeEmail ?? "Anónimo"}
+                    {c.employeeName ??
+                      c.customerName ??
+                      c.customerEmail ??
+                      c.employeeEmail ??
+                      t("anonymous")}
                   </span>
                   {c.agentName && (
                     <span className="text-[10px] text-muted">
-                      con <span className="text-body">{c.agentName}</span>
+                      {t("withAgent")} <span className="text-body">{c.agentName}</span>
                     </span>
                   )}
                   {c.takenOverAt && (
                     <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-amber-700 dark:text-amber-300">
-                      take-over
+                      {t("takeOverBadge")}
                     </span>
                   )}
-                  {(c.tags ?? []).map((t) => (
+                  {(c.tags ?? []).map((tag) => (
                     <span
-                      key={t}
+                      key={tag}
                       className="rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[9px] text-violet-700 dark:text-violet-300"
                     >
-                      {t}
+                      {tag}
                     </span>
                   ))}
                 </div>
                 <div className="mt-0.5 text-[10px] text-muted">
-                  {c.channelType ?? "—"} · {c.messageCount} mensajes ·{" "}
+                  {c.channelType ?? "—"} · {c.messageCount} {t("messages")} ·{" "}
                   {new Date(c.startedAt).toLocaleString()}
                   {c.csat != null && ` · CSAT ${c.csat}/5`}
                   {c.totalCostUsd != null && Number(c.totalCostUsd) > 0 && (
@@ -358,12 +365,12 @@ export function ConversationsClient({
                 disabled={loadingMore}
                 className="rounded-lg border border-line bg-card px-4 py-1.5 text-xs text-body transition-colors hover:border-violet-500/40 hover:bg-violet-500/5 disabled:opacity-50"
               >
-                {loadingMore ? "Cargando…" : `Cargar ${PAGE_SIZE} más`}
+                {loadingMore ? t("loadingMore") : t("loadMore", { n: PAGE_SIZE })}
               </button>
             </div>
           )}
           <div className="border-t border-line bg-card px-4 py-2 text-center text-[10px] text-faint">
-            Mostrando {conversations.length} {hasMore ? "(hay más)" : ""}
+            {t("showing", { count: conversations.length })} {hasMore ? t("hasMore") : ""}
           </div>
         </div>
       )}
@@ -391,6 +398,7 @@ function ConversationDrawer({
   onClose: () => void;
   onUpdated: () => void;
 }) {
+  const t = useTranslations("pages.conversations");
   const [messages, setMessages] = useState<Msg[]>([]);
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
@@ -414,7 +422,7 @@ function ConversationDrawer({
     setBusy(true);
     await fetch(`/api/conversations/${conversation.id}/takeover`, { method: "POST" });
     setBusy(false);
-    toast.success("Conversación tomada");
+    toast.success(t("actions.taken"));
     onUpdated();
   }
 
@@ -422,7 +430,7 @@ function ConversationDrawer({
     setBusy(true);
     await fetch(`/api/conversations/${conversation.id}/takeover`, { method: "DELETE" });
     setBusy(false);
-    toast.success("Devuelta al agente");
+    toast.success(t("actions.returned"));
     onUpdated();
   }
 
@@ -437,10 +445,10 @@ function ConversationDrawer({
     setBusy(false);
     if (r.ok) {
       setReply("");
-      toast.success("Mensaje enviado");
+      toast.success(t("actions.sent"));
       const j = await fetch(`/api/conversations/${conversation.id}`).then((x) => x.json());
       setMessages(j?.messages ?? []);
-    } else toast.error("No se pudo enviar");
+    } else toast.error(t("actions.sendError"));
   }
 
   async function changeStatus(s: "open" | "closed" | "escalated") {
@@ -471,10 +479,16 @@ function ConversationDrawer({
           <div className="flex items-center gap-2 text-sm text-strong">
             <User className="h-4 w-4 text-muted" />
             <span className="font-medium">
-              {conversation.employeeName ?? conversation.customerName ?? conversation.customerEmail ?? conversation.employeeEmail ?? "Anónimo"}
+              {conversation.employeeName ??
+                conversation.customerName ??
+                conversation.customerEmail ??
+                conversation.employeeEmail ??
+                t("anonymous")}
             </span>
             {conversation.agentName && (
-              <span className="text-[11px] text-muted">· con {conversation.agentName}</span>
+              <span className="text-[11px] text-muted">
+                · {t("withAgent")} {conversation.agentName}
+              </span>
             )}
             <span className="text-[11px] text-muted">· {conversation.channelType}</span>
           </div>
@@ -490,15 +504,13 @@ function ConversationDrawer({
               <DollarSign className="h-3 w-3" />
               <span className="font-medium">{fmtUsd(totalCost)}</span>
               <span className="text-faint">
-                · {totalTokens.toLocaleString()} tokens
+                · {totalTokens.toLocaleString()} {t("drawer.tokens")}
               </span>
             </div>
-            {budget && budget.budgetUsd != null && (
-              <BudgetMeter budget={budget} />
-            )}
+            {budget && budget.budgetUsd != null && <BudgetMeter budget={budget} />}
             {budget && budget.budgetUsd == null && budget.spentUsd > 0 && (
               <span className="text-muted">
-                Empleado: {fmtUsd(budget.spentUsd)} este mes (sin límite)
+                {t("drawer.employeeMonth", { amount: fmtUsd(budget.spentUsd) })}
               </span>
             )}
           </div>
@@ -510,9 +522,9 @@ function ConversationDrawer({
             onChange={(e) => changeStatus(e.target.value as "open" | "closed" | "escalated")}
             className="rounded-md border border-line bg-elevated px-2 py-1 text-body outline-none"
           >
-            <option value="open">Abierta</option>
-            <option value="escalated">Escalada</option>
-            <option value="closed">Cerrada</option>
+            <option value="open">{t("status.open")}</option>
+            <option value="escalated">{t("status.escalated")}</option>
+            <option value="closed">{t("status.closed")}</option>
           </select>
           {!conversation.takenOverAt ? (
             <button
@@ -521,7 +533,7 @@ function ConversationDrawer({
               disabled={busy}
               className="flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-1 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25"
             >
-              <UserCheck className="h-3 w-3" /> Tomar
+              <UserCheck className="h-3 w-3" /> {t("actions.takeOver")}
             </button>
           ) : (
             <button
@@ -530,7 +542,7 @@ function ConversationDrawer({
               disabled={busy}
               className="rounded-md bg-emerald-500/15 px-2 py-1 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25"
             >
-              Devolver al agente
+              {t("actions.release")}
             </button>
           )}
           <div className="flex items-center gap-1.5">
@@ -567,31 +579,33 @@ function ConversationDrawer({
                   m.role === "user"
                     ? "ml-auto max-w-[80%] rounded-2xl rounded-br-sm bg-elevated px-3 py-2 text-sm text-strong"
                     : isBudgetExceeded
-                    ? "mr-auto max-w-[80%] rounded-2xl rounded-bl-sm border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-100"
-                    : "mr-auto max-w-[80%] rounded-2xl rounded-bl-sm border border-line bg-card px-3 py-2 text-sm text-strong"
+                      ? "mr-auto max-w-[80%] rounded-2xl rounded-bl-sm border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-100"
+                      : "mr-auto max-w-[80%] rounded-2xl rounded-bl-sm border border-line bg-card px-3 py-2 text-sm text-strong"
                 }
               >
                 {m.fromOperator && (
                   <div className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                    <UserCheck className="h-2.5 w-2.5" /> Operador
+                    <UserCheck className="h-2.5 w-2.5" /> {t("drawer.operator")}
                   </div>
                 )}
                 {!m.fromOperator && m.role === "assistant" && !isBudgetExceeded && (
                   <div className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wider text-violet-600 dark:text-violet-400">
-                    <Bot className="h-2.5 w-2.5" /> Agente
+                    <Bot className="h-2.5 w-2.5" /> {t("drawer.agent")}
                   </div>
                 )}
                 {isBudgetExceeded && (
                   <div className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wider text-rose-700 dark:text-rose-300">
-                    <DollarSign className="h-2.5 w-2.5" /> Budget excedido
+                    <DollarSign className="h-2.5 w-2.5" /> {t("drawer.budgetExceeded")}
                   </div>
                 )}
                 <div className="whitespace-pre-wrap">{m.content}</div>
-                {/* Footer: tokens + costo + modelo. Solo en mensajes del agente que sí
-                    consumieron LLM (budget_exceeded los muestra el banner rojo). */}
+                {/* Footer: tokens + cost + model. Only on agent messages that actually
+                    consumed LLM (budget_exceeded shown via red banner). */}
                 {m.role === "assistant" && !m.fromOperator && (m.tokensUsed ?? 0) > 0 && (
                   <div className="mt-1 flex items-center gap-2 border-t border-line pt-1 text-[9px] text-muted">
-                    <span>{m.tokensUsed} tokens</span>
+                    <span>
+                      {m.tokensUsed} {t("drawer.tokens")}
+                    </span>
                     {cost > 0 && <span className="text-emerald-400/70">{fmtUsd(cost)}</span>}
                     {m.model && <span className="text-faint">{m.model}</span>}
                   </div>
@@ -613,7 +627,7 @@ function ConversationDrawer({
             }}
             rows={2}
             placeholder={
-              conversation.takenOverAt ? "Responder como operador…" : "Tomá la conversación para escribir como humano"
+              conversation.takenOverAt ? t("drawer.replyAsOperator") : t("drawer.takeoverPrompt")
             }
             disabled={!conversation.takenOverAt && conversation.status !== "escalated"}
             className="w-full resize-none rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong placeholder:text-faint outline-none focus:border-violet-500/60 disabled:opacity-50"
@@ -624,7 +638,7 @@ function ConversationDrawer({
             disabled={busy || !reply.trim()}
             className="mt-1.5 w-full rounded-lg bg-violet-500 py-2 text-xs font-medium text-white hover:bg-violet-400 disabled:opacity-40"
           >
-            Enviar
+            {t("actions.send")}
           </button>
         </div>
       </div>
@@ -633,21 +647,23 @@ function ConversationDrawer({
 }
 
 /**
- * Pill compacto que muestra cuánto del budget mensual del empleado se usó.
- * Verde <70%, ámbar 70-90%, rojo ≥90% (también si excedió y allowed=false).
+ * Compact pill showing the employee's monthly budget consumption.
+ * Green <70%, amber 70–90%, red ≥90% (also when exceeded and allowed=false).
  */
 function BudgetMeter({ budget }: { budget: BudgetStatus }) {
+  const t = useTranslations("pages.conversations");
   if (budget.budgetUsd == null) return null;
   const pct = Math.min(100, (budget.spentUsd / budget.budgetUsd) * 100);
-  const tone = !budget.allowed || pct >= 90
-    ? "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300"
-    : pct >= 70
-    ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+  const tone =
+    !budget.allowed || pct >= 90
+      ? "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300"
+      : pct >= 70
+        ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+        : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
   return (
     <span
       className={`flex items-center gap-1.5 rounded-md border px-2 py-0.5 ${tone}`}
-      title={`${budget.conversationCount} conversaciones este mes`}
+      title={t("drawer.conversationsCount", { n: budget.conversationCount })}
     >
       <span className="font-medium">{fmtUsd(budget.spentUsd)}</span>
       <span className="opacity-70">/ {fmtUsd(budget.budgetUsd)}</span>

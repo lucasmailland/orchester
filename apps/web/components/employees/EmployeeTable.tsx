@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Input } from "@heroui/react";
 import { Search, DollarSign, Pencil } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,7 @@ interface EmployeeTableProps {
 }
 
 export function EmployeeTable({ employees: initial, labels }: EmployeeTableProps) {
+  const t = useTranslations("pages.employees.budget");
   const [query, setQuery] = useState("");
   const [employees, setEmployees] = useState<Employee[]>(initial);
 
@@ -45,14 +47,14 @@ export function EmployeeTable({ employees: initial, labels }: EmployeeTableProps
   async function editBudget(emp: Employee) {
     const current = emp.monthlyBudgetUsd != null ? Number(emp.monthlyBudgetUsd) : null;
     const raw = window.prompt(
-      `Budget mensual en USD para ${emp.name} (vacío = sin límite)`,
+      t("prompt", { name: emp.name }),
       current != null ? String(current) : ""
     );
-    if (raw === null) return; // cancelado
+    if (raw === null) return; // cancelled
     const trimmed = raw.trim();
     const value = trimmed === "" ? null : Number(trimmed);
     if (value !== null && (Number.isNaN(value) || value < 0)) {
-      toast.error("El budget debe ser un número ≥ 0 o vacío");
+      toast.error(t("invalid"));
       return;
     }
     const r = await fetch(`/api/employees/${emp.id}/budget`, {
@@ -61,7 +63,7 @@ export function EmployeeTable({ employees: initial, labels }: EmployeeTableProps
       body: JSON.stringify({ monthlyBudgetUsd: value }),
     });
     if (!r.ok) {
-      toast.error("No se pudo actualizar");
+      toast.error(t("updateError"));
       return;
     }
     setEmployees((prev) =>
@@ -69,7 +71,7 @@ export function EmployeeTable({ employees: initial, labels }: EmployeeTableProps
         e.id === emp.id ? { ...e, monthlyBudgetUsd: value == null ? null : String(value) } : e
       )
     );
-    toast.success(value == null ? "Budget removido" : `Budget: $${value}/mes`);
+    toast.success(value == null ? t("removed") : t("set", { value: String(value) }));
   }
 
   return (
@@ -102,7 +104,11 @@ export function EmployeeTable({ employees: initial, labels }: EmployeeTableProps
               )}
             >
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-blue-600 text-[11px] font-bold text-white">
-                {emp.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                {emp.name
+                  .split(" ")
+                  .map((w) => w[0])
+                  .slice(0, 2)
+                  .join("")}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-strong">{emp.name}</p>
@@ -115,8 +121,18 @@ export function EmployeeTable({ employees: initial, labels }: EmployeeTableProps
                   </span>
                 )}
                 <div className="flex items-center gap-1.5">
-                  <span className={cn("h-1.5 w-1.5 rounded-full", emp.active ? "bg-emerald-400" : "bg-zinc-600")} />
-                  <span className={cn("text-[11px] font-medium", emp.active ? "text-emerald-600 dark:text-emerald-400" : "text-muted")}>
+                  <span
+                    className={cn(
+                      "h-1.5 w-1.5 rounded-full",
+                      emp.active ? "bg-emerald-400" : "bg-zinc-600"
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      "text-[11px] font-medium",
+                      emp.active ? "text-emerald-600 dark:text-emerald-400" : "text-muted"
+                    )}
+                  >
                     {emp.active ? labels.active : labels.inactive}
                   </span>
                 </div>
@@ -132,12 +148,12 @@ export function EmployeeTable({ employees: initial, labels }: EmployeeTableProps
                     ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20"
                     : "border-line text-muted hover:bg-hover hover:text-body"
                 )}
-                aria-label={`Editar budget de ${emp.name}`}
+                aria-label={t("editAria", { name: emp.name })}
               >
                 <DollarSign className="h-3 w-3" />
                 {emp.monthlyBudgetUsd != null
-                  ? `$${Number(emp.monthlyBudgetUsd).toFixed(0)}/mes`
-                  : "Sin límite"}
+                  ? t("perMonth", { value: Number(emp.monthlyBudgetUsd).toFixed(0) })
+                  : t("noLimit")}
                 <Pencil className="h-2.5 w-2.5 opacity-60" />
               </button>
             </motion.div>

@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { Bot, Radio, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { APPLE_EASE } from "@/lib/motion";
 
@@ -16,9 +17,23 @@ interface TeamCardProps {
   locale: string;
 }
 
-export function TeamCard({ id, name, description, avatarColor, agentCount, channelCount, locale }: TeamCardProps) {
+export function TeamCard({
+  id,
+  name,
+  description,
+  avatarColor,
+  agentCount,
+  channelCount,
+  locale,
+}: TeamCardProps) {
+  const t = useTranslations("pages.teams");
   const color = avatarColor ?? "#7C3AED";
-  const initials = name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
+  const initials = name
+    .split(" ")
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 
   return (
     <motion.div
@@ -39,7 +54,9 @@ export function TeamCard({ id, name, description, avatarColor, agentCount, chann
         {/* Top accent gradient */}
         <div
           className="h-[2px] w-full"
-          style={{ background: `linear-gradient(90deg, ${color}70 0%, ${color}28 60%, transparent 100%)` }}
+          style={{
+            background: `linear-gradient(90deg, ${color}70 0%, ${color}28 60%, transparent 100%)`,
+          }}
         />
 
         <div className="p-5">
@@ -59,22 +76,27 @@ export function TeamCard({ id, name, description, avatarColor, agentCount, chann
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="truncate text-sm font-semibold text-strong">{name}</h3>
-                <ChevronRight size={14} className="shrink-0 text-faint transition-colors group-hover:text-muted" />
+                <ChevronRight
+                  size={14}
+                  className="shrink-0 text-faint transition-colors group-hover:text-muted"
+                />
               </div>
               {description && (
-                <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted">{description}</p>
+                <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted">
+                  {description}
+                </p>
               )}
               {/* Stats row */}
               <div className="mt-3 flex items-center gap-4">
                 <span className="flex items-center gap-1.5 text-xs text-muted">
                   <Bot size={11} className="text-faint" />
-                  <span className="font-semibold text-body">{agentCount}</span>
-                  {agentCount === 1 ? " agente" : " agentes"}
+                  <span className="font-semibold text-body">{agentCount}</span>{" "}
+                  {agentCount === 1 ? t("agent") : t("agents")}
                 </span>
                 <span className="flex items-center gap-1.5 text-xs text-muted">
                   <Radio size={11} className="text-faint" />
-                  <span className="font-semibold text-body">{channelCount}</span>
-                  {channelCount === 1 ? " canal" : " canales"}
+                  <span className="font-semibold text-body">{channelCount}</span>{" "}
+                  {channelCount === 1 ? t("channel") : t("channels")}
                 </span>
               </div>
             </div>

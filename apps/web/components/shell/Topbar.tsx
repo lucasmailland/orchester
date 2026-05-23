@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Avatar } from "@heroui/react";
+import { useTranslations } from "next-intl";
 import { ThemeToggle } from "./ThemeToggle";
 import { LanguageSelector } from "./LanguageSelector";
 import { PresentationModeToggle } from "./PresentationModeToggle";
@@ -17,6 +18,7 @@ interface TopbarProps {
 
 export function Topbar({ locale: _locale, userName, userImage }: TopbarProps) {
   const { isPresenting } = usePresentationMode();
+  const t = useTranslations("shell");
 
   const initials = userName
     ? userName
@@ -45,7 +47,7 @@ export function Topbar({ locale: _locale, userName, userImage }: TopbarProps) {
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
           </span>
           <span className="text-[11px] font-medium uppercase tracking-wider text-faint">
-            Live
+            {t("live")}
           </span>
         </div>
 
@@ -56,7 +58,7 @@ export function Topbar({ locale: _locale, userName, userImage }: TopbarProps) {
             exit={{ opacity: 0, x: -8 }}
             className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-[11px] font-medium text-violet-600 dark:text-violet-400"
           >
-            Presentation Mode
+            {t("presentationMode")}
           </motion.span>
         )}
       </div>

@@ -4,10 +4,18 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, Bot, Pencil, Trash2, Radio, Globe, MessageCircle,
-  Send, ExternalLink,
+  ArrowLeft,
+  Bot,
+  Pencil,
+  Trash2,
+  Radio,
+  Globe,
+  MessageCircle,
+  Send,
+  ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { APPLE_EASE, staggerContainer, staggerItem } from "@/lib/motion";
 import { toast } from "sonner";
@@ -98,24 +106,30 @@ interface TeamDetailClientProps {
 
 export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailClientProps) {
   const router = useRouter();
+  const t = useTranslations("pages.teams");
   const color = team.avatarColor ?? "#7C3AED";
-  const initials = team.name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
+  const initials = team.name
+    .split(" ")
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
   const [editTeamOpen, setEditTeamOpen] = useState(false);
 
   async function deleteTeam() {
     const ok = await confirm({
       title: labels.confirmDelete,
-      confirmText: "Eliminar",
+      confirmText: t("deleteConfirm"),
       destructive: true,
     });
     if (!ok) return;
     const r = await fetch(`/api/teams/${team.id}`, { method: "DELETE" });
     if (r.ok) {
-      toast.success("Equipo eliminado");
+      toast.success(t("teamDeleted"));
       router.back();
       router.refresh();
     } else {
-      toast.error("No se pudo eliminar");
+      toast.error(t("deleteError"));
     }
   }
 
@@ -152,7 +166,9 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
             <div>
               <h1 className="font-display text-xl font-bold text-strong">{team.name}</h1>
               {team.description && (
-                <p className="mt-1 max-w-xl text-sm leading-relaxed text-muted">{team.description}</p>
+                <p className="mt-1 max-w-xl text-sm leading-relaxed text-muted">
+                  {team.description}
+                </p>
               )}
               <div className="mt-2 flex items-center gap-4">
                 <span className="flex items-center gap-1.5 text-xs text-muted">
@@ -161,7 +177,7 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
                 </span>
                 <span className="flex items-center gap-1.5 text-xs text-muted">
                   <Radio size={12} className="text-faint" />
-                  <span className="font-semibold text-body">{channels.length}</span> canales
+                  <span className="font-semibold text-body">{channels.length}</span> {t("channels")}
                 </span>
               </div>
             </div>
@@ -192,13 +208,13 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
         <div className="lg:col-span-2 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-bold uppercase tracking-widest text-muted">
-              Agentes del equipo
+              {t("teamAgentsHeading")}
             </h2>
             <Link
               href={`/${labels.locale}/agents`}
               className="flex items-center gap-1 text-[11px] text-faint transition-colors hover:text-violet-600 dark:hover:text-violet-400"
             >
-              Gestionar agentes
+              {t("manageAgents")}
               <ExternalLink size={10} />
             </Link>
           </div>
@@ -206,16 +222,21 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
           {agents.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-line py-10 text-center">
               <Bot size={20} className="text-faint" />
-              <p className="text-xs text-faint">Este equipo no tiene agentes.</p>
+              <p className="text-xs text-faint">{t("noAgentsInTeam")}</p>
               <Link
                 href={`/${labels.locale}/agents`}
                 className="rounded-lg bg-violet-600/20 px-3 py-1.5 text-xs font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-600/30"
               >
-                Ir a Agentes →
+                {t("goToAgents")}
               </Link>
             </div>
           ) : (
-            <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="space-y-2">
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              animate="visible"
+              className="space-y-2"
+            >
               {agents.map((agent) => (
                 <motion.div
                   key={agent.id}
@@ -227,7 +248,12 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
                     {agent.status === "active" && (
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
                     )}
-                    <span className={cn("relative inline-flex h-2 w-2 rounded-full", STATUS_DOT[agent.status] ?? "bg-zinc-600")} />
+                    <span
+                      className={cn(
+                        "relative inline-flex h-2 w-2 rounded-full",
+                        STATUS_DOT[agent.status] ?? "bg-zinc-600"
+                      )}
+                    />
                   </span>
 
                   <div className="min-w-0 flex-1">
@@ -239,7 +265,12 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
                     <span className="rounded border border-zinc-700/50 bg-surface px-1.5 py-0.5 font-mono text-[10px] text-muted">
                       {MODEL_SHORT[agent.model] ?? agent.model}
                     </span>
-                    <span className={cn("text-[10px] font-semibold uppercase tracking-wide", STATUS_LABEL[agent.status] ?? "text-muted")}>
+                    <span
+                      className={cn(
+                        "text-[10px] font-semibold uppercase tracking-wide",
+                        STATUS_LABEL[agent.status] ?? "text-muted"
+                      )}
+                    >
                       {agent.status}
                     </span>
                   </div>
@@ -253,13 +284,13 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-bold uppercase tracking-widest text-muted">
-              Canales conectados
+              {t("connectedChannels")}
             </h2>
             <Link
               href={`/${labels.locale}/channels`}
               className="flex items-center gap-1 text-[11px] text-faint transition-colors hover:text-violet-600 dark:hover:text-violet-400"
             >
-              Ver canales
+              {t("seeChannels")}
               <ExternalLink size={10} />
             </Link>
           </div>
@@ -267,10 +298,15 @@ export function TeamDetailClient({ team, agents, channels, labels }: TeamDetailC
           {channels.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-line py-8 text-center">
               <Radio size={18} className="text-faint" />
-              <p className="text-xs text-faint">Sin canales activos.</p>
+              <p className="text-xs text-faint">{t("noActiveChannels")}</p>
             </div>
           ) : (
-            <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="space-y-2">
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              animate="visible"
+              className="space-y-2"
+            >
               {channels.map((ch) => {
                 const chColor = CHANNEL_COLORS[ch.type] ?? "#94a3b8";
                 const chIcon = CHANNEL_ICONS[ch.type] ?? <Radio size={14} />;

@@ -1,14 +1,8 @@
 "use client";
 
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter, usePathname } from "next/navigation";
-import {
-  Dropdown,
-  DropdownTrigger,
-  DropdownMenu,
-  DropdownItem,
-  Button,
-} from "@heroui/react";
+import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Button } from "@heroui/react";
 import { Globe } from "lucide-react";
 import { routing } from "@/i18n/routing";
 
@@ -28,6 +22,7 @@ export function LanguageSelector() {
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
+  const t = useTranslations("shell");
 
   function switchLocale(newLocale: string) {
     const segments = pathname.split("/");
@@ -51,7 +46,7 @@ export function LanguageSelector() {
         </Button>
       </DropdownTrigger>
       <DropdownMenu
-        aria-label="Select language"
+        aria-label={t("selectLanguage")}
         onAction={(key) => switchLocale(String(key))}
         selectedKeys={[locale]}
         selectionMode="single"

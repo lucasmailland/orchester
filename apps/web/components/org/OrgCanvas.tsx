@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "next-themes";
+import { useTranslations } from "next-intl";
 import {
   ReactFlow,
   Background,
@@ -59,17 +60,24 @@ const EDGE_COLORS: Record<string, string> = {
 /* ─────────────────── custom node renderers ─────────────────── */
 
 function WorkspaceNode({ data }: NodeProps) {
-  const d = data as { label: string; meta?: { teamCount?: number; agentCount?: number; flowCount?: number } };
+  const t = useTranslations("pages.org.node");
+  const d = data as {
+    label: string;
+    meta?: { teamCount?: number; agentCount?: number; flowCount?: number };
+  };
   return (
     <div className="relative flex min-w-[260px] items-center gap-3 rounded-2xl border border-violet-400/40 bg-gradient-to-br from-violet-500/15 via-zinc-900 to-zinc-900 px-4 py-3 shadow-[0_0_60px_-15px_rgba(139,92,246,0.5)]">
       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/20 text-violet-200">
         <Building2 className="h-5 w-5" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-300/80">Workspace</div>
+        <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-300/80">
+          {t("workspace")}
+        </div>
         <div className="truncate text-base font-semibold text-white">{d.label}</div>
         <div className="mt-0.5 text-[10px] text-white/60">
-          {d.meta?.teamCount ?? 0} equipos · {d.meta?.agentCount ?? 0} agentes · {d.meta?.flowCount ?? 0} flujos
+          {d.meta?.teamCount ?? 0} {t("teams")} · {d.meta?.agentCount ?? 0} {t("agents")} ·{" "}
+          {d.meta?.flowCount ?? 0} {t("flows")}
         </div>
       </div>
       <Handle type="source" position={Position.Bottom} style={{ background: COLORS.workspace }} />
@@ -78,9 +86,16 @@ function WorkspaceNode({ data }: NodeProps) {
 }
 
 function TeamNode({ data }: NodeProps) {
+  const t = useTranslations("pages.org.node");
   const d = data as {
     label: string;
-    meta?: { color?: string; agentCount?: number; activeCount?: number; description?: string; orphan?: boolean };
+    meta?: {
+      color?: string;
+      agentCount?: number;
+      activeCount?: number;
+      description?: string;
+      orphan?: boolean;
+    };
   };
   const color = d.meta?.color ?? COLORS.team;
   return (
@@ -89,15 +104,20 @@ function TeamNode({ data }: NodeProps) {
       style={{ borderTopWidth: 3, borderTopColor: color }}
     >
       <Handle type="target" position={Position.Top} style={{ background: color }} />
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: color + "22", color }}>
+      <div
+        className="flex h-8 w-8 items-center justify-center rounded-lg"
+        style={{ background: color + "22", color }}
+      >
         <Layers className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium text-strong">{d.label}</div>
         <div className="text-[10px] text-muted">
-          {d.meta?.agentCount ?? 0} agentes
+          {d.meta?.agentCount ?? 0} {t("agents")}
           {(d.meta?.activeCount ?? 0) > 0 && (
-            <span className="ml-1 text-emerald-600 dark:text-emerald-400">· {d.meta?.activeCount} activos</span>
+            <span className="ml-1 text-emerald-600 dark:text-emerald-400">
+              · {d.meta?.activeCount} {t("active")}
+            </span>
           )}
         </div>
       </div>
@@ -107,6 +127,7 @@ function TeamNode({ data }: NodeProps) {
 }
 
 function AgentNode({ data }: NodeProps) {
+  const t = useTranslations("pages.org.node");
   const d = data as {
     label: string;
     meta?: {
@@ -129,10 +150,18 @@ function AgentNode({ data }: NodeProps) {
       style={{ borderLeftWidth: 3, borderLeftColor: color }}
     >
       <Handle type="target" position={Position.Top} style={{ background: color }} />
-      <Handle type="source" position={Position.Right} id="out-right" style={{ background: color }} />
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="out-right"
+        style={{ background: color }}
+      />
       <Handle type="target" position={Position.Left} id="in-left" style={{ background: color }} />
       <div className="flex items-center gap-2.5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg text-white" style={{ background: color }}>
+        <div
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-white"
+          style={{ background: color }}
+        >
           <Bot className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
@@ -143,8 +172,8 @@ function AgentNode({ data }: NodeProps) {
                 status === "active"
                   ? "h-1.5 w-1.5 rounded-full bg-emerald-400"
                   : status === "draft"
-                  ? "h-1.5 w-1.5 rounded-full bg-amber-400"
-                  : "h-1.5 w-1.5 rounded-full bg-zinc-600"
+                    ? "h-1.5 w-1.5 rounded-full bg-amber-400"
+                    : "h-1.5 w-1.5 rounded-full bg-zinc-600"
               }
               title={status}
             />
@@ -156,7 +185,7 @@ function AgentNode({ data }: NodeProps) {
         <span className="font-mono">{d.meta?.model}</span>
         {isFlow && (
           <span className="rounded bg-amber-500/15 px-1 py-0.5 text-[9px] uppercase tracking-wider text-amber-700 dark:text-amber-300">
-            Flow
+            {t("flow")}
           </span>
         )}
         {(d.meta?.toolCount ?? 0) > 0 && (
@@ -175,7 +204,10 @@ function AgentNode({ data }: NodeProps) {
 }
 
 function FlowNode({ data }: NodeProps) {
-  const d = data as { label: string; meta?: { live?: boolean; agentCount?: number; status?: string } };
+  const d = data as {
+    label: string;
+    meta?: { live?: boolean; agentCount?: number; status?: string };
+  };
   return (
     <div className="relative flex min-w-[180px] items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1.5 shadow-[0_8px_24px_rgba(245,158,11,0.15)]">
       <Handle type="source" position={Position.Bottom} style={{ background: COLORS.flow }} />
@@ -310,13 +342,13 @@ function layoutNodes(rawNodes: OrgNode[], rawEdges: OrgEdge[]): Node[] {
 
 /* ─────────────────── canvas component ─────────────────── */
 
-
 export function OrgCanvas() {
   const router = useRouter();
   const { resolvedTheme } = useTheme();
   const isLight = resolvedTheme === "light";
   const params = useParams<{ locale: string }>();
   const locale = params?.locale ?? "es";
+  const t = useTranslations("pages.org");
   const [data, setData] = useState<{ nodes: OrgNode[]; edges: OrgEdge[]; summary?: Summary }>({
     nodes: [],
     edges: [],
@@ -351,7 +383,9 @@ export function OrgCanvas() {
     const matches = (n: OrgNode) =>
       n.type === "workspace" ||
       n.label.toLowerCase().includes(norm) ||
-      String((n.meta?.role as string) ?? "").toLowerCase().includes(norm);
+      String((n.meta?.role as string) ?? "")
+        .toLowerCase()
+        .includes(norm);
 
     // Build child→parent map from team-agent edges, then ensure ancestors are kept.
     const parentOf = new Map<string, string>();
@@ -429,7 +463,11 @@ export function OrgCanvas() {
 
   const [flowNodes, setFlowNodes] = useState<Node[]>([]);
   const layoutKey = useMemo(
-    () => visibleNodes.map((n) => n.id).sort().join(","),
+    () =>
+      visibleNodes
+        .map((n) => n.id)
+        .sort()
+        .join(","),
     [visibleNodes]
   );
 
@@ -521,7 +559,8 @@ export function OrgCanvas() {
     const id = node.id;
     if (id.startsWith("agent:")) router.push(`/${locale}/agents/${id.slice(6)}`);
     else if (id.startsWith("flow:")) router.push(`/${locale}/flows/${id.slice(5)}`);
-    else if (id.startsWith("team:") && !id.endsWith("__orphan__")) router.push(`/${locale}/teams/${id.slice(5)}`);
+    else if (id.startsWith("team:") && !id.endsWith("__orphan__"))
+      router.push(`/${locale}/teams/${id.slice(5)}`);
   }
 
   return (
@@ -532,7 +571,7 @@ export function OrgCanvas() {
           <input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Buscar agente, equipo, flujo…"
+            placeholder={t("searchPlaceholder")}
             className="w-48 bg-transparent text-xs text-strong placeholder:text-faint outline-none"
           />
         </div>
@@ -540,23 +579,27 @@ export function OrgCanvas() {
           type="button"
           onClick={resetLayout}
           className="rounded-md border border-line px-2.5 py-1 text-xs text-muted hover:bg-hover"
-          title="Volver al layout original"
+          title={t("resetLayoutTitle")}
         >
-          Reset layout
+          {t("resetLayout")}
         </button>
         <div className="ml-auto flex items-center gap-3 text-[11px] text-muted">
           {data.summary && (
             <>
               <span>
-                <strong className="text-body">{data.summary.teams}</strong> equipos
+                <strong className="text-body">{data.summary.teams}</strong> {t("summary.teams")}
               </span>
               <span>
-                <strong className="text-body">{data.summary.agents}</strong> agentes ({data.summary.activeAgents} activos)
+                <strong className="text-body">{data.summary.agents}</strong> {t("summary.agents")} (
+                {data.summary.activeAgents} {t("summary.agentsActive")})
               </span>
               <span>
-                <strong className="text-body">{data.summary.flows}</strong> flujos
+                <strong className="text-body">{data.summary.flows}</strong> {t("summary.flows")}
                 {data.summary.liveFlows > 0 && (
-                  <span className="text-emerald-600 dark:text-emerald-400"> · {data.summary.liveFlows} live</span>
+                  <span className="text-emerald-600 dark:text-emerald-400">
+                    {" "}
+                    · {data.summary.liveFlows} {t("summary.live")}
+                  </span>
                 )}
               </span>
             </>
@@ -568,13 +611,13 @@ export function OrgCanvas() {
         {data.nodes.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-muted">
             <Bot className="mb-3 h-10 w-10 text-faint" />
-            <p className="text-sm">Aún no hay agentes ni equipos.</p>
+            <p className="text-sm">{t("empty")}</p>
             <button
               type="button"
               onClick={() => router.push(`/${locale}/agents`)}
               className="mt-3 rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-400"
             >
-              Crear el primer agente
+              {t("createFirstAgent")}
             </button>
           </div>
         ) : (

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Workflow, Plus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { NoProviderBanner } from "@/components/common/NoProviderBanner";
 
 interface Item {
@@ -17,6 +18,7 @@ interface Item {
 
 export function FlowsListClient({ flows }: { flows: Item[] }) {
   const router = useRouter();
+  const t = useTranslations("pages.flows");
   const params = useParams<{ locale: string }>();
   const locale = params?.locale ?? "es";
   const [creating, setCreating] = useState(false);
@@ -40,17 +42,15 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
       <NoProviderBanner />
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-strong">Flujos</h1>
-          <p className="text-sm text-muted">
-            Conectá tus agentes en pipelines visuales que se ejecutan automáticamente.
-          </p>
+          <h1 className="text-xl font-semibold text-strong">{t("title")}</h1>
+          <p className="text-sm text-muted">{t("subtitle")}</p>
         </div>
         <button
           type="button"
           onClick={() => setCreating(true)}
           className="flex items-center gap-1.5 rounded-lg bg-violet-500 px-3.5 py-2 text-sm font-medium text-white hover:bg-violet-400"
         >
-          <Plus className="h-4 w-4" /> Nuevo flujo
+          <Plus className="h-4 w-4" /> {t("newFlow")}
         </button>
       </div>
 
@@ -59,7 +59,7 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Nombre del flujo"
+            placeholder={t("namePlaceholder")}
             className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
             autoFocus
             onKeyDown={(e) => e.key === "Enter" && create()}
@@ -70,14 +70,14 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
               onClick={create}
               className="rounded-lg bg-violet-500 px-3 py-1.5 text-xs text-white hover:bg-violet-400"
             >
-              Crear
+              {t("create")}
             </button>
             <button
               type="button"
               onClick={() => setCreating(false)}
               className="text-xs text-muted hover:text-body"
             >
-              Cancelar
+              {t("cancel")}
             </button>
           </div>
         </div>
@@ -86,10 +86,8 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
       {flows.length === 0 && !creating && (
         <div className="rounded-2xl border border-dashed border-line p-10 text-center">
           <Workflow className="mx-auto mb-3 h-8 w-8 text-faint" />
-          <h3 className="text-sm font-medium text-body">Aún no hay flujos</h3>
-          <p className="mt-1 text-xs text-muted">
-            Creá tu primer flujo para empezar a orquestar agentes.
-          </p>
+          <h3 className="text-sm font-medium text-body">{t("emptyTitle")}</h3>
+          <p className="mt-1 text-xs text-muted">{t("emptyDescription")}</p>
         </div>
       )}
 
@@ -109,7 +107,9 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
             </div>
             <p className="line-clamp-2 text-xs text-muted">{f.description ?? "—"}</p>
             <div className="mt-3 flex items-center justify-between text-[10px] text-faint">
-              <span>{f.nodeCount} nodos</span>
+              <span>
+                {f.nodeCount} {t("nodes")}
+              </span>
               <span>{f.status}</span>
             </div>
           </motion.button>

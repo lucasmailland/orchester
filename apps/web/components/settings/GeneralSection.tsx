@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Building2, Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Field, FieldRow, SettingsCard } from "./_layout";
 
 interface Props {
@@ -40,6 +41,7 @@ const COMMON_TZS = [
 
 export function GeneralSection({ workspace }: Props) {
   const router = useRouter();
+  const t = useTranslations("pages.settings.general");
   const canEdit = workspace.role === "owner" || workspace.role === "admin";
   const [name, setName] = useState(workspace.name);
   const [timezone, setTimezone] = useState(workspace.timezone);
@@ -57,51 +59,42 @@ export function GeneralSection({ workspace }: Props) {
     });
     setSaving(false);
     if (r.ok) {
-      toast.success("Workspace actualizado");
+      toast.success(t("saved"));
       router.refresh();
     } else {
       const j = await r.json().catch(() => ({}));
-      toast.error(j.error ?? "No se pudo guardar");
+      toast.error(j.error ?? t("saveError"));
     }
   }
 
   return (
     <SettingsCard
       icon={<Building2 size={16} />}
-      title="General"
-      description="Datos básicos del workspace que ven todos los miembros."
+      title={t("title")}
+      description={t("description")}
       action={
         canEdit ? (
-          <button
-            type="button"
-            onClick={save}
-            disabled={!dirty || saving}
-            className="btn-primary"
-          >
+          <button type="button" onClick={save} disabled={!dirty || saving} className="btn-primary">
             {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-            Guardar
+            {t("save")}
           </button>
         ) : null
       }
     >
       <FieldRow>
-        <Field label="Nombre del workspace" htmlFor="ws-name">
+        <Field label={t("nameLabel")} htmlFor="ws-name">
           <input
             id="ws-name"
             name="workspace-name"
             value={name}
             disabled={!canEdit}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Acme Inc."
+            placeholder={t("namePlaceholder")}
             maxLength={80}
             className="input"
           />
         </Field>
-        <Field
-          label="Slug"
-          htmlFor="ws-slug"
-          hint="No editable. Aparece en la URL del workspace."
-        >
+        <Field label={t("slugLabel")} htmlFor="ws-slug" hint={t("slugHint")}>
           <input
             id="ws-slug"
             name="workspace-slug"
@@ -113,11 +106,7 @@ export function GeneralSection({ workspace }: Props) {
       </FieldRow>
 
       <FieldRow>
-        <Field
-          label="Timezone"
-          htmlFor="ws-tz"
-          hint="Usado para fechas del dashboard y reportes."
-        >
+        <Field label={t("timezoneLabel")} htmlFor="ws-tz" hint={t("timezoneHint")}>
           <input
             id="ws-tz"
             name="workspace-timezone"
@@ -134,7 +123,7 @@ export function GeneralSection({ workspace }: Props) {
             ))}
           </datalist>
         </Field>
-        <Field label="Tu rol" htmlFor="ws-role" hint="Solo owners y admins editan.">
+        <Field label={t("roleLabel")} htmlFor="ws-role" hint={t("roleHint")}>
           <input
             id="ws-role"
             value={workspace.role}
