@@ -32,14 +32,14 @@
   "dependencies": {
     "@better-auth/utils": "0.4.0",
     "@paralleldrive/cuid2": "^3.3.0",
-    "better-auth": "^1.6.9",
+    "better-auth": "^1.6.11",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.5"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
+    "@types/node": "^22.19.19",
     "drizzle-kit": "^0.31.10",
-    "tsx": "^4.19.2",
+    "tsx": "^4.22.3",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   }
