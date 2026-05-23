@@ -9,31 +9,31 @@
 
 Audits cover **14 dimensions** of a multi-tenant SaaS:
 
-| Code | Dimension |
-| --- | --- |
-| A | Architecture & design |
-| B | Distributed systems / scalability |
-| C | Reliability (SRE) |
-| D | Observability |
-| E | FinOps (cost) |
-| F | Compliance / privacy |
-| G | Data lifecycle |
-| H | Supply chain |
-| I | Secrets management |
-| J | CI/CD & deploy |
-| K | Frontend architecture |
-| L | AI-specific (RCE, injection, streaming) |
-| M | Multi-tenancy isolation |
-| N | Business correctness (billing, quotas) |
+| Code | Dimension                               |
+| ---- | --------------------------------------- |
+| A    | Architecture & design                   |
+| B    | Distributed systems / scalability       |
+| C    | Reliability (SRE)                       |
+| D    | Observability                           |
+| E    | FinOps (cost)                           |
+| F    | Compliance / privacy                    |
+| G    | Data lifecycle                          |
+| H    | Supply chain                            |
+| I    | Secrets management                      |
+| J    | CI/CD & deploy                          |
+| K    | Frontend architecture                   |
+| L    | AI-specific (RCE, injection, streaming) |
+| M    | Multi-tenancy isolation                 |
+| N    | Business correctness (billing, quotas)  |
 
 **Severity rubric:**
 
-| Sev | Meaning |
-| --- | --- |
+| Sev             | Meaning                                                    |
+| --------------- | ---------------------------------------------------------- |
 | **P0** Critical | Data breach, cross-tenant leak, money loss, RCE, prod-down |
-| **P1** High | Serious bug/risk, likely in prod, no workaround |
-| **P2** Medium | Real issue, limited blast radius or workaround |
-| **P3** Low | Polish, hygiene, future-proofing |
+| **P1** High     | Serious bug/risk, likely in prod, no workaround            |
+| **P2** Medium   | Real issue, limited blast radius or workaround             |
+| **P3** Low      | Polish, hygiene, future-proofing                           |
 
 Tag each finding with **likelihood** (low/med/high), **blast radius** (1 tenant /
 all tenants / infra), and **effort** (S/M/L).
@@ -63,17 +63,20 @@ all tenants / infra), and **effort** (S/M/L).
 ## 3. History — three audit passes on Orchester
 
 ### v1 (2026-05-22 AM) — 51 findings
+
 - **7 P0**: RCE in `code`/`runFormula` node (`node:vm` not a sandbox), flows running
   inline (no queue producers), no reaper, plan quotas never enforced (`checkQuota`
   0 callers), AI cost not attributed, no per-workspace spend cap, `drizzle-kit push
-  --force` in prod deploy.
+--force` in prod deploy.
 - **27 P1**: RBAC built but not enforced (`assertCan`/`requireAuth` adoption ≈ 2%),
   no rotation path for AES key, missing fetch timeouts, no transactions, in-memory
   rate-limit per replica, etc.
 - **17 P2 / ~7 P3**.
 
 ### Meta-audit pass 1 (independent reviewer after first remediation wave)
+
 Found **6 P1s the remediation missed**, most importantly:
+
 - `channels/router.ts` (the primary inbound chat path: Telegram/Slack/widget/embed)
   was NOT migrated — both `assertWithinSpend` and `usageEvents.costUsd` missing.
 - Net effect: the kill-switch and monthly cap **did not apply to inbound chat**.
@@ -83,15 +86,18 @@ Found **6 P1s the remediation missed**, most importantly:
   agent `http_request` tool.
 
 ### Meta-audit pass 2 (2nd sweep of the same pattern)
+
 Found **4 more `llmCall`/`llmStream` sites without spend guards**:
 `agent-runtime`, `memory-compaction`, `test-chat-stream`, `handleInboundStream`.
 Same systemic pattern.
 
 ### v2 full re-run (2026-05-22 PM)
+
 With fresh-context reviewers. **0 P0 remained.** Found **6 new P1s**, mostly the
 same pattern recurring elsewhere:
+
 - `recordAiUsage` missing at the 5 sites the meta-audit had patched with
-  `assertWithinSpend` (the cap blocked when exceeded but never *accumulated*).
+  `assertWithinSpend` (the cap blocked when exceeded but never _accumulated_).
 - `executeFlow` inline at 4 internal callers (MCP, `flow_call` tool, agent
   `kind=flow`, channels/router) — the v1 B1 fix only covered public HTTP routes.
 - Retention covered 2 of 6 growing tables.
@@ -107,9 +113,9 @@ state: typecheck clean, 82/82 tests, CI invariants guard green.
 ## 4. The Big Learning — Same Pattern Caught 4× in a Row
 
 Every audit pass found the **same class of bug**: a transversal invariant —
-*"every LLM call must have a spend guard"*, *"every LLM dispatch must record
-usage"*, *"every flow run goes through the queue"*, *"every mutating route uses
-`requireAuth` + `parseBody`"* — fixed only at the specific files named in the
+_"every LLM call must have a spend guard"_, _"every LLM dispatch must record
+usage"_, _"every flow run goes through the queue"_, _"every mutating route uses
+`requireAuth` + `parseBody`"_ — fixed only at the specific files named in the
 previous report. The sweep was never exhaustive, so the next audit found the same
 pattern recurring at a different caller.
 
@@ -130,20 +136,22 @@ check and tests. **Fails CI** if any of these four invariants is violated:
    Closes the metering-without-attribution class (D4/E2). This is exactly the
    gap the v2 audit caught after meta-audit pass 2.
 3. **Every mutating route (`POST`/`PUT`/`PATCH`/`DELETE` in `app/api/**/route.ts`)
-   must use `requireAuth` AND `parseBody`.** Documented exclusions for public
-   surfaces with their own auth (`/api/auth/`, `/api/webhooks/[secret]`,
-   `/api/widget/*`, `/api/v1/*`, `/api/mcp`, Stripe webhook, etc.) and for
-   body-less actions (`*/restore`, `*/takeover`, `*/test`).
+must use `requireAuth`AND`parseBody`.** Documented exclusions for public
+surfaces with their own auth (`/api/auth/`, `/api/webhooks/[secret]`,
+`/api/widget/_`, `/api/v1/_`, `/api/mcp`, Stripe webhook, etc.) and for
+body-less actions (`_/restore`, `_/takeover`, `\*/test`).
 4. **Every `executeFlow(` outside the worker must pass `signal: AbortSignal`.**
    Forces inline callers to be cancellation-bounded; the alternative is
    `enqueueFlowRun` (async). Closes F-B1.
 
 Output sample of a passing run:
+
 ```
 ✓ all transversal invariants hold.
 ```
 
 Output sample of a failure:
+
 ```
 ✘ spend guard missing in: apps/web/app/api/foo/route.ts (add: import { assertWithinSpend } + call before llmCall/llmStream)
 1 violation(s) — fix above before merging.
@@ -175,11 +183,13 @@ let new ones slip in is gated by CI.
 ## 7. What This File Replaces
 
 This single doc replaces:
+
 - `audit-playbook.md` (methodology, now §1+§2 here)
 - `2026-05-22-full-system-audit.md` (v1 report, now §3 summary)
 - `2026-05-22-v2-full-system-audit.md` (v2 report, now §3 summary)
 
 Granular per-pass reports are not kept — every finding either resulted in code
-+ a commit (visible via `git log b7378d4^..HEAD`) or is documented above as
-deliberately deferred. The structural guard ensures the same class won't return
-silently.
+
+- a commit (visible via `git log b7378d4^..HEAD`) or is documented above as
+  deliberately deferred. The structural guard ensures the same class won't return
+  silently.

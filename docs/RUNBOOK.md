@@ -27,15 +27,16 @@
 **Síntomas:** `curl /api/health` devuelve 503.
 
 **Diagnóstico:**
+
 ```bash
 curl -s $DOMAIN/api/health | jq .
 # → ver qué `check` está rojo
 ```
 
-| Check rojo | Causa más probable | Fix |
-| --- | --- | --- |
-| `db_ping` | Postgres caído o connection string mal | `pg_isready -d "$DATABASE_URL"`. Restart Postgres si es local. Verificá password rotado. |
-| `db_schema` | schema sin aplicar | `pnpm --filter @orchester/db migrate` (la migración baseline ya corre `CREATE EXTENSION IF NOT EXISTS vector;`). |
+| Check rojo  | Causa más probable                     | Fix                                                                                                              |
+| ----------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `db_ping`   | Postgres caído o connection string mal | `pg_isready -d "$DATABASE_URL"`. Restart Postgres si es local. Verificá password rotado.                         |
+| `db_schema` | schema sin aplicar                     | `pnpm --filter @orchester/db migrate` (la migración baseline ya corre `CREATE EXTENSION IF NOT EXISTS vector;`). |
 
 Si `db_ping` ok pero el latency es >1000ms (warning): mirá `pg_stat_activity` por queries lentas, vacuum.
 
@@ -47,6 +48,7 @@ Si `db_ping` ok pero el latency es >1000ms (warning): mirá `pg_stat_activity` p
 "proveedor de IA está desconectado" aparece.
 
 **Diagnóstico:**
+
 ```bash
 # 1. ¿Hay provider configurado?
 curl -s "$DOMAIN/api/providers?summary=1" --cookie "session=..." | jq .
@@ -74,6 +76,7 @@ Causas + fixes:
 **Síntomas:** los users ven `429 Too Many Requests` en el dashboard.
 
 **Diagnóstico:**
+
 ```bash
 curl -I "$DOMAIN/api/agents/[id]/test-chat" -X POST ...
 # Headers a buscar: x-ratelimit-remaining: 0, retry-after: 60
@@ -92,6 +95,7 @@ Causas:
 **Síntomas:** TTFB > 2s, dashboard tarda en cargar.
 
 **Diagnóstico:**
+
 ```sql
 -- Queries activas
 SELECT pid, now() - query_start AS dur, state, query
@@ -108,7 +112,7 @@ FROM pg_catalog.pg_statio_user_tables ORDER BY pg_total_relation_size(relid) DES
 Fixes comunes:
 
 - Falta vacuum: `VACUUM ANALYZE;` (autovacuum debería hacerlo solo).
-- Falta index hot: ver `.agents/reference/init-indices.sql`.
+- Falta index hot: ver `packages/db/sql/init-indices.sql`.
 - `message` table gigante: aplicá retention (cron de limpieza de conversations cerradas >180 días, TODO).
 - Connection pool exhausted: subí `max_connections` en Postgres + ajustá pool en `packages/db/src/client.ts`.
 
@@ -119,6 +123,7 @@ Fixes comunes:
 **Síntomas:** flow runs quedan en `status="pending"` para siempre. `/flows/[id]` historial vacío.
 
 **Diagnóstico:**
+
 ```bash
 # ¿Worker corriendo?
 docker compose ps worker
@@ -142,6 +147,7 @@ Fixes:
 **Síntomas:** `./scripts/backup.sh` exit code != 0 o el log muestra errores.
 
 **Diagnóstico:**
+
 ```bash
 # Probá manualmente
 DATABASE_URL=... ./scripts/backup.sh
@@ -167,6 +173,7 @@ Hace `pg_dump → gzip` en `BACKUP_DIR` (default `./backups`) y, si hay MinIO,
 copia el bucket. Retención: `RETAIN_DAYS=14` por default.
 
 **Verificación periódica:**
+
 - Revisar `/var/log/orchester-backup.log` semanalmente (exit code 0 + archivo nuevo).
 - Confirmar que el `.sql.gz` del día existe y pesa lo esperado.
 
@@ -222,6 +229,7 @@ Procedimiento de emergencia:
 **Síntomas:** `webhook_delivery` con `status="failed"`, mismo `webhook.url` repetido.
 
 **Diagnóstico:**
+
 ```sql
 SELECT url, last_error, failure_count, last_error_at
 FROM outbound_webhook
@@ -250,6 +258,7 @@ Pasos (en orden, importante):
 5. Agregá el patrón al `[allowlist]` de `.gitleaks.toml` SOLO si era falso positivo. Si era real, NO.
 
 Para que no vuelva a pasar:
+
 ```bash
 ./scripts/install-git-hooks.sh   # pre-commit gitleaks
 ```

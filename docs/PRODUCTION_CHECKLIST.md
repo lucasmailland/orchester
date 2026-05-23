@@ -138,7 +138,7 @@ Si tira ✗ en algo, arreglalo antes de seguir.
 - [ ] Build de prod en lugar de `next dev` (`pnpm --filter web build && pnpm --filter web start`).
 - [ ] LCP < 2.5s en dashboard (medido con Lighthouse).
 - [ ] TTFB < 600ms en endpoints autenticados warm.
-- [ ] Indices DB cargados (`.agents/reference/init-indices.sql` ya aplicado por `db:migrate`).
+- [ ] Indices DB cargados (`packages/db/sql/init-indices.sql` ya aplicado por `db:migrate`).
 
 ## 14. Disaster recovery
 

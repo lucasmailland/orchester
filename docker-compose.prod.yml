@@ -38,7 +38,7 @@ services:
       POSTGRES_DB: orchester
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./.agents/reference/init-indices.sql:/docker-entrypoint-initdb.d/10-indices.sql:ro
+      - ./packages/db/sql/init-indices.sql:/docker-entrypoint-initdb.d/10-indices.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U orchester -d orchester"]
       interval: 10s

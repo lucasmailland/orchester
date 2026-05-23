@@ -59,11 +59,10 @@ apps/web/          # Next.js 15 app — UI + API routes + worker
   worker/          # Standalone worker entry (executes pg-boss jobs)
 packages/db/       # Drizzle schema + migrations + client
 scripts/           # Maintenance + CI scripts (audit-invariants, backups, etc.)
-docs/              # Public documentation
-.agents/           # Architecture + feature specs (for both humans and AI agents)
+docs/              # Public documentation (ARCHITECTURE, RUNBOOK, ADRs, playbooks)
 ```
 
-The internal architecture is documented in [`.agents/`](.agents/). Start with [`.agents/README.md`](.agents/README.md) and [`.agents/architecture.md`](.agents/architecture.md).
+The internal architecture is documented in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Load-bearing decisions live in [`docs/adr/`](docs/adr/).
 
 ## Conventions
 
@@ -111,7 +110,7 @@ If you're touching one of these, expect a thorough review and please write a cle
 
 ## The CI invariants guard
 
-`scripts/audit-invariants.sh` is run on every PR. It enforces structural invariants that emerged from the project's audit history (see [`.agents/audit.md`](.agents/audit.md)). Specifically, **every PR must satisfy all of these**:
+`scripts/audit-invariants.sh` is run on every PR. It enforces structural invariants that emerged from the project's audit history (see [`docs/AUDIT_PLAYBOOK.md`](docs/AUDIT_PLAYBOOK.md)). Specifically, **every PR must satisfy all of these**:
 
 1. Every file calling `llmCall(` or `llmStream(` has `assertWithinSpend` and `recordAiUsage` (or `persistAssistantTurn`) in the same file.
 2. Every mutating API route (`POST`/`PUT`/`PATCH`/`DELETE`) uses `requireAuth({ minRole })` AND `parseBody(...)` — unless the file is listed in the documented exclusions (public webhooks, MCP, Stripe webhook, body-less actions).
@@ -129,7 +128,7 @@ If you're introducing a new file that legitimately needs to be excluded, add it 
 
 1. **Open an issue first** for non-trivial changes. Quick alignment beats a rejected PR.
 2. **Fork & branch** from `main`. Use a descriptive branch name (`feat/llm-retry-backoff`, `fix/quota-period-edge-case`).
-3. **Write or update tests** — vitest. We don't require 100% coverage; we require *meaningful* coverage of the change.
+3. **Write or update tests** — vitest. We don't require 100% coverage; we require _meaningful_ coverage of the change.
 4. **Run the local checks** before pushing:
    ```bash
    pnpm --filter @orchester/web exec tsc --noEmit   # type-check

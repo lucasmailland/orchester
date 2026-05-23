@@ -8,4 +8,4 @@ contact_links:
     about: Report security issues privately via GitHub Security Advisories — please don't open a public issue.
   - name: 📚 Documentation
     url: https://github.com/lucasmailland/orchester#readme
-    about: Project README, contributing guide, and architecture docs under `.agents/`.
+    about: Project README, contributing guide, and architecture docs under `docs/`.

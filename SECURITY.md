@@ -22,12 +22,12 @@ Please include:
 
 ## What we commit to
 
-| Stage | SLA |
-|---|---|
-| Acknowledge receipt | within **72 hours** |
-| Initial assessment (severity + plan) | within **7 days** |
-| Fix released for high/critical issues | aim **30 days** from validation |
-| Coordinated disclosure | published with the fix, crediting the reporter unless they prefer anonymity |
+| Stage                                 | SLA                                                                         |
+| ------------------------------------- | --------------------------------------------------------------------------- |
+| Acknowledge receipt                   | within **72 hours**                                                         |
+| Initial assessment (severity + plan)  | within **7 days**                                                           |
+| Fix released for high/critical issues | aim **30 days** from validation                                             |
+| Coordinated disclosure                | published with the fix, crediting the reporter unless they prefer anonymity |
 
 We will keep you informed of progress throughout. If a finding turns out not to be a vulnerability, we will explain why.
 
@@ -36,7 +36,7 @@ We will keep you informed of progress throughout. If a finding turns out not to 
 The following are **in scope**:
 
 - The Orchester codebase in this repository (`apps/web`, `packages/db`, `scripts/`).
-- The default deployment patterns documented in `README.md` / `RUNBOOK.md`.
+- The default deployment patterns documented in `README.md` / `docs/RUNBOOK.md`.
 - The CI workflows in `.github/workflows/`.
 
 The following are **out of scope** (please don't report these):
@@ -59,11 +59,11 @@ This project is in active development. Until we cut a v1.0 release, **only the `
 
 Once we cut versioned releases, we will update this table:
 
-| Version | Supported |
-|---|:---:|
-| `main` (dev) | ✅ |
-| `v0.x` | ✅ latest minor |
-| older | ❌ |
+| Version      |    Supported    |
+| ------------ | :-------------: |
+| `main` (dev) |       ✅        |
+| `v0.x`       | ✅ latest minor |
+| older        |       ❌        |
 
 ## Safe harbour
 

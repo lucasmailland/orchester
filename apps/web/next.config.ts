@@ -47,7 +47,7 @@ const nextConfig: NextConfig = {
    * el reverse proxy (Caddy) ya los pone, los repetimos acá por si alguien
    * sirve Next.js directo. Headers idénticos no causan conflicto.
    *
-   * Ver `.agents/reference/security.md` para la justificación de cada header.
+   * Ver `docs/ARCHITECTURE.md` (sección "Security posture") para la justificación de cada header.
    */
   async headers() {
     return [

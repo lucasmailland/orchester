@@ -53,7 +53,7 @@ The foundation. Everything below is in `main` today.
 
 Things actively being worked on or imminently next. Status updates land in [Announcements](https://github.com/lucasmailland/orchester/discussions/categories/announcements).
 
-- **Hardening for public launch.** Audit playbook in `.agents/audit.md` runs every wave; meta-audit findings get folded back into the invariants guard.
+- **Hardening for public launch.** Audit playbook in [`docs/AUDIT_PLAYBOOK.md`](docs/AUDIT_PLAYBOOK.md) runs every wave; meta-audit findings get folded back into the invariants guard.
 - **First public release (v0.1.0)** — tagged, with release-please managing every increment from here.
 - **Discussions onboarding.** Q&A, Ideas, and Show-and-tell categories are live for the launch wave.
 

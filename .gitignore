@@ -1,18 +1,47 @@
+# ── Build outputs ───────────────────────────────────────────────────────────
 node_modules/
 .next/
 dist/
 build/
 .turbo/
-.env
-.env.local
-*.log
-.DS_Store
 coverage/
 .vercel/
-uploads/
 
-# Worker bundle (generado por worker/build.mjs)
+# Bundled worker entry produced by apps/web/worker/build.mjs
 apps/web/worker/.dist/
 
-# Override local de docker compose (port remap por máquina)
+# ── Environment & local config ──────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+# Per-machine docker-compose override (port remaps, local mounts, etc.)
 docker-compose.override.yml
+
+# ── OS / editor / tool noise ────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log
+*.tsbuildinfo
+
+# IDE configs that are personal-not-team (project conventions live in .editorconfig)
+.idea/
+.vscode/
+.claude/
+apps/*/.claude/
+packages/*/.claude/
+
+# ── AI agent / skill caches (private to each contributor's machine) ─────────
+.agents/
+.superpowers/
+apps/*/.superpowers/
+packages/*/.superpowers/
+docs/superpowers/
+.cursor/
+.aider*
+CLAUDE.md
+apps/*/CLAUDE.md
+packages/*/CLAUDE.md
+
+# ── Runtime / data ──────────────────────────────────────────────────────────
+uploads/
+tmp/

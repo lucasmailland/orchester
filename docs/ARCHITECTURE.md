@@ -15,8 +15,7 @@ orchester/
 │   └── db/          Drizzle schema, migrations, typed client
 ├── scripts/
 │   └── audit-invariants.sh   Structural CI guard
-├── .agents/         Audit playbooks, agent specs (internal)
-└── docs/            This file plus operational docs
+└── docs/            Public docs: this file, ADRs, runbook, audit playbook
 ```
 
 One Next.js app. One database package. One widget. The worker process lives inside the web app and shares the same code paths — see "Worker" below.
@@ -170,7 +169,7 @@ Both run inside the same transaction as the write they gate, under an advisory l
 
 ## Security posture
 
-The summary version. Detailed threat model lives in `.agents/audit.md`.
+The summary version. Detailed threat model and remediation history live in [`AUDIT_PLAYBOOK.md`](AUDIT_PLAYBOOK.md).
 
 - **Multi-tenancy** — every workspace-scoped query carries `workspaceId`. Enforced structurally by the invariants guard.
 - **Code execution** — code-node uses `node:vm`. Per-workspace gate, hard timeout, restricted globals. Not claimed as a sandbox against a determined attacker.

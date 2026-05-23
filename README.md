@@ -143,7 +143,7 @@ pnpm --filter @orchester/web exec vitest run
 bash scripts/audit-invariants.sh
 ```
 
-The **invariants guard** is the structural lesson from our remediation history: it fails CI if a new file calls `llmCall` without a spend guard, a new mutating route lacks `requireAuth` or `parseBody`, or `executeFlow` is called inline without a cancellation signal. See [`.agents/audit.md`](.agents/audit.md) for the full story.
+The **invariants guard** is the structural lesson from our remediation history: it fails CI if a new file calls `llmCall` without a spend guard, a new mutating route lacks `requireAuth` or `parseBody`, or `executeFlow` is called inline without a cancellation signal. See [`docs/AUDIT_PLAYBOOK.md`](docs/AUDIT_PLAYBOOK.md) for the full story.
 
 ## Documentation
 
@@ -152,7 +152,7 @@ The **invariants guard** is the structural lesson from our remediation history: 
 - **Governance** — [`GOVERNANCE.md`](GOVERNANCE.md): roles, decision-making, succession.
 - **Architecture Decision Records** — [`docs/adr/`](docs/adr/): the reasoning behind load-bearing choices.
 - **Changelog** — [`CHANGELOG.md`](CHANGELOG.md) and [GitHub Releases](https://github.com/lucasmailland/orchester/releases).
-- **Audit playbook** — [`.agents/audit.md`](.agents/audit.md): how we keep the structural invariants honest.
+- **Audit playbook** — [`docs/AUDIT_PLAYBOOK.md`](docs/AUDIT_PLAYBOOK.md): how we keep the structural invariants honest.
 
 ## Contributing
 

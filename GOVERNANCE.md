@@ -71,7 +71,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the format and policy.
 These are the lenses every decision gets weighed against:
 
 1. **Multi-tenancy is not retrofittable.** Features that can’t be made tenant-isolated by default get rejected, however clever.
-2. **Security is structural, not procedural.** A bug fixed only at the sites named in the report is not fixed — the invariant has to hold everywhere. The audit playbook in `.agents/audit.md` encodes this.
+2. **Security is structural, not procedural.** A bug fixed only at the sites named in the report is not fixed — the invariant has to hold everywhere. The audit playbook in [`docs/AUDIT_PLAYBOOK.md`](docs/AUDIT_PLAYBOOK.md) encodes this.
 3. **Self-hostability is a feature.** If a contribution requires a SaaS-only dependency or proprietary service, it needs a self-host fallback.
 4. **Simplicity over flexibility.** When in doubt, fewer knobs. New configuration is a tax on every future reader of the codebase.
 5. **Boring tech where it matters.** Postgres, Next.js, TypeScript, queues. We pay the cost of novelty only at the layers that justify it.
