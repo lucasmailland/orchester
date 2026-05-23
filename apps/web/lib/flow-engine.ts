@@ -1,7 +1,7 @@
 import "server-only";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
-import { eq, and, inArray, lt, count } from "drizzle-orm";
+import { eq, and, inArray, lt, count, sql } from "drizzle-orm";
 import { llmCall } from "./llm-call";
 import { enqueue, JOB_FLOW_RUN } from "./queue";
 import { assertPublicUrl } from "./net-guard";
@@ -77,6 +77,8 @@ export interface RunContext {
   output: Record<string, unknown>;
   /** Hook opcional para emitir eventos en vivo. */
   emit?: FlowEmit;
+  /** Signal de cancelación (F-1/F-B1). Si abort, el motor para entre pasos. */
+  signal?: AbortSignal;
 }
 
 export function interpolate(template: string, ctx: Record<string, unknown>): string {
@@ -331,6 +333,7 @@ export async function executeFlow({
   input,
   onEvent,
   runId: existingRunId,
+  signal,
 }: {
   flowId: string;
   workspaceId: string;
@@ -344,7 +347,14 @@ export async function executeFlow({
    * que un reintento del mismo job sea idempotente a nivel de pasos.
    */
   runId?: string;
-}): Promise<{ runId: string; status: "succeeded" | "failed"; error?: string }> {
+  /**
+   * F-1/F-B1: signal de cancelación. Si se aborta, el motor para entre pasos,
+   * marca el run como `cancelled` y retorna. Usado por (a) SSE `/run-stream`
+   * para cortar al desconectarse el cliente, (b) agente `kind=flow` y channels
+   * para acotar el tiempo de respuesta inline.
+   */
+  signal?: AbortSignal;
+}): Promise<{ runId: string; status: "succeeded" | "failed" | "cancelled"; error?: string }> {
   const db = getDb();
   // Siempre re-verificamos que el flow pertenezca al workspace (defensa IDOR
   // incluso si el job fue encolado).
@@ -380,6 +390,7 @@ export async function executeFlow({
     variables: { ...(flow.variables ?? {}), ...input },
     output: {},
     ...(onEvent ? { emit: onEvent } : {}),
+    ...(signal ? { signal } : {}),
   };
 
   const nodes = (flow.nodes ?? []) as FlowNode[];
@@ -413,14 +424,25 @@ export async function executeFlow({
     recordMetric("flow.run.duration_ms", Date.now() - runStartedAt, { flowId, status: "succeeded" });
     return { runId, status: "succeeded" };
   } catch (e) {
+    // F-B1/F-1: si la causa fue un abort (cliente desconectado o timeout
+    // inline), marcamos `cancelled` (no `failed`) para que las métricas no
+    // cuenten esto como un error del flujo en sí.
+    const cancelled = signal?.aborted === true || (e instanceof Error && e.name === "AbortError");
     const msg = e instanceof Error ? e.message : String(e);
     await db
       .update(schema.flowRuns)
-      .set({ status: "failed", error: msg, completedAt: new Date() })
+      .set({
+        status: cancelled ? "cancelled" : "failed",
+        error: msg,
+        completedAt: new Date(),
+      })
       .where(eq(schema.flowRuns.id, runId));
     onEvent?.({ type: "run_finish", status: "failed", error: msg });
-    recordMetric("flow.run.duration_ms", Date.now() - runStartedAt, { flowId, status: "failed" });
-    return { runId, status: "failed", error: msg };
+    recordMetric("flow.run.duration_ms", Date.now() - runStartedAt, {
+      flowId,
+      status: cancelled ? "cancelled" : "failed",
+    });
+    return { runId, status: cancelled ? "cancelled" : "failed", error: msg };
   }
 }
 
@@ -435,6 +457,13 @@ async function runFromNode(
   depth = 0
 ): Promise<void> {
   if (depth > 100) throw new Error("Flow exceeded max depth (100)");
+  // F-1/F-B1: chequeamos el signal antes de cada paso. Si abortó, propagamos
+  // un AbortError → executeFlow lo cataloga como `cancelled` (no `failed`).
+  if (ctx.signal?.aborted) {
+    const e = new Error("Flow execution cancelled");
+    e.name = "AbortError";
+    throw e;
+  }
   const node = nodes.find((n) => n.id === nodeId);
   if (!node || node.type === "end") return;
 
@@ -1009,7 +1038,7 @@ export async function enqueueFlowRun({
   workspaceId: string;
   triggerSource: string;
   input: Record<string, unknown>;
-}): Promise<{ runId: string; status: "pending" | "succeeded" | "failed"; error?: string }> {
+}): Promise<{ runId: string; status: "pending" | "succeeded" | "failed" | "cancelled"; error?: string }> {
   const db = getDb();
   const flowRows = await db
     .select({ id: schema.flows.id })
@@ -1018,34 +1047,47 @@ export async function enqueueFlowRun({
     .limit(1);
   if (!flowRows[0]) throw new Error("Flow not found");
 
-  // B3: cap de concurrencia por flow. Una sola query de count de runs activos.
-  if (FLOW_MAX_CONCURRENT_RUNS_PER_FLOW > 0) {
-    const activeRows = await db
-      .select({ value: count() })
-      .from(schema.flowRuns)
-      .where(
-        and(
-          eq(schema.flowRuns.flowId, flowId),
-          inArray(schema.flowRuns.status, ["running", "pending"])
-        )
-      );
-    const active = activeRows[0]?.value ?? 0;
-    if (active >= FLOW_MAX_CONCURRENT_RUNS_PER_FLOW) {
-      throw new Error(
-        `Este flujo ya tiene ${active} ejecuciones activas (máximo ${FLOW_MAX_CONCURRENT_RUNS_PER_FLOW}). ` +
-          `Esperá a que terminen algunas antes de lanzar otra.`
-      );
-    }
-  }
-
+  // B3: cap de concurrencia por flow.
+  //
+  // Fix F-B3 (v2 audit): el chequeo `count → if < cap → insert` tenía un TOCTOU
+  // race — un burst de webhooks podía pasar varios runs juntos. Lo serializamos
+  // con un advisory lock per-flowId: el lock dura sólo la transacción
+  // (`pg_try_advisory_xact_lock`) y se libera automáticamente al commit/rollback.
+  // Si otra request lo tiene, esperamos en el lock; la ventana entre count e
+  // insert deja de existir.
+  //
+  // El key del lock es el hash 64-bit del flowId (Postgres `hashtextextended`)
+  // truncado a int8 — colisiones son irrelevantes (peor caso: dos flows distintos
+  // serializan sobre el mismo lock; es benigno, no rompe correctitud).
   const runId = createId();
-  await db.insert(schema.flowRuns).values({
-    id: runId,
-    flowId,
-    workspaceId,
-    status: "pending",
-    triggerSource,
-    input,
+  await db.transaction(async (tx) => {
+    if (FLOW_MAX_CONCURRENT_RUNS_PER_FLOW > 0) {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${flowId}, 0))`);
+      const activeRows = await tx
+        .select({ value: count() })
+        .from(schema.flowRuns)
+        .where(
+          and(
+            eq(schema.flowRuns.flowId, flowId),
+            inArray(schema.flowRuns.status, ["running", "pending"])
+          )
+        );
+      const active = activeRows[0]?.value ?? 0;
+      if (active >= FLOW_MAX_CONCURRENT_RUNS_PER_FLOW) {
+        throw new Error(
+          `Este flujo ya tiene ${active} ejecuciones activas (máximo ${FLOW_MAX_CONCURRENT_RUNS_PER_FLOW}). ` +
+            `Esperá a que terminen algunas antes de lanzar otra.`
+        );
+      }
+    }
+    await tx.insert(schema.flowRuns).values({
+      id: runId,
+      flowId,
+      workspaceId,
+      status: "pending",
+      triggerSource,
+      input,
+    });
   });
 
   // Fallback inline opcional para dev/test sin worker corriendo.
