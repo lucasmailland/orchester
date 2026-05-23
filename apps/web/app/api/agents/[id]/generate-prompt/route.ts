@@ -4,6 +4,8 @@ import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { llmCall, pickAvailableModel } from "@/lib/llm-call";
 import { assertWithinSpend } from "@/lib/cost-alerts";
+import { recordAiUsage } from "@/lib/ai/run";
+import { calculateChatCostUsd } from "@/lib/pricing";
 
 const generatePromptSchema = z.object({
   description: z.string().trim().min(1, "description required"),
@@ -59,6 +61,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       messages: [{ role: "user", content: userMsg }],
       temperature: 0.8,
       maxTokens: 3000,
+    });
+    // E2-2: metering — sin esto el cap no acumulaba para esta ruta.
+    await recordAiUsage({
+      workspaceId: ctx.workspace.id,
+      capability: "chat",
+      model: r.model,
+      tokensOut: r.tokensUsed,
+      tokensTotal: r.tokensUsed,
+      costUsd: calculateChatCostUsd(r.model, 0, r.tokensUsed),
     });
     const cleaned = r.content.trim().replace(/^```json\s*/i, "").replace(/```$/, "");
     let variations: string[] = [];

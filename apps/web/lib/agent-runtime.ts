@@ -4,6 +4,8 @@ import { eq, and } from "drizzle-orm";
 import { llmCall, type ChatMessage } from "./llm-call";
 import { executeTool, getToolDefinitions, type ToolCall } from "./tools";
 import { assertWithinSpend } from "./cost-alerts";
+import { recordAiUsage } from "./ai/run";
+import { calculateChatCostUsd } from "./pricing";
 
 /**
  * Single entry point that runs an agent for a chat turn.
@@ -174,16 +176,38 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
   if (p.agent.kind === "flow" && p.agent.flowId) {
     const lastUser = [...p.messages].reverse().find((m) => m.role === "user");
     const { executeFlow } = await import("./flow-engine");
-    const result = await executeFlow({
-      flowId: p.agent.flowId,
-      workspaceId: p.workspaceId,
-      triggerSource: `agent:${p.agent.id}`,
-      input: {
-        message: lastUser?.content ?? "",
-        history: p.messages,
-        variables,
-      },
-    });
+    // F-B1/F-1: el agente espera el resultado del flow para responder, pero
+    // bounded por timeout — sin esto, un flow con polling de video colgaba el
+    // turno por minutos hasta el serverless timeout. Si excede, el motor recibe
+    // el abort entre pasos y marca el run como `cancelled`; el agente responde
+    // un mensaje "procesando" con el runId.
+    const FLOW_AGENT_INLINE_TIMEOUT_MS = Number(process.env.FLOW_AGENT_INLINE_TIMEOUT_MS ?? 60_000);
+    const abort = new AbortController();
+    const t = setTimeout(() => abort.abort(), FLOW_AGENT_INLINE_TIMEOUT_MS);
+    let result;
+    try {
+      result = await executeFlow({
+        flowId: p.agent.flowId,
+        workspaceId: p.workspaceId,
+        triggerSource: `agent:${p.agent.id}`,
+        input: {
+          message: lastUser?.content ?? "",
+          history: p.messages,
+          variables,
+        },
+        signal: abort.signal,
+      });
+    } finally {
+      clearTimeout(t);
+    }
+    if (result.status === "cancelled") {
+      return {
+        content: `_(El flujo está tardando más de lo esperado — sigue corriendo en segundo plano. ID: ${result.runId})_`,
+        tokensUsed: 0,
+        model: "flow",
+        flowRunId: result.runId,
+      };
+    }
     if (result.status === "failed") {
       return {
         content: `_(El flujo falló: ${result.error ?? "error desconocido"})_`,
@@ -244,6 +268,15 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
     await assertWithinSpend(p.workspaceId);
     const r = await llmCall(callOpts);
     totalTokens += r.tokensUsed;
+    // E2-2: metering por-turno. Sin esto el cap nunca acumulaba para test-chat/MCP.
+    await recordAiUsage({
+      workspaceId: p.workspaceId,
+      capability: "chat",
+      model: r.model,
+      tokensOut: r.tokensUsed,
+      tokensTotal: r.tokensUsed,
+      costUsd: calculateChatCostUsd(r.model, 0, r.tokensUsed),
+    });
 
     // No tool calls or unsupported provider → return immediately.
     // Para agentes json, validamos la salida sin romper el turno (L4).
