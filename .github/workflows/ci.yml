@@ -79,6 +79,9 @@ jobs:
       - name: TypeScript check
         run: pnpm --filter web tsc --noEmit
 
+      - name: Audit invariants (RBAC + zod + spend guard + metering + flow signal)
+        run: bash scripts/audit-invariants.sh
+
       - name: Tests
         run: pnpm --filter web vitest run
 
