@@ -1,0 +1,29 @@
+# EditorConfig — keeps style consistent across editors and OSes.
+# https://editorconfig.org
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+max_line_length = 100
+
+# Markdown can have meaningful trailing spaces (forces line break).
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = off
+
+# Makefiles require tabs.
+[Makefile]
+indent_style = tab
+
+# Shell scripts are often POSIX — 4-space conventional.
+[*.{sh,bash}]
+indent_size = 4
+
+# JSON / YAML / TOML / TS / TSX / JS / JSX inherit the global 2-space default.
+# Explicit blocks below would override; we don't override anything here.

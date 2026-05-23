@@ -1,0 +1,81 @@
+# Normalize line endings across operating systems, mark binaries, and give
+# GitHub hints for accurate language detection in the repo's stats bar.
+#
+# Docs: https://git-scm.com/docs/gitattributes
+# Linguist: https://github.com/github-linguist/linguist
+
+# ── Default: auto-detect text vs binary, force LF on commit ─────────────────
+* text=auto eol=lf
+
+# ── Code (LF, no merge surprises) ───────────────────────────────────────────
+*.ts          text eol=lf
+*.tsx         text eol=lf
+*.js          text eol=lf
+*.jsx         text eol=lf
+*.mjs         text eol=lf
+*.cjs         text eol=lf
+*.json        text eol=lf
+*.jsonc       text eol=lf
+*.yml         text eol=lf
+*.yaml        text eol=lf
+*.toml        text eol=lf
+*.css         text eol=lf
+*.scss        text eol=lf
+*.html        text eol=lf
+*.md          text eol=lf
+*.sql         text eol=lf
+*.sh          text eol=lf
+*.env*        text eol=lf
+Dockerfile*   text eol=lf
+Makefile      text eol=lf
+
+# ── Windows-specific (CRLF) ─────────────────────────────────────────────────
+*.bat         text eol=crlf
+*.cmd         text eol=crlf
+*.ps1         text eol=crlf
+
+# ── Binaries (never normalized, never diffed line-by-line) ──────────────────
+*.png         binary
+*.jpg         binary
+*.jpeg        binary
+*.gif         binary
+*.ico         binary
+*.webp        binary
+*.svg         text eol=lf
+*.pdf         binary
+*.zip         binary
+*.tar         binary
+*.tar.gz      binary
+*.tgz         binary
+*.gz          binary
+*.woff        binary
+*.woff2       binary
+*.ttf         binary
+*.eot         binary
+*.otf         binary
+*.mp3         binary
+*.mp4         binary
+*.webm        binary
+
+# ── Lockfiles: diff is rarely useful; collapse by default in GitHub UI ──────
+pnpm-lock.yaml  -diff linguist-generated
+package-lock.json -diff linguist-generated
+yarn.lock       -diff linguist-generated
+
+# ── Linguist hints — what counts toward the repo's language bar ─────────────
+# Don't count generated migrations toward our language stats.
+packages/db/drizzle/**           linguist-generated=true
+packages/db/drizzle/_archive*/** linguist-vendored=true
+
+# Docs aren't "the codebase".
+docs/**             linguist-documentation=true
+.agents/**          linguist-documentation=true
+
+# Vendored / minified / standalone build output.
+**/.next/**         linguist-generated=true
+**/dist/**          linguist-generated=true
+**/build/**         linguist-generated=true
+**/coverage/**      linguist-generated=true
+
+# Make our scripts visible in the bar (default sometimes hides shell).
+scripts/**          linguist-detectable=true
