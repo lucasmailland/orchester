@@ -63,21 +63,27 @@ export async function register(): Promise<void> {
   // fly machine stop), Next.js cierra el HTTP server pero los in-flight
   // requests pueden seguir. Le damos 10s para que terminen antes de exit.
   let shuttingDown = false;
-  function shutdown(signal: string): void {
+  async function shutdown(signal: string): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
     console.log(`[shutdown] received ${signal}, draining in-flight requests…`);
-    // No hay un hook nativo de Next.js para "esperá los requests pendientes".
-    // En la práctica, Node sale solo cuando el event loop queda vacío, así
-    // que un setTimeout de 10s da margen. Para algo más robusto se necesita
-    // un custom server.
+    // F-C7: drenar pg-boss antes de salir. Sin esto, cada deploy dejaba sockets
+    // en TIME_WAIT porque el cliente lazy (abierto en cada `enqueue()`) se
+    // cerraba abruptamente.
+    try {
+      const { shutdownQueue } = await import("./lib/queue");
+      await shutdownQueue();
+    } catch (e) {
+      console.error("[shutdown] shutdownQueue failed:", e);
+    }
+    // Margen residual para el event loop HTTP de Next.js.
     setTimeout(() => {
       console.log(`[shutdown] timeout reached, exiting`);
       process.exit(0);
-    }, 10_000).unref();
+    }, 5_000).unref();
   }
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
-  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
+  process.on("SIGINT", () => void shutdown("SIGINT"));
 
   // ── Crash reporting ────────────────────────────────────────────────
   process.on("unhandledRejection", async (reason) => {
