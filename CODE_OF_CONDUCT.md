@@ -20,7 +20,7 @@ This Code of Conduct applies to all project spaces — the GitHub repository, is
 
 If you experience or witness behavior that violates this Code of Conduct, please report it privately to the maintainers:
 
-- **Email:** conduct@orchester.dev *(replace with your real address before publishing)*
+- **Email:** lucasmailland@gmail.com (subject prefix `[Orchester Conduct]`)
 - **GitHub Security Advisory:** for issues that overlap with security, use https://github.com/lucasmailland/orchester/security/advisories/new
 
 All reports are handled confidentially. We commit to:
