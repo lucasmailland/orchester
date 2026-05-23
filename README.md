@@ -694,18 +694,52 @@ And to every AI provider whose adapter we ship — your APIs are what makes the 
 
 ---
 
-## 📈 Star history
+## 💫 Show your support
 
-<a href="https://star-history.com/#lucasmailland/orchester&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=lucasmailland/orchester&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=lucasmailland/orchester&type=Date" />
-    <img alt="Star history of lucasmailland/orchester" src="https://api.star-history.com/svg?repos=lucasmailland/orchester&type=Date" />
-  </picture>
-</a>
+<div align="center">
 
-> [!NOTE]
-> If you find Orchester useful, [⭐ starring the repo](https://github.com/lucasmailland/orchester) is the single biggest signal that helps other people find it. It's free, takes one click, and means a lot.
+[![Star this repo](https://img.shields.io/github/stars/lucasmailland/orchester?style=for-the-badge&logo=github&logoColor=white&label=Star&color=fbbf24&labelColor=0f1729)](https://github.com/lucasmailland/orchester/stargazers)
+[![Latest release](https://img.shields.io/github/v/release/lucasmailland/orchester?style=for-the-badge&logo=semantic-release&logoColor=white&color=22c55e&labelColor=0f1729)](https://github.com/lucasmailland/orchester/releases)
+[![Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-7c8cff?style=for-the-badge&logoColor=white&labelColor=0f1729)](LICENSE)
+[![Discussions](https://img.shields.io/github/discussions/lucasmailland/orchester?style=for-the-badge&logo=github&logoColor=white&color=a78bfa&labelColor=0f1729)](https://github.com/lucasmailland/orchester/discussions)
+
+<br/>
+
+### Three ways to help right now
+
+</div>
+
+<table>
+<tr>
+<td width="33%" align="center" valign="top">
+
+### ⭐<br/>**Star the repo**
+
+The single biggest signal that helps others find Orchester. One click, takes 2 seconds, costs nothing.
+
+<sub>[→ Star on GitHub](https://github.com/lucasmailland/orchester)</sub>
+
+</td>
+<td width="33%" align="center" valign="top">
+
+### 🗣️<br/>**Tell a friend**
+
+Working on AI agents? Sharing Orchester with one other team is worth more than 1,000 algorithmic impressions.
+
+<sub>[→ Copy launch tweet](https://twitter.com/intent/tweet?text=Orchester%20%E2%80%94%20open-source%20platform%20for%20building%20AI%20agents%20and%20orchestrating%20them%20in%20flows.%20Multi-tenant%20from%20day%20one%2C%2080%2B%20providers%2C%20self-hostable%20on%20Postgres.&url=https%3A%2F%2Fgithub.com%2Flucasmailland%2Forchester)</sub>
+
+</td>
+<td width="34%" align="center" valign="top">
+
+### 🤝<br/>**Contribute back**
+
+Fix a bug, add a node, improve the docs, open a thoughtful issue. Every contribution moves the project forward.
+
+<sub>[→ See how to contribute](CONTRIBUTING.md)</sub>
+
+</td>
+</tr>
+</table>
 
 ---
 
