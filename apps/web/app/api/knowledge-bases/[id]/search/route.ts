@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDb, schema } from "@orchester/db";
 import { eq, and, sql } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { embed } from "@/lib/embeddings";
 
@@ -17,8 +17,9 @@ const kbSearchSchema = z.object({
  * Uses pgvector cosine distance (<=>); returns chunks with score = 1 - distance.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth();
+  if (!isAuthContext(ctx)) return ctx;
+  const ws = { workspace: ctx.workspace };
   const { id: kbId } = await params;
   const parsed = await parseBody(req, kbSearchSchema);
   if (!parsed.ok) return parsed.response;
