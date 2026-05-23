@@ -139,6 +139,30 @@ export function calculateCapabilityCostUsd(capability: string, units: number): n
   return Math.round(price.perUnit * Math.max(0, units) * 1_000_000) / 1_000_000;
 }
 
+/**
+ * Costo USD de embeddings — rate POR-MODELO en USD/1k tokens. Tabla pequeña; los
+ * desconocidos caen al default. Importante: NO usar el rate de chat para
+ * embeddings (es ~40× más caro), porque hace que el spend cap dispare temprano.
+ *
+ * Fuente: pricing público al 2026-05.
+ */
+const EMBEDDING_COST_PER_1K_USD: Record<string, number> = {
+  "text-embedding-3-small": 0.00002,
+  "text-embedding-3-large": 0.00013,
+  "text-embedding-ada-002": 0.0001,
+  "voyage-3": 0.00006,
+  "voyage-3-lite": 0.00002,
+  "voyage-large-2": 0.00012,
+  "embed-english-v3.0": 0.0001,
+  "embed-multilingual-v3.0": 0.0001,
+};
+const DEFAULT_EMBEDDING_COST_PER_1K = 0.00002;
+
+export function calculateEmbeddingCostUsd(model: string, tokens: number): number {
+  const rate = EMBEDDING_COST_PER_1K_USD[model] ?? DEFAULT_EMBEDDING_COST_PER_1K;
+  return Math.round((tokens / 1000) * rate * 1_000_000) / 1_000_000;
+}
+
 /** Cost-per-1k para ese model (informativo, ej. mostrar al user). */
 export function getCostPer1k(model: string): number {
   return blendedRate(model);

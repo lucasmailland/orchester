@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { llmCall, pickAvailableModel } from "@/lib/llm-call";
+import { assertWithinSpend } from "@/lib/cost-alerts";
 
 const generatePromptSchema = z.object({
   description: z.string().trim().min(1, "description required"),
@@ -50,6 +51,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .join("\n");
 
   try {
+    await assertWithinSpend(ctx.workspace.id);
     const r = await llmCall({
       workspaceId: ctx.workspace.id,
       model: pick.model,

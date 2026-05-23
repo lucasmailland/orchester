@@ -4,6 +4,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { llmCall, pickAvailableModel, type ChatMessage } from "@/lib/llm-call";
+import { assertWithinSpend } from "@/lib/cost-alerts";
 
 const copilotSchema = z.object({
   prompt: z.string().optional(),
@@ -80,6 +81,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   let result;
   try {
+    await assertWithinSpend(ctx.workspace.id);
     result = await llmCall({
       workspaceId: ctx.workspace.id,
       model: picked.model,
