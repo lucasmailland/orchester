@@ -1,0 +1,12 @@
+Orchester
+Copyright 2026 Lucas Mailland and Orchester contributors
+
+This product is licensed under the Apache License, Version 2.0
+(see LICENSE for the full text).
+
+This product includes software developed at:
+  Orchester — https://github.com/lucasmailland/orchester
+
+Third-party components are licensed under their own terms; see the
+respective `package.json` / `LICENSE` files in `node_modules/` for details.
+A summary of runtime dependency licenses is published with each release.
