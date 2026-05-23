@@ -1,0 +1,32 @@
+# release-please — automates SemVer + CHANGELOG.md from Conventional Commits.
+#
+# How it works:
+#   1. On every push to main, the action scans commit messages since the last
+#      release tag and computes the next version (feat → minor, fix → patch,
+#      BREAKING CHANGE → major; pre-1.0 keeps minor for breaking changes).
+#   2. It opens a "Release PR" with the proposed version bump, an updated
+#      CHANGELOG.md, and an updated .release-please-manifest.json. The PR
+#      accumulates changes until a maintainer merges it.
+#   3. On merge, the action tags `vX.Y.Z`, creates a GitHub Release with
+#      auto-generated notes, and (optionally) publishes packages.
+#
+# Config: ./release-please-config.json + ./.release-please-manifest.json
+
+name: release-please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
