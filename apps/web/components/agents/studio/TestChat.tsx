@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Send, Trash2, Loader2, Wrench } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface ToolCallView {
   name: string;
@@ -35,6 +36,7 @@ export function TestChat({
   variables,
   tools,
 }: Props) {
+  const t = useTranslations("pages.agents.studio.testChat");
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -71,9 +73,8 @@ export function TestChat({
         });
         const j = await r.json();
         if (!r.ok) {
-          if (j.error === "PROVIDER_NOT_CONFIGURED")
-            setError("Configurá el proveedor en Ajustes para usar este modelo.");
-          else setError(j.error || "Error");
+          if (j.error === "PROVIDER_NOT_CONFIGURED") setError(t("providerNotConfigured"));
+          else setError(j.error || t("genericError"));
           return;
         }
         setMessages((prev) => [
@@ -109,7 +110,7 @@ export function TestChat({
       });
       if (!r.ok || !r.body) {
         const j = await r.json().catch(() => ({}));
-        setError(j.error ?? "Error");
+        setError(j.error ?? t("genericError"));
         // remover placeholder
         setMessages((prev) => prev.slice(0, -1));
         return;
@@ -127,10 +128,7 @@ export function TestChat({
         setMessages((prev) => {
           const last = prev[prev.length - 1];
           if (!last || last.role !== "assistant") return prev;
-          return [
-            ...prev.slice(0, -1),
-            { ...last, content: last.content + chunk },
-          ];
+          return [...prev.slice(0, -1), { ...last, content: last.content + chunk }];
         });
         scrollRef.current?.scrollTo({ top: 99999 });
       };
@@ -197,7 +195,7 @@ export function TestChat({
   return (
     <div className="flex h-full flex-col rounded-2xl border border-line bg-card">
       <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
-        <span className="text-xs font-medium text-body">Test chat</span>
+        <span className="text-xs font-medium text-body">{t("title")}</span>
         <button
           onClick={() => {
             setMessages([]);
@@ -212,9 +210,7 @@ export function TestChat({
       </div>
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
         {messages.length === 0 && (
-          <div className="mt-8 text-center text-xs text-muted">
-            Escribí un mensaje para probar al agente con la configuración actual.
-          </div>
+          <div className="mt-8 text-center text-xs text-muted">{t("emptyHint")}</div>
         )}
         {messages.map((m, i) => (
           <div key={i} className="space-y-1.5">
@@ -225,7 +221,7 @@ export function TestChat({
                   : "mr-auto max-w-[85%] rounded-2xl rounded-bl-sm border border-line bg-elevated px-3.5 py-2 text-sm text-strong"
               }
             >
-              {m.content || (m.flowRunId ? "_(ejecutado por flujo)_" : "")}
+              {m.content || (m.flowRunId ? t("ranByFlow") : "")}
             </div>
             {m.toolCalls && m.toolCalls.length > 0 && (
               <div className="mr-auto max-w-[85%] space-y-1">
@@ -236,23 +232,33 @@ export function TestChat({
                   >
                     <summary className="flex cursor-pointer items-center gap-1.5 text-body">
                       <Wrench className="h-3 w-3 text-violet-600 dark:text-violet-400" /> {tc.name}
-                      {tc.error && <span className="ml-auto text-red-600 dark:text-red-400">error</span>}
+                      {tc.error && (
+                        <span className="ml-auto text-red-600 dark:text-red-400">
+                          {t("errorBadge")}
+                        </span>
+                      )}
                     </summary>
                     <pre className="mt-1.5 max-h-40 overflow-y-auto rounded bg-black/40 p-2 font-mono text-[10px] text-muted">
-                      {JSON.stringify({ input: tc.input, output: tc.output, error: tc.error }, null, 2)}
+                      {JSON.stringify(
+                        { input: tc.input, output: tc.output, error: tc.error },
+                        null,
+                        2
+                      )}
                     </pre>
                   </details>
                 ))}
               </div>
             )}
             {m.flowRunId && (
-              <div className="mr-auto text-[10px] text-faint">flow run: {m.flowRunId.slice(0, 8)}</div>
+              <div className="mr-auto text-[10px] text-faint">
+                {t("flowRun")} {m.flowRunId.slice(0, 8)}
+              </div>
             )}
           </div>
         ))}
         {loading && (
           <div className="mr-auto flex items-center gap-2 text-xs text-muted">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Pensando…
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("thinking")}
           </div>
         )}
         {error && (
@@ -273,14 +279,14 @@ export function TestChat({
               }
             }}
             rows={2}
-            aria-label="Mensaje para el agente"
-            placeholder="Escribí un mensaje (Enter para enviar, Shift+Enter para salto de línea)…"
+            aria-label={t("messageAria")}
+            placeholder={t("messagePlaceholder")}
             className="flex-1 resize-none rounded-xl border border-line bg-elevated px-3 py-2 text-sm text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
           />
           <button
             onClick={send}
             disabled={!input.trim() || loading}
-            aria-label="Enviar mensaje"
+            aria-label={t("sendAria")}
             className="rounded-xl bg-violet-500 p-2.5 text-white hover:bg-violet-400 disabled:opacity-40"
             type="button"
           >
@@ -288,10 +294,13 @@ export function TestChat({
           </button>
         </div>
         <div className="mt-1.5 flex items-center justify-between text-[10px] text-faint">
-          <span>Tokens usados: {tokens}</span>
+          <span>
+            {t("tokensUsed")} {tokens}
+          </span>
           {tools && tools.length > 0 && (
             <span className="flex items-center gap-1">
-              <Wrench className="h-2.5 w-2.5" /> {tools.length} tool{tools.length !== 1 && "s"}
+              <Wrench className="h-2.5 w-2.5" /> {tools.length}{" "}
+              {tools.length !== 1 ? t("tools") : t("tool")}
             </span>
           )}
         </div>

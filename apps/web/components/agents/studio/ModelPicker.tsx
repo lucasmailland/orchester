@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { ChevronDown, Zap, Brain, Rocket } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 interface Model {
@@ -29,6 +30,7 @@ const TIER_ICON: Record<string, ReactNode> = {
 };
 
 export function ModelPicker({ value, onChange }: Props) {
+  const t = useTranslations("pages.agents.studio.modelPicker");
   const [groups, setGroups] = useState<ProviderGroup[]>([]);
   const [providerName, setProviderName] = useState<Record<string, string>>({});
   const [open, setOpen] = useState(false);
@@ -37,21 +39,38 @@ export function ModelPicker({ value, onChange }: Props) {
     // Modelos de chat del catálogo, sólo de proveedores conectados.
     fetch("/api/ai/models?capability=chat")
       .then((r) => r.json())
-      .then((d: { models?: Array<{ id: string; name: string; provider: string; tier: string | null; ctx: number | null }>; providers?: Array<{ id: string; name: string }> }) => {
-        const names: Record<string, string> = {};
-        for (const p of d.providers ?? []) names[p.id] = p.name;
-        setProviderName(names);
-        const byProvider: Record<string, Model[]> = {};
-        for (const m of d.models ?? []) {
-          (byProvider[m.provider] ??= []).push({
-            id: m.id,
-            name: m.name,
-            tier: (m.tier as Model["tier"]) ?? "smart",
-            contextWindow: m.ctx ?? 0,
-          });
+      .then(
+        (d: {
+          models?: Array<{
+            id: string;
+            name: string;
+            provider: string;
+            tier: string | null;
+            ctx: number | null;
+          }>;
+          providers?: Array<{ id: string; name: string }>;
+        }) => {
+          const names: Record<string, string> = {};
+          for (const p of d.providers ?? []) names[p.id] = p.name;
+          setProviderName(names);
+          const byProvider: Record<string, Model[]> = {};
+          for (const m of d.models ?? []) {
+            (byProvider[m.provider] ??= []).push({
+              id: m.id,
+              name: m.name,
+              tier: (m.tier as Model["tier"]) ?? "smart",
+              contextWindow: m.ctx ?? 0,
+            });
+          }
+          setGroups(
+            Object.entries(byProvider).map(([provider, models]) => ({
+              provider,
+              enabled: true,
+              models,
+            }))
+          );
         }
-        setGroups(Object.entries(byProvider).map(([provider, models]) => ({ provider, enabled: true, models })));
-      })
+      )
       .catch(() => setGroups([]));
   }, []);
 
@@ -66,16 +85,14 @@ export function ModelPicker({ value, onChange }: Props) {
       >
         <span className="flex items-center gap-2">
           {selected ? TIER_ICON[selected.tier] : null}
-          {selected ? selected.name : value || "Elegir modelo…"}
+          {selected ? selected.name : value || t("pickModel")}
         </span>
         <ChevronDown className="h-4 w-4 text-muted" />
       </button>
       {open && (
         <div className="absolute z-50 mt-1.5 max-h-72 w-full overflow-y-auto rounded-xl border border-line bg-surface shadow-xl">
           {groups.length === 0 && (
-            <div className="px-3 py-3 text-xs text-muted">
-              Configurá un proveedor en Ajustes para ver modelos.
-            </div>
+            <div className="px-3 py-3 text-xs text-muted">{t("noConnected")}</div>
           )}
           {groups.map((g) => (
             <div key={g.provider}>
@@ -83,9 +100,7 @@ export function ModelPicker({ value, onChange }: Props) {
                 {providerName[g.provider] ?? g.provider}
               </div>
               {g.models.length === 0 && (
-                <div className="px-3 py-2 text-[11px] text-faint">
-                  No hay modelos. Probá la conexión.
-                </div>
+                <div className="px-3 py-2 text-[11px] text-faint">{t("noModelsInProvider")}</div>
               )}
               {g.models.map((m) => (
                 <button
@@ -104,7 +119,9 @@ export function ModelPicker({ value, onChange }: Props) {
                     {TIER_ICON[m.tier]} {m.name}
                   </span>
                   {m.contextWindow > 0 && (
-                    <span className="text-[10px] text-muted">{Math.round(m.contextWindow / 1000)}k</span>
+                    <span className="text-[10px] text-muted">
+                      {Math.round(m.contextWindow / 1000)}k
+                    </span>
                   )}
                 </button>
               ))}

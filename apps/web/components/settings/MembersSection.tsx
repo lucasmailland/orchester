@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Mail, Plus, Loader2, Copy, Check, X, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 interface Member {
@@ -38,6 +39,7 @@ const ROLE_BADGE: Record<Member["role"], string> = {
  * Todo conectado a `/api/workspace-members` y `/api/invites`.
  */
 export function MembersSection() {
+  const t = useTranslations("pages.settings.members");
   const [members, setMembers] = useState<Member[] | null>(null);
   const [callerRole, setCallerRole] = useState<Member["role"] | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
@@ -78,12 +80,12 @@ export function MembersSection() {
     setSubmitting(false);
     const j = await r.json().catch(() => ({}));
     if (r.ok) {
-      toast.success("Invitación enviada");
+      toast.success(t("inviteSent"));
       setEmail("");
       if (j.inviteUrl) setLastInviteUrl(j.inviteUrl);
       void loadAll();
     } else {
-      toast.error(j.error ?? "Error");
+      toast.error(j.error ?? t("inviteError"));
     }
   }
 
@@ -102,34 +104,34 @@ export function MembersSection() {
     setBusyMember(null);
     const j = await r.json().catch(() => ({}));
     if (r.ok) {
-      toast.success("Rol actualizado");
+      toast.success(t("roleUpdated"));
       void loadAll();
     } else {
-      toast.error(j.error ?? "No se pudo cambiar el rol");
+      toast.error(j.error ?? t("roleError"));
     }
   }
 
   async function removeMember(m: Member) {
-    if (!confirm(`¿Sacar a ${m.name} del workspace?`)) return;
+    if (!confirm(t("removeConfirm", { name: m.name }))) return;
     setBusyMember(m.userId);
     const r = await fetch(`/api/workspace-members?userId=${m.userId}`, { method: "DELETE" });
     setBusyMember(null);
     const j = await r.json().catch(() => ({}));
     if (r.ok) {
-      toast.success("Miembro removido");
+      toast.success(t("memberRemoved"));
       void loadAll();
     } else {
-      toast.error(j.error ?? "No se pudo remover");
+      toast.error(j.error ?? t("removeError"));
     }
   }
 
   async function revokeInvite(id: string) {
     const r = await fetch(`/api/invites?id=${id}`, { method: "DELETE" });
     if (r.ok) {
-      toast.success("Invitación revocada");
+      toast.success(t("inviteRevoked"));
       void loadAll();
     } else {
-      toast.error("No se pudo revocar");
+      toast.error(t("revokeError"));
     }
   }
 
@@ -141,15 +143,15 @@ export function MembersSection() {
       <div className="rounded-2xl border border-line bg-card p-4">
         <div className="mb-2 flex items-center justify-between">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
-            Miembros activos {members ? `· ${members.length}` : ""}
+            {t("activeHeading")} {members ? `· ${members.length}` : ""}
           </h3>
         </div>
         {members === null ? (
           <div className="flex items-center gap-2 text-xs text-muted">
-            <Loader2 className="h-3 w-3 animate-spin" /> Cargando…
+            <Loader2 className="h-3 w-3 animate-spin" /> {t("loading")}
           </div>
         ) : members.length === 0 ? (
-          <p className="text-xs text-muted">Sin miembros aún.</p>
+          <p className="text-xs text-muted">{t("noneYet")}</p>
         ) : (
           <ul className="space-y-1">
             {members.map((m) => (
@@ -158,7 +160,12 @@ export function MembersSection() {
                 className="flex items-center gap-3 rounded-lg border border-line bg-elevated px-3 py-2 text-xs"
               >
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-blue-600 text-[11px] font-bold text-white">
-                  {m.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                  {m.name
+                    .split(" ")
+                    .map((w) => w[0])
+                    .slice(0, 2)
+                    .join("")
+                    .toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-strong">{m.name}</div>
@@ -186,7 +193,7 @@ export function MembersSection() {
                     type="button"
                     onClick={() => void removeMember(m)}
                     disabled={busyMember === m.userId}
-                    aria-label={`Remover a ${m.name}`}
+                    aria-label={t("removeAria", { name: m.name })}
                     className="text-muted hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -201,12 +208,12 @@ export function MembersSection() {
       {/* Invitaciones */}
       <div className="rounded-2xl border border-line bg-card p-4">
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
-          Invitaciones {invites.length > 0 && `· ${invites.length}`}
+          {t("invitesHeading")} {invites.length > 0 && `· ${invites.length}`}
         </h3>
 
         {lastInviteUrl && (
           <div className="mb-3 rounded-lg border border-violet-500/30 bg-violet-500/10 p-2.5 text-xs">
-            <div className="mb-1 text-violet-700 dark:text-violet-200">Link de invitación (también enviado por email):</div>
+            <div className="mb-1 text-violet-700 dark:text-violet-200">{t("inviteLinkLabel")}</div>
             <div className="flex items-center gap-2 rounded bg-black/30 px-2 py-1.5">
               <code className="flex-1 break-all font-mono text-[10px] text-body">
                 {lastInviteUrl}
@@ -214,10 +221,14 @@ export function MembersSection() {
               <button
                 onClick={copyInviteUrl}
                 type="button"
-                aria-label="Copiar link"
+                aria-label={t("copyAria")}
                 className="text-muted hover:text-strong"
               >
-                {copied ? <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                {copied ? (
+                  <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                ) : (
+                  <Copy className="h-3 w-3" />
+                )}
               </button>
             </div>
           </div>
@@ -233,14 +244,14 @@ export function MembersSection() {
                 <div className="min-w-0">
                   <div className="truncate text-strong">{i.email}</div>
                   <div className="text-[10px] text-muted">
-                    {i.role} · {i.status} · expira{" "}
+                    {i.role} · {i.status} · {t("expires")}{" "}
                     {new Date(i.expiresAt).toLocaleDateString()}
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => void revokeInvite(i.id)}
-                  aria-label={`Revocar invitación a ${i.email}`}
+                  aria-label={t("revokeAria", { email: i.email })}
                   className="text-muted hover:text-red-600 dark:hover:text-red-400"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -253,7 +264,7 @@ export function MembersSection() {
         {canManage && (
           <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
             <label htmlFor="member-invite-email" className="sr-only">
-              Email del invitado
+              {t("emailAria")}
             </label>
             <Mail className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
             <input
@@ -263,11 +274,11 @@ export function MembersSection() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="email@empresa.com"
+              placeholder={t("emailPlaceholder")}
               className="flex-1 min-w-[200px] rounded-lg border border-line bg-elevated px-3 py-1.5 text-xs text-strong outline-none focus:border-violet-500/60"
             />
             <label htmlFor="member-invite-role" className="sr-only">
-              Rol
+              {t("roleAria")}
             </label>
             <select
               id="member-invite-role"
@@ -286,8 +297,12 @@ export function MembersSection() {
               disabled={!email.trim() || submitting}
               className="btn-primary"
             >
-              {submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-              Invitar
+              {submitting ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Plus className="h-3 w-3" />
+              )}
+              {t("invite")}
             </button>
           </div>
         )}
@@ -307,13 +322,14 @@ function RoleSelect({
   disabled?: boolean;
   canPromoteOwner: boolean;
 }) {
+  const t = useTranslations("pages.settings.members");
   return (
     <div className="relative">
       <select
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value as Member["role"])}
-        aria-label="Cambiar rol"
+        aria-label={t("changeRoleAria")}
         className={cn(
           "appearance-none rounded-md border px-2 py-0.5 pr-5 text-[10px] uppercase tracking-wider",
           ROLE_BADGE[value],

@@ -1,8 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Monitor, Smartphone, Laptop, Trash2, ShieldOff, AlertTriangle } from "lucide-react";
+import {
+  Loader2,
+  Monitor,
+  Smartphone,
+  Laptop,
+  Trash2,
+  ShieldOff,
+  AlertTriangle,
+} from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { useApi } from "@/lib/use-api";
 
@@ -22,6 +31,7 @@ interface Session {
  * No permite revocar la sesión actual desde acá — para eso está el logout.
  */
 export function SessionsSection() {
+  const t = useTranslations("pages.settings.sessions");
   // K1: SWR replaces the manual useState(null)+useEffect+fetch+load() pattern.
   // `error` is now surfaced, fixing the "spinner forever" gap when /api/sessions fails.
   const { data, error, isLoading, mutate } = useApi<{ sessions: Session[] }>("/api/sessions");
@@ -34,25 +44,24 @@ export function SessionsSection() {
     const r = await fetch(`/api/sessions?id=${id}`, { method: "DELETE" });
     setBusyId(null);
     if (r.ok) {
-      toast.success("Sesión revocada");
+      toast.success(t("revoked"));
       void mutate();
     } else {
       const j = await r.json().catch(() => ({}));
-      toast.error(j.error ?? "No se pudo revocar");
+      toast.error(j.error ?? t("revokeError"));
     }
   }
 
   async function revokeAll() {
-    if (!confirm("¿Cerrar todas las otras sesiones? Tu sesión actual queda activa.")) return;
+    if (!confirm(t("confirmRevokeAll"))) return;
     setBusyAll(true);
     const r = await fetch("/api/sessions?all=true", { method: "DELETE" });
     setBusyAll(false);
     if (r.ok) {
-      const j = await r.json();
-      toast.success(`${j.revoked} sesiones cerradas`);
+      toast.success(t("allRevoked"));
       void mutate();
     } else {
-      toast.error("No se pudo revocar");
+      toast.error(t("revokeError"));
     }
   }
 
@@ -64,29 +73,33 @@ export function SessionsSection() {
   }
 
   function deviceLabel(ua: string | null): string {
-    if (!ua) return "Desconocido";
+    if (!ua) return t("unknown");
     const m =
       ua.match(/(Chrome|Firefox|Safari|Edge|Opera)\/[\d.]+/) ??
       ua.match(/(Macintosh|Windows|Linux|iPhone|Android)/);
-    return m ? m[0] : "Desconocido";
+    return m ? m[0] : t("unknown");
   }
 
   return (
     <div className="space-y-4">
       {isLoading ? (
         <div className="flex items-center gap-2 text-xs text-muted">
-          <Loader2 className="h-3 w-3 animate-spin" /> Cargando…
+          <Loader2 className="h-3 w-3 animate-spin" /> {t("loading")}
         </div>
       ) : error ? (
         <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-700 dark:text-red-300">
           <AlertTriangle className="h-3.5 w-3.5" />
-          <span className="flex-1">No se pudieron cargar las sesiones.</span>
-          <button type="button" onClick={() => void mutate()} className="underline hover:no-underline">
-            Reintentar
+          <span className="flex-1">{t("revokeError")}</span>
+          <button
+            type="button"
+            onClick={() => void mutate()}
+            className="underline hover:no-underline"
+          >
+            {t("revoke")}
           </button>
         </div>
       ) : sessions === null || sessions.length === 0 ? (
-        <p className="text-xs text-muted">Sin sesiones activas.</p>
+        <p className="text-xs text-muted">{t("noSessions")}</p>
       ) : (
         <ul className="space-y-2">
           {sessions
@@ -105,13 +118,13 @@ export function SessionsSection() {
                     <span className="text-strong">{deviceLabel(s.userAgent)}</span>
                     {s.isCurrent && (
                       <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
-                        actual
+                        {t("current")}
                       </span>
                     )}
                   </div>
                   <div className="text-[10px] text-muted">
-                    {s.ipAddress ?? "IP desconocida"} · creada{" "}
-                    {new Date(s.createdAt).toLocaleString()} · expira{" "}
+                    {s.ipAddress ?? "IP"} · {t("createdAt")}{" "}
+                    {new Date(s.createdAt).toLocaleString()} · {t("expires")}{" "}
                     {new Date(s.expiresAt).toLocaleDateString()}
                   </div>
                 </div>
@@ -120,7 +133,7 @@ export function SessionsSection() {
                     type="button"
                     onClick={() => void revoke(s.id)}
                     disabled={busyId === s.id}
-                    aria-label="Cerrar esta sesión"
+                    aria-label={t("revoke")}
                     className="text-muted hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
                   >
                     {busyId === s.id ? (
@@ -143,12 +156,13 @@ export function SessionsSection() {
             disabled={busyAll}
             className="btn-danger"
           >
-            {busyAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldOff className="h-3.5 w-3.5" />}
-            Cerrar todas las otras sesiones
+            {busyAll ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <ShieldOff className="h-3.5 w-3.5" />
+            )}
+            {t("revokeAll")}
           </button>
-          <p className="mt-1.5 text-[11px] text-muted">
-            Útil si sospechás que alguien tiene acceso a tu cuenta. Tu sesión actual no se cierra.
-          </p>
         </div>
       )}
     </div>

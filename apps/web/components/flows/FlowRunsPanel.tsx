@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { History, X, ChevronRight } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface Run {
   id: string;
@@ -30,6 +31,7 @@ export function FlowRunsPanel({
   open: boolean;
   onClose: () => void;
 }) {
+  const t = useTranslations("pages.flows.runs");
   const [runs, setRuns] = useState<Run[]>([]);
   const [selected, setSelected] = useState<{ run: Run; steps: Step[] } | null>(null);
 
@@ -50,17 +52,20 @@ export function FlowRunsPanel({
     <div className="absolute right-0 top-0 z-30 flex h-full w-[420px] flex-col border-l border-line bg-surface">
       <div className="flex items-center justify-between border-b border-line px-4 py-3">
         <span className="flex items-center gap-2 text-sm text-body">
-          <History className="h-4 w-4" /> Ejecuciones
+          <History className="h-4 w-4" /> {t("title")}
         </span>
-        <button onClick={onClose} type="button" className="text-muted hover:text-body">
+        <button
+          onClick={onClose}
+          type="button"
+          aria-label={t("closeAria")}
+          className="text-muted hover:text-body"
+        >
           <X className="h-4 w-4" />
         </button>
       </div>
       {!selected ? (
         <div className="flex-1 overflow-y-auto p-3">
-          {runs.length === 0 && (
-            <div className="text-xs text-muted">Aún no hubo ejecuciones.</div>
-          )}
+          {runs.length === 0 && <div className="text-xs text-muted">{t("noRuns")}</div>}
           {runs.map((r) => (
             <button
               key={r.id}
@@ -69,7 +74,7 @@ export function FlowRunsPanel({
               className="mb-1.5 flex w-full items-center justify-between rounded-lg border border-line bg-card px-3 py-2 text-left text-xs hover:bg-surface"
             >
               <div>
-                <div className="text-body">{r.triggerSource ?? "trigger"}</div>
+                <div className="text-body">{r.triggerSource ?? t("trigger")}</div>
                 <div className="text-[10px] text-muted">
                   {new Date(r.startedAt).toLocaleString()}
                 </div>
@@ -80,10 +85,10 @@ export function FlowRunsPanel({
                     r.status === "succeeded"
                       ? "text-emerald-600 dark:text-emerald-400"
                       : r.status === "failed"
-                      ? "text-red-600 dark:text-red-400"
-                      : r.status === "running"
-                      ? "text-amber-600 dark:text-amber-400"
-                      : "text-muted"
+                        ? "text-red-600 dark:text-red-400"
+                        : r.status === "running"
+                          ? "text-amber-600 dark:text-amber-400"
+                          : "text-muted"
                   }
                 >
                   {r.status}
@@ -100,7 +105,7 @@ export function FlowRunsPanel({
             onClick={() => setSelected(null)}
             className="mb-2 text-[11px] text-muted hover:text-body"
           >
-            ← Volver
+            {t("back")}
           </button>
           <div className="mb-3 rounded-lg border border-line bg-card p-3 text-xs">
             <div className="text-body">{selected.run.status}</div>
@@ -113,7 +118,7 @@ export function FlowRunsPanel({
               </div>
             )}
           </div>
-          <div className="text-[10px] uppercase tracking-wider text-muted">Pasos</div>
+          <div className="text-[10px] uppercase tracking-wider text-muted">{t("stepsHeading")}</div>
           {selected.steps.map((s) => (
             <div
               key={s.id}
@@ -126,8 +131,8 @@ export function FlowRunsPanel({
                     s.status === "succeeded"
                       ? "text-emerald-600 dark:text-emerald-400"
                       : s.status === "failed"
-                      ? "text-red-600 dark:text-red-400"
-                      : "text-muted"
+                        ? "text-red-600 dark:text-red-400"
+                        : "text-muted"
                   }
                 >
                   {s.status}

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import type { Node, Edge } from "@xyflow/react";
 import { Sparkles, X, Send, Loader2, Link2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface ChatMsg {
   role: "user" | "assistant";
@@ -35,6 +36,7 @@ export function CopilotPanel({
   /** Spec estructurada del flujo actual, para que el copiloto pueda editarlo. */
   currentGraph: () => { nodes: unknown[]; edges: unknown[] };
 }) {
+  const t = useTranslations("pages.flows.copilot");
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [apiUrl, setApiUrl] = useState("");
@@ -81,20 +83,20 @@ export function CopilotPanel({
       });
       const j = await r.json();
       if (!r.ok) {
-        setError(j?.error ?? "El copiloto no pudo responder.");
+        setError(j?.error ?? t("couldNotAnswer"));
         setBusy(false);
         return;
       }
-      setMessages((m) => [...m, { role: "assistant", content: j.message ?? "Listo." }]);
+      setMessages((m) => [...m, { role: "assistant", content: j.message ?? t("doneShort") }]);
       if (j.graph && Array.isArray(j.graph.nodes) && j.graph.nodes.length > 0) {
         setPending({ nodes: j.graph.nodes as Node[], edges: (j.graph.edges ?? []) as Edge[] });
       }
       if (Array.isArray(j.errors) && j.errors.length > 0) {
-        setError(`Algunos pasos no se pudieron crear: ${j.errors.join(" ")}`);
+        setError(t("partialErrors", { errors: j.errors.join(" ") }));
       }
       setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight }), 50);
     } catch {
-      setError("Hubo un problema de conexión. Probá de nuevo.");
+      setError(t("connectionError"));
     } finally {
       setBusy(false);
     }
@@ -104,9 +106,14 @@ export function CopilotPanel({
     <div className="flex w-[360px] shrink-0 flex-col border-l border-line bg-surface">
       <div className="flex items-center justify-between border-b border-line px-4 py-3">
         <span className="flex items-center gap-2 text-sm font-medium text-strong">
-          <Sparkles className="h-4 w-4 text-violet-500" /> Copiloto
+          <Sparkles className="h-4 w-4 text-violet-500" /> {t("title")}
         </span>
-        <button type="button" onClick={onClose} aria-label="Cerrar" className="text-muted hover:text-body">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={t("closeAria")}
+          className="text-muted hover:text-body"
+        >
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -115,10 +122,9 @@ export function CopilotPanel({
         {messages.length === 0 && (
           <div className="space-y-2">
             <div className="rounded-xl border border-line bg-card p-3 text-muted">
-              <p className="font-medium text-body">Contame qué querés automatizar 👇</p>
+              <p className="font-medium text-body">{t("emptyTitle")}</p>
               <p className="mt-1 leading-relaxed">
-                Por ejemplo: <em>“cuando llega un mensaje, buscá en mi base de conocimiento y
-                respondé con un agente”</em>. Si tenés una API, pegá su link y armo el paso por vos.
+                {t.rich("emptyHint", { em: (chunks) => <em>{chunks}</em> })}
               </p>
             </div>
             {describeFlow() && (
@@ -127,25 +133,25 @@ export function CopilotPanel({
                   type="button"
                   onClick={() =>
                     void runQuick(
-                      "Explicame este flujo",
-                      `Explicá en lenguaje simple, para alguien no técnico, qué hace este flujo paso a paso:\n\n${describeFlow()}`
+                      t("explainFlow"),
+                      t("explainFlowPrompt", { describe: describeFlow() })
                     )
                   }
                   className="rounded-full border border-line bg-card px-2.5 py-1 text-[11px] text-body hover:bg-elevated"
                 >
-                  Explicame este flujo
+                  {t("explainFlow")}
                 </button>
                 <button
                   type="button"
                   onClick={() =>
                     void runQuick(
-                      "Revisá si hay errores",
-                      `Revisá este flujo y decime, en lenguaje simple, si tiene errores, pasos sin configurar o conexiones faltantes. No uses la herramienta set_flow, solo explicá:\n\n${describeFlow()}`
+                      t("reviewErrors"),
+                      t("reviewErrorsPrompt", { describe: describeFlow() })
                     )
                   }
                   className="rounded-full border border-line bg-card px-2.5 py-1 text-[11px] text-body hover:bg-elevated"
                 >
-                  Revisá si hay errores
+                  {t("reviewErrors")}
                 </button>
               </div>
             )}
@@ -165,7 +171,7 @@ export function CopilotPanel({
         ))}
         {busy && (
           <div className="mr-6 flex items-center gap-2 rounded-xl border border-line bg-card p-3 text-muted">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Armando el flujo…
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("thinking")}
           </div>
         )}
         {error && (
@@ -176,16 +182,20 @@ export function CopilotPanel({
         {pending && (
           <div className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-3">
             <p className="text-[11px] font-medium text-body">
-              Propuesta: {pending.nodes.length} paso{pending.nodes.length === 1 ? "" : "s"}
+              {pending.nodes.length === 1
+                ? t("proposalCount", { n: pending.nodes.length })
+                : t("proposalCountPlural", { n: pending.nodes.length })}
             </p>
             <ul className="mt-1.5 space-y-0.5">
               {pending.nodes.slice(0, 8).map((n) => (
                 <li key={n.id} className="truncate text-[11px] text-muted">
-                  • {(n.data as { label?: string })?.label ?? "Paso"}
+                  • {(n.data as { label?: string })?.label ?? t("step")}
                 </li>
               ))}
               {pending.nodes.length > 8 && (
-                <li className="text-[11px] text-faint">…y {pending.nodes.length - 8} más</li>
+                <li className="text-[11px] text-faint">
+                  {t("andMore", { n: pending.nodes.length - 8 })}
+                </li>
               )}
             </ul>
             <div className="mt-2.5 flex flex-wrap gap-1.5">
@@ -194,21 +204,21 @@ export function CopilotPanel({
                 onClick={() => applyPending("replace")}
                 className="rounded-lg bg-violet-500 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-violet-400"
               >
-                Reemplazar el flujo
+                {t("replaceFlow")}
               </button>
               <button
                 type="button"
                 onClick={() => applyPending("merge")}
                 className="rounded-lg border border-line bg-card px-2.5 py-1 text-[11px] text-body hover:bg-elevated"
               >
-                Sumar al flujo
+                {t("mergeFlow")}
               </button>
               <button
                 type="button"
                 onClick={() => setPending(null)}
                 className="rounded-lg px-2.5 py-1 text-[11px] text-muted hover:text-body"
               >
-                Descartar
+                {t("discard")}
               </button>
             </div>
           </div>
@@ -222,7 +232,7 @@ export function CopilotPanel({
             <input
               value={apiUrl}
               onChange={(e) => setApiUrl(e.target.value)}
-              placeholder="https://api.tu-servicio.com/…"
+              placeholder={t("apiUrlPlaceholder")}
               className="w-full rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-xs text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
             />
           </div>
@@ -238,7 +248,7 @@ export function CopilotPanel({
               }
             }}
             rows={2}
-            placeholder="Describí lo que querés que haga…"
+            placeholder={t("inputPlaceholder")}
             className="flex-1 resize-none rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-xs text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
           />
           <button
@@ -246,7 +256,7 @@ export function CopilotPanel({
             onClick={() => void send()}
             disabled={busy || !input.trim()}
             className="rounded-lg bg-violet-500 p-2 text-white hover:bg-violet-400 disabled:opacity-40"
-            aria-label="Enviar"
+            aria-label={t("send")}
           >
             <Send className="h-3.5 w-3.5" />
           </button>
@@ -256,7 +266,7 @@ export function CopilotPanel({
           onClick={() => setShowUrl((s) => !s)}
           className="mt-1.5 text-[11px] text-muted hover:text-body"
         >
-          {showUrl ? "Quitar link de API" : "+ Agregar link de una API"}
+          {showUrl ? t("removeApiLink") : t("addApiLink")}
         </button>
       </div>
     </div>

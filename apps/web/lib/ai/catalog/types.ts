@@ -70,18 +70,48 @@ export interface ModelDef {
   notes?: string;
 }
 
-export const CAPABILITY_LABELS: Record<Capability, { es: string; emoji: string }> = {
-  chat: { es: "Chat / texto", emoji: "💬" },
-  image: { es: "Imagen", emoji: "🖼️" },
-  video: { es: "Video", emoji: "🎬" },
-  avatar: { es: "Avatar / persona hablando", emoji: "🎭" },
-  embedding: { es: "Embeddings / vectorizar", emoji: "🔢" },
-  rerank: { es: "Rerank", emoji: "🔀" },
-  tts: { es: "Voz (texto → audio)", emoji: "🔊" },
-  stt: { es: "Transcripción (audio → texto)", emoji: "🎙️" },
-  music: { es: "Música", emoji: "🎵" },
-  ocr: { es: "OCR / documentos", emoji: "📄" },
+export const CAPABILITY_LABELS: Record<
+  Capability,
+  { en: string; es: string; "pt-BR": string; emoji: string }
+> = {
+  chat: { en: "Chat / text", es: "Chat / texto", "pt-BR": "Chat / texto", emoji: "💬" },
+  image: { en: "Image", es: "Imagen", "pt-BR": "Imagem", emoji: "🖼️" },
+  video: { en: "Video", es: "Video", "pt-BR": "Vídeo", emoji: "🎬" },
+  avatar: {
+    en: "Avatar / talking person",
+    es: "Avatar / persona hablando",
+    "pt-BR": "Avatar / pessoa falando",
+    emoji: "🎭",
+  },
+  embedding: {
+    en: "Embeddings / vectorize",
+    es: "Embeddings / vectorizar",
+    "pt-BR": "Embeddings / vetorizar",
+    emoji: "🔢",
+  },
+  rerank: { en: "Rerank", es: "Rerank", "pt-BR": "Rerank", emoji: "🔀" },
+  tts: {
+    en: "Voice (text → audio)",
+    es: "Voz (texto → audio)",
+    "pt-BR": "Voz (texto → áudio)",
+    emoji: "🔊",
+  },
+  stt: {
+    en: "Transcription (audio → text)",
+    es: "Transcripción (audio → texto)",
+    "pt-BR": "Transcrição (áudio → texto)",
+    emoji: "🎙️",
+  },
+  music: { en: "Music", es: "Música", "pt-BR": "Música", emoji: "🎵" },
+  ocr: { en: "OCR / documents", es: "OCR / documentos", "pt-BR": "OCR / documentos", emoji: "📄" },
 };
+
+export type CapabilityLocale = "en" | "es" | "pt-BR";
+
+export function getCapabilityLabel(cap: Capability, locale: string): string {
+  const key: CapabilityLocale = locale === "es" ? "es" : locale === "pt-BR" ? "pt-BR" : "en";
+  return CAPABILITY_LABELS[cap][key];
+}
 
 /** Capacidades que ya se ejecutan en flujos. El resto es catálogo/conexión. */
 export const EXECUTABLE_CAPABILITIES: Capability[] = ["chat", "image", "embedding"];

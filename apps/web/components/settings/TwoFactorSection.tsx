@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, Shield, ShieldCheck, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { authClient } from "@/lib/auth-client";
 
 /**
@@ -16,6 +17,7 @@ import { authClient } from "@/lib/auth-client";
  * tenemos un campo password también.
  */
 export function TwoFactorSection({ enabled }: { enabled: boolean }) {
+  const t = useTranslations("pages.settings.twoFactor");
   const [state, setState] = useState<"disabled" | "setup" | "backup" | "enabled">(
     enabled ? "enabled" : "disabled"
   );
@@ -31,12 +33,12 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
   }, [enabled]);
 
   async function startSetup() {
-    if (!password) return toast.error("Ingresá tu password para confirmar");
+    if (!password) return toast.error(t("passwordRequired"));
     setBusy(true);
     try {
       const { data, error } = await authClient.twoFactor.enable({ password });
       if (error) {
-        toast.error(error.message ?? "No se pudo iniciar setup");
+        toast.error(error.message ?? t("setupFailed"));
         return;
       }
       setTotpURI(data.totpURI);
@@ -48,15 +50,15 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
   }
 
   async function verifyAndActivate() {
-    if (code.length < 6) return toast.error("Código de 6 dígitos");
+    if (code.length < 6) return toast.error(t("code6"));
     setBusy(true);
     try {
       const { error } = await authClient.twoFactor.verifyTotp({ code });
       if (error) {
-        toast.error(error.message ?? "Código inválido");
+        toast.error(error.message ?? t("codeInvalid"));
         return;
       }
-      toast.success("2FA activado");
+      toast.success(t("enabled"));
       setState("backup");
     } finally {
       setBusy(false);
@@ -64,15 +66,15 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
   }
 
   async function disable() {
-    if (!password) return toast.error("Ingresá tu password para desactivar");
+    if (!password) return toast.error(t("passwordDisableRequired"));
     setBusy(true);
     try {
       const { error } = await authClient.twoFactor.disable({ password });
       if (error) {
-        toast.error(error.message ?? "No se pudo desactivar");
+        toast.error(error.message ?? t("disableFailed"));
         return;
       }
-      toast.success("2FA desactivado");
+      toast.success(t("disabled"));
       setState("disabled");
       setPassword("");
     } finally {
@@ -91,11 +93,11 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
       <div className="space-y-3">
         <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-700 dark:text-emerald-200">
           <ShieldCheck className="h-4 w-4" />
-          <span>2FA activado. Tu cuenta está protegida con autenticación de dos factores.</span>
+          <span>{t("enabledBanner")}</span>
         </div>
         <div className="space-y-2">
           <label htmlFor="2fa-disable-pw" className="text-xs text-muted">
-            Para desactivar, ingresá tu password:
+            {t("disableLabel")}
           </label>
           <input
             id="2fa-disable-pw"
@@ -112,7 +114,7 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
             className="btn-danger"
           >
             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            Desactivar 2FA
+            {t("disableButton")}
           </button>
         </div>
       </div>
@@ -123,21 +125,19 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
     return (
       <div className="space-y-3">
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-200">
-          <strong>Guardá estos códigos en un lugar seguro.</strong> Sirven para
-          loguearte si perdés acceso a tu app de autenticador. Cada código se
-          puede usar UNA SOLA VEZ.
+          {t("backupCodesWarning")}
         </div>
         <div className="rounded-lg border border-line bg-surface p-3 font-mono text-xs">
           <pre className="whitespace-pre-wrap break-all">{backupCodes.join("\n")}</pre>
         </div>
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => void copyBackupCodes()}
-            className="btn-secondary"
-          >
-            {copied ? <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-            {copied ? "Copiado" : "Copiar todos"}
+          <button type="button" onClick={() => void copyBackupCodes()} className="btn-secondary">
+            {copied ? (
+              <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" />
+            )}
+            {copied ? t("copied") : t("copyAll")}
           </button>
           <button
             type="button"
@@ -148,7 +148,7 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
             }}
             className="btn-primary"
           >
-            Listo, los guardé
+            {t("doneSaved")}
           </button>
         </div>
       </div>
@@ -158,30 +158,25 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
   if (state === "setup") {
     return (
       <div className="space-y-3">
-        <p className="text-xs text-muted">
-          Escaneá el QR con tu app de autenticador (Google Authenticator, Authy,
-          1Password, etc.) y luego ingresá el código de 6 dígitos.
-        </p>
+        <p className="text-xs text-muted">{t("setupDescription")}</p>
         {totpURI && (
           <div className="flex justify-center rounded-lg border border-line bg-white p-4">
-            {/* QR como image vía Google Charts API (funciona offline también si pegás otro QR generator) */}
+            {/* QR via Google Charts API */}
             <img
               src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(totpURI)}`}
-              alt="QR del TOTP secret"
+              alt={t("qrAlt")}
               width={200}
               height={200}
             />
           </div>
         )}
         <details className="text-[10px] text-muted">
-          <summary className="cursor-pointer">¿No podés escanear?</summary>
-          <p className="mt-1">Pegá esta URL en tu app:</p>
-          <code className="mt-1 block break-all rounded bg-surface p-2 font-mono">
-            {totpURI}
-          </code>
+          <summary className="cursor-pointer">{t("cantScan")}</summary>
+          <p className="mt-1">{t("pasteUrl")}</p>
+          <code className="mt-1 block break-all rounded bg-surface p-2 font-mono">{totpURI}</code>
         </details>
         <label htmlFor="2fa-code" className="text-xs text-muted">
-          Código de 6 dígitos
+          {t("codeLabel")}
         </label>
         <input
           id="2fa-code"
@@ -203,7 +198,7 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
             }}
             className="btn-secondary"
           >
-            Cancelar
+            {t("cancel")}
           </button>
           <button
             type="button"
@@ -212,7 +207,7 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
             className="btn-primary"
           >
             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            Verificar y activar
+            {t("verifyAndActivate")}
           </button>
         </div>
       </div>
@@ -224,10 +219,10 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
     <div className="space-y-3">
       <div className="flex items-center gap-2 text-xs text-muted">
         <Shield className="h-4 w-4" />
-        <span>2FA no está activado. Recomendado para cuentas owner/admin.</span>
+        <span>{t("disabledHint")}</span>
       </div>
       <label htmlFor="2fa-enable-pw" className="text-xs text-muted">
-        Confirmá con tu password:
+        {t("confirmWithPassword")}
       </label>
       <input
         id="2fa-enable-pw"
@@ -243,8 +238,12 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
         disabled={busy || !password}
         className="btn-primary"
       >
-        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Shield className="h-3.5 w-3.5" />}
-        Activar 2FA
+        {busy ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Shield className="h-3.5 w-3.5" />
+        )}
+        {t("enableButton")}
       </button>
     </div>
   );

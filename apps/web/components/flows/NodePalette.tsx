@@ -2,8 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
+import { useTranslations } from "next-intl";
 import {
-  listNodesByCategory, CATEGORY_LABELS, type Locale, type NodeDef,
+  listNodesByCategory,
+  CATEGORY_LABELS,
+  type Locale,
+  type NodeDef,
 } from "@/lib/flows/node-registry";
 import { getNodeDocs } from "@/lib/flows/node-docs";
 import { iconFor } from "./nodes/icon-map";
@@ -19,6 +23,7 @@ export function NodePalette({
   onAdd: (nodeId: string) => void;
   locale: Locale;
 }) {
+  const t = useTranslations("pages.flows.palette");
   const [query, setQuery] = useState("");
   const groups = useMemo(() => listNodesByCategory(), []);
   const q = query.trim().toLowerCase();
@@ -30,8 +35,7 @@ export function NodePalette({
         category: g.category,
         nodes: g.nodes.filter(
           (n) =>
-            n.title[locale].toLowerCase().includes(q) ||
-            n.summary[locale].toLowerCase().includes(q)
+            n.title[locale].toLowerCase().includes(q) || n.summary[locale].toLowerCase().includes(q)
         ),
       }))
       .filter((g) => g.nodes.length > 0);
@@ -45,7 +49,7 @@ export function NodePalette({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar un paso…"
+            placeholder={t("searchPlaceholder")}
             className="w-full rounded-lg border border-line bg-elevated py-1.5 pl-7 pr-2 text-xs text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
           />
         </div>
@@ -63,7 +67,7 @@ export function NodePalette({
         ))}
         {filtered.length === 0 && (
           <p className="px-1 py-4 text-center text-[11px] text-faint">
-            No encontramos ningún paso con “{query}”.
+            {t("noMatches", { query })}
           </p>
         )}
       </div>
@@ -82,7 +86,11 @@ function PaletteItem({
 }) {
   const Icon = iconFor(node.icon);
   const docs = getNodeDocs(node.id);
-  const tooltip = docs ? `${node.summary[locale]}\n\nCuándo conviene: ${docs.whenToUse[locale]}` : node.summary[locale];
+  const whenToUseLabel =
+    locale === "es" ? "Cuándo conviene" : locale === "pt-BR" ? "Quando usar" : "When to use";
+  const tooltip = docs
+    ? `${node.summary[locale]}\n\n${whenToUseLabel}: ${docs.whenToUse[locale]}`
+    : node.summary[locale];
   return (
     <button
       type="button"
@@ -103,7 +111,9 @@ function PaletteItem({
       </span>
       <span className="min-w-0">
         <span className="block truncate text-xs font-medium text-body">{node.title[locale]}</span>
-        <span className="block truncate text-[10px] leading-tight text-faint">{node.summary[locale]}</span>
+        <span className="block truncate text-[10px] leading-tight text-faint">
+          {node.summary[locale]}
+        </span>
       </span>
     </button>
   );

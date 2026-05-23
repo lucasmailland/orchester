@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 interface Props {
   workspace: { id: string; name: string; slug: string; role: string };
@@ -17,6 +18,7 @@ interface Props {
  */
 export function DangerZoneSection({ workspace }: Props) {
   const router = useRouter();
+  const t = useTranslations("pages.settings.danger");
   const isOwner = workspace.role === "owner";
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState("");
@@ -32,10 +34,10 @@ export function DangerZoneSection({ workspace }: Props) {
     setBusy(false);
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      toast.error(j.error ?? "No se pudo eliminar el workspace");
+      toast.error(j.error ?? t("deleteError"));
       return;
     }
-    toast.success("Workspace eliminado");
+    toast.success(t("deleted"));
     setOpen(false);
     router.push("/auth/login");
   }
@@ -47,11 +49,8 @@ export function DangerZoneSection({ workspace }: Props) {
           <AlertTriangle size={16} />
         </div>
         <div>
-          <h2 className="text-sm font-semibold text-red-600 dark:text-red-400">Zona de peligro</h2>
-          <p className="text-xs text-muted">
-            Acción irreversible. Borra el workspace, todos sus agentes, conversaciones,
-            knowledge bases y miembros.
-          </p>
+          <h2 className="text-sm font-semibold text-red-600 dark:text-red-400">{t("title")}</h2>
+          <p className="text-xs text-muted">{t("description")}</p>
         </div>
       </header>
 
@@ -59,16 +58,18 @@ export function DangerZoneSection({ workspace }: Props) {
         type="button"
         onClick={() => setOpen(true)}
         disabled={!isOwner}
-        title={isOwner ? "" : "Solo el owner del workspace puede eliminarlo"}
+        title={isOwner ? "" : t("onlyOwner")}
         className="btn-danger"
       >
         <Trash2 size={14} />
-        Eliminar workspace
+        {t("deleteButton")}
       </button>
       {!isOwner && (
         <p className="mt-2 text-[11px] text-muted">
-          Tu rol es <strong className="text-body">{workspace.role}</strong>. Pedile al owner
-          que ejecute esta acción.
+          {t.rich("yourRoleIs", {
+            role: workspace.role,
+            b: (chunks) => <strong className="text-body">{chunks}</strong>,
+          })}
         </p>
       )}
 
@@ -83,17 +84,18 @@ export function DangerZoneSection({ workspace }: Props) {
           }}
         >
           <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-surface p-5 shadow-2xl">
-            <h3 id="delete-ws-title" className="text-sm font-semibold text-red-600 dark:text-red-400">
-              ¿Eliminar el workspace &ldquo;{workspace.name}&rdquo;?
+            <h3
+              id="delete-ws-title"
+              className="text-sm font-semibold text-red-600 dark:text-red-400"
+            >
+              {t("modalTitle", { name: workspace.name })}
             </h3>
-            <p className="mt-1 text-xs text-muted">
-              Esta acción no se puede deshacer. Para confirmar, escribí el slug del workspace:
-            </p>
+            <p className="mt-1 text-xs text-muted">{t("modalDescription")}</p>
             <code className="mt-2 block rounded-lg border border-line bg-surface px-3 py-2 text-center font-mono text-sm text-strong">
               {workspace.slug}
             </code>
             <label htmlFor="delete-confirm" className="sr-only">
-              Confirmá tipeando el slug
+              {t("slugAria")}
             </label>
             <input
               id="delete-confirm"
@@ -101,17 +103,13 @@ export function DangerZoneSection({ workspace }: Props) {
               autoComplete="off"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              placeholder="Tipeá el slug acá…"
+              placeholder={t("slugPlaceholder")}
               className="input mt-3 font-mono"
               autoFocus
             />
             <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="btn-secondary"
-              >
-                Cancelar
+              <button type="button" onClick={() => setOpen(false)} className="btn-secondary">
+                {t("cancel")}
               </button>
               <button
                 type="button"
@@ -120,7 +118,7 @@ export function DangerZoneSection({ workspace }: Props) {
                 className="btn-danger"
               >
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 size={14} />}
-                Eliminar definitivamente
+                {t("deleteConfirm")}
               </button>
             </div>
           </div>

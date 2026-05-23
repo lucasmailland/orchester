@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 interface UsagePayload {
   plan: string;
@@ -28,6 +29,7 @@ interface UsagePayload {
 }
 
 export function BillingSection() {
+  const t = useTranslations("pages.settings.billing");
   const [data, setData] = useState<UsagePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -49,7 +51,7 @@ export function BillingSection() {
     setBusy(false);
     const j = await r.json();
     if (r.ok && j.url) window.location.href = j.url;
-    else toast.error(j.error ?? "Stripe no configurado — definí STRIPE_SECRET_KEY + STRIPE_PRICE_*");
+    else toast.error(j.error ?? t("stripeNotConfigured"));
   }
 
   async function openPortal() {
@@ -58,7 +60,7 @@ export function BillingSection() {
     setBusy(false);
     const j = await r.json();
     if (r.ok && j.url) window.location.href = j.url;
-    else toast.error(j.error ?? "No hay cliente Stripe asociado");
+    else toast.error(j.error ?? t("noStripeCustomer"));
   }
 
   if (loading) return <Loader2 className="h-4 w-4 animate-spin text-muted" />;
@@ -66,18 +68,23 @@ export function BillingSection() {
 
   const tokensTotal = data.usage.tokensIn + data.usage.tokensOut;
   const tokensPct = Math.min(100, (tokensTotal / data.limits.tokensPerMonth) * 100);
-  const convsPct = Math.min(100, (data.usage.conversations / data.limits.conversationsPerMonth) * 100);
+  const convsPct = Math.min(
+    100,
+    (data.usage.conversations / data.limits.conversationsPerMonth) * 100
+  );
 
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-line bg-card p-4">
         <div className="mb-3 flex items-center justify-between">
           <div>
-            <div className="text-xs uppercase tracking-wider text-muted">Plan actual</div>
+            <div className="text-xs uppercase tracking-wider text-muted">{t("currentPlan")}</div>
             <div className="text-lg font-semibold text-strong">
               {data.planMeta.name}{" "}
               <span className="text-sm text-muted">
-                {data.stripeEnabled === false ? "· sin límites" : `· $${data.planMeta.priceUsd}/mes`}
+                {data.stripeEnabled === false
+                  ? t("noLimits")
+                  : `· ${t("perMonth")}${data.planMeta.priceUsd}/mo`}
               </span>
             </div>
           </div>
@@ -88,7 +95,7 @@ export function BillingSection() {
               disabled={busy}
               className="flex items-center gap-1 rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-400"
             >
-              Upgrade a Pro <ExternalLink className="h-3 w-3" />
+              {t("upgrade")} <ExternalLink className="h-3 w-3" />
             </button>
           ) : (
             <button
@@ -97,27 +104,31 @@ export function BillingSection() {
               disabled={busy}
               className="flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-xs text-body hover:bg-hover"
             >
-              Gestionar suscripción <ExternalLink className="h-3 w-3" />
+              {t("managePlan")} <ExternalLink className="h-3 w-3" />
             </button>
           )}
         </div>
 
         <div className="space-y-3 text-xs">
           <UsageBar
-            label="Conversaciones (mes)"
+            label={t("conversationsMonth")}
             current={data.usage.conversations}
             limit={data.limits.conversationsPerMonth}
             pct={convsPct}
           />
           <UsageBar
-            label="Tokens (mes)"
+            label={t("tokensMonth")}
             current={tokensTotal}
             limit={data.limits.tokensPerMonth}
             pct={tokensPct}
           />
           <div className="grid grid-cols-2 gap-3 text-muted">
-            <span>Flow runs: <strong className="text-body">{data.usage.flowRuns}</strong></span>
-            <span>KB queries: <strong className="text-body">{data.usage.kbQueries}</strong></span>
+            <span>
+              {t("flowRuns")} <strong className="text-body">{data.usage.flowRuns}</strong>
+            </span>
+            <span>
+              {t("kbQueries")} <strong className="text-body">{data.usage.kbQueries}</strong>
+            </span>
           </div>
         </div>
       </div>
@@ -125,7 +136,17 @@ export function BillingSection() {
   );
 }
 
-function UsageBar({ label, current, limit, pct }: { label: string; current: number | null | undefined; limit: number | null | undefined; pct: number }) {
+function UsageBar({
+  label,
+  current,
+  limit,
+  pct,
+}: {
+  label: string;
+  current: number | null | undefined;
+  limit: number | null | undefined;
+  pct: number;
+}) {
   const tone = pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-violet-500";
   const fmt = (n: number | null | undefined) => {
     const v = Number(n ?? 0);

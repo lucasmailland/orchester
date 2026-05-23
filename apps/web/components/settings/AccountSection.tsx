@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { User, Loader2, Trash2, AlertTriangle } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Field, FieldRow, SettingsCard } from "./_layout";
 import { TwoFactorSection } from "./TwoFactorSection";
 
@@ -26,6 +27,7 @@ const LOCALES = [
 
 export function AccountSection({ me }: Props) {
   const router = useRouter();
+  const t = useTranslations("pages.settings.account");
   const pathname = usePathname();
   const [name, setName] = useState(me.name);
   const [locale, setLocale] = useState(me.preferredLocale);
@@ -34,9 +36,7 @@ export function AccountSection({ me }: Props) {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
 
-  const dirty =
-    name.trim() !== me.name ||
-    locale !== me.preferredLocale;
+  const dirty = name.trim() !== me.name || locale !== me.preferredLocale;
 
   async function save() {
     if (!dirty) return;
@@ -52,10 +52,10 @@ export function AccountSection({ me }: Props) {
     setSaving(false);
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      toast.error(j.error ?? "No se pudo guardar");
+      toast.error(j.error ?? t("saveError"));
       return;
     }
-    toast.success("Cuenta actualizada");
+    toast.success(t("saved"));
     if (locale !== me.preferredLocale && pathname) {
       const newPath = pathname.replace(/^\/[a-zA-Z-]+/, `/${locale}`);
       router.push(newPath);
@@ -67,37 +67,28 @@ export function AccountSection({ me }: Props) {
   return (
     <SettingsCard
       icon={<User size={16} />}
-      title="Mi cuenta"
-      description="Datos personales y preferencias de la interfaz."
+      title={t("title")}
+      description={t("description")}
       action={
-        <button
-          type="button"
-          onClick={save}
-          disabled={!dirty || saving}
-          className="btn-primary"
-        >
+        <button type="button" onClick={save} disabled={!dirty || saving} className="btn-primary">
           {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-          Guardar
+          {t("save")}
         </button>
       }
     >
       <FieldRow>
-        <Field label="Nombre" htmlFor="me-name">
+        <Field label={t("nameLabel")} htmlFor="me-name">
           <input
             id="me-name"
             name="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Tu nombre"
+            placeholder={t("namePlaceholder")}
             maxLength={80}
             className="input"
           />
         </Field>
-        <Field
-          label="Email"
-          htmlFor="me-email"
-          hint="Para cambiar tu email, contactá soporte."
-        >
+        <Field label={t("emailLabel")} htmlFor="me-email" hint={t("emailHint")}>
           <input
             id="me-email"
             name="email"
@@ -109,7 +100,7 @@ export function AccountSection({ me }: Props) {
       </FieldRow>
 
       <FieldRow>
-        <Field label="Idioma de la interfaz" htmlFor="me-locale">
+        <Field label={t("localeLabel")} htmlFor="me-locale">
           <select
             id="me-locale"
             name="locale"
@@ -129,10 +120,10 @@ export function AccountSection({ me }: Props) {
       {/* 2FA */}
       <details className="rounded-lg border border-line bg-card p-3">
         <summary className="cursor-pointer text-xs font-medium text-body">
-          Autenticación de dos factores (2FA)
+          {t("twoFactorTitle")}
           {me.twoFactorEnabled && (
             <span className="ml-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">
-              activo
+              {t("twoFactorActive")}
             </span>
           )}
         </summary>
@@ -144,19 +135,12 @@ export function AccountSection({ me }: Props) {
       {/* GDPR delete account */}
       <details className="rounded-lg border border-red-500/20 bg-red-500/[0.03] p-3">
         <summary className="cursor-pointer text-xs font-medium text-red-700 dark:text-red-300">
-          Eliminar cuenta (GDPR)
+          {t("deleteAccountTitle")}
         </summary>
-        <p className="mt-2 text-[11px] text-muted">
-          Borra tu cuenta y todos tus datos. Si sos owner único de algún workspace,
-          el workspace y todo su contenido también se eliminan.
-        </p>
-        <button
-          type="button"
-          onClick={() => setDeleteOpen(true)}
-          className="btn-danger mt-2"
-        >
+        <p className="mt-2 text-[11px] text-muted">{t("deleteAccountDescription")}</p>
+        <button type="button" onClick={() => setDeleteOpen(true)} className="btn-danger mt-2">
           <Trash2 className="h-3.5 w-3.5" />
-          Eliminar mi cuenta
+          {t("deleteAccountButton")}
         </button>
       </details>
 
@@ -174,13 +158,13 @@ export function AccountSection({ me }: Props) {
             <div className="mb-3 flex items-start gap-2">
               <AlertTriangle className="mt-0.5 h-4 w-4 text-red-600 dark:text-red-400" />
               <div>
-                <h3 id="delete-account-title" className="text-sm font-semibold text-red-600 dark:text-red-400">
-                  Eliminar cuenta
+                <h3
+                  id="delete-account-title"
+                  className="text-sm font-semibold text-red-600 dark:text-red-400"
+                >
+                  {t("deleteModalTitle")}
                 </h3>
-                <p className="mt-1 text-xs text-muted">
-                  Esto borra tu user de la DB. No se puede deshacer. Para confirmar,
-                  escribí tu email:
-                </p>
+                <p className="mt-1 text-xs text-muted">{t("deleteModalDescription")}</p>
               </div>
             </div>
             <code className="block rounded-lg border border-line bg-surface px-3 py-2 text-center font-mono text-sm text-strong">
@@ -191,44 +175,41 @@ export function AccountSection({ me }: Props) {
               autoComplete="off"
               value={deleteConfirm}
               onChange={(e) => setDeleteConfirm(e.target.value)}
-              placeholder="Tipeá tu email"
+              placeholder={t("deleteEmailPlaceholder")}
               className="input mt-3 font-mono"
               autoFocus
             />
             <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setDeleteOpen(false)}
-                className="btn-secondary"
-              >
-                Cancelar
+              <button type="button" onClick={() => setDeleteOpen(false)} className="btn-secondary">
+                {t("cancel")}
               </button>
               <button
                 type="button"
-                disabled={
-                  deleteConfirm.toLowerCase() !== me.email.toLowerCase() || deleting
-                }
+                disabled={deleteConfirm.toLowerCase() !== me.email.toLowerCase() || deleting}
                 onClick={async () => {
                   setDeleting(true);
-                  const r = await fetch(
-                    `/api/me/delete?confirm=${encodeURIComponent(me.email)}`,
-                    { method: "DELETE" }
-                  );
+                  const r = await fetch(`/api/me/delete?confirm=${encodeURIComponent(me.email)}`, {
+                    method: "DELETE",
+                  });
                   setDeleting(false);
                   if (r.ok) {
-                    toast.success("Cuenta eliminada");
+                    toast.success(t("deleted"));
                     setTimeout(() => {
                       window.location.href = "/auth/login";
                     }, 800);
                   } else {
                     const j = await r.json().catch(() => ({}));
-                    toast.error(j.error ?? "No se pudo eliminar");
+                    toast.error(j.error ?? t("deleteError"));
                   }
                 }}
                 className="btn-danger"
               >
-                {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                Eliminar definitivamente
+                {deleting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" />
+                )}
+                {t("deleteConfirm")}
               </button>
             </div>
           </div>

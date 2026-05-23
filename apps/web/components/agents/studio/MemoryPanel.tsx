@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Brain, Trash2, Plus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 interface MemoryRow {
   id: string;
@@ -13,12 +14,6 @@ interface MemoryRow {
   updatedAt: string;
 }
 
-const SCOPE_LABEL: Record<MemoryRow["scope"], string> = {
-  global: "Global",
-  conversation: "Conversación",
-  employee: "Por usuario",
-};
-
 const SCOPE_COLOR: Record<MemoryRow["scope"], string> = {
   global: "text-violet-700 dark:text-violet-300 bg-violet-500/15",
   conversation: "text-blue-700 dark:text-blue-300 bg-blue-500/15",
@@ -26,6 +21,12 @@ const SCOPE_COLOR: Record<MemoryRow["scope"], string> = {
 };
 
 export function MemoryPanel({ agentId }: { agentId: string }) {
+  const t = useTranslations("pages.agents.studio.memory");
+  const SCOPE_LABEL: Record<MemoryRow["scope"], string> = {
+    global: t("scopeGlobal"),
+    conversation: t("scopeConversation"),
+    employee: t("scopeEmployee"),
+  };
   const [rows, setRows] = useState<MemoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [scope, setScope] = useState<MemoryRow["scope"]>("global");
@@ -45,7 +46,7 @@ export function MemoryPanel({ agentId }: { agentId: string }) {
   }, [agentId]);
 
   async function add() {
-    if (!key.trim() || !value.trim()) return toast.error("key + value requeridos");
+    if (!key.trim() || !value.trim()) return toast.error(t("missingFields"));
     setBusy(true);
     let parsed: unknown = value;
     try {
@@ -58,11 +59,11 @@ export function MemoryPanel({ agentId }: { agentId: string }) {
     });
     setBusy(false);
     if (r.ok) {
-      toast.success("Guardado");
+      toast.success(t("saved"));
       setKey("");
       setValue("");
       load();
-    } else toast.error("Error");
+    } else toast.error(t("saveError"));
   }
 
   async function removeKey(row: MemoryRow, k: string) {
@@ -76,26 +77,22 @@ export function MemoryPanel({ agentId }: { agentId: string }) {
   return (
     <div className="rounded-2xl border border-line bg-card p-4">
       <div className="mb-3 flex items-center gap-2 text-sm font-medium text-body">
-        <Brain className="h-4 w-4 text-violet-600 dark:text-violet-400" /> Memoria persistente
+        <Brain className="h-4 w-4 text-violet-600 dark:text-violet-400" /> {t("title")}
       </div>
       <p className="mb-3 text-[11px] text-muted">
-        El agente puede leer/escribir estas memorias a través de las tools{" "}
-        <code className="rounded bg-elevated px-1 font-mono">memory_get</code> /{" "}
-        <code className="rounded bg-elevated px-1 font-mono">memory_set</code>. También se inyectan
-        automáticamente en el system prompt al inicio de cada conversación.
+        {t.rich("description", {
+          code: (chunks) => <code className="rounded bg-elevated px-1 font-mono">{chunks}</code>,
+        })}
       </p>
 
       {loading ? (
         <Loader2 className="h-4 w-4 animate-spin text-muted" />
       ) : rows.length === 0 ? (
-        <p className="text-xs text-muted">Sin memorias guardadas todavía.</p>
+        <p className="text-xs text-muted">{t("noMemory")}</p>
       ) : (
         <div className="space-y-2">
           {rows.map((row) => (
-            <div
-              key={row.id}
-              className="rounded-lg border border-line bg-elevated p-3"
-            >
+            <div key={row.id} className="rounded-lg border border-line bg-elevated p-3">
               <div className="mb-1.5 flex items-center gap-2 text-[11px]">
                 <span
                   className={`rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${SCOPE_COLOR[row.scope]}`}
@@ -159,13 +156,13 @@ export function MemoryPanel({ agentId }: { agentId: string }) {
           <input
             value={key}
             onChange={(e) => setKey(e.target.value)}
-            placeholder="key (ej. preferred_language)"
+            placeholder={t("keyPlaceholder")}
             className="flex-1 rounded-md border border-line bg-elevated px-2 py-1.5 font-mono text-xs text-strong outline-none focus:border-violet-500/60"
           />
           <input
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder='value (JSON o texto)'
+            placeholder={t("valuePlaceholder")}
             className="flex-[2] rounded-md border border-line bg-elevated px-2 py-1.5 font-mono text-xs text-strong outline-none focus:border-violet-500/60"
           />
           <button
@@ -175,7 +172,7 @@ export function MemoryPanel({ agentId }: { agentId: string }) {
             className="flex items-center gap-1 rounded-md bg-violet-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-400 disabled:opacity-40"
           >
             {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}{" "}
-            Guardar
+            {t("save")}
           </button>
         </div>
       </div>

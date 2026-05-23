@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Bot, Workflow, Sparkles, Plus, Trash2, Wrench } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 interface FlowOption {
@@ -38,10 +39,18 @@ interface Props {
 }
 
 const COLORS = [
-  "#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#84cc16",
+  "#8b5cf6",
+  "#3b82f6",
+  "#10b981",
+  "#f59e0b",
+  "#ef4444",
+  "#ec4899",
+  "#06b6d4",
+  "#84cc16",
 ];
 
 export function AgentConfigPanel({ value, onChange }: Props) {
+  const t = useTranslations("pages.agents.studio.config");
   const [flows, setFlows] = useState<FlowOption[]>([]);
   const [tools, setTools] = useState<ToolDef[]>([]);
 
@@ -58,42 +67,42 @@ export function AgentConfigPanel({ value, onChange }: Props) {
       .catch(() => setTools([]));
   }, []);
 
-  const toolsByCategory = tools.reduce<Record<string, ToolDef[]>>((acc, t) => {
-    (acc[t.category] ||= []).push(t);
+  const toolsByCategory = tools.reduce<Record<string, ToolDef[]>>((acc, tool) => {
+    (acc[tool.category] ||= []).push(tool);
     return acc;
   }, {});
 
   return (
     <div className="space-y-5">
       {/* Kind selector */}
-      <Section title="Tipo de agente" subtitle="Cómo procesa los mensajes">
+      <Section title={t("kindSectionTitle")} subtitle={t("kindSectionSubtitle")}>
         <div className="grid grid-cols-2 gap-2">
           <KindCard
             active={value.kind === "conversational"}
             onClick={() => onChange({ kind: "conversational" })}
             icon={<Bot className="h-4 w-4" />}
-            title="Conversacional"
-            desc="Responde con un prompt + tools."
+            title={t("kindConversational")}
+            desc={t("kindConversationalHint")}
           />
           <KindCard
             active={value.kind === "flow"}
             onClick={() => onChange({ kind: "flow" })}
             icon={<Workflow className="h-4 w-4" />}
-            title="Driven by flow"
-            desc="Cada mensaje ejecuta un flujo."
+            title={t("kindFlow")}
+            desc={t("kindFlowHint")}
           />
         </div>
         {value.kind === "flow" && (
           <div className="mt-3">
             <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
-              Flujo a ejecutar
+              {t("flowLabel")}
             </label>
             <select
               value={value.flowId ?? ""}
               onChange={(e) => onChange({ flowId: e.target.value || null })}
               className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
             >
-              <option value="">— elegir —</option>
+              <option value="">{t("pickFlow")}</option>
               {flows.map((f) => (
                 <option key={f.id} value={f.id}>
                   {f.name}
@@ -102,7 +111,7 @@ export function AgentConfigPanel({ value, onChange }: Props) {
             </select>
             {!value.flowId && (
               <p className="mt-1.5 text-[11px] text-amber-600 dark:text-amber-400">
-                El flujo debe devolver una variable `response` para que el agente conteste.
+                {t("flowResponseHint")}
               </p>
             )}
           </div>
@@ -111,12 +120,9 @@ export function AgentConfigPanel({ value, onChange }: Props) {
 
       {/* Tools (only for conversational) */}
       {value.kind === "conversational" && (
-        <Section
-          title="Herramientas"
-          subtitle="El agente puede llamarlas durante la conversación"
-        >
+        <Section title={t("toolsSectionTitle")} subtitle={t("toolsSectionSubtitle")}>
           {tools.length === 0 ? (
-            <div className="text-xs text-muted">Cargando…</div>
+            <div className="text-xs text-muted">{t("loading")}</div>
           ) : (
             <div className="space-y-3">
               {Object.entries(toolsByCategory).map(([cat, list]) => (
@@ -125,17 +131,17 @@ export function AgentConfigPanel({ value, onChange }: Props) {
                     {cat}
                   </div>
                   <div className="grid grid-cols-2 gap-1.5">
-                    {list.map((t) => {
-                      const enabled = value.tools.includes(t.id);
+                    {list.map((tool) => {
+                      const enabled = value.tools.includes(tool.id);
                       return (
                         <button
-                          key={t.id}
+                          key={tool.id}
                           type="button"
                           onClick={() =>
                             onChange({
                               tools: enabled
-                                ? value.tools.filter((id) => id !== t.id)
-                                : [...value.tools, t.id],
+                                ? value.tools.filter((id) => id !== tool.id)
+                                : [...value.tools, tool.id],
                             })
                           }
                           className={cn(
@@ -145,14 +151,16 @@ export function AgentConfigPanel({ value, onChange }: Props) {
                               : "border-line bg-card text-muted hover:bg-elevated"
                           )}
                         >
-                          <span className="text-base leading-none">{t.emoji}</span>
+                          <span className="text-base leading-none">{tool.emoji}</span>
                           <span className="min-w-0 flex-1">
-                            <span className="block font-medium">{t.label}</span>
+                            <span className="block font-medium">{tool.label}</span>
                             <span className="line-clamp-2 text-[10px] text-muted">
-                              {t.description}
+                              {tool.description}
                             </span>
                           </span>
-                          {enabled && <Wrench className="h-3 w-3 text-violet-600 dark:text-violet-400" />}
+                          {enabled && (
+                            <Wrench className="h-3 w-3 text-violet-600 dark:text-violet-400" />
+                          )}
                         </button>
                       );
                     })}
@@ -165,7 +173,7 @@ export function AgentConfigPanel({ value, onChange }: Props) {
       )}
 
       {/* Variables */}
-      <Section title="Variables" subtitle="Interpoladas en el prompt como {{name}}">
+      <Section title={t("variablesSectionTitle")} subtitle={t("variablesSectionSubtitle")}>
         <VariablesEditor
           value={value.variables}
           onChange={(variables) => onChange({ variables })}
@@ -173,18 +181,18 @@ export function AgentConfigPanel({ value, onChange }: Props) {
       </Section>
 
       {/* Branding */}
-      <Section title="Branding" subtitle="Personalidad visual del agente">
+      <Section title={t("brandingSectionTitle")} subtitle={t("brandingSectionSubtitle")}>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
-              Color
+              {t("colorLabel")}
             </label>
             <div className="flex flex-wrap gap-1.5">
               {COLORS.map((c) => (
                 <button
                   key={c}
                   type="button"
-                  aria-label={`Color ${c}`}
+                  aria-label={t("colorAria", { color: c })}
                   aria-pressed={value.color === c}
                   onClick={() => onChange({ color: c })}
                   className={cn(
@@ -198,7 +206,7 @@ export function AgentConfigPanel({ value, onChange }: Props) {
           </div>
           <div>
             <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
-              URL del avatar
+              {t("avatarLabel")}
             </label>
             <input
               value={value.avatarUrl}
@@ -211,40 +219,40 @@ export function AgentConfigPanel({ value, onChange }: Props) {
       </Section>
 
       {/* Conversation */}
-      <Section title="Conversación" subtitle="Cómo arranca y termina cada chat">
+      <Section title={t("conversationSectionTitle")} subtitle={t("conversationSectionSubtitle")}>
         <div className="space-y-3">
           <div>
             <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
-              Saludo inicial
+              {t("greetingLabel")}
             </label>
             <input
               value={value.greeting}
               onChange={(e) => onChange({ greeting: e.target.value })}
-              placeholder="¡Hola! ¿En qué puedo ayudarte hoy?"
+              placeholder={t("greetingPlaceholder")}
               className="w-full rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-sm text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
             />
           </div>
           <div>
             <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
-              Mensaje de fallback
+              {t("fallbackLabel")}
             </label>
             <input
               value={value.fallback}
               onChange={(e) => onChange({ fallback: e.target.value })}
-              placeholder="No pude entenderte, ¿podés reformular?"
+              placeholder={t("fallbackPlaceholder")}
               className="w-full rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-sm text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
             />
           </div>
           <div>
             <div className="mb-1.5 flex items-center justify-between text-[11px] uppercase tracking-wider text-muted">
-              <span id="starters-label">Sugerencias iniciales (botones que el usuario puede tocar)</span>
+              <span id="starters-label">{t("startersLabel")}</span>
               <button
                 type="button"
-                aria-label="Agregar sugerencia inicial"
+                aria-label={t("addStarterAria")}
                 onClick={() => onChange({ starters: [...value.starters, ""] })}
                 className="flex items-center gap-1 text-[10px] text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300"
               >
-                <Plus className="h-3 w-3" /> Agregar
+                <Plus className="h-3 w-3" /> {t("addStarter")}
               </button>
             </div>
             <div className="space-y-1.5" aria-labelledby="starters-label">
@@ -252,18 +260,18 @@ export function AgentConfigPanel({ value, onChange }: Props) {
                 <div key={i} className="flex items-center gap-1.5">
                   <input
                     value={s}
-                    aria-label={`Sugerencia ${i + 1}`}
+                    aria-label={t("starterAria", { n: i + 1 })}
                     onChange={(e) => {
                       const next = [...value.starters];
                       next[i] = e.target.value;
                       onChange({ starters: next });
                     }}
-                    placeholder="¿Cómo me suscribo?"
+                    placeholder={t("starterPlaceholder")}
                     className="flex-1 rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-xs text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
                   />
                   <button
                     type="button"
-                    aria-label={`Eliminar sugerencia ${i + 1}`}
+                    aria-label={t("deleteStarterAria", { n: i + 1 })}
                     onClick={() => onChange({ starters: value.starters.filter((_, j) => j !== i) })}
                     className="text-muted hover:text-red-600 dark:hover:text-red-400"
                   >
@@ -272,13 +280,13 @@ export function AgentConfigPanel({ value, onChange }: Props) {
                 </div>
               ))}
               {value.starters.length === 0 && (
-                <p className="text-[10px] text-faint">Sin sugerencias</p>
+                <p className="text-[10px] text-faint">{t("noStarters")}</p>
               )}
             </div>
           </div>
           <div>
             <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
-              Máximo de turnos (corta el chat tras N intercambios)
+              {t("maxTurnsLabel")}
             </label>
             <input
               type="number"
@@ -293,7 +301,7 @@ export function AgentConfigPanel({ value, onChange }: Props) {
       </Section>
 
       {/* Response format */}
-      <Section title="Formato de respuesta" subtitle="Cómo debe estructurar la salida">
+      <Section title={t("responseSectionTitle")} subtitle={t("responseSectionSubtitle")}>
         <div className="grid grid-cols-3 gap-1.5">
           {(["text", "json", "markdown"] as const).map((rf) => (
             <button
@@ -307,20 +315,24 @@ export function AgentConfigPanel({ value, onChange }: Props) {
                   : "border-line text-muted hover:border-white/20"
               )}
             >
-              {rf === "text" ? "Texto plano" : rf === "json" ? "JSON estructurado" : "Markdown"}
+              {rf === "text"
+                ? t("responseText")
+                : rf === "json"
+                  ? t("responseJson")
+                  : t("responseMarkdown")}
             </button>
           ))}
         </div>
         {value.responseFormat === "json" && (
           <div className="mt-3">
             <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted">
-              JSON Schema (opcional)
+              {t("outputSchemaLabel")}
             </label>
             <textarea
               value={value.outputSchema}
               onChange={(e) => onChange({ outputSchema: e.target.value })}
               rows={4}
-              placeholder='{ "type": "object", "properties": { "score": { "type": "number" } } }'
+              placeholder={t("outputSchemaPlaceholder")}
               className="w-full rounded-lg border border-line bg-elevated px-2.5 py-1.5 font-mono text-[11px] text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
             />
           </div>
@@ -391,6 +403,7 @@ function VariablesEditor({
   value: Record<string, string>;
   onChange: (v: Record<string, string>) => void;
 }) {
+  const t = useTranslations("pages.agents.studio.config");
   const entries = Object.entries(value);
   return (
     <div className="space-y-1.5">
@@ -404,14 +417,14 @@ function VariablesEditor({
               next[e.target.value] = v;
               onChange(next);
             }}
-            placeholder="nombre"
+            placeholder={t("variableNamePlaceholder")}
             className="w-1/3 rounded-lg border border-line bg-elevated px-2.5 py-1.5 font-mono text-xs text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
           />
           <span className="text-faint">=</span>
           <input
             value={v}
             onChange={(e) => onChange({ ...value, [k]: e.target.value })}
-            placeholder="valor"
+            placeholder={t("variableValuePlaceholder")}
             className="flex-1 rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-xs text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
           />
           <button
@@ -432,7 +445,7 @@ function VariablesEditor({
         onClick={() => onChange({ ...value, [`var_${entries.length + 1}`]: "" })}
         className="flex items-center gap-1 text-[11px] text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300"
       >
-        <Plus className="h-3 w-3" /> Agregar variable
+        <Plus className="h-3 w-3" /> {t("addVariable")}
       </button>
     </div>
   );

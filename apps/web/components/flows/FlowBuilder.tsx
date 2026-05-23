@@ -31,14 +31,23 @@ import { validateFlow, type ValidationIssue } from "@/lib/flows/validate";
 import { buildGraphFromSpec } from "@/lib/flows/copilot-tools";
 import { FLOW_TEMPLATES, type FlowTemplate } from "@/lib/flows/templates";
 import {
-  Save, Play, Loader2, History, ArrowLeft, Variable, X, Sparkles,
-  Undo2, Redo2, LayoutGrid, ShieldCheck,
+  Save,
+  Play,
+  Loader2,
+  History,
+  ArrowLeft,
+  Variable,
+  X,
+  Sparkles,
+  Undo2,
+  Redo2,
+  LayoutGrid,
+  ShieldCheck,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
-
-const LOCALE: Locale = "es";
+import { useTranslations, useLocale } from "next-intl";
 
 const nodeTypes = {
   trigger: RegistryNode,
@@ -104,6 +113,12 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const router = useRouter();
   const { resolvedTheme } = useTheme();
   const isLight = resolvedTheme === "light";
+  const t = useTranslations("pages.flows.builder");
+  const rawLocale = useLocale();
+  const LOCALE: Locale =
+    rawLocale === "es" || rawLocale === "pt-BR" || rawLocale === "en"
+      ? (rawLocale as Locale)
+      : "es";
   const [nodes, setNodes] = useState<Node[]>(
     flow.nodes.map((n) => ({
       id: n.id,
@@ -127,11 +142,18 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const [running, setRunning] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(false);
-  const [runStatus, setRunStatus] = useState<Record<string, "running" | "succeeded" | "failed">>({});
-  const [runLog, setRunLog] = useState<Array<{ nodeId: string; status: "running" | "succeeded" | "failed"; error?: string }>>([]);
+  const [runStatus, setRunStatus] = useState<Record<string, "running" | "succeeded" | "failed">>(
+    {}
+  );
+  const [runLog, setRunLog] = useState<
+    Array<{ nodeId: string; status: "running" | "succeeded" | "failed"; error?: string }>
+  >([]);
   const [runInspectorOpen, setRunInspectorOpen] = useState(false);
   const [validationOpen, setValidationOpen] = useState(false);
-  const historyRef = useRef<{ past: Array<{ nodes: Node[]; edges: Edge[] }>; future: Array<{ nodes: Node[]; edges: Edge[] }> }>({ past: [], future: [] });
+  const historyRef = useRef<{
+    past: Array<{ nodes: Node[]; edges: Edge[] }>;
+    future: Array<{ nodes: Node[]; edges: Edge[] }>;
+  }>({ past: [], future: [] });
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const rfRef = useRef<ReactFlowInstance | null>(null);
@@ -200,7 +222,9 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const [runInputError, setRunInputError] = useState<string | null>(null);
   const [runFields, setRunFields] = useState<Record<string, string>>({});
   const [runJsonMode, setRunJsonMode] = useState(false);
-  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">(
+    "idle"
+  );
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextAutoSaveRef = useRef(true); // skip on first render
   const dirtyRef = useRef(false);
@@ -281,10 +305,10 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     if (r.ok) {
       dirtyRef.current = false;
       if (silent) setAutoSaveStatus("saved");
-      else toast.success("Flujo guardado");
+      else toast.success(t("saved"));
     } else {
       if (silent) setAutoSaveStatus("error");
-      else toast.error("No se pudo guardar el flujo");
+      else toast.error(t("saveError"));
     }
   }
 
@@ -310,7 +334,9 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
-      const typing = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+      const typing =
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
       if (typing) return;
       const mod = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();
@@ -404,7 +430,12 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
           buf = buf.slice(idx + 2);
           const line = block.split("\n").find((l) => l.startsWith("data:"));
           if (!line) continue;
-          let ev: { type: string; nodeId?: string; status?: "succeeded" | "failed"; error?: string };
+          let ev: {
+            type: string;
+            nodeId?: string;
+            status?: "succeeded" | "failed";
+            error?: string;
+          };
           try {
             ev = JSON.parse(line.slice(5).trim());
           } catch {
@@ -426,7 +457,10 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
                   return copy;
                 }
               }
-              return [...copy, { nodeId: nid, status: st, ...(ev.error ? { error: ev.error } : {}) }];
+              return [
+                ...copy,
+                { nodeId: nid, status: st, ...(ev.error ? { error: ev.error } : {}) },
+              ];
             });
           } else if (ev.type === "run_finish" && ev.status) {
             finalStatus = ev.status;
@@ -439,7 +473,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
       finalError = e instanceof Error ? e.message : String(e);
     }
     setRunning(false);
-    if (finalStatus === "succeeded") toast.success("Ejecución completada");
+    if (finalStatus === "succeeded") toast.success(t("runComplete"));
     else toast.error(`La ejecución falló${finalError ? `: ${finalError}` : ""}`);
   }
 
@@ -451,20 +485,29 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     try {
       const parsed = runInputDraft.trim() ? JSON.parse(runInputDraft) : {};
       if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-        setRunInputError("Los datos tienen que ser un objeto ({…}).");
+        setRunInputError(t("runInputObject"));
         return;
       }
       void runWithInput(parsed as Record<string, unknown>);
     } catch (e) {
-      setRunInputError(e instanceof Error ? e.message : "El JSON tiene un error.");
+      setRunInputError(e instanceof Error ? e.message : t("runInputJsonError"));
     }
   }
 
   // Mapa de avisos de validación por nodo (para el badge ⚠️ sobre cada paso).
   const issuesByNode: Record<string, string[]> = {};
   for (const iss of validateFlow(
-    nodes.map((n) => ({ id: n.id, type: n.type, data: n.data as { nodeId?: string; label?: string; config?: Record<string, unknown> } })),
-    edges.map((e) => ({ id: e.id, source: e.source, target: e.target, ...(e.sourceHandle ? { sourceHandle: e.sourceHandle } : {}) })),
+    nodes.map((n) => ({
+      id: n.id,
+      type: n.type,
+      data: n.data as { nodeId?: string; label?: string; config?: Record<string, unknown> },
+    })),
+    edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      ...(e.sourceHandle ? { sourceHandle: e.sourceHandle } : {}),
+    })),
     LOCALE
   )) {
     if (iss.nodeId) (issuesByNode[iss.nodeId] ??= []).push(iss.message);
@@ -474,7 +517,14 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     const st = runStatus[n.id];
     const badge = issuesByNode[n.id]?.join("\n") ?? null;
     const subtitle = cardSubtitle(n);
-    const cls = st === "succeeded" ? "flow-node-ok" : st === "failed" ? "flow-node-fail" : st === "running" ? "flow-node-running" : undefined;
+    const cls =
+      st === "succeeded"
+        ? "flow-node-ok"
+        : st === "failed"
+          ? "flow-node-fail"
+          : st === "running"
+            ? "flow-node-running"
+            : undefined;
     return { ...n, ...(cls ? { className: cls } : {}), data: { ...n.data, badge, subtitle } };
   });
 
@@ -500,15 +550,15 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
                   autoSaveStatus === "saving"
                     ? "text-[11px] text-muted"
                     : autoSaveStatus === "error"
-                    ? "text-[11px] text-red-600 dark:text-red-400"
-                    : "text-[11px] text-emerald-600 dark:text-emerald-400"
+                      ? "text-[11px] text-red-600 dark:text-red-400"
+                      : "text-[11px] text-emerald-600 dark:text-emerald-400"
                 }
               >
                 {autoSaveStatus === "saving"
-                  ? "Guardando…"
+                  ? t("saving")
                   : autoSaveStatus === "error"
-                  ? "Error al guardar"
-                  : "Auto-guardado"}
+                    ? t("saveErrorShort")
+                    : t("autoSaved")}
               </span>
             )}
             <button
@@ -516,7 +566,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               onClick={undo}
               disabled={!canUndo}
               className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover disabled:opacity-30"
-              title="Deshacer (Cmd/Ctrl+Z)"
+              title={t("undo")}
             >
               <Undo2 className="h-3.5 w-3.5" />
             </button>
@@ -525,7 +575,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               onClick={redo}
               disabled={!canRedo}
               className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover disabled:opacity-30"
-              title="Rehacer (Cmd/Ctrl+Shift+Z)"
+              title={t("redo")}
             >
               <Redo2 className="h-3.5 w-3.5" />
             </button>
@@ -533,7 +583,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               type="button"
               onClick={runAutoLayout}
               className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover"
-              title="Ordenar los pasos automáticamente"
+              title={t("tidyLayout")}
             >
               <LayoutGrid className="h-3.5 w-3.5" />
             </button>
@@ -541,7 +591,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               type="button"
               onClick={() => setValidationOpen((o) => !o)}
               className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover"
-              title="Revisar el flujo"
+              title={t("reviewFlow")}
             >
               <ShieldCheck className="h-3.5 w-3.5" />
             </button>
@@ -553,15 +603,15 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
                   ? "flex items-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-500/10 px-2.5 py-1.5 text-xs font-medium text-violet-600 dark:text-violet-300"
                   : "flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover"
               }
-              title="Copiloto: armá el flujo hablando"
+              title={t("copilotTooltip")}
             >
-              <Sparkles className="h-3.5 w-3.5" /> Copiloto
+              <Sparkles className="h-3.5 w-3.5" /> {t("copilot")}
             </button>
             <button
               type="button"
               onClick={() => setVarsOpen((o) => !o)}
               className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover"
-              title="Variables del flujo"
+              title={t("flowVariables")}
             >
               <Variable className="h-3.5 w-3.5" />
             </button>
@@ -569,7 +619,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               type="button"
               onClick={() => setRunsOpen((o) => !o)}
               className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover"
-              title="Historial de ejecuciones"
+              title={t("runHistory")}
             >
               <History className="h-3.5 w-3.5" />
             </button>
@@ -689,12 +739,14 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               running={running}
               nodes={nodes}
               onClose={() => setRunInspectorOpen(false)}
+              locale={LOCALE}
             />
           )}
           {validationOpen && (
             <ValidationPanel
               nodes={nodes}
               edges={edges}
+              locale={LOCALE}
               onClose={() => setValidationOpen(false)}
               onSelect={(id) => {
                 const n = nodes.find((x) => x.id === id);
@@ -702,11 +754,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               }}
             />
           )}
-          <FlowRunsPanel
-            flowId={flow.id}
-            open={runsOpen}
-            onClose={() => setRunsOpen(false)}
-          />
+          <FlowRunsPanel flowId={flow.id} open={runsOpen} onClose={() => setRunsOpen(false)} />
         </div>
         {runModalOpen && (
           <div
@@ -722,17 +770,15 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               <div className="mb-3 flex items-start justify-between">
                 <div>
                   <h2 id="run-modal-title" className="text-sm font-semibold text-strong">
-                    Ejecutar flujo
+                    {t("runModalTitle")}
                   </h2>
                   <p className="mt-0.5 text-xs text-muted">
-                    {Object.keys(runFields).length > 0
-                      ? "Completá los datos con los que querés probar el flujo."
-                      : "Este flujo no necesita datos para arrancar."}
+                    {Object.keys(runFields).length > 0 ? t("fillRunData") : t("noRunDataNeeded")}
                   </p>
                 </div>
                 <button
                   type="button"
-                  aria-label="Cerrar"
+                  aria-label={t("closeAria")}
                   onClick={() => setRunModalOpen(false)}
                   className="rounded-lg p-1 text-muted hover:bg-white/[0.05] hover:text-body"
                 >
@@ -744,8 +790,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
                 <div className="flex flex-col gap-3">
                   {Object.keys(runFields).length === 0 && (
                     <p className="rounded-lg border border-line bg-card p-3 text-xs text-muted">
-                      Hacé clic en “Ejecutar” para correrlo. Si querés, agregá variables al flujo
-                      desde el botón de variables.
+                      {t("runNoFieldsHint")}
                     </p>
                   )}
                   {Object.entries(runFields).map(([key, val]) => (
@@ -761,8 +806,11 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
                 </div>
               ) : (
                 <>
-                  <label htmlFor="run-input-json" className="mb-1 block text-[10px] uppercase tracking-wider text-muted">
-                    Datos (JSON)
+                  <label
+                    htmlFor="run-input-json"
+                    className="mb-1 block text-[10px] uppercase tracking-wider text-muted"
+                  >
+                    {t("runJsonLabel")}
                   </label>
                   <textarea
                     id="run-input-json"
@@ -793,7 +841,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
                 }}
                 className="mt-2 text-[11px] text-muted hover:text-body"
               >
-                {runJsonMode ? "← Volver al formulario" : "Editar como JSON (avanzado)"}
+                {runJsonMode ? t("backToForm") : t("editAsJson")}
               </button>
               <div className="mt-4 flex justify-end gap-2">
                 <button
@@ -801,14 +849,14 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
                   onClick={() => setRunModalOpen(false)}
                   className="rounded-lg border border-line px-3 py-1.5 text-xs text-body hover:bg-white/[0.05]"
                 >
-                  Cancelar
+                  {t("cancel")}
                 </button>
                 <button
                   type="button"
                   onClick={submitRunModal}
                   className="flex items-center gap-1.5 rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-400"
                 >
-                  <Play className="h-3.5 w-3.5" /> Ejecutar
+                  <Play className="h-3.5 w-3.5" /> {t("runButton")}
                 </button>
               </div>
             </div>
@@ -827,11 +875,12 @@ function EmptyCanvasGuide({
   onAdd: (nodeId: string) => void;
   onUseTemplate: (tpl: FlowTemplate) => void;
 }) {
+  const t = useTranslations("pages.flows.builder");
   const starters: Array<{ id: string; label: string; emoji: string }> = [
-    { id: "trigger_manual", label: "Cuando lo ejecuto yo", emoji: "▶️" },
-    { id: "trigger_message", label: "Cuando llega un mensaje", emoji: "💬" },
-    { id: "trigger_schedule", label: "En un horario", emoji: "🕒" },
-    { id: "trigger_webhook", label: "Con un webhook", emoji: "🔗" },
+    { id: "trigger_manual", label: t("triggerManual"), emoji: "▶️" },
+    { id: "trigger_message", label: t("triggerMessage"), emoji: "💬" },
+    { id: "trigger_schedule", label: t("triggerSchedule"), emoji: "🕒" },
+    { id: "trigger_webhook", label: t("triggerWebhook"), emoji: "🔗" },
   ];
   return (
     <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-y-auto p-4">
@@ -840,13 +889,15 @@ function EmptyCanvasGuide({
           <div className="text-2xl">🚀</div>
           <h3 className="mt-2 text-sm font-semibold text-strong">Armemos tu primer flujo</h3>
           <p className="mt-1 text-xs leading-relaxed text-muted">
-            Un flujo es una secuencia de pasos automáticos. Empezá con una plantilla
-            lista, desde cero, o pedile al copiloto que lo arme por vos.
+            Un flujo es una secuencia de pasos automáticos. Empezá con una plantilla lista, desde
+            cero, o pedile al copiloto que lo arme por vos.
           </p>
         </div>
 
         <div className="mt-5">
-          <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted">Plantillas para empezar</p>
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted">
+            Plantillas para empezar
+          </p>
           <div className="grid grid-cols-2 gap-2">
             {FLOW_TEMPLATES.map((t) => (
               <button
@@ -864,7 +915,9 @@ function EmptyCanvasGuide({
         </div>
 
         <div className="mt-5">
-          <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted">…o empezá de cero</p>
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted">
+            …o empezá de cero
+          </p>
           <div className="flex flex-wrap gap-1.5">
             {starters.map((s) => (
               <button
@@ -889,16 +942,28 @@ function ValidationPanel({
   edges,
   onClose,
   onSelect,
+  locale,
 }: {
   nodes: Node[];
   edges: Edge[];
   onClose: () => void;
   onSelect: (id: string) => void;
+  locale: Locale;
 }) {
+  const t = useTranslations("pages.flows.builder");
   const issues: ValidationIssue[] = validateFlow(
-    nodes.map((n) => ({ id: n.id, type: n.type, data: n.data as { nodeId?: string; label?: string; config?: Record<string, unknown> } })),
-    edges.map((e) => ({ id: e.id, source: e.source, target: e.target, ...(e.sourceHandle ? { sourceHandle: e.sourceHandle } : {}) })),
-    LOCALE
+    nodes.map((n) => ({
+      id: n.id,
+      type: n.type,
+      data: n.data as { nodeId?: string; label?: string; config?: Record<string, unknown> },
+    })),
+    edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      ...(e.sourceHandle ? { sourceHandle: e.sourceHandle } : {}),
+    })),
+    locale
   );
   const errors = issues.filter((i) => i.level === "error");
   const warnings = issues.filter((i) => i.level === "warning");
@@ -906,9 +971,14 @@ function ValidationPanel({
     <div className="flex w-80 shrink-0 flex-col border-l border-line bg-surface">
       <div className="flex items-center justify-between border-b border-line px-4 py-3">
         <span className="flex items-center gap-2 text-sm font-medium text-strong">
-          <ShieldCheck className="h-4 w-4" /> Revisión del flujo
+          <ShieldCheck className="h-4 w-4" /> {t("reviewFlow")}
         </span>
-        <button type="button" onClick={onClose} aria-label="Cerrar" className="text-muted hover:text-body">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={t("closeAria")}
+          className="text-muted hover:text-body"
+        >
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -949,34 +1019,40 @@ function RunInspector({
   running,
   nodes,
   onClose,
+  locale,
 }: {
   log: Array<{ nodeId: string; status: "running" | "succeeded" | "failed"; error?: string }>;
   running: boolean;
   nodes: Node[];
   onClose: () => void;
+  locale: Locale;
 }) {
+  const t = useTranslations("pages.flows.builder");
   const labelOf = (id: string) => {
     const n = nodes.find((x) => x.id === id);
     const d = n?.data as { label?: string; nodeId?: string } | undefined;
     if (d?.label) return d.label;
     const def = getNodeDef(String(d?.nodeId ?? n?.type ?? ""));
-    return def ? def.title[LOCALE] : id;
+    return def ? def.title[locale] : id;
   };
   const icon = (s: string) => (s === "succeeded" ? "✅" : s === "failed" ? "❌" : "⏳");
   return (
     <div className="flex w-80 shrink-0 flex-col border-l border-line bg-surface">
       <div className="flex items-center justify-between border-b border-line px-4 py-3">
         <span className="text-sm font-medium text-strong">
-          {running ? "Ejecutando…" : "Resultado de la ejecución"}
+          {running ? t("running2") : t("runResult")}
         </span>
-        <button type="button" onClick={onClose} aria-label="Cerrar" className="text-muted hover:text-body">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={t("closeAria")}
+          className="text-muted hover:text-body"
+        >
           <X className="h-4 w-4" />
         </button>
       </div>
       <div className="flex-1 space-y-2 overflow-y-auto p-3 text-xs">
-        {log.length === 0 && (
-          <p className="text-muted">Todavía no se ejecutó ningún paso.</p>
-        )}
+        {log.length === 0 && <p className="text-muted">Todavía no se ejecutó ningún paso.</p>}
         {log.map((s, i) => (
           <div key={i} className="rounded-lg border border-line bg-card p-2.5">
             <div className="flex items-center gap-2 text-body">
@@ -1075,21 +1151,31 @@ function nodeSize(n: Node): { width: number; height: number } {
 
 /** Reordena un grafo (nodos + edges) con el motor de layout, listo para setNodes. */
 function layoutGraph(ns: Node[], es: Edge[]): Node[] {
-  return autoLayout(ns, es.map((e) => ({ source: e.source, target: e.target })), nodeSize);
+  return autoLayout(
+    ns,
+    es.map((e) => ({ source: e.source, target: e.target })),
+    nodeSize
+  );
 }
 
 /** ¿Hay pasos que se superponen en el lienzo? (para auto-ordenar al abrir). */
 function hasOverlap(nodes: Node[]): boolean {
   const boxes = nodes.map((n) => {
     const s = nodeSize(n);
-    return { x1: n.position.x, y1: n.position.y, x2: n.position.x + s.width, y2: n.position.y + s.height };
+    return {
+      x1: n.position.x,
+      y1: n.position.y,
+      x2: n.position.x + s.width,
+      y2: n.position.y + s.height,
+    };
   });
   const pad = 8;
   for (let i = 0; i < boxes.length; i++) {
     for (let j = i + 1; j < boxes.length; j++) {
       const a = boxes[i]!;
       const b = boxes[j]!;
-      const apart = a.x2 + pad <= b.x1 || b.x2 + pad <= a.x1 || a.y2 + pad <= b.y1 || b.y2 + pad <= a.y1;
+      const apart =
+        a.x2 + pad <= b.x1 || b.x2 + pad <= a.x1 || a.y2 + pad <= b.y1 || b.y2 + pad <= a.y1;
       if (!apart) return true;
     }
   }
@@ -1112,7 +1198,9 @@ function defaultSourceHandle(n: Node): string | undefined {
 function graphSpec(nodes: Node[], edges: Edge[]): { nodes: unknown[]; edges: unknown[] } {
   return {
     nodes: nodes.map((n) => {
-      const d = n.data as { nodeId?: string; label?: string; config?: Record<string, unknown> } | undefined;
+      const d = n.data as
+        | { nodeId?: string; label?: string; config?: Record<string, unknown> }
+        | undefined;
       return {
         id: n.id,
         nodeId: d?.nodeId ?? n.type,
@@ -1137,7 +1225,8 @@ function describeGraph(nodes: Node[], edges: Edge[]): string {
     const d = n.data as { label?: string; nodeId?: string; config?: Record<string, unknown> };
     const def = getNodeDef(String(d.nodeId ?? n.type ?? ""));
     const kind = def ? def.title["es"] : String(n.type);
-    const cfg = d.config && Object.keys(d.config).length ? ` config=${JSON.stringify(d.config)}` : "";
+    const cfg =
+      d.config && Object.keys(d.config).length ? ` config=${JSON.stringify(d.config)}` : "";
     return `• ${d.label ?? kind} [${kind}]${cfg}`;
   });
   const conns = edges.map((e) => {
@@ -1165,6 +1254,7 @@ function VariablesPanel({
   onChange: (v: Record<string, unknown>) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations("pages.flows.builder");
   const [pending, setPending] = useState<{ key: string; value: string }[]>(() =>
     Object.entries(variables).map(([k, v]) => ({
       key: k,
@@ -1232,7 +1322,7 @@ function VariablesPanel({
                 commit(next);
               }}
               className="text-muted hover:text-red-600 dark:hover:text-red-400"
-              aria-label="Eliminar"
+              aria-label={t("deleteAria")}
             >
               <X className="h-3 w-3" />
             </button>

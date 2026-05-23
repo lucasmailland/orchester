@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Key, Plus, Copy, Check, Trash2, Webhook as WebhookIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 interface ApiKey {
   id: string;
@@ -33,6 +34,7 @@ const ALL_EVENTS = [
 ];
 
 export function DevelopersSection() {
+  const t = useTranslations("pages.settings.developers");
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [webhooks, setWebhooks] = useState<OutboundWebhook[]>([]);
   const [newKeyName, setNewKeyName] = useState("");
@@ -68,16 +70,16 @@ export function DevelopersSection() {
     if (r.ok) {
       setRevealedKey({ id: j.id, key: j.key });
       setNewKeyName("");
-      toast.success("API key creada — copialo ahora, no lo vas a ver de nuevo");
+      toast.success(t("keyCreated"));
       load();
-    } else toast.error(j.error ?? "Error");
+    } else toast.error(j.error ?? t("createError"));
   }
 
   async function revokeKey(id: string) {
-    if (!confirm("¿Revocar esta API key?")) return;
+    if (!confirm(t("revokeKeyConfirm"))) return;
     const r = await fetch(`/api/api-keys/${id}`, { method: "DELETE" });
     if (r.ok) {
-      toast.success("Revocada");
+      toast.success(t("keyRevoked"));
       load();
     }
   }
@@ -85,7 +87,7 @@ export function DevelopersSection() {
   async function copy(text: string, label: string) {
     await navigator.clipboard.writeText(text);
     setCopied(label);
-    toast.success("Copiado");
+    toast.success(t("copied"));
     setTimeout(() => setCopied(null), 1500);
   }
 
@@ -98,7 +100,7 @@ export function DevelopersSection() {
     });
     if (r.ok) {
       setNewWhUrl("");
-      toast.success("Webhook creado");
+      toast.success(t("webhookCreated"));
       load();
     }
   }
@@ -113,22 +115,22 @@ export function DevelopersSection() {
   }
 
   async function deleteWebhook(id: string) {
-    if (!confirm("¿Eliminar webhook?")) return;
+    if (!confirm(t("deleteWebhookConfirm"))) return;
     await fetch(`/api/webhooks-out/${id}`, { method: "DELETE" });
     load();
   }
 
   async function testWebhook(id: string) {
-    const t = toast.loading("Enviando evento de prueba…");
+    const toastId = toast.loading(t("testingWebhook"));
     const r = await fetch(`/api/webhooks-out/${id}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action: "test" }),
     });
     const j = await r.json();
-    toast.dismiss(t);
-    if (j.ok) toast.success("Evento de prueba entregado");
-    else toast.error(j.error ?? "Falló la entrega de prueba");
+    toast.dismiss(toastId);
+    if (j.ok) toast.success(t("testWebhookOk"));
+    else toast.error(j.error ?? t("testWebhookFailed"));
   }
 
   return (
@@ -136,13 +138,13 @@ export function DevelopersSection() {
       {/* API Keys */}
       <div>
         <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-body">
-          <Key className="h-4 w-4 text-violet-600 dark:text-violet-400" /> API Keys
+          <Key className="h-4 w-4 text-violet-600 dark:text-violet-400" /> {t("apiKeysHeading")}
         </h3>
         <div className="space-y-2 rounded-2xl border border-line bg-card p-4">
           {revealedKey && (
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs">
               <div className="mb-1 font-medium text-emerald-700 dark:text-emerald-200">
-                ⚠️ Copialo ahora — sólo se muestra una vez:
+                {t("copyOnceWarning")}
               </div>
               <div className="flex items-center gap-2 rounded bg-black/40 p-2">
                 <code className="flex-1 break-all font-mono text-[11px] text-body">
@@ -165,14 +167,12 @@ export function DevelopersSection() {
                 onClick={() => setRevealedKey(null)}
                 className="mt-2 text-[10px] text-emerald-200/70 hover:text-emerald-200"
               >
-                Ya la guardé →
+                {t("saved")}
               </button>
             </div>
           )}
 
-          {keys.length === 0 && (
-            <p className="text-xs text-muted">Aún no creaste ninguna API key.</p>
-          )}
+          {keys.length === 0 && <p className="text-xs text-muted">{t("noApiKeys")}</p>}
           {keys.map((k) => (
             <div
               key={k.id}
@@ -183,15 +183,15 @@ export function DevelopersSection() {
                   <span className="font-medium">{k.name}</span>
                   {k.revokedAt && (
                     <span className="rounded-md bg-red-500/15 px-1.5 py-0.5 text-[10px] text-red-700 dark:text-red-300">
-                      revocada
+                      {t("revoked")}
                     </span>
                   )}
                 </div>
                 <div className="mt-0.5 font-mono text-[10px] text-muted">
                   {k.prefix} ·{" "}
                   {k.lastUsedAt
-                    ? `usada ${new Date(k.lastUsedAt).toLocaleDateString()}`
-                    : "sin usar"}
+                    ? t("lastUsed", { date: new Date(k.lastUsedAt).toLocaleDateString() })
+                    : t("neverUsed")}
                 </div>
               </div>
               {!k.revokedAt && (
@@ -208,7 +208,7 @@ export function DevelopersSection() {
 
           <div className="mt-2 flex items-center gap-2 border-t border-line pt-3">
             <label htmlFor="api-key-name" className="sr-only">
-              Nombre de la nueva API key
+              {t("keyNameAria")}
             </label>
             <input
               id="api-key-name"
@@ -216,7 +216,7 @@ export function DevelopersSection() {
               autoComplete="off"
               value={newKeyName}
               onChange={(e) => setNewKeyName(e.target.value)}
-              placeholder="Nombre — ej. 'Production server'"
+              placeholder={t("keyNamePlaceholder")}
               className="flex-1 rounded-lg border border-line bg-elevated px-3 py-1.5 text-xs text-strong outline-none focus:border-violet-500/60"
             />
             <button
@@ -225,8 +225,12 @@ export function DevelopersSection() {
               disabled={creating || !newKeyName.trim()}
               className="flex items-center gap-1 rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-400 disabled:opacity-40"
             >
-              {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}{" "}
-              Crear key
+              {creating ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Plus className="h-3 w-3" />
+              )}{" "}
+              {t("createKey")}
             </button>
           </div>
         </div>
@@ -235,12 +239,11 @@ export function DevelopersSection() {
       {/* Outbound webhooks */}
       <div>
         <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-body">
-          <WebhookIcon className="h-4 w-4 text-amber-600 dark:text-amber-400" /> Webhooks (eventos salientes)
+          <WebhookIcon className="h-4 w-4 text-amber-600 dark:text-amber-400" />{" "}
+          {t("webhooksHeading")}
         </h3>
         <div className="space-y-2 rounded-2xl border border-line bg-card p-4">
-          {webhooks.length === 0 && (
-            <p className="text-xs text-muted">Sin webhooks configurados.</p>
-          )}
+          {webhooks.length === 0 && <p className="text-xs text-muted">{t("noWebhooks")}</p>}
           {webhooks.map((w) => (
             <div
               key={w.id}
@@ -254,7 +257,7 @@ export function DevelopersSection() {
                     onClick={() => testWebhook(w.id)}
                     className="rounded-md border border-line px-2 py-0.5 text-[10px] text-body hover:bg-hover"
                   >
-                    Probar
+                    {t("test")}
                   </button>
                   <button
                     type="button"
@@ -265,7 +268,7 @@ export function DevelopersSection() {
                         : "rounded-md bg-zinc-700/50 px-2 py-0.5 text-[10px] text-muted"
                     }
                   >
-                    {w.enabled ? "Activo" : "Pausado"}
+                    {w.enabled ? t("active") : t("paused")}
                   </button>
                   <button
                     type="button"
@@ -278,7 +281,10 @@ export function DevelopersSection() {
               </div>
               <div className="flex flex-wrap gap-1">
                 {w.events.map((e) => (
-                  <span key={e} className="rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[10px] text-violet-700 dark:text-violet-300">
+                  <span
+                    key={e}
+                    className="rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[10px] text-violet-700 dark:text-violet-300"
+                  >
                     {e}
                   </span>
                 ))}
@@ -290,7 +296,7 @@ export function DevelopersSection() {
           ))}
           <div className="space-y-2 border-t border-line pt-3">
             <label htmlFor="webhook-url" className="sr-only">
-              URL del webhook saliente
+              {t("urlAria")}
             </label>
             <input
               id="webhook-url"
@@ -298,7 +304,7 @@ export function DevelopersSection() {
               type="url"
               value={newWhUrl}
               onChange={(e) => setNewWhUrl(e.target.value)}
-              placeholder="https://your-server.com/orchester-events"
+              placeholder={t("urlPlaceholder")}
               className="w-full rounded-lg border border-line bg-elevated px-3 py-1.5 font-mono text-xs text-strong outline-none focus:border-violet-500/60"
             />
             <div className="flex flex-wrap gap-1">
@@ -327,7 +333,7 @@ export function DevelopersSection() {
               disabled={!newWhUrl.trim() || newWhEvents.length === 0}
               className="rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-400 disabled:opacity-40"
             >
-              Agregar webhook
+              {t("addWebhook")}
             </button>
           </div>
         </div>
@@ -335,9 +341,19 @@ export function DevelopersSection() {
 
       {/* Public API docs hint */}
       <div className="rounded-2xl border border-line bg-card p-4 text-xs text-muted">
-        💡 Usá tu API key con <code className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[10px] text-body">Authorization: Bearer ok_live_...</code>{" "}
-        en <code className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[10px] text-body">/api/v1/agents</code> y{" "}
-        <code className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[10px] text-body">/api/v1/flows</code>. Rate limit: 60 req/min.
+        💡 {t("apiHint")}{" "}
+        <code className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[10px] text-body">
+          Authorization: Bearer ok_live_...
+        </code>{" "}
+        →{" "}
+        <code className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[10px] text-body">
+          /api/v1/agents
+        </code>
+        ,{" "}
+        <code className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[10px] text-body">
+          /api/v1/flows
+        </code>
+        . Rate limit: 60 req/min.
       </div>
     </div>
   );

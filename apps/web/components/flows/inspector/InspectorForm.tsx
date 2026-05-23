@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Node } from "@xyflow/react";
 import { Trash2, ChevronDown, HelpCircle, Lightbulb } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { getNodeDef, type Locale } from "@/lib/flows/node-registry";
 import { getNodeDocs } from "@/lib/flows/node-docs";
 import { SpreadsheetField } from "./SpreadsheetField";
@@ -30,10 +31,15 @@ interface PickerOption {
 }
 
 export function InspectorForm({ node, locale, onChange, onDelete, availableData = [] }: Props) {
+  const t = useTranslations("pages.flows.inspector");
   if (!node) {
     return (
       <div className="p-4 text-xs text-muted">
-        Seleccioná un nodo para configurarlo, o pedile al copiloto que lo arme por vos.
+        {locale === "es"
+          ? "Seleccioná un nodo para configurarlo, o pedile al copiloto que lo arme por vos."
+          : locale === "pt-BR"
+            ? "Selecione um nó para configurá-lo, ou peça ao copiloto para montá-lo."
+            : "Pick a node to configure it, or ask the copilot to build it."}
       </div>
     );
   }
@@ -45,7 +51,11 @@ export function InspectorForm({ node, locale, onChange, onDelete, availableData 
   function update(patch: { label?: string; config?: Record<string, unknown> }) {
     onChange({
       ...node!,
-      data: { ...data, ...(patch.label !== undefined ? { label: patch.label } : {}), config: { ...config, ...(patch.config ?? {}) } },
+      data: {
+        ...data,
+        ...(patch.label !== undefined ? { label: patch.label } : {}),
+        config: { ...config, ...(patch.config ?? {}) },
+      },
     });
   }
 
@@ -69,7 +79,7 @@ export function InspectorForm({ node, locale, onChange, onDelete, availableData 
         <button
           type="button"
           onClick={() => onDelete(node.id)}
-          aria-label="Eliminar nodo"
+          aria-label={t("deleteNodeAria")}
           className="shrink-0 rounded-md p-1 text-muted hover:bg-hover hover:text-red-600 dark:hover:text-red-400"
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -99,7 +109,7 @@ export function InspectorForm({ node, locale, onChange, onDelete, availableData 
       )}
 
       {/* Nombre del paso (siempre editable) */}
-      <FieldLabel label="Nombre de este paso" help="Cómo aparece en el flujo." />
+      <FieldLabel label={t("nameLabel")} help={t("nameHelp")} />
       <input
         value={String(data.label ?? "")}
         onChange={(e) => update({ label: e.target.value })}
@@ -108,7 +118,13 @@ export function InspectorForm({ node, locale, onChange, onDelete, availableData 
 
       <div className="space-y-3">
         {basicFields.filter(visible).map((f) => (
-          <FieldRenderer key={f.key} field={f} value={config[f.key]} availableData={availableData} onChange={(v) => update({ config: { [f.key]: v } })} />
+          <FieldRenderer
+            key={f.key}
+            field={f}
+            value={config[f.key]}
+            availableData={availableData}
+            onChange={(v) => update({ config: { [f.key]: v } })}
+          />
         ))}
       </div>
 
@@ -119,7 +135,13 @@ export function InspectorForm({ node, locale, onChange, onDelete, availableData 
           </summary>
           <div className="space-y-3 px-3 pb-3">
             {advancedFields.filter(visible).map((f) => (
-              <FieldRenderer key={f.key} field={f} value={config[f.key]} availableData={availableData} onChange={(v) => update({ config: { [f.key]: v } })} />
+              <FieldRenderer
+                key={f.key}
+                field={f}
+                value={config[f.key]}
+                availableData={availableData}
+                onChange={(v) => update({ config: { [f.key]: v } })}
+              />
             ))}
           </div>
         </details>
@@ -134,7 +156,17 @@ export function InspectorForm({ node, locale, onChange, onDelete, availableData 
   );
 }
 
-function FieldLabel({ label, help, example, required }: { label: string; help?: string | undefined; example?: string | undefined; required?: boolean | undefined }) {
+function FieldLabel({
+  label,
+  help,
+  example,
+  required,
+}: {
+  label: string;
+  help?: string | undefined;
+  example?: string | undefined;
+  required?: boolean | undefined;
+}) {
   return (
     <div className="mb-1">
       <label className="text-[11px] font-medium text-body">
@@ -142,7 +174,11 @@ function FieldLabel({ label, help, example, required }: { label: string; help?: 
         {required && <span className="text-red-600 dark:text-red-400"> *</span>}
       </label>
       {help && <p className="mt-0.5 text-[10px] leading-relaxed text-faint">{help}</p>}
-      {example && <p className="mt-0.5 text-[10px] text-faint">Ejemplo: <code className="font-mono">{example}</code></p>}
+      {example && (
+        <p className="mt-0.5 text-[10px] text-faint">
+          Ejemplo: <code className="font-mono">{example}</code>
+        </p>
+      )}
     </div>
   );
 }
@@ -176,8 +212,26 @@ function DataPicker({ data, onPick }: { data: string[]; onPick: (name: string) =
   );
 }
 
-function FieldRenderer({ field, value, onChange, availableData = [] }: { field: FieldDef; value: unknown; onChange: (v: unknown) => void; availableData?: string[] }) {
-  const common = <FieldLabel label={field.label} help={field.help} example={field.example} required={field.required} />;
+function FieldRenderer({
+  field,
+  value,
+  onChange,
+  availableData = [],
+}: {
+  field: FieldDef;
+  value: unknown;
+  onChange: (v: unknown) => void;
+  availableData?: string[];
+}) {
+  const t = useTranslations("pages.flows.inspector");
+  const common = (
+    <FieldLabel
+      label={field.label}
+      help={field.help}
+      example={field.example}
+      required={field.required}
+    />
+  );
   const showPicker = field.type === "variable" || field.type === "textarea";
 
   switch (field.type) {
@@ -195,7 +249,10 @@ function FieldRenderer({ field, value, onChange, availableData = [] }: { field: 
             className={`${inputCls} resize-y ${field.type === "code" ? "font-mono text-[11px]" : ""}`}
           />
           {showPicker && (
-            <DataPicker data={availableData} onPick={(name) => onChange(`${String(value ?? "")}{{${name}}}`)} />
+            <DataPicker
+              data={availableData}
+              onPick={(name) => onChange(`${String(value ?? "")}{{${name}}}`)}
+            />
           )}
         </div>
       );
@@ -203,13 +260,24 @@ function FieldRenderer({ field, value, onChange, availableData = [] }: { field: 
       return (
         <div>
           {common}
-          <input type="number" value={value == null ? "" : Number(value)} onChange={(e) => onChange(e.target.value === "" ? undefined : Number(e.target.value))} placeholder={field.placeholder} className={inputCls} />
+          <input
+            type="number"
+            value={value == null ? "" : Number(value)}
+            onChange={(e) => onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+            placeholder={field.placeholder}
+            className={inputCls}
+          />
         </div>
       );
     case "boolean":
       return (
         <label className="flex items-center gap-2">
-          <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} className="accent-violet-500" />
+          <input
+            type="checkbox"
+            checked={Boolean(value)}
+            onChange={(e) => onChange(e.target.checked)}
+            className="accent-violet-500"
+          />
           <span className="text-[11px] text-body">{field.label}</span>
         </label>
       );
@@ -217,10 +285,16 @@ function FieldRenderer({ field, value, onChange, availableData = [] }: { field: 
       return (
         <div>
           {common}
-          <select value={String(value ?? "")} onChange={(e) => onChange(e.target.value)} className={inputCls}>
+          <select
+            value={String(value ?? "")}
+            onChange={(e) => onChange(e.target.value)}
+            className={inputCls}
+          >
             <option value="">Elegí una opción…</option>
             {field.options?.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
             ))}
           </select>
         </div>
@@ -229,13 +303,17 @@ function FieldRenderer({ field, value, onChange, availableData = [] }: { field: 
       return (
         <div>
           {common}
-          <select value={String(value ?? "")} onChange={(e) => onChange(e.target.value)} className={inputCls}>
+          <select
+            value={String(value ?? "")}
+            onChange={(e) => onChange(e.target.value)}
+            className={inputCls}
+          >
             <option value="">Elegí una frecuencia…</option>
-            <option value="*/15 * * * *">Cada 15 minutos</option>
-            <option value="0 * * * *">Cada hora</option>
-            <option value="0 9 * * *">Todos los días a las 9</option>
-            <option value="0 9 * * 1">Cada lunes a las 9</option>
-            <option value="0 9 1 * *">El día 1 de cada mes</option>
+            <option value="*/15 * * * *">{t("cronEvery15")}</option>
+            <option value="0 * * * *">{t("cronHourly")}</option>
+            <option value="0 9 * * *">{t("cronDaily")}</option>
+            <option value="0 9 * * 1">{t("cronWeekly")}</option>
+            <option value="0 9 1 * *">{t("cronMonthly")}</option>
           </select>
         </div>
       );
@@ -243,7 +321,11 @@ function FieldRenderer({ field, value, onChange, availableData = [] }: { field: 
       return (
         <div>
           {common}
-          <select value={String(value ?? "")} onChange={(e) => onChange(e.target.value)} className={inputCls}>
+          <select
+            value={String(value ?? "")}
+            onChange={(e) => onChange(e.target.value)}
+            className={inputCls}
+          >
             <option value="">Elegí cuánto esperar…</option>
             <option value="30s">30 segundos</option>
             <option value="1m">1 minuto</option>
@@ -257,7 +339,13 @@ function FieldRenderer({ field, value, onChange, availableData = [] }: { field: 
       return (
         <div>
           {common}
-          <textarea value={typeof value === "string" ? value : JSON.stringify(value ?? {}, null, 2)} onChange={(e) => onChange(e.target.value)} rows={4} placeholder={field.placeholder ?? "{ }"} className={`${inputCls} resize-y font-mono text-[11px]`} />
+          <textarea
+            value={typeof value === "string" ? value : JSON.stringify(value ?? {}, null, 2)}
+            onChange={(e) => onChange(e.target.value)}
+            rows={4}
+            placeholder={field.placeholder ?? "{ }"}
+            className={`${inputCls} resize-y font-mono text-[11px]`}
+          />
         </div>
       );
     case "spreadsheet":
@@ -266,7 +354,11 @@ function FieldRenderer({ field, value, onChange, availableData = [] }: { field: 
       return (
         <div>
           {common}
-          <ModelPicker capability={field.capability ?? "chat"} value={String(value ?? "")} onChange={onChange} />
+          <ModelPicker
+            capability={field.capability ?? "chat"}
+            value={String(value ?? "")}
+            onChange={onChange}
+          />
         </div>
       );
     case "string-list":
@@ -274,25 +366,78 @@ function FieldRenderer({ field, value, onChange, availableData = [] }: { field: 
     case "key-value":
       return <KeyValueField field={field} value={value} onChange={onChange} label={common} />;
     case "agent-picker":
-      return <RemotePicker field={field} value={value} onChange={onChange} label={common} url="/api/agents" mapTo={(d: { id: string; name: string }) => ({ value: d.id, label: d.name })} />;
+      return (
+        <RemotePicker
+          field={field}
+          value={value}
+          onChange={onChange}
+          label={common}
+          url="/api/agents"
+          mapTo={(d: { id: string; name: string }) => ({ value: d.id, label: d.name })}
+        />
+      );
     case "kb-picker":
-      return <RemotePicker field={field} value={value} onChange={onChange} label={common} url="/api/knowledge-bases" mapTo={(d: { id: string; name: string }) => ({ value: d.id, label: d.name })} />;
+      return (
+        <RemotePicker
+          field={field}
+          value={value}
+          onChange={onChange}
+          label={common}
+          url="/api/knowledge-bases"
+          mapTo={(d: { id: string; name: string }) => ({ value: d.id, label: d.name })}
+        />
+      );
     case "channel-picker":
-      return <RemotePicker field={field} value={value} onChange={onChange} label={common} url="/api/channels" mapTo={(d: { id: string; name: string; type?: string }) => ({ value: d.id, label: `${d.name}${d.type ? ` (${d.type})` : ""}` })} allowEmpty />;
+      return (
+        <RemotePicker
+          field={field}
+          value={value}
+          onChange={onChange}
+          label={common}
+          url="/api/channels"
+          mapTo={(d: { id: string; name: string; type?: string }) => ({
+            value: d.id,
+            label: `${d.name}${d.type ? ` (${d.type})` : ""}`,
+          })}
+          allowEmpty
+        />
+      );
     case "integration-action":
-      return <IntegrationActionField field={field} value={value} config={{}} onChange={onChange} label={common} />;
+      return (
+        <IntegrationActionField
+          field={field}
+          value={value}
+          config={{}}
+          onChange={onChange}
+          label={common}
+        />
+      );
     case "text":
     default:
       return (
         <div>
           {common}
-          <input value={String(value ?? "")} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder} className={inputCls} />
+          <input
+            value={String(value ?? "")}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={field.placeholder}
+            className={inputCls}
+          />
         </div>
       );
   }
 }
 
-function StringListField({ value, onChange, label }: { value: unknown; onChange: (v: unknown) => void; label: React.ReactNode }) {
+function StringListField({
+  value,
+  onChange,
+  label,
+}: {
+  value: unknown;
+  onChange: (v: unknown) => void;
+  label: React.ReactNode;
+}) {
+  const t = useTranslations("pages.flows.inspector");
   const list = Array.isArray(value) ? (value as string[]) : [];
   const setAt = (idx: number, v: string) => {
     const next = list.slice();
@@ -308,14 +453,14 @@ function StringListField({ value, onChange, label }: { value: unknown; onChange:
             <input
               value={v}
               onChange={(e) => setAt(idx, e.target.value)}
-              placeholder="valor del camino"
+              placeholder={t("pathValuePlaceholder")}
               className={`${inputCls} flex-1`}
             />
             <button
               type="button"
               onClick={() => onChange(list.filter((_, j) => j !== idx))}
               className="rounded-md px-2 text-muted hover:text-red-600 dark:hover:text-red-400"
-              aria-label="Quitar"
+              aria-label={t("removeAria")}
             >
               ×
             </button>
@@ -333,7 +478,17 @@ function StringListField({ value, onChange, label }: { value: unknown; onChange:
   );
 }
 
-function KeyValueField({ value, onChange, label }: { field: FieldDef; value: unknown; onChange: (v: unknown) => void; label: React.ReactNode }) {
+function KeyValueField({
+  value,
+  onChange,
+  label,
+}: {
+  field: FieldDef;
+  value: unknown;
+  onChange: (v: unknown) => void;
+  label: React.ReactNode;
+}) {
+  const t = useTranslations("pages.flows.inspector");
   const obj = (value && typeof value === "object" ? value : {}) as Record<string, string>;
   const entries = Object.entries(obj);
   function setEntry(k: string, v: string, oldK?: string) {
@@ -353,20 +508,56 @@ function KeyValueField({ value, onChange, label }: { field: FieldDef; value: unk
       <div className="space-y-1.5">
         {entries.map(([k, v]) => (
           <div key={k} className="flex gap-1.5">
-            <input defaultValue={k} onBlur={(e) => setEntry(e.target.value, v, k)} placeholder="clave" className={`${inputCls} flex-1`} />
-            <input value={v} onChange={(e) => setEntry(k, e.target.value)} placeholder="valor" className={`${inputCls} flex-1`} />
-            <button type="button" onClick={() => remove(k)} className="rounded-md px-2 text-muted hover:text-red-600 dark:hover:text-red-400">×</button>
+            <input
+              defaultValue={k}
+              onBlur={(e) => setEntry(e.target.value, v, k)}
+              placeholder={t("keyPlaceholder")}
+              className={`${inputCls} flex-1`}
+            />
+            <input
+              value={v}
+              onChange={(e) => setEntry(k, e.target.value)}
+              placeholder={t("valuePlaceholder")}
+              className={`${inputCls} flex-1`}
+            />
+            <button
+              type="button"
+              onClick={() => remove(k)}
+              className="rounded-md px-2 text-muted hover:text-red-600 dark:hover:text-red-400"
+            >
+              ×
+            </button>
           </div>
         ))}
-        <button type="button" onClick={() => setEntry(`clave${entries.length + 1}`, "")} className="text-[11px] text-violet-600 dark:text-violet-400 hover:underline">+ Agregar</button>
+        <button
+          type="button"
+          onClick={() => setEntry(`clave${entries.length + 1}`, "")}
+          className="text-[11px] text-violet-600 dark:text-violet-400 hover:underline"
+        >
+          + Agregar
+        </button>
       </div>
     </div>
   );
 }
 
 function RemotePicker<T extends { id: string }>({
-  value, onChange, label, url, mapTo, allowEmpty,
-}: { field: FieldDef; value: unknown; onChange: (v: unknown) => void; label: React.ReactNode; url: string; mapTo: (d: T) => PickerOption; allowEmpty?: boolean }) {
+  value,
+  onChange,
+  label,
+  url,
+  mapTo,
+  allowEmpty,
+}: {
+  field: FieldDef;
+  value: unknown;
+  onChange: (v: unknown) => void;
+  label: React.ReactNode;
+  url: string;
+  mapTo: (d: T) => PickerOption;
+  allowEmpty?: boolean;
+}) {
+  const t = useTranslations("pages.flows.inspector");
   const [opts, setOpts] = useState<PickerOption[]>([]);
   useEffect(() => {
     let alive = true;
@@ -377,46 +568,102 @@ function RemotePicker<T extends { id: string }>({
         if (alive) setOpts(arr.map(mapTo));
       })
       .catch(() => {});
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [url]);
   return (
     <div>
       {label}
-      <select value={String(value ?? "")} onChange={(e) => onChange(e.target.value)} className={inputCls}>
-        <option value="">{allowEmpty ? "Todos" : "Elegí una opción…"}</option>
-        {opts.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+      <select
+        value={String(value ?? "")}
+        onChange={(e) => onChange(e.target.value)}
+        className={inputCls}
+      >
+        <option value="">{allowEmpty ? t("all") : t("pickOne")}</option>
+        {opts.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
       </select>
     </div>
   );
 }
 
-function IntegrationActionField({ value, onChange, label }: { field: FieldDef; value: unknown; config: Record<string, unknown>; onChange: (v: unknown) => void; label: React.ReactNode }) {
+function IntegrationActionField({
+  value,
+  onChange,
+  label,
+}: {
+  field: FieldDef;
+  value: unknown;
+  config: Record<string, unknown>;
+  onChange: (v: unknown) => void;
+  label: React.ReactNode;
+}) {
+  const t = useTranslations("pages.flows.inspector");
   // value = "integrationId::action"
-  const [integrations, setIntegrations] = useState<Array<{ id: string; type: string; name: string }>>([]);
-  const [catalog, setCatalog] = useState<Array<{ id: string; actions: { key: string; description: string }[] }>>([]);
+  const [integrations, setIntegrations] = useState<
+    Array<{ id: string; type: string; name: string }>
+  >([]);
+  const [catalog, setCatalog] = useState<
+    Array<{ id: string; actions: { key: string; description: string }[] }>
+  >([]);
   useEffect(() => {
-    fetch("/api/integrations").then((r) => (r.ok ? r.json() : null)).then((d) => {
-      if (d) { setIntegrations(d.configured ?? []); setCatalog(d.catalog ?? []); }
-    }).catch(() => {});
+    fetch("/api/integrations")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d) {
+          setIntegrations(d.configured ?? []);
+          setCatalog(d.catalog ?? []);
+        }
+      })
+      .catch(() => {});
   }, []);
   const [intId, action] = String(value ?? "").split("::");
   const selected = integrations.find((x) => x.id === intId);
-  const actions = useMemo(() => catalog.find((c) => c.id === selected?.type)?.actions ?? [], [catalog, selected]);
+  const actions = useMemo(
+    () => catalog.find((c) => c.id === selected?.type)?.actions ?? [],
+    [catalog, selected]
+  );
   return (
     <div className="space-y-2">
       {label}
-      <select value={intId ?? ""} onChange={(e) => onChange(`${e.target.value}::`)} className={inputCls}>
+      <select
+        value={intId ?? ""}
+        onChange={(e) => onChange(`${e.target.value}::`)}
+        className={inputCls}
+      >
         <option value="">Elegí una integración…</option>
-        {integrations.map((x) => (<option key={x.id} value={x.id}>{x.name} ({x.type})</option>))}
+        {integrations.map((x) => (
+          <option key={x.id} value={x.id}>
+            {x.name} ({x.type})
+          </option>
+        ))}
       </select>
       {selected && (
-        <select value={action ?? ""} onChange={(e) => onChange(`${intId}::${e.target.value}`)} className={inputCls}>
+        <select
+          value={action ?? ""}
+          onChange={(e) => onChange(`${intId}::${e.target.value}`)}
+          className={inputCls}
+        >
           <option value="">Elegí una acción…</option>
-          {actions.map((a) => (<option key={a.key} value={a.key} title={a.description}>{a.key}</option>))}
+          {actions.map((a) => (
+            <option key={a.key} value={a.key} title={a.description}>
+              {a.key}
+            </option>
+          ))}
         </select>
       )}
       {integrations.length === 0 && (
-        <p className="text-[10px] text-faint">No tenés integraciones conectadas. Andá a <span className="text-violet-600 dark:text-violet-400">Integraciones</span> para conectar una.</p>
+        <p className="text-[10px] text-faint">
+          {t.rich("noIntegrations", {
+            link: (chunks) => (
+              <span className="text-violet-600 dark:text-violet-400">{chunks}</span>
+            ),
+          })}
+        </p>
       )}
     </div>
   );
