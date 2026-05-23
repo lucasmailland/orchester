@@ -1,0 +1,16 @@
+# GitHub will show a "Sponsor" button using the entries below. Uncomment the
+# providers you actually use; leave the rest commented to skip them.
+#
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+
+# github: [lucasmailland]                # GitHub Sponsors (apply at github.com/sponsors)
+# open_collective: orchester             # Open Collective (open-source friendly)
+# ko_fi: lucasmailland                   # Ko-fi
+# patreon: lucasmailland                 # Patreon
+# tidelift: npm/orchester                # Tidelift (commercial OSS support)
+# liberapay: lucasmailland               # Liberapay
+# buy_me_a_coffee: lucasmailland         # Buy Me a Coffee
+# polar: lucasmailland                   # Polar
+# thanks_dev: u/gh/lucasmailland         # thanks.dev
+# custom:                                 # any custom URLs (max 4)
+#   - https://orchester.dev/sponsor
