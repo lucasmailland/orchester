@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use Orchester in academic work or technical writing, please cite it as below."
+type: software
+title: "Orchester: an open-source platform for AI agents and workflow orchestration"
+abstract: >-
+  Orchester is a multi-tenant, self-hostable platform for building AI agents
+  and orchestrating them in workflows. It unifies 80+ AI providers behind a
+  single adapter layer, ships with a visual flow builder, an MCP server, and
+  enforces tenant isolation, RBAC, quotas, and per-workspace AI spend caps
+  through structural CI invariants.
+authors:
+  - family-names: Mailland
+    given-names: Lucas
+    email: lucasmailland@gmail.com
+repository-code: "https://github.com/lucasmailland/orchester"
+url: "https://github.com/lucasmailland/orchester"
+license: Apache-2.0
+version: "0.1.0"
+date-released: "2026-05-22"
+keywords:
+  - ai-agents
+  - workflow-automation
+  - multi-tenant
+  - open-source
+  - self-hosted
+  - llm
+  - mcp
+  - postgres
+  - pgvector
+  - typescript

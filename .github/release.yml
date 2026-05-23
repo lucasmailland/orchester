@@ -1,0 +1,72 @@
+# Configures GitHub's auto-generated release notes.
+# Categorizes PRs by label when "Generate release notes" is clicked, and when
+# release-please assembles its release PR description.
+#
+# Docs: https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
+
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+      - duplicate
+      - invalid
+      - wontfix
+    authors:
+      - dependabot
+      - dependabot[bot]
+      - renovate
+      - renovate[bot]
+
+  categories:
+    - title: ✨ Features
+      labels:
+        - feat
+        - feature
+        - enhancement
+
+    - title: 🛡️ Security
+      labels:
+        - security
+
+    - title: 🐛 Fixes
+      labels:
+        - fix
+        - bug
+        - bugfix
+
+    - title: ⚡ Performance
+      labels:
+        - perf
+        - performance
+
+    - title: 🔄 Refactors
+      labels:
+        - refactor
+
+    - title: 📚 Documentation
+      labels:
+        - docs
+        - documentation
+
+    - title: 🧪 Tests
+      labels:
+        - test
+        - tests
+
+    - title: 🏗️ Build & CI
+      labels:
+        - build
+        - ci
+
+    - title: 📦 Dependencies
+      labels:
+        - dependencies
+
+    - title: 🧹 Chores & internals
+      labels:
+        - chore
+        - style
+
+    - title: Other changes
+      labels:
+        - "*"
