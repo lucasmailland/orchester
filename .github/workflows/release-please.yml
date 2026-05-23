@@ -10,7 +10,7 @@
 #   3. On merge, the action tags `vX.Y.Z`, creates a GitHub Release with
 #      auto-generated notes, and (optionally) publishes packages.
 #
-# Config: ./release-please-config.json + ./.release-please-manifest.json
+# Config: .github/release-please-config.json + .github/.release-please-manifest.json
 
 name: release-please
 
@@ -28,5 +28,5 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v4
         with:
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
+          config-file: .github/release-please-config.json
+          manifest-file: .github/.release-please-manifest.json
