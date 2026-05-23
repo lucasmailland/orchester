@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
 import { ProviderNotConfiguredError, llmStream } from "@/lib/llm-call";
 import { loadAgent } from "@/lib/agent-runtime";
+import { assertWithinSpend } from "@/lib/cost-alerts";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { safeLogError } from "@/lib/safe-log";
 import { parseBody } from "@/lib/validation";
@@ -88,6 +89,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
       };
       try {
+        await assertWithinSpend(ws.workspace.id);
         for await (const chunk of llmStream({
           workspaceId: ws.workspace.id,
           model,

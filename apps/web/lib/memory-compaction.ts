@@ -2,6 +2,7 @@ import "server-only";
 import { getDb, schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
 import { llmCall, type ChatMessage } from "./llm-call";
+import { assertWithinSpend } from "./cost-alerts";
 
 /**
  * Rolling-window history compaction.
@@ -92,6 +93,9 @@ export async function compactHistory(args: CompactArgs): Promise<ChatMessage[]> 
     const userMsg = nextSummary
       ? `Existing summary:\n${nextSummary}\n\nNew turns to fold in:\n${transcript}`
       : `Turns to summarize:\n${transcript}`;
+    // Defense-in-depth: la compactación de memoria también consume tokens del
+    // provider; sin este guard se salteaba el cap (caller-agnóstico).
+    await assertWithinSpend(args.workspaceId);
     const r = await llmCall({
       workspaceId: args.workspaceId,
       model: args.model,

@@ -3,6 +3,7 @@ import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { llmCall, type ChatMessage } from "./llm-call";
 import { executeTool, getToolDefinitions, type ToolCall } from "./tools";
+import { assertWithinSpend } from "./cost-alerts";
 
 /**
  * Single entry point that runs an agent for a chat turn.
@@ -239,6 +240,8 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
     };
     if (toolDefs.length > 0) callOpts.tools = toolDefs;
 
+    // Spend cap / kill-switch en cada turno del loop tool-use (cubre test-chat + MCP).
+    await assertWithinSpend(p.workspaceId);
     const r = await llmCall(callOpts);
     totalTokens += r.tokensUsed;
 
