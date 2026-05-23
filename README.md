@@ -147,9 +147,12 @@ The **invariants guard** is the structural lesson from our remediation history: 
 
 ## Documentation
 
-- **Architecture & feature docs** for agents/humans: [`.agents/`](.agents/)
-- **Roadmap**: [GitHub Projects](https://github.com/lucasmailland/orchester/projects)
-- **Changelog**: [GitHub Releases](https://github.com/lucasmailland/orchester/releases)
+- **Architecture deep dive** — [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): component map, request lifecycle, data model, security boundaries, deployment topology.
+- **Roadmap** — [`ROADMAP.md`](ROADMAP.md): shipped, in flight, and what's next on the way to 1.0.
+- **Governance** — [`GOVERNANCE.md`](GOVERNANCE.md): roles, decision-making, succession.
+- **Architecture Decision Records** — [`docs/adr/`](docs/adr/): the reasoning behind load-bearing choices.
+- **Changelog** — [`CHANGELOG.md`](CHANGELOG.md) and [GitHub Releases](https://github.com/lucasmailland/orchester/releases).
+- **Audit playbook** — [`.agents/audit.md`](.agents/audit.md): how we keep the structural invariants honest.
 
 ## Contributing
 
