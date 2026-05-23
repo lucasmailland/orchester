@@ -5,6 +5,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { llmCall, llmStream, type ChatMessage } from "@/lib/llm-call";
 import { getToolDefinitions, executeTool } from "@/lib/tools";
 import { executeFlow } from "@/lib/flow-engine";
+import { assertWithinSpend } from "@/lib/cost-alerts";
 import { UNTRUSTED_CONTENT_GUARDRAIL, wrapUntrusted } from "@/lib/agent-runtime";
 
 export interface InboundMessage {
@@ -261,14 +262,17 @@ async function persistAssistantTurn(
     .set({ messageCount: baseMessageCount + 2 })
     .where(eq(schema.conversations.id, conversation.id));
 
-  // Usage event (Phase 7 metering)
+  // Usage event (Phase 7 metering) — incluye `costUsd` para que el spend cap
+  // (cost-alerts.assertWithinSpend) cuente el chat entrante. Sin este campo el
+  // tope mensual lee 0 USD acumulado y nunca dispara (meta-audit finding 4.2).
   await db.insert(schema.usageEvents).values({
     id: createId(),
     workspaceId,
     kind: "agent_message",
     amount: 1,
+    costUsd: String(costUsd),
     agentId: ctx.agent.id,
-    metadata: { tokens },
+    metadata: { tokens, model: activeAgent.model },
   });
 }
 
@@ -343,6 +347,9 @@ async function runConversationalTurn(ctx: ConvCtx): Promise<OutboundResponse> {
   let handoffCount = 0; // protege contra ping-pong infinito entre agentes
   while (safetyCounter < 5) {
     safetyCounter++;
+    // Spend cap / kill-switch (E1-1/E3-1): aplica también al chat entrante.
+    // El bypass de este check fue el principal hallazgo de la meta-auditoría.
+    await assertWithinSpend(workspaceId);
     const r = await llmCall({
       workspaceId,
       model: activeAgent.model,

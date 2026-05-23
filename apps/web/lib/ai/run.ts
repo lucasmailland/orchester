@@ -11,7 +11,7 @@ import { generateVideoWith, generateMusicWith, speakWith, transcribeWith } from 
 import { rerankWith } from "./adapters/rerank";
 import { generateAvatarWith } from "./adapters/avatar";
 import { ocrWith } from "./adapters/ocr";
-import { calculateChatCostUsd, calculateCapabilityCostUsd } from "../pricing";
+import { calculateChatCostUsd, calculateCapabilityCostUsd, calculateEmbeddingCostUsd } from "../pricing";
 import { assertWithinSpend } from "../cost-alerts";
 import { assertContentAllowed } from "../moderation";
 import { safeLogError } from "../safe-log";
@@ -186,7 +186,10 @@ export async function embed(workspaceId: string, modelId: string, input: string[
     model: resolved.model,
     tokensOut: res.tokensUsed,
     tokensTotal: res.tokensUsed,
-    costUsd: calculateChatCostUsd(resolved.model, 0, res.tokensUsed),
+    // Embeddings tienen su propio rate (mucho menor que chat output) — usar
+    // calculateChatCostUsd acá hacía que el spend cap mensual disparara ~40×
+    // antes de lo real bajo cargas pesadas de embedding.
+    costUsd: calculateEmbeddingCostUsd(resolved.model, res.tokensUsed),
   });
   return res;
 }
