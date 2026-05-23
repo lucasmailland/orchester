@@ -3,6 +3,8 @@ import { getDb, schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
 import { llmCall, type ChatMessage } from "./llm-call";
 import { assertWithinSpend } from "./cost-alerts";
+import { recordAiUsage } from "./ai/run";
+import { calculateChatCostUsd } from "./pricing";
 
 /**
  * Rolling-window history compaction.
@@ -105,6 +107,15 @@ export async function compactHistory(args: CompactArgs): Promise<ChatMessage[]> 
       maxTokens: 600,
     });
     nextSummary = r.content.trim();
+    // E2-2: metering — la compactación también consume tokens del provider.
+    await recordAiUsage({
+      workspaceId: args.workspaceId,
+      capability: "chat",
+      model: r.model,
+      tokensOut: r.tokensUsed,
+      tokensTotal: r.tokensUsed,
+      costUsd: calculateChatCostUsd(r.model, 0, r.tokensUsed),
+    });
 
     // Persist the new summary so we don't pay this cost twice for the same turns.
     const db = getDb();

@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { ProviderNotConfiguredError, llmStream } from "@/lib/llm-call";
 import { loadAgent } from "@/lib/agent-runtime";
 import { assertWithinSpend } from "@/lib/cost-alerts";
+import { recordAiUsage } from "@/lib/ai/run";
+import { calculateChatCostUsd } from "@/lib/pricing";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { safeLogError } from "@/lib/safe-log";
 import { parseBody } from "@/lib/validation";
@@ -42,11 +44,11 @@ function interpolate(template: string, vars: Record<string, string>): string {
  * endpoint blocking (test-chat) o el flow-engine.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getCurrentSession();
-  const ws = await getCurrentWorkspace();
-  if (!ws || !session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  // F-2: gate de rol — el stream del studio quema créditos reales de LLM.
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
+  const ws = { workspace: ctx.workspace };
+  const session = { user: ctx.user };
 
   const limited = await enforceRateLimit(
     `test-chat-stream:${ws.workspace.id}:${session.user.id}`,
@@ -101,6 +103,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         })) {
           if (abort.signal.aborted) break;
           send(chunk);
+          // E2-2: metering al cerrar el stream (el chunk "done" trae los tokens).
+          if (chunk.type === "done") {
+            try {
+              await recordAiUsage({
+                workspaceId: ws.workspace.id,
+                capability: "chat",
+                model: chunk.model,
+                tokensOut: chunk.tokensUsed,
+                tokensTotal: chunk.tokensUsed,
+                costUsd: calculateChatCostUsd(chunk.model, 0, chunk.tokensUsed),
+              });
+            } catch {
+              /* metering best-effort, no romper el turno */
+            }
+          }
         }
       } catch (e) {
         if (abort.signal.aborted) {
