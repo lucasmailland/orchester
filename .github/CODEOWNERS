@@ -1,0 +1,37 @@
+# CODEOWNERS
+#
+# Routes pull request reviews automatically. The owners listed here are
+# **required reviewers** for changes to those paths — GitHub will request their
+# review on every PR that touches a matched file.
+#
+# Order matters: the LAST matching pattern wins.
+# Replace @lucasmailland with additional handles as the maintainer team grows.
+
+# ── Default: everything goes to the main maintainer ──────────────────────────
+*                                       @lucasmailland
+
+# ── Security-sensitive areas — never merge without explicit owner review ─────
+/apps/web/lib/encryption.ts             @lucasmailland
+/apps/web/lib/auth-guards.ts            @lucasmailland
+/apps/web/lib/rbac.ts                   @lucasmailland
+/apps/web/lib/net-guard.ts              @lucasmailland
+/apps/web/lib/cost-alerts.ts            @lucasmailland
+/apps/web/lib/flow-engine.ts            @lucasmailland
+/apps/web/scripts/reencrypt-credentials.ts  @lucasmailland
+
+# ── Database & migrations ────────────────────────────────────────────────────
+/packages/db/                           @lucasmailland
+/packages/db/drizzle/                   @lucasmailland
+
+# ── CI / release infrastructure ──────────────────────────────────────────────
+/.github/                               @lucasmailland
+/scripts/audit-invariants.sh            @lucasmailland
+/scripts/preflight.sh                   @lucasmailland
+/vercel.json                            @lucasmailland
+
+# ── Project governance docs ──────────────────────────────────────────────────
+/LICENSE                                @lucasmailland
+/NOTICE                                 @lucasmailland
+/CODE_OF_CONDUCT.md                     @lucasmailland
+/CONTRIBUTING.md                        @lucasmailland
+/SECURITY.md                            @lucasmailland

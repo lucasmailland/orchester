@@ -1,0 +1,31 @@
+# DCO sign-off check.
+#
+# Every commit in a PR must carry a `Signed-off-by:` trailer that matches the
+# committer's email. This is the lightweight equivalent of a CLA — used by
+# Linux, Docker, GitLab, and many other projects. See `.github/DCO.txt` for
+# the full text contributors are attesting to.
+#
+# How a contributor sets it up:
+#   git commit -s -m "feat(scope): your change"
+#
+# If they forget:
+#   git commit --amend --no-edit --signoff           # last commit
+#   git rebase HEAD~N --signoff                      # the last N commits
+
+name: DCO
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  check:
+    name: DCO sign-off
+    runs-on: ubuntu-latest
+    steps:
+      - uses: christophebedard/dco-check@v1.4.2
+        with:
+          quiet: false

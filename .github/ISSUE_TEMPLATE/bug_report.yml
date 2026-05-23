@@ -1,0 +1,115 @@
+name: 🐛 Bug report
+description: Something is not working the way it should. Reports with reproduction steps get fixed first.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report.
+
+        **Before filing**: please search [existing issues](https://github.com/lucasmailland/orchester/issues?q=is%3Aissue) to avoid duplicates. If your question is "is this supposed to work this way?", please use [Discussions](https://github.com/lucasmailland/orchester/discussions) instead.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One sentence describing the bug.
+      placeholder: "Flow runs marked as `cancelled` are not visible in the run history list."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Minimal, numbered steps to trigger the bug from a fresh state.
+      placeholder: |
+        1. Create a flow with a `delay 90s` node and an HTTP node.
+        2. Run it from the studio.
+        3. Close the browser tab while it's running.
+        4. Open `/flow-runs/[id]` …
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      placeholder: "The run should show as 'cancelled' with the disconnect time."
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead?
+      placeholder: "The run shows 'running' indefinitely."
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / stack trace / screenshots
+      description: Paste console output, server logs, or screenshots. Redact any secrets, real user data, or production URLs.
+      render: shell
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Output of `git rev-parse --short HEAD` or the release tag you're on.
+      placeholder: "main @ a3b4c5d  /  v0.2.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      multiple: true
+      options:
+        - Local dev (pnpm dev)
+        - Self-hosted (Docker / VPS)
+        - Vercel
+        - Other (please describe in additional context)
+    validations:
+      required: true
+
+  - type: input
+    id: node
+    attributes:
+      label: Node version
+      placeholder: "v22.x"
+    validations:
+      required: false
+
+  - type: input
+    id: postgres
+    attributes:
+      label: Postgres version
+      placeholder: "15.x with pgvector 0.6+"
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else — frequency, regression window, workarounds you found, related issues.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Confirmations
+      options:
+        - label: I searched existing issues and didn't find a duplicate.
+          required: true
+        - label: I'm not reporting a security vulnerability (those go through the [Security Advisory flow](https://github.com/lucasmailland/orchester/security/advisories/new)).
+          required: true
