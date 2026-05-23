@@ -1,0 +1,36 @@
+# gitleaks — scans the diff (and on schedule, full history) for committed
+# secrets. The repo already has `.gitleaks.toml` configured with patterns
+# specific to Orchester (Anthropic, OpenAI, Google, Slack, JWT, etc.); this
+# workflow runs that scan in CI.
+
+name: gitleaks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly full-history scan — catches anything that slipped past the diff
+    # scans on PRs (e.g. force-push amendments by maintainers).
+    - cron: "30 5 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Scan for committed secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need full history for scheduled / push scans on main.
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # `.gitleaks.toml` at repo root provides the allowlist + extra rules.
+          GITLEAKS_CONFIG: .gitleaks.toml

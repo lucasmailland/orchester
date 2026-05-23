@@ -1,0 +1,101 @@
+# Auto-labels for PRs based on the file paths changed.
+# Docs: https://github.com/actions/labeler
+
+"area: ai":
+  - changed-files:
+      - any-glob-to-any-file:
+          - apps/web/lib/ai/**
+          - apps/web/lib/llm-call.ts
+          - apps/web/lib/agent-runtime.ts
+          - apps/web/lib/memory*.ts
+
+"area: flows":
+  - changed-files:
+      - any-glob-to-any-file:
+          - apps/web/lib/flow-engine.ts
+          - apps/web/lib/flows/**
+          - apps/web/components/flows/**
+
+"area: api":
+  - changed-files:
+      - any-glob-to-any-file:
+          - apps/web/app/api/**
+
+"area: web (ui)":
+  - changed-files:
+      - any-glob-to-any-file:
+          - apps/web/app/[locale]/**
+          - apps/web/components/**
+          - apps/web/messages/**
+
+"area: db / migrations":
+  - changed-files:
+      - any-glob-to-any-file:
+          - packages/db/**
+
+"area: integrations":
+  - changed-files:
+      - any-glob-to-any-file:
+          - apps/web/lib/integrations/**
+          - apps/web/lib/channels/**
+
+"area: billing":
+  - changed-files:
+      - any-glob-to-any-file:
+          - apps/web/lib/billing/**
+          - apps/web/lib/cost-alerts.ts
+          - apps/web/lib/pricing.ts
+          - apps/web/app/api/billing/**
+
+"area: security":
+  - changed-files:
+      - any-glob-to-any-file:
+          - apps/web/lib/encryption.ts
+          - apps/web/lib/auth-guards.ts
+          - apps/web/lib/rbac.ts
+          - apps/web/lib/net-guard.ts
+          - apps/web/lib/moderation.ts
+          - apps/web/scripts/reencrypt-credentials.ts
+
+"area: worker / queue":
+  - changed-files:
+      - any-glob-to-any-file:
+          - apps/web/worker/**
+          - apps/web/lib/queue.ts
+          - apps/web/lib/retention.ts
+
+"area: mcp":
+  - changed-files:
+      - any-glob-to-any-file:
+          - apps/web/lib/mcp/**
+          - apps/web/app/api/mcp/**
+
+"ci":
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/workflows/**
+          - scripts/audit-invariants.sh
+          - scripts/preflight.sh
+
+"documentation":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.md"
+          - .agents/**
+          - docs/**
+
+"dependencies":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/package.json"
+          - pnpm-lock.yaml
+
+"github":
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**
+
+"breaking-change":
+  - head-branch:
+      - "^breaking/"
+      - "^!"
