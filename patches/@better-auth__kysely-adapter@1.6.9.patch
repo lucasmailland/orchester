@@ -1,0 +1,30 @@
+diff --git a/dist/bun-sqlite-dialect-na--YwnN.mjs b/dist/bun-sqlite-dialect-na--YwnN.mjs
+index 9db403f1cfd0c0f57ca512574c4936755d257529..a50a8b91fc83548886517d1b3e76ca35e33f17e2 100644
+--- a/dist/bun-sqlite-dialect-na--YwnN.mjs
++++ b/dist/bun-sqlite-dialect-na--YwnN.mjs
+@@ -1,4 +1,4 @@
+-import { CompiledQuery, DEFAULT_MIGRATION_LOCK_TABLE, DEFAULT_MIGRATION_TABLE, DefaultQueryCompiler, sql } from "kysely";
++import { CompiledQuery, DefaultQueryCompiler, sql } from "kysely"; const DEFAULT_MIGRATION_TABLE = "kysely_migration"; const DEFAULT_MIGRATION_LOCK_TABLE = "kysely_migration_lock";
+ //#region src/bun-sqlite-dialect.ts
+ var BunSqliteAdapter = class {
+ 	get supportsCreateIfNotExists() {
+diff --git a/dist/d1-sqlite-dialect-C2B7YsIT.mjs b/dist/d1-sqlite-dialect-C2B7YsIT.mjs
+index 1545e428a73da3747b96b142d7a0f40eaaa41b0e..0f0171f8f1788220702f993a52e56da55089b9fe 100644
+--- a/dist/d1-sqlite-dialect-C2B7YsIT.mjs
++++ b/dist/d1-sqlite-dialect-C2B7YsIT.mjs
+@@ -1,4 +1,4 @@
+-import { DEFAULT_MIGRATION_LOCK_TABLE, DEFAULT_MIGRATION_TABLE, SqliteAdapter, SqliteQueryCompiler } from "kysely";
++import { SqliteAdapter, SqliteQueryCompiler } from "kysely"; const DEFAULT_MIGRATION_TABLE = "kysely_migration"; const DEFAULT_MIGRATION_LOCK_TABLE = "kysely_migration_lock";
+ //#region src/d1-sqlite-dialect.ts
+ var D1SqliteAdapter = class extends SqliteAdapter {};
+ var D1SqliteDriver = class {
+diff --git a/dist/node-sqlite-dialect.mjs b/dist/node-sqlite-dialect.mjs
+index a0c420b91e243dcdb2421f08f56185a131f6b62e..f0f12c41fbc30018cc81b8b91dba31edd0863fd5 100644
+--- a/dist/node-sqlite-dialect.mjs
++++ b/dist/node-sqlite-dialect.mjs
+@@ -1,4 +1,4 @@
+-import { CompiledQuery, DEFAULT_MIGRATION_LOCK_TABLE, DEFAULT_MIGRATION_TABLE, DefaultQueryCompiler, sql } from "kysely";
++import { CompiledQuery, DefaultQueryCompiler, sql } from "kysely"; const DEFAULT_MIGRATION_TABLE = "kysely_migration"; const DEFAULT_MIGRATION_LOCK_TABLE = "kysely_migration_lock";
+ //#region src/node-sqlite-dialect.ts
+ var NodeSqliteAdapter = class {
+ 	get supportsCreateIfNotExists() {

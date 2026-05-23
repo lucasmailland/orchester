@@ -7,21 +7,32 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   /**
    * `standalone` output produces a self-contained server.js + minimal
-   * node_modules. Required by the Dockerfile in repo root and ideal for
-   * Railway/Fly.io/AWS. Vercel ignores this and builds with its own runtime.
+   * node_modules. Required by deploy/Dockerfile and ideal for Railway/Fly.io.
+   * Vercel ignores this and builds with its own runtime.
    */
   output: "standalone",
   /** Hosting providers (Railway, Fly) need the workspace root for tracing. */
   outputFileTracingRoot: process.cwd().replace(/\/apps\/web$/, ""),
+
+  /**
+   * Native / Node-only packages that bundlers should NOT try to bundle.
+   * Loaded via require() from node_modules at runtime instead.
+   *
+   * Honored by both Turbopack (the default dev bundler) and Webpack
+   * (`next build` and `dev:webpack`). Kept intentionally minimal — every
+   * entry is a package using static-conditional requires of Node built-ins
+   * (pgpass → split2 → stream, pg-boss → node:crypto) that the bundler's
+   * resolver can't follow. If you can lazy-import the module inside a
+   * Node-runtime guard instead of adding here, please do.
+   */
+  serverExternalPackages: ["pg", "pg-boss", "pgpass", "redis"],
+
   images: {
     formats: ["image/avif", "image/webp"],
   },
+
   experimental: {
-    /**
-     * Tree-shakes barrel-file imports so dev compile loads ~10x fewer modules.
-     * Each entry replaces `import { Foo } from "x"` with the deep path
-     * `import { Foo } from "x/Foo"` at compile time.
-     */
+    /** Tree-shake barrel-file imports — ~10x fewer modules in dev compile. */
     optimizePackageImports: [
       "@heroui/react",
       "@heroui/theme",
@@ -36,18 +47,14 @@ const nextConfig: NextConfig = {
       "sonner",
       "cmdk",
     ],
-    /** Faster Server Components in dev */
     serverSourceMaps: false,
   },
-  /** Skip transpiling these — they're already ESM-friendly */
+
   transpilePackages: [],
 
   /**
-   * Security headers aplicados a TODA respuesta. Defense-in-depth: incluso si
-   * el reverse proxy (Caddy) ya los pone, los repetimos acá por si alguien
-   * sirve Next.js directo. Headers idénticos no causan conflicto.
-   *
-   * Ver `docs/ARCHITECTURE.md` (sección "Security posture") para la justificación de cada header.
+   * Security headers — defense-in-depth on top of the reverse proxy (Caddy).
+   * Detailed rationale in `docs/ARCHITECTURE.md` § Security posture.
    */
   async headers() {
     return [
@@ -58,15 +65,10 @@ const nextConfig: NextConfig = {
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
-          // HSTS sólo se aplica sobre HTTPS; los browsers lo ignoran en HTTP local.
           {
             key: "Strict-Transport-Security",
             value: "max-age=63072000; includeSubDomains; preload",
           },
-          // CSP dinámico con nonce se aplica en `middleware.ts`. Acá NO ponemos
-          // CSP estático para que el dinámico no se duplique con headers
-          // contradictorios. Si servís endpoints sin pasar por middleware
-          // (e.g. /api/*), no hay HTML a proteger con CSP.
         ],
       },
     ];
