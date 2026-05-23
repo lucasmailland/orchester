@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src=".github/assets/social-preview.png" alt="Orchester — build agents, orchestrate flows" width="100%" />
+
 # Orchester
 
 **The open-source platform for building AI agents and orchestrating them in workflows.**
@@ -34,15 +36,15 @@ All of it under Apache 2.0. No "free for personal use only" footguns.
 
 ## How it compares
 
-|                                | Orchester      | n8n           | Flowise   | Zapier / Make |
-| ------------------------------ | :------------: | :-----------: | :-------: | :-----------: |
-| Open source                    | ✅ Apache 2.0   | ⚠️ fair-code  | ✅ MIT    | ❌            |
-| AI-native primitives           | ✅              | ⚠️ via nodes  | ✅        | ❌            |
-| Multi-tenant                   | ✅              | ❌            | ❌        | n/a           |
-| Self-host                      | ✅              | ✅            | ✅        | ❌            |
-| Conversations & channels       | ✅              | ❌            | ⚠️        | ❌            |
-| Built-in cost cap & metering   | ✅              | ❌            | ❌        | n/a           |
-| MCP server                     | ✅              | ❌            | ❌        | ❌            |
+|                              |   Orchester   |     n8n      | Flowise | Zapier / Make |
+| ---------------------------- | :-----------: | :----------: | :-----: | :-----------: |
+| Open source                  | ✅ Apache 2.0 | ⚠️ fair-code | ✅ MIT  |      ❌       |
+| AI-native primitives         |      ✅       | ⚠️ via nodes |   ✅    |      ❌       |
+| Multi-tenant                 |      ✅       |      ❌      |   ❌    |      n/a      |
+| Self-host                    |      ✅       |      ✅      |   ✅    |      ❌       |
+| Conversations & channels     |      ✅       |      ❌      |   ⚠️    |      ❌       |
+| Built-in cost cap & metering |      ✅       |      ❌      |   ❌    |      n/a      |
+| MCP server                   |      ✅       |      ❌      |   ❌    |      ❌       |
 
 ## Quickstart
 
@@ -80,17 +82,17 @@ Open `http://localhost:3333`, sign up, and you're in. The studio walks you throu
 
 A hand-rolled catalog covering **10 capabilities** across ~25 direct providers and 4 aggregators:
 
-| Capability      | Providers (selected)                                                |
-| --------------- | ------------------------------------------------------------------- |
-| **Chat**        | OpenAI, Anthropic, Google, xAI, Mistral, DeepSeek, Groq, Together, Cohere, Perplexity, OpenRouter, Azure, Bedrock |
-| **Image**       | OpenAI, Google Imagen, Stability, Ideogram, Recraft, BFL, Replicate, fal |
-| **Video**       | Replicate (Minimax / Veo), fal                                      |
-| **Avatar**      | HeyGen, D-ID, Replicate                                             |
-| **Embedding**   | OpenAI, Google, Cohere, Voyage, Jina                                |
-| **Rerank**      | Cohere, Voyage, Jina                                                |
-| **TTS / STT**   | OpenAI, ElevenLabs, Deepgram, AssemblyAI                            |
-| **Music**       | Replicate, fal                                                      |
-| **OCR**         | Mistral OCR                                                         |
+| Capability    | Providers (selected)                                                                                              |
+| ------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **Chat**      | OpenAI, Anthropic, Google, xAI, Mistral, DeepSeek, Groq, Together, Cohere, Perplexity, OpenRouter, Azure, Bedrock |
+| **Image**     | OpenAI, Google Imagen, Stability, Ideogram, Recraft, BFL, Replicate, fal                                          |
+| **Video**     | Replicate (Minimax / Veo), fal                                                                                    |
+| **Avatar**    | HeyGen, D-ID, Replicate                                                                                           |
+| **Embedding** | OpenAI, Google, Cohere, Voyage, Jina                                                                              |
+| **Rerank**    | Cohere, Voyage, Jina                                                                                              |
+| **TTS / STT** | OpenAI, ElevenLabs, Deepgram, AssemblyAI                                                                          |
+| **Music**     | Replicate, fal                                                                                                    |
+| **OCR**       | Mistral OCR                                                                                                       |
 
 Adding a provider that fits an existing **family** (e.g. `openai-compatible`) is a single row in the catalog.
 
