@@ -30,7 +30,11 @@ function isBlockedHost(host: string): boolean {
   const h = host.toLowerCase().replace(/^\[|\]$/g, ""); // unwrap IPv6 brackets
   if (BLOCKED_HOSTNAMES.has(h)) return true;
   if (h.endsWith(".local") || h.endsWith(".internal")) return true;
-  if (h === "::1" || h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80")) return true; // IPv6 loopback/ULA/link-local
+  // IPv6 ULA / link-local / loopback: SÓLO aplicar prefijos a IPv6 literal
+  // (contiene ":"). Antes `startsWith("fc"|"fd"|"fe80")` rechazaba hostnames
+  // públicos legítimos como `fc.example.com` o `fdsearch.io`.
+  if (h === "::1") return true;
+  if (h.includes(":") && (h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80"))) return true;
   if (isPrivateIpv4(h)) return true;
   return false;
 }
