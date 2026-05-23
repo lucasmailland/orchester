@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
 import { eq, desc } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
 import { generateApiKey } from "@/lib/api-auth/key";
 import { logAudit } from "@/lib/audit";
+
+const createApiKeySchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+});
 
 export async function GET() {
   const ws = await getCurrentWorkspace();
@@ -30,8 +36,9 @@ export async function GET() {
 export async function POST(req: Request) {
   const ctx = await requireAuth({ minRole: "admin" });
   if (!isAuthContext(ctx)) return ctx;
-  const body = await req.json().catch(() => ({}));
-  const name = String(body?.name ?? "API key").trim();
+  const parsed = await parseBody(req, createApiKeySchema);
+  if (!parsed.ok) return parsed.response;
+  const name = (parsed.data.name ?? "API key").trim();
   const { plain, hashed, prefix } = generateApiKey();
   const db = getDb();
   const inserted = await db

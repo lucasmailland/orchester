@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
+import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { ProviderNotConfiguredError } from "@/lib/llm-call";
 import { runAgent, loadAgent } from "@/lib/agent-runtime";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
@@ -19,9 +19,11 @@ const testChatSchema = z.object({
 });
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getCurrentSession();
-  const ws = await getCurrentWorkspace();
-  if (!ws || !session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // F-2: gate de rol — la studio quema créditos reales de LLM, no la abrimos a viewer.
+  const ctx = await requireAuth({ minRole: "editor" });
+  if (!isAuthContext(ctx)) return ctx;
+  const ws = { workspace: ctx.workspace };
+  const session = { user: ctx.user };
 
   // LLM-heavy endpoint: 30 req/min por (workspace,user). Defensa contra
   // un user comprometido que quiera quemar la cuota de Anthropic.
