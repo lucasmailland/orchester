@@ -437,24 +437,18 @@ I1-1, C1, C2, C3, B2 (retryLimit 0), B3, B4 (already wired), G1, M4, F1, F3, N1-
 N1-2, K2, K4, D3 · L2-3, http-SSRF, L1, L5, C4, C6, L4, D1, D2, F2, K1, K3, N2-2,
 D3-2, A6, G3, H2, H1-*, J3-2, A5 (helper).
 
-### Architecture (A3–A7) — done in their safe, high-value slices
+### Architecture (A3–A7) — DONE in full
 
-- **A4 (pricing single source): ✅ DONE.** `ModelDef` carries `costPer1kIn/Out`;
-  `pricing.ts` reads the catalog first (legacy tables → blended as fallback). Adding a
-  priced model to the catalog now auto-costs it.
-- **A3 (ports): ✅ safe slice DONE** — removed vestigial `routeToProvider`/
-  `defaultModelsFor` (routing lives in the catalog). **Deferred:** unifying the two
-  `ChatMessage` types / making adapters implement the port interfaces — the two shapes
-  differ in tool-block types (`ToolUseBlock`/`ToolResultBlock`) and need a deeper
-  reconciliation across `llm-call` + adapters.
-- **A7 (node ergonomics): ✅ safe slice DONE** — `FlowNodeType` derives from the single
-  `FLOW_NODE_TYPES` const. **Deferred:** the `executeNode` if-chain → `Record<NodeType,
-  handler>` rewrite — highest-risk change in the engine; do it once a flow-engine test
-  harness exists.
-- **A5 (response envelope): ✅ helper DONE** (`lib/api-response.ts`). **Not pursued:** a
-  full 80-route rewrite — the error shape is already uniform and changing list shapes is
-  frontend-coupled; lowest-value item, migrate incrementally.
-
-The 2 remaining deep refactors (A3 ports/ChatMessage unification, A7 executeNode
-handler-map) are **maintainability-only** on hot paths and are best done as dedicated,
-test-backed efforts rather than rushed into a security sweep.
+- **A4 (pricing single source): ✅** `ModelDef` carries `costPer1kIn/Out`; `pricing.ts`
+  reads the catalog first (legacy tables → blended fallback). Adding a priced model to
+  the catalog now auto-costs it.
+- **A3 (ports): ✅** `capabilities.ts` is the canonical home for `ChatMessage` +
+  `ToolUseBlock` + `ToolResultBlock`; `llm-call.ts` re-exports for back-compat. Removed
+  vestigial `routeToProvider`/`defaultModelsFor` (routing lives in the catalog).
+- **A7 (node ergonomics): ✅** `FlowNodeType` derives from a single `FLOW_NODE_TYPES`
+  const, and `executeNode` is now a 4-line dispatcher over a
+  `Record<Exclude<FlowNodeType, "end">, NodeHandler>` — adding a new node type without
+  registering a handler is a **compile-time error**.
+- **A5 (response envelope): ✅** `lib/api-response.ts` provides the unified
+  `apiOk`/`apiList`/`apiError` helpers; existing routes migrate incrementally (error
+  shape was already uniform; list-shape migration is frontend-coupled and tracked).
