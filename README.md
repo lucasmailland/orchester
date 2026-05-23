@@ -23,7 +23,7 @@
 
 <br/>
 
-[**Manifesto**](#-why-orchester) ・ [**Quickstart**](#-quickstart) ・ [**Architecture**](#-architecture) ・ [**What you can build**](#-what-you-can-build) ・ [**Compare**](#-how-it-compares) ・ [**Docs**](#-documentation)
+[**Manifesto**](#-why-orchester) ・ [**Architecture**](#-architecture) ・ [**What you can build**](#-what-you-can-build) ・ [**Compare**](#-how-it-compares) ・ [**Quickstart**](#-quickstart) ・ [**API · MCP**](#-use-it-from-outside-the-studio) ・ [**FAQ**](#-faq) ・ [**Docs**](#-documentation)
 
 </div>
 
@@ -377,7 +377,62 @@ pnpm worker:dev                        # worker (second terminal · executes flo
 
 Open `http://localhost:3333`, sign up, and you're in. The studio walks you through your first agent and provider connection.
 
-> 💡 `make help` lists every common task. `make ci` runs everything CI runs — typecheck, vitest, prettier check, invariants guard.
+> [!TIP]
+> `make help` lists every common task. `make ci` runs everything CI runs — typecheck, vitest, prettier check, invariants guard.
+
+---
+
+## 🪄 Use it from outside the Studio
+
+Once you've created a flow or an agent in the Studio, you don't have to keep going through the UI. Three first-class doors point at the same data:
+
+### Public REST API (`/api/v1/*`)
+
+Generate an API key in `Settings → API keys`, then drive any flow from your own services:
+
+```bash
+# Kick off a flow and stream telemetry as it runs.
+curl -N -X POST https://your-host/api/v1/flows/$FLOW_ID/run \
+  -H "x-api-key: $ORCHESTER_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+        "input": { "ticket_id": "T-1042" },
+        "stream": true
+      }'
+
+# → event: node_started   { "node": "trigger", ... }
+# → event: node_done      { "node": "agent", "cost_usd": 0.0034, ... }
+# → event: flow_completed { "outputs": { "summary": "…" }, "cost_usd": 0.0089 }
+```
+
+The same key works against the agents endpoints (`POST /api/v1/agents/:id/chat`) and the conversation endpoints (`POST /api/v1/conversations/:id/messages`). Every request is RBAC-checked, rate-limited per workspace, and metered into `usage_events`.
+
+### MCP server — let your IDE / desktop agent talk to your data
+
+Orchester ships a built-in MCP server. Point Claude Desktop, Cursor, or any MCP-aware client at it and your flows + agents + KB become first-class tools:
+
+```jsonc
+// ~/Library/Application Support/Claude/claude_desktop_config.json
+{
+  "mcpServers": {
+    "orchester": {
+      "command": "npx",
+      "args": ["-y", "@orchester/mcp-stdio"],
+      "env": {
+        "ORCHESTER_URL": "https://your-host",
+        "ORCHESTER_API_KEY": "ok_live_...",
+      },
+    },
+  },
+}
+```
+
+> [!IMPORTANT]
+> The MCP server runs with the **same RBAC + quota stack as the REST API**. A read-only API key sees read-only tools. A workspace-scoped key cannot see another workspace's flows. This is enforced by the invariants guard — not by review.
+
+### Webhooks — fire flows from anything that can POST
+
+Every flow has an inbound webhook URL the moment it ships. Drop it in Stripe, GitHub, Linear, or your own product — the flow runs, the cost is metered, you get back a structured response.
 
 ---
 
@@ -431,13 +486,81 @@ Open an [Idea](https://github.com/lucasmailland/orchester/discussions/categories
 
 ---
 
+## ❓ FAQ
+
+<details>
+<summary><b>Why another agent platform? There are 30 already.</b></summary>
+<br/>
+
+There are many _frameworks_ (LangChain, AutoGen, CrewAI) and many _hosted clouds_ (OpenAI Assistants, Vellum, LangSmith). What's missing is the **substrate in between**: an open-source, self-hostable, multi-tenant platform with first-class agents, flows, channels, cost control, and audit — under one Apache 2.0 license, on one Postgres. That's the gap Orchester fills.
+
+</details>
+
+<details>
+<summary><b>Is it actually production-ready?</b></summary>
+<br/>
+
+It's actively used in production at small-team scale today. v0.1.0 is a public foundation — APIs may shift before v1.0, but every shift goes through release-please and Conventional Commits, so the changelog is reliable. Security-sensitive code paths (RBAC, encryption, spend gates) are protected by the structural invariants guard on every PR. See [`docs/AUDIT_PLAYBOOK.md`](docs/AUDIT_PLAYBOOK.md).
+
+</details>
+
+<details>
+<summary><b>How is this different from n8n, Flowise, or Langflow?</b></summary>
+<br/>
+
+Closest in spirit to Langflow + Flowise — a visual builder for AI workflows. The deltas: (1) **multi-tenant by design**, with structural CI enforcement; (2) **built-in cost cap + metering** per workspace, not bolted on; (3) **conversations + channels** as first-class objects, not just a chat node; (4) an **MCP server** so the platform itself is an MCP host; (5) **Apache 2.0**, not fair-code / source-available. See the [comparison matrix](#%EF%B8%8F-how-it-compares).
+
+</details>
+
+<details>
+<summary><b>Will you keep it open source if it grows?</b></summary>
+<br/>
+
+Yes. The decision to license under Apache 2.0 (with trademark + patent protections) is recorded in [ADR 0002](docs/adr/0002-apache-2-0-over-mit.md). The decision to use DCO instead of a CLA — which means we _cannot_ unilaterally relicense — is in [ADR 0004](docs/adr/0004-dco-over-cla.md). Future commercial work (managed hosting, premium support, enterprise add-ons) will be additive, not a relicense of what's here.
+
+</details>
+
+<details>
+<summary><b>Do I need Redis, Kafka, or a vector DB?</b></summary>
+<br/>
+
+No. Postgres 15 with `pgvector` covers all three roles: relational store, job queue (via pg-boss), and vector index. Redis is supported as an _optional_ rate-limit backend for multi-replica deployments. A separate vector DB is **not** supported — this is a deliberate constraint documented in [ADR 0003](docs/adr/0003-postgres-as-only-dependency.md).
+
+</details>
+
+<details>
+<summary><b>Can I add a new AI provider?</b></summary>
+<br/>
+
+If it speaks an `openai-compatible` API: yes, in **one row of the catalog**. If it's a new family: one adapter file (~150 lines following the existing pattern) plus a catalog entry. The capability contract is typed end-to-end, so the studio model picker and cost metering pick up the new provider automatically. See [`docs/ARCHITECTURE.md § AI catalog`](docs/ARCHITECTURE.md#ai-catalog).
+
+</details>
+
+<details>
+<summary><b>How do you handle prompt injection / agent abuse?</b></summary>
+<br/>
+
+Three layers. (1) Outbound SSRF protection via `lib/net-guard.ts` — no private IP ranges, no localhost, no metadata endpoints from the HTTP node. (2) Per-workspace gate on the code node (sandbox via `node:vm`, hard timeout, restricted globals — _not claimed_ as a security boundary against a determined attacker, only against accidental footguns). (3) Hard spend cap per workspace + global kill-switch. Plus an audit log on every sensitive mutation. Documented in [`docs/AUDIT_PLAYBOOK.md`](docs/AUDIT_PLAYBOOK.md) and [`docs/ARCHITECTURE.md § Security posture`](docs/ARCHITECTURE.md#security-posture).
+
+</details>
+
+<details>
+<summary><b>Can I use this commercially?</b></summary>
+<br/>
+
+Yes — Apache 2.0 explicitly permits commercial use, modification, and redistribution. The conditions are: preserve the copyright notices, preserve the patent-grant clause, and don't use the project's trademarks. You don't owe us anything; if Orchester ends up underpinning something valuable, [⭐ starring the repo](https://github.com/lucasmailland/orchester) and contributing back when it makes sense is the only "payment" we ask for.
+
+</details>
+
+---
+
 ## 🤝 Contributing
 
 Pull requests are welcome. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) first — it covers the development setup, project conventions, and the **DCO sign-off requirement** (`git commit -s`).
 
 Not sure where to start? Look for [`good first issue`](https://github.com/lucasmailland/orchester/labels/good%20first%20issue) or [`help wanted`](https://github.com/lucasmailland/orchester/labels/help%20wanted), or open a thread in [Discussions](https://github.com/lucasmailland/orchester/discussions).
 
-By participating, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md).
+By participating, you agree to abide by our [Code of Conduct](.github/CODE_OF_CONDUCT.md).
 
 ---
 
@@ -455,6 +578,39 @@ If you reference Orchester in academic or technical writing, citation metadata i
 
 ---
 
+## 🙏 Acknowledgments
+
+Orchester is built on a deep stack of open-source work. We owe these projects in particular:
+
+- **[Next.js](https://nextjs.org/)** & **[React](https://react.dev/)** — the app substrate that lets us ship server components and streaming responses without a parallel backend.
+- **[Postgres](https://www.postgresql.org/)** & **[`pgvector`](https://github.com/pgvector/pgvector)** — the single dependency that quietly does the work of four.
+- **[Drizzle ORM](https://orm.drizzle.team/)** — typed-end-to-end SQL with reviewable migrations.
+- **[pg-boss](https://github.com/timgit/pg-boss)** — Postgres-backed job queue with `SKIP LOCKED` semantics that make Redis unnecessary.
+- **[Better Auth](https://www.better-auth.com/)** — session-cookie + OAuth done right, multi-tenant friendly.
+- **[HeroUI](https://www.heroui.com/)** & **[Tailwind CSS](https://tailwindcss.com/)** — the design system layer of the Studio.
+- **[`model-context-protocol`](https://modelcontextprotocol.io/)** — the open spec that makes Orchester's data addressable from any MCP-aware client.
+- The **[Linux kernel project](https://www.kernel.org/)** — for the **Developer Certificate of Origin**, which we adopted for contributions.
+- The **[Apache Software Foundation](https://www.apache.org/)** — for the license and the cultural blueprint of "lazy consensus + ADR-style decision records."
+
+And to every AI provider whose adapter we ship — your APIs are what makes the AI catalog possible.
+
+---
+
+## 📈 Star history
+
+<a href="https://star-history.com/#lucasmailland/orchester&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=lucasmailland/orchester&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=lucasmailland/orchester&type=Date" />
+    <img alt="Star history of lucasmailland/orchester" src="https://api.star-history.com/svg?repos=lucasmailland/orchester&type=Date" />
+  </picture>
+</a>
+
+> [!NOTE]
+> If you find Orchester useful, [⭐ starring the repo](https://github.com/lucasmailland/orchester) is the single biggest signal that helps other people find it. It's free, takes one click, and means a lot.
+
+---
+
 ## ⚖️ License
 
 **Apache License 2.0** — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE). You may use, modify, and redistribute Orchester, including commercially, provided you preserve the copyright notices and the patent-grant clause. Apache 2.0 gives both sides mutual patent protection: if you sue us over a patent you claim covers Orchester, you lose your license.
@@ -466,12 +622,16 @@ The reasoning behind Apache 2.0 over MIT (patent grant + trademark protection) i
 <div align="center">
 <br/>
 
-**Built carefully · TypeScript · Postgres · pg-boss · Next.js**
+**Open source for the AI-agent era.**
 
-<sub>If Orchester is useful to you, [⭐ star the repo](https://github.com/lucasmailland/orchester) — it's the single biggest signal that helps other people find it.</sub>
+<sub>TypeScript · Postgres · pg-boss · Next.js · Apache 2.0</sub>
 
 <br/>
 
-[Manifesto](#-why-orchester) ・ [Architecture](#%EF%B8%8F-architecture) ・ [Compare](#%EF%B8%8F-how-it-compares) ・ [Quickstart](#-quickstart) ・ [Roadmap](ROADMAP.md) ・ [Discussions](https://github.com/lucasmailland/orchester/discussions)
+[Manifesto](#-why-orchester) ・ [Architecture](#%EF%B8%8F-architecture) ・ [API · MCP](#-use-it-from-outside-the-studio) ・ [Compare](#%EF%B8%8F-how-it-compares) ・ [FAQ](#-faq) ・ [Roadmap](ROADMAP.md) ・ [Discussions](https://github.com/lucasmailland/orchester/discussions)
+
+<br/>
+
+<sub>Made by <a href="https://github.com/lucasmailland">@lucasmailland</a> and the contributors. If Orchester ends up useful to you, the kindest thing you can do is <a href="https://github.com/lucasmailland/orchester">⭐ star the repo</a> — it's the single biggest signal that helps other people find it.</sub>
 
 </div>

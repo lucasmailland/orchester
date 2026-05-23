@@ -43,7 +43,7 @@ First public release. Establishes the foundation: a multi-tenant, self-hostable 
 
 ### Documentation
 
-- Public-facing [`README.md`](README.md), [`ROADMAP.md`](ROADMAP.md), [`GOVERNANCE.md`](GOVERNANCE.md), [`CONTRIBUTING.md`](CONTRIBUTING.md), [`SECURITY.md`](SECURITY.md), [`SUPPORT.md`](SUPPORT.md), [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+- Public-facing [`README.md`](README.md), [`ROADMAP.md`](ROADMAP.md), [`GOVERNANCE.md`](GOVERNANCE.md), [`CONTRIBUTING.md`](CONTRIBUTING.md), [`SECURITY.md`](SECURITY.md), [`.github/SUPPORT.md`](.github/SUPPORT.md), [`.github/CODE_OF_CONDUCT.md`](.github/CODE_OF_CONDUCT.md).
 - Apache 2.0 license with NOTICE; Developer Certificate of Origin (DCO) for contributions.
 - Per-node documentation surfaced inside the studio.
 

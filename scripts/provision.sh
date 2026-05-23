@@ -4,7 +4,7 @@
 #
 # Idempotente: podés correrlo varias veces. Instala Docker + Compose, hardening
 # básico de firewall, crea el usuario de deploy y deja el repo listo para
-# `docker compose -f docker-compose.prod.yml up -d`.
+# `docker compose -f deploy/docker-compose.prod.yml up -d`.
 #
 # Uso (como root en un VPS recién creado):
 #   curl -fsSL https://raw.githubusercontent.com/orchester-io/orchester/main/scripts/provision.sh | bash
@@ -109,6 +109,6 @@ cat <<EOF
   1. su - $DEPLOY_USER && cd $APP_DIR
   2. nano .env            # configurá DATABASE_URL, NEXT_PUBLIC_APP_URL, provider keys
   3. ./scripts/preflight.sh
-  4. docker compose -f docker-compose.prod.yml up -d
+  4. docker compose -f deploy/docker-compose.prod.yml up -d
   5. ./scripts/go-live.sh https://tu-dominio.com
 EOF

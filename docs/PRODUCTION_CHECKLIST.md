@@ -112,7 +112,7 @@ Si tira ✗ en algo, arreglalo antes de seguir.
 
 ## 10. Worker
 
-- [ ] `worker` corriendo (en docker-compose.prod.yml ya está) — atende
+- [ ] `worker` corriendo (en `deploy/docker-compose.prod.yml` ya está) — atende
       `flow:run`, `webhook:deliver`, `usage:aggregate` (cron diario 03:00 UTC).
 - [ ] Healthcheck del worker (proceso vivo) — recomendado sidecar para k8s.
 - [ ] Concurrency: `flow:run` teamSize=4 concurrency=2 (ajustable en

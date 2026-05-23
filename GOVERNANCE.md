@@ -8,7 +8,7 @@ It is intentionally lightweight while the project is small. As contributor count
 
 ### Roles
 
-**Users.** Anyone running Orchester. Open issues, ask questions in [Discussions](https://github.com/lucasmailland/orchester/discussions), submit ideas. No expectations beyond following the [Code of Conduct](CODE_OF_CONDUCT.md).
+**Users.** Anyone running Orchester. Open issues, ask questions in [Discussions](https://github.com/lucasmailland/orchester/discussions), submit ideas. No expectations beyond following the [Code of Conduct](.github/CODE_OF_CONDUCT.md).
 
 **Contributors.** Anyone who has had at least one PR merged. Listed in the GitHub contributors graph. No special permissions; same review process as everyone else.
 
@@ -82,4 +82,4 @@ Changes to `GOVERNANCE.md` follow the "bigger changes" path above. Opening a Dis
 
 ## Code of conduct
 
-Project participation — including governance discussions — is bound by the [Code of Conduct](CODE_OF_CONDUCT.md). Enforcement is delegated to the lead maintainer, with the option to designate an additional contact when conflict-of-interest demands it.
+Project participation — including governance discussions — is bound by the [Code of Conduct](.github/CODE_OF_CONDUCT.md). Enforcement is delegated to the lead maintainer, with the option to designate an additional contact when conflict-of-interest demands it.

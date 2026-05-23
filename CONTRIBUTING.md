@@ -6,7 +6,7 @@ This document is the short version of how we work. Skim it once before opening y
 
 ## Code of Conduct
 
-By participating, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md). Briefly: be kind, be specific, and assume the best in people you've never met.
+By participating, you agree to abide by our [Code of Conduct](.github/CODE_OF_CONDUCT.md). Briefly: be kind, be specific, and assume the best in people you've never met.
 
 ## Ways to contribute
 

@@ -57,6 +57,6 @@ If we miss something, a friendly nudge on the thread is fine. Please don't @-men
 ## Community
 
 - **Discussions:** https://github.com/lucasmailland/orchester/discussions
-- **Code of Conduct:** [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — please read before participating.
+- **Code of Conduct:** [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) — please read before participating.
 
 Thanks for being here. We genuinely want this to be useful to you.
