@@ -314,8 +314,11 @@ export async function executeTool(
     const url = String(input.url ?? "");
     // Hardened SSRF guard: bloquea loopback, RFC1918, link-local (incl. cloud
     // metadata 169.254.169.254), IPv6 ULA/link-local, *.local/*.internal y
-    // esquemas no http(s). Lanza si la URL no es pública.
-    assertPublicUrl(url);
+    // esquemas no http(s). Opt-out `ALLOW_PRIVATE_HTTP=1` consistente con el
+    // nodo `http` del flow-engine, para self-hosters con servicios internos.
+    if (process.env.ALLOW_PRIVATE_HTTP !== "1") {
+      assertPublicUrl(url);
+    }
     const method = (input.method as string) ?? "GET";
     const init: RequestInit = {
       method,

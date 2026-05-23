@@ -289,17 +289,16 @@ async function runUserJs(code: string, variables: Record<string, unknown>): Prom
   const vm = await import("node:vm");
   const input = structuredClone(variables);
   const sandbox = Object.create(null) as Record<string, unknown>;
+  sandbox.__input__ = input;
   const context = vm.createContext(sandbox);
-  const script = new vm.Script(`(function(input){"use strict";\n${code}\n})`);
-  let fn: unknown;
+  // El timeout de vm aplica al runInContext que invoca el script. Antes
+  // ejecutábamos sólo la COMPILACIÓN de la función bajo timeout y la invocación
+  // (`fn(input)`) corría fuera — un `while(true)` en el cuerpo del usuario
+  // colgaba el worker. Ahora la IIFE se ejecuta dentro del mismo runInContext,
+  // así el timeout cubre la ejecución del body.
+  const script = new vm.Script(`(function(input){"use strict";\n${code}\n})(__input__)`);
   try {
-    fn = script.runInContext(context, { timeout: 1000 });
-  } catch (e) {
-    throw new Error(`No pudimos leer el código: ${e instanceof Error ? e.message : String(e)}`);
-  }
-  if (typeof fn !== "function") throw new Error("El código no es válido.");
-  try {
-    return (fn as (i: unknown) => unknown)(input);
+    return script.runInContext(context, { timeout: 1000 });
   } catch (e) {
     throw new Error(`El código falló al ejecutarse: ${e instanceof Error ? e.message : String(e)}`);
   }
