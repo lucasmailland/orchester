@@ -84,7 +84,7 @@ services:
   web:
     build:
       context: ..
-      dockerfile: Dockerfile
+      dockerfile: deploy/Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
@@ -136,7 +136,7 @@ services:
   worker:
     build:
       context: ..
-      dockerfile: Dockerfile
+      dockerfile: deploy/Dockerfile
     restart: unless-stopped
     # El worker comparte libs con Next que importan `server-only`; correrlo con
     # tsx dispara ERR_REQUIRE_CYCLE_MODULE (Node ≥22) + el throw de server-only.
