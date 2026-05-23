@@ -8,7 +8,7 @@ The preferred channel is **GitHub's private vulnerability reporting**:
 
 > https://github.com/lucasmailland/orchester/security/advisories/new
 
-Alternatively, you can email the maintainers at **security@orchester.dev** *(replace this with your real address before publishing the repo)*. If you want to encrypt your report, request our PGP key in your first message.
+Alternatively, you can email the maintainer at **lucasmailland@gmail.com** with the subject prefixed `[Orchester Security]`. If you want to encrypt your report, request a PGP key in your first message.
 
 Please include:
 
