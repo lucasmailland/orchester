@@ -13,7 +13,7 @@
 # El docker-compose.prod.yml setea el comando correcto para cada servicio.
 
 # ----- Stage 1: deps -----
-FROM node:22-alpine AS deps
+FROM node:26-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -26,7 +26,7 @@ RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 RUN pnpm install --frozen-lockfile --prod=false
 
 # ----- Stage 2: build -----
-FROM node:22-alpine AS builder
+FROM node:26-alpine AS builder
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -40,7 +40,7 @@ RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 RUN pnpm --filter web build
 
 # ----- Stage 3: runtime -----
-FROM node:22-alpine AS runner
+FROM node:26-alpine AS runner
 RUN apk add --no-cache libc6-compat wget
 WORKDIR /app
 
