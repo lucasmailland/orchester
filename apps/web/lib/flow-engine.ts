@@ -502,22 +502,35 @@ interface ExecHelpers {
   skipChildren: () => void;
 }
 
-async function executeNode(
-  node: FlowNode,
-  ctx: RunContext,
-  runId: string,
-  workspaceId: string,
-  nodes: FlowNode[],
-  edges: FlowEdge[],
-  db: ReturnType<typeof getDb>,
-  depth: number,
-  helpers: ExecHelpers
-): Promise<void> {
-  const cfg = node.config;
+/**
+ * A7: el ejecutor por nodo es un mapa `Record<FlowNodeType, NodeHandler>` en vez
+ * de una if-chain. Beneficios:
+ *   - Si se agrega un FlowNodeType nuevo y se olvida el handler, falla en
+ *     compile-time (Record exhaustivo sobre `Exclude<FlowNodeType, "end">`).
+ *   - Cada nodo es una función nombrada y aislada, fácil de leer/extender/testear.
+ *
+ * "end" se filtra antes (en `runFromNode`), por eso queda excluido del Record.
+ */
+interface NodeHandlerArgs {
+  node: FlowNode;
+  ctx: RunContext;
+  runId: string;
+  workspaceId: string;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  db: ReturnType<typeof getDb>;
+  depth: number;
+  helpers: ExecHelpers;
+  cfg: Record<string, unknown>;
+}
+type NodeHandler = (args: NodeHandlerArgs) => Promise<void>;
 
-  if (node.type === "trigger") return;
+const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
+  trigger: async () => {
+    // No-op: el nodo trigger sólo marca el punto de entrada del flow.
+  },
 
-  if (node.type === "agent") {
+  agent: async ({ cfg, ctx, workspaceId, db, helpers }) => {
     const agentId = cfg.agentId as string | undefined;
     if (!agentId) throw new Error("Falta elegir el agente en este paso.");
     // `prompt` (registry) se antepone al mensaje entrante; `message` es el legado.
@@ -552,10 +565,9 @@ async function executeNode(
     const outputVar = (cfg.outputVar as string) ?? "agentResult";
     ctx.variables[outputVar] = result.content;
     helpers.setOutput({ content: result.content, tokensUsed: result.tokensUsed });
-    return;
-  }
+  },
 
-  if (node.type === "condition") {
+  condition: async ({ cfg, ctx, helpers }) => {
     // Acepta el formato nuevo del registry (left/op/right planos) o el legado
     // ({ condition: { left, op, right } }).
     const flat = cfg.condition
@@ -565,10 +577,9 @@ async function executeNode(
     const passed = evaluateCondition(flat, ctx.variables);
     helpers.setHandle(passed ? "true" : "false");
     helpers.setOutput({ passed });
-    return;
-  }
+  },
 
-  if (node.type === "switch") {
+  switch: async ({ cfg, ctx, helpers, edges, node }) => {
     // El valor evaluado se usa como nombre del camino (sourceHandle del edge).
     // Si ningún camino coincide con el valor, seguimos por "default" (Siguiente).
     const value = interpolate((cfg.value as string) ?? (cfg.expression as string) ?? "", ctx.variables);
@@ -579,10 +590,9 @@ async function executeNode(
     if (!hasEdge) handle = "default";
     helpers.setHandle(handle);
     helpers.setOutput({ value, matched: handle });
-    return;
-  }
+  },
 
-  if (node.type === "http") {
+  http: async ({ cfg, ctx, helpers }) => {
     const method = ((cfg.method as string) ?? "GET").toUpperCase();
     const url = interpolate(cfg.url as string, ctx.variables);
     // Guard SSRF: bloquea IPs privadas, loopback, link-local y el endpoint de
@@ -648,9 +658,9 @@ async function executeNode(
       }
     }
     throw lastError ?? new Error("HTTP request failed after retries");
-  }
+  },
 
-  if (node.type === "transform") {
+  transform: async ({ cfg, ctx, helpers }) => {
     // Formato nuevo: `template` es un objeto/JSON con {{variables}} adentro, que
     // se fusiona en las variables del flujo. Legado: target + value.
     if (cfg.template !== undefined) {
@@ -673,27 +683,24 @@ async function executeNode(
     const value = interpolate((cfg.value as string) ?? "", ctx.variables);
     ctx.variables[target] = value;
     helpers.setOutput({ [target]: value });
-    return;
-  }
+  },
 
-  if (node.type === "delay") {
+  delay: async ({ cfg, helpers }) => {
     // `duration` ("30s"/"5m"…) en el registry; `ms` numérico legado.
     const ms = Math.min(60_000, cfg.duration !== undefined ? parseDuration(cfg.duration) : Number(cfg.ms ?? 1000));
     await new Promise((res) => setTimeout(res, ms));
     helpers.setOutput({ ms });
-    return;
-  }
+  },
 
-  if (node.type === "notify") {
+  notify: async ({ cfg, ctx, helpers }) => {
     helpers.setOutput({
       to: cfg.to ? interpolate(cfg.to as string, ctx.variables) : undefined,
       channel: cfg.channel,
       message: interpolate((cfg.message as string) ?? "", ctx.variables),
     });
-    return;
-  }
+  },
 
-  if (node.type === "code") {
+  code: async ({ cfg, ctx, helpers }) => {
     // Formato nuevo: JavaScript real (campo `code`) corrido en sandbox vm con
     // `input` (copia de las variables). Legado: mini-DSL `source`.
     if (typeof cfg.code === "string" && cfg.code.trim()) {
@@ -707,10 +714,9 @@ async function executeNode(
     const source = (cfg.source as string) ?? "";
     const result = await runUserCode(source, ctx);
     helpers.setOutput({ result });
-    return;
-  }
+  },
 
-  if (node.type === "kb_search") {
+  kb_search: async ({ cfg, ctx, workspaceId, helpers }) => {
     const kbId = cfg.kbId as string | undefined;
     if (!kbId) throw new Error("Falta elegir la base de conocimiento.");
     const query = interpolate((cfg.query as string) ?? "{{message}}", ctx.variables);
@@ -720,10 +726,9 @@ async function executeNode(
     const outputVar = (cfg.outputVar as string) ?? "knowledge";
     ctx.variables[outputVar] = results;
     helpers.setOutput({ count: results.length, topResult: results[0]?.text?.slice(0, 200) });
-    return;
-  }
+  },
 
-  if (node.type === "generate_image") {
+  generate_image: async ({ cfg, ctx, workspaceId, helpers }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo de imagen.");
     const prompt = interpolate(String(cfg.prompt ?? ""), ctx.variables);
@@ -738,10 +743,9 @@ async function executeNode(
     ctx.variables[outputVar] = url;
     // No metemos data URLs gigantes en el trace del paso.
     helpers.setOutput({ count: res.images.length, mime: res.images[0]?.mime });
-    return;
-  }
+  },
 
-  if (node.type === "embed_text") {
+  embed_text: async ({ cfg, ctx, workspaceId, helpers }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo de embeddings.");
     const text = interpolate(String(cfg.input ?? "{{message}}"), ctx.variables);
@@ -750,10 +754,9 @@ async function executeNode(
     const outputVar = (cfg.outputVar as string) || "vector";
     ctx.variables[outputVar] = res.vectors[0] ?? [];
     helpers.setOutput({ dims: res.vectors[0]?.length ?? 0 });
-    return;
-  }
+  },
 
-  if (node.type === "llm_prompt") {
+  llm_prompt: async ({ cfg, ctx, workspaceId, helpers }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo.");
     const prompt = interpolate(String(cfg.prompt ?? ""), ctx.variables);
@@ -764,10 +767,9 @@ async function executeNode(
     const outputVar = (cfg.outputVar as string) || "texto";
     ctx.variables[outputVar] = res.content;
     helpers.setOutput({ tokensUsed: res.tokensUsed });
-    return;
-  }
+  },
 
-  if (node.type === "generate_video") {
+  generate_video: async ({ cfg, ctx, workspaceId, helpers }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo de video.");
     const prompt = interpolate(String(cfg.prompt ?? ""), ctx.variables);
@@ -775,10 +777,9 @@ async function executeNode(
     const res = await generateVideo(workspaceId, model, prompt);
     ctx.variables[(cfg.outputVar as string) || "video"] = res.url;
     helpers.setOutput({ url: res.url });
-    return;
-  }
+  },
 
-  if (node.type === "text_to_speech") {
+  text_to_speech: async ({ cfg, ctx, workspaceId, helpers }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo de voz.");
     const text = interpolate(String(cfg.text ?? ""), ctx.variables);
@@ -787,10 +788,9 @@ async function executeNode(
     const res = await textToSpeech(workspaceId, model, text, cfg.voice ? String(cfg.voice) : undefined);
     ctx.variables[(cfg.outputVar as string) || "audio"] = res.url;
     helpers.setOutput({ url: res.url });
-    return;
-  }
+  },
 
-  if (node.type === "transcribe") {
+  transcribe: async ({ cfg, ctx, workspaceId, helpers }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo de transcripción.");
     const audioUrl = interpolate(String(cfg.audioUrl ?? ""), ctx.variables);
@@ -799,10 +799,9 @@ async function executeNode(
     const res = await transcribe(workspaceId, model, audioUrl);
     ctx.variables[(cfg.outputVar as string) || "texto"] = res.text;
     helpers.setOutput({ chars: res.text.length });
-    return;
-  }
+  },
 
-  if (node.type === "generate_avatar") {
+  generate_avatar: async ({ cfg, ctx, workspaceId, helpers }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo de avatar.");
     const text = interpolate(String(cfg.text ?? ""), ctx.variables);
@@ -816,10 +815,9 @@ async function executeNode(
     });
     ctx.variables[(cfg.outputVar as string) || "video"] = res.url;
     helpers.setOutput({ url: res.url });
-    return;
-  }
+  },
 
-  if (node.type === "generate_music") {
+  generate_music: async ({ cfg, ctx, workspaceId, helpers }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo de música.");
     const prompt = interpolate(String(cfg.prompt ?? ""), ctx.variables);
@@ -827,10 +825,9 @@ async function executeNode(
     const res = await generateMusic(workspaceId, model, prompt);
     ctx.variables[(cfg.outputVar as string) || "musica"] = res.url;
     helpers.setOutput({ url: res.url });
-    return;
-  }
+  },
 
-  if (node.type === "ocr_extract") {
+  ocr_extract: async ({ cfg, ctx, workspaceId, helpers }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo de OCR.");
     const documentUrl = interpolate(String(cfg.documentUrl ?? ""), ctx.variables);
@@ -839,10 +836,9 @@ async function executeNode(
     const res = await ocr(workspaceId, model, documentUrl);
     ctx.variables[(cfg.outputVar as string) || "texto"] = res.text;
     helpers.setOutput({ chars: res.text.length });
-    return;
-  }
+  },
 
-  if (node.type === "rerank") {
+  rerank: async ({ cfg, ctx, workspaceId, helpers }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo de rerank.");
     const query = interpolate(String(cfg.query ?? ""), ctx.variables);
@@ -853,10 +849,9 @@ async function executeNode(
     const res = await rerank(workspaceId, model, query, documents, cfg.topN ? Number(cfg.topN) : undefined);
     ctx.variables[(cfg.outputVar as string) || "ranked"] = res.results;
     helpers.setOutput({ count: res.results.length });
-    return;
-  }
+  },
 
-  if (node.type === "integration") {
+  integration: async ({ cfg, ctx, workspaceId, helpers }) => {
     // `integrationId` viene como "integrationId::action".
     const raw = String(cfg.integrationId ?? "");
     const [integrationId, action] = raw.split("::");
@@ -867,10 +862,9 @@ async function executeNode(
     const outputVar = (cfg.outputVar as string) ?? "appResult";
     ctx.variables[outputVar] = result;
     helpers.setOutput({ result });
-    return;
-  }
+  },
 
-  if (node.type === "spreadsheet") {
+  spreadsheet: async ({ cfg, ctx, helpers }) => {
     const outputVar = (cfg.outputVar as string) ?? "result";
     // Formato nuevo: grilla de celdas. Legado: una sola fórmula.
     const grid = cfg.grid as { cells?: Record<string, string>; outputCell?: string } | undefined;
@@ -886,16 +880,14 @@ async function executeNode(
     const result = await runFormula(formula, ctx.variables);
     ctx.variables[outputVar] = result;
     helpers.setOutput({ [outputVar]: result });
-    return;
-  }
+  },
 
-  if (node.type === "note") {
+  note: async ({ helpers }) => {
     // No hace nada: es un comentario visual.
     helpers.setOutput({});
-    return;
-  }
+  },
 
-  if (node.type === "loop_for_each") {
+  loop_for_each: async ({ cfg, ctx, edges, node, nodes, runId, workspaceId, db, depth, helpers }) => {
     const itemVar = (cfg.itemVar as string) ?? "item";
     // `items` (registry) es un template tipo {{lista}} que resolvemos al array
     // real; `arrayVar` es el nombre de variable legado.
@@ -918,10 +910,9 @@ async function executeNode(
     ctx.variables[(cfg.outputVar as string) ?? "loopResults"] = results;
     helpers.setOutput({ count: results.length });
     helpers.setHandle("done");
-    return;
-  }
+  },
 
-  if (node.type === "parallel") {
+  parallel: async ({ edges, node, nodes, ctx, runId, workspaceId, db, depth, helpers }) => {
     const branchEdges = edges.filter((e) => e.source === node.id);
     // B7: fan-out acotado. Antes era `Promise.all` sobre TODAS las ramas a la
     // vez (concurrencia ilimitada hacia providers/DB). Mismo orden de resultados
@@ -931,10 +922,9 @@ async function executeNode(
     );
     helpers.setOutput({ branches: branchEdges.length });
     helpers.skipChildren();
-    return;
-  }
+  },
 
-  if (node.type === "try_catch") {
+  try_catch: async ({ cfg, edges, node, nodes, ctx, runId, workspaceId, db, depth, helpers }) => {
     const tryEdge = edges.find((e) => e.source === node.id && e.sourceHandle === "try");
     const catchEdge = edges.find((e) => e.source === node.id && e.sourceHandle === "catch");
     if (!tryEdge) throw new Error("try_catch: missing try branch");
@@ -950,10 +940,9 @@ async function executeNode(
       helpers.setOutput({ caught: true, error: err });
     }
     helpers.skipChildren();
-    return;
-  }
+  },
 
-  if (node.type === "subflow") {
+  subflow: async ({ cfg, ctx, workspaceId, runId, db, helpers }) => {
     const subId = cfg.flowId as string | undefined;
     if (!subId) throw new Error("subflow: missing flowId");
     const result = await executeFlow({
@@ -971,20 +960,33 @@ async function executeNode(
     const subOut = (subRuns[0]?.output as Record<string, unknown>) ?? {};
     Object.assign(ctx.variables, subOut);
     helpers.setOutput({ subRunId: result.runId, mergedKeys: Object.keys(subOut) });
-    return;
-  }
+  },
 
-  if (node.type === "wait_human") {
+  wait_human: async ({ cfg, ctx, helpers }) => {
     const msg = (cfg.instructions as string) ?? (cfg.message as string) ?? "Se necesita una aprobación";
     ctx.variables["_pendingApproval"] = {
       message: interpolate(msg, ctx.variables),
       assignee: cfg.assignee,
     };
     helpers.setOutput({ paused: true });
-    return;
-  }
+  },
+};
 
-  throw new Error(`Unknown node type: ${node.type}`);
+async function executeNode(
+  node: FlowNode,
+  ctx: RunContext,
+  runId: string,
+  workspaceId: string,
+  nodes: FlowNode[],
+  edges: FlowEdge[],
+  db: ReturnType<typeof getDb>,
+  depth: number,
+  helpers: ExecHelpers
+): Promise<void> {
+  const cfg = (node.config ?? {}) as Record<string, unknown>;
+  const handler = NODE_HANDLERS[node.type as Exclude<FlowNodeType, "end">];
+  if (!handler) throw new Error(`Unknown node type: ${node.type}`);
+  await handler({ node, ctx, runId, workspaceId, nodes, edges, db, depth, helpers, cfg });
 }
 
 /**
