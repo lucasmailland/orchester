@@ -551,6 +551,9 @@ export async function* handleInboundStream(
     const { chatMsgs, systemPrompt } = await buildConversationContext(ctx);
     let reply = "";
     let tokens = 0;
+    // Spend cap también para el path de streaming (sin tools) — gap detectado
+    // por la 2ª pasada de meta-auditoría.
+    await assertWithinSpend(wsId);
     for await (const chunk of llmStream({
       workspaceId: wsId,
       model: agent.model,
