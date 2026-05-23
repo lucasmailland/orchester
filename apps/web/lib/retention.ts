@@ -1,6 +1,6 @@
 import "server-only";
 import { getDb, schema } from "@orchester/db";
-import { lt } from "drizzle-orm";
+import { and, lt, sql } from "drizzle-orm";
 import { safeLogError } from "./safe-log";
 
 /**
@@ -46,17 +46,42 @@ function cutoff(days: number): Date {
 export interface PurgeResult {
   runsDeleted: number;
   deliveriesDeleted: number;
+  auditLogsDeleted: number;
+  usageEventsDeleted: number;
+  messagesDeleted: number;
+  flowVersionsDeleted: number;
 }
 
 export async function purgeOldData(opts?: {
   runsDays?: number;
   deliveriesDays?: number;
+  auditLogsDays?: number;
+  usageEventsDays?: number;
+  messagesDays?: number;
+  flowVersionsKeepLast?: number;
 }): Promise<PurgeResult> {
   const runsDays = opts?.runsDays ?? envDays("RETENTION_RUNS_DAYS", 30);
   const deliveriesDays = opts?.deliveriesDays ?? envDays("RETENTION_DELIVERIES_DAYS", 30);
+  // Defaults conservadores y compliance-friendly:
+  //  - audit_logs 365d (forensics)
+  //  - usage_events 90d (billing investigations típicas)
+  //  - messages 180d desde una conv CERRADA (conversations activas no se tocan)
+  //  - flow_versions: mantenemos las últimas N por flow (20) en vez de por edad
+  const auditLogsDays = opts?.auditLogsDays ?? envDays("RETENTION_AUDIT_DAYS", 365);
+  const usageEventsDays = opts?.usageEventsDays ?? envDays("RETENTION_USAGE_DAYS", 90);
+  const messagesDays = opts?.messagesDays ?? envDays("RETENTION_MESSAGES_DAYS", 180);
+  const flowVersionsKeepLast =
+    opts?.flowVersionsKeepLast ?? envDays("RETENTION_FLOW_VERSIONS_KEEP", 20);
   const db = getDb();
 
-  const result: PurgeResult = { runsDeleted: 0, deliveriesDeleted: 0 };
+  const result: PurgeResult = {
+    runsDeleted: 0,
+    deliveriesDeleted: 0,
+    auditLogsDeleted: 0,
+    usageEventsDeleted: 0,
+    messagesDeleted: 0,
+    flowVersionsDeleted: 0,
+  };
 
   // ── flow_run (cascade borra flow_run_step) ──────────────────────────────
   // Filtramos por startedAt: un run iniciado hace >runsDays ya está terminado
@@ -80,6 +105,78 @@ export async function purgeOldData(opts?: {
     result.deliveriesDeleted = rows.length;
   } catch (e) {
     safeLogError("[retention] purge webhook_deliveries failed:", e);
+  }
+
+  // ── audit_log ────────────────────────────────────────────────────────────
+  // Default 365d para mantener trazabilidad forense de un año.
+  try {
+    const rows = await db
+      .delete(schema.auditLogs)
+      .where(lt(schema.auditLogs.createdAt, cutoff(auditLogsDays)))
+      .returning({ id: schema.auditLogs.id });
+    result.auditLogsDeleted = rows.length;
+  } catch (e) {
+    safeLogError("[retention] purge audit_logs failed:", e);
+  }
+
+  // ── usage_event ──────────────────────────────────────────────────────────
+  // 90d alcanza para investigar billing del período anterior. Para histórico
+  // largo plazo conviene un rollup mensual en una tabla aparte (TODO).
+  try {
+    const rows = await db
+      .delete(schema.usageEvents)
+      .where(lt(schema.usageEvents.createdAt, cutoff(usageEventsDays)))
+      .returning({ id: schema.usageEvents.id });
+    result.usageEventsDeleted = rows.length;
+  } catch (e) {
+    safeLogError("[retention] purge usage_events failed:", e);
+  }
+
+  // ── messages (sólo de conversations CERRADAS) ────────────────────────────
+  // Nunca tocamos mensajes de conversations abiertas; conservar la conversation
+  // viva no debería perder contexto. Borramos mensajes con createdAt < cutoff
+  // cuya conversation está cerrada (`closedAt is not null`).
+  try {
+    const rows = await db
+      .delete(schema.messages)
+      .where(
+        and(
+          lt(schema.messages.createdAt, cutoff(messagesDays)),
+          sql`${schema.messages.conversationId} IN (
+            SELECT id FROM ${schema.conversations} WHERE ended_at IS NOT NULL
+          )`
+        )
+      )
+      .returning({ id: schema.messages.id });
+    result.messagesDeleted = rows.length;
+  } catch (e) {
+    safeLogError("[retention] purge messages failed:", e);
+  }
+
+  // ── flow_version: mantener las últimas N por flow ───────────────────────
+  // No vamos por edad: una flow estable puede tener una versión vieja vigente.
+  // Mantenemos las últimas N (default 20) por flow.
+  try {
+    const deleted = await db.execute(sql`
+      DELETE FROM ${schema.flowVersions}
+      WHERE id IN (
+        SELECT id FROM (
+          SELECT id, ROW_NUMBER() OVER (
+            PARTITION BY flow_id ORDER BY created_at DESC
+          ) AS rn
+          FROM ${schema.flowVersions}
+        ) ranked
+        WHERE ranked.rn > ${flowVersionsKeepLast}
+      )
+    `);
+    // drizzle execute() devuelve un objeto del driver; el row count vive en .count
+    // o en .rowCount según el driver. Best-effort, no rompemos si no está.
+    const rc = (deleted as unknown as { count?: number; rowCount?: number }).count
+      ?? (deleted as unknown as { rowCount?: number }).rowCount
+      ?? 0;
+    result.flowVersionsDeleted = rc;
+  } catch (e) {
+    safeLogError("[retention] purge flow_versions failed:", e);
   }
 
   return result;

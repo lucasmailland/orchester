@@ -92,7 +92,9 @@ async function main(): Promise<void> {
   await registerWorker(JOB_RETENTION, async () => {
     const n = await purgeOldData();
     console.log(
-      `[worker] data:retention → runs=${n.runsDeleted} deliveries=${n.deliveriesDeleted}`
+      `[worker] data:retention → runs=${n.runsDeleted} deliveries=${n.deliveriesDeleted} ` +
+        `audit=${n.auditLogsDeleted} usage=${n.usageEventsDeleted} ` +
+        `messages=${n.messagesDeleted} flowVersions=${n.flowVersionsDeleted}`
     );
   });
   await schedule(JOB_RETENTION, "30 3 * * *"); // 03:30 UTC
