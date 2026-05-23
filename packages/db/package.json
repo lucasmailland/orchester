@@ -27,6 +27,7 @@
     "studio": "drizzle-kit studio",
     "seed": "tsx src/seed.ts",
     "seed:v2": "tsx src/seed-v2.ts",
+    "seed:demo": "tsx src/seed-demo.ts",
     "test": "vitest run"
   },
   "dependencies": {

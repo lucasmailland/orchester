@@ -1,12 +1,4 @@
-import {
-  pgTable,
-  text,
-  timestamp,
-  pgEnum,
-  integer,
-  jsonb,
-  boolean,
-} from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, pgEnum, integer, jsonb, boolean } from "drizzle-orm/pg-core";
 import { workspaces } from "./workspaces";
 
 export const flowStatusEnum = pgEnum("flow_status", ["draft", "active", "paused"]);
@@ -55,11 +47,26 @@ export const flowNodeTypeEnum = pgEnum("flow_node_type", [
   "end",
 ]);
 
+/**
+ * TS-side union of flow node types. Must mirror `flowNodeTypeEnum` above —
+ * if you add a type to the enum, add it here. The compiler doesn't enforce
+ * this relationship; we keep them aligned by convention.
+ */
 export interface FlowNodeData {
   type:
     | "trigger"
     | "agent"
     | "kb_search"
+    | "generate_image"
+    | "embed_text"
+    | "llm_prompt"
+    | "generate_video"
+    | "text_to_speech"
+    | "transcribe"
+    | "rerank"
+    | "generate_avatar"
+    | "generate_music"
+    | "ocr_extract"
     | "condition"
     | "switch"
     | "http"
@@ -67,13 +74,13 @@ export interface FlowNodeData {
     | "transform"
     | "spreadsheet"
     | "delay"
+    | "notify"
     | "code"
     | "loop_for_each"
     | "parallel"
     | "try_catch"
     | "subflow"
     | "wait_human"
-    | "notify"
     | "note"
     | "end";
   label: string;
