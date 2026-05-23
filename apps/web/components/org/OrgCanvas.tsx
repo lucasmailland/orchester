@@ -552,7 +552,7 @@ export function OrgCanvas() {
           }
           return edge;
         }),
-    [data.edges, visibleIds]
+    [data.edges, visibleIds, isLight]
   );
 
   function onNodeClick(_: React.MouseEvent, node: Node) {

@@ -11,6 +11,7 @@ import { usePresentationMode } from "@/components/providers/PresentationModeProv
 import { cn } from "@/lib/utils";
 
 interface TopbarProps {
+  /** Reserved for future locale-aware widgets in the topbar. */
   locale: string;
   userName?: string;
   userImage?: string | null;

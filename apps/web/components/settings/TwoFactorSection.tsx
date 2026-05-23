@@ -161,7 +161,10 @@ export function TwoFactorSection({ enabled }: { enabled: boolean }) {
         <p className="text-xs text-muted">{t("setupDescription")}</p>
         {totpURI && (
           <div className="flex justify-center rounded-lg border border-line bg-white p-4">
-            {/* QR via Google Charts API */}
+            {/* QR served from a third-party generator; next/image would force
+                us to allowlist the domain in next.config.ts for a fixed 200×200
+                one-shot. The plain <img> tag is the right tool here. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(totpURI)}`}
               alt={t("qrAlt")}

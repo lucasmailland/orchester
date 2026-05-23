@@ -571,6 +571,9 @@ function RemotePicker<T extends { id: string }>({
     return () => {
       alive = false;
     };
+    // `mapTo` is stable per-render at the callsite (defined inline by the
+    // caller's component). Including it would re-fetch on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url]);
   return (
     <div>

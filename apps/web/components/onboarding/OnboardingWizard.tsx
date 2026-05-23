@@ -27,6 +27,9 @@ export function OnboardingWizard({ locale }: OnboardingWizardProps) {
   const [direction, setDirection] = useState(1);
   const [isPending, startTransition] = useTransition();
 
+  // The captured api key values are stored in state for downstream wizard
+  // steps; the reader is intentionally unused today (prefix-`_` opts out of
+  // the no-unused-vars lint).
   const [_apiKeyData, setApiKeyData] = useState<ApiKeyValues | null>(null);
 
   function goNext() {
@@ -73,7 +76,11 @@ export function OnboardingWizard({ locale }: OnboardingWizardProps) {
   );
 
   const steps = [
-    <WelcomeStep key="welcome" onNext={handleWelcomeNext} submitButton={continueBtn(t("step1.continue"))} />,
+    <WelcomeStep
+      key="welcome"
+      onNext={handleWelcomeNext}
+      submitButton={continueBtn(t("step1.continue"))}
+    />,
     <ApiKeyStep
       key="apikey"
       onNext={handleApiKeyNext}
