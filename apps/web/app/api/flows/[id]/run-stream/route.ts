@@ -24,9 +24,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const input = (parsed.data.input ?? {}) as Record<string, unknown>;
 
   const encoder = new TextEncoder();
-  // L5: cuando el cliente se desconecta dejamos de emitir eventos. (El flow
-  // engine no expone un signal de cancelación, así que sólo cortamos el push
-  // de eventos SSE; no abortamos la ejecución del flujo en sí.)
+  // F-1: el AbortSignal ahora se threadea HASTA el motor — al desconectarse el
+  // cliente, executeFlow detecta el abort entre pasos, marca el run como
+  // `cancelled` y deja de quemar créditos (antes seguía corriendo el flujo
+  // entero después del disconnect).
   const abort = new AbortController();
   if (req.signal.aborted) abort.abort();
   else req.signal.addEventListener("abort", () => abort.abort(), { once: true });
@@ -49,6 +50,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           triggerSource: "manual",
           input,
           onEvent: send,
+          signal: abort.signal,
         });
       } catch (e) {
         send({ type: "run_finish", status: "failed", error: e instanceof Error ? e.message : String(e) });

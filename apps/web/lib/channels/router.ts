@@ -193,18 +193,35 @@ async function resolveInbound(
   // 4. Branch by agent kind
   if (agent.kind === "flow") {
     if (!agent.flowId) throw new Error("Flow-driven agent has no flowId");
-    const result = await executeFlow({
-      flowId: agent.flowId,
-      workspaceId,
-      triggerSource: `channel:${channel.id}`,
-      input: {
-        message: msg.text,
-        customerName: msg.customerName ?? "",
-        customerEmail: msg.customerEmail ?? "",
-        externalId: msg.externalId,
-      },
-    });
-    const reply = result.status === "succeeded" ? "" : agent.fallback ?? "Lo siento, hubo un error.";
+    // F-B1/F-1: el canal espera la respuesta del flow para contestar, bounded
+    // por timeout (default 60s) para no colgar el inbound webhook por minutos.
+    // Si excede, el run queda `cancelled` y respondemos el fallback.
+    const FLOW_AGENT_INLINE_TIMEOUT_MS = Number(process.env.FLOW_AGENT_INLINE_TIMEOUT_MS ?? 60_000);
+    const abort = new AbortController();
+    const t = setTimeout(() => abort.abort(), FLOW_AGENT_INLINE_TIMEOUT_MS);
+    let result;
+    try {
+      result = await executeFlow({
+        flowId: agent.flowId,
+        workspaceId,
+        triggerSource: `channel:${channel.id}`,
+        input: {
+          message: msg.text,
+          customerName: msg.customerName ?? "",
+          customerEmail: msg.customerEmail ?? "",
+          externalId: msg.externalId,
+        },
+        signal: abort.signal,
+      });
+    } finally {
+      clearTimeout(t);
+    }
+    const reply =
+      result.status === "succeeded"
+        ? ""
+        : result.status === "cancelled"
+          ? agent.fallback ?? "Estamos procesando tu mensaje. Te respondemos en un momento."
+          : agent.fallback ?? "Lo siento, hubo un error.";
     await db.insert(schema.messages).values({
       id: createId(),
       conversationId: conversation.id,

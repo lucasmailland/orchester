@@ -277,8 +277,11 @@ const TOOLS: McpToolDef[] = [
       required: ["flowId"],
     },
     async handler(input, auth) {
-      const { executeFlow } = await import("@/lib/flow-engine");
-      const result = await executeFlow({
+      // F-B1: async — encolamos y devolvemos runId. El caller MCP hace polling
+      // de /api/flow-runs/:runId. Antes bloqueaba el request por minutos en
+      // flows largos (polling de video/avatar) y moría por serverless timeout.
+      const { enqueueFlowRun } = await import("@/lib/flow-engine");
+      const result = await enqueueFlowRun({
         flowId: String(input.flowId ?? ""),
         workspaceId: auth.workspaceId,
         triggerSource: "mcp",

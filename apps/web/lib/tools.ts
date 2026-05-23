@@ -337,8 +337,11 @@ export async function executeTool(
   if (name === "flow_call") {
     const flowId = String(input.flowId ?? "");
     if (!flowId) throw new Error("flowId required");
-    const { executeFlow } = await import("./flow-engine");
-    const result = await executeFlow({
+    // F-B1: async — el agente puede correr flows largos (video/avatar) sin
+    // bloquear el turno conversacional. Devolvemos runId y el agente puede
+    // chequear /api/flow-runs/:runId después.
+    const { enqueueFlowRun } = await import("./flow-engine");
+    const result = await enqueueFlowRun({
       flowId,
       workspaceId: ctx.workspaceId,
       triggerSource: `tool_call`,
