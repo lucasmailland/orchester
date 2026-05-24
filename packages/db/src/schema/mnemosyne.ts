@@ -16,6 +16,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { workspaces } from "./workspaces";
 import { agents, conversations } from "./core";
+import { users } from "./auth";
 
 // tsvector — readonly at the TS layer because the column is
 // GENERATED ALWAYS in Postgres (see migration 0017). Marking via
@@ -93,4 +94,50 @@ export const mnemoExtractionJobs = pgTable("mnemo_extraction_job", {
   completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
   metadata: jsonb("metadata").notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
+
+export const mnemoDecisions = pgTable("mnemo_decision", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  agentId: text("agent_id").references(() => agents.id, {
+    onDelete: "set null",
+  }),
+  conversationId: text("conversation_id").references(() => conversations.id, {
+    onDelete: "set null",
+  }),
+  kind: text("kind", {
+    enum: [
+      "decision",
+      "architecture",
+      "policy",
+      "process",
+      "bugfix",
+      "learning",
+      "discovery",
+      "config",
+    ],
+  }).notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  topicKey: text("topic_key"),
+  revisionCount: integer("revision_count").notNull().default(1),
+  normalizedHash: text("normalized_hash").notNull(),
+  decidedByUserId: text("decided_by_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  embedding: vector("embedding", { dimensions: 1536 }),
+  embeddingModel: text("embedding_model"),
+  embeddingVersion: text("embedding_version"),
+  textLemmatized: tsvector("text_lemmatized"),
+  status: text("status", { enum: ["active", "superseded", "withdrawn"] })
+    .notNull()
+    .default("active"),
+  supersededById: text("superseded_by_id"),
+  metadata: jsonb("metadata").notNull().default({}),
+  validFrom: timestamp("valid_from", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  validTo: timestamp("valid_to", { withTimezone: true, mode: "date" }),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });
