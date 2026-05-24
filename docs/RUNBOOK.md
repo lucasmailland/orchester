@@ -67,7 +67,7 @@ Causas + fixes:
 - **"credit balance too low":** carga créditos en https://console.anthropic.com/settings/plans
 - **"invalid x-api-key":** la key se rotó del lado del provider. Genera una nueva y pegala en `/settings#providers`.
 - **Rate-limit del provider (429):** bajá el `concurrency` del worker o pasale a un model más barato (`claude-haiku-4-5`).
-- **Timeout:** aumentá el timeout en `lib/llm-call.ts` o cambialá a streaming (TODO).
+- **Timeout:** subí `LLM_TIMEOUT_MS` (y `LLM_STREAM_CONNECT_TIMEOUT_MS` si usás streaming) en el env y reiniciá, o cambialo a streaming (`llmStream()` en `lib/llm-call.ts`).
 
 ---
 
