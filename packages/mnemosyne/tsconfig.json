@@ -17,12 +17,13 @@
     // fixture import (apps/web/tests/fixtures/workspaces.ts) resolves
     // `@orchester/db` the same way the web app does — apps/web relies
     // on `paths`, not node_modules symlinks, for that specifier.
-    // baseUrl will be removed in TS 7.0 (current version emits a deprecation
-    // notice). We keep it because dropping it changes how `rootDir` is
-    // inferred — without baseUrl, TS narrows rootDir to the package dir and
-    // rejects the cross-package fixture import from apps/web/tests/fixtures/.
-    // Post-v1.0 polish task: extract fixtures to a shared package, then drop
-    // baseUrl + this comment together.
+    // baseUrl will be removed in TS 7.0; we keep it because dropping it
+    // changes how `rootDir` is inferred — without baseUrl, TS narrows
+    // rootDir to the package dir and rejects the cross-package fixture
+    // import from apps/web/tests/fixtures/. Post-v1.0 polish task: extract
+    // fixtures to a shared package, then drop baseUrl + this comment.
+    // ignoreDeprecations="5.0" silences the TS 5.x deprecation error.
+    "ignoreDeprecations": "5.0",
     "baseUrl": ".",
     "paths": {
       "@orchester/db": ["../db/src/index.ts"],
