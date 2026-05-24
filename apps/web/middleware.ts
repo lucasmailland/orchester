@@ -3,7 +3,11 @@ import { routing } from "./i18n/routing";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { extractLocalePath, isProtectedPath } from "./lib/middleware-utils";
-import { resolveTenantForRequest } from "./lib/tenant/middleware";
+import {
+  extractLocaleAndSlug,
+  isNonWorkspaceTopLevel,
+  resolveTenantForRequest,
+} from "./lib/tenant/middleware";
 
 const intlMiddleware = createMiddleware(routing);
 
@@ -85,6 +89,37 @@ export async function middleware(request: NextRequest) {
     const loginUrl = new URL(`/${locale}/login`, request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Phase D: legacy URL redirect. After we moved the shell layout
+  // under `[workspaceSlug]`, requests for the pre-Phase-D URLs
+  // (`/en/agents`, `/en/conversations`, …) need to land on the active
+  // workspace's slug (`/en/<slug>/agents`). Logged-in users with a
+  // workspace cookie get a 301 (legacy URLs are bookmarked +
+  // shareable, so caching is desirable). Users without an active
+  // workspace go to /workspaces to pick one.
+  //
+  // The non-workspace top-level paths (login, welcome, pricing, …)
+  // are skipped — `extractLocaleAndSlug` already filters them, but
+  // the explicit isNonWorkspaceTopLevel check keeps the intent
+  // legible.
+  if (hasSession && !isApi && !isStatic) {
+    const parsed = extractLocaleAndSlug(pathname);
+    const segments = pathname.split("/").filter(Boolean);
+    const secondSeg = segments[1];
+    if (
+      parsed.locale &&
+      !parsed.slug &&
+      parsed.rest !== "/" &&
+      !isNonWorkspaceTopLevel(secondSeg)
+    ) {
+      const activeSlug = request.cookies.get("orch-active-workspace")?.value;
+      if (activeSlug) {
+        const newPath = `/${parsed.locale}/${activeSlug}${parsed.rest}`;
+        return NextResponse.redirect(new URL(newPath, request.url), 301);
+      }
+      return NextResponse.redirect(new URL(`/${parsed.locale}/workspaces`, request.url));
+    }
   }
 
   // Next.js extrae el nonce del header `Content-Security-Policy` del REQUEST
