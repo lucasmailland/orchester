@@ -102,7 +102,7 @@ describe("lib/cookies", () => {
 
   it("PRODUCTION: throws when COOKIE_SIGNING_SECRET is unset", async () => {
     delete process.env["COOKIE_SIGNING_SECRET"];
-    process.env["NODE_ENV"] = "production";
+    (process.env as Record<string, string>)["NODE_ENV"] = "production";
     vi.resetModules();
     const { signValue } = await import("@/lib/cookies");
     await expect(signValue("any")).rejects.toThrow(/COOKIE_SIGNING_SECRET required/);
@@ -110,7 +110,7 @@ describe("lib/cookies", () => {
 
   it("DEV: falls back to the dev secret with a one-shot warning", async () => {
     delete process.env["COOKIE_SIGNING_SECRET"];
-    process.env["NODE_ENV"] = "development";
+    (process.env as Record<string, string>)["NODE_ENV"] = "development";
     vi.resetModules();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { signValue, verifySigned } = await import("@/lib/cookies");
