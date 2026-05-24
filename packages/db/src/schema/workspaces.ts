@@ -76,13 +76,13 @@ export const notificationPrefs = pgTable(
     enabled: boolean("enabled").notNull().default(true),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (t) => ({
+  (t) => [
     // Una sola fila por (workspace, user, key). Coalesce de NULL via `coalesce`
     // sería ideal pero Postgres no soporta unique en NULLs sin una expresión.
     // Uso 2 índices: uno para user-level (donde user_id no es null) y otro
     // para workspace-level (donde user_id es null).
-    uniqUserPref: uniqueIndex("uniq_notification_pref_user").on(t.workspaceId, t.userId, t.key),
-  })
+    uniqueIndex("uniq_notification_pref_user").on(t.workspaceId, t.userId, t.key),
+  ]
 );
 
 export type Workspace = typeof workspaces.$inferSelect;
