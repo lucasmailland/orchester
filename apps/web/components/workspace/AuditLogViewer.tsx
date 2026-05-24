@@ -15,6 +15,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
+
+/** Cursor format used by the audit endpoint — a base-10 seq integer. */
+const CURSOR_REGEX = /^[0-9]+$/;
 
 interface AuditEntry {
   id: string;
@@ -48,7 +52,13 @@ export function AuditLogViewer({ workspaceSlug }: Props) {
   const [verifying, setVerifying] = useState(false);
 
   const loadPage = useCallback(
-    async (cursor: string | null) => {
+    async (cursor: string | null, signal?: AbortSignal) => {
+      // Refuse to forward a malformed cursor; the API would reject it
+      // anyway, and a corrupt value could surface as a noisy 400.
+      if (cursor !== null && !CURSOR_REGEX.test(cursor)) {
+        toast.error("Invalid pagination cursor");
+        return;
+      }
       setLoading(true);
       const url = new URL(
         `/api/workspaces/${workspaceSlug}/audit`,
@@ -57,34 +67,58 @@ export function AuditLogViewer({ workspaceSlug }: Props) {
       url.searchParams.set("limit", "50");
       if (cursor) url.searchParams.set("cursor", cursor);
       try {
-        const r = await fetch(url.toString());
+        const r = await fetch(url.toString(), signal ? { signal } : undefined);
+        if (signal?.aborted) return;
         if (!r.ok) {
-          setLoading(false);
+          // Surface the failure so users understand why pagination
+          // stopped advancing (B4.5).
+          toast.error("Failed to load audit entries");
           return;
         }
         const j = await r.json();
+        if (signal?.aborted) return;
         setEntries((prev) => (cursor ? [...prev, ...j.entries] : j.entries));
         setNextCursor(j.nextCursor);
+      } catch (err) {
+        if (signal?.aborted || (err as { name?: string })?.name === "AbortError") return;
+        toast.error("Failed to load audit entries");
       } finally {
-        setLoading(false);
+        if (!signal?.aborted) setLoading(false);
       }
     },
     [workspaceSlug]
   );
 
-  const verifyNow = useCallback(async () => {
-    setVerifying(true);
-    try {
-      const r = await fetch(`/api/workspaces/${workspaceSlug}/audit/verify`);
-      if (r.ok) setChain(await r.json());
-    } finally {
-      setVerifying(false);
-    }
-  }, [workspaceSlug]);
+  const verifyNow = useCallback(
+    async (signal?: AbortSignal) => {
+      setVerifying(true);
+      try {
+        const r = await fetch(
+          `/api/workspaces/${workspaceSlug}/audit/verify`,
+          signal ? { signal } : undefined
+        );
+        if (signal?.aborted) return;
+        if (r.ok) {
+          const j = await r.json();
+          if (signal?.aborted) return;
+          setChain(j);
+        }
+      } catch (err) {
+        if (signal?.aborted || (err as { name?: string })?.name === "AbortError") return;
+        // Verification failures are non-fatal — surface as a soft toast.
+        toast.error("Failed to verify audit chain");
+      } finally {
+        if (!signal?.aborted) setVerifying(false);
+      }
+    },
+    [workspaceSlug]
+  );
 
   useEffect(() => {
-    void loadPage(null);
-    void verifyNow();
+    const ac = new AbortController();
+    void loadPage(null, ac.signal);
+    void verifyNow(ac.signal);
+    return () => ac.abort();
   }, [loadPage, verifyNow]);
 
   return (
@@ -96,7 +130,7 @@ export function AuditLogViewer({ workspaceSlug }: Props) {
         </div>
         <button
           type="button"
-          onClick={verifyNow}
+          onClick={() => void verifyNow()}
           disabled={verifying}
           className="btn-secondary"
           aria-label={t("verifyAria")}
