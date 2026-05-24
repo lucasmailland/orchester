@@ -10,8 +10,14 @@
 --
 -- Both tables get RLS + FORCE from day 1. We have the GUC discipline
 -- from sub-spec 1; no reason to ship Brain Core with weaker isolation.
-
-BEGIN;
+--
+-- No explicit BEGIN/COMMIT here: production runs migrations via
+-- `drizzle-kit migrate` which wraps each file in a transaction
+-- automatically; tests stream the file through `sql.unsafe()` on a
+-- pooled postgres-js client and `postgres` rejects explicit BEGIN/
+-- COMMIT with `UNSAFE_TRANSACTION` unless we pin to one connection.
+-- Keeping the file transaction-less matches every other migration
+-- in this directory.
 
 CREATE TABLE brain_fact (
   id                  text PRIMARY KEY,
@@ -93,5 +99,3 @@ SELECT apply_pattern_a('brain_fact');
 ALTER TABLE brain_extraction_job ENABLE ROW LEVEL SECURITY;
 ALTER TABLE brain_extraction_job FORCE ROW LEVEL SECURITY;
 SELECT apply_pattern_a('brain_extraction_job');
-
-COMMIT;
