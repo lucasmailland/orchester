@@ -119,15 +119,34 @@ export async function maybeFireBudgetAlert(
   tx?: WsDb
 ): Promise<void> {
   if (!employeeId) return;
+
+  // Read: budget status + employee row. If either read fails we can't
+  // reason about which alert to fire, so we exit silently with a
+  // distinct log prefix so on-call can tell apart from update/webhook/
+  // email failures below.
+  let status: Awaited<ReturnType<typeof checkEmployeeBudget>>;
   try {
-    const status = await checkEmployeeBudget(workspaceId, employeeId, tx);
-    if (status.budgetUsd == null) return; // sin límite → nada que avisar
+    status = await checkEmployeeBudget(workspaceId, employeeId, tx);
+  } catch (e) {
+    safeLogError("[cost-alerts.read] checkEmployeeBudget failed:", e);
+    return;
+  }
+  if (status.budgetUsd == null) return; // sin límite → nada que avisar
 
-    const pct = (status.spentUsd / status.budgetUsd) * 100;
-    const level = levelForPct(pct, status.allowed);
-    if (!level) return;
+  const pct = (status.spentUsd / status.budgetUsd) * 100;
+  const level = levelForPct(pct, status.allowed);
+  if (!level) return;
 
-    const db = tx ?? getDb();
+  const db = tx ?? getDb();
+  let emp:
+    | {
+        name: string;
+        email: string;
+        lastBudgetAlertLevel: string | null;
+        lastBudgetAlertMonth: string | null;
+      }
+    | undefined;
+  try {
     const empRows = await db
       .select({
         name: schema.employees.name,
@@ -140,52 +159,64 @@ export async function maybeFireBudgetAlert(
         and(eq(schema.employees.id, employeeId), eq(schema.employees.workspaceId, workspaceId))
       )
       .limit(1);
-    const emp = empRows[0];
-    if (!emp) return;
+    emp = empRows[0];
+  } catch (e) {
+    safeLogError("[cost-alerts.read] employee row read failed:", e);
+    return;
+  }
+  if (!emp) return;
 
-    const month = currentMonth();
-    // Si el último mes registrado es el actual y ya disparamos un nivel >= al
-    // que estamos por mandar, salir. Si el mes cambió, reseteamos.
-    if (emp.lastBudgetAlertMonth === month) {
-      const last = (emp.lastBudgetAlertLevel ?? null) as Level | null;
-      if (last && RANK[last] >= RANK[level]) return;
-    }
+  const month = currentMonth();
+  // Si el último mes registrado es el actual y ya disparamos un nivel >= al
+  // que estamos por mandar, salir. Si el mes cambió, reseteamos.
+  if (emp.lastBudgetAlertMonth === month) {
+    const last = (emp.lastBudgetAlertLevel ?? null) as Level | null;
+    if (last && RANK[last] >= RANK[level]) return;
+  }
 
-    // Persistir primero (idempotencia): si dos requests cruzan el umbral en
-    // paralelo, sólo una gana el UPDATE (otro queda con datos viejos pero el
-    // próximo round-trip lo va a ver consistente).
+  // Persistir primero (idempotencia): si dos requests cruzan el umbral en
+  // paralelo, sólo una gana el UPDATE (otro queda con datos viejos pero el
+  // próximo round-trip lo va a ver consistente). Si el UPDATE falla, NO
+  // disparamos avisos: dispararíamos infinitamente al próximo turno.
+  try {
     await db
       .update(schema.employees)
       .set({ lastBudgetAlertLevel: level, lastBudgetAlertMonth: month })
       .where(eq(schema.employees.id, employeeId));
-
-    // Fire-and-forget: webhook + email en paralelo.
-    const event: WebhookEvent =
-      level === "exceeded"
-        ? "employee.budget.exceeded"
-        : level === "warn90"
-          ? "employee.budget.warn90"
-          : "employee.budget.warn70";
-
-    const payload = {
-      employeeId,
-      employeeName: emp.name,
-      employeeEmail: emp.email,
-      level,
-      spentUsd: status.spentUsd,
-      budgetUsd: status.budgetUsd,
-      pct: Math.round(pct * 10) / 10,
-      conversationCount: status.conversationCount,
-      month,
-    };
-
-    await Promise.all([
-      dispatchEvent(workspaceId, event, payload),
-      sendBudgetEmail(emp.email, emp.name, level, status.spentUsd, status.budgetUsd, pct),
-    ]);
   } catch (e) {
-    safeLogError("[cost-alerts] maybeFireBudgetAlert failed:", e);
+    safeLogError("[cost-alerts.update] lastBudgetAlertLevel UPDATE failed:", e);
+    return;
   }
+
+  // Fire-and-forget: webhook + email en paralelo. Errores se loguean con
+  // prefijos distintos para diagnosticar qué pata falló.
+  const event: WebhookEvent =
+    level === "exceeded"
+      ? "employee.budget.exceeded"
+      : level === "warn90"
+        ? "employee.budget.warn90"
+        : "employee.budget.warn70";
+
+  const payload = {
+    employeeId,
+    employeeName: emp.name,
+    employeeEmail: emp.email,
+    level,
+    spentUsd: status.spentUsd,
+    budgetUsd: status.budgetUsd,
+    pct: Math.round(pct * 10) / 10,
+    conversationCount: status.conversationCount,
+    month,
+  };
+
+  await Promise.allSettled([
+    dispatchEvent(workspaceId, event, payload, tx).catch((e) =>
+      safeLogError("[cost-alerts.webhook] dispatchEvent failed:", e)
+    ),
+    sendBudgetEmail(emp.email, emp.name, level, status.spentUsd, status.budgetUsd, pct).catch((e) =>
+      safeLogError("[cost-alerts.email] sendBudgetEmail failed:", e)
+    ),
+  ]);
 }
 
 async function sendBudgetEmail(

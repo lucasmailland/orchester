@@ -1,8 +1,21 @@
 import "server-only";
 import { createId } from "@paralleldrive/cuid2";
 import crypto from "node:crypto";
-import { getDb, schema } from "@orchester/db";
+import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and, sql } from "drizzle-orm";
+
+/**
+ * Optional `tx?: WsDb` follows the project-wide pattern (see
+ * `lib/billing/quotas.ts`). When a caller is already inside a
+ * workspace transaction (cost-alerts, integrations/store, channel
+ * worker), passing tx keeps the `outboundWebhooks` SELECT and the
+ * delivery-row INSERT/UPDATE on the same connection so FORCE RLS
+ * sees `app.workspace_id` SET LOCAL.
+ *
+ * Best-effort semantics are preserved: any error is logged, not
+ * thrown.
+ */
+type WsDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 
 export type WebhookEvent =
   | "agent.responded"
@@ -45,10 +58,11 @@ export const WEBHOOK_EVENTS: { event: WebhookEvent; description: string }[] = [
 export async function dispatchEvent(
   workspaceId: string,
   event: WebhookEvent,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  tx?: WsDb
 ): Promise<void> {
   try {
-    const db = getDb();
+    const db = tx ?? getDb();
     const subs = await db
       .select()
       .from(schema.outboundWebhooks)
@@ -59,7 +73,7 @@ export async function dispatchEvent(
         )
       );
     const targets = subs.filter((s) => (s.events ?? []).includes(event));
-    await Promise.all(targets.map((s) => deliver(s, event, payload)));
+    await Promise.all(targets.map((s) => deliver(s, event, payload, tx)));
   } catch (e) {
     const { safeLogError } = await import("./safe-log");
     safeLogError("[webhooks-out] dispatch failed:", e);
@@ -109,9 +123,10 @@ const WEBHOOK_MAX_FAILURES = Math.max(1, Number(process.env.WEBHOOK_MAX_FAILURES
 async function deliver(
   sub: { id: string; workspaceId: string; url: string; secret: string; failureCount?: number },
   event: WebhookEvent,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  tx?: WsDb
 ): Promise<void> {
-  const db = getDb();
+  const db = tx ?? getDb();
   const deliveryId = createId();
   await db.insert(schema.webhookDeliveries).values({
     id: deliveryId,
@@ -132,7 +147,11 @@ async function deliver(
   } catch (e) {
     await db
       .update(schema.webhookDeliveries)
-      .set({ status: "failed", error: e instanceof Error ? e.message : "URL bloqueada", deliveredAt: new Date() })
+      .set({
+        status: "failed",
+        error: e instanceof Error ? e.message : "URL bloqueada",
+        deliveredAt: new Date(),
+      })
       .where(eq(schema.webhookDeliveries.id, deliveryId));
     return;
   }
