@@ -28,8 +28,20 @@ export default function WorkspacesPage() {
 
   if (isLoading) return <div className="p-10 text-muted">…</div>;
 
-  function go(slug: string) {
-    document.cookie = `orch-active-workspace=${slug}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`;
+  async function go(slug: string) {
+    // Use the signed-cookie endpoint instead of writing the cookie
+    // directly: middleware now rejects unsigned values and would loop
+    // us right back here. Server endpoint applies the HMAC tag.
+    try {
+      await fetch("/api/me/active-workspace", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ slug }),
+      });
+    } catch {
+      // Best-effort; if it fails we'll redirect-loop and the user
+      // can try again.
+    }
     router.push(`/${locale}/${slug}`);
   }
 

@@ -79,7 +79,10 @@ export function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
         return;
       }
       toast.success(t("created"));
-      document.cookie = `orch-active-workspace=${slug}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`;
+      // POST /api/workspaces already wrote the signed active-workspace
+      // cookie on this response (see route handler). Writing it again
+      // from the client would produce an UNSIGNED value that the
+      // middleware now rejects — the server-side write is the truth.
       await refresh();
       router.push(`/${locale}/${slug}`);
     } catch {

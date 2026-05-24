@@ -76,10 +76,23 @@ export function WorkspaceMenu({ onClose, activeSlug, onCreate }: Props) {
   const current = filtered.find((w) => w.slug === activeSlug);
   const others = filtered.filter((w) => w.slug !== activeSlug);
 
-  function switchTo(slug: string) {
-    // Set the cookie BEFORE navigating to avoid a race where the new
-    // request reads the stale active-workspace cookie (B4.1).
-    document.cookie = `orch-active-workspace=${slug}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`;
+  async function switchTo(slug: string) {
+    // Persist the new active workspace via the signed-cookie endpoint
+    // BEFORE navigating, to avoid a race where the new request reads
+    // the stale cookie (B4.1). Direct `document.cookie` writes would
+    // produce an unsigned value that the middleware now rejects —
+    // route through the server so the HMAC tag is applied.
+    try {
+      await fetch("/api/me/active-workspace", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ slug }),
+      });
+    } catch {
+      // Best-effort: if the request fails we still navigate; the
+      // middleware will fall back to /workspaces and the user picks
+      // again. Avoid blocking the click on network blips.
+    }
     const target = buildSwitchTarget(pathname ?? "", locale, activeSlug, slug);
     router.push(target);
     onClose();

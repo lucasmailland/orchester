@@ -1,5 +1,6 @@
 import "server-only";
 import type { NextRequest } from "next/server";
+import { verifySigned } from "@/lib/cookies";
 
 const LOCALE_RE = /^[a-z]{2}(-[A-Z]{2})?$/;
 const SLUG_RE = /^[a-z][a-z0-9-]{2,38}[a-z0-9]$/;
@@ -94,16 +95,27 @@ export function extractLocaleAndSlug(pathname: string): {
  * Resolves tenant context from the request and applies it.
  * In Phase B, the slug comes from cookie `orch-active-workspace`.
  * In Phase D, it will come from the URL path.
+ *
+ * The cookie value is HMAC-signed (see lib/cookies.ts). If the
+ * signature is missing, malformed, or doesn't verify against our
+ * secret we treat it as no cookie — the caller will fall back to
+ * the legacy redirect path (workspaces list) which goes through a
+ * fresh server-trusted slug lookup. We deliberately do NOT 401 here:
+ * users may legitimately have an unsigned cookie left over from
+ * before signing was introduced; expiring them out of their session
+ * for cookie hygiene would be too aggressive.
  */
 export async function resolveTenantForRequest(req: NextRequest): Promise<{
   tenantId: string | null;
   slug: string | null;
 }> {
   // Phase B: cookie-based active workspace
-  const activeSlug = req.cookies.get("orch-active-workspace")?.value ?? null;
-  if (!activeSlug) return { tenantId: null, slug: null };
+  const raw = req.cookies.get("orch-active-workspace")?.value ?? null;
+  if (!raw) return { tenantId: null, slug: null };
+  const slug = await verifySigned(raw);
+  if (!slug) return { tenantId: null, slug: null };
 
   // Avoid importing resolveBySlug here to keep middleware light
   // (Edge runtime constraints). Instead resolve in handlers.
-  return { tenantId: null, slug: activeSlug };
+  return { tenantId: null, slug };
 }

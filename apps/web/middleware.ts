@@ -8,6 +8,7 @@ import {
   isNonWorkspaceTopLevel,
   resolveTenantForRequest,
 } from "./lib/tenant/middleware";
+import { verifySigned } from "./lib/cookies";
 
 const intlMiddleware = createMiddleware(routing);
 
@@ -126,7 +127,11 @@ export async function middleware(request: NextRequest) {
       parsed.rest !== "/" &&
       !isNonWorkspaceTopLevel(secondSeg)
     ) {
-      const activeSlug = request.cookies.get("orch-active-workspace")?.value;
+      const rawCookie = request.cookies.get("orch-active-workspace")?.value;
+      // Verify the HMAC tag before trusting the slug to build a
+      // redirect URL — an unsigned/tampered cookie should be treated
+      // as no cookie and fall through to the /workspaces picker.
+      const activeSlug = rawCookie ? await verifySigned(rawCookie) : null;
       if (activeSlug) {
         const newPath = `/${parsed.locale}/${activeSlug}${parsed.rest}`;
         // 307 over 301: preserves the HTTP method on the redirect AND

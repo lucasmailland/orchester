@@ -6,6 +6,7 @@ import { getDb, schema } from "@orchester/db";
 import { requireAuth } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { appendAuditSync } from "@/lib/audit/log";
+import { signValue } from "@/lib/cookies";
 
 /**
  * POST /api/workspaces — create a new workspace owned by the current
@@ -122,8 +123,11 @@ export async function POST(req: NextRequest) {
   // Activate the new workspace immediately so the next navigation
   // resolves to it. Mark `secure` in production so the cookie is
   // never sent over plaintext HTTP (matches the other workspace-
-  // related cookie writes).
-  res.cookies.set("orch-active-workspace", parsed.data.slug, {
+  // related cookie writes). HMAC-signed (via SubtleCrypto, hence the
+  // await) so middleware rejects tampered cookies before reaching
+  // the resolver.
+  const signed = await signValue(parsed.data.slug);
+  res.cookies.set("orch-active-workspace", signed, {
     path: "/",
     maxAge: 60 * 60 * 24 * 30,
     sameSite: "lax",
