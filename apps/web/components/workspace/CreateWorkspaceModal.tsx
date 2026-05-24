@@ -9,12 +9,16 @@ import { useMyWorkspaces } from "./hooks/useMyWorkspaces";
 
 /**
  * Slugify a free-form workspace name into something that satisfies the
- * canonical slug regex: `^[a-z][a-z0-9-]{2,38}[a-z0-9]$`. We strip
- * leading/trailing hyphens and clip to 40 chars (regex max). The user
- * can still edit the field afterwards if they want a custom slug.
+ * canonical slug regex: `^[a-z][a-z0-9-]{2,38}[a-z0-9]$`. We
+ * NFD-normalize first so accented characters fold to their ASCII base
+ * (e.g. "Café" -> "cafe" not "caf-"), then strip leading/trailing
+ * hyphens and clip to 40 chars (regex max). The user can still edit
+ * the field afterwards if they want a custom slug.
  */
-function slugify(name: string): string {
+export function slugify(name: string): string {
   return name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
