@@ -20,6 +20,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "lint:tenant": "node lint-rules/check-tenant-filters.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "worker:build": "node worker/build.mjs",
