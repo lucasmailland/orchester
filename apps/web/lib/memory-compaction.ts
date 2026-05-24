@@ -1,10 +1,19 @@
 import "server-only";
-import { getDb, schema } from "@orchester/db";
+import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq } from "drizzle-orm";
 import { llmCall, type ChatMessage } from "./llm-call";
 import { assertWithinSpend } from "./cost-alerts";
 import { recordAiUsage } from "./ai/run";
 import { calculateChatCostUsd } from "./pricing";
+
+/**
+ * Optional `tx?: WsDb` follows the project-wide pattern (see
+ * `lib/billing/quotas.ts`). The caller (channels router L357) is
+ * already inside a workspace transaction; threading `tx` keeps the
+ * conversation-summary UPDATE on the same connection so FORCE RLS
+ * sees `app.workspace_id` SET LOCAL.
+ */
+type WsDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 
 /**
  * Rolling-window history compaction.
@@ -50,6 +59,12 @@ interface CompactArgs {
   keepLastN?: number;
   /** Provider/model used to summarize. Same as the agent. */
   model: string;
+  /**
+   * Workspace transaction handle (R2-C). When the caller is already
+   * inside `withWorkspaceTx`, passing tx keeps the summary UPDATE on
+   * the same connection so FORCE RLS sees the GUC.
+   */
+  tx?: WsDb;
 }
 
 const SYSTEM_PROMPT_FOR_SUMMARY = `You are a conversation summarizer. Compress the following turns into a concise, factual recap from the assistant's perspective.
@@ -97,7 +112,7 @@ export async function compactHistory(args: CompactArgs): Promise<ChatMessage[]> 
       : `Turns to summarize:\n${transcript}`;
     // Defense-in-depth: la compactación de memoria también consume tokens del
     // provider; sin este guard se salteaba el cap (caller-agnóstico).
-    await assertWithinSpend(args.workspaceId);
+    await assertWithinSpend(args.workspaceId, args.tx);
     const r = await llmCall({
       workspaceId: args.workspaceId,
       model: args.model,
@@ -105,6 +120,7 @@ export async function compactHistory(args: CompactArgs): Promise<ChatMessage[]> 
       messages: [{ role: "user", content: userMsg }],
       temperature: 0.2,
       maxTokens: 600,
+      ...(args.tx ? { tx: args.tx } : {}),
     });
     nextSummary = r.content.trim();
     // E2-2: metering — la compactación también consume tokens del provider.
@@ -118,7 +134,7 @@ export async function compactHistory(args: CompactArgs): Promise<ChatMessage[]> 
     });
 
     // Persist the new summary so we don't pay this cost twice for the same turns.
-    const db = getDb();
+    const db = args.tx ?? getDb();
     await db
       .update(schema.conversations)
       .set({ summary: nextSummary })

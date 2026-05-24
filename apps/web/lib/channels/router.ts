@@ -360,15 +360,19 @@ async function buildConversationContext(
     messages: fullHistory,
     model: agent.model,
     keepLastN: agent.maxTurns ?? 10,
+    tx,
   });
 
   const { getRelevantMemories, formatMemoriesAsPromptBlock } = await import("@/lib/memory");
-  const memories = await getRelevantMemories({
-    agentId: agent.id,
-    workspaceId,
-    conversationId: conversation.id,
-    employeeId: conversation.employeeId ?? undefined,
-  });
+  const memories = await getRelevantMemories(
+    {
+      agentId: agent.id,
+      workspaceId,
+      conversationId: conversation.id,
+      employeeId: conversation.employeeId ?? undefined,
+    },
+    tx
+  );
   return {
     chatMsgs,
     // L1: la memoria es contenido recuperado no confiable → la delimitamos en un
