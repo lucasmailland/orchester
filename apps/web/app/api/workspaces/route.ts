@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createId } from "@paralleldrive/cuid2";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@orchester/db";
 import { requireAuth } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
@@ -18,11 +18,15 @@ import { appendAudit } from "@/lib/audit/log";
  * an existing workspace happen on PATCH/DELETE routes per the
  * standard pattern.
  *
- * Two-row write (workspace + owner membership) is done outside a
- * transaction because the check constraint
- * `workspace_owner_must_be_member` is column-level (NOT NULL on
- * owner_user_id — see migration 0001), so ordering doesn't matter for
- * correctness as long as both rows land.
+ * The two-row write (workspace + owner membership) MUST be atomic —
+ * if the membership insert fails after the workspace insert we end
+ * up with an orphan workspace nobody can access and no way to clean
+ * up via the normal RBAC paths. Wrap both in a single transaction.
+ *
+ * We also set the tenant GUC inside the transaction so the inserts
+ * pass any future FORCE RLS on `workspace` / `workspace_member`
+ * (today only some related tables are FORCED; setting the GUC is
+ * cheap and future-proofs the route).
  *
  * Audit entry is fire-and-forget via the async `appendAudit` wrapper;
  * the response doesn't wait for it so the user gets the new workspace
@@ -59,19 +63,26 @@ export async function POST(req: NextRequest) {
 
   const wsId = `ws_${createId()}`;
   try {
-    await db.insert(schema.workspaces).values({
-      id: wsId,
-      name: parsed.data.name,
-      slug: parsed.data.slug,
-      timezone: parsed.data.timezone,
-      status: "active",
-      ownerUserId: ctx.user.id,
-    });
-    await db.insert(schema.workspaceMembers).values({
-      id: createId(),
-      workspaceId: wsId,
-      userId: ctx.user.id,
-      role: "owner",
+    await db.transaction(async (tx) => {
+      // SET LOCAL so the GUC reverts on commit/rollback and cannot
+      // leak across the pooled connection. Required for the inserts
+      // to pass FORCE RLS on tables that key on `current_workspace_id()`.
+      await tx.execute(sql`SELECT set_config('app.workspace_id', ${wsId}, true)`);
+      await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+      await tx.insert(schema.workspaces).values({
+        id: wsId,
+        name: parsed.data.name,
+        slug: parsed.data.slug,
+        timezone: parsed.data.timezone,
+        status: "active",
+        ownerUserId: ctx.user.id,
+      });
+      await tx.insert(schema.workspaceMembers).values({
+        id: createId(),
+        workspaceId: wsId,
+        userId: ctx.user.id,
+        role: "owner",
+      });
     });
   } catch (e) {
     // Catch the unique-violation race described above.
@@ -105,11 +116,14 @@ export async function POST(req: NextRequest) {
     { status: 201 }
   );
   // Activate the new workspace immediately so the next navigation
-  // resolves to it.
+  // resolves to it. Mark `secure` in production so the cookie is
+  // never sent over plaintext HTTP (matches the other workspace-
+  // related cookie writes).
   res.cookies.set("orch-active-workspace", parsed.data.slug, {
     path: "/",
     maxAge: 60 * 60 * 24 * 30,
     sameSite: "lax",
+    secure: process.env["NODE_ENV"] === "production",
   });
   return res;
 }
