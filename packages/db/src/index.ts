@@ -29,3 +29,11 @@ export type {
   FlowNodeData,
   FlowEdgeData,
 } from "./schema/flows";
+export type {
+  Workspace,
+  NewWorkspace,
+  WorkspaceMember,
+  WorkspaceMemberRole,
+  NotificationPref,
+  NewNotificationPref,
+} from "./schema/workspaces";
