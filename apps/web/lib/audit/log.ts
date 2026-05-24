@@ -20,6 +20,13 @@ import type { AuditEntryInput } from "./types";
 export async function appendAuditSync(workspaceId: string, entry: AuditEntryInput): Promise<void> {
   const db = getDb();
   await db.transaction(async (tx) => {
+    // Phase C: set the workspace GUC on THIS connection (is_local=true so it
+    // releases at COMMIT) so the upcoming INSERT passes FORCE RLS even when
+    // the caller is a worker/background path that didn't go through
+    // getCurrentWorkspace(). MUST be the first statement in the txn so the
+    // advisory-lock query below already sees the tenant context.
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${workspaceId}, true)`);
+
     // Advisory lock keyed by workspace id; releases at COMMIT.
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${workspaceId}))`);
 

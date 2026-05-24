@@ -66,7 +66,7 @@ async function main(): Promise<void> {
   // ── Orphan-run reaper (cron, cada 5 min) ────────────────────
   // Scans flow_run across all workspaces → cross-tenant by design.
   await registerWorker(JOB_FLOW_REAP, async () => {
-    const n = await withCrossTenantAdmin("flow-reaper", () => reapStaleRuns());
+    const n = await withCrossTenantAdmin("flow-reaper", (tx) => reapStaleRuns(undefined, tx));
     if (n > 0) console.log(`[worker] flow:reap → marcó ${n} run(s) colgados como failed`);
   });
   await schedule(JOB_FLOW_REAP, "*/5 * * * *");
@@ -85,10 +85,11 @@ async function main(): Promise<void> {
   // Designed for cross-workspace rollups → wrap defensively even though
   // it's a no-op today.
   await registerWorker(JOB_USAGE_AGGREGATE, async () => {
-    await withCrossTenantAdmin("usage-aggregate", async () => {
+    await withCrossTenantAdmin("usage-aggregate", async (_tx) => {
       console.log("[worker] usage:aggregate tick");
       // Hook para futuras consolidaciones diarias (rollup de usage_events,
-      // limpieza de runs antiguos, etc.). No-op por ahora.
+      // limpieza de runs antiguos, etc.). No-op por ahora — cuando se
+      // implemente, usar `_tx` (no getDb()) para que la bypass GUC aplique.
     });
   });
   await schedule(JOB_USAGE_AGGREGATE, "0 3 * * *"); // 03:00 UTC
@@ -97,7 +98,7 @@ async function main(): Promise<void> {
   // G1-1: purga flow_runs/flow_run_steps y webhook_deliveries viejos.
   // Sweeps across all workspaces by date cutoffs → cross-tenant by design.
   await registerWorker(JOB_RETENTION, async () => {
-    const n = await withCrossTenantAdmin("data-retention", () => purgeOldData());
+    const n = await withCrossTenantAdmin("data-retention", (tx) => purgeOldData({ db: tx }));
     console.log(
       `[worker] data:retention → runs=${n.runsDeleted} deliveries=${n.deliveriesDeleted} ` +
         `audit=${n.auditLogsDeleted} usage=${n.usageEventsDeleted} ` +

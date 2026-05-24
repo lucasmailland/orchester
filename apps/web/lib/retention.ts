@@ -52,6 +52,14 @@ export interface PurgeResult {
   flowVersionsDeleted: number;
 }
 
+// Cross-tenant by design: deletes rows across every workspace. When called
+// from a `withCrossTenantAdmin` wrapper (cron path), pass the `tx` via
+// `opts.db` so every statement runs on the same connection that has the
+// bypass GUC — otherwise FORCE RLS will reject the DELETEs.
+type DbOrTx =
+  | ReturnType<typeof getDb>
+  | Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+
 export async function purgeOldData(opts?: {
   runsDays?: number;
   deliveriesDays?: number;
@@ -59,6 +67,7 @@ export async function purgeOldData(opts?: {
   usageEventsDays?: number;
   messagesDays?: number;
   flowVersionsKeepLast?: number;
+  db?: DbOrTx;
 }): Promise<PurgeResult> {
   const runsDays = opts?.runsDays ?? envDays("RETENTION_RUNS_DAYS", 30);
   const deliveriesDays = opts?.deliveriesDays ?? envDays("RETENTION_DELIVERIES_DAYS", 30);
@@ -72,7 +81,7 @@ export async function purgeOldData(opts?: {
   const messagesDays = opts?.messagesDays ?? envDays("RETENTION_MESSAGES_DAYS", 180);
   const flowVersionsKeepLast =
     opts?.flowVersionsKeepLast ?? envDays("RETENTION_FLOW_VERSIONS_KEEP", 20);
-  const db = getDb();
+  const db = opts?.db ?? getDb();
 
   const result: PurgeResult = {
     runsDeleted: 0,

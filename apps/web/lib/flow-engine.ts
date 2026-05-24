@@ -397,7 +397,8 @@ export async function executeFlow({
   const edges = (flow.edges ?? []) as FlowEdge[];
   const start = nodes.find((n) => n.type === "trigger");
   if (!start) {
-    const err = "Este flujo no tiene un paso de inicio (disparador). Agregá uno para poder ejecutarlo.";
+    const err =
+      "Este flujo no tiene un paso de inicio (disparador). Agregá uno para poder ejecutarlo.";
     await db
       .update(schema.flowRuns)
       .set({ status: "failed", error: err, completedAt: new Date() })
@@ -418,10 +419,16 @@ export async function executeFlow({
         .update(schema.flowRuns)
         .set({ status: "succeeded", output: ctx.variables, completedAt: new Date() })
         .where(eq(schema.flowRuns.id, runId));
-      await tx.update(schema.flows).set({ lastRunAt: new Date() }).where(eq(schema.flows.id, flowId));
+      await tx
+        .update(schema.flows)
+        .set({ lastRunAt: new Date() })
+        .where(eq(schema.flows.id, flowId));
     });
     onEvent?.({ type: "run_finish", status: "succeeded" });
-    recordMetric("flow.run.duration_ms", Date.now() - runStartedAt, { flowId, status: "succeeded" });
+    recordMetric("flow.run.duration_ms", Date.now() - runStartedAt, {
+      flowId,
+      status: "succeeded",
+    });
     return { runId, status: "succeeded" };
   } catch (e) {
     // F-B1/F-1: si la causa fue un abort (cliente desconectado o timeout
@@ -478,7 +485,12 @@ async function runFromNode(
   });
   ctx.emit?.({ type: "step_start", nodeId: node.id, nodeType: node.type });
   // Log correlacionado por `runId` para trazar pasos en logs (D1).
-  logWithContext("info", "flow step start", { correlationId: runId, runId, nodeId: node.id, nodeType: node.type });
+  logWithContext("info", "flow step start", {
+    correlationId: runId,
+    runId,
+    nodeId: node.id,
+    nodeType: node.type,
+  });
 
   let nextHandle: string | undefined;
   let stepOutput: Record<string, unknown> = {};
@@ -502,7 +514,12 @@ async function runFromNode(
       .set({ status: "succeeded", output: stepOutput, completedAt: new Date() })
       .where(eq(schema.flowRunSteps.id, stepId));
     ctx.emit?.({ type: "step_finish", nodeId: node.id, status: "succeeded" });
-    logWithContext("info", "flow step finish", { correlationId: runId, runId, nodeId: node.id, status: "succeeded" });
+    logWithContext("info", "flow step finish", {
+      correlationId: runId,
+      runId,
+      nodeId: node.id,
+      status: "succeeded",
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await db
@@ -510,7 +527,13 @@ async function runFromNode(
       .set({ status: "failed", error: msg, completedAt: new Date() })
       .where(eq(schema.flowRunSteps.id, stepId));
     ctx.emit?.({ type: "step_finish", nodeId: node.id, status: "failed", error: msg });
-    logWithContext("error", "flow step finish", { correlationId: runId, runId, nodeId: node.id, status: "failed", error: msg });
+    logWithContext("error", "flow step finish", {
+      correlationId: runId,
+      runId,
+      nodeId: node.id,
+      status: "failed",
+      error: msg,
+    });
     throw e;
   }
 
@@ -565,7 +588,11 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     const extra = cfg.prompt ? interpolate(cfg.prompt as string, ctx.variables) : "";
     const incoming = interpolate((cfg.message as string) ?? "{{message}}", ctx.variables);
     const userMessage = [extra, incoming].filter((s) => s && s.trim()).join("\n\n") || incoming;
-    const aRows = await db.select().from(schema.agents).where(eq(schema.agents.id, agentId)).limit(1);
+    const aRows = await db
+      .select()
+      .from(schema.agents)
+      .where(eq(schema.agents.id, agentId))
+      .limit(1);
     const agent = aRows[0];
     if (!agent) throw new Error(`agent not found: ${agentId}`);
     // Este nodo usa `llmCall` directo (no runChat), así que el guard y el
@@ -610,7 +637,10 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
   switch: async ({ cfg, ctx, helpers, edges, node }) => {
     // El valor evaluado se usa como nombre del camino (sourceHandle del edge).
     // Si ningún camino coincide con el valor, seguimos por "default" (Siguiente).
-    const value = interpolate((cfg.value as string) ?? (cfg.expression as string) ?? "", ctx.variables);
+    const value = interpolate(
+      (cfg.value as string) ?? (cfg.expression as string) ?? "",
+      ctx.variables
+    );
     const cases = (cfg.cases as Array<{ value: string; handle: string }>) ?? [];
     const matched = cases.find((c) => c.value === value);
     let handle = matched?.handle ?? (value || "default");
@@ -637,7 +667,14 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     }
     const headers: Record<string, string> = { ...((cfg.headers as Record<string, string>) ?? {}) };
     const auth = cfg.auth as
-      | { kind?: string; token?: string; user?: string; pass?: string; key?: string; header?: string }
+      | {
+          kind?: string;
+          token?: string;
+          user?: string;
+          pass?: string;
+          key?: string;
+          header?: string;
+        }
       | undefined;
     if (auth?.kind === "bearer" && auth.token) {
       headers["Authorization"] = `Bearer ${interpolate(auth.token, ctx.variables)}`;
@@ -715,7 +752,10 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
 
   delay: async ({ cfg, helpers }) => {
     // `duration` ("30s"/"5m"…) en el registry; `ms` numérico legado.
-    const ms = Math.min(60_000, cfg.duration !== undefined ? parseDuration(cfg.duration) : Number(cfg.ms ?? 1000));
+    const ms = Math.min(
+      60_000,
+      cfg.duration !== undefined ? parseDuration(cfg.duration) : Number(cfg.ms ?? 1000)
+    );
     await new Promise((res) => setTimeout(res, ms));
     helpers.setOutput({ ms });
   },
@@ -791,7 +831,12 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     if (!prompt.trim()) throw new Error("Falta la instrucción.");
     const system = cfg.system ? interpolate(String(cfg.system), ctx.variables) : "";
     const { runChat } = await import("./ai/run");
-    const res = await runChat({ workspaceId, model, systemPrompt: system, messages: [{ role: "user", content: prompt }] });
+    const res = await runChat({
+      workspaceId,
+      model,
+      systemPrompt: system,
+      messages: [{ role: "user", content: prompt }],
+    });
     const outputVar = (cfg.outputVar as string) || "texto";
     ctx.variables[outputVar] = res.content;
     helpers.setOutput({ tokensUsed: res.tokensUsed });
@@ -813,7 +858,12 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     const text = interpolate(String(cfg.text ?? ""), ctx.variables);
     if (!text.trim()) throw new Error("Falta el texto a decir.");
     const { textToSpeech } = await import("./ai/run");
-    const res = await textToSpeech(workspaceId, model, text, cfg.voice ? String(cfg.voice) : undefined);
+    const res = await textToSpeech(
+      workspaceId,
+      model,
+      text,
+      cfg.voice ? String(cfg.voice) : undefined
+    );
     ctx.variables[(cfg.outputVar as string) || "audio"] = res.url;
     helpers.setOutput({ url: res.url });
   },
@@ -872,9 +922,16 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     const query = interpolate(String(cfg.query ?? ""), ctx.variables);
     const docsRaw = resolveValue(cfg.documents, ctx.variables);
     const documents = Array.isArray(docsRaw) ? docsRaw.map((d) => String(d)) : [];
-    if (documents.length === 0) throw new Error("La 'Lista de textos' tiene que ser una lista con elementos.");
+    if (documents.length === 0)
+      throw new Error("La 'Lista de textos' tiene que ser una lista con elementos.");
     const { rerank } = await import("./ai/run");
-    const res = await rerank(workspaceId, model, query, documents, cfg.topN ? Number(cfg.topN) : undefined);
+    const res = await rerank(
+      workspaceId,
+      model,
+      query,
+      documents,
+      cfg.topN ? Number(cfg.topN) : undefined
+    );
     ctx.variables[(cfg.outputVar as string) || "ranked"] = res.results;
     helpers.setOutput({ count: res.results.length });
   },
@@ -884,7 +941,8 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     const raw = String(cfg.integrationId ?? "");
     const [integrationId, action] = raw.split("::");
     if (!integrationId || !action) throw new Error("Falta elegir la app y la acción.");
-    const input = (deepInterpolate(cfg.input ?? {}, ctx.variables) as Record<string, unknown>) ?? {};
+    const input =
+      (deepInterpolate(cfg.input ?? {}, ctx.variables) as Record<string, unknown>) ?? {};
     const { runIntegrationAction } = await import("./integrations/store");
     const result = await runIntegrationAction(workspaceId, integrationId, action, input);
     const outputVar = (cfg.outputVar as string) ?? "appResult";
@@ -915,7 +973,18 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     helpers.setOutput({});
   },
 
-  loop_for_each: async ({ cfg, ctx, edges, node, nodes, runId, workspaceId, db, depth, helpers }) => {
+  loop_for_each: async ({
+    cfg,
+    ctx,
+    edges,
+    node,
+    nodes,
+    runId,
+    workspaceId,
+    db,
+    depth,
+    helpers,
+  }) => {
     const itemVar = (cfg.itemVar as string) ?? "item";
     // `items` (registry) es un template tipo {{lista}} que resolvemos al array
     // real; `arrayVar` es el nombre de variable legado.
@@ -991,7 +1060,8 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
   },
 
   wait_human: async ({ cfg, ctx, helpers }) => {
-    const msg = (cfg.instructions as string) ?? (cfg.message as string) ?? "Se necesita una aprobación";
+    const msg =
+      (cfg.instructions as string) ?? (cfg.message as string) ?? "Se necesita una aprobación";
     ctx.variables["_pendingApproval"] = {
       message: interpolate(msg, ctx.variables),
       assignee: cfg.assignee,
@@ -1038,7 +1108,11 @@ export async function enqueueFlowRun({
   workspaceId: string;
   triggerSource: string;
   input: Record<string, unknown>;
-}): Promise<{ runId: string; status: "pending" | "succeeded" | "failed" | "cancelled"; error?: string }> {
+}): Promise<{
+  runId: string;
+  status: "pending" | "succeeded" | "failed" | "cancelled";
+  error?: string;
+}> {
   const db = getDb();
   const flowRows = await db
     .select({ id: schema.flows.id })
@@ -1110,7 +1184,11 @@ export async function enqueueFlowRun({
     const msg = e instanceof Error ? e.message : String(e);
     await db
       .update(schema.flowRuns)
-      .set({ status: "failed", error: `No se pudo encolar la ejecución: ${msg}`, completedAt: new Date() })
+      .set({
+        status: "failed",
+        error: `No se pudo encolar la ejecución: ${msg}`,
+        completedAt: new Date(),
+      })
       .where(eq(schema.flowRuns.id, runId));
     throw e;
   }
@@ -1123,11 +1201,19 @@ export async function enqueueFlowRun({
  * quedaron en `running`/`pending` más allá de `maxAgeMs` (crash del worker,
  * timeout de serverless, OOM, deploy). Lo corre el worker periódicamente.
  * Sin esto, un run interrumpido queda en `running` para siempre.
+ *
+ * Cross-tenant by design: scans every workspace. When invoked from a
+ * `withCrossTenantAdmin` wrapper (the cron path), pass the `tx` so all
+ * queries run on the same connection that has the bypass GUC set — otherwise
+ * FORCE RLS rejects them.
  */
-export async function reapStaleRuns(maxAgeMs = 15 * 60_000): Promise<number> {
-  const db = getDb();
+type DbOrTx =
+  | ReturnType<typeof getDb>
+  | Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+export async function reapStaleRuns(maxAgeMs = 15 * 60_000, db?: DbOrTx): Promise<number> {
+  const exec = db ?? getDb();
   const cutoff = new Date(Date.now() - maxAgeMs);
-  const stale = await db
+  const stale = await exec
     .select({ id: schema.flowRuns.id })
     .from(schema.flowRuns)
     .where(
@@ -1138,12 +1224,13 @@ export async function reapStaleRuns(maxAgeMs = 15 * 60_000): Promise<number> {
     );
   if (stale.length === 0) return 0;
   const ids = stale.map((r) => r.id);
-  const err = "La ejecución se interrumpió (timeout o reinicio del worker) y fue marcada como fallida.";
-  await db
+  const err =
+    "La ejecución se interrumpió (timeout o reinicio del worker) y fue marcada como fallida.";
+  await exec
     .update(schema.flowRuns)
     .set({ status: "failed", error: err, completedAt: new Date() })
     .where(inArray(schema.flowRuns.id, ids));
-  await db
+  await exec
     .update(schema.flowRunSteps)
     .set({ status: "failed", error: err, completedAt: new Date() })
     .where(and(inArray(schema.flowRunSteps.runId, ids), eq(schema.flowRunSteps.status, "running")));
