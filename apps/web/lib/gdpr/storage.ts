@@ -31,6 +31,15 @@ export interface StorageAdapter {
     key: string,
     payload: NodeJS.ReadableStream | Buffer
   ): Promise<{ signedUrl: string; expiresAt: Date }>;
+
+  /**
+   * Regenerate a fresh signed download URL for an already-uploaded
+   * artefact identified by `key`. Used by the polling route so the
+   * URL is never persisted plain in the DB — every poll computes a
+   * new one with a fresh expiry. Implementations MUST NOT mutate the
+   * artefact.
+   */
+  regenerateSignedUrl(key: string): Promise<{ signedUrl: string; expiresAt: Date }>;
 }
 
 const SIGNED_URL_TTL_DAYS = 7;
@@ -50,22 +59,9 @@ class S3Adapter implements StorageAdapter {
     key: string,
     payload: NodeJS.ReadableStream | Buffer
   ): Promise<{ signedUrl: string; expiresAt: Date }> {
-    const clientMod = await import("@aws-sdk/client-s3").catch(() => null);
-    const signerMod = await import("@aws-sdk/s3-request-presigner").catch(() => null);
-    if (!clientMod || !signerMod) {
-      throw new Error(
-        "S3 adapter requires @aws-sdk/client-s3 + @aws-sdk/s3-request-presigner — install them or set STORAGE_BACKEND=filesystem"
-      );
-    }
-    const { S3Client, PutObjectCommand, GetObjectCommand } = clientMod;
-    const { getSignedUrl } = signerMod;
-
+    const { S3Client, PutObjectCommand } = await loadS3Client();
+    const bucket = requireS3Bucket();
     const region = process.env["AWS_REGION"] ?? "us-east-1";
-    const bucket = process.env["GDPR_EXPORT_BUCKET"];
-    if (!bucket) {
-      throw new Error("GDPR_EXPORT_BUCKET env var is required when STORAGE_BACKEND=s3");
-    }
-
     const s3 = new S3Client({ region });
     const body = Buffer.isBuffer(payload) ? payload : await streamToBuffer(payload);
 
@@ -82,10 +78,18 @@ class S3Adapter implements StorageAdapter {
       })
     );
 
+    return this.regenerateSignedUrl(key);
+  }
+
+  async regenerateSignedUrl(key: string): Promise<{ signedUrl: string; expiresAt: Date }> {
+    const { S3Client, GetObjectCommand } = await loadS3Client();
+    const { getSignedUrl } = await loadS3Presigner();
+    const bucket = requireS3Bucket();
+    const region = process.env["AWS_REGION"] ?? "us-east-1";
+    const s3 = new S3Client({ region });
     const signedUrl = await getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: key }), {
       expiresIn: SIGNED_URL_TTL_SECS,
     });
-
     return {
       signedUrl,
       expiresAt: new Date(Date.now() + SIGNED_URL_TTL_MS),
@@ -93,12 +97,40 @@ class S3Adapter implements StorageAdapter {
   }
 }
 
+async function loadS3Client() {
+  const clientMod = await import("@aws-sdk/client-s3").catch(() => null);
+  if (!clientMod) {
+    throw new Error(
+      "S3 adapter requires @aws-sdk/client-s3 — install it or set STORAGE_BACKEND=filesystem"
+    );
+  }
+  return clientMod;
+}
+
+async function loadS3Presigner() {
+  const signerMod = await import("@aws-sdk/s3-request-presigner").catch(() => null);
+  if (!signerMod) {
+    throw new Error(
+      "S3 adapter requires @aws-sdk/s3-request-presigner — install it or set STORAGE_BACKEND=filesystem"
+    );
+  }
+  return signerMod;
+}
+
+function requireS3Bucket(): string {
+  const bucket = process.env["GDPR_EXPORT_BUCKET"];
+  if (!bucket) {
+    throw new Error("GDPR_EXPORT_BUCKET env var is required when STORAGE_BACKEND=s3");
+  }
+  return bucket;
+}
+
 /**
  * Filesystem adapter. Writes the zip to `GDPR_EXPORT_DIR` (defaults to
- * `/tmp/orchester-exports`) and returns a `file://` URL. Self-host
- * deployments that want HTTP downloads should front this with a tiny
- * `/api/exports/[token]` route handler that HMAC-validates the token
- * — that route lives in the UI bundle that follows this one.
+ * `/tmp/orchester-exports`) and returns an HTTP URL pointing at
+ * `/api/exports/[token]`. The token is an HMAC-signed envelope of the
+ * storage key + expiry, so the download route can verify the link is
+ * valid without DB lookup AND so a leaked URL stops working at expiry.
  *
  * The local file path is deterministic per (workspaceId, jobId) so
  * retries overwrite cleanly instead of leaking orphan files.
@@ -121,13 +153,14 @@ class FilesystemAdapter implements StorageAdapter {
     const body = Buffer.isBuffer(payload) ? payload : await streamToBuffer(payload);
     await writeFile(filePath, body);
 
-    return {
-      // file:// URL is honest about what this is — production deploys
-      // should never see this branch. The /api/exports/[token] route
-      // can wrap this with an HMAC-signed download URL when needed.
-      signedUrl: `file://${filePath}`,
-      expiresAt: new Date(Date.now() + SIGNED_URL_TTL_MS),
-    };
+    return this.regenerateSignedUrl(key);
+  }
+
+  async regenerateSignedUrl(key: string): Promise<{ signedUrl: string; expiresAt: Date }> {
+    const expiresAt = new Date(Date.now() + SIGNED_URL_TTL_MS);
+    const { buildExportDownloadUrl } = await import("./signed-url");
+    const signedUrl = await buildExportDownloadUrl(key, expiresAt);
+    return { signedUrl, expiresAt };
   }
 }
 
@@ -166,4 +199,16 @@ export async function uploadZip(
   payload: NodeJS.ReadableStream | Buffer
 ): Promise<{ signedUrl: string; expiresAt: Date }> {
   return getAdapter().upload(key, payload);
+}
+
+/**
+ * Regenerate a fresh signed download URL for a previously-uploaded
+ * artefact. The polling route calls this per request so the URL is
+ * never persisted plain in the DB — a leaked job row gives an
+ * attacker a storageKey, not a working download link.
+ */
+export async function regenerateSignedUrl(
+  key: string
+): Promise<{ signedUrl: string; expiresAt: Date }> {
+  return getAdapter().regenerateSignedUrl(key);
 }
