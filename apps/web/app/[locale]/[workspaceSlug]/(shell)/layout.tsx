@@ -3,6 +3,7 @@ import { Sidebar } from "@/components/shell/Sidebar";
 import { Topbar } from "@/components/shell/Topbar";
 import { CommandPalette } from "@/components/shell/CommandPalette";
 import { SuspendedBanner } from "@/components/workspace/SuspendedBanner";
+import { GdprExportProgress } from "@/components/workspace/GdprExportProgress";
 import { getCurrentSession, getCurrentWorkspaceBySlug } from "@/lib/workspace";
 
 /**
@@ -68,6 +69,11 @@ export default async function ShellLayout({
         </main>
       </div>
       <CommandPalette />
+      {/* Global GDPR export progress toast — survives in-app
+          navigation because it's mounted at the shell layout, not at
+          the route level. State lives in localStorage keyed on the
+          latest job ID. */}
+      <GdprExportProgress />
     </div>
   );
 }
