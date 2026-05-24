@@ -17,11 +17,10 @@
     // fixture import (apps/web/tests/fixtures/workspaces.ts) resolves
     // `@orchester/db` the same way the web app does — apps/web relies
     // on `paths`, not node_modules symlinks, for that specifier.
-    // paths is relative to the tsconfig dir (no baseUrl needed in TS 5.x+).
-    // baseUrl was deprecated in TS 6.0 and will be removed in TS 7.0.
+    "baseUrl": ".",
     "paths": {
-      "@orchester/db": ["./../db/src/index.ts"],
-      "@orchester/db/schema": ["./../db/src/schema/index.ts"]
+      "@orchester/db": ["../db/src/index.ts"],
+      "@orchester/db/schema": ["../db/src/schema/index.ts"]
     }
   },
   "include": ["src/**/*", "tests/**/*"]
