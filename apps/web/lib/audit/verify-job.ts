@@ -1,10 +1,14 @@
 // apps/web/lib/audit/verify-job.ts
 //
 // Daily cron worker that walks every ACTIVE workspace's audit chain and
-// records a `security_event` of severity `critical` for any break. The
-// real PagerDuty/Slack alert is environment-driven (env var
-// SECURITY_ALERT_WEBHOOK); for now we log to stderr so deployment can
-// scrape it.
+// records a `security_event` of severity `critical` for any break.
+//
+// When `SECURITY_ALERT_WEBHOOK` is set the worker also POSTs a JSON
+// payload to that URL (typically a PagerDuty Events v2 / Slack Webhook
+// / generic incident manager). Failures of the webhook itself are
+// logged but never raise — losing the alert delivery would mask the
+// underlying audit-chain break in the cron run, and the
+// `security_event` row + stderr log are the source of truth.
 //
 // Cross-tenant access pattern:
 //   - The workspace iteration runs INSIDE the `withCrossTenantAdmin`
@@ -24,6 +28,7 @@ import { eq } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { schema } from "@orchester/db";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
+import { safeLogError } from "@/lib/safe-log";
 import { verifyChain } from "./verify";
 
 export async function runVerifyAllChains(): Promise<void> {
@@ -50,9 +55,8 @@ export async function runVerifyAllChains(): Promise<void> {
             foundHash: result.brokenAt.foundHash,
           },
         });
-        // PagerDuty/Slack webhook integration is environment-specific
-        // (configured via env var SECURITY_ALERT_WEBHOOK in production).
-        // For now we log to stderr; production deploy adds the webhook fetch.
+        // Stderr line is the universal signal — every deploy (with
+        // or without a webhook) gets it scraped by the log shipper.
         // eslint-disable-next-line no-console
         console.error(
           JSON.stringify({
@@ -64,6 +68,30 @@ export async function runVerifyAllChains(): Promise<void> {
             verifiedAt: result.verifiedAt.toISOString(),
           })
         );
+
+        // PagerDuty/Slack webhook delivery is opt-in. We POST a
+        // self-describing payload (the consumer can branch on `type`)
+        // and swallow any error — the alert row + stderr line above
+        // are the durable signals.
+        const webhook = process.env["SECURITY_ALERT_WEBHOOK"];
+        if (webhook) {
+          try {
+            await fetch(webhook, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                type: "audit.chain_break_detected",
+                workspaceId: ws.id,
+                severity: "critical",
+                entriesChecked: result.entriesChecked,
+                brokenAt: result.brokenAt,
+                verifiedAt: result.verifiedAt.toISOString(),
+              }),
+            });
+          } catch (err) {
+            safeLogError("[audit] security alert webhook failed:", err);
+          }
+        }
       }
     }
   });
