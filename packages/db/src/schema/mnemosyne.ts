@@ -141,3 +141,55 @@ export const mnemoDecisions = pgTable("mnemo_decision", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });
+
+export const mnemoRelations = pgTable("mnemo_relation", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  sourceKind: text("source_kind", {
+    enum: ["fact", "decision", "entity", "episode"],
+  }).notNull(),
+  sourceId: text("source_id").notNull(),
+  targetKind: text("target_kind", {
+    enum: ["fact", "decision", "entity", "episode"],
+  }).notNull(),
+  targetId: text("target_id").notNull(),
+  relation: text("relation", {
+    enum: [
+      "related",
+      "compatible",
+      "scoped",
+      "conflicts_with",
+      "supersedes",
+      "not_conflict",
+      "derived_from",
+      "part_of",
+      "member_of",
+    ],
+  }).notNull(),
+  judgmentStatus: text("judgment_status", {
+    enum: ["pending", "judged", "dismissed"],
+  })
+    .notNull()
+    .default("pending"),
+  reason: text("reason"),
+  evidence: jsonb("evidence"),
+  confidence: real("confidence"),
+  markedByUserId: text("marked_by_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  markedByKind: text("marked_by_kind", {
+    enum: ["user", "agent", "system", "llm_judge"],
+  }).notNull(),
+  markedByModel: text("marked_by_model"),
+  markedByPromptVersion: text("marked_by_prompt_version"),
+  conversationId: text("conversation_id").references(() => conversations.id, {
+    onDelete: "set null",
+  }),
+  supersededByRelationId: text("superseded_by_relation_id"),
+  validFrom: timestamp("valid_from", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  validTo: timestamp("valid_to", { withTimezone: true, mode: "date" }),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
