@@ -9,13 +9,29 @@
 // returns `brokenAt: null` plus the total number of entries verified.
 import "server-only";
 import { asc, eq } from "drizzle-orm";
-import { getDb, schema } from "@orchester/db";
+import { getDb, schema, type DbClient } from "@orchester/db";
 import { computePayloadHash, computeChainHash } from "./chain";
 import type { ChainVerifyResult } from "./types";
 
-export async function verifyChain(workspaceId: string): Promise<ChainVerifyResult> {
-  const db = getDb();
-  const entries = await db
+/**
+ * Walk a workspace's audit chain and surface the first break, if any.
+ *
+ * `db` is optional so the cron worker (B2.2) can pass the same
+ * transaction handle that `withCrossTenantAdmin` opened — otherwise the
+ * SELECT would run on a different pooled connection that doesn't carry
+ * the `app.cross_tenant_admin` GUC and would be blocked by FORCE RLS on
+ * `audit_log`. The API-route caller (which already runs in the user's
+ * workspace context) keeps the default `getDb()` behaviour.
+ *
+ * The handle accepted is intentionally typed as `DbClient` — both the
+ * pooled client and a drizzle `tx` handle satisfy the structural shape
+ * we need (`.select().from(...).where(...).orderBy(...)`).
+ */
+type AnyDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
+
+export async function verifyChain(workspaceId: string, db?: AnyDb): Promise<ChainVerifyResult> {
+  const client = db ?? getDb();
+  const entries = await client
     .select()
     .from(schema.auditLog)
     .where(eq(schema.auditLog.workspaceId, workspaceId))

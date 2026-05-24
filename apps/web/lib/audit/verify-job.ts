@@ -10,10 +10,13 @@
 //   - The workspace iteration runs INSIDE the `withCrossTenantAdmin`
 //     transaction (`tx`) so the `app.cross_tenant_admin` GUC bypasses
 //     FORCE RLS on `workspace`.
-//   - `verifyChain(ws.id)` uses the global pool (`getDb()`). It works
-//     because `cron_admin` is granted BYPASSRLS at the role level (see
-//     migration 0006), so RLS doesn't block its SELECTs on `audit_log`
-//     even outside the GUC-tagged connection.
+//   - `verifyChain(ws.id, tx)` runs on the SAME transaction handle so
+//     the GUC bypass propagates to `audit_log` SELECTs. Previously this
+//     fell through to `getDb()` and relied on the cron_admin role being
+//     BYPASSRLS — fragile because (a) any future re-pool grabs a fresh
+//     connection without the GUC, and (b) the cron role's bypass might
+//     be revoked or scoped down without anyone noticing the audit-log
+//     dependency. Passing `tx` makes the dependency explicit.
 //   - The `security_event` INSERT also runs on `tx` — same reasoning,
 //     keeps the bypass auditable through the cron log.
 import "server-only";
@@ -31,9 +34,10 @@ export async function runVerifyAllChains(): Promise<void> {
       .where(eq(schema.workspaces.status, "active"));
 
     for (const ws of workspaces) {
-      // verifyChain uses getDb() internally; safe under cron_admin
-      // because the role bypasses RLS.
-      const result = await verifyChain(ws.id);
+      // B2.2 — pass `tx` so the chain SELECT runs under the same GUC
+      // bypass we set above. Don't rely on the cron role's BYPASSRLS to
+      // paper over a missing GUC propagation.
+      const result = await verifyChain(ws.id, tx);
       if (result.brokenAt) {
         await tx.insert(schema.securityEvents).values({
           id: createId(),
