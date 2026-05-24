@@ -156,8 +156,19 @@ export async function runExportJob(jobId: string): Promise<void> {
         .where(eq(schema.users.id, job.requestedByUserId))
         .limit(1);
       const owner = ownerRows[0];
+      // Surface email send failures on the job row WITHOUT failing the
+      // whole job — the artefact is on storage and the signed URL is
+      // about to be persisted. We piggyback on the existing `error`
+      // column (no schema migration here): the polling response shows
+      // `error` alongside the download link, so a recipient sees
+      // `email_send_failed: <provider message>` and knows to use the
+      // URL directly instead of waiting for an inbox notification.
+      let emailError: string | null = null;
       if (owner) {
-        await sendExportReadyEmail(owner.email, signedUrl, expiresAt);
+        const r = await sendExportReadyEmail(owner.email, signedUrl, expiresAt);
+        if (!r.ok && r.error) {
+          emailError = `email_send_failed: ${r.error}`;
+        }
       }
 
       await tx
@@ -170,6 +181,9 @@ export async function runExportJob(jobId: string): Promise<void> {
           signedUrlExpiresAt: expiresAt,
           bytesTotal: BigInt(buffer.byteLength),
           completedAt: new Date(),
+          // null = email sent (or stub path), string = surface the
+          // provider message so the user knows to use the URL directly.
+          error: emailError,
         })
         .where(eq(schema.gdprExportJobs.id, jobId));
     } catch (e) {

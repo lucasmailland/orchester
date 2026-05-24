@@ -16,19 +16,32 @@ import "server-only";
 const SIGNED_URL_TTL_DAYS = 7;
 
 /**
+ * Result envelope. `ok=true` means the email landed at Resend (or the
+ * stub-log path ran because RESEND_API_KEY is unset / resend dep is
+ * missing — both are intentional dev/self-host paths and treated as
+ * success). `ok=false` carries the human-readable provider message in
+ * `error` so the caller can persist it on the job row.
+ */
+export interface SendEmailResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
  * Notify the export requester that their archive is ready.
  *
- * No throw on email failure — the export job itself has already
- * succeeded by the time we get here, and we don't want to flip the
- * job to "failed" because Resend had a hiccup. The signed URL is
- * persisted on the job row regardless, so the UI can recover by
- * showing the link.
+ * Never throws on Resend failures — the export job has already produced
+ * a downloadable artefact by the time we get here, and we don't want to
+ * flip the whole job to "failed" because the email provider hiccuped.
+ * Instead we return `{ ok: false, error }` so the worker can persist
+ * the failure on the job row (`error` column) while leaving the
+ * download link reachable.
  */
 export async function sendExportReadyEmail(
   toEmail: string,
   signedUrl: string,
   expiresAt: Date
-): Promise<void> {
+): Promise<SendEmailResult> {
   const apiKey = process.env["RESEND_API_KEY"];
   if (!apiKey) {
     // eslint-disable-next-line no-console
@@ -41,7 +54,8 @@ export async function sendExportReadyEmail(
         expiresAt: expiresAt.toISOString(),
       })
     );
-    return;
+    // Stub path is an intentional dev/self-host mode, not a failure.
+    return { ok: true };
   }
 
   // Dynamic import + catch so a missing `resend` package degrades to
@@ -59,7 +73,8 @@ export async function sendExportReadyEmail(
         toEmail,
       })
     );
-    return;
+    // Missing optional dep is a deploy-shape choice, not a failure.
+    return { ok: true };
   }
 
   const from = process.env["RESEND_FROM"] ?? "Orchester <no-reply@orchester.app>";
@@ -77,11 +92,16 @@ export async function sendExportReadyEmail(
       emails: { send: (args: Record<string, unknown>) => Promise<unknown> };
     })(apiKey);
     await resend.emails.send({ from, to: toEmail, subject, html });
+    return { ok: true };
   } catch (err) {
     // Don't bubble — the artefact is uploaded already, the user can
-    // still recover via the GET endpoint that lists their jobs.
+    // still recover via the GET endpoint that lists their jobs. We do
+    // surface the message back to the caller so it can be persisted on
+    // the job row alongside the (still-valid) download URL.
     const { safeLogError } = await import("../safe-log");
     safeLogError("[gdpr.email] resend send failed:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
   }
 }
 
