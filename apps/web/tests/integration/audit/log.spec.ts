@@ -55,8 +55,9 @@ describe("appendAuditSync", () => {
       .from(schema.auditLog)
       .where(eq(schema.auditLog.workspaceId, wsA.id))
       .orderBy(asc(schema.auditLog.seq));
-    expect(rows[0].seq).toBe(BigInt(1));
-    expect(rows[0].prevHash).toBeNull();
+    expect(rows[0]).toBeDefined();
+    expect(rows[0]!.seq).toBe(BigInt(1));
+    expect(rows[0]!.prevHash).toBeNull();
   });
 
   it("increments seq monotonically on subsequent appends", async () => {

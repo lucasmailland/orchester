@@ -1,26 +1,30 @@
 // apps/web/tests/fixtures/db.ts
 //
 // Spins up an isolated postgres container per test process, applies all
-// drizzle migrations, and seeds the app/cron roles required by RLS in
-// Phase A. Reused across integration suites so we pay container startup
-// only once.
+// drizzle migrations + hand-rolled SQL migrations, then exposes a real
+// postgres-js client. Reused across integration suites so we pay
+// container startup only once.
+//
+// Uses postgres-js (NOT node-postgres/pg) so we stay on the same drizzle
+// peer-resolution as production code — pulling `pg` into apps/web triggers
+// a duplicate drizzle-orm install (incompatible nominal types across the
+// codebase). Sticking with postgres-js keeps the type graph deduped.
 import { GenericContainer, type StartedTestContainer } from "testcontainers";
-import { Pool } from "pg";
-import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import postgres from "postgres";
+import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
 import path from "path";
 import fs from "fs/promises";
 
 let container: StartedTestContainer | null = null;
-let pool: Pool | null = null;
-let db: NodePgDatabase | null = null;
+let sql: ReturnType<typeof postgres> | null = null;
+let db: PostgresJsDatabase | null = null;
 
 export async function setupTestDb(): Promise<{
-  db: NodePgDatabase;
-  pool: Pool;
-  cronPool: Pool;
+  db: PostgresJsDatabase;
+  sql: ReturnType<typeof postgres>;
 }> {
-  if (db && pool) return { db, pool, cronPool: pool };
+  if (db && sql) return { db, sql };
 
   // pgvector image — the drizzle baseline runs `CREATE EXTENSION vector`,
   // so we need a postgres image that ships with the extension.
@@ -34,20 +38,14 @@ export async function setupTestDb(): Promise<{
 
   const port = container.getMappedPort(5432);
   const host = container.getHost();
-
-  pool = new Pool({
-    host,
-    port,
-    user: "postgres",
-    password: "test",
-    database: "orchester",
-  });
+  const url = `postgres://postgres:test@${host}:${port}/orchester`;
 
   // Expose the connection string so `getDb()` (postgres-js, called by
   // production code under test) points at the same container.
-  process.env["DATABASE_URL"] = `postgres://postgres:test@${host}:${port}/orchester`;
+  process.env["DATABASE_URL"] = url;
 
-  db = drizzle(pool);
+  sql = postgres(url, { max: 5, onnotice: () => {} });
+  db = drizzle(sql);
 
   // 1. Apply the drizzle-kit baseline + indexes (these own the schema and
   //    ship a meta/_journal.json so the migrator can resume).
@@ -63,21 +61,21 @@ export async function setupTestDb(): Promise<{
     .filter((f) => f.endsWith(".sql") && !f.endsWith(".down.sql"))
     .sort();
   for (const file of files) {
-    const sql = await fs.readFile(path.join(sqlDir, file), "utf8");
-    await pool.query(sql);
+    const body = await fs.readFile(path.join(sqlDir, file), "utf8");
+    await sql.unsafe(body);
   }
 
   // Roles are created by migration 0007_postgres_roles.sql above. No
   // additional setup needed here — superuser `postgres` bypasses RLS so
   // tests can read/write freely without explicit role switching.
 
-  return { db, pool, cronPool: pool };
+  return { db, sql };
 }
 
 export async function teardownTestDb(): Promise<void> {
-  await pool?.end();
+  await sql?.end({ timeout: 5 });
   await container?.stop();
-  pool = null;
+  sql = null;
   db = null;
   container = null;
 }

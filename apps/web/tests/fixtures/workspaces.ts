@@ -7,7 +7,7 @@ import { setupTestDb, teardownTestDb } from "./db";
 import { faker } from "@faker-js/faker";
 import { createId } from "@paralleldrive/cuid2";
 import { schema } from "@orchester/db";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
 export interface WsFixture {
   id: string;
@@ -29,7 +29,7 @@ export async function setupTestWorkspaces(): Promise<[WsFixture, WsFixture]> {
   return [wsA, wsB];
 }
 
-async function createWorkspace(db: NodePgDatabase, slug: string): Promise<WsFixture> {
+async function createWorkspace(db: PostgresJsDatabase, slug: string): Promise<WsFixture> {
   const wsId = createId();
   const ownerId = createId();
   const email = faker.internet.email();
