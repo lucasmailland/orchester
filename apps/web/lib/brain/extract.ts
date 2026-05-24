@@ -22,7 +22,10 @@ const FactSchema = z.object({
   confidence: z.number().min(0).max(1).default(0.7),
 });
 
-const FactsArraySchema = z.array(FactSchema).max(8);
+// Cap at 5 to match the system prompt rule ("Max 5 facts per pass") and
+// the design intent in the spec. Going wider would silently bypass the
+// quality cap and increase storage + embedding billing per turn.
+const FactsArraySchema = z.array(FactSchema).max(5);
 
 const SYSTEM_PROMPT = `You extract durable facts about the user, company, or team from a conversation.
 

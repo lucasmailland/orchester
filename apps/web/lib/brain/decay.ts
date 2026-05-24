@@ -3,10 +3,12 @@
 // Exponential decay of `brain_fact.relevance` over time. Daily cron
 // walks every active fact in every workspace, applies:
 //
-//   relevance' = max(0.05, relevance * exp(-Δt / HALF_LIFE_DAYS))
+//   relevance' = max(0.05, relevance * exp(-ln(2) * Δt / HALF_LIFE_DAYS))
 //
 // where Δt is days since `last_recalled_at` (or `created_at` if never
-// recalled). Pinned facts are exempt — they never decay.
+// recalled). This is TRUE half-life: at Δt = HALF_LIFE_DAYS the value
+// is exactly halved (NOT e-folded — `exp(-t/H)` would give ~0.368).
+// Pinned facts are exempt — they never decay.
 //
 // The floor (0.05) keeps facts visible in scored recall (so a user can
 // still find them by typing the exact subject), but pushes them below

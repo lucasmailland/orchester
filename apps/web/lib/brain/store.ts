@@ -25,13 +25,6 @@ export async function withBrainTx<T>(workspaceId: string, fn: (tx: Tx) => Promis
   });
 }
 
-function asTx(workspaceId: string, tx: Tx | undefined): Promise<Tx> {
-  if (tx) return Promise.resolve(tx);
-  // Caller didn't pass a tx — we can't return one without opening it.
-  // Wrap the operation via withBrainTx in the caller instead.
-  throw new Error(`brain/store: tx required — wrap caller in withBrainTx(${workspaceId}, ...)`);
-}
-
 export interface CreateFactInput {
   workspaceId: string;
   agentId?: string | null;
@@ -97,18 +90,11 @@ export async function createFact(input: CreateFactInput): Promise<BrainFact> {
 }
 
 /** Soft-delete (status='forgotten'). Use `hardDelete` only from compaction. */
-export async function forgetFact(
-  workspaceId: string,
-  factId: string,
-  tx: Tx
-): Promise<void> {
-  await asTx(workspaceId, tx);
+export async function forgetFact(workspaceId: string, factId: string, tx: Tx): Promise<void> {
   await tx
     .update(schema.brainFacts)
     .set({ status: "forgotten" })
-    .where(
-      and(eq(schema.brainFacts.id, factId), eq(schema.brainFacts.workspaceId, workspaceId))
-    );
+    .where(and(eq(schema.brainFacts.id, factId), eq(schema.brainFacts.workspaceId, workspaceId)));
 }
 
 export interface ListFactsInput {
@@ -152,9 +138,7 @@ export async function getFact(
   const rows = await tx
     .select()
     .from(schema.brainFacts)
-    .where(
-      and(eq(schema.brainFacts.id, factId), eq(schema.brainFacts.workspaceId, workspaceId))
-    )
+    .where(and(eq(schema.brainFacts.id, factId), eq(schema.brainFacts.workspaceId, workspaceId)))
     .limit(1);
   return (rows[0] as BrainFact | undefined) ?? null;
 }
@@ -200,11 +184,7 @@ export async function updateFact(input: UpdateFactInput): Promise<BrainFact | nu
 }
 
 /** Bump hitCount + lastRecalledAt for a set of facts. Used by recall. */
-export async function markRecalled(
-  workspaceId: string,
-  factIds: string[],
-  tx: Tx
-): Promise<void> {
+export async function markRecalled(workspaceId: string, factIds: string[], tx: Tx): Promise<void> {
   if (factIds.length === 0) return;
   await tx
     .update(schema.brainFacts)
@@ -213,9 +193,6 @@ export async function markRecalled(
       lastRecalledAt: new Date(),
     })
     .where(
-      and(
-        eq(schema.brainFacts.workspaceId, workspaceId),
-        inArray(schema.brainFacts.id, factIds)
-      )
+      and(eq(schema.brainFacts.workspaceId, workspaceId), inArray(schema.brainFacts.id, factIds))
     );
 }

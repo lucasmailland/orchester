@@ -2,10 +2,16 @@
 //
 // searchBrain — hybrid recall over `brain_fact`. Scoring:
 //   score = 0.50 * semantic    (pgvector cosine)
-//         + 0.15 * recency     (exp(-age_days / 30))
+//         + 0.15 * recency     (true half-life: exp(-ln(2) * age_days / 30))
 //         + 0.10 * frequency   (log(1 + hitCount) / log(100))
-//         + 0.20 * relevance   (decay-adjusted)
+//         + 0.20 * relevance   (decay-adjusted, true half-life — see decay.ts)
 //         + 0.05 * pin_bonus
+//
+// Recency and `relevance` MUST share the same decay model so they live on
+// the same numeric scale when blended. Both use true half-life with H=30d:
+// e-folding (exp(-t/H)) would give recency=0.368 at t=H while relevance
+// (from decay.ts) gives 0.5 at the same age — and the linear blend above
+// silently distorts.
 //
 // Cache: in-process LRU keyed by (workspaceId, agentId, scope, scopeRef,
 // queryHash) with 60s TTL. Invalidated on create/forget/merge via
@@ -86,8 +92,10 @@ export async function searchBrain(input: SearchBrainInput): Promise<RecallHit[]>
 
   // Run search inside a workspace-scoped txn so RLS FORCE allows the SELECT.
   const hits = await withBrainTx(input.workspaceId, async (tx) => {
-    // Hybrid score expressed in SQL. Decay-recency uses extract(epoch)
-    // on the diff; frequency uses ln(1 + hit_count) / ln(100).
+    // Hybrid score expressed in SQL. Recency uses true half-life
+    // (exp(-ln(2) * Δt / H)) so it stays on the same scale as the
+    // `relevance` column, which is decayed by the cron via the same
+    // formula. Frequency uses ln(1 + hit_count) / ln(100).
     const result = await tx.execute(sql`
       SELECT
         id, workspace_id, agent_id, scope, scope_ref, kind, subject,
@@ -95,7 +103,7 @@ export async function searchBrain(input: SearchBrainInput): Promise<RecallHit[]>
         last_recalled_at, source_message_ids, metadata, status,
         merged_into_id, created_at, updated_at,
         (1.0 - (embedding <=> ${vecLiteral}::vector)) AS semantic,
-        exp(-EXTRACT(EPOCH FROM (now() - created_at)) / (30.0 * 86400.0)) AS recency,
+        exp(-LN(2.0) * EXTRACT(EPOCH FROM (now() - created_at)) / (30.0 * 86400.0)) AS recency,
         (ln(1.0 + hit_count) / ln(100.0)) AS frequency,
         CASE WHEN pinned THEN 1.0 ELSE 0.0 END AS pin_bonus
       FROM brain_fact
@@ -144,7 +152,8 @@ export async function searchBrain(input: SearchBrainInput): Promise<RecallHit[]>
       const frequency = Number(r.frequency);
       const relevance = Number(r.relevance);
       const pin = Number(r.pin_bonus);
-      const score = 0.5 * semantic + 0.15 * recency + 0.1 * frequency + 0.2 * relevance + 0.05 * pin;
+      const score =
+        0.5 * semantic + 0.15 * recency + 0.1 * frequency + 0.2 * relevance + 0.05 * pin;
       return {
         fact: {
           id: r.id,
