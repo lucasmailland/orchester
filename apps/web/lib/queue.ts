@@ -134,11 +134,7 @@ export async function registerWorker<T = unknown>(
 }
 
 /** Schedule recurrente (cron). */
-export async function schedule(
-  name: string,
-  cron: string,
-  data: unknown = {}
-): Promise<void> {
+export async function schedule(name: string, cron: string, data: unknown = {}): Promise<void> {
   const boss = await getBoss();
   await ensureQueue(name);
   await boss.schedule(name, cron, data, { tz: "UTC" });
@@ -160,3 +156,6 @@ export const JOB_KB_REINDEX = "kb:reindex";
 export const JOB_WEBHOOK_DELIVER = "webhook:deliver";
 export const JOB_USAGE_AGGREGATE = "usage:aggregate";
 export const JOB_RETENTION = "data:retention";
+export const JOB_AUDIT_VERIFY_ALL = "audit:verify_all_chains";
+export const JOB_WORKSPACE_HARD_DELETE = "workspace:hard_delete";
+export const JOB_GDPR_EXPORT = "gdpr:export";

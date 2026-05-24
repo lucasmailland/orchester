@@ -25,11 +25,13 @@ import {
   JOB_WEBHOOK_DELIVER,
   JOB_USAGE_AGGREGATE,
   JOB_RETENTION,
+  JOB_AUDIT_VERIFY_ALL,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
 import { purgeOldData } from "../lib/retention";
 import { withCrossTenantAdmin } from "../lib/tenant/cron";
+import { runVerifyAllChains } from "../lib/audit/verify-job";
 
 interface FlowRunJob {
   runId: string;
@@ -106,6 +108,16 @@ async function main(): Promise<void> {
     );
   });
   await schedule(JOB_RETENTION, "30 3 * * *"); // 03:30 UTC
+
+  // ── Audit chain verifier (cron, diario 03:00 UTC) ───────────
+  // Phase E.4: walks every active workspace's audit_log and emits a
+  // critical security_event for any tampered chain. The bypass is
+  // applied inside runVerifyAllChains via withCrossTenantAdmin.
+  await registerWorker(JOB_AUDIT_VERIFY_ALL, async () => {
+    await runVerifyAllChains();
+    console.log("[worker] audit:verify_all_chains tick");
+  });
+  await schedule(JOB_AUDIT_VERIFY_ALL, "0 3 * * *"); // 03:00 UTC
 
   console.log("[worker] ready, waiting for jobs…");
 }
