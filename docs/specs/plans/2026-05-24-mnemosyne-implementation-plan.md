@@ -428,14 +428,14 @@ Expected: `ok main` or equivalent success.
 - Create: `packages/mnemosyne/src/index.ts`
 - Create: `packages/mnemosyne/README.md`
 
-- [ ] **Step 1: Create package directory**
+- [x] **Step 1: Create package directory**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
 mkdir -p packages/mnemosyne/src packages/mnemosyne/tests/unit packages/mnemosyne/tests/integration
 ```
 
-- [ ] **Step 2: Create package.json**
+- [x] **Step 2: Create package.json**
 
 ```json
 {
@@ -470,7 +470,7 @@ mkdir -p packages/mnemosyne/src packages/mnemosyne/tests/unit packages/mnemosyne
 }
 ```
 
-- [ ] **Step 3: Create tsconfig.json**
+- [x] **Step 3: Create tsconfig.json**
 
 ```json
 {
@@ -484,7 +484,7 @@ mkdir -p packages/mnemosyne/src packages/mnemosyne/tests/unit packages/mnemosyne
 }
 ```
 
-- [ ] **Step 4: Create src/index.ts placeholder**
+- [x] **Step 4: Create src/index.ts placeholder**
 
 ```ts
 // packages/mnemosyne/src/index.ts
@@ -496,7 +496,7 @@ mkdir -p packages/mnemosyne/src packages/mnemosyne/tests/unit packages/mnemosyne
 export const MNEMOSYNE_VERSION = "0.1.0";
 ```
 
-- [ ] **Step 5: Create README.md placeholder**
+- [x] **Step 5: Create README.md placeholder**
 
 ```markdown
 # @orchester/mnemosyne
@@ -508,7 +508,7 @@ See `docs/specs/2026-05-24-mnemosyne-design.md` for full design.
 ## Status: v0.1 (Migration phase)
 ```
 
-- [ ] **Step 6: Install dependencies + verify**
+- [x] **Step 6: Install dependencies + verify**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -518,7 +518,7 @@ pnpm --filter @orchester/mnemosyne test 2>&1 | tail -5
 
 Expected: install completes; test command reports "No test files found" (no tests yet — OK).
 
-- [ ] **Step 7: Commit package scaffold**
+- [x] **Step 7: Commit package scaffold**
 
 ```bash
 git add packages/mnemosyne/
@@ -534,7 +534,7 @@ git -c commit.gpgsign=false commit -m "feat(mnemosyne): scaffold @orchester/mnem
 - Create: `packages/db/migrations/0017_mnemosyne_init.sql`
 - Create: `packages/db/migrations/0017_mnemosyne_init.down.sql`
 
-- [ ] **Step 1: Write migration SQL**
+- [x] **Step 1: Write migration SQL**
 
 `packages/db/migrations/0017_mnemosyne_init.sql`:
 
@@ -632,7 +632,7 @@ ALTER TABLE mnemo_extraction_job  FORCE  ROW LEVEL SECURITY;
 SELECT apply_pattern_a('mnemo_extraction_job');
 ```
 
-- [ ] **Step 2: Write down migration**
+- [x] **Step 2: Write down migration**
 
 `packages/db/migrations/0017_mnemosyne_init.down.sql`:
 
@@ -644,7 +644,7 @@ DROP FUNCTION IF EXISTS mnemo_fact_set_updated_at();
 DROP TABLE IF EXISTS mnemo_fact CASCADE;
 ```
 
-- [ ] **Step 3: Apply migration locally + verify**
+- [x] **Step 3: Apply migration locally + verify**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -654,7 +654,7 @@ docker exec orchester-postgres psql -U orchester -d orchester -c "\d mnemo_fact"
 
 Expected: table exists with columns shown.
 
-- [ ] **Step 4: Verify RLS+FORCE applied**
+- [x] **Step 4: Verify RLS+FORCE applied**
 
 ```bash
 docker exec orchester-postgres psql -U orchester -d orchester -c "SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname LIKE 'mnemo_%' AND relkind = 'r';"
@@ -662,7 +662,7 @@ docker exec orchester-postgres psql -U orchester -d orchester -c "SELECT relname
 
 Expected: both `mnemo_fact` and `mnemo_extraction_job` show `t | t`.
 
-- [ ] **Step 5: Verify 4 policies (Pattern A) on each table**
+- [x] **Step 5: Verify 4 policies (Pattern A) on each table**
 
 ```bash
 docker exec orchester-postgres psql -U orchester -d orchester -c "SELECT tablename, count(*) FROM pg_policies WHERE tablename LIKE 'mnemo_%' GROUP BY tablename;"
@@ -670,7 +670,7 @@ docker exec orchester-postgres psql -U orchester -d orchester -c "SELECT tablena
 
 Expected: each shows 4 policies.
 
-- [ ] **Step 6: Commit migration**
+- [x] **Step 6: Commit migration**
 
 ```bash
 git add packages/db/migrations/0017_mnemosyne_init.sql packages/db/migrations/0017_mnemosyne_init.down.sql
@@ -686,7 +686,7 @@ git -c commit.gpgsign=false commit -m "feat(db): migration 0017 — mnemo_fact +
 - Create: `packages/db/src/schema/mnemosyne.ts`
 - Modify: `packages/db/src/schema/index.ts`
 
-- [ ] **Step 1: Write Drizzle schema**
+- [x] **Step 1: Write Drizzle schema**
 
 `packages/db/src/schema/mnemosyne.ts`:
 
@@ -804,7 +804,7 @@ export const mnemoExtractionJobs = pgTable("mnemo_extraction_job", {
 });
 ```
 
-- [ ] **Step 2: Re-export from schema barrel**
+- [x] **Step 2: Re-export from schema barrel**
 
 In `packages/db/src/schema/index.ts`, add:
 
@@ -812,7 +812,7 @@ In `packages/db/src/schema/index.ts`, add:
 export * from "./mnemosyne";
 ```
 
-- [ ] **Step 3: Verify typecheck**
+- [x] **Step 3: Verify typecheck**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester/apps/web
@@ -821,7 +821,7 @@ npx tsc --noEmit 2>&1 | tail -5
 
 Expected: `TypeScript: No errors found`.
 
-- [ ] **Step 4: Commit schema**
+- [x] **Step 4: Commit schema**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
