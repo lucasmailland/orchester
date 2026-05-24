@@ -1,11 +1,34 @@
 import "server-only";
 import { createId } from "@paralleldrive/cuid2";
-import { getDb, schema } from "@orchester/db";
+import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and, inArray, lt, count, sql } from "drizzle-orm";
 import { llmCall } from "./llm-call";
 import { enqueue, JOB_FLOW_RUN } from "./queue";
 import { assertPublicUrl } from "./net-guard";
 import { logWithContext, recordMetric } from "./observability";
+
+/**
+ * R2-C: Flow execution writes to tenant tables (flow_runs,
+ * flow_run_steps) and reads from many others (agents, knowledge bases,
+ * integrations). Every query MUST run inside a transaction with
+ * `app.workspace_id` SET LOCAL or FORCE RLS rejects it.
+ *
+ * We deliberately do NOT wrap the entire `executeFlow` body in one big
+ * transaction — flow runs can take minutes (delay nodes, long HTTP
+ * calls, model polling) and a multi-minute open txn holds a pool
+ * connection + locks the entire time. Instead we open SHORT
+ * workspace-scoped transactions per phase (lifecycle write, node
+ * helper call) via `withFlowTx`.
+ */
+type WsDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
+
+async function withFlowTx<T>(workspaceId: string, fn: (tx: WsDb) => Promise<T>): Promise<T> {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${workspaceId}, true)`);
+    return fn(tx);
+  });
+}
 
 /**
  * Única fuente de verdad de los tipos de nodo (A7): la unión se deriva de este
@@ -355,34 +378,38 @@ export async function executeFlow({
    */
   signal?: AbortSignal;
 }): Promise<{ runId: string; status: "succeeded" | "failed" | "cancelled"; error?: string }> {
-  const db = getDb();
-  // Siempre re-verificamos que el flow pertenezca al workspace (defensa IDOR
-  // incluso si el job fue encolado).
-  const flowRows = await db
-    .select()
-    .from(schema.flows)
-    .where(and(eq(schema.flows.id, flowId), eq(schema.flows.workspaceId, workspaceId)))
-    .limit(1);
-  const flow = flowRows[0];
+  // R2-C: re-verify flow ownership + create/transition flow_run all under
+  // the workspace GUC (FORCE RLS).
+  const flow = await withFlowTx(workspaceId, async (tx) => {
+    const flowRows = await tx
+      .select()
+      .from(schema.flows)
+      .where(and(eq(schema.flows.id, flowId), eq(schema.flows.workspaceId, workspaceId)))
+      .limit(1);
+    return flowRows[0];
+  });
   if (!flow) throw new Error("Flow not found");
 
   const runId = existingRunId ?? createId();
   const runStartedAt = Date.now(); // sólo para la métrica de duración (D2)
-  if (existingRunId) {
-    await db
-      .update(schema.flowRuns)
-      .set({ status: "running", startedAt: new Date() })
-      .where(eq(schema.flowRuns.id, runId));
-  } else {
-    await db.insert(schema.flowRuns).values({
-      id: runId,
-      flowId,
-      workspaceId,
-      status: "running",
-      triggerSource,
-      input,
-    });
-  }
+  await withFlowTx(workspaceId, async (tx) => {
+    if (existingRunId) {
+      await tx
+        .update(schema.flowRuns)
+        .set({ status: "running", startedAt: new Date() })
+        .where(eq(schema.flowRuns.id, runId));
+    } else {
+      await tx.insert(schema.flowRuns).values({
+        id: runId,
+        flowId,
+        workspaceId,
+        status: "running",
+        triggerSource,
+        input,
+      });
+    }
+  });
+  const db = getDb(); // used as the cross-step fallback for legacy node handlers
 
   onEvent?.({ type: "run_start", runId });
 
@@ -399,10 +426,12 @@ export async function executeFlow({
   if (!start) {
     const err =
       "Este flujo no tiene un paso de inicio (disparador). Agregá uno para poder ejecutarlo.";
-    await db
-      .update(schema.flowRuns)
-      .set({ status: "failed", error: err, completedAt: new Date() })
-      .where(eq(schema.flowRuns.id, runId));
+    await withFlowTx(workspaceId, (tx) =>
+      tx
+        .update(schema.flowRuns)
+        .set({ status: "failed", error: err, completedAt: new Date() })
+        .where(eq(schema.flowRuns.id, runId))
+    );
     onEvent?.({ type: "run_finish", status: "failed", error: err });
     return { runId, status: "failed", error: err };
   }
@@ -414,7 +443,7 @@ export async function executeFlow({
     // no deje el run en `succeeded` con el `lastRunAt` del flow desincronizado.
     // Es atómico y barato (sin llamadas externas adentro). El reaper cubre el
     // caso en que el proceso muera ANTES de llegar acá (run queda en `running`).
-    await db.transaction(async (tx) => {
+    await withFlowTx(workspaceId, async (tx) => {
       await tx
         .update(schema.flowRuns)
         .set({ status: "succeeded", output: ctx.variables, completedAt: new Date() })
@@ -436,14 +465,16 @@ export async function executeFlow({
     // cuenten esto como un error del flujo en sí.
     const cancelled = signal?.aborted === true || (e instanceof Error && e.name === "AbortError");
     const msg = e instanceof Error ? e.message : String(e);
-    await db
-      .update(schema.flowRuns)
-      .set({
-        status: cancelled ? "cancelled" : "failed",
-        error: msg,
-        completedAt: new Date(),
-      })
-      .where(eq(schema.flowRuns.id, runId));
+    await withFlowTx(workspaceId, (tx) =>
+      tx
+        .update(schema.flowRuns)
+        .set({
+          status: cancelled ? "cancelled" : "failed",
+          error: msg,
+          completedAt: new Date(),
+        })
+        .where(eq(schema.flowRuns.id, runId))
+    );
     onEvent?.({ type: "run_finish", status: "failed", error: msg });
     recordMetric("flow.run.duration_ms", Date.now() - runStartedAt, {
       flowId,
@@ -475,14 +506,16 @@ async function runFromNode(
   if (!node || node.type === "end") return;
 
   const stepId = createId();
-  await db.insert(schema.flowRunSteps).values({
-    id: stepId,
-    runId,
-    nodeId: node.id,
-    nodeType: node.type,
-    status: "running",
-    input: { ...ctx.variables },
-  });
+  await withFlowTx(workspaceId, (tx) =>
+    tx.insert(schema.flowRunSteps).values({
+      id: stepId,
+      runId,
+      nodeId: node.id,
+      nodeType: node.type,
+      status: "running",
+      input: { ...ctx.variables },
+    })
+  );
   ctx.emit?.({ type: "step_start", nodeId: node.id, nodeType: node.type });
   // Log correlacionado por `runId` para trazar pasos en logs (D1).
   logWithContext("info", "flow step start", {
@@ -509,10 +542,12 @@ async function runFromNode(
       },
     });
 
-    await db
-      .update(schema.flowRunSteps)
-      .set({ status: "succeeded", output: stepOutput, completedAt: new Date() })
-      .where(eq(schema.flowRunSteps.id, stepId));
+    await withFlowTx(workspaceId, (tx) =>
+      tx
+        .update(schema.flowRunSteps)
+        .set({ status: "succeeded", output: stepOutput, completedAt: new Date() })
+        .where(eq(schema.flowRunSteps.id, stepId))
+    );
     ctx.emit?.({ type: "step_finish", nodeId: node.id, status: "succeeded" });
     logWithContext("info", "flow step finish", {
       correlationId: runId,
@@ -522,10 +557,12 @@ async function runFromNode(
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    await db
-      .update(schema.flowRunSteps)
-      .set({ status: "failed", error: msg, completedAt: new Date() })
-      .where(eq(schema.flowRunSteps.id, stepId));
+    await withFlowTx(workspaceId, (tx) =>
+      tx
+        .update(schema.flowRunSteps)
+        .set({ status: "failed", error: msg, completedAt: new Date() })
+        .where(eq(schema.flowRunSteps.id, stepId))
+    );
     ctx.emit?.({ type: "step_finish", nodeId: node.id, status: "failed", error: msg });
     logWithContext("error", "flow step finish", {
       correlationId: runId,
@@ -581,32 +618,38 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     // No-op: el nodo trigger sólo marca el punto de entrada del flow.
   },
 
-  agent: async ({ cfg, ctx, workspaceId, db, helpers }) => {
+  agent: async ({ cfg, ctx, workspaceId, helpers }) => {
     const agentId = cfg.agentId as string | undefined;
     if (!agentId) throw new Error("Falta elegir el agente en este paso.");
     // `prompt` (registry) se antepone al mensaje entrante; `message` es el legado.
     const extra = cfg.prompt ? interpolate(cfg.prompt as string, ctx.variables) : "";
     const incoming = interpolate((cfg.message as string) ?? "{{message}}", ctx.variables);
     const userMessage = [extra, incoming].filter((s) => s && s.trim()).join("\n\n") || incoming;
-    const aRows = await db
-      .select()
-      .from(schema.agents)
-      .where(eq(schema.agents.id, agentId))
-      .limit(1);
-    const agent = aRows[0];
+    // R2-C: agent lookup needs the workspace GUC (FORCE RLS).
+    const agent = await withFlowTx(workspaceId, async (tx) => {
+      const aRows = await tx
+        .select()
+        .from(schema.agents)
+        .where(eq(schema.agents.id, agentId))
+        .limit(1);
+      return aRows[0];
+    });
     if (!agent) throw new Error(`agent not found: ${agentId}`);
     // Este nodo usa `llmCall` directo (no runChat), así que el guard y el
     // metering se hacen acá explícitamente (D4-1 / E3-1).
     const { assertWithinSpend } = await import("./cost-alerts");
-    await assertWithinSpend(workspaceId);
-    const result = await llmCall({
-      workspaceId,
-      model: agent.model,
-      systemPrompt: agent.systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
-      temperature: agent.temperature ? Number(agent.temperature) : 0.7,
-      ...(agent.maxTokens != null && { maxTokens: agent.maxTokens }),
-    });
+    await withFlowTx(workspaceId, (tx) => assertWithinSpend(workspaceId, tx));
+    const result = await withFlowTx(workspaceId, (tx) =>
+      llmCall({
+        workspaceId,
+        model: agent.model,
+        systemPrompt: agent.systemPrompt,
+        messages: [{ role: "user", content: userMessage }],
+        temperature: agent.temperature ? Number(agent.temperature) : 0.7,
+        ...(agent.maxTokens != null && { maxTokens: agent.maxTokens }),
+        tx,
+      })
+    );
     const { recordAiUsage } = await import("./ai/run");
     const { calculateChatCostUsd } = await import("./pricing");
     await recordAiUsage({
