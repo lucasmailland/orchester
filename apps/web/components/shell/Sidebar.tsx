@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   Workflow,
   BookOpen,
+  Brain,
 } from "lucide-react";
 import { SidebarItem } from "./SidebarItem";
 import { sidebarVariants, APPLE_EASE } from "@/lib/motion";
@@ -63,6 +64,7 @@ export function Sidebar({ locale }: SidebarProps) {
   const dataNav = [
     { href: `${base}/employees`, icon: <Users size={16} />, label: t("employees") },
     { href: `${base}/knowledge`, icon: <BookOpen size={16} />, label: t("knowledge") },
+    { href: `${base}/brain`, icon: <Brain size={16} />, label: t("brain") },
   ];
 
   const systemNav = [

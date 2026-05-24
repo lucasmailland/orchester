@@ -373,6 +373,38 @@ async function buildConversationContext(
     },
     tx
   );
+
+  // Brain Core (sub-spec 2): passive injection of top-K relevant facts
+  // semantically scored against the last user message. The agent still
+  // has `brain_recall` as a tool for on-demand pulls; this is just a
+  // sensible default so even agents that don't use the tool benefit.
+  // Failure is silent — recall is best-effort, the turn proceeds with
+  // memory-only context if Brain is unavailable.
+  let brainBlock = "";
+  try {
+    const lastUserMsg = [...fullHistory].reverse().find((m) => m.role === "user");
+    if (lastUserMsg?.content) {
+      const { searchBrain } = await import("@/lib/brain");
+      const hits = await searchBrain({
+        workspaceId,
+        query: String(lastUserMsg.content).slice(0, 500),
+        topK: 3,
+        agentId: agent.id,
+      });
+      if (hits.length > 0) {
+        const lines = hits
+          .map(
+            (h) =>
+              `- [${h.fact.kind}] ${h.fact.subject}: ${h.fact.statement} (conf ${(h.fact.confidence * 100).toFixed(0)}%)`
+          )
+          .join("\n");
+        brainBlock = wrapMemoryBlock(`### Brain (semantic recall)\n${lines}`);
+      }
+    }
+  } catch {
+    /* brain recall is best-effort */
+  }
+
   return {
     chatMsgs,
     // L1: la memoria es contenido recuperado no confiable → la delimitamos en un
@@ -380,6 +412,7 @@ async function buildConversationContext(
     systemPrompt:
       agent.systemPrompt +
       wrapMemoryBlock(formatMemoriesAsPromptBlock(memories)) +
+      brainBlock +
       UNTRUSTED_CONTENT_GUARDRAIL,
   };
 }
