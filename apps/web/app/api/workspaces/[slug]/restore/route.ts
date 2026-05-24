@@ -31,11 +31,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   if (ctx instanceof Response) return ctx;
 
   const { slug } = await params;
-  const ws = await resolveBySlug(slug);
-  if (!ws) {
-    return NextResponse.json({ error: "workspace_not_found" }, { status: 404 });
-  }
 
+  // Parse + validate the body up front so we don't reveal anything
+  // about workspace existence based on body shape.
   let body: unknown = {};
   try {
     const text = await req.text();
@@ -48,9 +46,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     return NextResponse.json({ error: "validation_failed" }, { status: 422 });
   }
 
+  // Pre-authorization phase: every failure here returns the SAME 403
+  // `forbidden` so an unauthenticated probe cannot distinguish:
+  //   - the slug doesn't exist
+  //   - the slug exists but is not deleted (no token applies)
+  //   - the slug exists, is deleted, but the caller isn't the owner
+  //     and didn't present a valid token
+  //
+  // Only AFTER restore() succeeds (i.e. authorization is established
+  // either via the one-shot token or owner identity) do we vary the
+  // response. The lifecycle errors thrown by restore() are also
+  // collapsed to the same 403 — only callers who already authenticated
+  // would see them, but defense-in-depth.
+  const generic = NextResponse.json({ error: "forbidden" }, { status: 403 });
+
+  const ws = await resolveBySlug(slug);
+  if (!ws) return generic;
+
   // Either token OR owner authentication.
   if (!parsed.data.token && ws.ownerUserId !== ctx.user.id) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    return generic;
   }
 
   try {
@@ -60,11 +75,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (msg === "workspace_lifecycle_invalid") {
-      return NextResponse.json({ error: "workspace_lifecycle_invalid" }, { status: 409 });
-    }
-    if (msg === "invalid_or_used_token") {
-      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    // Collapse all lifecycle / token failures to the same generic 403
+    // so the route stays non-enumerable. The owner / token holder can
+    // diagnose state out-of-band via the audit log.
+    if (msg === "workspace_lifecycle_invalid" || msg === "invalid_or_used_token") {
+      return generic;
     }
     throw e;
   }
