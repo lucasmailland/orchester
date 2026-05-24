@@ -24,7 +24,11 @@ function isSelfHosted(): boolean {
 
 export async function getWorkspacePlan(workspaceId: string, tx?: WsDb): Promise<Plan> {
   if (isSelfHosted()) return "enterprise";
-  const db = getDb();
+  // Honor the caller's transaction when it threads one through (FORCE
+  // RLS depends on the `SET LOCAL app.workspace_id` being visible on the
+  // same connection); fall back to `getDb()` only when called outside a
+  // workspace tx wrapper.
+  const db = tx ?? getDb();
   const rows = await db
     .select()
     .from(schema.workspaceBilling)

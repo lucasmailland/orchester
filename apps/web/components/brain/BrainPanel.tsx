@@ -56,7 +56,7 @@ export function BrainPanel() {
       if (!r.ok) throw new Error("search_failed");
       const j = (await r.json()) as { hits: Array<{ fact: Fact; score: number }> };
       setSearchResults(j.hits.map((h) => h.fact));
-    } catch (e) {
+    } catch {
       notify.error("Search failed");
     } finally {
       setSearching(false);
@@ -86,8 +86,8 @@ export function BrainPanel() {
     if (r.ok) {
       void mutate();
       if (searchResults) {
-        setSearchResults((s) =>
-          s?.map((f) => (f.id === fact.id ? { ...f, pinned: !f.pinned } : f)) ?? null
+        setSearchResults(
+          (s) => s?.map((f) => (f.id === fact.id ? { ...f, pinned: !f.pinned } : f)) ?? null
         );
       }
     } else {
@@ -110,7 +110,7 @@ export function BrainPanel() {
             <h2 className="text-lg font-bold text-strong">Brain</h2>
           </div>
           <p className="mt-1 text-sm text-muted">
-            Durable facts the workspace's agents have learned. Extracted automatically from
+            Durable facts the workspace&apos;s agents have learned. Extracted automatically from
             conversations; you can pin, edit, or forget any of them.
           </p>
         </div>
@@ -142,9 +142,7 @@ export function BrainPanel() {
       </form>
 
       {isLoading && <div className="text-sm text-muted">Loading…</div>}
-      {error && (
-        <div className="text-sm text-red-400">Failed to load facts. Refresh the page.</div>
-      )}
+      {error && <div className="text-sm text-red-400">Failed to load facts. Refresh the page.</div>}
 
       {!isLoading && shown.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-line bg-card p-8 text-center text-sm text-muted">
@@ -153,7 +151,7 @@ export function BrainPanel() {
           ) : (
             <>
               No facts yet. Brain extracts facts after each conversation — start chatting with an
-              agent and they'll appear here.
+              agent and they&apos;ll appear here.
             </>
           )}
         </div>
