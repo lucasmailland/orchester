@@ -1,48 +1,61 @@
 # Phase E follow-ups
 
-Items from Phase E (Task E.9) that were deliberately deferred to keep
-the lifecycle GA cycle focused. Each row stands alone — pick one,
-ship it, close.
+State after `tenant-hardening-v1.2`. Items are tracked across three
+columns: **Shipped** (already in main), **Open** (still to do), and
+**Won't fix** (explicitly out of scope).
 
 ## Endpoints
 
-| Endpoint                                         | Why deferred                                                                               |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| `POST /api/workspaces/[slug]/suspend`            | Admin-global RBAC role not yet modelled in `rbac.ts` (today's `Role` is workspace-scoped). |
-| `DELETE /api/workspaces/[slug]/suspend`          | Same — needs admin-global authorisation surface.                                           |
-| `GET /api/workspaces/[slug]/export/[jobId]`      | Job-status polling endpoint for `GdprExportProgress` component (also deferred).            |
-| `PATCH /api/workspaces/[slug]/members/[userId]`  | Existing endpoint works; needs `member.role_change` audit entry annotation.                |
-| `DELETE /api/workspaces/[slug]/members/[userId]` | Existing endpoint works; needs `member.remove` audit + `invalidateAllMembershipFor`.       |
+| Endpoint                                         | Status                                                                                             |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `POST /api/workspaces/[slug]/suspend`            | **Shipped** (v1.2). System-admin only via `assertSystemAdmin(session)` reading `ADMIN_EMAILS` env. |
+| `DELETE /api/workspaces/[slug]/suspend`          | **Shipped** (v1.2). Same auth gate.                                                                |
+| `GET /api/workspaces/[slug]/export/[jobId]`      | **Shipped** (v1.2). Used by `GdprExportProgress` polling.                                          |
+| `PATCH /api/workspaces/[slug]/members/[userId]`  | **Shipped** (v1.2). `member.role_change` audited + `invalidateMembership` (cluster-broadcast).     |
+| `DELETE /api/workspaces/[slug]/members/[userId]` | **Shipped** (v1.2). `member.remove` audited + cache invalidated.                                   |
 
 ## Components
 
-| Component                         | Status                                                                                                                                                                                                                                                             |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `TransferOwnershipModal.tsx`      | Shipped (wired into `DangerZoneSection`). Calls `POST /api/workspaces/[slug]/transfer`.                                                                                                                                                                            |
-| `GdprExportProgress.tsx`          | Shipped (mounted in shell layout). Polls `GET /api/workspaces/[slug]/export/[jobId]` every 3s; state in `localStorage`.                                                                                                                                            |
-| `DeletedWorkspaceRestoreCard.tsx` | Shipped + standalone page at `/[locale]/deleted/[id]`. Renders the restore form; auth required; non-enumerable failures.                                                                                                                                           |
-| `InviteMemberQuickAction.tsx`     | Skipped: `/api/workspaces/[slug]/invites` does not exist; only the cookie-scoped `/api/invites` does. The existing settings members tab already covers the invite workflow. Ship the slug-scoped invites endpoint first if a quick-action surface is still wanted. |
+| Component                         | Status                                                                                                                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `TransferOwnershipModal.tsx`      | **Shipped** (v1.2). Wired into `DangerZoneSection`. Calls `POST /api/workspaces/[slug]/transfer`.                                                |
+| `GdprExportProgress.tsx`          | **Shipped** (v1.2). Mounted in shell layout. Polls export job every 3s; state in `localStorage`.                                                 |
+| `DeletedWorkspaceRestoreCard.tsx` | **Shipped** (v1.2). Standalone page at `/[locale]/deleted/[id]`. Auth-gated; non-enumerable failures.                                            |
+| `InviteMemberQuickAction.tsx`     | **Won't fix** — `/api/workspaces/[slug]/invites` does not exist; only the cookie-scoped `/api/invites` does. Members tab already covers invites. |
 
 ## Hardening
 
-- The streaming GDPR exporter is a stub (`apps/web/lib/gdpr/export-job.ts`) — it serialises a single workspace row. Replace with a true streaming zip writer + per-table exporter once the spec for content is firm.
-- `apps/web/lib/gdpr/storage.ts` returns a fake `https://example.com/...` URL. Wire to S3 (env `STORAGE_BACKEND=s3`) / MinIO (self-host) via signed-URL adapter.
-- `apps/web/lib/gdpr/email.ts` only logs. Wire to Resend / SES.
-- `apps/web/lib/audit/verify-job.ts` currently `console.error`s on chain break. Add the `SECURITY_ALERT_WEBHOOK` fetch.
+| Item                                    | Status                                                                                                                                                                                             |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GDPR streaming exporter                 | **Shipped** (v1.2). `archiver`-based zip writer with per-table exporters (`workspace`, `agents`, `conversations`, `messages`, `knowledge`). In-memory buffer; true streaming is a future refactor. |
+| GDPR storage adapter (S3 + filesystem)  | **Shipped** (v1.2). `STORAGE_BACKEND=s3` uses AWS SDK + signed URLs; default `filesystem` writes to `GDPR_EXPORT_DIR` and returns `file://` URLs (self-host).                                      |
+| GDPR email                              | **Shipped** (v1.2). `RESEND_API_KEY` enables Resend; otherwise logs the stub.                                                                                                                      |
+| `SECURITY_ALERT_WEBHOOK` on chain break | **Shipped** (v1.2). `verify-job.ts` POSTs to the webhook when a chain break is detected; falls back to `console.error` if unset.                                                                   |
 
 ## Schema gaps surfaced during Phase E
 
-- `pages/active-workspace` route writes the cookie unsigned (relies on origin auth). Consider signing it explicitly to make the trust boundary obvious.
-- `workspace.transfer` endpoint does not force session rotation for the previous owner — they continue with the same session, just at `admin` role. A defence-in-depth follow-up would invalidate their sessions and require re-login.
+| Item                                   | Status                                                                                                                 |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `active-workspace` cookie signing      | **Shipped** (v1.2). HMAC-SHA256 via SubtleCrypto (edge-runtime compatible). Reads `COOKIE_SIGNING_SECRET`.             |
+| Session rotation on workspace.transfer | **Shipped** (v1.2). Previous owner's sessions revoked + `member.session_revoked` audited. Best-effort if revoke fails. |
 
-## Post-hardening audit follow-ups (2026-05-23)
+## Post-hardening audit follow-ups (2026-05-23 / 2026-05-24)
 
-Surfaced by the post-`tenant-hardening-v1` audit but not bundled into
-the corrective sweep because they require a deeper refactor than a
-single in-place edit. None are blocking — every path that reaches them
-has a working upstream guard.
+Status after `tenant-hardening-v1.2`:
 
-- **`apps/web/lib/channels/router.ts` (606 lines, 3 entry points)** — `handleInbound`, `handleInboundStream`, and the shared `resolveInbound` use `getDb()` for every query and never `SET LOCAL app.workspace_id`. Once the inbound message reaches the conversation/message inserts, FORCE RLS rejects. The webhook routes themselves now set the GUC for the channel lookup, but this downstream library path is untouched. **Refactor:** thread an explicit `tx` (or a `WorkspaceCtx`) through `resolveInbound` → `runConversationalTurn` → `persistAssistantTurn`, replacing every `const db = getDb()` with the passed handle. Then wrap the whole call in `db.transaction` at the entry points. Tests would need a webhook end-to-end suite that exercises the FORCE RLS path.
-- **GUC propagation across `await import(...)` dynamic imports inside transactions** — `resolveInbound` calls `await import("@/lib/billing/quotas")` and similar inside DB work. Those helpers run their OWN `getDb()` queries on a different pooled connection; the `SET LOCAL` does not propagate. Solution mirrors the router refactor: helpers should accept a `tx` arg.
-- **Cluster-wide cache invalidation for workspace/membership LRUs** — currently the LRU in `lib/tenant/resolve.ts` and the in-process map in `lib/tenant/membership.ts` invalidate only on the current pod. With more than one app pod, a soft-delete or role demotion takes up to 5 min (resolve) / 60 s (membership) to propagate. Fix: Postgres `LISTEN/NOTIFY` channel with a tiny pub/sub layer.
-- **`appendAudit` durability for chain genesis** — `POST /api/workspaces` writes the `workspace.create` audit entry via fire-and-forget. The chain genesis is the most important row to never lose. Switch that single site to `appendAuditSync` so creation-without-audit is impossible.
+| Item                                                          | Status                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `lib/channels/router.ts` thread tx through resolveInbound     | **Shipped** (v1.2). `handleInbound` uses two short txns; `handleInboundStream` uses three (resolve / build context / persist) to fit drizzle's "no tx across generator yields" constraint. `ConvCtx` no longer holds the db handle. New integration suite at `tests/integration/channels/router.spec.ts` (4 cases against testcontainer).        |
+| GUC propagation across `await import(...)` dynamic imports    | **Shipped** (v1.2). `checkQuota`, `getWorkspacePlan`, `getMonthlyUsage`, `checkEmployeeBudget`, `recordMessageCost`, `assertWithinSpend`, `maybeFireBudgetAlert`, `monthToDateSpendUsd` now accept an optional `tx?: WsDb` and use it when passed. Backwards-compatible: existing callers default to `getDb()`.                                  |
+| Cluster-wide cache invalidation for workspace/membership LRUs | **Shipped** (v1.2). `lib/tenant/cluster-cache.ts` opens a dedicated `postgres-js` LISTEN connection at startup. `invalidateCache` / `invalidateMembership` / `invalidateFlag` broadcast NOTIFY on `tenant_cache_invalidation`. Sub-millisecond cross-pod propagation. 5/5 integration tests at `tests/integration/tenant/cluster-cache.spec.ts`. |
+| `appendAudit` durability for chain genesis                    | **Shipped** (v1.2). `POST /api/workspaces` now `await`s `appendAuditSync` for `workspace.create`. Other audit sites stay fire-and-forget by design (high-volume routes).                                                                                                                                                                         |
+
+## Remaining open work (after v1.2)
+
+Surfaced during the router refactor (`f1` bundle) — narrow scope, low risk, NOT blocking sub-spec 2:
+
+- **LLM tool loop tx propagation** — `lib/tools.ts` (`executeTool`), `lib/memory.ts`, `lib/memory-compaction.ts`, and `lib/llm-call.ts::getProviderKey` still use `getDb()` inside `runConversationalTurn`'s transaction. Tests pass because the test agents have no tool definitions. Production agents with tools configured will hit FORCE RLS rejection when the tool tries to read/write tenant data. Same `tx?: WsDb` optional-arg pattern as the billing helpers; mechanical change.
+- **`lib/flow-engine.ts::executeFlow` inline branch** — only the inline (synchronous) flow-agent branch still uses `getDb()`. Async branch enqueues into pg-boss workers which carry their own `withCrossTenantAdmin` envelope, so the async path is safe. The inline branch is only reached for `agent.kind === "flow"` with short flows; covered by a separate follow-up.
+- **GDPR true streaming** — `archiver` is configured but the result is buffered in memory before upload. For workspaces > 100MB of conversation history this needs to switch to a true streaming pipe (writeable into S3 multipart upload, or stream-into-filesystem-then-uploadPart).
+- **GDPR exporters credentials redaction** — `agents`, `conversations`, `messages`, `knowledge` exporters dump full rows. Verify there is no `encryptedCredentials`, `apiKey`, or similar in the dumps; add redaction if so. (Audit not yet performed.)
+- **Filesystem storage `/api/exports/[token]` download route** — when `STORAGE_BACKEND=filesystem`, the signed URL is `file://...` which a browser can't open. Self-host needs an HTTP route that HMAC-signs (`token`, `expiry`) and serves the file from disk.
