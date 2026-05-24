@@ -1,10 +1,19 @@
 import "server-only";
-import { getDb, schema } from "@orchester/db";
+import { getDb, schema, type DbClient } from "@orchester/db";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { sendEmail } from "@/lib/email";
 import { dispatchEvent, type WebhookEvent } from "@/lib/webhooks-out";
 import { checkEmployeeBudget } from "@/lib/employee-budget";
 import { safeLogError } from "@/lib/safe-log";
+
+/**
+ * Mismo razonamiento que en `billing/quotas` y `employee-budget`: aceptamos
+ * un `tx` opcional para que callers que ya están dentro de una transacción
+ * con `app.workspace_id` SET LOCAL (e.g. el router de canales) compartan la
+ * misma conexión. Sin esto, `getDb()` toma cualquier conexión del pool y
+ * post-FORCE RLS rechaza las reads.
+ */
+type WsDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 
 /** Error tipado para el spend guard (E3-1) — distinguible del resto. */
 export class SpendGuardError extends Error {
@@ -23,8 +32,8 @@ function monthStartUtc(): Date {
  * Suma del gasto month-to-date del workspace en USD (sum de
  * `usageEvents.costUsd` desde el 1ro del mes UTC). Best-effort: si falla, 0.
  */
-async function monthToDateSpendUsd(workspaceId: string): Promise<number> {
-  const db = getDb();
+async function monthToDateSpendUsd(workspaceId: string, tx?: WsDb): Promise<number> {
+  const db = tx ?? getDb();
   const rows = await db
     .select({ total: sql<string>`coalesce(sum(${schema.usageEvents.costUsd}), 0)` })
     .from(schema.usageEvents)
@@ -48,9 +57,11 @@ async function monthToDateSpendUsd(workspaceId: string): Promise<number> {
  * fallo de LECTURA del gasto se loguea pero NO bloquea (fail-open en el sumado
  * para no romper la IA por un hipo de DB); el kill-switch y el cap sí cortan.
  */
-export async function assertWithinSpend(workspaceId: string): Promise<void> {
+export async function assertWithinSpend(workspaceId: string, tx?: WsDb): Promise<void> {
   if (process.env.AI_DISABLED === "1") {
-    throw new SpendGuardError("La IA está deshabilitada temporalmente (kill-switch global AI_DISABLED).");
+    throw new SpendGuardError(
+      "La IA está deshabilitada temporalmente (kill-switch global AI_DISABLED)."
+    );
   }
 
   const capRaw = process.env.AI_MONTHLY_SPEND_CAP_USD;
@@ -59,7 +70,7 @@ export async function assertWithinSpend(workspaceId: string): Promise<void> {
 
   let spent: number;
   try {
-    spent = await monthToDateSpendUsd(workspaceId);
+    spent = await monthToDateSpendUsd(workspaceId, tx);
   } catch (e) {
     safeLogError("[cost-alerts] assertWithinSpend spend read failed:", e);
     return; // fail-open: un error de lectura no debe cortar la IA
@@ -104,18 +115,19 @@ function levelForPct(pct: number, allowed: boolean): Level | null {
  */
 export async function maybeFireBudgetAlert(
   workspaceId: string,
-  employeeId: string | null | undefined
+  employeeId: string | null | undefined,
+  tx?: WsDb
 ): Promise<void> {
   if (!employeeId) return;
   try {
-    const status = await checkEmployeeBudget(workspaceId, employeeId);
+    const status = await checkEmployeeBudget(workspaceId, employeeId, tx);
     if (status.budgetUsd == null) return; // sin límite → nada que avisar
 
     const pct = (status.spentUsd / status.budgetUsd) * 100;
     const level = levelForPct(pct, status.allowed);
     if (!level) return;
 
-    const db = getDb();
+    const db = tx ?? getDb();
     const empRows = await db
       .select({
         name: schema.employees.name,
@@ -152,8 +164,8 @@ export async function maybeFireBudgetAlert(
       level === "exceeded"
         ? "employee.budget.exceeded"
         : level === "warn90"
-        ? "employee.budget.warn90"
-        : "employee.budget.warn70";
+          ? "employee.budget.warn90"
+          : "employee.budget.warn70";
 
     const payload = {
       employeeId,
@@ -188,8 +200,8 @@ async function sendBudgetEmail(
     level === "exceeded"
       ? `[Orchester] Excediste tu budget mensual ($${budget})`
       : level === "warn90"
-      ? `[Orchester] Alcanzaste el 90% de tu budget mensual`
-      : `[Orchester] Alcanzaste el 70% de tu budget mensual`;
+        ? `[Orchester] Alcanzaste el 90% de tu budget mensual`
+        : `[Orchester] Alcanzaste el 70% de tu budget mensual`;
   const text =
     `Hola ${name},\n\n` +
     (level === "exceeded"
