@@ -686,9 +686,35 @@ export async function* handleInboundStream(
     }
 
     // Phase 3 — persist en otra txn corta.
-    await withWorkspaceTx(wsId, (tx) =>
-      persistAssistantTurn(ctx, agent, conversation, reply, tokens, tx)
-    );
+    //
+    // F-D7: el workspace pudo haberse suspendido / soft-deleted entre la
+    // txn 1 (resolveInbound) y este momento — el LLM streaming corrió en
+    // medio sin saberlo. Si persistimos sin re-validar, dejaríamos un
+    // mensaje del asistente en una conversación de un workspace bloqueado.
+    // Re-leemos el workspace dentro de la MISMA txn que persiste y usamos
+    // el predicado lifecycle.isAccessible (suspended → 423, deleted → 410).
+    // En falla yieldeamos un chunk de error y NO persistimos.
+    const accessErr = await withWorkspaceTx(wsId, async (tx) => {
+      const wsRows = await tx
+        .select()
+        .from(schema.workspaces)
+        .where(eq(schema.workspaces.id, wsId))
+        .limit(1);
+      const ws = wsRows[0];
+      if (!ws) return "deleted";
+      const { isAccessible } = await import("@/lib/tenant/lifecycle");
+      const access = isAccessible(ws);
+      if (!access.ok) return access.reason ?? "deleted";
+      // Accessible — persist in the same txn so the check + write are
+      // atomic (a concurrent suspend racing us would also have to win
+      // the same connection lock).
+      await persistAssistantTurn(ctx, agent, conversation, reply, tokens, tx);
+      return null;
+    });
+    if (accessErr) {
+      yield { type: "error", error: accessErr };
+      return;
+    }
     yield { type: "done", conversationId: conversation.id, reply, tokensUsed: tokens };
   } catch (e) {
     yield { type: "error", error: e instanceof Error ? e.message : String(e) };
