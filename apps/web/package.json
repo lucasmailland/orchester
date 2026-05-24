@@ -28,6 +28,8 @@
     "worker:prod": "node worker/build.mjs && node worker/.dist/worker.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1053.0",
+    "@aws-sdk/s3-request-presigner": "^3.1053.0",
     "@better-fetch/fetch": "^1.1.21",
     "@dagrejs/dagre": "^3.0.0",
     "@formulajs/formulajs": "^4.6.0",
@@ -35,6 +37,7 @@
     "@hookform/resolvers": "^5.2.2",
     "@paralleldrive/cuid2": "^3.3.0",
     "@xyflow/react": "^12.10.2",
+    "archiver": "^7.0.1",
     "better-auth": "^1.6.9",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
@@ -55,6 +58,7 @@
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.74.0",
     "recharts": "^3.8.1",
+    "resend": "^6.12.3",
     "server-only": "^0.0.1",
     "sonner": "^2.0.7",
     "swr": "^2.4.1",
@@ -65,11 +69,13 @@
     "@faker-js/faker": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
+    "@types/archiver": "^7.0.0",
     "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^22.10.2",
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "@types/yauzl": "^2.10.3",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "esbuild": "^0.25.0",
@@ -82,6 +88,7 @@
     "testcontainers": "^12.0.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "yauzl": "^3.3.1"
   }
 }
