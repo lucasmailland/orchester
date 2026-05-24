@@ -14,14 +14,47 @@ interface Props {
 }
 
 /**
+ * Build the post-switch URL for a workspace change, preserving only the
+ * top-level section (e.g. "/agents") and dropping any deeper segments
+ * because those almost always contain IDs scoped to the *previous*
+ * tenant. Carrying those IDs across to the new tenant under FORCE RLS
+ * yields a 403/404 (B4.1).
+ *
+ * Examples:
+ *   ("/en/old/agents/abc123", "en", "old", "new") -> "/en/new/agents"
+ *   ("/en/old/agents",        "en", "old", "new") -> "/en/new/agents"
+ *   ("/en/old",               "en", "old", "new") -> "/en/new"
+ *   ("/en/somewhere-else",    "en", "old", "new") -> "/en/new"
+ *   ("/en/old-extra/x",       "en", "old", "new") -> "/en/new"  (prefix guard)
+ *   (anything,                "en", null,  "new") -> "/en/new"
+ */
+export function buildSwitchTarget(
+  currentPath: string,
+  locale: string,
+  fromSlug: string | null,
+  toSlug: string
+): string {
+  if (!fromSlug) return `/${locale}/${toSlug}`;
+  const prefix = `/${locale}/${fromSlug}`;
+  if (currentPath !== prefix && !currentPath.startsWith(prefix + "/")) {
+    return `/${locale}/${toSlug}`;
+  }
+  const after = currentPath.slice(prefix.length);
+  const firstSegmentMatch = after.match(/^\/[^/]+/);
+  const firstSegment = firstSegmentMatch ? firstSegmentMatch[0] : "";
+  return `/${locale}/${toSlug}${firstSegment}`;
+}
+
+/**
  * Searchable dropdown of the user's workspaces, anchored under the
  * switcher button. Splits the list into "current" + "other" so the
  * active workspace is always visible even when the search filter
- * would have hidden it (returning users hit ⌘K → see context first).
+ * would have hidden it (returning users hit ⌘⇧K → see context first).
  *
- * Switching preserves the sub-path under the active slug — i.e.
- * /en/acme/agents → /en/foo/agents — so the user lands on the same
- * sub-page in the new tenant.
+ * Switching preserves the top-level section under the active slug —
+ * i.e. /en/acme/agents/abc → /en/foo/agents (no deep ID) — so the user
+ * lands on the same sub-page in the new tenant without carrying a
+ * tenant-scoped ID that would 403/404 under FORCE RLS.
  */
 export function WorkspaceMenu({ onClose, activeSlug, onCreate }: Props) {
   const t = useTranslations("workspace.switcher");
@@ -44,10 +77,11 @@ export function WorkspaceMenu({ onClose, activeSlug, onCreate }: Props) {
   const others = filtered.filter((w) => w.slug !== activeSlug);
 
   function switchTo(slug: string) {
-    // Preserve current sub-path when switching: /en/acme/agents → /en/foo/agents
-    const subPath = activeSlug ? (pathname?.split(`/${activeSlug}`)[1] ?? "") : "";
-    router.push(`/${locale}/${slug}${subPath}`);
+    // Set the cookie BEFORE navigating to avoid a race where the new
+    // request reads the stale active-workspace cookie (B4.1).
     document.cookie = `orch-active-workspace=${slug}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`;
+    const target = buildSwitchTarget(pathname ?? "", locale, activeSlug, slug);
+    router.push(target);
     onClose();
   }
 
