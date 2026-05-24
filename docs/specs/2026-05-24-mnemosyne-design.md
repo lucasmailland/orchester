@@ -40,6 +40,8 @@ Mnemosyne is that substrate. Six layers, twelve tables, four primitives, one gra
 8. **Embedding migration without re-embed** — multi-version embeddings with lazy upgrade.
 9. **Memory protocol versioned** as a code artifact, not a markdown wiki page.
 10. **Cross-workspace federation** with permission scopes.
+11. **Provider Agnosticism** as architectural mandate — zero vendor lock-in, zero platform-level third-party costs, $0 in pure self-host via Ollama + fastembed-rs + whisper.cpp. See **§25 Provider Agnosticism Charter**.
+12. **95% cost reduction via 8 agnostic techniques** (pre-filter + speculative tier + hierarchical cache + lazy embeddings + budget caps + batched extraction + local-first + opportunistic adapter caching). See **§26 Cost Engineering**.
 
 ---
 
@@ -341,7 +343,7 @@ CREATE TABLE mnemo_citation (
   source_kind             text NOT NULL CHECK (source_kind IN
                             ('message','document','tool_call','llm_extraction','user_edit','agent_save','imported')),
   source_id               text,                  -- message_id, tool_call_id, etc.
-  extractor_model         text,                  -- "claude-haiku-4-5"
+  extractor_model         text,                  -- e.g. workspace mnemo.small_model
   extractor_prompt_version text,                 -- "v1"
   judge_model             text,
   judge_relation_id       text REFERENCES mnemo_relation(id) ON DELETE SET NULL,
@@ -363,7 +365,7 @@ Tool `mem_provenance(memory_id)` returns a recursive tree:
   "citations": [
     {
       "source": {"kind": "message", "id": "msg_xyz", "excerpt": "...por favor en español"},
-      "extracted_by": {"model": "claude-haiku-4-5", "prompt_version": "v1"},
+      "extracted_by": {"model": "<workspace.small_model>", "prompt_version": "v1"},
       "extracted_at": "2026-05-24T10:00:00Z"
     }
   ],
@@ -372,7 +374,7 @@ Tool `mem_provenance(memory_id)` returns a recursive tree:
       "relation_id": "mrel_abc",
       "relation": "supersedes",
       "target_memory_id": "mfact_old",
-      "judged_by": {"model": "claude-sonnet-4-6", "actor": "llm_judge"},
+      "judged_by": {"model": "<workspace.large_model>", "actor": "llm_judge"},
       "reason": "Newer preference, explicit language switch"
     }
   ],
@@ -1028,17 +1030,17 @@ Every operation that calls an LLM (extraction, judge, compare, introspect, sleep
 
 ## 18. Performance + Scale Targets
 
-| Metric                | Target                  | Strategy                                        |
-| --------------------- | ----------------------- | ----------------------------------------------- |
-| p50 recall latency    | < 80ms                  | L1 LRU + HNSW + parallel embed                  |
-| p99 recall latency    | < 400ms                 | overfetch budget cap + worker concurrency       |
-| p50 extraction job    | < 3s                    | batch embed + provider streaming                |
-| p99 extraction job    | < 15s                   | model fallback (Haiku → Sonnet on retry)        |
-| Recall cache hit rate | > 60%                   | workspace-LRU + LISTEN/NOTIFY invalidation      |
-| Memory health score   | > 80 (median)           | scoring weights + drift alerting                |
-| Cost per 1k recalls   | < $0.50                 | cheap embed model + cached + over-fetch capped  |
-| Cost per extraction   | < $0.005                | Haiku-tier model + max 5 facts cap + 600 tokens |
-| Storage growth        | < 100 MB / 10k memories | dedup + compaction + grace-deleted purge        |
+| Metric                | Target                  | Strategy                                                                      |
+| --------------------- | ----------------------- | ----------------------------------------------------------------------------- |
+| p50 recall latency    | < 80ms                  | L1 LRU + HNSW + parallel embed                                                |
+| p99 recall latency    | < 400ms                 | overfetch budget cap + worker concurrency                                     |
+| p50 extraction job    | < 3s                    | batch embed + provider streaming                                              |
+| p99 extraction job    | < 15s                   | model fallback (workspace small → large on retry)                             |
+| Recall cache hit rate | > 60%                   | workspace-LRU + LISTEN/NOTIFY invalidation                                    |
+| Memory health score   | > 80 (median)           | scoring weights + drift alerting                                              |
+| Cost per 1k recalls   | < $0.50                 | cheap embed model + cached + over-fetch capped                                |
+| Cost per extraction   | < $0.005                | workspace small model + max 5 facts cap + 600 tok (or $0 in Ollama self-host) |
+| Storage growth        | < 100 MB / 10k memories | dedup + compaction + grace-deleted purge                                      |
 
 Scale ceiling: tested up to 1M memories per workspace before HNSW needs sharding. Multi-region: deferred to v3.5 via mutation log + deferred apply.
 
@@ -1203,4 +1205,538 @@ Mnemosyne is successful when:
 
 ---
 
-**End of design.** Ready for review + writing-plans skill invocation.
+---
+
+## 25. Provider Agnosticism Charter
+
+**Status**: Mandatory · Applies to ALL Mnemosyne code, configuration, and roadmap decisions.
+
+Mnemosyne is OSS substrate. **No platform-level third-party cost. No vendor lock-in.** Every operation must work with ANY provider the workspace chooses, including 100% local (Ollama / fastembed / whisper.cpp).
+
+### 25.1 Hard rules
+
+1. **No operation requires a specific provider.** Mnemosyne core never branches on `provider === "anthropic"`. Provider-specific optimizations live in adapter layer behind capability detection.
+2. **No platform feature costs the operator anything beyond Postgres hosting.** No SaaS dependencies for queue / cache / vector / observability / messaging.
+3. **AI is BYO per workspace.** Workspace configures providers via Orchester's existing 88-adapter catalog.
+4. **All adapter optimizations are opportunistic.** If provider supports prompt caching → adapter uses it transparently. If not → adapter no-ops. Call signature is identical.
+5. **Self-host default = zero AI cost.** Ollama (LLM) + Ollama `nomic-embed-text` (embed) + `fastembed-rs` cross-encoder (rerank) shipped pre-configured.
+6. **Provider catalog is workspace-scoped, tier-routed**: `mnemo.small_model`, `mnemo.large_model`, `mnemo.embedding_model`, `mnemo.rerank_model`. Each can be a different provider.
+
+### 25.2 Explicit exclusions
+
+- ❌ Anthropic prompt caching as REQUIRED — only opportunistic when adapter reports `supportsPromptCaching: true`
+- ❌ Specific embedding model as REQUIRED default
+- ❌ Cloud vector stores (Pinecone, Qdrant Cloud, Weaviate Cloud)
+- ❌ Cloud queue (SQS, Redis Cloud, RabbitMQ Cloud)
+- ❌ Cloud cache (Redis Cloud, Memcached Cloud)
+- ❌ Cloud observability (Datadog APM, NewRelic, Honeycomb) — OTel exporter to optional BYO backend
+- ❌ Required reranker provider (Cohere, Voyage, Jina) — opt-in BYO only; default is local cross-encoder
+
+### 25.3 Capability interface
+
+```ts
+// packages/mnemosyne/src/adapters/types.ts
+export interface ModelAdapter {
+  readonly providerId: string;
+
+  call(params: CallParams): Promise<CallResult>;
+  callBatched(params: CallParams[]): Promise<CallResult[]>;
+  embed(texts: string[]): Promise<number[][]>;
+
+  // Capability flags — Mnemosyne opportunistically optimizes
+  supportsPromptCaching(): boolean;
+  supportsJSONMode(): boolean;
+  supportsBatchedCompletion(): boolean;
+  supportsBatchedEmbedding(): boolean;
+
+  // Cost reporting (for spend cap + observability + Pareto dashboard)
+  costPer1MTokens(): { input: number; output: number };
+  costPer1MEmbeddings(): number;
+}
+
+export interface CallParams {
+  workspaceId: string;
+  systemPrompt: string;
+  messages: Message[];
+  temperature?: number;
+  maxTokens?: number;
+  jsonMode?: boolean;
+  cacheableBlocks?: string[]; // Mnemosyne marks; adapter decides if it uses them
+  costCeiling?: number; // hard fail if estimated cost exceeds
+}
+```
+
+---
+
+## 26. Cost Engineering (Tier 1) — 95% reduction, fully agnostic
+
+Eight techniques. All pure code or adapter-level. **Total estimated reduction: 95% vs spec baseline, 100% provider-agnostic.**
+
+### 26.1 Heuristic pre-filter (A1) — saves ~80% of extraction calls
+
+Before any LLM call, run a pure-code classifier:
+
+```ts
+function shouldExtract(messages: Message[]): { yes: boolean; reason: string } {
+  const totalChars = messages.reduce((s, m) => s + m.content.length, 0);
+  if (totalChars < 80) return { yes: false, reason: "too_short" };
+
+  const allShort = messages.every((m) => m.content.length < 30);
+  if (allShort) return { yes: false, reason: "all_short_messages" };
+
+  const contentTokens = extractContentTokens(messages);
+  if (contentTokens.length < 10)
+    return { yes: false, reason: "no_content_tokens" };
+
+  // Positive indicators (any match → yes)
+  const indicators = [
+    /\b(prefer|like|love|hate|need|want|always|never|usually)\b/i,
+    /\b(decided|will|going to|plan to|chose|adopted)\b/i,
+    /\b(at|in|from|works for|lives in|located)\b/i,
+    /\b(my (name|email|phone|address|company|team|role))\b/i,
+    /\b([A-Z][a-z]+ [A-Z][a-z]+)\b/, // proper nouns
+  ];
+  const positive = indicators.some((re) =>
+    messages.some((m) => re.test(m.content))
+  );
+  return {
+    yes: positive,
+    reason: positive ? "indicator_match" : "no_indicator",
+  };
+}
+```
+
+Logged to `mnemo_extraction_job.metadata.skip_reason` when skipped.
+
+### 26.2 Provider-transparent prompt caching (A2) — opportunistic 30-50% bonus
+
+Mnemosyne passes `cacheableBlocks: [SYSTEM_PROMPT, EXAMPLES_BLOCK]` on every call. Adapter checks its own `supportsPromptCaching()`:
+
+- **Anthropic adapter**: applies `cache_control: { type: 'ephemeral' }` headers
+- **OpenAI adapter**: uses `prompt_cache_key`
+- **Ollama / local adapters**: no-op (caching implicit via model loading)
+- **All other providers**: no-op
+
+Provider-agnostic by design — call signature is identical. Mnemosyne never branches on provider id.
+
+### 26.3 Speculative tier routing (A3) — ~40% additional reduction
+
+```ts
+// Workspace config
+mnemo.small_model; // e.g., "ollama/llama3.2-3b" or "anthropic/claude-haiku-4-5"
+mnemo.large_model; // e.g., "ollama/llama3.3-70b" or "anthropic/claude-sonnet-4-6"
+mnemo.embedding_model;
+mnemo.rerank_model;
+```
+
+Extraction pipeline:
+
+1. Small model first with 1-token probe: _"Is this conversation worth extracting facts from? (yes/no)"_
+2. If "no" → skip. If "yes" → small model does extraction.
+3. Schema validation. On failure → escalate to large model retry.
+
+### 26.4 Local-first defaults (A4) — $0 in pure self-host
+
+Install script provisions:
+
+- Ollama with `nomic-embed-text` (embed) + `llama3.2-3b` (small) + `llama3.3-70b` (large) pre-pulled
+- `fastembed-rs` binary with cross-encoder model for rerank (10MB, CPU-fine)
+
+Self-host workspaces default to these. Customer overrides at workspace level via Orchester provider catalog. **Pure self-host = zero AI cost.**
+
+### 26.5 Batched extraction window (A5) — 30% extra
+
+pg-boss singleton-keyed job with debounce. New turn → reset 60s timer. Fires on timer expiry OR N=5 turns. Single LLM call for joined messages.
+
+### 26.6 Memory budget cap per workspace (A6)
+
+```ts
+mnemo.max_memories_per_kind: { fact: 10000, decision: 5000, entity: 5000, episode: 2000 }
+mnemo.max_extraction_cost_usd_per_conversation: 0.05
+mnemo.max_total_cost_usd_per_day: 10
+mnemo.kill_switch_on_daily_exceed: true
+```
+
+On `max_memories_per_kind` exceeded → sleep-time aggressive forget (lowest `relevance * (1 + hit_count)`). On `max_total_cost_usd_per_day` → halt all Mnemosyne LLM ops until next day.
+
+### 26.7 Hierarchical caching (A7) — 50% recall reduction
+
+| Layer                       | Storage                      | TTL | Key                           | Hit saves                |
+| --------------------------- | ---------------------------- | --- | ----------------------------- | ------------------------ |
+| L1 — Query LRU              | In-process (5k entries)      | 60s | (ws, query_hash, scope, topK) | Full recall + embed + DB |
+| L2 — Embedding LRU          | In-process (10k entries)     | 1h  | (ws, model, text_hash)        | Embedding API call       |
+| L3 — Semantic-similar query | Postgres `mnemo_query_cache` | 24h | Closest query cosine > 0.95   | Full recall + embed      |
+| L4 — Cluster invalidation   | LISTEN/NOTIFY                | N/A | workspace_id                  | Cross-replica freshness  |
+
+L3: `mnemo_query_cache(query_embedding, result_ids, workspace_id, last_used_at)`. New queries embed first, check L3 — if cosine > 0.95 with recent query → reuse results. All in Postgres, no Redis.
+
+### 26.8 Lazy embeddings on hot path (A8)
+
+Asymmetric write/read:
+
+- **On write**: `embedding = NULL`, `embedding_status = 'pending'`
+- **On read**: if memory matches via BM25 alone and is pending → embed lazily on the side, include in results without semantic score
+- **Sleep-time**: nightly job embeds all pending
+
+Most memories never get hit → never embedded → free.
+
+### 26.9 Cost projection (provider-agnostic, 30k turns/month workspace)
+
+| Configuration                           | Cost/mo |
+| --------------------------------------- | ------- |
+| Spec baseline                           | $33     |
+| + A1 pre-filter                         | $6.60   |
+| + A7 hierarchical cache                 | $4.40   |
+| + A3 speculative tier                   | $2.80   |
+| + A2 opportunistic caching              | $1.50   |
+| **+ A4 local-first (Ollama self-host)** | **$0**  |
+
+→ **95% reduction. Zero provider lock-in. Zero platform-level third-party cost.**
+
+---
+
+## 27. Multi-modal Memory (C1)
+
+Three media: image, audio, document. All provider-agnostic.
+
+### 27.1 Image memories
+
+```sql
+ALTER TABLE mnemo_fact ADD COLUMN image_url text;
+ALTER TABLE mnemo_fact ADD COLUMN image_embedding vector(768);  -- CLIP/SigLIP dim
+ALTER TABLE mnemo_fact ADD COLUMN image_caption text;            -- LLM-generated
+```
+
+Provider: workspace's chosen multimodal model — OpenAI vision, Anthropic vision, Gemini vision, Ollama `llava`, local SigLIP, etc.
+
+Cross-modal recall: text query embedded → searches both text and image embeddings (projected to shared space).
+
+**Use cases**: browser extension agent (screenshot → memory), email agent (attachments → memories), voice agent (user-shared visual context).
+
+### 27.2 Audio memories
+
+```sql
+CREATE TABLE mnemo_audio_memory (
+  id text PRIMARY KEY,
+  workspace_id text NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+  episode_id text REFERENCES mnemo_episode(id) ON DELETE SET NULL,
+  audio_url text,
+  duration_seconds real,
+  transcript text,                          -- STT-extracted
+  transcript_embedding vector(1536),
+  voice_embedding vector(192),              -- speaker fingerprint
+  speaker_id text,
+  language text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+```
+
+STT provider: workspace's chosen — OpenAI Whisper API, Deepgram, AssemblyAI, or local `whisper.cpp`. **Local whisper.cpp ships in self-host install for zero cost.**
+
+**Use cases**: voice agent sessions, meeting bots with diarization, voice dictation.
+
+### 27.3 Document memories
+
+Bidirectional linkage to existing `knowledge_chunk` (KB schema preserved, not duplicated):
+
+```sql
+CREATE TABLE mnemo_document_link (
+  id text PRIMARY KEY,
+  workspace_id text NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+  memory_kind text NOT NULL CHECK (memory_kind IN ('fact','decision','entity','episode')),
+  memory_id text NOT NULL,
+  knowledge_chunk_id text NOT NULL REFERENCES knowledge_chunk(id) ON DELETE CASCADE,
+  relevance real CHECK (relevance BETWEEN 0 AND 1),
+  excerpt text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+```
+
+Memories can cite KB chunks. Recall optionally federates (`include_kb: true`) returning hits from both with unified ranking. Provenance shows KB chunks in proof trees.
+
+### 27.4 Cross-modal search
+
+```ts
+mnemosyne.search({
+  workspaceId,
+  query: "the diagram about OAuth flow",
+  modes: ["text", "image", "audio", "document"],
+  topK: 5,
+});
+```
+
+Unified ranking across modes via projected embeddings.
+
+---
+
+## 28. Memory Inference Engine (C2)
+
+Memories alone are dead. The inference engine resolves implicit facts via graph traversal + attribute inheritance — turning memory into knowledge.
+
+### 28.1 Implicit fact inference (example)
+
+State:
+
+- Fact: `subject=user, kind=trait, statement="works at Acme"`
+- Entity: `kind=organization, canonical_name=Acme, attributes={industry: "fintech", type: "startup"}`
+
+Query: _"What industry does the user work in?"_
+
+```ts
+mnemosyne.infer({
+  workspaceId, question: "What industry does the user work in?", hops: 2
+})
+// →
+{
+  answer: "Fintech",
+  confidence: 0.83,
+  reasoning_path: [
+    { hop: 1, source: "fact:user-works-at-Acme", relation: "subject_of" },
+    { hop: 2, source: "entity:Acme", attribute: "industry=fintech" }
+  ],
+  citations: ["mfact_user_employer", "ment_acme"]
+}
+```
+
+### 28.2 Temporal reasoning
+
+```ts
+mnemosyne.infer({
+  question: "When did the user change jobs?",
+  reasoning: "temporal",
+});
+// Detects facts with overlapping/closing valid ranges → "Between 2026-03-15 and 2026-03-22"
+```
+
+### 28.3 Contradiction reasoning
+
+```ts
+mnemosyne.infer({
+  question: "Are there contradictions in my memory about refund policy?",
+  scope: { topic_key: "billing/refund-policy" },
+});
+```
+
+### 28.4 Implementation
+
+1. Embed question + recall top-20 candidate memories (vector + FTS)
+2. Build sub-graph: relations between candidates (1-2 hops)
+3. Pass sub-graph + question to **workspace's small model** with locked structured prompt
+4. Return answer + reasoning path + confidence
+
+`INFERENCE_PROMPT_VERSION = "v1"`. Cost: ~$0.002 per inference (small model, ~300 tokens out, cached 5min).
+
+**No other system has this**: requires graph + bitemporal + locked vocabulary together. Mnemosyne has all three.
+
+---
+
+## 29. Workflow + Skill Memory (C3 + C4)
+
+### 29.1 Workflow memory
+
+Every `flow_run` writes a `mnemo_episode` on completion:
+
+```ts
+{
+  kind: "episode",
+  goal: flow.description,
+  summary: "Ran flow X with input Y, produced Z",
+  outcome: "success" | "partial" | "blocked" | "abandoned",
+  metadata: {
+    flow_id, flow_version, duration_ms, cost_usd,
+    failed_nodes: [...], succeeded_nodes: [...],
+    error_messages: [...]
+  }
+}
+```
+
+Flow engine on start queries: _"Have I run this flow before? Any past failures to avoid?"_. Past episodes inform branching ("last time approach X failed at step 3 — try Y").
+
+**Result: self-improving flows.**
+
+### 29.2 Skill memory
+
+Skills (catalog #34-58) stored as `mnemo_fact` with `kind="skill"`:
+
+```ts
+{
+  kind: "skill",
+  subject: "skill:" + skill_id,
+  statement: skill.description,
+  metadata: {
+    capability_vector: number[],
+    input_schema, output_schema,
+    cost_estimate, success_rate, invocation_count,
+    tags: string[]
+  }
+}
+```
+
+Capability search becomes a Mnemosyne recall:
+
+```ts
+mnemosyne.search({
+  query: "I need to summarize a long PDF",
+  filters: { kind: "skill" },
+  topK: 3,
+});
+// → top-3 skills by capability vector similarity + success rate
+```
+
+Skill discovery is automatic — agent describes task, Mnemosyne returns relevant skills.
+
+---
+
+## 30. KB Linkage + Memory Namespaces (C5 + C6)
+
+### 30.1 KB linkage
+
+Mnemosyne ⇄ existing `knowledge_*` schema interoperate bidirectionally:
+
+- **Memory cites KB**: `mnemo_citation.source_kind = 'document'`, `source_id = knowledge_chunk.id`
+- **KB chunks federate into recall**: `include_kb: true` returns hits from both with unified ranking
+- **Provenance includes KB** in recursive proof trees
+
+No duplication. KB stays canonical for long-form docs. Mnemosyne stores facts derived with citations.
+
+### 30.2 Memory namespaces
+
+Permission-scoped sub-division within a workspace:
+
+```sql
+CREATE TABLE mnemo_namespace (
+  id text PRIMARY KEY,
+  workspace_id text NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  description text,
+  parent_namespace_id text REFERENCES mnemo_namespace(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE mnemo_fact ADD COLUMN namespace_id text REFERENCES mnemo_namespace(id);
+ALTER TABLE mnemo_decision ADD COLUMN namespace_id text REFERENCES mnemo_namespace(id);
+ALTER TABLE mnemo_entity ADD COLUMN namespace_id text REFERENCES mnemo_namespace(id);
+ALTER TABLE mnemo_episode ADD COLUMN namespace_id text REFERENCES mnemo_namespace(id);
+```
+
+**Use cases**: enterprise multi-team (engineering/sales/support), multi-product, compliance tiers (public/internal/restricted).
+
+RLS additive: workspace_id AND namespace_id permissions. RBAC: `mnemo.namespace:<name>:read`.
+
+---
+
+## 31. Studio Memory Inspector UI (D1)
+
+Admin UI: `/orchester/admin/mnemosyne/`.
+
+### 31.1 Views
+
+| View                 | Purpose                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------------- |
+| Dashboard            | Health score 0-100, kind distribution, decay curve, recent extractions, pending conflicts |
+| Memory browser       | Filterable table + bitemporal slider ("show as of date")                                  |
+| Memory detail        | Full content + provenance proof tree + relations graph + edit history                     |
+| Conflicts queue      | Pending relations, bulk-resolve UI, per-conflict diff                                     |
+| Search playground    | Live recall with score breakdown per signal visible per hit                               |
+| Inference playground | Test inference engine with reasoning path visualization                                   |
+| Settings             | Providers per tier, budget caps, namespace management, RBAC                               |
+
+### 31.2 Privacy actions
+
+- "Forget" per memory (audit-logged)
+- Bulk forget by subject (GDPR Article 17)
+- Export workspace memory (GDPR Article 15)
+- Memory access log (who viewed what when)
+
+---
+
+## 32. PII Detection Layer (D10)
+
+Mandatory privacy guard. Phase 8.5 of extraction (after extraction, before persist).
+
+### 32.1 Detection
+
+1. **Regex layer**: emails, phone, SSN, credit cards, IPs, API keys
+2. **NER layer**: person names, org names, locations
+3. **LLM layer** (optional, high-confidence): workspace's small model scores PII risk 0-1
+
+Attached to memory:
+
+```ts
+metadata.pii: { detected: true, categories: ["email", "phone"], risk_score: 0.85, detected_at: timestamp }
+```
+
+### 32.2 Actions (per-category workspace config)
+
+- **WARN** — store but flag in UI (default)
+- **REDACT** — replace tokens with `[REDACTED-<category>]` before persist
+- **REJECT** — skip extraction entirely, audit log
+
+Default new workspace: `email/phone → WARN`, `ssn/credit_card → REDACT`, `api_key → REJECT`.
+
+### 32.3 Compliance
+
+Audit log per PII detection. Provenance shows PII detection step. Export includes PII flag for GDPR right-of-access.
+
+---
+
+## 33. Continuous Benchmark CI (B1)
+
+### 33.1 Benchmarks shipped
+
+- **LoCoMo** — target Mnemosyne v3.0 ≥ 92 (Mem0 V3: 91.6)
+- **LongMemEval** — target ≥ 95 (Mem0 V3: 94.8)
+- **BEAM-1M / BEAM-10M** — target ≥ Mem0 V3 baselines
+- **Orchester Synthetic 1k** — 1000 conversations with curated ground-truth (custom)
+- **Provider Parity Suite** — same benchmark across {OpenAI, Anthropic, Gemini, Ollama-local, Together} → measures agnosticism quality
+
+### 33.2 CI integration
+
+Every PR touching `packages/mnemosyne/`:
+
+1. Spins up testcontainer Postgres + local Ollama
+2. Runs each benchmark with Ollama-local (cost = $0)
+3. Compares against baseline (`benchmarks/baseline.json`)
+4. Fails PR if any benchmark drops > 2%
+5. Posts comment with delta
+
+Quarterly: runs with cloud providers, results published.
+
+### 33.3 Public dashboard
+
+`https://mnemosyne.dev/benchmarks` (post spin-out): live benchmark scores per release. Reproducibility kit: `git clone + docker compose up + npm run bench` reproduces all numbers locally.
+
+---
+
+## 34. Deterministic Replay (B2)
+
+Research-grade reproducibility:
+
+- **Fixed prompt versions**: `EXTRACTION_PROMPT_VERSION`, `JUDGE_PROMPT_VERSION`, `INFERENCE_PROMPT_VERSION` const-locked
+- **Temperature 0** for all Mnemosyne LLM calls
+- **Seeded UUIDs**: `mnemo_seed = hash(workspaceId, conversationId, messageIds)`
+- **Recorded responses** (dev mode): replay tests use cached LLM responses
+
+Same input + same state + same prompt versions → bit-identical output. Critical for benchmarks, test stability, debugging, migration validation.
+
+---
+
+## 35. Revised Roadmap v2 (Tier 1 incorporated)
+
+| Phase                                                                       | Duration | Scope                                                                                                                              |
+| --------------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **v0.0 — Provider Audit**                                                   | 0.5 wk   | Audit existing brain\_\* for provider-specific assumptions. Refactor to use workspace catalog. Charter §25 enforced.               |
+| **v0.1 — Migration**                                                        | 1 wk     | brain*\* → mnemo*\*, move to `packages/mnemosyne`                                                                                  |
+| **v1.0 — Decision + Graph + Citation + Cost Engineering + PII + UI v0**     | 4 wk     | All v1.0 features + Cost engineering §26 (A1+A2+A3+A7) **integrated from day 1** + PII detection §32 + Inspector UI v0 (read-only) |
+| **v1.5 — Bitemporal + Extraction V3 + Determinism + Benchmarks**            | 2 wk     | + Deterministic replay §34 + Benchmark CI scaffold §33                                                                             |
+| **v2.0 — Entities + KG + Inference Engine + Workflow Memory**               | 4 wk     | + Inference engine §28 + Workflow memory §29.1                                                                                     |
+| **v2.5 — Episodes + Memory Protocol + Skill Memory + KB Linkage**           | 2 wk     | + Skill memory §29.2 + KB linkage §30.1                                                                                            |
+| **v3.0 — Introspection + Feedback + Sleep-Time + Multi-modal + Namespaces** | 5 wk     | + Multi-modal §27 + Memory namespaces §30.2 + Local-first install scripts §26.4                                                    |
+| **v3.5 — Federation + Contracts + Inspector v1**                            | 3 wk     | + Inspector UI v1 (edit/audit/forget) + Lazy embeddings §26.8                                                                      |
+| **v4.0 — Observability + Reference Apps + Public Benchmark**                | 3 wk     | + Public benchmark dashboard §33.3 + 3 reference apps                                                                              |
+
+**Total: ~25 weeks** (was 19 pre-Tier 1).
+**v1.0 ships in 4 weeks** with cost engineering integrated → already surpasses every OSS competitor on cost AND quality.
+
+---
+
+**End of design v2.** Provider-agnostic. Zero platform-level third-party costs. Ready for review + writing-plans skill invocation.
