@@ -740,6 +740,29 @@ Background cron at 03:30 UTC daily. Five operations:
 
 Resource-budgeted: max 1 hour of compute per workspace per night. Skipped on workspaces with `mnemo.dreaming_enabled = false` (default `true`).
 
+**Forget suggestions table** (referenced by "Forget low-recall" op):
+
+```sql
+CREATE TABLE mnemo_forget_suggestion (
+  id                 text PRIMARY KEY,
+  workspace_id       text NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+  memory_kind        text NOT NULL CHECK (memory_kind IN ('fact','decision','entity','episode')),
+  memory_id          text NOT NULL,
+  reason             text NOT NULL,                  -- 'low_recall', 'stale', 'low_confidence_legacy', etc.
+  score              real NOT NULL,                  -- composite score, lower = stronger forget signal
+  evidence           jsonb,                          -- {hit_count, last_recalled_at, age_days, relevance}
+  status             text NOT NULL CHECK (status IN ('pending','approved','rejected','applied','expired')) DEFAULT 'pending',
+  reviewed_by_user_id text REFERENCES "user"(id) ON DELETE SET NULL,
+  reviewed_at        timestamptz,
+  expires_at         timestamptz NOT NULL,           -- 30 days from creation
+  created_at         timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_mnemo_forget_ws_pending ON mnemo_forget_suggestion (workspace_id, status, score)
+  WHERE status = 'pending';
+```
+
+Human reviewer approves → status='approved' → next sleep-time tick hard-deletes (with audit). Reject → status='rejected' (kept indefinitely). No review within 30 days → status='expired' (re-suggested only if signal worsens).
+
 ---
 
 ## 12. Cross-Workspace Federation
