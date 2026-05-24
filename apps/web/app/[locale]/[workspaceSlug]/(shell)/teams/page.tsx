@@ -5,13 +5,17 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { TeamsPageClient } from "@/components/teams/TeamsPageClient";
 
 import { getTeams } from "@/lib/db-queries";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { getCurrentWorkspaceBySlug } from "@/lib/workspace";
 
-export default async function TeamsPage({ params }: { params: Promise<{ locale: string }> }) {
-  const { locale } = await params;
+export default async function TeamsPage({
+  params,
+}: {
+  params: Promise<{ locale: string; workspaceSlug: string }>;
+}) {
+  const { locale, workspaceSlug } = await params;
   const t = await getTranslations({ locale, namespace: "pages.teams" });
 
-  const workspace = await getCurrentWorkspace();
+  const workspace = await getCurrentWorkspaceBySlug(workspaceSlug);
   const teams = workspace ? await getTeams(workspace.workspace.id).catch(() => []) : [];
 
   const formLabels = {
@@ -52,6 +56,7 @@ export default async function TeamsPage({ params }: { params: Promise<{ locale: 
               agentCount={team.agentCount}
               channelCount={team.channelCount}
               locale={locale}
+              workspaceSlug={workspaceSlug}
             />
           ))}
         </div>

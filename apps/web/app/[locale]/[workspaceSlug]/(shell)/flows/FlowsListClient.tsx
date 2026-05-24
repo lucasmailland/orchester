@@ -19,8 +19,9 @@ interface Item {
 export function FlowsListClient({ flows }: { flows: Item[] }) {
   const router = useRouter();
   const t = useTranslations("pages.flows");
-  const params = useParams<{ locale: string }>();
+  const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "es";
+  const workspaceSlug = params?.workspaceSlug ?? "";
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
 
@@ -33,7 +34,7 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
     });
     if (r.ok) {
       const j = await r.json();
-      router.push(`/${locale}/flows/${j.id}`);
+      router.push(`/${locale}/${workspaceSlug}/flows/${j.id}`);
     }
   }
 

@@ -1,9 +1,14 @@
 import { getAgents, getTeams } from "@/lib/db-queries";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { getCurrentWorkspaceBySlug } from "@/lib/workspace";
 import { AgentsPageClient } from "@/components/agents/AgentsPageClient";
 
-export default async function AgentsPage() {
-  const workspace = await getCurrentWorkspace();
+export default async function AgentsPage({
+  params,
+}: {
+  params: Promise<{ workspaceSlug: string }>;
+}) {
+  const { workspaceSlug } = await params;
+  const workspace = await getCurrentWorkspaceBySlug(workspaceSlug);
 
   const [agents, teams] = workspace
     ? await Promise.all([

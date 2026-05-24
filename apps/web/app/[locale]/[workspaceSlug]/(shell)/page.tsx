@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { getFullDashboardStats } from "@/lib/db-queries";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { getCurrentWorkspaceBySlug } from "@/lib/workspace";
 import { DashboardClientLazy } from "@/components/dashboard/DashboardClientLazy";
 
 /**
@@ -14,10 +14,14 @@ const getCachedDashboard = (workspaceId: string) =>
     tags: [`dashboard:${workspaceId}`],
   })();
 
-export default async function DashboardPage({ params }: { params: Promise<{ locale: string }> }) {
-  const { locale } = await params;
+export default async function DashboardPage({
+  params,
+}: {
+  params: Promise<{ locale: string; workspaceSlug: string }>;
+}) {
+  const { locale, workspaceSlug } = await params;
 
-  const workspace = await getCurrentWorkspace();
+  const workspace = await getCurrentWorkspaceBySlug(workspaceSlug);
   const stats = workspace
     ? await getCachedDashboard(workspace.workspace.id).catch((e) => {
         console.error("[Dashboard] getFullDashboardStats failed:", e?.message ?? e);
@@ -38,6 +42,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
       stats={stats}
       workspaceName={workspace?.workspace.name ?? ""}
       locale={locale}
+      workspaceSlug={workspaceSlug}
     />
   );
 }

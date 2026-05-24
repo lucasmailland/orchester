@@ -1,4 +1,4 @@
-import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
+import { getCurrentSession, getCurrentWorkspaceBySlug } from "@/lib/workspace";
 import { SettingsClient } from "@/components/settings/SettingsClient";
 import { getTranslations } from "next-intl/server";
 import { isStripeEnabled } from "@/lib/billing/stripe";
@@ -11,12 +11,16 @@ import { isStripeEnabled } from "@/lib/billing/stripe";
  * user. Las prefs de notificación se cargan en el cliente porque cambian con
  * cada toggle y no vale la pena prefetch.
  */
-export default async function SettingsPage({ params }: { params: Promise<{ locale: string }> }) {
-  const { locale } = await params;
+export default async function SettingsPage({
+  params,
+}: {
+  params: Promise<{ locale: string; workspaceSlug: string }>;
+}) {
+  const { locale, workspaceSlug } = await params;
   const t = await getTranslations({ locale, namespace: "pages.settings" });
 
   const session = await getCurrentSession();
-  const workspaceCtx = await getCurrentWorkspace();
+  const workspaceCtx = await getCurrentWorkspaceBySlug(workspaceSlug);
   const workspace = workspaceCtx?.workspace ?? null;
   const role = workspaceCtx?.role ?? null;
 

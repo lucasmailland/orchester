@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslations } from "next-intl";
+import { useParams } from "next/navigation";
 import {
   Home,
   Users,
@@ -29,6 +30,13 @@ interface SidebarProps {
 export function Sidebar({ locale }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const t = useTranslations("nav");
+  // Sidebar always renders inside the [workspaceSlug] segment, so the
+  // param is guaranteed present. The `?? ""` fallback is defensive only
+  // — Phase D's redirects in middleware send unauth/slug-less traffic
+  // elsewhere before this component ever mounts.
+  const params = useParams<{ workspaceSlug?: string }>();
+  const ws = params?.workspaceSlug ?? "";
+  const base = `/${locale}/${ws}`;
 
   // Grouping rationale:
   //   WORKSPACE → vistas diarias (dashboard + producción del sistema)
@@ -37,30 +45,30 @@ export function Sidebar({ locale }: SidebarProps) {
   //   DATOS → directorios estáticos (people, knowledge)
   //   SISTEMA → infra del workspace (canales, integraciones, ajustes)
   const workspaceNav = [
-    { href: `/${locale}`, icon: <Home size={16} />, label: t("home") },
+    { href: `${base}`, icon: <Home size={16} />, label: t("home") },
     {
-      href: `/${locale}/conversations`,
+      href: `${base}/conversations`,
       icon: <MessageSquare size={16} />,
       label: t("conversations"),
     },
   ];
 
   const buildNav = [
-    { href: `/${locale}/org`, icon: <Network size={16} />, label: t("org") },
-    { href: `/${locale}/teams`, icon: <Layers size={16} />, label: t("teams") },
-    { href: `/${locale}/agents`, icon: <Bot size={16} />, label: t("agents") },
-    { href: `/${locale}/flows`, icon: <Workflow size={16} />, label: t("flows") },
+    { href: `${base}/org`, icon: <Network size={16} />, label: t("org") },
+    { href: `${base}/teams`, icon: <Layers size={16} />, label: t("teams") },
+    { href: `${base}/agents`, icon: <Bot size={16} />, label: t("agents") },
+    { href: `${base}/flows`, icon: <Workflow size={16} />, label: t("flows") },
   ];
 
   const dataNav = [
-    { href: `/${locale}/employees`, icon: <Users size={16} />, label: t("employees") },
-    { href: `/${locale}/knowledge`, icon: <BookOpen size={16} />, label: t("knowledge") },
+    { href: `${base}/employees`, icon: <Users size={16} />, label: t("employees") },
+    { href: `${base}/knowledge`, icon: <BookOpen size={16} />, label: t("knowledge") },
   ];
 
   const systemNav = [
-    { href: `/${locale}/channels`, icon: <Radio size={16} />, label: t("channels") },
-    { href: `/${locale}/integrations`, icon: <Plug size={16} />, label: t("integrations") },
-    { href: `/${locale}/settings`, icon: <Settings size={16} />, label: t("settings") },
+    { href: `${base}/channels`, icon: <Radio size={16} />, label: t("channels") },
+    { href: `${base}/integrations`, icon: <Plug size={16} />, label: t("integrations") },
+    { href: `${base}/settings`, icon: <Settings size={16} />, label: t("settings") },
   ];
 
   const groups: Array<{ label: string; items: typeof workspaceNav }> = [

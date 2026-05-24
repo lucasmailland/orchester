@@ -1,18 +1,18 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { getCurrentWorkspaceBySlug } from "@/lib/workspace";
 import { getTeamById, getTeamAgents, getTeamChannels } from "@/lib/db-queries";
 import { TeamDetailClient } from "@/components/teams/TeamDetailClient";
 
 export default async function TeamDetailPage({
   params,
 }: {
-  params: Promise<{ locale: string; id: string }>;
+  params: Promise<{ locale: string; id: string; workspaceSlug: string }>;
 }) {
-  const { locale, id } = await params;
+  const { locale, id, workspaceSlug } = await params;
   const t = await getTranslations({ locale, namespace: "pages.teams" });
 
-  const workspace = await getCurrentWorkspace();
+  const workspace = await getCurrentWorkspaceBySlug(workspaceSlug);
   if (!workspace) notFound();
 
   const [team, agents, channels] = await Promise.all([

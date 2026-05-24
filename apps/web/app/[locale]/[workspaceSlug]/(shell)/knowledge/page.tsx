@@ -1,10 +1,15 @@
 import { getDb, schema } from "@orchester/db";
 import { eq, desc } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { getCurrentWorkspaceBySlug } from "@/lib/workspace";
 import { KnowledgeListClient } from "@/components/knowledge/KnowledgeListClient";
 
-export default async function KnowledgePage() {
-  const ws = await getCurrentWorkspace();
+export default async function KnowledgePage({
+  params,
+}: {
+  params: Promise<{ workspaceSlug: string }>;
+}) {
+  const { workspaceSlug } = await params;
+  const ws = await getCurrentWorkspaceBySlug(workspaceSlug);
   if (!ws) return null;
   const db = getDb();
   const rows = await db

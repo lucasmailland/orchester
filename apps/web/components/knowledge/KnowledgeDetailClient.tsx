@@ -34,8 +34,9 @@ const STATUS_COLOR: Record<string, string> = {
 export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
   const router = useRouter();
   const t = useTranslations("pages.knowledge.detail");
-  const params = useParams<{ locale: string }>();
+  const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "es";
+  const ws = params?.workspaceSlug ?? "";
   const [tab, setTab] = useState<"docs" | "search">("docs");
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
@@ -117,7 +118,7 @@ export function KnowledgeDetailClient({ kb, docs }: { kb: KB; docs: Doc[] }) {
       <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => router.push(`/${locale}/knowledge`)}
+          onClick={() => router.push(`/${locale}/${ws}/knowledge`)}
           className="text-muted hover:text-strong"
         >
           <ArrowLeft className="h-4 w-4" />

@@ -15,6 +15,7 @@ interface TeamCardProps {
   agentCount: number;
   channelCount: number;
   locale: string;
+  workspaceSlug: string;
 }
 
 export function TeamCard({
@@ -25,6 +26,7 @@ export function TeamCard({
   agentCount,
   channelCount,
   locale,
+  workspaceSlug,
 }: TeamCardProps) {
   const t = useTranslations("pages.teams");
   const color = avatarColor ?? "#7C3AED";
@@ -43,7 +45,7 @@ export function TeamCard({
       whileHover={{ y: -3, transition: { duration: 0.18 } }}
     >
       <Link
-        href={`/${locale}/teams/${id}`}
+        href={`/${locale}/${workspaceSlug}/teams/${id}`}
         className={cn(
           "group relative block overflow-hidden rounded-2xl",
           "border border-line bg-card",

@@ -1,16 +1,16 @@
 import { notFound, redirect } from "next/navigation";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { getCurrentWorkspaceBySlug } from "@/lib/workspace";
 import { FlowBuilderLazy } from "@/components/flows/FlowBuilderLazy";
 
 export default async function FlowDetailPage({
   params,
 }: {
-  params: Promise<{ id: string; locale: string }>;
+  params: Promise<{ id: string; locale: string; workspaceSlug: string }>;
 }) {
-  const { id, locale } = await params;
-  const ws = await getCurrentWorkspace();
+  const { id, locale, workspaceSlug } = await params;
+  const ws = await getCurrentWorkspaceBySlug(workspaceSlug);
   if (!ws) redirect(`/${locale}/login`);
   const db = getDb();
   const rows = await db

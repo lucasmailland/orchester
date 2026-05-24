@@ -661,6 +661,7 @@ interface Props {
   stats: FullDashboardStats;
   workspaceName: string;
   locale: string;
+  workspaceSlug: string;
 }
 
 /** Formatea un porcentaje de cambio con signo. Devuelve null si el delta es nulo. */
@@ -671,7 +672,7 @@ function fmtDelta(delta: number | null | undefined): string | null {
   return `${rounded > 0 ? "+" : ""}${rounded}%`;
 }
 
-export function DashboardClient({ stats, workspaceName, locale }: Props) {
+export function DashboardClient({ stats, workspaceName, locale, workspaceSlug }: Props) {
   const t = useTranslations("dashboard");
   const now = new Date();
   // Map app locale → BCP-47 for Intl.DateTimeFormat
@@ -1097,7 +1098,7 @@ export function DashboardClient({ stats, workspaceName, locale }: Props) {
           </div>
           <div className="border-t border-line px-5 py-2.5">
             <a
-              href={`/${locale}/conversations`}
+              href={`/${locale}/${workspaceSlug}/conversations`}
               className="flex items-center gap-1 text-[10px] text-faint hover:text-muted transition-colors"
             >
               <span>{t("charts.viewAllConversations")}</span>

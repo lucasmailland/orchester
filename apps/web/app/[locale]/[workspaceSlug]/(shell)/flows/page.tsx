@@ -1,10 +1,15 @@
 import { getDb, schema } from "@orchester/db";
 import { eq, desc } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { getCurrentWorkspaceBySlug } from "@/lib/workspace";
 import { FlowsListClient } from "./FlowsListClient";
 
-export default async function FlowsPage() {
-  const ws = await getCurrentWorkspace();
+export default async function FlowsPage({
+  params,
+}: {
+  params: Promise<{ workspaceSlug: string }>;
+}) {
+  const { workspaceSlug } = await params;
+  const ws = await getCurrentWorkspaceBySlug(workspaceSlug);
   if (!ws) return null;
   const db = getDb();
   const rows = await db

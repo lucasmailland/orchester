@@ -81,8 +81,9 @@ type FilterStatus = "all" | "active" | "inactive" | "draft";
 export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
   const router = useRouter();
   const t = useTranslations("pages.agents");
-  const params = useParams<{ locale: string }>();
+  const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "es";
+  const ws = params?.workspaceSlug ?? "";
   const [createOpen, setCreateOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<AgentItem | null>(null);
   const [filter, setFilter] = useState<FilterStatus>("all");
@@ -259,7 +260,7 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
                       variants={staggerItem}
                       onClick={(e) => {
                         if ((e.target as HTMLElement).closest("button")) return;
-                        router.push(`/${locale}/agents/${agent.id}`);
+                        router.push(`/${locale}/${ws}/agents/${agent.id}`);
                       }}
                       className={cn(
                         "group relative cursor-pointer overflow-hidden rounded-2xl border border-line bg-card",

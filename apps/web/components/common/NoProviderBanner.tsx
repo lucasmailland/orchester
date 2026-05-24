@@ -19,8 +19,9 @@ interface Summary {
  */
 export function NoProviderBanner() {
   const [summary, setSummary] = useState<Summary | null>(null);
-  const params = useParams<{ locale: string }>();
+  const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "es";
+  const ws = params?.workspaceSlug ?? "";
 
   useEffect(() => {
     fetch("/api/providers?summary=1")
@@ -39,22 +40,22 @@ export function NoProviderBanner() {
 
   return (
     <Link
-      href={`/${locale}/settings`}
+      href={`/${locale}/${ws}/settings`}
       className={`mb-3 flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-xs ${styles}`}
     >
       <Icon className="h-4 w-4 shrink-0" />
       <span>
         {isDisconnected ? (
           <>
-            <strong>Tu proveedor de IA está desconectado.</strong> Los agentes no
-            responderán a nuevas conversaciones hasta que reconectes una key en{" "}
+            <strong>Tu proveedor de IA está desconectado.</strong> Los agentes no responderán a
+            nuevas conversaciones hasta que reconectes una key en{" "}
             <strong>Ajustes → Proveedores de IA</strong>.
           </>
         ) : (
           <>
             Aún no configuraste un proveedor de IA. Andá a{" "}
-            <strong>Ajustes → Proveedores de IA</strong> y conectá Anthropic, OpenAI
-            o Google para habilitar agentes y flujos.
+            <strong>Ajustes → Proveedores de IA</strong> y conectá Anthropic, OpenAI o Google para
+            habilitar agentes y flujos.
           </>
         )}
       </span>

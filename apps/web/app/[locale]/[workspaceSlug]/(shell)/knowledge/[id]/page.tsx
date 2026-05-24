@@ -1,12 +1,16 @@
 import { notFound } from "next/navigation";
 import { getDb, schema } from "@orchester/db";
 import { eq, and, desc } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { getCurrentWorkspaceBySlug } from "@/lib/workspace";
 import { KnowledgeDetailClient } from "@/components/knowledge/KnowledgeDetailClient";
 
-export default async function KbDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const ws = await getCurrentWorkspace();
+export default async function KbDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string; workspaceSlug: string }>;
+}) {
+  const { id, workspaceSlug } = await params;
+  const ws = await getCurrentWorkspaceBySlug(workspaceSlug);
   if (!ws) return null;
   const db = getDb();
   const kbRows = await db

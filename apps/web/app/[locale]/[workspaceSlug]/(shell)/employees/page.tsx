@@ -1,13 +1,17 @@
 import { getTranslations } from "next-intl/server";
 import { EmployeeTable } from "@/components/employees/EmployeeTable";
 import { getEmployees } from "@/lib/db-queries";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { getCurrentWorkspaceBySlug } from "@/lib/workspace";
 
-export default async function EmployeesPage({ params }: { params: Promise<{ locale: string }> }) {
-  const { locale } = await params;
+export default async function EmployeesPage({
+  params,
+}: {
+  params: Promise<{ locale: string; workspaceSlug: string }>;
+}) {
+  const { locale, workspaceSlug } = await params;
   const t = await getTranslations({ locale, namespace: "pages.employees" });
 
-  const workspace = await getCurrentWorkspace();
+  const workspace = await getCurrentWorkspaceBySlug(workspaceSlug);
   const employees = workspace ? await getEmployees(workspace.workspace.id).catch(() => []) : [];
 
   const labels = {
