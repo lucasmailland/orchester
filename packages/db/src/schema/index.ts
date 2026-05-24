@@ -8,3 +8,4 @@ export * from "./knowledge";
 export * from "./production";
 export * from "./integrations";
 export * from "./audit";
+export * from "./feature-flags";
