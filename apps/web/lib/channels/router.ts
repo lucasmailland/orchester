@@ -523,31 +523,33 @@ async function runConversationalTurn(
  * Routes an inbound message to the right agent and persists the conversation.
  * Handles both conversational (LLM with tools) and flow-driven agents.
  *
- * Phase E follow-up #1: abre una transacción del workspace con
- * `app.workspace_id` SET LOCAL para que cada query interna pase FORCE RLS.
- * El handle (`tx`) se threadea a `resolveInbound` → `runConversationalTurn`
- * → `persistAssistantTurn`, y desde ahí a los helpers de billing/budget.
+ * Phase E follow-up #1: usa dos transacciones SEPARADAS con
+ * `app.workspace_id` SET LOCAL en cada una. Una sola txn alrededor de todo
+ * el turno haría rollback en falla del LLM y perderíamos el mensaje del
+ * cliente — pre-refactor cada insert era su propio statement autocommit y
+ * el mensaje del usuario quedaba guardado aunque el asistente fallara.
+ * Replicamos esa semántica:
  *
- * Trade-off conocido: la txn se mantiene abierta durante las llamadas al
- * LLM (que pueden tardar segundos). El volumen de webhooks entrantes es
- * bajo y la atomicidad nos da el GUC necesario. Mismo patrón que
- * `withTenantContext` para las rutas HTTP.
+ *   - Txn 1: `resolveInbound` (channel/agent lookup + user msg insert +
+ *            quota/budget/takeover/flow checks). Commit antes del LLM.
+ *   - Txn 2: `runConversationalTurn` (LLM loop + persistAssistantTurn).
+ *
+ * Mismo patrón que `handleInboundStream` (forzado a partir por limitación
+ * del async generator). El GUC garantiza que cada txn pase FORCE RLS.
  */
 export async function handleInbound(
   workspaceId: string,
   msg: InboundMessage
 ): Promise<OutboundResponse> {
-  return withWorkspaceTx(workspaceId, async (tx) => {
-    const res = await resolveInbound(workspaceId, msg, tx);
-    if (res.kind === "terminal") {
-      return {
-        conversationId: res.conversationId,
-        reply: res.reply,
-        tokensUsed: res.tokensUsed,
-      };
-    }
-    return runConversationalTurn(res.ctx, tx);
-  });
+  const res = await withWorkspaceTx(workspaceId, (tx) => resolveInbound(workspaceId, msg, tx));
+  if (res.kind === "terminal") {
+    return {
+      conversationId: res.conversationId,
+      reply: res.reply,
+      tokensUsed: res.tokensUsed,
+    };
+  }
+  return withWorkspaceTx(workspaceId, (tx) => runConversationalTurn(res.ctx, tx));
 }
 
 /**
