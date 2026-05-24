@@ -57,7 +57,67 @@ Total findings: 4 (2 BLOCKING, 0 WARN, 2 OK-as-example). No hardcoded provider e
 
 ### Provider-specific behaviors
 
-(populated in Task 0.3)
+Grep methodology (see Task 0.3):
+
+```bash
+grep -niE "cache_control|prompt_cache_key|reasoning_effort|response_format" apps/web/lib/brain/*.ts
+grep -nE "llmCall\(" apps/web/lib/brain/*.ts
+```
+
+Total findings: 1 `llmCall` call in `extract.ts`. Zero direct provider-API constructs (`cache_control`, `prompt_cache_key`, `reasoning_effort`, `response_format`, `tool_choice`, `function_call`, streaming) — `brain/` delegates all provider dispatch through `lib/llm-call.ts`, which already routes by `resolveModel(model)` and is the canonical provider-agnostic seam in the codebase.
+
+#### B-001 · apps/web/lib/brain/extract.ts:78 — single `llmCall` invocation
+
+**Code:**
+
+```ts
+const result = await llmCall({
+  workspaceId: input.workspaceId,
+  model,
+  systemPrompt: SYSTEM_PROMPT,
+  messages: [
+    {
+      role: "user",
+      content: `Extract durable facts from this conversation:\n\n${userContent}\n\nReturn JSON array now.`,
+    },
+  ],
+  temperature: 0.1,
+  maxTokens: 600,
+});
+```
+
+**Provider features it relies on:**
+
+- **None unique to any one provider.** The shape `{ systemPrompt, messages, temperature, maxTokens }` is universal across Anthropic, OpenAI, Gemini, Mistral, Groq, Ollama and is normalized by `llmCall` / `resolveModel`.
+- **JSON output via prompting only** — no `response_format: "json_object"`, no `tool_choice`, no function/tool calling. The prompt instructs "Output ONLY a JSON array" and `extract.ts` strips ```code fences post-hoc (lines 113-117). This works on every provider; it does NOT depend on Anthropic/OpenAI native JSON mode.
+- **No streaming.** Single block call. Works on every provider (Ollama included).
+- **No prompt-caching directives** (`cache_control`, `prompt_cache_key`). The SYSTEM_PROMPT is small (~600 chars) so caching is not implemented at this layer — Mnemosyne Cost Tier 1 can opt-in later via adapter-level cache hints (Mode C only).
+
+**Would it fail with a provider that lacks those features?** No. The call is the lowest-common-denominator chat completion.
+
+**Required adapter interface methods to make it Mnemosyne-compliant:**
+
+| Capability                                     | Adapter method                                               | Already in `llmCall`?                |
+| ---------------------------------------------- | ------------------------------------------------------------ | ------------------------------------ |
+| Chat completion (block)                        | `adapter.chat({ system, messages, temperature, maxTokens })` | Yes (universal)                      |
+| Token usage accounting                         | result.tokensUsed                                            | Yes                                  |
+| Resolved model echo (for fallback attribution) | result.model                                                 | Yes                                  |
+| Spend cap pre-flight                           | `assertWithinSpend(workspaceId, tx)`                         | Yes (separate call before `llmCall`) |
+| Usage recording                                | `recordAiUsage()`                                            | Yes (separate call after `llmCall`)  |
+
+**Verdict:** B-001 is OK-as-is. No provider-specific behavior to refactor — `extract.ts` is already the model the Mnemosyne charter wants (delegates to a single seam, no inline API knobs). The only adjustment for Mnemosyne is purely cosmetic (rename to `mnemosyne_extract`) plus passing the resolved `model` argument from the caller (covered by F-001).
+
+#### B-002 · Indirect dependency on `wrapUntrusted` (lines 10, 73)
+
+**Code:** `import { wrapUntrusted } from "@/lib/agent-runtime";` and `wrapUntrusted(input.conversationSlice, "conversation")`.
+**Provider features:** None. `wrapUntrusted` is a pure prompt-injection guard that wraps content in untrusted-content fence markers. Provider-neutral.
+**Verdict:** OK-as-is. Carry over to `packages/mnemosyne` unchanged (re-export from `@orchester/web/lib/agent-runtime` or copy if it must be in the package — TBD by Phase 1).
+
+#### B-003 · Indirect dependency on `calculateChatCostUsd` (line 14, 97)
+
+**Code:** `import { calculateChatCostUsd } from "@/lib/pricing";` and `const costUsd = calculateChatCostUsd(result.model, 0, tokensUsed);`
+**Provider features:** Provider-agnostic — uses the project's `pricing` table keyed by `(provider, model)`.
+**Verdict:** OK-as-is. The function is the canonical cost lookup; Mnemosyne should not duplicate it.
 
 ### Mode A compatibility gaps
 
