@@ -1,7 +1,14 @@
 import "server-only";
 import { createId } from "@paralleldrive/cuid2";
-import { getDb, schema, type Conversation, type Agent, type Channel } from "@orchester/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
+import {
+  getDb,
+  schema,
+  type DbClient,
+  type Conversation,
+  type Agent,
+  type Channel,
+} from "@orchester/db";
 import { llmCall, llmStream, type ChatMessage } from "@/lib/llm-call";
 import { getToolDefinitions, executeTool } from "@/lib/tools";
 import { executeFlow } from "@/lib/flow-engine";
@@ -23,11 +30,39 @@ export interface OutboundResponse {
   tokensUsed: number;
 }
 
-type Db = ReturnType<typeof getDb>;
+/**
+ * Transaction handle structurally compatible con `getDb()`. Lo threadea el router
+ * desde `handleInbound` para que cada query corra en la conexión que tiene
+ * `app.workspace_id` SET LOCAL (post-FORCE RLS). Sin esto, los helpers que
+ * llaman a `getDb()` toman conexiones del pool sin el GUC y los writes /
+ * reads fallan silenciosamente.
+ */
+type WsTx = Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 
-/** Contexto resuelto para una conversación conversacional lista para invocar LLM. */
+/**
+ * Helper: corre `fn` dentro de una transacción del workspace con el GUC
+ * `app.workspace_id` SET LOCAL — todo lo que se escriba/lea adentro pasa
+ * por FORCE RLS con el contexto correcto. Mismo patrón que
+ * `withTenantContext` y `withCrossTenantAdmin`, pero acá no validamos
+ * membership (lo hace el caller — el webhook ya autenticó el canal).
+ */
+async function withWorkspaceTx<T>(workspaceId: string, fn: (tx: WsTx) => Promise<T>): Promise<T> {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${workspaceId}, true)`);
+    return fn(tx);
+  });
+}
+
+/**
+ * Contexto resuelto para una conversación conversacional lista para invocar LLM.
+ *
+ * Phase E follow-up #1: NO contiene el `db`/`tx` handle a propósito. El
+ * streaming (`handleInboundStream`) abre y cierra transacciones distintas
+ * para el resolve y el persist (la txn no puede vivir entre yields del
+ * async generator), así que el handle se pasa explícitamente a cada helper.
+ */
 interface ConvCtx {
-  db: Db;
   workspaceId: string;
   channel: Channel;
   agent: Agent;
@@ -59,9 +94,13 @@ type Resolution =
  */
 async function resolveInbound(
   workspaceId: string,
-  msg: InboundMessage
+  msg: InboundMessage,
+  tx: WsTx
 ): Promise<Resolution> {
-  const db = getDb();
+  // El caller (`handleInbound` / `handleInboundStream`) ya abrió la txn con
+  // `app.workspace_id` SET LOCAL — usamos ese handle así FORCE RLS reconoce
+  // el contexto. NO llamar a `getDb()` acá: tomaría otra conexión sin GUC.
+  const db = tx;
 
   // 1. Locate channel + agent
   const chRows = await db
@@ -121,10 +160,8 @@ async function resolveInbound(
   // workspace ya agotó su cuota mensual del plan, devolvemos un fallback
   // amable sin consumir el LLM. Mismo estilo de short-circuit que el budget.
   const { checkQuota } = await import("@/lib/billing/quotas");
-  const convQuota = await checkQuota(workspaceId, "conversations");
-  const tokenQuota = convQuota.allowed
-    ? await checkQuota(workspaceId, "tokens")
-    : convQuota;
+  const convQuota = await checkQuota(workspaceId, "conversations", tx);
+  const tokenQuota = convQuota.allowed ? await checkQuota(workspaceId, "tokens", tx) : convQuota;
   if (!convQuota.allowed || !tokenQuota.allowed) {
     const blocked = !convQuota.allowed ? convQuota : tokenQuota;
     const reply =
@@ -170,10 +207,7 @@ async function resolveInbound(
   // monthlyBudgetUsd seteado y ya lo agotó este mes, devolvemos el fallback
   // del agente sin consumir tokens. Audit log para que el operador sepa.
   const { checkEmployeeBudget } = await import("@/lib/employee-budget");
-  const budget = await checkEmployeeBudget(
-    workspaceId,
-    conversation.employeeId ?? undefined
-  );
+  const budget = await checkEmployeeBudget(workspaceId, conversation.employeeId ?? undefined, tx);
   if (!budget.allowed) {
     const reply =
       agent.fallback ??
@@ -220,8 +254,8 @@ async function resolveInbound(
       result.status === "succeeded"
         ? ""
         : result.status === "cancelled"
-          ? agent.fallback ?? "Estamos procesando tu mensaje. Te respondemos en un momento."
-          : agent.fallback ?? "Lo siento, hubo un error.";
+          ? (agent.fallback ?? "Estamos procesando tu mensaje. Te respondemos en un momento.")
+          : (agent.fallback ?? "Lo siento, hubo un error.");
     await db.insert(schema.messages).values({
       id: createId(),
       conversationId: conversation.id,
@@ -234,7 +268,7 @@ async function resolveInbound(
 
   return {
     kind: "conversational",
-    ctx: { db, workspaceId, channel, agent, conversation, baseMessageCount },
+    ctx: { workspaceId, channel, agent, conversation, baseMessageCount },
   };
 }
 
@@ -251,9 +285,12 @@ async function persistAssistantTurn(
   activeAgent: Agent,
   conversation: Conversation,
   reply: string,
-  tokens: number
+  tokens: number,
+  /** Tx con `app.workspace_id` SET LOCAL — todos los writes corren acá. */
+  tx: WsTx
 ): Promise<void> {
-  const { db, workspaceId, baseMessageCount } = ctx;
+  const { workspaceId, baseMessageCount } = ctx;
+  const db = tx;
   const { calculateCostUsd } = await import("@/lib/pricing");
   const { recordMessageCost } = await import("@/lib/employee-budget");
   const messageId = createId();
@@ -267,13 +304,16 @@ async function persistAssistantTurn(
     costUsd: String(costUsd),
     model: activeAgent.model,
   });
-  await recordMessageCost({
-    messageId,
-    conversationId: conversation.id,
-    model: activeAgent.model,
-    tokensUsed: tokens,
-    costUsd,
-  });
+  await recordMessageCost(
+    {
+      messageId,
+      conversationId: conversation.id,
+      model: activeAgent.model,
+      tokensUsed: tokens,
+      costUsd,
+    },
+    db
+  );
   await db
     .update(schema.conversations)
     .set({ messageCount: baseMessageCount + 2 })
@@ -297,11 +337,16 @@ async function persistAssistantTurn(
  * Construye history compactada + inyecta memoria. Devuelve los mensajes de
  * chat y el system prompt final para el agente activo.
  */
-async function buildConversationContext(ctx: ConvCtx): Promise<{
+async function buildConversationContext(
+  ctx: ConvCtx,
+  /** Tx con `app.workspace_id` SET LOCAL — usado para leer la conversación. */
+  tx: WsTx
+): Promise<{
   chatMsgs: ChatMessage[];
   systemPrompt: string;
 }> {
-  const { db, workspaceId, agent, conversation } = ctx;
+  const { workspaceId, agent, conversation } = ctx;
+  const db = tx;
   const fullHistory = await db
     .select()
     .from(schema.messages)
@@ -328,7 +373,10 @@ async function buildConversationContext(ctx: ConvCtx): Promise<{
     chatMsgs,
     // L1: la memoria es contenido recuperado no confiable → la delimitamos en un
     // bloque etiquetado y agregamos la línea de guardrail al system prompt.
-    systemPrompt: agent.systemPrompt + wrapMemoryBlock(formatMemoriesAsPromptBlock(memories)) + UNTRUSTED_CONTENT_GUARDRAIL,
+    systemPrompt:
+      agent.systemPrompt +
+      wrapMemoryBlock(formatMemoriesAsPromptBlock(memories)) +
+      UNTRUSTED_CONTENT_GUARDRAIL,
   };
 }
 
@@ -345,11 +393,16 @@ function wrapMemoryBlock(memoryBlock: string): string {
  * Turno conversacional bloqueante: loop LLM + tools + handoff, luego persiste.
  * Comportamiento idéntico al `handleInbound` histórico.
  */
-async function runConversationalTurn(ctx: ConvCtx): Promise<OutboundResponse> {
-  const { db, workspaceId, agent } = ctx;
+async function runConversationalTurn(
+  ctx: ConvCtx,
+  /** Tx con `app.workspace_id` SET LOCAL — usado por todas las queries del turno. */
+  tx: WsTx
+): Promise<OutboundResponse> {
+  const { workspaceId, agent } = ctx;
+  const db = tx;
   let conversation = ctx.conversation;
 
-  const { chatMsgs, systemPrompt } = await buildConversationContext(ctx);
+  const { chatMsgs, systemPrompt } = await buildConversationContext(ctx, tx);
   const { getRelevantMemories, formatMemoriesAsPromptBlock } = await import("@/lib/memory");
 
   // El agente puede mutar dentro del loop si llama a `agent_handoff`. Esa tool
@@ -366,7 +419,7 @@ async function runConversationalTurn(ctx: ConvCtx): Promise<OutboundResponse> {
     safetyCounter++;
     // Spend cap / kill-switch (E1-1/E3-1): aplica también al chat entrante.
     // El bypass de este check fue el principal hallazgo de la meta-auditoría.
-    await assertWithinSpend(workspaceId);
+    await assertWithinSpend(workspaceId, db);
     const r = await llmCall({
       workspaceId,
       model: activeAgent.model,
@@ -462,7 +515,7 @@ async function runConversationalTurn(ctx: ConvCtx): Promise<OutboundResponse> {
 
   if (!reply && activeAgent.fallback) reply = activeAgent.fallback;
 
-  await persistAssistantTurn(ctx, activeAgent, conversation, reply, tokens);
+  await persistAssistantTurn(ctx, activeAgent, conversation, reply, tokens, tx);
   return { conversationId: conversation.id, reply, tokensUsed: tokens };
 }
 
@@ -470,22 +523,31 @@ async function runConversationalTurn(ctx: ConvCtx): Promise<OutboundResponse> {
  * Routes an inbound message to the right agent and persists the conversation.
  * Handles both conversational (LLM with tools) and flow-driven agents.
  *
- * Comportamiento sin cambios respecto a versiones previas — Telegram/Slack/
- * widget-blocking lo siguen usando tal cual.
+ * Phase E follow-up #1: abre una transacción del workspace con
+ * `app.workspace_id` SET LOCAL para que cada query interna pase FORCE RLS.
+ * El handle (`tx`) se threadea a `resolveInbound` → `runConversationalTurn`
+ * → `persistAssistantTurn`, y desde ahí a los helpers de billing/budget.
+ *
+ * Trade-off conocido: la txn se mantiene abierta durante las llamadas al
+ * LLM (que pueden tardar segundos). El volumen de webhooks entrantes es
+ * bajo y la atomicidad nos da el GUC necesario. Mismo patrón que
+ * `withTenantContext` para las rutas HTTP.
  */
 export async function handleInbound(
   workspaceId: string,
   msg: InboundMessage
 ): Promise<OutboundResponse> {
-  const res = await resolveInbound(workspaceId, msg);
-  if (res.kind === "terminal") {
-    return {
-      conversationId: res.conversationId,
-      reply: res.reply,
-      tokensUsed: res.tokensUsed,
-    };
-  }
-  return runConversationalTurn(res.ctx);
+  return withWorkspaceTx(workspaceId, async (tx) => {
+    const res = await resolveInbound(workspaceId, msg, tx);
+    if (res.kind === "terminal") {
+      return {
+        conversationId: res.conversationId,
+        reply: res.reply,
+        tokensUsed: res.tokensUsed,
+      };
+    }
+    return runConversationalTurn(res.ctx, tx);
+  });
 }
 
 /**
@@ -510,6 +572,16 @@ export type InboundStreamChunk =
  *     resultado completo como un solo chunk + `done`
  *   - conversacional SIN tools → streaming real token-por-token vía llmStream,
  *     acumulando para persistir igual que el blocking
+ *
+ * Phase E follow-up #1: las transacciones NO pueden vivir entre yields del
+ * async generator (drizzle/postgres-js no soporta tx que crucen await en un
+ * generator), así que partimos en fases:
+ *   - Phase 1 (txn 1): `resolveInbound` (channel/agent lookup + user msg insert)
+ *   - Phase 2 (sin txn): stream LLM (acumulamos `reply` + `tokens`)
+ *   - Phase 3 (txn 2): `persistAssistantTurn` (assistant msg + usage event)
+ *
+ * Si el agente tiene tools (handoff posible), caemos al path bloqueante que
+ * sí mantiene una sola txn (single connection durante el loop completo).
  */
 export async function* handleInboundStream(
   workspaceId: string,
@@ -521,9 +593,12 @@ export async function* handleInboundStream(
    */
   signal?: AbortSignal
 ): AsyncGenerator<InboundStreamChunk> {
+  // Phase 1 — abrir txn corta para resolveInbound. Devolvemos el resultado y
+  // cerramos la txn antes de empezar a yield-ear (los generators no pueden
+  // mantener una txn abierta mientras suspenden en yield).
   let res: Resolution;
   try {
-    res = await resolveInbound(workspaceId, msg);
+    res = await withWorkspaceTx(workspaceId, (tx) => resolveInbound(workspaceId, msg, tx));
   } catch (e) {
     yield { type: "error", error: e instanceof Error ? e.message : String(e) };
     return;
@@ -544,11 +619,12 @@ export async function* handleInboundStream(
   const { workspaceId: wsId, agent, conversation } = ctx;
   const hasTools = (agent.tools?.length ?? 0) > 0;
 
-  // Con tools: fallback al turno bloqueante (loop de tools + handoff) y
-  // emitimos el resultado como un solo bloque. Persistencia idéntica.
+  // Con tools: fallback al turno bloqueante (loop de tools + handoff) en su
+  // propia txn (single connection durante el loop completo). Emitimos el
+  // resultado como un solo bloque. Persistencia idéntica.
   if (hasTools) {
     try {
-      const out = await runConversationalTurn(ctx);
+      const out = await withWorkspaceTx(wsId, (tx) => runConversationalTurn(ctx, tx));
       if (out.reply) yield { type: "text", delta: out.reply };
       yield {
         type: "done",
@@ -565,11 +641,16 @@ export async function* handleInboundStream(
   // Sin tools: streaming real. Sin tools no hay handoff → activeAgent = agent
   // y la conversation no se reasigna, así que la persistencia es directa.
   try {
-    const { chatMsgs, systemPrompt } = await buildConversationContext(ctx);
+    // Phase 2a — leer historia + memoria en otra txn corta (FORCE RLS necesita
+    // GUC). Cerramos la txn antes del stream del LLM.
+    const { chatMsgs, systemPrompt } = await withWorkspaceTx(wsId, (tx) =>
+      buildConversationContext(ctx, tx)
+    );
     let reply = "";
     let tokens = 0;
     // Spend cap también para el path de streaming (sin tools) — gap detectado
-    // por la 2ª pasada de meta-auditoría.
+    // por la 2ª pasada de meta-auditoría. Sin txn: el spend cap fail-opens en
+    // error de lectura, así que no necesita el GUC para el path crítico.
     await assertWithinSpend(wsId);
     for await (const chunk of llmStream({
       workspaceId: wsId,
@@ -598,7 +679,10 @@ export async function* handleInboundStream(
       yield { type: "text", delta: reply };
     }
 
-    await persistAssistantTurn(ctx, agent, conversation, reply, tokens);
+    // Phase 3 — persist en otra txn corta.
+    await withWorkspaceTx(wsId, (tx) =>
+      persistAssistantTurn(ctx, agent, conversation, reply, tokens, tx)
+    );
     yield { type: "done", conversationId: conversation.id, reply, tokensUsed: tokens };
   } catch (e) {
     yield { type: "error", error: e instanceof Error ? e.message : String(e) };
