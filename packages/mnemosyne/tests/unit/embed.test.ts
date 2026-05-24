@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { embedMnemo, invalidateEmbedding, type EmbedFn } from "../../src/recall/embed";
 
-const embedRawMock = vi.hoisted(() => vi.fn());
+const embedRawMock = vi.fn();
 
-vi.mock("@/lib/embeddings", () => ({ embed: embedRawMock }));
-
-import { embedMnemo, invalidateEmbedding } from "../../src/recall/embed";
+// Adapter cast — the mock's runtime shape matches EmbedFn (the
+// 5-positional-arg embedding function from apps/web/lib/embeddings),
+// but vi.fn()'s inferred type is too loose to assign directly.
+const embedFn = embedRawMock as unknown as EmbedFn;
 
 beforeEach(() => {
   embedRawMock.mockReset();
@@ -21,12 +23,14 @@ describe("embedMnemo", () => {
       texts: ["hello"],
       provider: "openai",
       model: "text-embedding-3-small",
+      embedFn,
     });
     const second = await embedMnemo({
       workspaceId: "ws_test",
       texts: ["hello"],
       provider: "openai",
       model: "text-embedding-3-small",
+      embedFn,
     });
     expect(first[0]).toEqual([0.1, 0.2, 0.3]);
     expect(second[0]).toEqual([0.1, 0.2, 0.3]);
@@ -41,12 +45,14 @@ describe("embedMnemo", () => {
       texts: ["hi"],
       provider: "openai",
       model: "m",
+      embedFn,
     });
     const wsB = await embedMnemo({
       workspaceId: "ws_b",
       texts: ["hi"],
       provider: "openai",
       model: "m",
+      embedFn,
     });
     expect(wsA[0]).toEqual([0.5]);
     expect(wsB[0]).toEqual([0.7]);

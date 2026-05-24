@@ -7,12 +7,13 @@
 // Mode A note: embedding columns are nullable. Callers in Mode A
 // (no embedding provider configured) simply omit `embedding*` fields
 // and the row is inserted without a vector.
-import "server-only";
+//
+// §0.1: this file is package-clean — no `server-only`, no path aliases
+// to the host app. Embedding is dependency-injected via `embedFn`.
 import { createId } from "@paralleldrive/cuid2";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { schema } from "@orchester/db";
-import type { EmbeddingProvider } from "@/lib/embeddings";
-import { embedMnemo } from "../recall/embed";
+import { embedMnemo, type EmbedFn, type EmbeddingProvider } from "../recall/embed";
 import type { Tx } from "../tx";
 
 export type FactKind =
@@ -70,25 +71,30 @@ export interface CreateFactInput {
    * the row is inserted without an embedding (Mode A). */
   embedding?: number[] | null;
   /**
-   * Optional provider + model. If BOTH are provided and `embedding` is
-   * omitted, the statement is embedded via `embedMnemo`. Charter §25:
-   * we never fall back to a hardcoded default — caller must resolve
-   * these from workspace settings.
+   * Optional provider + model. If BOTH are provided AND `embedFn` is
+   * supplied AND `embedding` is omitted, the statement is embedded via
+   * the host-provided `embedFn` (wrapped by `embedMnemo`'s LRU cache).
+   * Charter §25: we never fall back to a hardcoded default — caller
+   * resolves these from workspace settings and passes the embed impl.
    */
   embeddingProvider?: EmbeddingProvider;
   embeddingModel?: string;
+  /** Host-provided embedding function. Required only if provider+model
+   *  are set and `embedding` is omitted. */
+  embedFn?: EmbedFn;
   tx: Tx;
 }
 
 export async function createFact(input: CreateFactInput): Promise<MnemoFact> {
   const id = `mfact_${createId()}`;
   let embedding: number[] | null = input.embedding ?? null;
-  if (!embedding && input.embeddingProvider && input.embeddingModel) {
+  if (!embedding && input.embeddingProvider && input.embeddingModel && input.embedFn) {
     const [vec] = await embedMnemo({
       workspaceId: input.workspaceId,
       texts: [input.statement],
       provider: input.embeddingProvider,
       model: input.embeddingModel,
+      embedFn: input.embedFn,
       tx: input.tx as never,
     });
     embedding = vec ?? null;

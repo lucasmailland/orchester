@@ -1,17 +1,40 @@
 // packages/mnemosyne/src/recall/embed.ts
 //
-// Workspace-keyed LRU cache for embeddings. Defers to `lib/embeddings.ts`
-// for the actual provider call — Mnemosyne does NOT introduce a second
-// embedding backend.
+// Workspace-keyed LRU cache for embeddings. The actual provider call is
+// injected by the caller — Mnemosyne does NOT bundle its own embedding
+// backend. The host app passes its `embed(...)` implementation in.
 //
 // Per Mnemosyne Charter §25 (and audit findings F-002/F-003), `provider`
 // and `model` are REQUIRED inputs. The caller resolves them from the
 // workspace's mnemo configuration; this module never picks defaults.
-import "server-only";
+//
+// §0.1: this file is package-clean — no `server-only`, no path aliases
+// to the host app. Server-side enforcement is the host's responsibility
+// (mnemosyne is consumed only from server contexts in apps/web).
 import { createHash } from "crypto";
 import { LRUCache } from "lru-cache";
-import { embed as embedRaw, type EmbeddingProvider } from "@/lib/embeddings";
 import type { DbClient } from "@orchester/db";
+
+export type EmbeddingProvider = "openai" | "google" | "voyage";
+
+export interface EmbeddingResult {
+  vectors: number[][];
+  model: string;
+  tokensUsed: number;
+}
+
+/**
+ * The host-provided embedding function. Signature mirrors
+ * `apps/web/lib/embeddings.ts::embed` so adapter glue is trivial:
+ * `embedFn: embed` (from `@/lib/embeddings`).
+ */
+export type EmbedFn = (
+  workspaceId: string,
+  provider: EmbeddingProvider,
+  model: string,
+  texts: string[],
+  tx?: DbClient
+) => Promise<EmbeddingResult>;
 
 const CACHE_MAX = 10_000;
 const CACHE_TTL_MS = 60 * 60 * 1000;
@@ -31,6 +54,9 @@ export interface EmbedMnemoInput {
   texts: string[];
   provider: EmbeddingProvider;
   model: string;
+  /** Host-provided embedding implementation. Required: §25 forbids
+   *  mnemosyne from picking a default backend. */
+  embedFn: EmbedFn;
   tx?: DbClient;
 }
 
@@ -45,7 +71,7 @@ export async function embedMnemo(input: EmbedMnemoInput): Promise<number[][]> {
     else misses.push({ idx: i, text });
   }
   if (misses.length === 0) return out;
-  const fresh = await embedRaw(
+  const fresh = await input.embedFn(
     input.workspaceId,
     input.provider,
     input.model,

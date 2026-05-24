@@ -2,8 +2,26 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
-    "composite": true
+    // composite is intentionally OFF: with the integration tests pulling
+    // shared apps/web testcontainer fixtures (which transitively reach
+    // every `packages/db/src/schema/*.ts`), composite would require us
+    // to enumerate every transitive .ts file in `include`. Mnemosyne is
+    // not consumed via project references anywhere yet, so dropping it
+    // costs nothing and lets `tsc --noEmit` walk imports normally.
+    //
+    // No `rootDir` either — the integration tests legitimately import
+    // from `apps/web/tests/fixtures/*`, which sits outside packages/.
+    // §0.1 (package-clean) constrains `src/`, not the test harness.
+    //
+    // Path mapping mirrors apps/web/tsconfig.json so the cross-package
+    // fixture import (apps/web/tests/fixtures/workspaces.ts) resolves
+    // `@orchester/db` the same way the web app does — apps/web relies
+    // on `paths`, not node_modules symlinks, for that specifier.
+    "baseUrl": ".",
+    "paths": {
+      "@orchester/db": ["../db/src/index.ts"],
+      "@orchester/db/schema": ["../db/src/schema/index.ts"]
+    }
   },
   "include": ["src/**/*", "tests/**/*"]
 }

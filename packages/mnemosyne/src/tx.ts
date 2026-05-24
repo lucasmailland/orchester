@@ -3,7 +3,10 @@
 // withMnemoTx — runs `fn` inside a transaction with `app.workspace_id`
 // SET LOCAL'd. Required for all mnemo_* table operations because every
 // mnemo_* table has RLS+FORCE Pattern A policies that gate on the GUC.
-import "server-only";
+//
+// §0.1: this file is package-clean — no `server-only`. The host app
+// guards server-only execution at its own boundaries; mnemosyne stays
+// Next.js-agnostic so it remains OSS-extractable.
 import { sql } from "drizzle-orm";
 import { getDb, type DbClient } from "@orchester/db";
 
