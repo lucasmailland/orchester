@@ -49,7 +49,13 @@ export async function setupTestDb(): Promise<{
 
   // 1. Apply the drizzle-kit baseline + indexes (these own the schema and
   //    ship a meta/_journal.json so the migrator can resume).
-  await migrate(db, {
+  //
+  // Cast: pnpm resolves drizzle-orm into two peer variants (one with
+  // @types/pg pulled in by pg-boss, one without via @orchester/db). At
+  // runtime both copies are byte-identical (same version, same package),
+  // but TS treats them as nominally distinct. The cast is safe and
+  // narrowly scoped to the migrator boundary.
+  await migrate(db as unknown as Parameters<typeof migrate>[0], {
     migrationsFolder: path.resolve(__dirname, "../../../../packages/db/drizzle"),
   });
 
