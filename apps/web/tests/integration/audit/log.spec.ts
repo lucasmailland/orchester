@@ -17,6 +17,7 @@ vi.doUnmock("@orchester/db");
 import {
   setupTestWorkspaces,
   teardownTestWorkspaces,
+  insertAdHocWorkspace,
   type WsFixture,
 } from "../../fixtures/workspaces";
 
@@ -127,19 +128,12 @@ describe("appendAuditSync", () => {
     // whose newest row is a synthetic zero-hash legacy bootstrap).
     const wsId = createId();
     const ownerId = createId();
-    await db.insert(schema.users).values({
-      id: ownerId,
-      email: `legacy-${ownerId}@test`,
-      name: "Legacy Owner",
-      emailVerified: true,
-    });
-    await db.insert(schema.workspaces).values({
-      id: wsId,
+    await insertAdHocWorkspace(db, {
+      wsId,
+      ownerId,
       slug: `legacy-${wsId.slice(0, 8)}`,
       name: "Legacy Bootstrap WS",
-      timezone: "UTC",
-      status: "active",
-      ownerUserId: ownerId,
+      email: `legacy-${ownerId}@test`,
     });
 
     // Seed a legacy bootstrap row (seq=12, chain_hash all zeros).

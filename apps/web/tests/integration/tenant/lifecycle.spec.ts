@@ -15,6 +15,7 @@ vi.doUnmock("@orchester/db");
 import {
   setupTestWorkspaces,
   teardownTestWorkspaces,
+  insertAdHocWorkspace,
   type WsFixture,
 } from "../../fixtures/workspaces";
 
@@ -95,19 +96,12 @@ describe("lifecycle", () => {
     const db = getDb();
     const wsId = createId();
     const ownerId = createId();
-    await db.insert(schema.users).values({
-      id: ownerId,
-      email: `b24-suspend-${ownerId}@test`,
-      name: "Owner",
-      emailVerified: true,
-    });
-    await db.insert(schema.workspaces).values({
-      id: wsId,
+    await insertAdHocWorkspace(db, {
+      wsId,
+      ownerId,
       slug: `b24s-${wsId.slice(0, 8)}`,
       name: "WS",
-      timezone: "UTC",
-      status: "active",
-      ownerUserId: ownerId,
+      email: `b24-suspend-${ownerId}@test`,
     });
 
     await softDelete(wsId, { userId: ownerId });
@@ -125,19 +119,12 @@ describe("lifecycle", () => {
     const db = getDb();
     const wsId = createId();
     const ownerId = createId();
-    await db.insert(schema.users).values({
-      id: ownerId,
-      email: `b24-unsuspend-${ownerId}@test`,
-      name: "Owner",
-      emailVerified: true,
-    });
-    await db.insert(schema.workspaces).values({
-      id: wsId,
+    await insertAdHocWorkspace(db, {
+      wsId,
+      ownerId,
       slug: `b24u-${wsId.slice(0, 8)}`,
       name: "WS",
-      timezone: "UTC",
-      status: "active",
-      ownerUserId: ownerId,
+      email: `b24-unsuspend-${ownerId}@test`,
     });
 
     await expect(unsuspend(wsId, { userId: ownerId })).rejects.toThrow(

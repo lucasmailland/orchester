@@ -9,7 +9,7 @@
 // peer-resolution as production code — pulling `pg` into apps/web triggers
 // a duplicate drizzle-orm install (incompatible nominal types across the
 // codebase). Sticking with postgres-js keeps the type graph deduped.
-import { GenericContainer, type StartedTestContainer } from "testcontainers";
+import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import postgres from "postgres";
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
@@ -39,12 +39,22 @@ export async function setupTestDb(): Promise<{
 
   // pgvector image — the drizzle baseline runs `CREATE EXTENSION vector`,
   // so we need a postgres image that ships with the extension.
+  //
+  // Wait strategy: postgres prints
+  // "database system is ready to accept connections" once during
+  // `initdb` (initial bootstrap) and a second time when the real
+  // server has bound to the port. If we connect on the first one
+  // we hit `57P03 the database system is starting up` and every
+  // migration fails. Waiting for the second occurrence is the
+  // documented fix.
   container = await new GenericContainer("pgvector/pgvector:pg15")
     .withEnvironment({
       POSTGRES_PASSWORD: "test",
       POSTGRES_DB: "orchester",
     })
     .withExposedPorts(5432)
+    .withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/, 2))
+    .withStartupTimeout(60_000)
     .start();
 
   const port = container.getMappedPort(5432);
