@@ -1,12 +1,25 @@
 import "server-only";
-import { getDb, schema } from "@orchester/db";
+import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { decrypt } from "./encryption";
 import { type ProviderType } from "./providers";
 import { resolveModel } from "./ai/catalog";
 import { fetchWithTimeout, fetchStreamWithConnectTimeout, withRetry, HttpError } from "./http-util";
 import { recordMetric, logWithContext } from "./observability";
-import type { ChatMessage as CapChatMessage, ToolUseBlock as CapToolUseBlock, ToolResultBlock as CapToolResultBlock } from "./ai/capabilities";
+import type {
+  ChatMessage as CapChatMessage,
+  ToolUseBlock as CapToolUseBlock,
+  ToolResultBlock as CapToolResultBlock,
+} from "./ai/capabilities";
+
+/**
+ * Optional `tx?: WsDb` follows the project-wide pattern (see
+ * `lib/billing/quotas.ts`). When the caller already runs inside a
+ * workspace transaction (channels router, flow engine wrap), passing
+ * tx keeps the `ai_provider` lookup on the same connection so FORCE
+ * RLS sees `app.workspace_id` SET LOCAL.
+ */
+type WsDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 
 // Tipos canónicos del port `chat` (capabilities.ts). Re-exportados acá para no
 // romper a los 5 callers históricos que importan `ChatMessage` desde llm-call.
@@ -48,6 +61,13 @@ export interface LlmCallParams {
    * consumir (y facturar) tokens del LLM. En el path bloqueante se ignora.
    */
   signal?: AbortSignal;
+  /**
+   * Optional workspace transaction handle (R2-C). When the caller is already
+   * inside a `withWorkspaceTx`, threading `tx` here makes the internal
+   * `getProviderKey` SELECT run on the same connection that has
+   * `app.workspace_id` SET LOCAL — otherwise FORCE RLS rejects the read.
+   */
+  tx?: WsDb;
 }
 
 export interface LlmCallResult {
@@ -78,8 +98,8 @@ export class ProviderNotConfiguredError extends Error {
   }
 }
 
-async function getProviderKey(workspaceId: string, provider: string) {
-  const db = getDb();
+async function getProviderKey(workspaceId: string, provider: string, tx?: WsDb) {
+  const db = tx ?? getDb();
   const rows = await db
     .select()
     .from(schema.aiProviders)
@@ -100,7 +120,10 @@ export async function llmCall(p: LlmCallParams): Promise<LlmCallResult> {
   try {
     const res = await llmCallInner(p);
     // Latencia de la llamada de IA (D2) — scrapeable desde logs.
-    recordMetric("ai.call.latency_ms", Date.now() - startedAt, { model: p.model, provider: providerOf(p.model) });
+    recordMetric("ai.call.latency_ms", Date.now() - startedAt, {
+      model: p.model,
+      provider: providerOf(p.model),
+    });
     return res;
   } catch (e) {
     // Log correlacionado del error (D1) sin romper el flujo de propagación.
@@ -109,7 +132,10 @@ export async function llmCall(p: LlmCallParams): Promise<LlmCallResult> {
       model: p.model,
       error: e instanceof Error ? e.message : String(e),
     });
-    recordMetric("ai.call.latency_ms", Date.now() - startedAt, { model: p.model, outcome: "error" });
+    recordMetric("ai.call.latency_ms", Date.now() - startedAt, {
+      model: p.model,
+      outcome: "error",
+    });
     throw e;
   }
 }
@@ -123,7 +149,7 @@ async function llmCallInner(p: LlmCallParams): Promise<LlmCallResult> {
   const resolved = resolveModel(p.model);
   if (!resolved || resolved.capability !== "chat")
     throw new Error(`No reconozco el modelo de chat "${p.model}".`);
-  const { apiKey, endpoint } = await getProviderKey(p.workspaceId, resolved.provider.id);
+  const { apiKey, endpoint } = await getProviderKey(p.workspaceId, resolved.provider.id, p.tx);
   const params = { ...p, model: resolved.model };
 
   if (resolved.provider.id === "azure_openai") return callAzure(params, apiKey, endpoint);
@@ -154,8 +180,8 @@ async function callAnthropic(p: LlmCallParams, apiKey: string): Promise<LlmCallR
           content: tr.error
             ? `Error: ${tr.error}`
             : typeof tr.output === "string"
-            ? tr.output
-            : JSON.stringify(tr.output ?? null),
+              ? tr.output
+              : JSON.stringify(tr.output ?? null),
           ...(tr.error ? { is_error: true } : {}),
         }));
         return { role: "user" as const, content: blocks };
@@ -239,7 +265,11 @@ function toOpenAIMessages(p: LlmCallParams) {
         out.push({
           role: "tool",
           tool_call_id: tr.id,
-          content: tr.error ? `Error: ${tr.error}` : typeof tr.output === "string" ? tr.output : JSON.stringify(tr.output ?? null),
+          content: tr.error
+            ? `Error: ${tr.error}`
+            : typeof tr.output === "string"
+              ? tr.output
+              : JSON.stringify(tr.output ?? null),
         });
       }
       continue;
@@ -275,12 +305,17 @@ function isReasoningModel(model: string): boolean {
 }
 
 /** Arma el body de Chat Completions respetando las particularidades de los modelos. */
-function buildOpenAIChatBody(p: LlmCallParams, extra?: Record<string, unknown>): Record<string, unknown> {
+function buildOpenAIChatBody(
+  p: LlmCallParams,
+  extra?: Record<string, unknown>
+): Record<string, unknown> {
   const reasoning = isReasoningModel(p.model);
   const body: Record<string, unknown> = {
     model: p.model,
     messages: toOpenAIMessages(p),
-    ...(reasoning ? { max_completion_tokens: p.maxTokens ?? 1024 } : { max_tokens: p.maxTokens ?? 1024, temperature: p.temperature ?? 0.7 }),
+    ...(reasoning
+      ? { max_completion_tokens: p.maxTokens ?? 1024 }
+      : { max_tokens: p.maxTokens ?? 1024, temperature: p.temperature ?? 0.7 }),
     ...(extra ?? {}),
   };
   const tools = toOpenAITools(p.tools);
@@ -417,7 +452,7 @@ export async function* llmStream(p: LlmCallParams): AsyncGenerator<LlmStreamChun
     yield { type: "error", error: `No reconozco el modelo de chat "${p.model}".` };
     return;
   }
-  const { apiKey } = await getProviderKey(p.workspaceId, resolved.provider.id);
+  const { apiKey } = await getProviderKey(p.workspaceId, resolved.provider.id, p.tx);
   const params = { ...p, model: resolved.model };
 
   if (resolved.provider.id !== "azure_openai" && resolved.provider.family === "anthropic") {
@@ -441,10 +476,7 @@ export async function* llmStream(p: LlmCallParams): AsyncGenerator<LlmStreamChun
   }
 }
 
-async function* streamAnthropic(
-  p: LlmCallParams,
-  apiKey: string
-): AsyncGenerator<LlmStreamChunk> {
+async function* streamAnthropic(p: LlmCallParams, apiKey: string): AsyncGenerator<LlmStreamChunk> {
   // Build messages igual que el blocking call
   const anthropicMessages = p.messages
     .filter((m) => m.role !== "system")
@@ -456,8 +488,8 @@ async function* streamAnthropic(
           content: tr.error
             ? `Error: ${tr.error}`
             : typeof tr.output === "string"
-            ? tr.output
-            : JSON.stringify(tr.output ?? null),
+              ? tr.output
+              : JSON.stringify(tr.output ?? null),
           ...(tr.error ? { is_error: true } : {}),
         }));
         return { role: "user" as const, content: blocks };
@@ -633,7 +665,11 @@ async function* streamOpenAI(
     if (data?.usage?.total_tokens) totalTokens = data.usage.total_tokens;
   }
   for (const t of Object.values(toolByIndex)) {
-    if (t.name) yield { type: "toolCall", toolCall: { id: t.id, name: t.name, input: safeJsonParse(t.args || "{}") ?? {} } };
+    if (t.name)
+      yield {
+        type: "toolCall",
+        toolCall: { id: t.id, name: t.name, input: safeJsonParse(t.args || "{}") ?? {} },
+      };
   }
   yield { type: "done", tokensUsed: totalTokens, model: p.model };
 }
@@ -666,33 +702,33 @@ async function* parseSSE(
     signal.addEventListener("abort", onAbort, { once: true });
   }
   try {
-  while (true) {
-    if (signal?.aborted) break;
-    let value: Uint8Array | undefined;
-    let done: boolean;
-    try {
-      ({ value, done } = await reader.read());
-    } catch {
-      // El reader fue cancelado (abort) o el stream se rompió: cortamos limpio.
-      break;
-    }
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    let idx;
-    while ((idx = buf.indexOf("\n\n")) !== -1) {
-      const block = buf.slice(0, idx);
-      buf = buf.slice(idx + 2);
-      let event = "message";
-      const dataLines: string[] = [];
-      for (const line of block.split("\n")) {
-        if (line.startsWith("event:")) event = line.slice(6).trim();
-        else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+    while (true) {
+      if (signal?.aborted) break;
+      let value: Uint8Array | undefined;
+      let done: boolean;
+      try {
+        ({ value, done } = await reader.read());
+      } catch {
+        // El reader fue cancelado (abort) o el stream se rompió: cortamos limpio.
+        break;
       }
-      if (dataLines.length > 0) {
-        yield { event, data: dataLines.join("\n") };
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf("\n\n")) !== -1) {
+        const block = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        let event = "message";
+        const dataLines: string[] = [];
+        for (const line of block.split("\n")) {
+          if (line.startsWith("event:")) event = line.slice(6).trim();
+          else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+        }
+        if (dataLines.length > 0) {
+          yield { event, data: dataLines.join("\n") };
+        }
       }
     }
-  }
   } finally {
     if (signal) signal.removeEventListener("abort", onAbort);
     // Asegura que el body upstream se libere si salimos por break (no por done).
@@ -711,9 +747,10 @@ function safeJsonParse(s: string): any {
 
 /** Pick the best available provider for one-shot tasks (prompt generation). */
 export async function pickAvailableModel(
-  workspaceId: string
+  workspaceId: string,
+  tx?: WsDb
 ): Promise<{ provider: ProviderType; model: string } | null> {
-  const db = getDb();
+  const db = tx ?? getDb();
   const rows = await db
     .select()
     .from(schema.aiProviders)
