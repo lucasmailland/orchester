@@ -52,36 +52,36 @@ export interface PurgeResult {
   flowVersionsDeleted: number;
 }
 
-// Cross-tenant by design: deletes rows across every workspace. When called
-// from a `withCrossTenantAdmin` wrapper (cron path), pass the `tx` via
-// `opts.db` so every statement runs on the same connection that has the
-// bypass GUC — otherwise FORCE RLS will reject the DELETEs.
+// Cross-tenant by design: deletes rows across every workspace. The caller
+// MUST pass a tx opened by `withCrossTenantAdmin` — defensive `?? getDb()`
+// fallback was masking future regressions where a refactor accidentally
+// dropped the wrapper and the DELETEs silently no-op'd under FORCE RLS.
 type DbOrTx =
   | ReturnType<typeof getDb>
   | Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 
-export async function purgeOldData(opts?: {
+export async function purgeOldData(opts: {
   runsDays?: number;
   deliveriesDays?: number;
   auditLogsDays?: number;
   usageEventsDays?: number;
   messagesDays?: number;
   flowVersionsKeepLast?: number;
-  db?: DbOrTx;
+  db: DbOrTx;
 }): Promise<PurgeResult> {
-  const runsDays = opts?.runsDays ?? envDays("RETENTION_RUNS_DAYS", 30);
-  const deliveriesDays = opts?.deliveriesDays ?? envDays("RETENTION_DELIVERIES_DAYS", 30);
+  const runsDays = opts.runsDays ?? envDays("RETENTION_RUNS_DAYS", 30);
+  const deliveriesDays = opts.deliveriesDays ?? envDays("RETENTION_DELIVERIES_DAYS", 30);
   // Defaults conservadores y compliance-friendly:
   //  - audit_logs 365d (forensics)
   //  - usage_events 90d (billing investigations típicas)
   //  - messages 180d desde una conv CERRADA (conversations activas no se tocan)
   //  - flow_versions: mantenemos las últimas N por flow (20) en vez de por edad
-  const auditLogsDays = opts?.auditLogsDays ?? envDays("RETENTION_AUDIT_DAYS", 365);
-  const usageEventsDays = opts?.usageEventsDays ?? envDays("RETENTION_USAGE_DAYS", 90);
-  const messagesDays = opts?.messagesDays ?? envDays("RETENTION_MESSAGES_DAYS", 180);
+  const auditLogsDays = opts.auditLogsDays ?? envDays("RETENTION_AUDIT_DAYS", 365);
+  const usageEventsDays = opts.usageEventsDays ?? envDays("RETENTION_USAGE_DAYS", 90);
+  const messagesDays = opts.messagesDays ?? envDays("RETENTION_MESSAGES_DAYS", 180);
   const flowVersionsKeepLast =
-    opts?.flowVersionsKeepLast ?? envDays("RETENTION_FLOW_VERSIONS_KEEP", 20);
-  const db = opts?.db ?? getDb();
+    opts.flowVersionsKeepLast ?? envDays("RETENTION_FLOW_VERSIONS_KEEP", 20);
+  const db = opts.db;
 
   const result: PurgeResult = {
     runsDeleted: 0,
