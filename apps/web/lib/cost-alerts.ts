@@ -72,8 +72,38 @@ export async function assertWithinSpend(workspaceId: string, tx?: WsDb): Promise
   try {
     spent = await monthToDateSpendUsd(workspaceId, tx);
   } catch (e) {
+    // F-D9: metric breadcrumb so dashboards can alarm on a sudden
+    // spike in fail-open events (which usually means the GUC isn't
+    // set or RLS regressed on `usage_event`).
+    safeLogError("[metric] cost_alert.spend_read_failed_total +1", { workspaceId });
     safeLogError("[cost-alerts] assertWithinSpend spend read failed:", e);
-    return; // fail-open: un error de lectura no debe cortar la IA
+
+    // F-D8: differentiate by error code.
+    //   - Permission / RLS denial → the spend cap is being silently
+    //     bypassed (config bug), so fail CLOSED. Better to refuse a
+    //     few AI calls than to silently disable the cap that exists
+    //     specifically to prevent runaway spend.
+    //   - Everything else (network blip, timeout, statement_timeout,
+    //     transient pool exhaustion) → fail OPEN. The cap is a soft
+    //     control; we don't want a DB hiccup to take the product down.
+    //
+    // Postgres maps permission errors to SQLSTATE 42501 (insufficient
+    // privilege). RLS rejects on tables WITH `FORCE ROW LEVEL SECURITY`
+    // also surface as 42501. Drizzle/postgres-js exposes the SQLSTATE
+    // on the error's `code` field; some custom layers wrap it as
+    // `RLS_DENIED` — we accept both.
+    const isPermError =
+      typeof e === "object" &&
+      e !== null &&
+      "code" in e &&
+      typeof (e as { code?: unknown }).code === "string" &&
+      ((e as { code: string }).code === "42501" || (e as { code: string }).code === "RLS_DENIED");
+    if (isPermError) {
+      throw new SpendGuardError(
+        "spend cap check failed: permission denied (RLS or insufficient privilege)"
+      );
+    }
+    return; // network/timeout: fail-open (AI continues)
   }
 
   if (spent >= cap) {
