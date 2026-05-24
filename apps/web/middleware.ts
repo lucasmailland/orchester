@@ -3,6 +3,7 @@ import { routing } from "./i18n/routing";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { extractLocalePath, isProtectedPath } from "./lib/middleware-utils";
+import { resolveTenantForRequest } from "./lib/tenant/middleware";
 
 const intlMiddleware = createMiddleware(routing);
 
@@ -40,7 +41,8 @@ function buildCsp(nonce: string, isDev: boolean): string {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
-    "connect-src 'self' https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://slack.com https://api.telegram.org" + (isDev ? " ws: wss:" : ""),
+    "connect-src 'self' https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://slack.com https://api.telegram.org" +
+      (isDev ? " ws: wss:" : ""),
     "frame-ancestors 'self'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -104,6 +106,16 @@ export async function middleware(request: NextRequest) {
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", csp);
 
+  // Phase B (tenant hardening): forward the active workspace slug from the
+  // cookie into a header that server components / route handlers can read
+  // without re-parsing cookies. The GUC itself is set later by
+  // `getCurrentWorkspace()` once we resolve the workspace from the DB —
+  // middleware runs on the Edge runtime and can't talk to Postgres.
+  const { slug: tenantSlug } = await resolveTenantForRequest(request);
+  if (tenantSlug) {
+    requestHeaders.set("x-tenant-slug", tenantSlug);
+  }
+
   const intlResponse = intlMiddleware(request);
 
   // Redirect de next-intl (ej. agrega prefijo de locale) → respetarlo.
@@ -135,11 +147,12 @@ export async function middleware(request: NextRequest) {
   }
   response.headers.set("Content-Security-Policy", csp);
   response.headers.set("x-nonce", nonce);
+  if (tenantSlug) {
+    response.headers.set("x-tenant-slug", tenantSlug);
+  }
   return response;
 }
 
 export const config = {
-  matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|widget|c).*)",
-  ],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|widget|c).*)"],
 };
