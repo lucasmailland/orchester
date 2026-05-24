@@ -175,19 +175,42 @@ export interface UpdateFactInput {
     subject?: BrainFact["subject"];
     metadata?: BrainFact["metadata"];
   };
+  /**
+   * Optional embedding provider + model. FIX-008 (audit): if both are
+   * supplied AND `patch.statement` is set, re-embed; otherwise leave
+   * the existing `embedding` column untouched. Charter §25: this
+   * function never picks a provider default.
+   */
+  embeddingProvider?: EmbeddingProvider;
+  embeddingModel?: string;
   tx: Tx;
 }
 
-/** Update mutable fields. If `statement` is changed, re-embeds. */
+/**
+ * Update mutable fields. If `statement` is changed AND
+ * (embeddingProvider, embeddingModel) are both supplied, re-embeds.
+ * In Mode A the existing `embedding` column is preserved (FIX-008,
+ * M-A-004) so a future Mode B upgrade keeps any previously written
+ * vectors; the GENERATED `text_lemmatized` column auto-refreshes on
+ * UPDATE statement.
+ */
 export async function updateFact(input: UpdateFactInput): Promise<BrainFact | null> {
   const update: Record<string, unknown> = { ...input.patch };
   if (input.patch.statement) {
+    // FIX-008 (audit, M-A-004): only re-embed when both provider AND
+    // model are supplied by the caller. embedBrain returns [] in Mode
+    // A; `vec` becomes undefined and we DROP the `embedding` key from
+    // the UPDATE so the existing vector is preserved (don't NULL it).
     const [vec] = await embedBrain({
       workspaceId: input.workspaceId,
       texts: [input.patch.statement],
+      ...(input.embeddingProvider ? { provider: input.embeddingProvider } : {}),
+      ...(input.embeddingModel ? { model: input.embeddingModel } : {}),
       tx: input.tx as DbClient,
     });
-    update["embedding"] = vec;
+    if (vec) {
+      update["embedding"] = vec;
+    }
   }
 
   const rows = await input.tx
