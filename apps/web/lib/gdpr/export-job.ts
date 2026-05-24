@@ -64,15 +64,32 @@ export async function runExportJob(jobId: string): Promise<void> {
         })
         .where(eq(schema.gdprExportJobs.id, jobId));
     } catch (e) {
+      // B2.6 — log the ORIGINAL error first. If the state UPDATE below
+      // also throws (e.g. the txn is in a "current transaction is
+      // aborted" state after a prior failed statement), the catch-all
+      // here would otherwise lose the root cause and surface only the
+      // generic state-update error to the worker — making the failure
+      // un-diagnosable from logs.
+      const { safeLogError } = await import("../safe-log");
+      safeLogError("[gdpr.export] job failed:", e);
+
       const msg = e instanceof Error ? e.message : String(e);
-      await tx
-        .update(schema.gdprExportJobs)
-        .set({
-          state: "failed",
-          error: msg,
-          retryCount: (job.retryCount ?? 0) + 1,
-        })
-        .where(eq(schema.gdprExportJobs.id, jobId));
+      try {
+        await tx
+          .update(schema.gdprExportJobs)
+          .set({
+            state: "failed",
+            error: msg,
+            retryCount: (job.retryCount ?? 0) + 1,
+          })
+          .where(eq(schema.gdprExportJobs.id, jobId));
+      } catch (updateErr) {
+        // We've already logged the root cause above; surface the
+        // secondary failure separately so on-call sees both signals.
+        safeLogError("[gdpr.export] state UPDATE to 'failed' also failed:", updateErr);
+        // Re-throw the original error so pg-boss can apply retry policy.
+        throw e;
+      }
     }
   });
 }
