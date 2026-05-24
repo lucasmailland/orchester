@@ -34,3 +34,15 @@ ship it, close.
 
 - `pages/active-workspace` route writes the cookie unsigned (relies on origin auth). Consider signing it explicitly to make the trust boundary obvious.
 - `workspace.transfer` endpoint does not force session rotation for the previous owner — they continue with the same session, just at `admin` role. A defence-in-depth follow-up would invalidate their sessions and require re-login.
+
+## Post-hardening audit follow-ups (2026-05-23)
+
+Surfaced by the post-`tenant-hardening-v1` audit but not bundled into
+the corrective sweep because they require a deeper refactor than a
+single in-place edit. None are blocking — every path that reaches them
+has a working upstream guard.
+
+- **`apps/web/lib/channels/router.ts` (606 lines, 3 entry points)** — `handleInbound`, `handleInboundStream`, and the shared `resolveInbound` use `getDb()` for every query and never `SET LOCAL app.workspace_id`. Once the inbound message reaches the conversation/message inserts, FORCE RLS rejects. The webhook routes themselves now set the GUC for the channel lookup, but this downstream library path is untouched. **Refactor:** thread an explicit `tx` (or a `WorkspaceCtx`) through `resolveInbound` → `runConversationalTurn` → `persistAssistantTurn`, replacing every `const db = getDb()` with the passed handle. Then wrap the whole call in `db.transaction` at the entry points. Tests would need a webhook end-to-end suite that exercises the FORCE RLS path.
+- **GUC propagation across `await import(...)` dynamic imports inside transactions** — `resolveInbound` calls `await import("@/lib/billing/quotas")` and similar inside DB work. Those helpers run their OWN `getDb()` queries on a different pooled connection; the `SET LOCAL` does not propagate. Solution mirrors the router refactor: helpers should accept a `tx` arg.
+- **Cluster-wide cache invalidation for workspace/membership LRUs** — currently the LRU in `lib/tenant/resolve.ts` and the in-process map in `lib/tenant/membership.ts` invalidate only on the current pod. With more than one app pod, a soft-delete or role demotion takes up to 5 min (resolve) / 60 s (membership) to propagate. Fix: Postgres `LISTEN/NOTIFY` channel with a tiny pub/sub layer.
+- **`appendAudit` durability for chain genesis** — `POST /api/workspaces` writes the `workspace.create` audit entry via fire-and-forget. The chain genesis is the most important row to never lose. Switch that single site to `appendAuditSync` so creation-without-audit is impossible.
