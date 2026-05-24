@@ -1436,7 +1436,7 @@ git -c commit.gpgsign=false commit -m "feat(mnemosyne): JOB_MNEMO_EXTRACT queue 
 - Create: `packages/db/migrations/0024_brain_to_mnemo_backfill.sql`
 - Create: `packages/db/migrations/0024_brain_to_mnemo_backfill.down.sql`
 
-- [ ] **Step 1: Write backfill migration**
+- [x] **Step 1: Write backfill migration**
 
 `packages/db/migrations/0024_brain_to_mnemo_backfill.sql`:
 
@@ -1484,7 +1484,7 @@ BEGIN
 END $$;
 ```
 
-- [ ] **Step 2: Write down migration**
+- [x] **Step 2: Write down migration**
 
 `packages/db/migrations/0024_brain_to_mnemo_backfill.down.sql`:
 
@@ -1500,7 +1500,7 @@ DELETE FROM mnemo_extraction_job WHERE id LIKE 'mext_%' AND EXISTS (
 );
 ```
 
-- [ ] **Step 3: Apply migration locally**
+- [x] **Step 3: Apply migration locally**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -1509,7 +1509,7 @@ docker exec -i orchester-postgres psql -U orchester -d orchester < packages/db/m
 
 Expected: `NOTICE: Backfill complete: N facts, M extraction jobs in mnemo_*` where N + M equal pre-existing counts.
 
-- [ ] **Step 4: Verify counts match**
+- [x] **Step 4: Verify counts match**
 
 ```bash
 docker exec orchester-postgres psql -U orchester -d orchester -c "SELECT (SELECT count(*) FROM brain_fact) AS brain_facts, (SELECT count(*) FROM mnemo_fact) AS mnemo_facts;"
@@ -1517,7 +1517,7 @@ docker exec orchester-postgres psql -U orchester -d orchester -c "SELECT (SELECT
 
 Expected: both counts equal.
 
-- [ ] **Step 5: Commit migrations**
+- [x] **Step 5: Commit migrations**
 
 ```bash
 git add packages/db/migrations/0024_brain_to_mnemo_backfill.sql packages/db/migrations/0024_brain_to_mnemo_backfill.down.sql
@@ -1539,13 +1539,13 @@ git -c commit.gpgsign=false commit -m "feat(db): migration 0024 — backfill bra
 
 - Modify: `apps/web/lib/brain/extract.ts` (per FIX-001 from audit)
 
-- [ ] **Step 1: Inspect current code**
+- [x] **Step 1: Inspect current code**
 
 ```bash
 grep -n "claude-haiku-4-5\|claude-sonnet-4-6" apps/web/lib/brain/*.ts
 ```
 
-- [ ] **Step 2: Replace hardcoded model fallback in extract.ts**
+- [x] **Step 2: Replace hardcoded model fallback in extract.ts**
 
 Find:
 
@@ -1566,7 +1566,7 @@ if (!input.model) {
 const model = input.model;
 ```
 
-- [ ] **Step 3: Update the caller to pass workspace setting**
+- [x] **Step 3: Update the caller to pass workspace setting**
 
 In `apps/web/lib/brain/extract-job.ts`, find the `extractFacts({...})` call and ensure it passes `model`. If a `getWorkspaceSetting` helper exists, use it; otherwise create a small inline resolver:
 
@@ -1600,7 +1600,7 @@ const facts = await extractFacts({
 });
 ```
 
-- [ ] **Step 4: Verify typecheck**
+- [x] **Step 4: Verify typecheck**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester/apps/web
@@ -1609,7 +1609,7 @@ npx tsc --noEmit 2>&1 | tail -5
 
 Expected: clean.
 
-- [ ] **Step 5: Run existing brain tests to ensure nothing broke**
+- [x] **Step 5: Run existing brain tests to ensure nothing broke**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -1618,18 +1618,20 @@ pnpm --filter @orchester/web test tests/unit/brain/ 2>&1 | tail -10
 
 Expected: 11/11 passed.
 
-- [ ] **Step 6: Commit fix**
+- [x] **Step 6: Commit fix**
 
 ```bash
 git add apps/web/lib/brain/extract.ts apps/web/lib/brain/extract-job.ts
 git -c commit.gpgsign=false commit -m "fix(brain): replace hardcoded model with workspace mnemo.small_model (audit FIX-001)"
 ```
 
+> **Phase 1C implementer note:** the 9 audit fix items (FIX-001 through FIX-009) were each applied + committed individually. FIX-002/003/005 share a single locus (`embed.ts:embedBrain`) and were bundled in a single commit (`122a559`) since they MUST move together for compile + semantic correctness; the commit message references all three FIX IDs. FIX-009 also added migration `0025_brain_extraction_skip_state.sql` to widen `brain_extraction_job.state` CHECK to include `'skipped'` and add `skip_reason` (mirrors the mnemo_extraction_job schema). Full commit history: `git log --oneline mnemosyne-v0.1 ^origin/main`.
+
 ---
 
 ### Task 1.10: Push Phase 1 work + verify state
 
-- [ ] **Step 1: Run full test suite**
+- [x] **Step 1: Run full test suite**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -1637,27 +1639,27 @@ pnpm --filter @orchester/web test 2>&1 | tail -5
 pnpm --filter @orchester/mnemosyne test 2>&1 | tail -5
 ```
 
-Expected: both green.
+Expected: both green. Phase 1C result: apps/web 214 passed / 6 skipped / 0 failed; mnemosyne 5 passed.
 
-- [ ] **Step 2: Run audit invariants**
+- [x] **Step 2: Run audit invariants**
 
 ```bash
 pnpm audit:invariants 2>&1 | tail -3
 ```
 
-Expected: `all transversal invariants hold`.
+Expected: `all transversal invariants hold`. Phase 1C result: holds.
 
-- [ ] **Step 3: Push**
+- [ ] **Step 3: Push** _(deferred — controller batch-pushes at end of plan execution per instructions)_
 
 ```bash
 git push origin main
 ```
 
-- [ ] **Step 4: Tag**
+- [x] **Step 4: Tag (created locally; push deferred)**
 
 ```bash
-git tag -a mnemosyne-v0.1 -m "Mnemosyne v0.1 — migration brain_* → mnemo_* complete (dual-write phase)"
-git push origin mnemosyne-v0.1
+git tag -a mnemosyne-v0.1 -m "Mnemosyne v0.1 — migration brain_* → mnemo_* complete + all Phase 0 audit BLOCKING fixes applied + dual-write phase"
+# git push origin mnemosyne-v0.1   # deferred — controller batch-pushes
 ```
 
 ---
