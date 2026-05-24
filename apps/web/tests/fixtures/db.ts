@@ -19,6 +19,17 @@ import fs from "fs/promises";
 let container: StartedTestContainer | null = null;
 let sql: ReturnType<typeof postgres> | null = null;
 let db: PostgresJsDatabase | null = null;
+let containerUrl: string | null = null;
+
+/**
+ * Connection string for the active testcontainer. Exposed so isolation tests
+ * can spin up additional postgres-js clients against the same container with
+ * different credentials (e.g. as `app_user` via `?user=…` to exercise FORCE
+ * RLS). Returns null before setupTestDb() has been called.
+ */
+export function getTestDbUrl(): string | null {
+  return containerUrl;
+}
 
 export async function setupTestDb(): Promise<{
   db: PostgresJsDatabase;
@@ -39,6 +50,7 @@ export async function setupTestDb(): Promise<{
   const port = container.getMappedPort(5432);
   const host = container.getHost();
   const url = `postgres://postgres:test@${host}:${port}/orchester`;
+  containerUrl = url;
 
   // Expose the connection string so `getDb()` (postgres-js, called by
   // production code under test) points at the same container.
@@ -84,4 +96,5 @@ export async function teardownTestDb(): Promise<void> {
   sql = null;
   db = null;
   container = null;
+  containerUrl = null;
 }
