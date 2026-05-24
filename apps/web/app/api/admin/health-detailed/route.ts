@@ -49,21 +49,22 @@ export async function GET() {
     checks["members_count"] = { ok: false, note: String(e) };
   }
 
-  // 3. Audit log con actividad reciente (24h)
+  // 3. Audit log con actividad reciente (24h). Lee la nueva tabla
+  // `audit_log` (hash chain). Si las únicas entries recientes son
+  // legacy migration rows, el health check sigue ok=true porque es
+  // informativo.
   try {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const r = await db
       .select({ c: count() })
-      .from(schema.auditLogs)
-      .where(gte(schema.auditLogs.createdAt, since));
+      .from(schema.auditLog)
+      .where(gte(schema.auditLog.createdAt, since));
     const value = r[0]?.c ?? 0;
     checks["audit_recent_24h"] = {
       ok: true, // sólo informativo — silence no es fail
       value,
       note:
-        value === 0
-          ? "Sin entries en últimas 24h. ¿Sistema inactivo o logger roto?"
-          : undefined,
+        value === 0 ? "Sin entries en últimas 24h. ¿Sistema inactivo o logger roto?" : undefined,
     };
   } catch (e) {
     checks["audit_recent_24h"] = { ok: false, note: String(e) };
@@ -99,10 +100,7 @@ export async function GET() {
     const recent = await db
       .select({ c: count() })
       .from(schema.messages)
-      .innerJoin(
-        schema.conversations,
-        eq(schema.messages.conversationId, schema.conversations.id)
-      )
+      .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
       .where(
         sql`${schema.conversations.workspaceId} = ${ctx.workspace.id} AND ${schema.messages.createdAt} >= ${since} AND ${schema.messages.role} = 'assistant'`
       );

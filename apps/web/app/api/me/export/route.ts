@@ -62,10 +62,7 @@ export async function GET() {
       workspaceSlug: schema.workspaces.slug,
     })
     .from(schema.workspaceMembers)
-    .innerJoin(
-      schema.workspaces,
-      eq(schema.workspaceMembers.workspaceId, schema.workspaces.id)
-    )
+    .innerJoin(schema.workspaces, eq(schema.workspaceMembers.workspaceId, schema.workspaces.id))
     .where(eq(schema.workspaceMembers.userId, userId))
     .limit(MAX_ROWS);
 
@@ -115,23 +112,49 @@ export async function GET() {
     .orderBy(desc(schema.messages.createdAt))
     .limit(MAX_ROWS);
 
-  // 6. Audit-log entries ABOUT this user (userId == self). Scoped to actions
-  // the user themselves performed / that reference them.
-  const auditEntries = await db
+  // 6. Audit-log entries ABOUT this user (actor == self). Scoped to actions
+  // the user themselves performed / that reference them. Reads from the
+  // new hash-chained `audit_log` table; the pre-rename historical entries
+  // are merged from `audit_log_legacy` so existing users see the same
+  // history they saw before the migration. Both projections are normalized
+  // to the same shape; chain-only fields (seq/prev_hash/chain_hash) are
+  // intentionally excluded — the verification cron exposes them via a
+  // separate admin endpoint.
+  const newAudit = await db
     .select({
-      id: schema.auditLogs.id,
-      workspaceId: schema.auditLogs.workspaceId,
-      action: schema.auditLogs.action,
-      resource: schema.auditLogs.resource,
-      resourceId: schema.auditLogs.resourceId,
-      ip: schema.auditLogs.ip,
-      userAgent: schema.auditLogs.userAgent,
-      createdAt: schema.auditLogs.createdAt,
+      id: schema.auditLog.id,
+      workspaceId: schema.auditLog.workspaceId,
+      action: schema.auditLog.action,
+      resource: schema.auditLog.targetType,
+      resourceId: schema.auditLog.targetId,
+      ip: schema.auditLog.actorIp,
+      userAgent: schema.auditLog.actorUserAgent,
+      createdAt: schema.auditLog.createdAt,
     })
-    .from(schema.auditLogs)
-    .where(eq(schema.auditLogs.userId, userId))
-    .orderBy(desc(schema.auditLogs.createdAt))
+    .from(schema.auditLog)
+    .where(eq(schema.auditLog.actorUserId, userId))
+    .orderBy(desc(schema.auditLog.createdAt))
     .limit(MAX_ROWS);
+
+  const legacyAudit = await db
+    .select({
+      id: schema.auditLogsLegacy.id,
+      workspaceId: schema.auditLogsLegacy.workspaceId,
+      action: schema.auditLogsLegacy.action,
+      resource: schema.auditLogsLegacy.resource,
+      resourceId: schema.auditLogsLegacy.resourceId,
+      ip: schema.auditLogsLegacy.ip,
+      userAgent: schema.auditLogsLegacy.userAgent,
+      createdAt: schema.auditLogsLegacy.createdAt,
+    })
+    .from(schema.auditLogsLegacy)
+    .where(eq(schema.auditLogsLegacy.userId, userId))
+    .orderBy(desc(schema.auditLogsLegacy.createdAt))
+    .limit(MAX_ROWS);
+
+  const auditEntries = [...newAudit, ...legacyAudit]
+    .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))
+    .slice(0, MAX_ROWS);
 
   const payload = {
     exportedAt: new Date().toISOString(),
