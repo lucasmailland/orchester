@@ -119,18 +119,18 @@ packages/mnemosyne/
 0017_mnemosyne_init.down.sql
 0018_mnemosyne_decision.sql               # mnemo_decision
 0018_mnemosyne_decision.down.sql
-0019_mnemosyne_entity_episode.sql         # mnemo_entity, mnemo_episode (skeleton for Phase 2)
-0019_mnemosyne_entity_episode.down.sql
 0020_mnemosyne_relation.sql               # mnemo_relation + 9 verbs CHECK
 0020_mnemosyne_relation.down.sql
 0021_mnemosyne_citation.sql               # mnemo_citation
 0021_mnemosyne_citation.down.sql
 0022_mnemosyne_query_cache.sql            # mnemo_query_cache (L3)
 0022_mnemosyne_query_cache.down.sql
-0023_mnemosyne_forget_suggestion.sql      # mnemo_forget_suggestion
-0023_mnemosyne_forget_suggestion.down.sql
 0024_brain_to_mnemo_backfill.sql          # data backfill brain_fact → mnemo_fact
 0024_brain_to_mnemo_backfill.down.sql
+
+# (0019 = mnemo_entity + mnemo_episode and 0023 = mnemo_forget_suggestion
+#  are reserved migration numbers for future phases v2.0+/v3.0+;
+#  intentionally not created in this plan.)
 ```
 
 ### Modified in existing app: `apps/web/`
@@ -415,7 +415,7 @@ Expected: `ok main` or equivalent success.
 
 **Duration:** 1 week (5 days)
 **Goal:** Move `apps/web/lib/brain/*` into `packages/mnemosyne` with renamed tables. Zero downtime, reversible until final drop.
-**Ship criterion:** All brain*fact data backfilled to mnemo_fact. All reads serve from mnemo*_. brain\__ tables retained for grace period (30 days).
+**Ship criterion:** All brain*fact data backfilled to mnemo_fact. All reads serve from mnemo*\_. brain\_\_ tables retained for grace period (30 days).
 
 ---
 
@@ -568,7 +568,12 @@ CREATE TABLE mnemo_fact (
   embedding           vector(1536),
   embedding_model     text,
   embedding_version   text,
-  text_lemmatized     tsvector,
+  -- text_lemmatized auto-populated by Postgres on every INSERT/UPDATE.
+  -- GENERATED ALWAYS means we never write to it from app code — DB owns the
+  -- column. Required for the GIN index used in Mode A FTS queries.
+  text_lemmatized     tsvector GENERATED ALWAYS AS (
+                        to_tsvector('simple', coalesce(subject,'') || ' ' || coalesce(statement,''))
+                      ) STORED,
   metadata            jsonb NOT NULL DEFAULT '{}',
   status              text NOT NULL CHECK (status IN ('active','merged','forgotten')) DEFAULT 'active',
   merged_into_id      text REFERENCES mnemo_fact(id) ON DELETE SET NULL,
@@ -704,6 +709,10 @@ import {
 } from "drizzle-orm/pg-core";
 import { workspaces, agents, conversations } from "./core";
 
+// tsvector — readonly at the TS layer because the column is
+// GENERATED ALWAYS in Postgres (see migration 0017). Marking via
+// `customType` keeps the type info but we MUST NOT include it in
+// `.insert().values({...})` payloads.
 const tsvector = customType<{ data: string }>({
   dataType() {
     return "tsvector";
@@ -1517,7 +1526,14 @@ git -c commit.gpgsign=false commit -m "feat(db): migration 0024 — backfill bra
 
 ---
 
-### Task 1.9: Apply audit fixes from Phase 0 (replace hardcoded model names)
+### Task 1.9: Apply ALL audit blocking fixes from Phase 0
+
+> Phase 0 produces a fix list keyed by severity (BLOCKING / WARN / OK-as-example).
+> This task iterates over **every BLOCKING fix** in `docs/specs/audits/2026-05-24-mnemosyne-provider-audit.md` and applies it. The example below shows FIX-001; the implementer MUST apply every BLOCKING fix surfaced in Phase 0, then commit them as a single bundle.
+
+**Required:** read the audit report first. Re-grep for any new BLOCKING findings the audit missed. Apply all of them in this task before moving on.
+
+#### Example: applying FIX-001 (hardcoded model fallback in extract.ts)
 
 **Files:**
 
@@ -1688,7 +1704,12 @@ CREATE TABLE mnemo_decision (
   embedding           vector(1536),
   embedding_model     text,
   embedding_version   text,
-  text_lemmatized     tsvector,
+  -- See 0017 for rationale: text_lemmatized is DB-owned. Postgres re-derives
+  -- it whenever title/body change. GIN index over this column powers FTS in
+  -- candidate-on-write loop and Mode A search.
+  text_lemmatized     tsvector GENERATED ALWAYS AS (
+                        to_tsvector('simple', coalesce(title,'') || ' ' || coalesce(body,''))
+                      ) STORED,
   status              text NOT NULL CHECK (status IN ('active','superseded','withdrawn')) DEFAULT 'active',
   superseded_by_id    text REFERENCES mnemo_decision(id) ON DELETE SET NULL,
   metadata            jsonb NOT NULL DEFAULT '{}',
@@ -4399,7 +4420,174 @@ git -c commit.gpgsign=false commit -m "test(mnemosyne): Mode A end-to-end (no AI
 
 ---
 
-### Task 7.4: Tag mnemosyne-v1.0 + push
+### Task 7.4: Cross-tenant isolation test (RLS+FORCE verification)
+
+**Files:**
+
+- Create: `packages/mnemosyne/tests/integration/cross-tenant-isolation.spec.ts`
+
+This task verifies that the RLS+FORCE policies actually prevent cross-tenant reads. Without this test we're trusting the policies without proof.
+
+- [ ] **Step 1: Write the test**
+
+`packages/mnemosyne/tests/integration/cross-tenant-isolation.spec.ts`:
+
+```ts
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+vi.unmock("@orchester/db");
+vi.doUnmock("@orchester/db");
+
+import {
+  setupTestWorkspaces,
+  teardownTestWorkspaces,
+  type WsFixture,
+} from "../../../apps/web/tests/fixtures/workspaces";
+
+let wsA: WsFixture;
+let wsB: WsFixture;
+
+beforeAll(async () => {
+  [wsA, wsB] = await setupTestWorkspaces();
+});
+afterAll(() => teardownTestWorkspaces());
+
+describe("cross-tenant isolation (RLS+FORCE)", () => {
+  it("workspace A cannot read workspace B mnemo_fact via withMnemoTx", async () => {
+    const { withMnemoTx } = await import("../../src/tx");
+    const { createFact, listFacts } = await import("../../src/primitives/fact");
+
+    // Write a fact under wsB
+    await withMnemoTx(wsB.id, (tx) =>
+      createFact({
+        workspaceId: wsB.id,
+        scope: "global",
+        kind: "preference",
+        subject: "user",
+        statement: "B-only secret preference",
+        tx,
+      })
+    );
+
+    // Try to list facts from wsA scoped context — must NOT see wsB rows
+    const wsAFacts = await withMnemoTx(wsA.id, (tx) =>
+      listFacts({ workspaceId: wsA.id, tx })
+    );
+    expect(
+      wsAFacts.find((f) => f.statement.includes("B-only"))
+    ).toBeUndefined();
+  });
+
+  it("workspace A cannot read workspace B mnemo_decision", async () => {
+    const { withMnemoTx } = await import("../../src/tx");
+    const { createDecision, getDecision } =
+      await import("../../src/primitives/decision");
+
+    const d = await withMnemoTx(wsB.id, (tx) =>
+      createDecision({
+        workspaceId: wsB.id,
+        kind: "policy",
+        title: "B-only policy",
+        body: "secret to wsB",
+        tx,
+      })
+    );
+
+    // From wsA context, attempting to fetch wsB's decision returns null
+    // (RLS filters it out, even though we know the ID)
+    const cross = await withMnemoTx(wsA.id, (tx) =>
+      getDecision(wsB.id, d.id, tx)
+    );
+    expect(cross).toBeNull();
+  });
+
+  it("workspace A cannot read workspace B mnemo_relation", async () => {
+    const { withMnemoTx } = await import("../../src/tx");
+    const { createDecision } = await import("../../src/primitives/decision");
+    const { createRelation, listPendingRelations } =
+      await import("../../src/graph/relation");
+
+    const d1 = await withMnemoTx(wsB.id, (tx) =>
+      createDecision({
+        workspaceId: wsB.id,
+        kind: "policy",
+        title: "B-source",
+        body: "x",
+        tx,
+      })
+    );
+    const d2 = await withMnemoTx(wsB.id, (tx) =>
+      createDecision({
+        workspaceId: wsB.id,
+        kind: "policy",
+        title: "B-target",
+        body: "y",
+        tx,
+      })
+    );
+    await withMnemoTx(wsB.id, (tx) =>
+      createRelation({
+        workspaceId: wsB.id,
+        sourceKind: "decision",
+        sourceId: d1.id,
+        targetKind: "decision",
+        targetId: d2.id,
+        relation: "related",
+        markedByKind: "system",
+        tx,
+      })
+    );
+
+    const wsAPending = await withMnemoTx(wsA.id, (tx) =>
+      listPendingRelations(wsA.id, 100, tx)
+    );
+    expect(
+      wsAPending.find((r) => r.sourceId === d1.id || r.targetId === d2.id)
+    ).toBeUndefined();
+  });
+
+  it("workspace A cannot read workspace B mnemo_citation", async () => {
+    const { withMnemoTx } = await import("../../src/tx");
+    const { createCitation, listCitationsForMemory } =
+      await import("../../src/citation/store");
+
+    await withMnemoTx(wsB.id, (tx) =>
+      createCitation({
+        workspaceId: wsB.id,
+        memoryKind: "fact",
+        memoryId: "mfact_b_only",
+        sourceKind: "user_edit",
+        evidenceExcerpt: "B-only citation",
+        tx,
+      })
+    );
+
+    const wsACitations = await withMnemoTx(wsA.id, (tx) =>
+      listCitationsForMemory(wsA.id, "fact", "mfact_b_only", tx)
+    );
+    expect(wsACitations).toEqual([]);
+  });
+});
+```
+
+- [ ] **Step 2: Run test**
+
+```bash
+cd /Users/lucasmailland/dev/orchester
+pnpm --filter @orchester/mnemosyne test tests/integration/cross-tenant-isolation.spec.ts 2>&1 | tail -10
+```
+
+Expected: 4 passed. If any test surfaces wsB data, RLS+FORCE has a hole — STOP and audit migrations.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/mnemosyne/tests/integration/cross-tenant-isolation.spec.ts
+git -c commit.gpgsign=false commit -m "test(mnemosyne): cross-tenant isolation across all 4 mnemo_* tables"
+```
+
+---
+
+### Task 7.5: Tag mnemosyne-v1.0 + push
 
 - [ ] **Step 1: Run full test suite one last time**
 
@@ -4483,7 +4671,7 @@ Run mentally:
 - mnemosyne_recall MCP tool definition + tool-profiles catalog (§14)
 - REST API routes `/api/workspaces/:slug/mnemo/*` (§14)
 - Studio Inspector UI v0 (§31) — basic browse-only
-- Memory Protocol injection wired into actual agent-runtime hook (Task 7.2 placeholder above must be expanded with concrete buildConversationContext signature)
+- Memory Protocol injection wired into actual agent-runtime hook (Task 7.2 below provides the integration pattern; subagent confirms the live function signature via grep before patching)
 
 These items are scoped for the v1.0-polish plan that follows this plan's completion.
 
