@@ -3,6 +3,7 @@ import { LRUCache } from "lru-cache";
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@orchester/db";
 import type { Workspace } from "@orchester/db";
+import { broadcastInvalidation, onInvalidation, startListener } from "./cluster-cache";
 
 /**
  * In-process LRU cache for workspace lookups.
@@ -33,6 +34,32 @@ const idCache = new LRUCache<string, Workspace>({
   max: CACHE_MAX,
   ttl: CACHE_TTL_MS,
 });
+
+// Boot the cluster-wide LISTEN once (idempotent) and subscribe a local
+// handler that purges our LRUs when ANY pod broadcasts a workspace
+// invalidation. We deliberately do NOT re-broadcast from this handler:
+// the broadcaster has already done its NOTIFY and a re-emit would loop.
+//
+// Receives our own NOTIFYs back too (Postgres delivers to every
+// listener); LRU.delete on a missing key is a no-op so re-entrancy is
+// safe.
+startListener();
+onInvalidation((msg) => {
+  if (msg.kind !== "workspace") return;
+  purgeLocal(msg.key);
+});
+
+function purgeLocal(workspaceIdOrSlug: string): void {
+  slugCache.delete(workspaceIdOrSlug);
+  idCache.delete(workspaceIdOrSlug);
+  // Best-effort cross-key scan — see invalidateCache() for rationale.
+  for (const [slug, ws] of slugCache.entries()) {
+    if (ws.id === workspaceIdOrSlug) slugCache.delete(slug);
+  }
+  for (const [id, ws] of idCache.entries()) {
+    if (ws.slug === workspaceIdOrSlug) idCache.delete(id);
+  }
+}
 
 /**
  * Resolve a workspace by slug. Returns `null` if no workspace exists
@@ -94,20 +121,18 @@ export async function resolveById(id: string): Promise<Workspace | null> {
  * once-per-mutation cost.
  */
 export function invalidateCache(workspaceIdOrSlugOrStar: string): void {
+  // Local purge first (immediate, synchronous) so this pod is
+  // consistent regardless of broadcast success.
   if (workspaceIdOrSlugOrStar === "*") {
     slugCache.clear();
     idCache.clear();
+    // No cluster broadcast for "*" — flushing every pod's LRU on a
+    // single bulk-migration call would thunder against the DB. Operator
+    // tooling should bounce the pods if a true cluster-wide flush is
+    // required.
     return;
   }
-  slugCache.delete(workspaceIdOrSlugOrStar);
-  idCache.delete(workspaceIdOrSlugOrStar);
-  // Best-effort cross-key invalidation: the caller may have only known
-  // one of (slug, id), so scan the other cache for entries pointing at
-  // the same workspace.
-  for (const [slug, ws] of slugCache.entries()) {
-    if (ws.id === workspaceIdOrSlugOrStar) slugCache.delete(slug);
-  }
-  for (const [id, ws] of idCache.entries()) {
-    if (ws.slug === workspaceIdOrSlugOrStar) idCache.delete(id);
-  }
+  purgeLocal(workspaceIdOrSlugOrStar);
+  // Broadcast to other pods (best effort — never throws).
+  void broadcastInvalidation({ kind: "workspace", key: workspaceIdOrSlugOrStar });
 }
