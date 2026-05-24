@@ -1,0 +1,30 @@
+{
+  "name": "@orchester/mnemosyne",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-tenant memory architecture for AI agents — provider-agnostic, zero platform third-party cost, 3 operational modes.",
+  "license": "Apache-2.0",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts",
+    "./tools": "./src/tools/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@orchester/db": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "@paralleldrive/cuid2": "^3.3.0",
+    "zod": "^4.3.6",
+    "lru-cache": "^11.0.2"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.9",
+    "typescript": "^5.7.2",
+    "testcontainers": "^10.16.0",
+    "postgres": "^3.4.9"
+  }
+}
