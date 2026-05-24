@@ -8,14 +8,20 @@
 //
 // The cursor is the `seq` of the oldest entry returned on the previous
 // page; pages are ordered DESC. Default page size 50, max 100.
+//
+// audit_log is FORCED RLS (FORCE ROW LEVEL SECURITY). Reads from API
+// route handlers run inside `withCrossTenantAdmin` so the bypass GUC
+// is set on the same connection that runs the SELECT — without it
+// FORCE RLS denies every row.
 import { NextResponse, type NextRequest } from "next/server";
 import { desc, eq, and, lt } from "drizzle-orm";
-import { getDb, schema } from "@orchester/db";
+import { schema } from "@orchester/db";
 import { resolveBySlug } from "@/lib/tenant/resolve";
 import { checkMembership } from "@/lib/tenant/membership";
 import { isAccessible } from "@/lib/tenant/lifecycle";
 import { requireAuth } from "@/lib/auth-guards";
 import { assertCan, ForbiddenError } from "@/lib/rbac";
+import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +60,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     throw e;
   }
 
-  const db = getDb();
   let cursorSeq: bigint | null = null;
   if (cursor) {
     try {
@@ -68,12 +73,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     ? and(eq(schema.auditLog.workspaceId, ws.id), lt(schema.auditLog.seq, cursorSeq))
     : eq(schema.auditLog.workspaceId, ws.id);
 
-  const entries = await db
-    .select()
-    .from(schema.auditLog)
-    .where(conditions)
-    .orderBy(desc(schema.auditLog.seq))
-    .limit(limit + 1);
+  // audit_log is FORCED RLS — bypass with cross-tenant admin. The slug
+  // membership check above is the actual authorization gate; the SELECT
+  // here filters by ws.id explicitly so we never read a foreign chain.
+  const entries = await withCrossTenantAdmin("audit.read", async (tx) =>
+    tx
+      .select()
+      .from(schema.auditLog)
+      .where(conditions)
+      .orderBy(desc(schema.auditLog.seq))
+      .limit(limit + 1)
+  );
 
   const hasMore = entries.length > limit;
   const items = entries.slice(0, limit);
