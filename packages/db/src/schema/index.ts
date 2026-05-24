@@ -7,3 +7,4 @@ export * from "./agent-tools";
 export * from "./knowledge";
 export * from "./production";
 export * from "./integrations";
+export * from "./audit";

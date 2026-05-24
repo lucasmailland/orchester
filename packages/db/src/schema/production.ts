@@ -174,8 +174,6 @@ export const workspaceBilling = pgTable("workspace_billing", {
 });
 
 export type AuditLogLegacy = typeof auditLogsLegacy.$inferSelect;
-/** @deprecated use `AuditLogLegacy` (or `AuditLog` from `./audit`) */
-export type AuditLog = AuditLogLegacy;
 export type WorkspaceInvite = typeof workspaceInvites.$inferSelect;
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type OutboundWebhook = typeof outboundWebhooks.$inferSelect;
