@@ -1679,7 +1679,7 @@ git tag -a mnemosyne-v0.1 -m "Mnemosyne v0.1 — migration brain_* → mnemo_* c
 - Create: `packages/db/migrations/0018_mnemosyne_decision.sql`
 - Create: `packages/db/migrations/0018_mnemosyne_decision.down.sql`
 
-- [ ] **Step 1: Write migration**
+- [x] **Step 1: Write migration**
 
 `packages/db/migrations/0018_mnemosyne_decision.sql`:
 
@@ -1745,7 +1745,7 @@ ALTER TABLE mnemo_decision FORCE  ROW LEVEL SECURITY;
 SELECT apply_pattern_a('mnemo_decision');
 ```
 
-- [ ] **Step 2: Write down migration**
+- [x] **Step 2: Write down migration**
 
 `packages/db/migrations/0018_mnemosyne_decision.down.sql`:
 
@@ -1755,7 +1755,7 @@ DROP TRIGGER IF EXISTS mnemo_decision_updated_at ON mnemo_decision;
 DROP FUNCTION IF EXISTS mnemo_decision_set_updated_at();
 ```
 
-- [ ] **Step 3: Apply + verify**
+- [x] **Step 3: Apply + verify**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -1765,7 +1765,7 @@ docker exec orchester-postgres psql -U orchester -d orchester -c "SELECT relrows
 
 Expected: `t | t`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/db/migrations/0018_mnemosyne_decision.sql packages/db/migrations/0018_mnemosyne_decision.down.sql
@@ -1780,7 +1780,7 @@ git -c commit.gpgsign=false commit -m "feat(db): migration 0018 — mnemo_decisi
 
 - Modify: `packages/db/src/schema/mnemosyne.ts`
 
-- [ ] **Step 1: Append Drizzle definition**
+- [x] **Step 1: Append Drizzle definition**
 
 Append to `packages/db/src/schema/mnemosyne.ts`:
 
@@ -1840,7 +1840,7 @@ export const mnemoDecisions = pgTable("mnemo_decision", {
 });
 ```
 
-- [ ] **Step 2: Verify typecheck**
+- [x] **Step 2: Verify typecheck**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester/apps/web
@@ -1849,7 +1849,7 @@ npx tsc --noEmit 2>&1 | tail -5
 
 Expected: clean.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -1866,7 +1866,7 @@ git -c commit.gpgsign=false commit -m "feat(db): drizzle schema for mnemo_decisi
 - Create: `packages/mnemosyne/src/primitives/decision.ts`
 - Create: `packages/mnemosyne/tests/integration/decision-crud.spec.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mnemosyne/tests/integration/decision-crud.spec.ts`:
 
@@ -1938,7 +1938,7 @@ describe("primitives/decision", () => {
 });
 ```
 
-- [ ] **Step 2: Run test (fails)**
+- [x] **Step 2: Run test (fails)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/integration/decision-crud.spec.ts 2>&1 | tail -10
@@ -1946,7 +1946,7 @@ pnpm --filter @orchester/mnemosyne test tests/integration/decision-crud.spec.ts 
 
 Expected: FAIL.
 
-- [ ] **Step 3: Write implementation**
+- [x] **Step 3: Write implementation**
 
 `packages/mnemosyne/src/primitives/decision.ts`:
 
@@ -2116,7 +2116,7 @@ export async function supersedeDecision(
 }
 ```
 
-- [ ] **Step 4: Run test (passes)**
+- [x] **Step 4: Run test (passes)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/integration/decision-crud.spec.ts 2>&1 | tail -10
@@ -2124,7 +2124,7 @@ pnpm --filter @orchester/mnemosyne test tests/integration/decision-crud.spec.ts 
 
 Expected: 2 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/mnemosyne/src/primitives/decision.ts packages/mnemosyne/tests/integration/decision-crud.spec.ts
@@ -2140,7 +2140,7 @@ git -c commit.gpgsign=false commit -m "feat(mnemosyne): primitives/decision with
 - Create: `packages/db/migrations/0020_mnemosyne_relation.sql`
 - Create: `packages/db/migrations/0020_mnemosyne_relation.down.sql`
 
-- [ ] **Step 1: Write migration**
+- [x] **Step 1: Write migration**
 
 `packages/db/migrations/0020_mnemosyne_relation.sql`:
 
@@ -2187,7 +2187,7 @@ ALTER TABLE mnemo_relation FORCE  ROW LEVEL SECURITY;
 SELECT apply_pattern_a('mnemo_relation');
 ```
 
-- [ ] **Step 2: Down migration**
+- [x] **Step 2: Down migration**
 
 `packages/db/migrations/0020_mnemosyne_relation.down.sql`:
 
@@ -2195,7 +2195,7 @@ SELECT apply_pattern_a('mnemo_relation');
 DROP TABLE IF EXISTS mnemo_relation CASCADE;
 ```
 
-- [ ] **Step 3: Apply + verify**
+- [x] **Step 3: Apply + verify**
 
 ```bash
 docker exec -i orchester-postgres psql -U orchester -d orchester < /Users/lucasmailland/dev/orchester/packages/db/migrations/0020_mnemosyne_relation.sql
@@ -2204,7 +2204,7 @@ docker exec orchester-postgres psql -U orchester -d orchester -c "SELECT count(*
 
 Expected: 4 (Pattern A).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -2221,7 +2221,7 @@ git -c commit.gpgsign=false commit -m "feat(db): migration 0020 — mnemo_relati
 - Create: `packages/mnemosyne/src/graph/verbs.ts`
 - Create: `packages/mnemosyne/tests/unit/verbs.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mnemosyne/tests/unit/verbs.test.ts`:
 
@@ -2261,13 +2261,13 @@ describe("graph/verbs", () => {
 });
 ```
 
-- [ ] **Step 2: Run (fails)**
+- [x] **Step 2: Run (fails)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/unit/verbs.test.ts 2>&1 | tail -10
 ```
 
-- [ ] **Step 3: Write implementation**
+- [x] **Step 3: Write implementation**
 
 ```bash
 mkdir -p /Users/lucasmailland/dev/orchester/packages/mnemosyne/src/graph
@@ -2304,7 +2304,7 @@ export function isRelationVerb(s: string): s is RelationVerb {
 }
 ```
 
-- [ ] **Step 4: Run (passes)**
+- [x] **Step 4: Run (passes)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/unit/verbs.test.ts 2>&1 | tail -10
@@ -2312,7 +2312,7 @@ pnpm --filter @orchester/mnemosyne test tests/unit/verbs.test.ts 2>&1 | tail -10
 
 Expected: 3 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/mnemosyne/src/graph/verbs.ts packages/mnemosyne/tests/unit/verbs.test.ts
@@ -2329,7 +2329,7 @@ git -c commit.gpgsign=false commit -m "feat(mnemosyne): graph/verbs — 9 locked
 - Create: `packages/mnemosyne/src/graph/relation.ts`
 - Create: `packages/mnemosyne/tests/integration/relation-crud.spec.ts`
 
-- [ ] **Step 1: Add Drizzle table**
+- [x] **Step 1: Add Drizzle table**
 
 Append to `packages/db/src/schema/mnemosyne.ts`:
 
@@ -2393,7 +2393,7 @@ export const mnemoRelations = pgTable("mnemo_relation", {
 });
 ```
 
-- [ ] **Step 2: Write failing integration test**
+- [x] **Step 2: Write failing integration test**
 
 `packages/mnemosyne/tests/integration/relation-crud.spec.ts`:
 
@@ -2468,13 +2468,13 @@ describe("graph/relation", () => {
 });
 ```
 
-- [ ] **Step 3: Run (fails)**
+- [x] **Step 3: Run (fails)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/integration/relation-crud.spec.ts 2>&1 | tail -10
 ```
 
-- [ ] **Step 4: Write implementation**
+- [x] **Step 4: Write implementation**
 
 `packages/mnemosyne/src/graph/relation.ts`:
 
@@ -2621,7 +2621,7 @@ export async function judgeRelation(
 }
 ```
 
-- [ ] **Step 5: Run (passes)**
+- [x] **Step 5: Run (passes)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/integration/relation-crud.spec.ts 2>&1 | tail -10
@@ -2629,7 +2629,7 @@ pnpm --filter @orchester/mnemosyne test tests/integration/relation-crud.spec.ts 
 
 Expected: 2 passed.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -2646,7 +2646,7 @@ git -c commit.gpgsign=false commit -m "feat(mnemosyne): graph/relation CRUD + ju
 - Create: `packages/mnemosyne/src/conflict/candidate.ts`
 - Create: `packages/mnemosyne/tests/integration/candidate-on-write.spec.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mnemosyne/tests/integration/candidate-on-write.spec.ts`:
 
@@ -2722,13 +2722,13 @@ describe("conflict/candidate", () => {
 });
 ```
 
-- [ ] **Step 2: Run (fails)**
+- [x] **Step 2: Run (fails)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/integration/candidate-on-write.spec.ts 2>&1 | tail -10
 ```
 
-- [ ] **Step 3: Write implementation**
+- [x] **Step 3: Write implementation**
 
 ```bash
 mkdir -p /Users/lucasmailland/dev/orchester/packages/mnemosyne/src/conflict
@@ -2860,7 +2860,7 @@ export async function saveDecisionWithCandidates(
 }
 ```
 
-- [ ] **Step 4: Run (passes)**
+- [x] **Step 4: Run (passes)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/integration/candidate-on-write.spec.ts 2>&1 | tail -10
@@ -2868,7 +2868,7 @@ pnpm --filter @orchester/mnemosyne test tests/integration/candidate-on-write.spe
 
 Expected: 2 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/mnemosyne/src/conflict/candidate.ts packages/mnemosyne/tests/integration/candidate-on-write.spec.ts
