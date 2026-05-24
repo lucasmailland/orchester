@@ -36,12 +36,6 @@ export const auditLogsLegacy = pgTable("audit_log_legacy", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-/**
- * @deprecated TEMPORARY back-compat alias. Removed once all call sites
- * are migrated to the new `auditLog` table (`./audit.ts`).
- */
-export const auditLogs = auditLogsLegacy;
-
 /* ───────────────────────── workspace_invite ───────────────────────── */
 export const inviteRoleEnum = pgEnum("workspace_invite_role", ["admin", "editor", "viewer"]);
 export const inviteStatusEnum = pgEnum("workspace_invite_status", [
