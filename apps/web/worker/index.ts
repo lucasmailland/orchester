@@ -26,12 +26,14 @@ import {
   JOB_USAGE_AGGREGATE,
   JOB_RETENTION,
   JOB_AUDIT_VERIFY_ALL,
+  JOB_WORKSPACE_HARD_DELETE,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
 import { purgeOldData } from "../lib/retention";
 import { withCrossTenantAdmin } from "../lib/tenant/cron";
 import { runVerifyAllChains } from "../lib/audit/verify-job";
+import { runHardDeleteCron } from "../lib/tenant/hard-delete-job";
 
 interface FlowRunJob {
   runId: string;
@@ -118,6 +120,15 @@ async function main(): Promise<void> {
     console.log("[worker] audit:verify_all_chains tick");
   });
   await schedule(JOB_AUDIT_VERIFY_ALL, "0 3 * * *"); // 03:00 UTC
+
+  // ── Workspace hard-deleter (cron, diario 04:00 UTC) ─────────
+  // Phase E.5: hard-deletes workspaces whose 30-day soft-delete window
+  // has expired. Cascade FKs clean up every dependent row.
+  await registerWorker(JOB_WORKSPACE_HARD_DELETE, async () => {
+    await runHardDeleteCron();
+    console.log("[worker] workspace:hard_delete tick");
+  });
+  await schedule(JOB_WORKSPACE_HARD_DELETE, "0 4 * * *"); // 04:00 UTC
 
   console.log("[worker] ready, waiting for jobs…");
 }
