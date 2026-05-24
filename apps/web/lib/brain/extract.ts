@@ -1,8 +1,10 @@
 // apps/web/lib/brain/extract.ts
 //
 // LLM-driven fact extraction from a slice of conversation messages.
-// Uses a cheap model (haiku/4o-mini) with a fixed system prompt;
-// validates output via zod. The handler in extract-job.ts wires this
+// Uses the workspace's configured `mnemo.small_model` (cheap tier),
+// resolved by the caller (extract-job.ts) via `resolveSmallTierModel`.
+// Charter §25 forbids hardcoded provider/model strings here.
+// Output is validated via zod. The handler in extract-job.ts wires this
 // into pg-boss + persists each fact via store.createFact.
 import "server-only";
 import { z } from "zod";
