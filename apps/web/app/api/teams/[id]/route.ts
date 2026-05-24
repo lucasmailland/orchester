@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDb, schema } from "@orchester/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 
@@ -21,16 +21,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { name, description, avatarColor } = parsed.data;
 
   const db = getDb();
-  const [team] = await db
-    .update(schema.teams)
-    .set({
-      name: name.trim(),
-      description: description?.trim() || null,
-      avatarColor: avatarColor || "#7C3AED",
-      updatedAt: new Date(),
-    })
-    .where(and(eq(schema.teams.id, id), eq(schema.teams.workspaceId, ctx.workspace.id)))
-    .returning();
+  const team = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+    const [row] = await tx
+      .update(schema.teams)
+      .set({
+        name: name.trim(),
+        description: description?.trim() || null,
+        avatarColor: avatarColor || "#7C3AED",
+        updatedAt: new Date(),
+      })
+      .where(and(eq(schema.teams.id, id), eq(schema.teams.workspaceId, ctx.workspace.id)))
+      .returning();
+    return row;
+  });
 
   if (!team) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(team);
@@ -42,10 +47,15 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
 
   const { id } = await params;
   const db = getDb();
-  const [deleted] = await db
-    .delete(schema.teams)
-    .where(and(eq(schema.teams.id, id), eq(schema.teams.workspaceId, ctx.workspace.id)))
-    .returning({ id: schema.teams.id });
+  const deleted = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+    const [row] = await tx
+      .delete(schema.teams)
+      .where(and(eq(schema.teams.id, id), eq(schema.teams.workspaceId, ctx.workspace.id)))
+      .returning({ id: schema.teams.id });
+    return row;
+  });
 
   if (!deleted) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ ok: true });

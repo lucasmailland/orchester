@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDb, schema } from "@orchester/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 
@@ -17,11 +17,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   if (!parsed.ok) return parsed.response;
   const { agentIds } = parsed.data;
   const db = getDb();
-  const updated = await db
-    .update(schema.employees)
-    .set({ assignedAgentIds: agentIds, updatedAt: new Date() })
-    .where(and(eq(schema.employees.id, id), eq(schema.employees.workspaceId, ctx.workspace.id)))
-    .returning();
+  const updated = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+    return tx
+      .update(schema.employees)
+      .set({ assignedAgentIds: agentIds, updatedAt: new Date() })
+      .where(and(eq(schema.employees.id, id), eq(schema.employees.workspaceId, ctx.workspace.id)))
+      .returning();
+  });
   const row = updated[0];
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(row);

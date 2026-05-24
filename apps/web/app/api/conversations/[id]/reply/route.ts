@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { decodeTelegramCredentials, telegramSend } from "@/lib/channels/telegram";
@@ -38,37 +38,57 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!text) return NextResponse.json({ error: "text required" }, { status: 400 });
 
   const db = getDb();
-  const convs = await db
-    .select()
-    .from(schema.conversations)
-    .where(
-      and(eq(schema.conversations.id, id), eq(schema.conversations.workspaceId, ctx.workspace.id))
-    )
-    .limit(1);
-  const conv = convs[0];
-  if (!conv) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  await db.insert(schema.messages).values({
-    id: createId(),
-    conversationId: conv.id,
-    role: "assistant",
-    content: text,
-    fromOperator: true,
-    authorUserId: ctx.user.id,
-  });
-  await db
-    .update(schema.conversations)
-    .set({ messageCount: (conv.messageCount ?? 0) + 1 })
-    .where(eq(schema.conversations.id, conv.id));
-
-  // Send through outbound adapters
-  if (conv.channelId) {
-    const chs = await db
+  // Wrap every tenant-scoped read/write in a single tx with the
+  // workspace GUC set. conversation / message / channel are all RLS-
+  // forced; without the GUC the conversation lookup returns empty.
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+    const convs = await tx
       .select()
-      .from(schema.channels)
-      .where(eq(schema.channels.id, conv.channelId))
+      .from(schema.conversations)
+      .where(
+        and(eq(schema.conversations.id, id), eq(schema.conversations.workspaceId, ctx.workspace.id))
+      )
       .limit(1);
-    const channel = chs[0];
+    const conv = convs[0];
+    if (!conv) return { kind: "not_found" as const };
+
+    await tx.insert(schema.messages).values({
+      id: createId(),
+      conversationId: conv.id,
+      role: "assistant",
+      content: text,
+      fromOperator: true,
+      authorUserId: ctx.user.id,
+    });
+    await tx
+      .update(schema.conversations)
+      .set({ messageCount: (conv.messageCount ?? 0) + 1 })
+      .where(eq(schema.conversations.id, conv.id));
+
+    let channel: typeof schema.channels.$inferSelect | undefined;
+    if (conv.channelId) {
+      const chs = await tx
+        .select()
+        .from(schema.channels)
+        .where(eq(schema.channels.id, conv.channelId))
+        .limit(1);
+      channel = chs[0];
+    }
+    return { kind: "ok" as const, conv, channel };
+  });
+
+  if (result.kind === "not_found") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  const { conv, channel } = result;
+
+  // Send through outbound adapters (outside the tx — network calls
+  // shouldn't hold a DB connection / transaction open).
+  if (conv.channelId) {
+    // Note: we already loaded `channel` inside the tx above; the
+    // legacy code path expected a fresh lookup but we reuse it here.
     if (channel?.type === "telegram" && conv.externalId) {
       const creds = decodeTelegramCredentials(channel.credentialsEncrypted);
       if (creds?.botToken) {

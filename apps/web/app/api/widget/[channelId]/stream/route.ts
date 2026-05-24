@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { getDb, schema } from "@orchester/db";
+import { schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
 import { handleInboundStream } from "@/lib/channels/router";
+import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 import { safeLogError } from "@/lib/safe-log";
 
 /**
@@ -39,13 +40,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ channel
     );
   }
 
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.channels)
-    .where(eq(schema.channels.id, channelId))
-    .limit(1);
-  const channel = rows[0];
+  // Channel lookup is the only tenant-scoped query owned by the
+  // route — `handleInboundStream` manages its own queries. The
+  // widget URL doesn't reveal the workspace, so this lookup runs
+  // through the cross-tenant bypass (audit-logged).
+  const channel = await withCrossTenantAdmin("widget.channel_lookup", async (tx) => {
+    const rows = await tx
+      .select()
+      .from(schema.channels)
+      .where(eq(schema.channels.id, channelId))
+      .limit(1);
+    return rows[0];
+  });
   if (!channel || (channel.type !== "widget" && channel.type !== "web")) {
     return NextResponse.json(
       { error: "Channel not found" },

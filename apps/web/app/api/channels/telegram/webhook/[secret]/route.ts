@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { getDb, schema } from "@orchester/db";
+import { schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
 import { handleInbound } from "@/lib/channels/router";
+import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 import { decodeTelegramCredentials, telegramSend } from "@/lib/channels/telegram";
 
 /**
@@ -10,13 +11,17 @@ import { decodeTelegramCredentials, telegramSend } from "@/lib/channels/telegram
  */
 export async function POST(req: Request, { params }: { params: Promise<{ secret: string }> }) {
   const { secret } = await params;
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.channels)
-    .where(eq(schema.channels.secret, secret))
-    .limit(1);
-  const channel = rows[0];
+  // Channel lookup by webhook secret — secret IS the auth here.
+  // The URL has no workspace context, so this lookup uses the
+  // cross-tenant bypass (audit-logged).
+  const channel = await withCrossTenantAdmin("telegram.webhook.channel_lookup", async (tx) => {
+    const rows = await tx
+      .select()
+      .from(schema.channels)
+      .where(eq(schema.channels.secret, secret))
+      .limit(1);
+    return rows[0];
+  });
   if (!channel || channel.type !== "telegram" || channel.status !== "active") {
     return NextResponse.json({ ok: false, error: "channel not found" }, { status: 404 });
   }

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getDb, schema } from "@orchester/db";
+import { schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
 import { handleInbound } from "@/lib/channels/router";
+import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 
 const CORS_HEADERS = {
   "access-control-allow-origin": "*",
@@ -43,14 +44,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ channel
     );
   }
 
-  // Lookup channel + workspaceId
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.channels)
-    .where(eq(schema.channels.id, channelId))
-    .limit(1);
-  const channel = rows[0];
+  // Lookup channel + workspaceId. The widget URL is keyed by
+  // channel id and we don't know the workspace until after we
+  // resolve the channel — so this single lookup runs through
+  // `withCrossTenantAdmin` (RLS bypass, audit-logged). The
+  // subsequent `handleInbound` is the library's responsibility
+  // for tenant-scoping its own queries.
+  const channel = await withCrossTenantAdmin("widget.channel_lookup", async (tx) => {
+    const rows = await tx
+      .select()
+      .from(schema.channels)
+      .where(eq(schema.channels.id, channelId))
+      .limit(1);
+    return rows[0];
+  });
   if (!channel || (channel.type !== "widget" && channel.type !== "web")) {
     return NextResponse.json(
       { error: "Channel not found" },
