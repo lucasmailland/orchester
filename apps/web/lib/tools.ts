@@ -1,6 +1,19 @@
 import "server-only";
+import { getDb, schema, type DbClient } from "@orchester/db";
+import { eq, and, ne } from "drizzle-orm";
+import { createId } from "@paralleldrive/cuid2";
 import { assertPublicUrl } from "./net-guard";
 import { fetchWithTimeout } from "./http-util";
+import { logAudit } from "./audit";
+
+/**
+ * Optional `tx?: WsDb` follows the project-wide pattern (see
+ * `lib/billing/quotas.ts`). When the caller is already inside a
+ * workspace transaction, threading tx through `ToolContext` keeps
+ * every tool's DB operation on the same connection so FORCE RLS
+ * sees `app.workspace_id` SET LOCAL.
+ */
+type WsDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 
 const HTTP_REQUEST_TIMEOUT_MS = 30_000;
 
@@ -28,6 +41,12 @@ export interface ToolContext {
   conversationId?: string;
   /** Optional context: lets memory tools scope to employee/customer. */
   employeeId?: string;
+  /**
+   * Workspace transaction handle (R2-C). When the caller (agent
+   * runtime, channels router) is inside `withWorkspaceTx`, threading
+   * tx keeps every DB op done by a tool on the same connection.
+   */
+  tx?: WsDb;
 }
 
 const BUILTINS: Record<string, ToolDefinition> = {
@@ -39,7 +58,10 @@ const BUILTINS: Record<string, ToolDefinition> = {
       type: "object",
       properties: {
         integrationId: { type: "string", description: "ID de la integración configurada." },
-        action: { type: "string", description: "Acción a ejecutar (ej. list_customers, query, send_email)." },
+        action: {
+          type: "string",
+          description: "Acción a ejecutar (ej. list_customers, query, send_email).",
+        },
         input: { type: "object", description: "Parámetros de la acción." },
       },
       required: ["integrationId", "action"],
@@ -156,7 +178,10 @@ const BUILTINS: Record<string, ToolDefinition> = {
       type: "object",
       properties: {
         scope: { type: "string", enum: ["global", "employee", "conversation", "team"] },
-        key: { type: "string", description: "Short snake_case identifier, e.g. 'preferred_language'" },
+        key: {
+          type: "string",
+          description: "Short snake_case identifier, e.g. 'preferred_language'",
+        },
         value: { description: "Any JSON-serializable value." },
       },
       required: ["scope", "key", "value"],
@@ -351,10 +376,11 @@ export async function executeTool(
   }
 
   if (name === "agent_team_list") {
-    const { getDb, schema } = await import("@orchester/db");
-    const { eq, and, ne } = await import("drizzle-orm");
-    const db = getDb();
-    const conds = [eq(schema.agents.workspaceId, ctx.workspaceId), eq(schema.agents.status, "active")];
+    const db = ctx.tx ?? getDb();
+    const conds = [
+      eq(schema.agents.workspaceId, ctx.workspaceId),
+      eq(schema.agents.status, "active"),
+    ];
     if (ctx.agentId) conds.push(ne(schema.agents.id, ctx.agentId));
     const teammates = await db
       .select({
@@ -371,28 +397,23 @@ export async function executeTool(
   if (name === "agent_handoff") {
     if (!ctx.agentId) throw new Error("agent_handoff requires the calling agent context");
     if (!ctx.conversationId) {
-      throw new Error("agent_handoff requires conversationId — only available in conversational runs");
+      throw new Error(
+        "agent_handoff requires conversationId — only available in conversational runs"
+      );
     }
     const targetAgentId = String(input.agentId ?? "");
     const note = String(input.note ?? "").slice(0, 1000);
     if (!targetAgentId) throw new Error("agentId required");
     if (targetAgentId === ctx.agentId) throw new Error("cannot hand off to yourself");
 
-    const { getDb, schema } = await import("@orchester/db");
-    const { eq, and } = await import("drizzle-orm");
-    const { createId } = await import("@paralleldrive/cuid2");
-    const { logAudit } = await import("./audit");
-    const db = getDb();
+    const db = ctx.tx ?? getDb();
 
     // Validate target agent exists in same workspace and is active
     const targetRows = await db
       .select()
       .from(schema.agents)
       .where(
-        and(
-          eq(schema.agents.id, targetAgentId),
-          eq(schema.agents.workspaceId, ctx.workspaceId)
-        )
+        and(eq(schema.agents.id, targetAgentId), eq(schema.agents.workspaceId, ctx.workspaceId))
       )
       .limit(1);
     const target = targetRows[0];
@@ -440,7 +461,11 @@ export async function executeTool(
   if (name === "memory_set" || name === "memory_get" || name === "memory_remove") {
     if (!ctx.agentId) throw new Error("memory_* tools require ctx.agentId");
     const { setMemory, getRelevantMemories, removeMemory } = await import("./memory");
-    const scope = String(input.scope ?? "global") as "global" | "conversation" | "employee" | "team";
+    const scope = String(input.scope ?? "global") as
+      | "global"
+      | "conversation"
+      | "employee"
+      | "team";
     const baseQ = {
       agentId: ctx.agentId,
       workspaceId: ctx.workspaceId,
@@ -451,11 +476,11 @@ export async function executeTool(
       const key = String(input.key ?? "");
       if (!key) throw new Error("key required");
       const value = input.value;
-      const out = await setMemory({ ...baseQ, scope, key, value });
+      const out = await setMemory({ ...baseQ, scope, key, value }, ctx.tx);
       return { ok: true, scope, data: out.data };
     }
     if (name === "memory_get") {
-      const matches = await getRelevantMemories(baseQ);
+      const matches = await getRelevantMemories(baseQ, ctx.tx);
       const filtered = matches.filter((m) => m.scope === scope);
       return {
         scope,
@@ -464,7 +489,7 @@ export async function executeTool(
     }
     if (name === "memory_remove") {
       const key = input.key != null ? String(input.key) : null;
-      await removeMemory({ ...baseQ, scope, key });
+      await removeMemory({ ...baseQ, scope, key }, ctx.tx);
       return { ok: true, scope, removed: key ?? "all" };
     }
   }
@@ -474,7 +499,13 @@ export async function executeTool(
     const query = String(input.query ?? "");
     if (!kbId || !query) throw new Error("kbId and query required");
     const { searchKnowledgeBase } = await import("./knowledge-search");
-    const results = await searchKnowledgeBase(ctx.workspaceId, kbId, query, Number(input.topK ?? 5));
+    const results = await searchKnowledgeBase(
+      ctx.workspaceId,
+      kbId,
+      query,
+      Number(input.topK ?? 5),
+      ctx.tx
+    );
     return { results };
   }
 
@@ -487,7 +518,8 @@ export async function executeTool(
       ctx.workspaceId,
       integrationId,
       action,
-      (input.input as Record<string, unknown>) ?? {}
+      (input.input as Record<string, unknown>) ?? {},
+      ctx.tx
     );
   }
 
