@@ -2,6 +2,7 @@ import "server-only";
 import crypto from "node:crypto";
 import { getDb, schema } from "@orchester/db";
 import { eq, sql } from "drizzle-orm";
+import { safeLogError } from "@/lib/safe-log";
 
 /** Generate a new API key. Returns plain (shown once), hashed (stored), prefix (display). */
 export function generateApiKey(): { plain: string; hashed: string; prefix: string } {
@@ -49,6 +50,10 @@ export async function authenticateApiKey(
   if (!row || row.revokedAt) return null;
   // Fire-and-forget lastUsedAt bump. Runs in its own txn with the
   // resolved workspace_id so RLS allows the UPDATE without a bypass.
+  // R2-C: previously this swallowed every error under `.catch(() => {})`,
+  // which hid genuine RLS / connection failures during deploys. Log
+  // with a distinct prefix so on-call can spot regressions without
+  // affecting the auth response (it's still fire-and-forget).
   void db
     .transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.workspace_id', ${row.workspaceId}, true)`);
@@ -57,7 +62,7 @@ export async function authenticateApiKey(
         .set({ lastUsedAt: new Date() })
         .where(eq(schema.apiKeys.id, row.id));
     })
-    .catch(() => {});
+    .catch((e) => safeLogError("[api-auth] lastUsedAt update failed:", e));
   return {
     workspaceId: row.workspaceId,
     keyId: row.id,
