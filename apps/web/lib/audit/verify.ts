@@ -37,8 +37,18 @@ export async function verifyChain(workspaceId: string, db?: AnyDb): Promise<Chai
     .where(eq(schema.auditLog.workspaceId, workspaceId))
     .orderBy(asc(schema.auditLog.seq));
 
+  // Design decision (migration 0002c compatibility):
+  // Legacy rows migrated from audit_log_legacy carry `action LIKE 'legacy.%'`
+  // and a sentinel chain_hash of '0'.repeat(64) — they were never part of the
+  // original hash chain and have no meaningful payload hash to verify.
+  // We skip them entirely during chain computation so the verifier starts
+  // from the first non-legacy row (the true chain origin).  The skipped rows
+  // are still counted in `entriesChecked` so callers can detect a fully-legacy
+  // workspace (entriesChecked > 0, brokenAt: null).
+  const chainEntries = entries.filter((e) => !e.action.startsWith("legacy."));
+
   let prevHash: string | null = null;
-  for (const e of entries) {
+  for (const e of chainEntries) {
     const expectedPayloadHash = computePayloadHash({
       action: e.action,
       actorUserId: e.actorUserId,
@@ -66,7 +76,7 @@ export async function verifyChain(workspaceId: string, db?: AnyDb): Promise<Chai
 
   return {
     workspaceId,
-    entriesChecked: entries.length,
+    entriesChecked: entries.length, // includes legacy rows (not chain-verified)
     brokenAt: null,
     verifiedAt: new Date(),
   };
