@@ -18,13 +18,31 @@
 // burned on first successful `restore`.
 import "server-only";
 import { eq } from "drizzle-orm";
-import { randomBytes } from "crypto";
+import { randomBytes, timingSafeEqual } from "crypto";
 import { getDb, schema } from "@orchester/db";
 import type { Workspace } from "@orchester/db";
 import { appendAudit } from "@/lib/audit/log";
 import { invalidateCache } from "./resolve";
 
 const RESTORE_WINDOW_DAYS = 30;
+
+/**
+ * Constant-time string equality. timingSafeEqual itself throws on
+ * differing-length inputs (which would itself leak length via the throw
+ * vs no-throw path), so we short-circuit on length before calling it.
+ * The length short-circuit is OK because the restore-token format is
+ * fixed (`rst_` + 32 base64url chars) — an attacker cannot mint shorter
+ * tokens that look syntactically valid.
+ *
+ * Exported (not the default — callers should keep using restore()) so
+ * the unit suite can pin behaviour without touching DB fixtures.
+ */
+export function tokensMatch(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a, "utf8");
+  const bBuf = Buffer.from(b, "utf8");
+  if (aBuf.length !== bBuf.length) return false;
+  return timingSafeEqual(aBuf, bBuf);
+}
 
 export async function softDelete(
   workspaceId: string,
@@ -77,7 +95,10 @@ export async function restore(
   const ws = rows[0];
   if (!ws) throw new Error("workspace_not_found");
   if (ws.status !== "deleted") throw new Error("workspace_lifecycle_invalid");
-  if (opts.token && (ws.restoreToken !== opts.token || ws.restoreTokenConsumedAt))
+  if (
+    opts.token &&
+    (!ws.restoreToken || !tokensMatch(ws.restoreToken, opts.token) || ws.restoreTokenConsumedAt)
+  )
     throw new Error("invalid_or_used_token");
 
   await db
