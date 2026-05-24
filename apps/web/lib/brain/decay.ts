@@ -17,6 +17,9 @@ import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 import { safeLogError } from "@/lib/safe-log";
 
 const HALF_LIFE_DAYS = 30;
+// EXP(-ln(2) * Δt / HALF_LIFE) — true half-life formula. At t=H,
+// relevance is exactly halved; at t=2H, quartered; etc.
+const HALF_LIFE_SECONDS = HALF_LIFE_DAYS * 86400;
 
 /**
  * Decay every active, non-pinned fact in one cluster-wide pass.
@@ -38,8 +41,8 @@ export async function runBrainDecay(): Promise<number> {
         SET relevance = GREATEST(
           0.05,
           relevance * EXP(
-            -EXTRACT(EPOCH FROM (now() - COALESCE(last_recalled_at, created_at)))
-            / (${HALF_LIFE_DAYS}::float * 86400.0)
+            -LN(2) * EXTRACT(EPOCH FROM (now() - COALESCE(last_recalled_at, created_at)))
+            / ${HALF_LIFE_SECONDS}::float
           )
         )
         WHERE status = 'active'
