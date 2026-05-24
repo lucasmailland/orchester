@@ -29,6 +29,7 @@ import {
   JOB_WORKSPACE_HARD_DELETE,
   JOB_GDPR_EXPORT,
   JOB_GDPR_EXPORT_WATCHDOG,
+  JOB_BRAIN_EXTRACT,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
@@ -38,6 +39,7 @@ import { runVerifyAllChains } from "../lib/audit/verify-job";
 import { runHardDeleteCron } from "../lib/tenant/hard-delete-job";
 import { runExportJob } from "../lib/gdpr/export-job";
 import { runExportWatchdog } from "../lib/gdpr/watchdog";
+import { runBrainExtractJob, type BrainExtractPayload } from "../lib/brain/extract-job";
 
 interface FlowRunJob {
   runId: string;
@@ -150,6 +152,13 @@ async function main(): Promise<void> {
     await runExportWatchdog();
   });
   await schedule(JOB_GDPR_EXPORT_WATCHDOG, "*/15 * * * *");
+
+  // ─── Brain Core extraction (sub-spec 2). One handler per pod;
+  // pg-boss singletonKey collapses concurrent enqueues for the same
+  // conversation. retryLimit=1 set at enqueue site.
+  await registerWorker<BrainExtractPayload>(JOB_BRAIN_EXTRACT, async (job) => {
+    await runBrainExtractJob(job.data);
+  });
 
   console.log("[worker] ready, waiting for jobs…");
 }

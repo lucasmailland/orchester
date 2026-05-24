@@ -199,6 +199,19 @@ const BUILTINS: Record<string, ToolDefinition> = {
       required: ["scope"],
     },
   },
+  brain_recall: {
+    name: "brain_recall",
+    description:
+      "Search the workspace's brain for relevant facts about the conversation participants. Returns ranked facts by semantic similarity, recency, and frequency. Use this before answering to surface durable preferences, traits, prior commitments.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Natural language query, e.g. 'user preferences about meetings'" },
+        topK: { type: "number", description: "How many facts to return (1-20)", default: 5 },
+      },
+      required: ["query"],
+    },
+  },
   memory_remove: {
     name: "memory_remove",
     description:
@@ -492,6 +505,30 @@ export async function executeTool(
       await removeMemory({ ...baseQ, scope, key }, ctx.tx);
       return { ok: true, scope, removed: key ?? "all" };
     }
+  }
+
+  if (name === "brain_recall") {
+    const query = String(input.query ?? "");
+    if (!query) throw new Error("query required");
+    const { searchBrain } = await import("@/lib/brain");
+    const hits = await searchBrain({
+      workspaceId: ctx.workspaceId,
+      query,
+      topK: Math.min(Number(input.topK ?? 5), 20),
+      ...(ctx.agentId ? { agentId: ctx.agentId } : {}),
+      ...(ctx.conversationId
+        ? { scope: "conversation" as const, scopeRef: ctx.conversationId }
+        : {}),
+    });
+    return {
+      hits: hits.map((h) => ({
+        kind: h.fact.kind,
+        subject: h.fact.subject,
+        statement: h.fact.statement,
+        confidence: h.fact.confidence,
+        score: Number(h.score.toFixed(3)),
+      })),
+    };
   }
 
   if (name === "knowledge_search") {

@@ -553,7 +553,25 @@ export async function handleInbound(
       tokensUsed: res.tokensUsed,
     };
   }
-  return withWorkspaceTx(workspaceId, (tx) => runConversationalTurn(res.ctx, tx));
+  const result = await withWorkspaceTx(workspaceId, (tx) => runConversationalTurn(res.ctx, tx));
+
+  // Brain Core (sub-spec 2): fire-and-forget extraction after the turn
+  // commits. Singleton-key per conversation collapses concurrent triggers.
+  void (async () => {
+    try {
+      const { enqueueBrainExtract } = await import("@/lib/brain/extract-job");
+      await enqueueBrainExtract({
+        workspaceId,
+        conversationId: result.conversationId,
+        agentId: res.ctx.agent.id,
+        messageCount: res.ctx.baseMessageCount + 2, // user + assistant just persisted
+      });
+    } catch {
+      /* extraction is fire-and-forget — never fail the turn */
+    }
+  })();
+
+  return result;
 }
 
 /**
