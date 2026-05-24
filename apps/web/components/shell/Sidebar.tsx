@@ -20,6 +20,7 @@ import {
 import { SidebarItem } from "./SidebarItem";
 import { sidebarVariants, APPLE_EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { WorkspaceSwitcher } from "@/components/workspace/WorkspaceSwitcher";
 
 interface SidebarProps {
   locale: string;
@@ -76,24 +77,18 @@ export function Sidebar({ locale }: SidebarProps) {
       transition={{ duration: 0.25, ease: APPLE_EASE }}
       className={cn("relative flex h-full flex-col", "border-r border-line bg-surface")}
     >
-      {/* Logo */}
-      <div className="flex h-14 shrink-0 items-center overflow-hidden border-b border-line px-4">
-        <motion.div className="flex items-center gap-3 overflow-hidden">
-          <div className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg">
+      {/* Header: workspace switcher when expanded, brand mark when collapsed */}
+      <div className="flex h-14 shrink-0 items-center overflow-hidden border-b border-line px-2">
+        {collapsed ? (
+          <div className="relative mx-auto flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg">
             <div className="absolute inset-0 bg-gradient-to-br from-violet-500 via-blue-500 to-violet-700" />
             <span className="relative text-[11px] font-extrabold text-white">O</span>
           </div>
-          <AnimatePresenceWrapper show={!collapsed}>
-            <div className="flex flex-col gap-px leading-none">
-              <span className="whitespace-nowrap font-display text-sm font-bold tracking-tight text-strong">
-                Orchester
-              </span>
-              <span className="whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.12em] text-faint">
-                AI Platform
-              </span>
-            </div>
-          </AnimatePresenceWrapper>
-        </motion.div>
+        ) : (
+          <div className="flex-1 px-2">
+            <WorkspaceSwitcher />
+          </div>
+        )}
       </div>
 
       {/* Nav */}
