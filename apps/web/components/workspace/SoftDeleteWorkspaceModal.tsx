@@ -34,7 +34,9 @@ export function SoftDeleteWorkspaceModal({ open, onClose, workspace }: Props) {
   if (!open) return null;
 
   async function submit() {
-    if (confirm !== workspace.slug) return;
+    // Trim before compare so paste-with-trailing-whitespace doesn't
+    // silently fail the guard (B4.2).
+    if (confirm.trim() !== workspace.slug) return;
     setBusy(true);
     try {
       const r = await fetch(`/api/workspaces/${workspace.slug}`, {
@@ -128,7 +130,7 @@ export function SoftDeleteWorkspaceModal({ open, onClose, workspace }: Props) {
               <button
                 type="button"
                 onClick={submit}
-                disabled={confirm !== workspace.slug || busy}
+                disabled={confirm.trim() !== workspace.slug || busy}
                 className="btn-danger"
               >
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 size={14} />}
