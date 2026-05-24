@@ -32,6 +32,7 @@ import { exportAgents } from "./exporters/agents";
 import { exportConversations } from "./exporters/conversations";
 import { exportMessages } from "./exporters/messages";
 import { exportKnowledge } from "./exporters/knowledge";
+import { exportBrain } from "./exporters/brain";
 import { uploadZip } from "./storage";
 import { sendExportReadyEmail } from "./email";
 
@@ -62,9 +63,10 @@ const STEPS: Array<{
 }> = [
   { name: "workspace.json", run: exportWorkspace, weight: 5 },
   { name: "agents.json", run: exportAgents, weight: 10 },
-  { name: "conversations.json", run: exportConversations, weight: 30 },
-  { name: "messages.json", run: exportMessages, weight: 45 },
+  { name: "conversations.json", run: exportConversations, weight: 25 },
+  { name: "messages.json", run: exportMessages, weight: 40 },
   { name: "knowledge.json", run: exportKnowledge, weight: 10 },
+  { name: "brain.json", run: exportBrain, weight: 10 },
 ];
 
 export async function runExportJob(jobId: string): Promise<void> {
