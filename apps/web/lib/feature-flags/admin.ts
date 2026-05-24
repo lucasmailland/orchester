@@ -4,19 +4,25 @@
 // only mutation entry point and is responsible for keeping the cache in
 // sync via `invalidateFlag`. `listFlags` is read-only and bypasses the
 // per-key cache (admin UIs need the full set).
+//
+// Optional `tx?: WsDb` follows the project-wide pattern (see
+// `lib/billing/quotas.ts`).
 import "server-only";
 import { and, eq } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
-import { getDb, schema } from "@orchester/db";
+import { getDb, schema, type DbClient } from "@orchester/db";
 import { invalidateFlag } from "./cache";
+
+type WsDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 
 export async function setFlag(
   workspaceId: string,
   flagKey: string,
   enabled: boolean,
-  opts: { userId: string }
+  opts: { userId: string },
+  tx?: WsDb
 ): Promise<void> {
-  const db = getDb();
+  const db = tx ?? getDb();
   const existing = await db
     .select()
     .from(schema.featureFlags)
@@ -46,8 +52,8 @@ export async function setFlag(
   invalidateFlag(workspaceId, flagKey);
 }
 
-export async function listFlags(workspaceId: string) {
-  const db = getDb();
+export async function listFlags(workspaceId: string, tx?: WsDb) {
+  const db = tx ?? getDb();
   return db
     .select()
     .from(schema.featureFlags)
