@@ -10,10 +10,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  *   - happy path: pivota agentId, persiste system message, escribe audit log
  */
 
-const updateMock = vi.fn();
-const insertMock = vi.fn();
-const selectChainAgents = vi.fn();
-const auditMock = vi.fn();
+// `vi.mock(...)` calls are hoisted to the top of the file by vitest.
+// Wrapping the mock factories in `vi.hoisted(...)` keeps the spies
+// available at hoist-time, otherwise they live in the temporal dead
+// zone and the file fails to load with
+// `ReferenceError: Cannot access 'auditMock' before initialization`.
+const { updateMock, insertMock, selectChainAgents, auditMock } = vi.hoisted(() => ({
+  updateMock: vi.fn(),
+  insertMock: vi.fn(),
+  selectChainAgents: vi.fn(),
+  auditMock: vi.fn(),
+}));
 
 vi.mock("@orchester/db", () => ({
   getDb: () => ({
@@ -73,11 +80,7 @@ describe("agent_handoff", () => {
 
   it("rechaza self-handoff", async () => {
     await expect(
-      executeTool(
-        "agent_handoff",
-        { agentId: "agent_sofia", note: "x" },
-        baseCtx
-      )
+      executeTool("agent_handoff", { agentId: "agent_sofia", note: "x" }, baseCtx)
     ).rejects.toThrow(/cannot hand off to yourself/);
   });
 
@@ -87,22 +90,14 @@ describe("agent_handoff", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     delete (noConvCtx as any).conversationId;
     await expect(
-      executeTool(
-        "agent_handoff",
-        { agentId: "agent_elena", note: "x" },
-        noConvCtx
-      )
+      executeTool("agent_handoff", { agentId: "agent_elena", note: "x" }, noConvCtx)
     ).rejects.toThrow(/requires conversationId/);
   });
 
   it("rechaza si target no existe en workspace", async () => {
     selectChainAgents.mockResolvedValueOnce([]); // no rows
     await expect(
-      executeTool(
-        "agent_handoff",
-        { agentId: "agent_elena", note: "x" },
-        baseCtx
-      )
+      executeTool("agent_handoff", { agentId: "agent_elena", note: "x" }, baseCtx)
     ).rejects.toThrow(/not found in workspace/);
   });
 
@@ -111,11 +106,7 @@ describe("agent_handoff", () => {
       { id: "agent_elena", name: "Elena", role: "HR", status: "draft" },
     ]);
     await expect(
-      executeTool(
-        "agent_handoff",
-        { agentId: "agent_elena", note: "x" },
-        baseCtx
-      )
+      executeTool("agent_handoff", { agentId: "agent_elena", note: "x" }, baseCtx)
     ).rejects.toThrow(/is not active/);
   });
 

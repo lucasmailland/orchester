@@ -123,16 +123,23 @@ describe("runExportJob (filesystem adapter)", () => {
     }
     expect(job!.state).toBe("completed");
     expect(job!.progress).toBe(100);
-    expect(job!.signedUrl).toMatch(/^file:\/\//);
+    // signedUrl is now an HMAC-signed token URL pointing at
+    // `/api/exports/[token]` — the worker MUST NOT persist a working
+    // file:// path (so a DB leak doesn't also leak the artefact). The
+    // route verifies the token before streaming the bytes back.
+    expect(job!.signedUrl).toMatch(/^https?:\/\/.+\/api\/exports\/[A-Za-z0-9._%-]+/);
     expect(job!.signedUrlExpiresAt).toBeInstanceOf(Date);
     expect(job!.storageKey).toBe(`${wsA.id}/${jobId}.zip`);
     expect(job!.bytesTotal).not.toBeNull();
     expect(Number(job!.bytesTotal)).toBeGreaterThan(0);
     expect(job!.completedAt).toBeInstanceOf(Date);
 
-    // signedUrl is `file://<absolute path>` — read it and verify it's
-    // a real zip + contains every expected entry.
-    const filePath = job!.signedUrl!.replace(/^file:\/\//, "");
+    // The artefact lives at `${GDPR_EXPORT_DIR}/<flattened-key>` —
+    // `FilesystemAdapter.upload()` writes there. Read it directly to
+    // verify the bytes (the download route isn't part of this test's
+    // scope).
+    const flattenedKey = job!.storageKey!.replace(/\//g, "_");
+    const filePath = path.join(exportDir, flattenedKey);
     const buf = await fs.readFile(filePath);
     // PK\x03\x04 is the local-file-header magic for zip.
     expect(buf.subarray(0, 4)).toEqual(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
@@ -141,6 +148,7 @@ describe("runExportJob (filesystem adapter)", () => {
     const { entries, parsed } = await unzipToJson(buf);
     expect(entries.sort()).toEqual([
       "agents.json",
+      "brain.json",
       "conversations.json",
       "knowledge.json",
       "messages.json",
