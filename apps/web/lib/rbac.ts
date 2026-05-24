@@ -32,7 +32,9 @@ export type Action =
   | "members.role"
   | "apikey.manage"
   | "webhook.manage"
-  | "audit.read";
+  | "audit.read"
+  | "brain.read"
+  | "brain.write";
 
 const PERMISSIONS: Record<Role, Action[]> = {
   viewer: [
@@ -40,6 +42,7 @@ const PERMISSIONS: Record<Role, Action[]> = {
     "conversation.read",
     "settings.read",
     "billing.read",
+    "brain.read",
     // audit.read removido: los logs de auditoría son sensibles → admin+ only.
   ],
   editor: [
@@ -61,6 +64,7 @@ const PERMISSIONS: Record<Role, Action[]> = {
     "conversation.takeover",
     "settings.read",
     "billing.read",
+    "brain.read",
     // audit.read removido de editor: logs de auditoría son admin+ only.
   ],
   admin: [
@@ -90,6 +94,8 @@ const PERMISSIONS: Record<Role, Action[]> = {
     "apikey.manage",
     "webhook.manage",
     "audit.read",
+    "brain.read",
+    "brain.write",
   ],
   owner: [], // all — handled below
 };

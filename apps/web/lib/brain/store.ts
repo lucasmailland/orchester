@@ -162,7 +162,14 @@ export async function getFact(
 export interface UpdateFactInput {
   workspaceId: string;
   factId: string;
-  patch: Partial<Pick<BrainFact, "statement" | "confidence" | "pinned" | "kind" | "subject" | "metadata">>;
+  patch: {
+    statement?: BrainFact["statement"];
+    confidence?: BrainFact["confidence"];
+    pinned?: BrainFact["pinned"];
+    kind?: BrainFact["kind"];
+    subject?: BrainFact["subject"];
+    metadata?: BrainFact["metadata"];
+  };
   tx: Tx;
 }
 
