@@ -9,6 +9,9 @@ import { z } from "zod";
 import { llmCall } from "@/lib/llm-call";
 import { wrapUntrusted } from "@/lib/agent-runtime";
 import { safeLogError } from "@/lib/safe-log";
+import { assertWithinSpend } from "@/lib/cost-alerts";
+import { recordAiUsage } from "@/lib/ai/run";
+import { calculateChatCostUsd } from "@/lib/pricing";
 import type { DbClient } from "@orchester/db";
 import type { FactExtractionInput, FactKind } from "./types";
 
@@ -50,14 +53,28 @@ export interface ExtractFactsInput {
  * Call the cheap LLM and return validated facts. Returns [] on any
  * recoverable error (parse failure, empty response). Throws only on
  * network/API failures so pg-boss can retry once.
+ *
+ * Spend cap + metering: this is a background AI dispatch, but it still
+ * counts against the workspace AI budget (cron-level extraction can
+ * accumulate cost fast on a noisy workspace). We gate with
+ * `assertWithinSpend` before the call and record a `usageEvent` after,
+ * exactly like the user-facing chat path. The audit invariant in
+ * `scripts/audit-invariants.sh` enforces both calls live in this file.
  */
 export async function extractFacts(input: ExtractFactsInput): Promise<FactExtractionInput[]> {
+  // Block + emit a clear error if the workspace hit its spend cap or the
+  // global kill-switch is active. Throwing here lets pg-boss surface the
+  // failure on the extraction job rather than silently swallowing cost.
+  await assertWithinSpend(input.workspaceId, input.tx);
+
   const userContent = wrapUntrusted(input.conversationSlice, "conversation");
+  const model = input.model ?? "claude-haiku-4-5";
   let raw: string;
+  let tokensUsed = 0;
   try {
     const result = await llmCall({
       workspaceId: input.workspaceId,
-      model: input.model ?? "claude-haiku-4-5",
+      model,
       systemPrompt: SYSTEM_PROMPT,
       messages: [
         {
@@ -69,6 +86,20 @@ export async function extractFacts(input: ExtractFactsInput): Promise<FactExtrac
       maxTokens: 600,
     });
     raw = result.content ?? "";
+    tokensUsed = result.tokensUsed ?? 0;
+    // Record metering for the spend cap + reporting (D4-1). Use the
+    // resolved model from the result so a fallback (C4) is attributed
+    // correctly. `recordAiUsage` swallows DB errors internally so a
+    // metering hiccup doesn't fail the extraction job.
+    const costUsd = calculateChatCostUsd(result.model, 0, tokensUsed);
+    await recordAiUsage({
+      workspaceId: input.workspaceId,
+      capability: "chat",
+      model: result.model,
+      tokensOut: tokensUsed,
+      tokensTotal: tokensUsed,
+      costUsd,
+    });
   } catch (e) {
     safeLogError("[brain.extract] LLM call failed:", e);
     throw e;
@@ -92,7 +123,8 @@ export async function extractFacts(input: ExtractFactsInput): Promise<FactExtrac
 
   const validated = FactsArraySchema.safeParse(parsed);
   if (!validated.success) {
-    safeLogError("[brain.extract] schema mismatch:", validated.error.flatten());
+    // zod v4: `error.flatten()` is deprecated, use the standalone helper.
+    safeLogError("[brain.extract] schema mismatch:", z.flattenError(validated.error));
     return [];
   }
 

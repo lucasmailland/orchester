@@ -32,7 +32,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   }
   const access = isAccessible(ws);
   if (!access.ok) {
-    return NextResponse.json({ error: access.reason }, { status: access.reason === "deleted" ? 410 : 423 });
+    return NextResponse.json(
+      { error: access.reason },
+      { status: access.reason === "deleted" ? 410 : 423 }
+    );
   }
   try {
     assertCan(ctx.role, "brain.read");
@@ -50,7 +53,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     offset: url.searchParams.get("offset") ?? undefined,
   });
   if (!parsed.success) {
-    return NextResponse.json({ error: "validation_failed", fields: parsed.error.flatten().fieldErrors }, { status: 400 });
+    // zod v4: `.flatten()` is deprecated, use the standalone helper.
+    return NextResponse.json(
+      { error: "validation_failed", fields: z.flattenError(parsed.error).fieldErrors },
+      { status: 400 }
+    );
   }
 
   const facts = await withBrainTx(ws.id, async (tx) =>
@@ -91,7 +98,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   if (ws.id !== ctx.workspace.id) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const access = isAccessible(ws);
   if (!access.ok) {
-    return NextResponse.json({ error: access.reason }, { status: access.reason === "deleted" ? 410 : 423 });
+    return NextResponse.json(
+      { error: access.reason },
+      { status: access.reason === "deleted" ? 410 : 423 }
+    );
   }
   try {
     assertCan(ctx.role, "brain.write");
