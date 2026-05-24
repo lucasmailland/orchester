@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDb, schema } from "@orchester/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
@@ -39,22 +39,29 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       const { assertPublicUrl } = await import("@/lib/net-guard");
       assertPublicUrl(String(body.url));
     } catch (e) {
-      return NextResponse.json({ error: e instanceof Error ? e.message : "URL invalida" }, { status: 400 });
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "URL invalida" },
+        { status: 400 }
+      );
     }
     set.url = body.url;
   }
   if (body.events !== undefined) set.events = body.events;
   if (body.enabled !== undefined) set.enabled = !!body.enabled;
-  const updated = await db
-    .update(schema.outboundWebhooks)
-    .set(set)
-    .where(
-      and(
-        eq(schema.outboundWebhooks.id, id),
-        eq(schema.outboundWebhooks.workspaceId, ctx.workspace.id)
+  const updated = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+    return tx
+      .update(schema.outboundWebhooks)
+      .set(set)
+      .where(
+        and(
+          eq(schema.outboundWebhooks.id, id),
+          eq(schema.outboundWebhooks.workspaceId, ctx.workspace.id)
+        )
       )
-    )
-    .returning();
+      .returning();
+  });
   if (!updated[0]) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(updated[0]);
 }
@@ -64,15 +71,19 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
   const db = getDb();
-  const deleted = await db
-    .delete(schema.outboundWebhooks)
-    .where(
-      and(
-        eq(schema.outboundWebhooks.id, id),
-        eq(schema.outboundWebhooks.workspaceId, ctx.workspace.id)
+  const deleted = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+    return tx
+      .delete(schema.outboundWebhooks)
+      .where(
+        and(
+          eq(schema.outboundWebhooks.id, id),
+          eq(schema.outboundWebhooks.workspaceId, ctx.workspace.id)
+        )
       )
-    )
-    .returning({ id: schema.outboundWebhooks.id });
+      .returning({ id: schema.outboundWebhooks.id });
+  });
   if (!deleted[0]) return NextResponse.json({ error: "Not found" }, { status: 404 });
   await logAudit({
     workspaceId: ctx.workspace.id,

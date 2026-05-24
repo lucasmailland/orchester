@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
-import { eq, and, desc } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 
@@ -12,20 +11,25 @@ const createFlowVersionSchema = z.object({
 });
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth();
+  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
   const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.flowVersions)
-    .where(
-      and(
-        eq(schema.flowVersions.flowId, id),
-        eq(schema.flowVersions.workspaceId, ws.workspace.id)
+  // flow_version is FORCE RLS — needs workspace GUC on the connection.
+  const rows = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+    return tx
+      .select()
+      .from(schema.flowVersions)
+      .where(
+        and(
+          eq(schema.flowVersions.flowId, id),
+          eq(schema.flowVersions.workspaceId, ctx.workspace.id)
+        )
       )
-    )
-    .orderBy(desc(schema.flowVersions.createdAt));
+      .orderBy(desc(schema.flowVersions.createdAt));
+  });
   return NextResponse.json(rows);
 }
 
@@ -38,35 +42,42 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const body = parsed.data;
   const db = getDb();
 
-  const flowRows = await db
-    .select()
-    .from(schema.flows)
-    .where(and(eq(schema.flows.id, id), eq(schema.flows.workspaceId, ctx.workspace.id)))
-    .limit(1);
-  const flow = flowRows[0];
-  if (!flow) return NextResponse.json({ error: "Flow not found" }, { status: 404 });
+  // Lookup → bump → snapshot all live in one transaction so the GUC carries
+  // across every statement and the version bump is atomic with the insert.
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
 
-  // Bump flow.version, snapshot the current state into flow_version
-  const newVersion = (flow.version ?? 1) + 1;
-  await db
-    .update(schema.flows)
-    .set({ version: newVersion })
-    .where(eq(schema.flows.id, id));
+    const flowRows = await tx
+      .select()
+      .from(schema.flows)
+      .where(and(eq(schema.flows.id, id), eq(schema.flows.workspaceId, ctx.workspace.id)))
+      .limit(1);
+    const flow = flowRows[0];
+    if (!flow) return { kind: "not_found" as const };
 
-  const inserted = await db
-    .insert(schema.flowVersions)
-    .values({
-      id: createId(),
-      flowId: id,
-      workspaceId: ctx.workspace.id,
-      version: flow.version ?? 1,
-      label: body.label ?? null,
-      nodes: flow.nodes ?? [],
-      edges: flow.edges ?? [],
-      variables: flow.variables ?? {},
-    })
-    .returning();
-  const row = inserted[0];
-  if (!row) return NextResponse.json({ error: "Insert failed" }, { status: 500 });
-  return NextResponse.json(row, { status: 201 });
+    // Bump flow.version, snapshot the current state into flow_version
+    const newVersion = (flow.version ?? 1) + 1;
+    await tx.update(schema.flows).set({ version: newVersion }).where(eq(schema.flows.id, id));
+
+    const inserted = await tx
+      .insert(schema.flowVersions)
+      .values({
+        id: createId(),
+        flowId: id,
+        workspaceId: ctx.workspace.id,
+        version: flow.version ?? 1,
+        label: body.label ?? null,
+        nodes: flow.nodes ?? [],
+        edges: flow.edges ?? [],
+        variables: flow.variables ?? {},
+      })
+      .returning();
+    return { kind: "ok" as const, row: inserted[0] };
+  });
+
+  if (result.kind === "not_found")
+    return NextResponse.json({ error: "Flow not found" }, { status: 404 });
+  if (!result.row) return NextResponse.json({ error: "Insert failed" }, { status: 500 });
+  return NextResponse.json(result.row, { status: 201 });
 }

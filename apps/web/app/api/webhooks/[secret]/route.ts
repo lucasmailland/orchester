@@ -10,10 +10,11 @@
  */
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
-import { getDb, schema } from "@orchester/db";
+import { schema } from "@orchester/db";
 import { eq, sql } from "drizzle-orm";
 import { enqueueFlowRun } from "@/lib/flow-engine";
 import { rateLimit } from "@/lib/rate-limit";
+import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 
 /** Headers seguros para pasar al flow (evita filtrar Authorization/Cookie). */
 const SAFE_HEADERS = new Set([
@@ -33,13 +34,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ secret: 
 }
 
 async function handle(req: Request, p: { secret: string }) {
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.flowWebhooks)
-    .where(eq(schema.flowWebhooks.secret, p.secret))
-    .limit(1);
-  const wh = rows[0];
+  // Inbound webhook is unauthenticated (the secret in the URL IS the
+  // credential). The flow_webhook lookup runs without a workspace GUC, so
+  // FORCE RLS would block the SELECT — wrap in cross-tenant admin. We
+  // resolve the row inside the bypass and pull workspaceId out so the
+  // downstream flow enqueue can run with the proper context.
+  const wh = await withCrossTenantAdmin("webhook.inbound", async (tx) => {
+    const rows = await tx
+      .select()
+      .from(schema.flowWebhooks)
+      .where(eq(schema.flowWebhooks.secret, p.secret))
+      .limit(1);
+    return rows[0] ?? null;
+  });
   if (!wh || !wh.enabled) {
     return NextResponse.json({ error: "Webhook not found" }, { status: 404 });
   }
@@ -50,7 +57,10 @@ async function handle(req: Request, p: { secret: string }) {
   if (!rl.ok) {
     return NextResponse.json(
       { error: "Rate limited" },
-      { status: 429, headers: { "retry-after": String(Math.ceil((rl.retryAfterMs ?? 1000) / 1000)) } }
+      {
+        status: 429,
+        headers: { "retry-after": String(Math.ceil((rl.retryAfterMs ?? 1000) / 1000)) },
+      }
     );
   }
 
@@ -95,11 +105,17 @@ async function handle(req: Request, p: { secret: string }) {
     _headers: safeHeaders,
   };
 
-  // Update counters (fire and forget)
-  db.update(schema.flowWebhooks)
-    .set({ lastTriggeredAt: new Date(), triggerCount: sql`${schema.flowWebhooks.triggerCount} + 1` })
-    .where(eq(schema.flowWebhooks.id, wh.id))
-    .catch(() => {});
+  // Update counters (fire and forget). Also FORCE RLS — bypass for the
+  // bookkeeping update.
+  void withCrossTenantAdmin("webhook.inbound", async (tx) => {
+    await tx
+      .update(schema.flowWebhooks)
+      .set({
+        lastTriggeredAt: new Date(),
+        triggerCount: sql`${schema.flowWebhooks.triggerCount} + 1`,
+      })
+      .where(eq(schema.flowWebhooks.id, wh.id));
+  }).catch(() => {});
 
   // Encolamos la ejecución (async) en vez de correrla inline: un webhook no debe
   // mantener abierta la conexión HTTP mientras el flow hace polling de video/IA.

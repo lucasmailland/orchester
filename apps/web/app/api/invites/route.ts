@@ -3,8 +3,7 @@ import { z } from "zod";
 import crypto from "node:crypto";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
-import { eq, desc } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { eq, desc, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { checkQuota } from "@/lib/billing/quotas";
 import { logAudit } from "@/lib/audit";
@@ -16,14 +15,19 @@ const createInviteSchema = z.object({
 });
 
 export async function GET() {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // workspace_invite is FORCE RLS — needs workspace GUC on the connection.
+  const ctx = await requireAuth();
+  if (!isAuthContext(ctx)) return ctx;
   const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.workspaceInvites)
-    .where(eq(schema.workspaceInvites.workspaceId, ws.workspace.id))
-    .orderBy(desc(schema.workspaceInvites.createdAt));
+  const rows = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+    return tx
+      .select()
+      .from(schema.workspaceInvites)
+      .where(eq(schema.workspaceInvites.workspaceId, ctx.workspace.id))
+      .orderBy(desc(schema.workspaceInvites.createdAt));
+  });
   // Don't leak the token in the list view
   return NextResponse.json(
     rows.map(({ token, ...rest }) => ({ ...rest, hasToken: Boolean(token) }))
@@ -42,25 +46,32 @@ export async function POST(req: Request) {
   }
   const parsed = await parseBody(req, createInviteSchema);
   if (!parsed.ok) return parsed.response;
-  const email = String(parsed.data.email ?? "").trim().toLowerCase();
+  const email = String(parsed.data.email ?? "")
+    .trim()
+    .toLowerCase();
   const role = parsed.data.role ?? "editor";
   if (!email || !email.includes("@"))
     return NextResponse.json({ error: "Valid email required" }, { status: 400 });
   const token = crypto.randomBytes(24).toString("base64url");
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
   const db = getDb();
-  const inserted = await db
-    .insert(schema.workspaceInvites)
-    .values({
-      id: createId(),
-      workspaceId: ctx.workspace.id,
-      email,
-      role,
-      token,
-      invitedByUserId: ctx.user.id,
-      expiresAt,
-    })
-    .returning();
+  const invite = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+    const inserted = await tx
+      .insert(schema.workspaceInvites)
+      .values({
+        id: createId(),
+        workspaceId: ctx.workspace.id,
+        email,
+        role,
+        token,
+        invitedByUserId: ctx.user.id,
+        expiresAt,
+      })
+      .returning();
+    return inserted[0];
+  });
 
   const inviteUrl = `${process.env["NEXT_PUBLIC_APP_URL"] ?? ""}/invite/${token}`;
   // Send email via lib/email if configured (fail silent for self-serve)
@@ -78,10 +89,10 @@ export async function POST(req: Request) {
     userId: ctx.user.id,
     action: "invite.create",
     resource: "workspace_invite",
-    resourceId: inserted[0]?.id,
+    resourceId: invite?.id,
     after: { email, role },
   });
-  return NextResponse.json({ ...inserted[0]!, inviteUrl }, { status: 201 });
+  return NextResponse.json({ ...invite!, inviteUrl }, { status: 201 });
 }
 
 /**
@@ -97,11 +108,16 @@ export async function DELETE(req: Request) {
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const db = getDb();
-  const deleted = await db
-    .delete(schema.workspaceInvites)
-    .where(eq(schema.workspaceInvites.id, id))
-    .returning({ id: schema.workspaceInvites.id });
-  if (!deleted[0]) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const deletedId = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+    const deleted = await tx
+      .delete(schema.workspaceInvites)
+      .where(eq(schema.workspaceInvites.id, id))
+      .returning({ id: schema.workspaceInvites.id });
+    return deleted[0]?.id ?? null;
+  });
+  if (!deletedId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   await logAudit({
     workspaceId: ctx.workspace.id,

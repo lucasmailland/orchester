@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
-import { eq, and, desc } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 
@@ -16,20 +15,25 @@ const createScheduleSchema = z.object({
 });
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireAuth();
+  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
   const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.flowSchedules)
-    .where(
-      and(
-        eq(schema.flowSchedules.flowId, id),
-        eq(schema.flowSchedules.workspaceId, ws.workspace.id)
+  // flow_schedule is FORCE RLS — needs workspace GUC on the connection.
+  const rows = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+    return tx
+      .select()
+      .from(schema.flowSchedules)
+      .where(
+        and(
+          eq(schema.flowSchedules.flowId, id),
+          eq(schema.flowSchedules.workspaceId, ctx.workspace.id)
+        )
       )
-    )
-    .orderBy(desc(schema.flowSchedules.createdAt));
+      .orderBy(desc(schema.flowSchedules.createdAt));
+  });
   return NextResponse.json(rows);
 }
 
@@ -44,17 +48,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Invalid cron expression (need 5 fields)" }, { status: 400 });
   const tz = parsed.data.timezone || "UTC";
   const db = getDb();
-  const inserted = await db
-    .insert(schema.flowSchedules)
-    .values({
-      id: createId(),
-      flowId: id,
-      workspaceId: ctx.workspace.id,
-      cron,
-      timezone: tz,
-    })
-    .returning();
-  const row = inserted[0];
+  const row = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+    const inserted = await tx
+      .insert(schema.flowSchedules)
+      .values({
+        id: createId(),
+        flowId: id,
+        workspaceId: ctx.workspace.id,
+        cron,
+        timezone: tz,
+      })
+      .returning();
+    return inserted[0];
+  });
   if (!row) return NextResponse.json({ error: "Insert failed" }, { status: 500 });
   return NextResponse.json(row, { status: 201 });
 }

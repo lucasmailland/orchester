@@ -10,8 +10,17 @@ import {
 } from "drizzle-orm/pg-core";
 import { workspaces } from "./workspaces";
 
-/* ───────────────────────── audit_log ───────────────────────── */
-export const auditLogs = pgTable("audit_log", {
+/* ───────────────────────── audit_log_legacy ─────────────────────────
+ *
+ * Pre-hash-chain audit log. Renamed from `audit_log` in migration
+ * 0002a_rename_legacy_audit_log.sql so the new spec'd `audit_log` (with
+ * hash chain — see `./audit.ts`) can claim the canonical name.
+ *
+ * Historical rows live here forever for backwards-compatible reads
+ * (e.g. GDPR export `UNION`). New writes go to the new table via
+ * `appendAuditSync()` in `apps/web/lib/audit/log.ts`.
+ */
+export const auditLogsLegacy = pgTable("audit_log_legacy", {
   id: text("id").primaryKey(),
   workspaceId: text("workspace_id")
     .notNull()
@@ -62,7 +71,9 @@ export const apiKeys = pgTable("api_key", {
   hashedKey: text("hashed_key").notNull().unique(),
   /** Display prefix: "ok_live_abc1...defs" */
   prefix: text("prefix").notNull(),
-  scopes: jsonb("scopes").$type<string[]>().default(["agents:read", "agents:write", "flows:read", "flows:write"]),
+  scopes: jsonb("scopes")
+    .$type<string[]>()
+    .default(["agents:read", "agents:write", "flows:read", "flows:write"]),
   createdByUserId: text("created_by_user_id"),
   lastUsedAt: timestamp("last_used_at"),
   revokedAt: timestamp("revoked_at"),
@@ -156,7 +167,7 @@ export const workspaceBilling = pgTable("workspace_billing", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export type AuditLog = typeof auditLogs.$inferSelect;
+export type AuditLogLegacy = typeof auditLogsLegacy.$inferSelect;
 export type WorkspaceInvite = typeof workspaceInvites.$inferSelect;
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type OutboundWebhook = typeof outboundWebhooks.$inferSelect;

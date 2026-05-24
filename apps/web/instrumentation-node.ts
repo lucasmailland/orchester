@@ -28,6 +28,16 @@ try {
   process.exit(1);
 }
 
+// ── Cluster-wide tenant cache invalidation ───────────────────────────────
+// Boot the LISTEN connection up-front so the first request after deploy
+// can already receive invalidations from sibling pods. startListener()
+// is idempotent — the per-module imports in resolve/membership/feature
+// flags also call it, but only one connection is opened per process.
+{
+  const { startListener } = await import("./lib/tenant/cluster-cache");
+  startListener();
+}
+
 // ── Graceful shutdown ────────────────────────────────────────────────────
 let shuttingDown = false;
 function shutdown(signal: string): void {

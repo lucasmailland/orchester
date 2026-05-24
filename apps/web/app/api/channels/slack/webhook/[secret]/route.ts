@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { getDb, schema } from "@orchester/db";
+import { schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
 import { handleInbound } from "@/lib/channels/router";
+import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 import {
   decodeSlackCredentials,
   slackSend,
@@ -21,28 +22,26 @@ import {
  * Eventos procesados: `message.im` (DM al bot) y `app_mention` (@bot en canal).
  * Los `bot_message` se ignoran para evitar loops.
  */
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ secret: string }> }
-) {
+export async function POST(req: Request, { params }: { params: Promise<{ secret: string }> }) {
   const { secret } = await params;
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.channels)
-    .where(eq(schema.channels.secret, secret))
-    .limit(1);
-  const channel = rows[0];
+  // Channel lookup by webhook secret. The Slack URL embeds the
+  // secret as the only routing key — the workspace isn't known
+  // until the row resolves. Cross-tenant bypass (audit-logged).
+  const channel = await withCrossTenantAdmin("slack.webhook.channel_lookup", async (tx) => {
+    const rows = await tx
+      .select()
+      .from(schema.channels)
+      .where(eq(schema.channels.secret, secret))
+      .limit(1);
+    return rows[0];
+  });
   if (!channel || channel.type !== "slack" || channel.status !== "active") {
     return NextResponse.json({ ok: false, error: "channel not found" }, { status: 404 });
   }
 
   const creds = decodeSlackCredentials(channel.credentialsEncrypted);
   if (!creds) {
-    return NextResponse.json(
-      { ok: false, error: "channel missing credentials" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: "channel missing credentials" }, { status: 500 });
   }
 
   // Slack firma usando el rawBody, no el JSON parseado.
@@ -94,9 +93,7 @@ export async function POST(
   const ackPromise = (async () => {
     const tasks: Array<Promise<unknown>> = [];
     if (ev.ts) {
-      tasks.push(
-        slackReact(creds.botToken, slackChannel, ev.ts, "eyes").catch(() => undefined)
-      );
+      tasks.push(slackReact(creds.botToken, slackChannel, ev.ts, "eyes").catch(() => undefined));
     }
     if (replyThreadTs) {
       tasks.push(slackSetThinkingStatus(creds.botToken, slackChannel, replyThreadTs));

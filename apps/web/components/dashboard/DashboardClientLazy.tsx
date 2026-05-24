@@ -15,19 +15,21 @@ import type { FullDashboardStats } from "@/lib/db-queries";
  * The dashboard page is a Server Component, so the dynamic({ ssr: false }) call
  * lives here behind a "use client" boundary rather than in the page itself.
  */
-type Props = { stats: FullDashboardStats; workspaceName: string; locale: string };
+type Props = {
+  stats: FullDashboardStats;
+  workspaceName: string;
+  locale: string;
+  workspaceSlug: string;
+};
 
-const DashboardClient = dynamic(
-  () => import("./DashboardClient").then((m) => m.DashboardClient),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex h-64 w-full items-center justify-center">
-        <Spinner size="lg" />
-      </div>
-    ),
-  }
-);
+const DashboardClient = dynamic(() => import("./DashboardClient").then((m) => m.DashboardClient), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-64 w-full items-center justify-center">
+      <Spinner size="lg" />
+    </div>
+  ),
+});
 
 export function DashboardClientLazy(props: Props) {
   return <DashboardClient {...props} />;

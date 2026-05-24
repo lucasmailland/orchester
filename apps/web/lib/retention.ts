@@ -52,27 +52,36 @@ export interface PurgeResult {
   flowVersionsDeleted: number;
 }
 
-export async function purgeOldData(opts?: {
+// Cross-tenant by design: deletes rows across every workspace. The caller
+// MUST pass a tx opened by `withCrossTenantAdmin` — defensive `?? getDb()`
+// fallback was masking future regressions where a refactor accidentally
+// dropped the wrapper and the DELETEs silently no-op'd under FORCE RLS.
+type DbOrTx =
+  | ReturnType<typeof getDb>
+  | Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+
+export async function purgeOldData(opts: {
   runsDays?: number;
   deliveriesDays?: number;
   auditLogsDays?: number;
   usageEventsDays?: number;
   messagesDays?: number;
   flowVersionsKeepLast?: number;
+  db: DbOrTx;
 }): Promise<PurgeResult> {
-  const runsDays = opts?.runsDays ?? envDays("RETENTION_RUNS_DAYS", 30);
-  const deliveriesDays = opts?.deliveriesDays ?? envDays("RETENTION_DELIVERIES_DAYS", 30);
+  const runsDays = opts.runsDays ?? envDays("RETENTION_RUNS_DAYS", 30);
+  const deliveriesDays = opts.deliveriesDays ?? envDays("RETENTION_DELIVERIES_DAYS", 30);
   // Defaults conservadores y compliance-friendly:
   //  - audit_logs 365d (forensics)
   //  - usage_events 90d (billing investigations típicas)
   //  - messages 180d desde una conv CERRADA (conversations activas no se tocan)
   //  - flow_versions: mantenemos las últimas N por flow (20) en vez de por edad
-  const auditLogsDays = opts?.auditLogsDays ?? envDays("RETENTION_AUDIT_DAYS", 365);
-  const usageEventsDays = opts?.usageEventsDays ?? envDays("RETENTION_USAGE_DAYS", 90);
-  const messagesDays = opts?.messagesDays ?? envDays("RETENTION_MESSAGES_DAYS", 180);
+  const auditLogsDays = opts.auditLogsDays ?? envDays("RETENTION_AUDIT_DAYS", 365);
+  const usageEventsDays = opts.usageEventsDays ?? envDays("RETENTION_USAGE_DAYS", 90);
+  const messagesDays = opts.messagesDays ?? envDays("RETENTION_MESSAGES_DAYS", 180);
   const flowVersionsKeepLast =
-    opts?.flowVersionsKeepLast ?? envDays("RETENTION_FLOW_VERSIONS_KEEP", 20);
-  const db = getDb();
+    opts.flowVersionsKeepLast ?? envDays("RETENTION_FLOW_VERSIONS_KEEP", 20);
+  const db = opts.db;
 
   const result: PurgeResult = {
     runsDeleted: 0,
@@ -107,14 +116,21 @@ export async function purgeOldData(opts?: {
     safeLogError("[retention] purge webhook_deliveries failed:", e);
   }
 
-  // ── audit_log ────────────────────────────────────────────────────────────
-  // Default 365d para mantener trazabilidad forense de un año.
+  // ── audit_log + audit_log_legacy ────────────────────────────────────────
+  // Default 365d para mantener trazabilidad forense de un año. Barremos las
+  // dos tablas con el mismo umbral: la nueva `audit_log` (con hash chain,
+  // ver lib/audit/log.ts) y la `audit_log_legacy` que sigue conteniendo las
+  // entries pre-hash-chain hasta que se vacíen por edad.
   try {
-    const rows = await db
-      .delete(schema.auditLogs)
-      .where(lt(schema.auditLogs.createdAt, cutoff(auditLogsDays)))
-      .returning({ id: schema.auditLogs.id });
-    result.auditLogsDeleted = rows.length;
+    const newRows = await db
+      .delete(schema.auditLog)
+      .where(lt(schema.auditLog.createdAt, cutoff(auditLogsDays)))
+      .returning({ id: schema.auditLog.id });
+    const legacyRows = await db
+      .delete(schema.auditLogsLegacy)
+      .where(lt(schema.auditLogsLegacy.createdAt, cutoff(auditLogsDays)))
+      .returning({ id: schema.auditLogsLegacy.id });
+    result.auditLogsDeleted = newRows.length + legacyRows.length;
   } catch (e) {
     safeLogError("[retention] purge audit_logs failed:", e);
   }
@@ -171,9 +187,10 @@ export async function purgeOldData(opts?: {
     `);
     // drizzle execute() devuelve un objeto del driver; el row count vive en .count
     // o en .rowCount según el driver. Best-effort, no rompemos si no está.
-    const rc = (deleted as unknown as { count?: number; rowCount?: number }).count
-      ?? (deleted as unknown as { rowCount?: number }).rowCount
-      ?? 0;
+    const rc =
+      (deleted as unknown as { count?: number; rowCount?: number }).count ??
+      (deleted as unknown as { rowCount?: number }).rowCount ??
+      0;
     result.flowVersionsDeleted = rc;
   } catch (e) {
     safeLogError("[retention] purge flow_versions failed:", e);

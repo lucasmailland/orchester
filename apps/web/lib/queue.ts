@@ -133,15 +133,26 @@ export async function registerWorker<T = unknown>(
   console.log(`[queue] worker registered: ${name}`);
 }
 
-/** Schedule recurrente (cron). */
-export async function schedule(
-  name: string,
-  cron: string,
-  data: unknown = {}
-): Promise<void> {
+/**
+ * Schedule recurrente (cron).
+ *
+ * R2 worker audit C1+C4: hard-coded `retryLimit: 0` so transient failure
+ * in a cron does NOT cause double-execution. Hard-delete, retention and
+ * audit-verify are non-idempotent in the worst case (concurrent
+ * hard-delete = race; concurrent retention = delete twice). The next
+ * cron tick picks up missed work anyway. Also explicitly disable expiry:
+ * cron jobs fire on schedule, pg-boss's default expireInSeconds=3600
+ * would silently kill a long-running GDPR export then re-enqueue it,
+ * producing concurrent multi-GB allocations.
+ */
+export async function schedule(name: string, cron: string, data: unknown = {}): Promise<void> {
   const boss = await getBoss();
   await ensureQueue(name);
-  await boss.schedule(name, cron, data, { tz: "UTC" });
+  await boss.schedule(name, cron, data, {
+    tz: "UTC",
+    retryLimit: 0,
+    expireInSeconds: 0,
+  });
 }
 
 export async function shutdownQueue(): Promise<void> {
@@ -160,3 +171,7 @@ export const JOB_KB_REINDEX = "kb:reindex";
 export const JOB_WEBHOOK_DELIVER = "webhook:deliver";
 export const JOB_USAGE_AGGREGATE = "usage:aggregate";
 export const JOB_RETENTION = "data:retention";
+export const JOB_AUDIT_VERIFY_ALL = "audit:verify_all_chains";
+export const JOB_WORKSPACE_HARD_DELETE = "workspace:hard_delete";
+export const JOB_GDPR_EXPORT = "gdpr:export";
+export const JOB_GDPR_EXPORT_WATCHDOG = "gdpr:export:watchdog";

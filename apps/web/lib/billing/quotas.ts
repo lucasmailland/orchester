@@ -1,7 +1,17 @@
 import "server-only";
-import { getDb, schema } from "@orchester/db";
+import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and, gte, sum } from "drizzle-orm";
 import { planLimits, type Plan } from "./plans";
+
+/**
+ * Quotas se llaman tanto desde rutas HTTP (que ya tienen su propia txn con
+ * `app.workspace_id` SET LOCAL) como desde el router de canales `handleInbound`
+ * (que thread-ea su propia txn para que el GUC propague post-FORCE RLS). Para
+ * que las consultas internas usen la MISMA conexión (= mismo `app.workspace_id`
+ * GUC), aceptamos un `tx` opcional. Si no se pasa, caemos a `getDb()` y
+ * tomamos cualquier conexión del pool (comportamiento legacy).
+ */
+type WsDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 
 /**
  * En self-host (SELF_HOSTED=true o STRIPE_SECRET_KEY ausente), todos los
@@ -9,12 +19,10 @@ import { planLimits, type Plan } from "./plans";
  * un user self-hosted choca con el límite Free de 100 conversaciones/mes.
  */
 function isSelfHosted(): boolean {
-  return (
-    process.env["SELF_HOSTED"] === "true" || !process.env["STRIPE_SECRET_KEY"]
-  );
+  return process.env["SELF_HOSTED"] === "true" || !process.env["STRIPE_SECRET_KEY"];
 }
 
-export async function getWorkspacePlan(workspaceId: string): Promise<Plan> {
+export async function getWorkspacePlan(workspaceId: string, tx?: WsDb): Promise<Plan> {
   if (isSelfHosted()) return "enterprise";
   const db = getDb();
   const rows = await db
@@ -44,9 +52,9 @@ function calendarMonthStart(): Date {
  *
  * Sin suscripción (plan free / self-host), usa el mes calendario UTC.
  */
-async function getUsageWindowStart(workspaceId: string): Promise<Date> {
+async function getUsageWindowStart(workspaceId: string, tx?: WsDb): Promise<Date> {
   if (isSelfHosted()) return calendarMonthStart();
-  const db = getDb();
+  const db = tx ?? getDb();
   const rows = await db
     .select({ currentPeriodEnd: schema.workspaceBilling.currentPeriodEnd })
     .from(schema.workspaceBilling)
@@ -83,9 +91,9 @@ async function getUsageWindowStart(workspaceId: string): Promise<Date> {
  * La ventana se alinea al período de facturación de Stripe cuando hay
  * suscripción; sino cae al mes calendario UTC.
  */
-export async function getMonthlyUsage(workspaceId: string) {
-  const db = getDb();
-  const start = await getUsageWindowStart(workspaceId);
+export async function getMonthlyUsage(workspaceId: string, tx?: WsDb) {
+  const db = tx ?? getDb();
+  const start = await getUsageWindowStart(workspaceId, tx);
   const rows = await db
     .select({
       kind: schema.usageEvents.kind,
@@ -93,10 +101,7 @@ export async function getMonthlyUsage(workspaceId: string) {
     })
     .from(schema.usageEvents)
     .where(
-      and(
-        eq(schema.usageEvents.workspaceId, workspaceId),
-        gte(schema.usageEvents.createdAt, start)
-      )
+      and(eq(schema.usageEvents.workspaceId, workspaceId), gte(schema.usageEvents.createdAt, start))
     )
     .groupBy(schema.usageEvents.kind);
   const byKind: Record<string, number> = {};
@@ -117,13 +122,19 @@ export async function getMonthlyUsage(workspaceId: string) {
  */
 export async function checkQuota(
   workspaceId: string,
-  kind: "conversations" | "tokens" | "agents" | "flows" | "members" | "knowledgeBases"
-): Promise<{ allowed: boolean; limit?: number | undefined; current?: number | undefined; reason?: string | undefined }> {
-  const plan = await getWorkspacePlan(workspaceId);
+  kind: "conversations" | "tokens" | "agents" | "flows" | "members" | "knowledgeBases",
+  tx?: WsDb
+): Promise<{
+  allowed: boolean;
+  limit?: number | undefined;
+  current?: number | undefined;
+  reason?: string | undefined;
+}> {
+  const plan = await getWorkspacePlan(workspaceId, tx);
   const limits = planLimits(plan);
 
   if (kind === "conversations") {
-    const usage = await getMonthlyUsage(workspaceId);
+    const usage = await getMonthlyUsage(workspaceId, tx);
     if (usage.conversations >= limits.conversationsPerMonth) {
       return {
         allowed: false,
@@ -136,7 +147,7 @@ export async function checkQuota(
   }
 
   if (kind === "tokens") {
-    const usage = await getMonthlyUsage(workspaceId);
+    const usage = await getMonthlyUsage(workspaceId, tx);
     const total = usage.tokensIn + usage.tokensOut;
     if (total >= limits.tokensPerMonth) {
       return {
@@ -150,7 +161,7 @@ export async function checkQuota(
   }
 
   // Resource-count quotas
-  const db = getDb();
+  const db = tx ?? getDb();
   let current = 0;
   if (kind === "agents") {
     const r = await db
@@ -177,7 +188,8 @@ export async function checkQuota(
       .where(eq(schema.knowledgeBases.workspaceId, workspaceId));
     current = r.length;
   }
-  const limit = limits[kind === "knowledgeBases" ? "knowledgeBases" : (kind as keyof typeof limits)];
+  const limit =
+    limits[kind === "knowledgeBases" ? "knowledgeBases" : (kind as keyof typeof limits)];
   if (typeof limit === "number" && current >= limit) {
     return {
       allowed: false,

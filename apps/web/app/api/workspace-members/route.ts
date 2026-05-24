@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { logAudit } from "@/lib/audit";
+import { invalidateMembership } from "@/lib/tenant/membership";
 
 /**
  * GET /api/workspace-members
@@ -88,7 +89,10 @@ export async function PATCH(req: Request) {
         )
       );
     if (owners.length <= 1) {
-      return NextResponse.json({ error: "Workspace must keep at least one owner" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Workspace must keep at least one owner" },
+        { status: 400 }
+      );
     }
   }
 
@@ -96,6 +100,13 @@ export async function PATCH(req: Request) {
     .update(schema.workspaceMembers)
     .set({ role: role as "owner" | "admin" | "editor" | "viewer" })
     .where(eq(schema.workspaceMembers.id, target.id));
+
+  // Drop the cached (userId, workspaceId) membership row so the next
+  // role-gated check (in this or any peer worker) re-reads the row
+  // instead of trusting the stale role we just overwrote. Without this
+  // the new role only takes effect after the 60s TTL — long enough for
+  // a demoted user to keep writing for a minute.
+  invalidateMembership(userId, ctx.workspace.id);
 
   await logAudit({
     workspaceId: ctx.workspace.id,
@@ -136,9 +147,12 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "Cannot remove owner" }, { status: 400 });
   }
 
-  await db
-    .delete(schema.workspaceMembers)
-    .where(eq(schema.workspaceMembers.id, target.id));
+  await db.delete(schema.workspaceMembers).where(eq(schema.workspaceMembers.id, target.id));
+
+  // Drop the membership cache entry — without this the removed user
+  // could still pass checkMembership() for up to 60s and keep writing
+  // until the TTL expires.
+  invalidateMembership(userId, ctx.workspace.id);
 
   await logAudit({
     workspaceId: ctx.workspace.id,

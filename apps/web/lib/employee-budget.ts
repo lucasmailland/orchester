@@ -1,6 +1,14 @@
 import "server-only";
-import { getDb, schema } from "@orchester/db";
+import { getDb, schema, type DbClient } from "@orchester/db";
 import { and, eq, gte, sql } from "drizzle-orm";
+
+/**
+ * Mismo razonamiento que en `billing/quotas`: aceptamos un `tx` opcional para
+ * que el router de canales pueda forzar a las queries a correr en la conexión
+ * con `app.workspace_id` GUC SET LOCAL (sino, `getDb()` toma cualquier
+ * conexión del pool y FORCE RLS rechaza la lectura).
+ */
+type WsDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 
 /**
  * Per-employee budget enforcement.
@@ -31,24 +39,20 @@ export interface BudgetStatus {
  */
 export async function checkEmployeeBudget(
   workspaceId: string,
-  employeeId: string | null | undefined
+  employeeId: string | null | undefined,
+  tx?: WsDb
 ): Promise<BudgetStatus> {
   if (!employeeId) {
     return { allowed: true, budgetUsd: null, spentUsd: 0, conversationCount: 0 };
   }
 
-  const db = getDb();
+  const db = tx ?? getDb();
   const empRows = await db
     .select({
       monthlyBudgetUsd: schema.employees.monthlyBudgetUsd,
     })
     .from(schema.employees)
-    .where(
-      and(
-        eq(schema.employees.id, employeeId),
-        eq(schema.employees.workspaceId, workspaceId)
-      )
-    )
+    .where(and(eq(schema.employees.id, employeeId), eq(schema.employees.workspaceId, workspaceId)))
     .limit(1);
   const emp = empRows[0];
 
@@ -92,16 +96,25 @@ export async function checkEmployeeBudget(
  * dispara `maybeFireBudgetAlert` que manda email + webhook si cruzó 70/90/100%.
  * El alert es best-effort; cualquier error se loguea sin romper el flujo.
  */
-export async function recordMessageCost(args: {
-  messageId: string;
-  conversationId: string;
-  model: string;
-  tokensUsed: number;
-  costUsd: number;
-}): Promise<void> {
-  const db = getDb();
-  await db.transaction(async (tx) => {
-    await tx
+export async function recordMessageCost(
+  args: {
+    messageId: string;
+    conversationId: string;
+    model: string;
+    tokensUsed: number;
+    costUsd: number;
+  },
+  /**
+   * Cuando se invoca desde un caller que ya tiene una transacción abierta con
+   * `app.workspace_id` SET LOCAL (`lib/channels/router.ts` post-FORCE RLS),
+   * pasalo acá para que el UPDATE corra en esa misma conexión. Sin esto,
+   * el UPDATE toma una conexión nueva del pool, no ve el GUC, y FORCE RLS
+   * rechaza el write.
+   */
+  tx?: WsDb
+): Promise<void> {
+  const runUpdates = async (handle: WsDb) => {
+    await handle
       .update(schema.messages)
       .set({
         tokensUsed: args.tokensUsed,
@@ -110,19 +123,29 @@ export async function recordMessageCost(args: {
       })
       .where(eq(schema.messages.id, args.messageId));
 
-    await tx
+    await handle
       .update(schema.conversations)
       .set({
         totalCostUsd: sql`coalesce(${schema.conversations.totalCostUsd}, 0) + ${args.costUsd}`,
         totalTokens: sql`coalesce(${schema.conversations.totalTokens}, 0) + ${args.tokensUsed}`,
       })
       .where(eq(schema.conversations.id, args.conversationId));
-  });
+  };
+
+  if (tx) {
+    // Caller ya está dentro de una transacción — los dos updates ya son
+    // atómicos en esa unidad, no abrimos un savepoint extra.
+    await runUpdates(tx);
+  } else {
+    const db = getDb();
+    await db.transaction(async (innerTx) => runUpdates(innerTx));
+  }
 
   // Después de cobrar, evaluar si crucé un umbral nuevo (70/90/exceeded).
   // Esto necesita workspace + employee del conversation; los buscamos acá
   // para mantener la API simple del caller.
-  const convRows = await db
+  const readHandle: WsDb = tx ?? getDb();
+  const convRows = await readHandle
     .select({
       workspaceId: schema.conversations.workspaceId,
       employeeId: schema.conversations.employeeId,
@@ -133,6 +156,6 @@ export async function recordMessageCost(args: {
   const conv = convRows[0];
   if (conv?.employeeId) {
     const { maybeFireBudgetAlert } = await import("@/lib/cost-alerts");
-    await maybeFireBudgetAlert(conv.workspaceId, conv.employeeId);
+    await maybeFireBudgetAlert(conv.workspaceId, conv.employeeId, tx);
   }
 }

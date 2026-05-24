@@ -20,8 +20,9 @@ interface KB {
 export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
   const router = useRouter();
   const t = useTranslations("pages.knowledge");
-  const params = useParams<{ locale: string }>();
+  const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "es";
+  const ws = params?.workspaceSlug ?? "";
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -42,7 +43,7 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
     if (r.ok) {
       const j = await r.json();
       toast.success(t("created"));
-      router.push(`/${locale}/knowledge/${j.id}`);
+      router.push(`/${locale}/${ws}/knowledge/${j.id}`);
     } else {
       toast.error(t("createError"));
     }
@@ -126,7 +127,7 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
             type="button"
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            onClick={() => router.push(`/${locale}/knowledge/${kb.id}`)}
+            onClick={() => router.push(`/${locale}/${ws}/knowledge/${kb.id}`)}
             className="rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
           >
             <div className="mb-2 flex items-center gap-2">

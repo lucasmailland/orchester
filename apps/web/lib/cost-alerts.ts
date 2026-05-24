@@ -1,10 +1,19 @@
 import "server-only";
-import { getDb, schema } from "@orchester/db";
+import { getDb, schema, type DbClient } from "@orchester/db";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { sendEmail } from "@/lib/email";
 import { dispatchEvent, type WebhookEvent } from "@/lib/webhooks-out";
 import { checkEmployeeBudget } from "@/lib/employee-budget";
 import { safeLogError } from "@/lib/safe-log";
+
+/**
+ * Mismo razonamiento que en `billing/quotas` y `employee-budget`: aceptamos
+ * un `tx` opcional para que callers que ya están dentro de una transacción
+ * con `app.workspace_id` SET LOCAL (e.g. el router de canales) compartan la
+ * misma conexión. Sin esto, `getDb()` toma cualquier conexión del pool y
+ * post-FORCE RLS rechaza las reads.
+ */
+type WsDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 
 /** Error tipado para el spend guard (E3-1) — distinguible del resto. */
 export class SpendGuardError extends Error {
@@ -23,8 +32,8 @@ function monthStartUtc(): Date {
  * Suma del gasto month-to-date del workspace en USD (sum de
  * `usageEvents.costUsd` desde el 1ro del mes UTC). Best-effort: si falla, 0.
  */
-async function monthToDateSpendUsd(workspaceId: string): Promise<number> {
-  const db = getDb();
+async function monthToDateSpendUsd(workspaceId: string, tx?: WsDb): Promise<number> {
+  const db = tx ?? getDb();
   const rows = await db
     .select({ total: sql<string>`coalesce(sum(${schema.usageEvents.costUsd}), 0)` })
     .from(schema.usageEvents)
@@ -48,9 +57,11 @@ async function monthToDateSpendUsd(workspaceId: string): Promise<number> {
  * fallo de LECTURA del gasto se loguea pero NO bloquea (fail-open en el sumado
  * para no romper la IA por un hipo de DB); el kill-switch y el cap sí cortan.
  */
-export async function assertWithinSpend(workspaceId: string): Promise<void> {
+export async function assertWithinSpend(workspaceId: string, tx?: WsDb): Promise<void> {
   if (process.env.AI_DISABLED === "1") {
-    throw new SpendGuardError("La IA está deshabilitada temporalmente (kill-switch global AI_DISABLED).");
+    throw new SpendGuardError(
+      "La IA está deshabilitada temporalmente (kill-switch global AI_DISABLED)."
+    );
   }
 
   const capRaw = process.env.AI_MONTHLY_SPEND_CAP_USD;
@@ -59,10 +70,40 @@ export async function assertWithinSpend(workspaceId: string): Promise<void> {
 
   let spent: number;
   try {
-    spent = await monthToDateSpendUsd(workspaceId);
+    spent = await monthToDateSpendUsd(workspaceId, tx);
   } catch (e) {
+    // F-D9: metric breadcrumb so dashboards can alarm on a sudden
+    // spike in fail-open events (which usually means the GUC isn't
+    // set or RLS regressed on `usage_event`).
+    safeLogError("[metric] cost_alert.spend_read_failed_total +1", { workspaceId });
     safeLogError("[cost-alerts] assertWithinSpend spend read failed:", e);
-    return; // fail-open: un error de lectura no debe cortar la IA
+
+    // F-D8: differentiate by error code.
+    //   - Permission / RLS denial → the spend cap is being silently
+    //     bypassed (config bug), so fail CLOSED. Better to refuse a
+    //     few AI calls than to silently disable the cap that exists
+    //     specifically to prevent runaway spend.
+    //   - Everything else (network blip, timeout, statement_timeout,
+    //     transient pool exhaustion) → fail OPEN. The cap is a soft
+    //     control; we don't want a DB hiccup to take the product down.
+    //
+    // Postgres maps permission errors to SQLSTATE 42501 (insufficient
+    // privilege). RLS rejects on tables WITH `FORCE ROW LEVEL SECURITY`
+    // also surface as 42501. Drizzle/postgres-js exposes the SQLSTATE
+    // on the error's `code` field; some custom layers wrap it as
+    // `RLS_DENIED` — we accept both.
+    const isPermError =
+      typeof e === "object" &&
+      e !== null &&
+      "code" in e &&
+      typeof (e as { code?: unknown }).code === "string" &&
+      ((e as { code: string }).code === "42501" || (e as { code: string }).code === "RLS_DENIED");
+    if (isPermError) {
+      throw new SpendGuardError(
+        "spend cap check failed: permission denied (RLS or insufficient privilege)"
+      );
+    }
+    return; // network/timeout: fail-open (AI continues)
   }
 
   if (spent >= cap) {
@@ -104,18 +145,38 @@ function levelForPct(pct: number, allowed: boolean): Level | null {
  */
 export async function maybeFireBudgetAlert(
   workspaceId: string,
-  employeeId: string | null | undefined
+  employeeId: string | null | undefined,
+  tx?: WsDb
 ): Promise<void> {
   if (!employeeId) return;
+
+  // Read: budget status + employee row. If either read fails we can't
+  // reason about which alert to fire, so we exit silently with a
+  // distinct log prefix so on-call can tell apart from update/webhook/
+  // email failures below.
+  let status: Awaited<ReturnType<typeof checkEmployeeBudget>>;
   try {
-    const status = await checkEmployeeBudget(workspaceId, employeeId);
-    if (status.budgetUsd == null) return; // sin límite → nada que avisar
+    status = await checkEmployeeBudget(workspaceId, employeeId, tx);
+  } catch (e) {
+    safeLogError("[cost-alerts.read] checkEmployeeBudget failed:", e);
+    return;
+  }
+  if (status.budgetUsd == null) return; // sin límite → nada que avisar
 
-    const pct = (status.spentUsd / status.budgetUsd) * 100;
-    const level = levelForPct(pct, status.allowed);
-    if (!level) return;
+  const pct = (status.spentUsd / status.budgetUsd) * 100;
+  const level = levelForPct(pct, status.allowed);
+  if (!level) return;
 
-    const db = getDb();
+  const db = tx ?? getDb();
+  let emp:
+    | {
+        name: string;
+        email: string;
+        lastBudgetAlertLevel: string | null;
+        lastBudgetAlertMonth: string | null;
+      }
+    | undefined;
+  try {
     const empRows = await db
       .select({
         name: schema.employees.name,
@@ -128,52 +189,64 @@ export async function maybeFireBudgetAlert(
         and(eq(schema.employees.id, employeeId), eq(schema.employees.workspaceId, workspaceId))
       )
       .limit(1);
-    const emp = empRows[0];
-    if (!emp) return;
+    emp = empRows[0];
+  } catch (e) {
+    safeLogError("[cost-alerts.read] employee row read failed:", e);
+    return;
+  }
+  if (!emp) return;
 
-    const month = currentMonth();
-    // Si el último mes registrado es el actual y ya disparamos un nivel >= al
-    // que estamos por mandar, salir. Si el mes cambió, reseteamos.
-    if (emp.lastBudgetAlertMonth === month) {
-      const last = (emp.lastBudgetAlertLevel ?? null) as Level | null;
-      if (last && RANK[last] >= RANK[level]) return;
-    }
+  const month = currentMonth();
+  // Si el último mes registrado es el actual y ya disparamos un nivel >= al
+  // que estamos por mandar, salir. Si el mes cambió, reseteamos.
+  if (emp.lastBudgetAlertMonth === month) {
+    const last = (emp.lastBudgetAlertLevel ?? null) as Level | null;
+    if (last && RANK[last] >= RANK[level]) return;
+  }
 
-    // Persistir primero (idempotencia): si dos requests cruzan el umbral en
-    // paralelo, sólo una gana el UPDATE (otro queda con datos viejos pero el
-    // próximo round-trip lo va a ver consistente).
+  // Persistir primero (idempotencia): si dos requests cruzan el umbral en
+  // paralelo, sólo una gana el UPDATE (otro queda con datos viejos pero el
+  // próximo round-trip lo va a ver consistente). Si el UPDATE falla, NO
+  // disparamos avisos: dispararíamos infinitamente al próximo turno.
+  try {
     await db
       .update(schema.employees)
       .set({ lastBudgetAlertLevel: level, lastBudgetAlertMonth: month })
       .where(eq(schema.employees.id, employeeId));
+  } catch (e) {
+    safeLogError("[cost-alerts.update] lastBudgetAlertLevel UPDATE failed:", e);
+    return;
+  }
 
-    // Fire-and-forget: webhook + email en paralelo.
-    const event: WebhookEvent =
-      level === "exceeded"
-        ? "employee.budget.exceeded"
-        : level === "warn90"
+  // Fire-and-forget: webhook + email en paralelo. Errores se loguean con
+  // prefijos distintos para diagnosticar qué pata falló.
+  const event: WebhookEvent =
+    level === "exceeded"
+      ? "employee.budget.exceeded"
+      : level === "warn90"
         ? "employee.budget.warn90"
         : "employee.budget.warn70";
 
-    const payload = {
-      employeeId,
-      employeeName: emp.name,
-      employeeEmail: emp.email,
-      level,
-      spentUsd: status.spentUsd,
-      budgetUsd: status.budgetUsd,
-      pct: Math.round(pct * 10) / 10,
-      conversationCount: status.conversationCount,
-      month,
-    };
+  const payload = {
+    employeeId,
+    employeeName: emp.name,
+    employeeEmail: emp.email,
+    level,
+    spentUsd: status.spentUsd,
+    budgetUsd: status.budgetUsd,
+    pct: Math.round(pct * 10) / 10,
+    conversationCount: status.conversationCount,
+    month,
+  };
 
-    await Promise.all([
-      dispatchEvent(workspaceId, event, payload),
-      sendBudgetEmail(emp.email, emp.name, level, status.spentUsd, status.budgetUsd, pct),
-    ]);
-  } catch (e) {
-    safeLogError("[cost-alerts] maybeFireBudgetAlert failed:", e);
-  }
+  await Promise.allSettled([
+    dispatchEvent(workspaceId, event, payload, tx).catch((e) =>
+      safeLogError("[cost-alerts.webhook] dispatchEvent failed:", e)
+    ),
+    sendBudgetEmail(emp.email, emp.name, level, status.spentUsd, status.budgetUsd, pct).catch((e) =>
+      safeLogError("[cost-alerts.email] sendBudgetEmail failed:", e)
+    ),
+  ]);
 }
 
 async function sendBudgetEmail(
@@ -188,8 +261,8 @@ async function sendBudgetEmail(
     level === "exceeded"
       ? `[Orchester] Excediste tu budget mensual ($${budget})`
       : level === "warn90"
-      ? `[Orchester] Alcanzaste el 90% de tu budget mensual`
-      : `[Orchester] Alcanzaste el 70% de tu budget mensual`;
+        ? `[Orchester] Alcanzaste el 90% de tu budget mensual`
+        : `[Orchester] Alcanzaste el 70% de tu budget mensual`;
   const text =
     `Hola ${name},\n\n` +
     (level === "exceeded"

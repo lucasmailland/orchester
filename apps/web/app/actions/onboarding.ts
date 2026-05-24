@@ -23,6 +23,11 @@ export async function createWorkspaceAction(input: CreateWorkspaceInput) {
     id: workspaceId,
     name: input.name,
     slug: input.slug,
+    // Phase A: workspace.owner_user_id is enforced NOT NULL via the
+    // workspace_owner_must_be_member check constraint. Onboarding flows
+    // landed before that constraint existed and silently relied on
+    // backfill; new rows MUST set it here.
+    ownerUserId: session.user.id,
   });
 
   await db.insert(schema.workspaceMembers).values({

@@ -25,10 +25,19 @@ import {
   JOB_WEBHOOK_DELIVER,
   JOB_USAGE_AGGREGATE,
   JOB_RETENTION,
+  JOB_AUDIT_VERIFY_ALL,
+  JOB_WORKSPACE_HARD_DELETE,
+  JOB_GDPR_EXPORT,
+  JOB_GDPR_EXPORT_WATCHDOG,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
 import { purgeOldData } from "../lib/retention";
+import { withCrossTenantAdmin } from "../lib/tenant/cron";
+import { runVerifyAllChains } from "../lib/audit/verify-job";
+import { runHardDeleteCron } from "../lib/tenant/hard-delete-job";
+import { runExportJob } from "../lib/gdpr/export-job";
+import { runExportWatchdog } from "../lib/gdpr/watchdog";
 
 interface FlowRunJob {
   runId: string;
@@ -63,8 +72,9 @@ async function main(): Promise<void> {
   );
 
   // ── Orphan-run reaper (cron, cada 5 min) ────────────────────
+  // Scans flow_run across all workspaces → cross-tenant by design.
   await registerWorker(JOB_FLOW_REAP, async () => {
-    const n = await reapStaleRuns();
+    const n = await withCrossTenantAdmin("flow-reaper", (tx) => reapStaleRuns(undefined, tx));
     if (n > 0) console.log(`[worker] flow:reap → marcó ${n} run(s) colgados como failed`);
   });
   await schedule(JOB_FLOW_REAP, "*/5 * * * *");
@@ -80,17 +90,23 @@ async function main(): Promise<void> {
   );
 
   // ── Usage aggregator (cron) ─────────────────────────────────
+  // Designed for cross-workspace rollups → wrap defensively even though
+  // it's a no-op today.
   await registerWorker(JOB_USAGE_AGGREGATE, async () => {
-    console.log("[worker] usage:aggregate tick");
-    // Hook para futuras consolidaciones diarias (rollup de usage_events,
-    // limpieza de runs antiguos, etc.). No-op por ahora.
+    await withCrossTenantAdmin("usage-aggregate", async (_tx) => {
+      console.log("[worker] usage:aggregate tick");
+      // Hook para futuras consolidaciones diarias (rollup de usage_events,
+      // limpieza de runs antiguos, etc.). No-op por ahora — cuando se
+      // implemente, usar `_tx` (no getDb()) para que la bypass GUC aplique.
+    });
   });
   await schedule(JOB_USAGE_AGGREGATE, "0 3 * * *"); // 03:00 UTC
 
   // ── Data retention sweeper (cron, diario 03:30 UTC) ─────────
   // G1-1: purga flow_runs/flow_run_steps y webhook_deliveries viejos.
+  // Sweeps across all workspaces by date cutoffs → cross-tenant by design.
   await registerWorker(JOB_RETENTION, async () => {
-    const n = await purgeOldData();
+    const n = await withCrossTenantAdmin("data-retention", (tx) => purgeOldData({ db: tx }));
     console.log(
       `[worker] data:retention → runs=${n.runsDeleted} deliveries=${n.deliveriesDeleted} ` +
         `audit=${n.auditLogsDeleted} usage=${n.usageEventsDeleted} ` +
@@ -98,6 +114,42 @@ async function main(): Promise<void> {
     );
   });
   await schedule(JOB_RETENTION, "30 3 * * *"); // 03:30 UTC
+
+  // ── Audit chain verifier (cron, diario 03:00 UTC) ───────────
+  // Phase E.4: walks every active workspace's audit_log and emits a
+  // critical security_event for any tampered chain. The bypass is
+  // applied inside runVerifyAllChains via withCrossTenantAdmin.
+  await registerWorker(JOB_AUDIT_VERIFY_ALL, async () => {
+    await runVerifyAllChains();
+    console.log("[worker] audit:verify_all_chains tick");
+  });
+  await schedule(JOB_AUDIT_VERIFY_ALL, "0 3 * * *"); // 03:00 UTC
+
+  // ── Workspace hard-deleter (cron, diario 04:00 UTC) ─────────
+  // Phase E.5: hard-deletes workspaces whose 30-day soft-delete window
+  // has expired. Cascade FKs clean up every dependent row.
+  await registerWorker(JOB_WORKSPACE_HARD_DELETE, async () => {
+    await runHardDeleteCron();
+    console.log("[worker] workspace:hard_delete tick");
+  });
+  await schedule(JOB_WORKSPACE_HARD_DELETE, "0 4 * * *"); // 04:00 UTC
+
+  // ── GDPR export worker (on-demand) ──────────────────────────
+  // Phase E.6: drives gdpr_export_job rows through the pending →
+  // exporting → completed state machine. No cron — request-handler
+  // enqueues by jobId.
+  await registerWorker<{ jobId: string }>(JOB_GDPR_EXPORT, async (job) => {
+    await runExportJob(job.data.jobId);
+  });
+
+  // ── GDPR export watchdog (cron, cada 15 min) ────────────────
+  // Reaps `exporting` rows abandoned by a crashed worker (the row would
+  // otherwise stay `exporting` forever — pg-boss retries the job but
+  // the state machine doesn't reset). Cross-tenant by design.
+  await registerWorker(JOB_GDPR_EXPORT_WATCHDOG, async () => {
+    await runExportWatchdog();
+  });
+  await schedule(JOB_GDPR_EXPORT_WATCHDOG, "*/15 * * * *");
 
   console.log("[worker] ready, waiting for jobs…");
 }

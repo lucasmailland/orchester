@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDb, schema } from "@orchester/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 
@@ -20,17 +20,18 @@ export async function PATCH(
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
   const db = getDb();
-  const updated = await db
-    .update(schema.flowWebhooks)
-    .set({ ...(body.enabled !== undefined && { enabled: !!body.enabled }) })
-    .where(
-      and(
-        eq(schema.flowWebhooks.id, wid),
-        eq(schema.flowWebhooks.workspaceId, ctx.workspace.id)
+  const row = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+    const updated = await tx
+      .update(schema.flowWebhooks)
+      .set({ ...(body.enabled !== undefined && { enabled: !!body.enabled }) })
+      .where(
+        and(eq(schema.flowWebhooks.id, wid), eq(schema.flowWebhooks.workspaceId, ctx.workspace.id))
       )
-    )
-    .returning();
-  const row = updated[0];
+      .returning();
+    return updated[0];
+  });
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(row);
 }
@@ -43,15 +44,17 @@ export async function DELETE(
   if (!isAuthContext(ctx)) return ctx;
   const { wid } = await params;
   const db = getDb();
-  const deleted = await db
-    .delete(schema.flowWebhooks)
-    .where(
-      and(
-        eq(schema.flowWebhooks.id, wid),
-        eq(schema.flowWebhooks.workspaceId, ctx.workspace.id)
+  const deletedId = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+    const deleted = await tx
+      .delete(schema.flowWebhooks)
+      .where(
+        and(eq(schema.flowWebhooks.id, wid), eq(schema.flowWebhooks.workspaceId, ctx.workspace.id))
       )
-    )
-    .returning({ id: schema.flowWebhooks.id });
-  if (!deleted[0]) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      .returning({ id: schema.flowWebhooks.id });
+    return deleted[0]?.id ?? null;
+  });
+  if (!deletedId) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

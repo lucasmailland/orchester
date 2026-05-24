@@ -346,8 +346,9 @@ export function OrgCanvas() {
   const router = useRouter();
   const { resolvedTheme } = useTheme();
   const isLight = resolvedTheme === "light";
-  const params = useParams<{ locale: string }>();
+  const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "es";
+  const ws = params?.workspaceSlug ?? "";
   const t = useTranslations("pages.org");
   const [data, setData] = useState<{ nodes: OrgNode[]; edges: OrgEdge[]; summary?: Summary }>({
     nodes: [],
@@ -557,10 +558,10 @@ export function OrgCanvas() {
 
   function onNodeClick(_: React.MouseEvent, node: Node) {
     const id = node.id;
-    if (id.startsWith("agent:")) router.push(`/${locale}/agents/${id.slice(6)}`);
-    else if (id.startsWith("flow:")) router.push(`/${locale}/flows/${id.slice(5)}`);
+    if (id.startsWith("agent:")) router.push(`/${locale}/${ws}/agents/${id.slice(6)}`);
+    else if (id.startsWith("flow:")) router.push(`/${locale}/${ws}/flows/${id.slice(5)}`);
     else if (id.startsWith("team:") && !id.endsWith("__orphan__"))
-      router.push(`/${locale}/teams/${id.slice(5)}`);
+      router.push(`/${locale}/${ws}/teams/${id.slice(5)}`);
   }
 
   return (
@@ -614,7 +615,7 @@ export function OrgCanvas() {
             <p className="text-sm">{t("empty")}</p>
             <button
               type="button"
-              onClick={() => router.push(`/${locale}/agents`)}
+              onClick={() => router.push(`/${locale}/${ws}/agents`)}
               className="mt-3 rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-400"
             >
               {t("createFirstAgent")}

@@ -10,11 +10,14 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const limit = Math.min(500, Number(url.searchParams.get("limit") ?? 100));
   const db = getDb();
+  // Reads from the new hash-chained audit_log. Legacy pre-migration
+  // entries (`action LIKE 'legacy.%'`) live in this table too — they
+  // surface here for admins so historical context is preserved.
   const rows = await db
     .select()
-    .from(schema.auditLogs)
-    .where(eq(schema.auditLogs.workspaceId, ctx.workspace.id))
-    .orderBy(desc(schema.auditLogs.createdAt))
+    .from(schema.auditLog)
+    .where(eq(schema.auditLog.workspaceId, ctx.workspace.id))
+    .orderBy(desc(schema.auditLog.createdAt))
     .limit(limit);
   return NextResponse.json(rows);
 }

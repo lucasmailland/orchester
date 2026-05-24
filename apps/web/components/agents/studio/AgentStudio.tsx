@@ -45,8 +45,9 @@ type Tab = "config" | "advanced" | "versions";
 export function AgentStudio({ agent }: { agent: AgentDTO }) {
   const router = useRouter();
   const t = useTranslations("pages.agents.studio");
-  const params = useParams<{ locale: string }>();
+  const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "es";
+  const ws = params?.workspaceSlug ?? "";
   const [name, setName] = useState(agent.name);
   const [role, setRole] = useState(agent.role);
   const [systemPrompt, setSystemPrompt] = useState(agent.systemPrompt);
@@ -222,7 +223,7 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
                     </p>
                     {config.flowId ? (
                       <Link
-                        href={`/${locale}/flows/${config.flowId}`}
+                        href={`/${locale}/${ws}/flows/${config.flowId}`}
                         className="mt-3 inline-block rounded-lg border border-amber-500/30 px-3 py-1.5 text-xs text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
                       >
                         {t("editFlow")}

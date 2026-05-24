@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   Monitor,
   ScrollText,
+  Flag,
   type LucideIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -25,7 +26,8 @@ import { MembersSection } from "./MembersSection";
 import { DevelopersSection } from "./DevelopersSection";
 import { DangerZoneSection } from "./DangerZoneSection";
 import { SessionsSection } from "./SessionsSection";
-import { AuditLogSection } from "./AuditLogSection";
+import { AuditLogViewer } from "@/components/workspace/AuditLogViewer";
+import { FeatureFlagAdminPanel } from "@/components/workspace/FeatureFlagAdminPanel";
 import { SettingsCard } from "./_layout";
 
 interface WorkspaceCtx {
@@ -78,6 +80,7 @@ const TABS: Tab[] = [
   { id: "members", icon: UsersIcon },
   { id: "sessions", icon: Monitor },
   { id: "audit", icon: ScrollText },
+  { id: "flags", icon: Flag },
   { id: "developers", icon: Code },
   { id: "danger", icon: AlertTriangle, variant: "danger" },
 ];
@@ -211,7 +214,16 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
               title={t("sections.auditTitle")}
               description={t("sections.auditDescription")}
             >
-              <AuditLogSection />
+              <AuditLogViewer workspaceSlug={workspace.slug} />
+            </SettingsCard>
+          )}
+          {activeTab === "flags" && (
+            <SettingsCard
+              icon={<Flag size={16} />}
+              title="Feature flags"
+              description="Per-workspace experimental features."
+            >
+              <FeatureFlagAdminPanel workspaceSlug={workspace.slug} />
             </SettingsCard>
           )}
           {activeTab === "developers" && (

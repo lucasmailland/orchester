@@ -8,6 +8,8 @@ export const workspaceMemberRoleEnum = pgEnum("workspace_member_role", [
   "viewer",
 ]);
 
+export const workspaceStatusEnum = pgEnum("workspace_status", ["active", "suspended", "deleted"]);
+
 export const workspaces = pgTable("workspace", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -16,6 +18,21 @@ export const workspaces = pgTable("workspace", {
   timezone: text("timezone").notNull().default("UTC"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  // Lifecycle columns (migration 0001_workspace_lifecycle).
+  status: workspaceStatusEnum("status").notNull().default("active"),
+  suspendedAt: timestamp("suspended_at"),
+  suspendedReason: text("suspended_reason"),
+  suspendedByUserId: text("suspended_by_user_id").references(() => users.id),
+  deletedAt: timestamp("deleted_at"),
+  deleteScheduledAt: timestamp("delete_scheduled_at"),
+  deletedByUserId: text("deleted_by_user_id").references(() => users.id),
+  restoreToken: text("restore_token").unique(),
+  restoreTokenConsumedAt: timestamp("restore_token_consumed_at"),
+  /**
+   * Owner of the workspace. Backfilled from workspace_member.role='owner'.
+   * Enforced NOT NULL via check constraint workspace_owner_must_be_member.
+   */
+  ownerUserId: text("owner_user_id").references(() => users.id),
 });
 
 export const workspaceMembers = pgTable("workspace_member", {
@@ -59,17 +76,13 @@ export const notificationPrefs = pgTable(
     enabled: boolean("enabled").notNull().default(true),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (t) => ({
+  (t) => [
     // Una sola fila por (workspace, user, key). Coalesce de NULL via `coalesce`
     // sería ideal pero Postgres no soporta unique en NULLs sin una expresión.
     // Uso 2 índices: uno para user-level (donde user_id no es null) y otro
     // para workspace-level (donde user_id es null).
-    uniqUserPref: uniqueIndex("uniq_notification_pref_user").on(
-      t.workspaceId,
-      t.userId,
-      t.key
-    ),
-  })
+    uniqueIndex("uniq_notification_pref_user").on(t.workspaceId, t.userId, t.key),
+  ]
 );
 
 export type Workspace = typeof workspaces.$inferSelect;

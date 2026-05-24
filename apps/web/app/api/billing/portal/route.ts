@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb, schema } from "@orchester/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { createBillingPortalSession } from "@/lib/billing/stripe";
 
@@ -8,12 +8,18 @@ export async function POST() {
   const ctx = await requireAuth({ minRole: "admin" });
   if (!isAuthContext(ctx)) return ctx;
   const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.workspaceBilling)
-    .where(eq(schema.workspaceBilling.workspaceId, ctx.workspace.id))
-    .limit(1);
-  const row = rows[0];
+  // workspace_billing has FORCE RLS — lookup must run with the
+  // workspace GUC applied on this connection.
+  const row = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+    const rows = await tx
+      .select()
+      .from(schema.workspaceBilling)
+      .where(eq(schema.workspaceBilling.workspaceId, ctx.workspace.id))
+      .limit(1);
+    return rows[0];
+  });
   if (!row?.stripeCustomerId)
     return NextResponse.json({ error: "No Stripe customer for workspace" }, { status: 400 });
 

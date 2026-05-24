@@ -6,8 +6,9 @@
  */
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
-import { getDb, schema } from "@orchester/db";
+import { schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
+import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 
 type Plan = "free" | "starter" | "pro" | "business";
 
@@ -48,13 +49,14 @@ export async function POST(req: Request) {
   const customerId = (obj?.customer as string | undefined) ?? null;
 
   if (!workspaceId) return NextResponse.json({ ok: true, ignored: "no workspaceId" });
-  const db = getDb();
 
   // priceId → plan pago. "free" es el default del schema (no degradamos a "starter").
   const priceMap: Record<string, Plan> = {};
-  if (process.env["STRIPE_PRICE_STARTER"]) priceMap[process.env["STRIPE_PRICE_STARTER"]!] = "starter";
+  if (process.env["STRIPE_PRICE_STARTER"])
+    priceMap[process.env["STRIPE_PRICE_STARTER"]!] = "starter";
   if (process.env["STRIPE_PRICE_PRO"]) priceMap[process.env["STRIPE_PRICE_PRO"]!] = "pro";
-  if (process.env["STRIPE_PRICE_BUSINESS"]) priceMap[process.env["STRIPE_PRICE_BUSINESS"]!] = "business";
+  if (process.env["STRIPE_PRICE_BUSINESS"])
+    priceMap[process.env["STRIPE_PRICE_BUSINESS"]!] = "business";
 
   // Extracción robusta: priceId y período viven en distintos lugares según el
   // shape (Subscription vs Checkout Session) y la versión de la API de Stripe
@@ -68,7 +70,9 @@ export async function POST(req: Request) {
     subItems?.[0]?.price?.id ??
     ((obj?.plan as Record<string, unknown> | undefined)?.id as string | undefined);
   const periodEndUnix =
-    (obj?.current_period_end as number | undefined) ?? subItems?.[0]?.current_period_end ?? undefined;
+    (obj?.current_period_end as number | undefined) ??
+    subItems?.[0]?.current_period_end ??
+    undefined;
   const resolvedPlan: Plan | undefined = priceId ? priceMap[priceId] : undefined;
 
   if (
@@ -95,23 +99,35 @@ export async function POST(req: Request) {
     if (priceId) set.stripePriceId = priceId;
     if (periodEnd) set.currentPeriodEnd = periodEnd;
 
-    await db
-      .insert(schema.workspaceBilling)
-      .values({
-        workspaceId,
-        plan: resolvedPlan ?? "free",
-        stripeCustomerId: customerId,
-        stripeSubscriptionId: subId,
-        stripePriceId: priceId ?? null,
-        currentPeriodEnd: periodEnd,
-        cancelAtPeriodEnd,
-      })
-      .onConflictDoUpdate({ target: schema.workspaceBilling.workspaceId, set });
+    // Stripe webhook is unauthenticated (verified via HMAC above) so the
+    // request has no workspace GUC set. workspace_billing has FORCE RLS,
+    // so the upsert must run as cross-tenant admin.
+    await withCrossTenantAdmin("billing.stripe_webhook", async (tx) => {
+      await tx
+        .insert(schema.workspaceBilling)
+        .values({
+          workspaceId,
+          plan: resolvedPlan ?? "free",
+          stripeCustomerId: customerId,
+          stripeSubscriptionId: subId,
+          stripePriceId: priceId ?? null,
+          currentPeriodEnd: periodEnd,
+          cancelAtPeriodEnd,
+        })
+        .onConflictDoUpdate({ target: schema.workspaceBilling.workspaceId, set });
+    });
   } else if (event.type === "customer.subscription.deleted") {
-    await db
-      .update(schema.workspaceBilling)
-      .set({ plan: "free", cancelAtPeriodEnd: false, currentPeriodEnd: null, updatedAt: new Date() })
-      .where(eq(schema.workspaceBilling.workspaceId, workspaceId));
+    await withCrossTenantAdmin("billing.stripe_webhook", async (tx) => {
+      await tx
+        .update(schema.workspaceBilling)
+        .set({
+          plan: "free",
+          cancelAtPeriodEnd: false,
+          currentPeriodEnd: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.workspaceBilling.workspaceId, workspaceId));
+    });
   }
 
   return NextResponse.json({ ok: true });

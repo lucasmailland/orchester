@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb, schema } from "@orchester/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { logAudit } from "@/lib/audit";
 
@@ -9,13 +9,17 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
   const db = getDb();
-  const updated = await db
-    .update(schema.conversations)
-    .set({ takenOverAt: new Date(), assignedToUserId: ctx.user.id, status: "escalated" })
-    .where(
-      and(eq(schema.conversations.id, id), eq(schema.conversations.workspaceId, ctx.workspace.id))
-    )
-    .returning();
+  const updated = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+    return tx
+      .update(schema.conversations)
+      .set({ takenOverAt: new Date(), assignedToUserId: ctx.user.id, status: "escalated" })
+      .where(
+        and(eq(schema.conversations.id, id), eq(schema.conversations.workspaceId, ctx.workspace.id))
+      )
+      .returning();
+  });
   if (updated[0]) {
     await logAudit({
       workspaceId: ctx.workspace.id,
@@ -33,13 +37,17 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
   const db = getDb();
-  const updated = await db
-    .update(schema.conversations)
-    .set({ takenOverAt: null, assignedToUserId: null, status: "open" })
-    .where(
-      and(eq(schema.conversations.id, id), eq(schema.conversations.workspaceId, ctx.workspace.id))
-    )
-    .returning();
+  const updated = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+    return tx
+      .update(schema.conversations)
+      .set({ takenOverAt: null, assignedToUserId: null, status: "open" })
+      .where(
+        and(eq(schema.conversations.id, id), eq(schema.conversations.workspaceId, ctx.workspace.id))
+      )
+      .returning();
+  });
   if (updated[0]) {
     await logAudit({
       workspaceId: ctx.workspace.id,

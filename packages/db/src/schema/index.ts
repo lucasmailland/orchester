@@ -7,3 +7,8 @@ export * from "./agent-tools";
 export * from "./knowledge";
 export * from "./production";
 export * from "./integrations";
+export * from "./audit";
+export * from "./feature-flags";
+export * from "./gdpr";
+export * from "./idempotency";
+export * from "./security";

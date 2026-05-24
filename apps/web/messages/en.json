@@ -843,6 +843,7 @@
         "members": "Team",
         "sessions": "Sessions",
         "audit": "Audit log",
+        "flags": "Feature flags",
         "developers": "Developers",
         "danger": "Danger zone"
       },
@@ -1135,5 +1136,147 @@
       "allDone": "You're all set!"
     },
     "progressStep": "Step {current} of {total}"
+  },
+  "workspace": {
+    "switcher": {
+      "label": "Switch workspace",
+      "search": "Search workspaces…",
+      "current": "Current",
+      "other": "Other workspaces",
+      "create": "Create workspace",
+      "invite": "Invite teammate to {name}",
+      "openShortcut": "⌘⇧K"
+    },
+    "create": {
+      "title": "Create workspace",
+      "nameLabel": "Workspace name",
+      "slugLabel": "URL slug",
+      "slugHint": "Lowercase letters, numbers, hyphens",
+      "slugAvailable": "available",
+      "slugTaken": "already taken",
+      "slugChecking": "checking…",
+      "timezoneLabel": "Timezone",
+      "colorLabel": "Accent color",
+      "cancel": "Cancel",
+      "submit": "Create workspace",
+      "created": "Workspace created"
+    },
+    "delete": {
+      "title": "Delete {name}",
+      "intro": "This will:",
+      "willHide": "Hide the workspace from all members",
+      "willPause": "Pause all integrations and channels",
+      "willStop": "Stop all agents and flows",
+      "willEmail": "Send you an email with a restore link",
+      "windowExplainer": "You have {days} days to restore. After that, all data is permanently deleted.",
+      "reasonLabel": "Reason (optional)",
+      "confirmLabel": "Type the workspace slug to confirm:",
+      "expected": "Expected: {slug}",
+      "submit": "Delete workspace",
+      "deleted": "Workspace deleted. Restore within {days} days."
+    },
+    "restore": {
+      "title": "Restore {name}",
+      "deletedOn": "Deleted on {date}",
+      "restoreUntil": "You can restore until {date}",
+      "daysRemaining": "{n} days remaining",
+      "tokenLabel": "Restore token (from email)",
+      "tokenPlaceholder": "rst_…",
+      "tokenHint": "Paste the token from the deletion email. Optional if you're the original owner.",
+      "submit": "Restore workspace",
+      "submitting": "Restoring…",
+      "continueDeletion": "Continue deletion",
+      "restored": "Workspace restored",
+      "pageHeading": "Restore workspace",
+      "expiredOrInvalid": "This recovery link is expired or invalid.",
+      "expiredOrInvalidBody": "If you believe this is a mistake, contact support — the workspace may already have been restored, the 30-day window may have passed, or you may need to be signed in as the owner.",
+      "restoreFailed": "Restore failed"
+    },
+    "suspended": {
+      "title": "This workspace is paused (read-only)",
+      "body": "You can view data and export, but cannot edit or send messages.",
+      "reason": "Reason: {reason}",
+      "contactSupport": "Contact support"
+    },
+    "export": {
+      "preparing": "Preparing your export",
+      "exporting": "Exporting data…",
+      "ready": "Export ready",
+      "failed": "Export failed",
+      "availableUntil": "Available until {date}",
+      "download": "Download",
+      "retry": "Retry",
+      "dismiss": "Dismiss",
+      "progressLabel": "Export progress",
+      "title": "Workspace export"
+    },
+    "transfer": {
+      "title": "Transfer ownership",
+      "intro": "Transfer ownership of {name} to another admin. This is irreversible — you will become an admin.",
+      "selectMember": "Select new owner",
+      "selectPlaceholder": "Choose a member…",
+      "noEligible": "No other admins available. Promote a member to admin first.",
+      "passwordLabel": "Confirm your password",
+      "passwordHint": "We re-verify your password to defend against session hijack.",
+      "ackLabel": "I understand I will become an admin and need to log in again",
+      "submit": "Transfer ownership",
+      "submitting": "Transferring…",
+      "cancel": "Cancel",
+      "transferred": "Ownership transferred",
+      "passwordInvalid": "Password is incorrect",
+      "rateLimited": "Too many attempts. Try again in {minutes} min.",
+      "sameOwner": "You can't transfer to yourself.",
+      "notAMember": "The selected user is no longer a member.",
+      "openButton": "Transfer ownership",
+      "loadingMembers": "Loading members…",
+      "genericError": "Could not transfer ownership"
+    },
+    "audit": {
+      "title": "Audit log",
+      "subtitle": "Every critical change is recorded.",
+      "chainStatus": "Chain status",
+      "chainIntact": "Intact",
+      "chainBroken": "Broken",
+      "lastVerified": "Last verified {date}",
+      "loadMore": "Load more",
+      "noEvents": "No events recorded yet",
+      "reverify": "Re-verify",
+      "verifyAria": "Re-verify audit chain",
+      "entries": "entries",
+      "action": "Action",
+      "actor": "Actor",
+      "target": "Target",
+      "when": "When"
+    },
+    "featureFlags": {
+      "title": "Feature flags",
+      "subtitle": "Enable experimental features for this workspace.",
+      "search": "Search flags…",
+      "setBy": "Set by {actor} · {time}",
+      "system": "system"
+    },
+    "listPage": {
+      "title": "Your workspaces",
+      "memberCount": "{n} members",
+      "lastVisited": "last visited {time}",
+      "createNew": "Create new workspace",
+      "recentlyDeleted": "Recently deleted workspaces can still be restored:",
+      "restoreCta": "Restore"
+    },
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "editor": "Editor",
+      "viewer": "Viewer"
+    },
+    "errors": {
+      "workspaceNotFound": "Workspace not found",
+      "notAMember": "You're not a member of this workspace",
+      "suspended": "This workspace is paused",
+      "deleted": "This workspace was deleted",
+      "rateLimited": "You're doing that too often. Try again in {minutes} min.",
+      "slugInvalid": "Use lowercase letters, numbers, and hyphens (3-40 chars).",
+      "slugTaken": "That slug is already taken. Try {suggestion}."
+    }
   }
 }

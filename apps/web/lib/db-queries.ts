@@ -1,6 +1,17 @@
 import "server-only";
-import { getDb, schema } from "@orchester/db";
+import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, count, countDistinct, and, gte, lt, lte, sql, desc } from "drizzle-orm";
+
+/**
+ * Optional `tx?: WsDb` follows the project-wide pattern (see
+ * `lib/billing/quotas.ts`). Dashboard server components that already
+ * resolved a workspace context can wrap their reads in
+ * `withWorkspaceTx` and thread `tx` so every aggregate runs on the
+ * same connection that has `app.workspace_id` SET LOCAL — otherwise
+ * each parallel `Promise.all` query races for a fresh pooled
+ * connection without the GUC and FORCE RLS rejects them.
+ */
+type WsDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 
 export interface DashboardStats {
   activeAgents: number;
@@ -10,56 +21,64 @@ export interface DashboardStats {
   conversationsByDay: { date: string; count: number }[];
 }
 
-export async function getDashboardStats(workspaceId: string): Promise<DashboardStats> {
-  const db = getDb();
+export async function getDashboardStats(workspaceId: string, tx?: WsDb): Promise<DashboardStats> {
+  const db = tx ?? getDb();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const [activeAgentsResult, conversationsTodayResult, totalEmployeesResult, avgDurationResult, byDayResult] =
-    await Promise.all([
-      db
-        .select({ value: count() })
-        .from(schema.agents)
-        .where(and(eq(schema.agents.workspaceId, workspaceId), eq(schema.agents.status, "active"))),
+  const [
+    activeAgentsResult,
+    conversationsTodayResult,
+    totalEmployeesResult,
+    avgDurationResult,
+    byDayResult,
+  ] = await Promise.all([
+    db
+      .select({ value: count() })
+      .from(schema.agents)
+      .where(and(eq(schema.agents.workspaceId, workspaceId), eq(schema.agents.status, "active"))),
 
-      db
-        .select({ value: count() })
-        .from(schema.conversations)
-        .where(and(
+    db
+      .select({ value: count() })
+      .from(schema.conversations)
+      .where(
+        and(
           eq(schema.conversations.workspaceId, workspaceId),
           gte(schema.conversations.startedAt, today)
-        )),
+        )
+      ),
 
-      db
-        .select({ value: count() })
-        .from(schema.employees)
-        .where(and(
-          eq(schema.employees.workspaceId, workspaceId),
-          eq(schema.employees.active, true)
-        )),
+    db
+      .select({ value: count() })
+      .from(schema.employees)
+      .where(and(eq(schema.employees.workspaceId, workspaceId), eq(schema.employees.active, true))),
 
-      db
-        .select({ value: sql<number>`coalesce(avg(${schema.conversations.durationSeconds}), 0)` })
-        .from(schema.conversations)
-        .where(and(
+    db
+      .select({ value: sql<number>`coalesce(avg(${schema.conversations.durationSeconds}), 0)` })
+      .from(schema.conversations)
+      .where(
+        and(
           eq(schema.conversations.workspaceId, workspaceId),
           gte(schema.conversations.startedAt, thirtyDaysAgo)
-        )),
+        )
+      ),
 
-      db
-        .select({
-          date: sql<string>`date(${schema.conversations.startedAt})`,
-          count: count(),
-        })
-        .from(schema.conversations)
-        .where(and(
+    db
+      .select({
+        date: sql<string>`date(${schema.conversations.startedAt})`,
+        count: count(),
+      })
+      .from(schema.conversations)
+      .where(
+        and(
           eq(schema.conversations.workspaceId, workspaceId),
           gte(schema.conversations.startedAt, thirtyDaysAgo)
-        ))
-        .groupBy(sql`date(${schema.conversations.startedAt})`),
-    ]);
+        )
+      )
+      .groupBy(sql`date(${schema.conversations.startedAt})`),
+  ]);
 
   return {
     activeAgents: activeAgentsResult[0]?.value ?? 0,
@@ -70,8 +89,8 @@ export async function getDashboardStats(workspaceId: string): Promise<DashboardS
   };
 }
 
-export async function getTeams(workspaceId: string) {
-  const db = getDb();
+export async function getTeams(workspaceId: string, tx?: WsDb) {
+  const db = tx ?? getDb();
   const [rows, agentCounts, channelCounts] = await Promise.all([
     db
       .select({
@@ -107,8 +126,8 @@ export async function getTeams(workspaceId: string) {
   }));
 }
 
-export async function getAgents(workspaceId: string) {
-  const db = getDb();
+export async function getAgents(workspaceId: string, tx?: WsDb) {
+  const db = tx ?? getDb();
   return db
     .select({
       id: schema.agents.id,
@@ -127,8 +146,8 @@ export async function getAgents(workspaceId: string) {
     .orderBy(desc(schema.agents.createdAt));
 }
 
-export async function getTeamById(workspaceId: string, teamId: string) {
-  const db = getDb();
+export async function getTeamById(workspaceId: string, teamId: string, tx?: WsDb) {
+  const db = tx ?? getDb();
   const [team] = await db
     .select()
     .from(schema.teams)
@@ -137,8 +156,8 @@ export async function getTeamById(workspaceId: string, teamId: string) {
   return team ?? null;
 }
 
-export async function getTeamAgents(workspaceId: string, teamId: string) {
-  const db = getDb();
+export async function getTeamAgents(workspaceId: string, teamId: string, tx?: WsDb) {
+  const db = tx ?? getDb();
   return db
     .select({
       id: schema.agents.id,
@@ -154,8 +173,8 @@ export async function getTeamAgents(workspaceId: string, teamId: string) {
     .orderBy(desc(schema.agents.createdAt));
 }
 
-export async function getTeamChannels(workspaceId: string, teamId: string) {
-  const db = getDb();
+export async function getTeamChannels(workspaceId: string, teamId: string, tx?: WsDb) {
+  const db = tx ?? getDb();
   return db
     .select({
       id: schema.channels.id,
@@ -168,8 +187,8 @@ export async function getTeamChannels(workspaceId: string, teamId: string) {
     .orderBy(schema.channels.name);
 }
 
-export async function getEmployees(workspaceId: string) {
-  const db = getDb();
+export async function getEmployees(workspaceId: string, tx?: WsDb) {
+  const db = tx ?? getDb();
   return db
     .select({
       id: schema.employees.id,
@@ -202,8 +221,8 @@ export interface OrgTeam {
   agents: OrgAgent[];
 }
 
-export async function getOrgData(workspaceId: string): Promise<OrgTeam[]> {
-  const db = getDb();
+export async function getOrgData(workspaceId: string, tx?: WsDb): Promise<OrgTeam[]> {
+  const db = tx ?? getDb();
   const rows = await db
     .select({
       teamId: schema.teams.id,
@@ -248,8 +267,8 @@ export async function getOrgData(workspaceId: string): Promise<OrgTeam[]> {
   return Array.from(teamMap.values());
 }
 
-export async function getConversations(workspaceId: string, limit = 50) {
-  const db = getDb();
+export async function getConversations(workspaceId: string, limit = 50, tx?: WsDb) {
+  const db = tx ?? getDb();
   return db
     .select({
       id: schema.conversations.id,
@@ -362,8 +381,8 @@ export interface UsageStats {
   }[];
 }
 
-export async function getUsageStats(workspaceId: string): Promise<UsageStats> {
-  const db = getDb();
+export async function getUsageStats(workspaceId: string, tx?: WsDb): Promise<UsageStats> {
+  const db = tx ?? getDb();
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -376,31 +395,43 @@ export async function getUsageStats(workspaceId: string): Promise<UsageStats> {
       db
         .select({ tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)` })
         .from(schema.messages)
-        .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
-        .where(and(
-          eq(schema.conversations.workspaceId, workspaceId),
-          gte(schema.messages.createdAt, startOfMonth)
-        )),
+        .innerJoin(
+          schema.conversations,
+          eq(schema.messages.conversationId, schema.conversations.id)
+        )
+        .where(
+          and(
+            eq(schema.conversations.workspaceId, workspaceId),
+            gte(schema.messages.createdAt, startOfMonth)
+          )
+        ),
 
       // Total tokens last month (for comparison)
       db
         .select({ tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)` })
         .from(schema.messages)
-        .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
-        .where(and(
-          eq(schema.conversations.workspaceId, workspaceId),
-          gte(schema.messages.createdAt, startOfLastMonth),
-          lt(schema.messages.createdAt, startOfMonth)
-        )),
+        .innerJoin(
+          schema.conversations,
+          eq(schema.messages.conversationId, schema.conversations.id)
+        )
+        .where(
+          and(
+            eq(schema.conversations.workspaceId, workspaceId),
+            gte(schema.messages.createdAt, startOfLastMonth),
+            lt(schema.messages.createdAt, startOfMonth)
+          )
+        ),
 
       // Conversations this month
       db
         .select({ value: count() })
         .from(schema.conversations)
-        .where(and(
-          eq(schema.conversations.workspaceId, workspaceId),
-          gte(schema.conversations.startedAt, startOfMonth)
-        )),
+        .where(
+          and(
+            eq(schema.conversations.workspaceId, workspaceId),
+            gte(schema.conversations.startedAt, startOfMonth)
+          )
+        ),
 
       // Tokens by day (last 30 days)
       db
@@ -409,11 +440,16 @@ export async function getUsageStats(workspaceId: string): Promise<UsageStats> {
           tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)`,
         })
         .from(schema.messages)
-        .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
-        .where(and(
-          eq(schema.conversations.workspaceId, workspaceId),
-          gte(schema.messages.createdAt, thirtyDaysAgo)
-        ))
+        .innerJoin(
+          schema.conversations,
+          eq(schema.messages.conversationId, schema.conversations.id)
+        )
+        .where(
+          and(
+            eq(schema.conversations.workspaceId, workspaceId),
+            gte(schema.messages.createdAt, thirtyDaysAgo)
+          )
+        )
         .groupBy(sql`date(${schema.messages.createdAt})`)
         .orderBy(sql`date(${schema.messages.createdAt})`),
 
@@ -430,10 +466,12 @@ export async function getUsageStats(workspaceId: string): Promise<UsageStats> {
         .from(schema.agents)
         .innerJoin(schema.conversations, eq(schema.conversations.agentId, schema.agents.id))
         .innerJoin(schema.messages, eq(schema.messages.conversationId, schema.conversations.id))
-        .where(and(
-          eq(schema.agents.workspaceId, workspaceId),
-          gte(schema.messages.createdAt, startOfMonth)
-        ))
+        .where(
+          and(
+            eq(schema.agents.workspaceId, workspaceId),
+            gte(schema.messages.createdAt, startOfMonth)
+          )
+        )
         .groupBy(schema.agents.id, schema.agents.name, schema.agents.model)
         .orderBy(desc(sql`sum(${schema.messages.tokensUsed})`))
         .limit(10),
@@ -442,11 +480,10 @@ export async function getUsageStats(workspaceId: string): Promise<UsageStats> {
   const totalTokensMonth = Number(tokenMonthResult[0]?.tokens ?? 0);
   const totalTokensLastMonth = Number(tokenLastMonthResult[0]?.tokens ?? 0);
   const conversationsMonth = convMonthResult[0]?.value ?? 0;
-  const avgTokensPerConv = conversationsMonth > 0
-    ? Math.round(totalTokensMonth / conversationsMonth)
-    : 0;
+  const avgTokensPerConv =
+    conversationsMonth > 0 ? Math.round(totalTokensMonth / conversationsMonth) : 0;
 
-  const agentUsage = agentResult.map(r => {
+  const agentUsage = agentResult.map((r) => {
     const tokens = Number(r.tokens);
     const costPer1k = MODEL_COST_PER_1K[r.agentModel] ?? 0.008;
     return {
@@ -470,210 +507,335 @@ export async function getUsageStats(workspaceId: string): Promise<UsageStats> {
     totalCostMonth: Math.round(totalCostMonth * 100) / 100,
     conversationsMonth,
     avgTokensPerConv,
-    tokensByDay: byDayResult.map(r => ({ date: r.date, tokens: Number(r.tokens) })),
+    tokensByDay: byDayResult.map((r) => ({ date: r.date, tokens: Number(r.tokens) })),
     agentUsage,
   };
 }
 
-export async function getFullDashboardStats(workspaceId: string): Promise<FullDashboardStats> {
-  const db = getDb();
+export async function getFullDashboardStats(
+  workspaceId: string,
+  tx?: WsDb
+): Promise<FullDashboardStats> {
+  const db = tx ?? getDb();
   const now = new Date();
   // Build all boundary dates using Date.UTC so they're UTC-anchored Date objects
-  const today           = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const yesterday       = new Date(today.getTime() - 86_400_000);
-  const startOfMonth    = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const yesterday = new Date(today.getTime() - 86_400_000);
+  const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const startOfLastMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-  const endOfLastMonth  = new Date(startOfMonth.getTime() - 1);
-  const thirtyDaysAgo   = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const endOfLastMonth = new Date(startOfMonth.getTime() - 1);
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   const [
-    activeAgentsRes, totalAgentsRes, convsTodayRes, convsYesterdayRes, employeesRes,
-    avgDurRes, teamsRes, openConvsRes, escalatedRes,
-    tokMonthRes, tokLastMonthRes, convMonthRes, convLastMonthRes,
-    convsByDayRes, toksByDayRes,
-    agentUsageRes, channelDistRes, statusDistRes,
-    topEmployeesRes, teamStatsRes, hourlyRes, recentConvsRes,
+    activeAgentsRes,
+    totalAgentsRes,
+    convsTodayRes,
+    convsYesterdayRes,
+    employeesRes,
+    avgDurRes,
+    teamsRes,
+    openConvsRes,
+    escalatedRes,
+    tokMonthRes,
+    tokLastMonthRes,
+    convMonthRes,
+    convLastMonthRes,
+    convsByDayRes,
+    toksByDayRes,
+    agentUsageRes,
+    channelDistRes,
+    statusDistRes,
+    topEmployeesRes,
+    teamStatsRes,
+    hourlyRes,
+    recentConvsRes,
   ] = await Promise.all([
-
     // Active agents
-    db.select({ value: count() }).from(schema.agents)
+    db
+      .select({ value: count() })
+      .from(schema.agents)
       .where(and(eq(schema.agents.workspaceId, workspaceId), eq(schema.agents.status, "active"))),
 
     // Total agents
-    db.select({ value: count() }).from(schema.agents)
+    db
+      .select({ value: count() })
+      .from(schema.agents)
       .where(eq(schema.agents.workspaceId, workspaceId)),
 
     // Conversations today
-    db.select({ value: count() }).from(schema.conversations)
-      .where(and(eq(schema.conversations.workspaceId, workspaceId), gte(schema.conversations.startedAt, today))),
+    db
+      .select({ value: count() })
+      .from(schema.conversations)
+      .where(
+        and(
+          eq(schema.conversations.workspaceId, workspaceId),
+          gte(schema.conversations.startedAt, today)
+        )
+      ),
 
     // Conversations yesterday
-    db.select({ value: count() }).from(schema.conversations)
-      .where(and(
-        eq(schema.conversations.workspaceId, workspaceId),
-        gte(schema.conversations.startedAt, yesterday),
-        lt(schema.conversations.startedAt, today),
-      )),
+    db
+      .select({ value: count() })
+      .from(schema.conversations)
+      .where(
+        and(
+          eq(schema.conversations.workspaceId, workspaceId),
+          gte(schema.conversations.startedAt, yesterday),
+          lt(schema.conversations.startedAt, today)
+        )
+      ),
 
     // Total employees
-    db.select({ value: count() }).from(schema.employees)
+    db
+      .select({ value: count() })
+      .from(schema.employees)
       .where(and(eq(schema.employees.workspaceId, workspaceId), eq(schema.employees.active, true))),
 
     // Average duration (30d)
-    db.select({ value: sql<number>`coalesce(avg(${schema.conversations.durationSeconds}), 0)` })
+    db
+      .select({ value: sql<number>`coalesce(avg(${schema.conversations.durationSeconds}), 0)` })
       .from(schema.conversations)
-      .where(and(eq(schema.conversations.workspaceId, workspaceId), gte(schema.conversations.startedAt, thirtyDaysAgo))),
+      .where(
+        and(
+          eq(schema.conversations.workspaceId, workspaceId),
+          gte(schema.conversations.startedAt, thirtyDaysAgo)
+        )
+      ),
 
     // Teams count
-    db.select({ value: count() }).from(schema.teams)
+    db
+      .select({ value: count() })
+      .from(schema.teams)
       .where(eq(schema.teams.workspaceId, workspaceId)),
 
     // Open conversations
-    db.select({ value: count() }).from(schema.conversations)
-      .where(and(eq(schema.conversations.workspaceId, workspaceId), eq(schema.conversations.status, "open"))),
+    db
+      .select({ value: count() })
+      .from(schema.conversations)
+      .where(
+        and(
+          eq(schema.conversations.workspaceId, workspaceId),
+          eq(schema.conversations.status, "open")
+        )
+      ),
 
     // Escalated this month
-    db.select({ value: count() }).from(schema.conversations)
-      .where(and(
-        eq(schema.conversations.workspaceId, workspaceId),
-        eq(schema.conversations.status, "escalated"),
-        gte(schema.conversations.startedAt, startOfMonth),
-      )),
+    db
+      .select({ value: count() })
+      .from(schema.conversations)
+      .where(
+        and(
+          eq(schema.conversations.workspaceId, workspaceId),
+          eq(schema.conversations.status, "escalated"),
+          gte(schema.conversations.startedAt, startOfMonth)
+        )
+      ),
 
     // Tokens this month
-    db.select({ tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)` })
+    db
+      .select({ tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)` })
       .from(schema.messages)
       .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
-      .where(and(eq(schema.conversations.workspaceId, workspaceId), gte(schema.messages.createdAt, startOfMonth))),
+      .where(
+        and(
+          eq(schema.conversations.workspaceId, workspaceId),
+          gte(schema.messages.createdAt, startOfMonth)
+        )
+      ),
 
     // Tokens last month
-    db.select({ tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)` })
+    db
+      .select({ tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)` })
       .from(schema.messages)
       .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
-      .where(and(
-        eq(schema.conversations.workspaceId, workspaceId),
-        gte(schema.messages.createdAt, startOfLastMonth),
-        lte(schema.messages.createdAt, endOfLastMonth),
-      )),
+      .where(
+        and(
+          eq(schema.conversations.workspaceId, workspaceId),
+          gte(schema.messages.createdAt, startOfLastMonth),
+          lte(schema.messages.createdAt, endOfLastMonth)
+        )
+      ),
 
     // Conversations this month
-    db.select({ value: count() }).from(schema.conversations)
-      .where(and(eq(schema.conversations.workspaceId, workspaceId), gte(schema.conversations.startedAt, startOfMonth))),
+    db
+      .select({ value: count() })
+      .from(schema.conversations)
+      .where(
+        and(
+          eq(schema.conversations.workspaceId, workspaceId),
+          gte(schema.conversations.startedAt, startOfMonth)
+        )
+      ),
 
     // Conversations last month
-    db.select({ value: count() }).from(schema.conversations)
-      .where(and(
-        eq(schema.conversations.workspaceId, workspaceId),
-        gte(schema.conversations.startedAt, startOfLastMonth),
-        lte(schema.conversations.startedAt, endOfLastMonth),
-      )),
+    db
+      .select({ value: count() })
+      .from(schema.conversations)
+      .where(
+        and(
+          eq(schema.conversations.workspaceId, workspaceId),
+          gte(schema.conversations.startedAt, startOfLastMonth),
+          lte(schema.conversations.startedAt, endOfLastMonth)
+        )
+      ),
 
     // Conversations by day (30d)
-    db.select({ date: sql<string>`date(${schema.conversations.startedAt})`, count: count() })
+    db
+      .select({ date: sql<string>`date(${schema.conversations.startedAt})`, count: count() })
       .from(schema.conversations)
-      .where(and(eq(schema.conversations.workspaceId, workspaceId), gte(schema.conversations.startedAt, thirtyDaysAgo)))
+      .where(
+        and(
+          eq(schema.conversations.workspaceId, workspaceId),
+          gte(schema.conversations.startedAt, thirtyDaysAgo)
+        )
+      )
       .groupBy(sql`date(${schema.conversations.startedAt})`),
 
     // Tokens by day (30d)
-    db.select({
-      date: sql<string>`date(${schema.messages.createdAt})`,
-      tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)`,
-    })
+    db
+      .select({
+        date: sql<string>`date(${schema.messages.createdAt})`,
+        tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)`,
+      })
       .from(schema.messages)
       .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
-      .where(and(eq(schema.conversations.workspaceId, workspaceId), gte(schema.messages.createdAt, thirtyDaysAgo)))
+      .where(
+        and(
+          eq(schema.conversations.workspaceId, workspaceId),
+          gte(schema.messages.createdAt, thirtyDaysAgo)
+        )
+      )
       .groupBy(sql`date(${schema.messages.createdAt})`)
       .orderBy(sql`date(${schema.messages.createdAt})`),
 
     // Agent usage (current month, top 12) — alineado con totalTokensMonth/
     // totalCostMonth para que el donut "mes actual" no muestre datos all-time.
-    db.select({
-      agentId: schema.agents.id,
-      agentName: schema.agents.name,
-      agentModel: schema.agents.model,
-      agentStatus: schema.agents.status,
-      conversations: countDistinct(schema.conversations.id),
-      tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)`,
-    })
+    db
+      .select({
+        agentId: schema.agents.id,
+        agentName: schema.agents.name,
+        agentModel: schema.agents.model,
+        agentStatus: schema.agents.status,
+        conversations: countDistinct(schema.conversations.id),
+        tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)`,
+      })
       .from(schema.agents)
       .innerJoin(schema.conversations, eq(schema.conversations.agentId, schema.agents.id))
       .innerJoin(schema.messages, eq(schema.messages.conversationId, schema.conversations.id))
-      .where(and(
-        eq(schema.agents.workspaceId, workspaceId),
-        gte(schema.messages.createdAt, startOfMonth)
-      ))
+      .where(
+        and(
+          eq(schema.agents.workspaceId, workspaceId),
+          gte(schema.messages.createdAt, startOfMonth)
+        )
+      )
       .groupBy(schema.agents.id, schema.agents.name, schema.agents.model, schema.agents.status)
       .orderBy(desc(sql`sum(${schema.messages.tokensUsed})`))
       .limit(12),
 
     // Channel distribution (30d)
-    db.select({
-      type: sql<string>`coalesce(${schema.channels.type}::text, 'unknown')`,
-      count: count(),
-    })
+    db
+      .select({
+        type: sql<string>`coalesce(${schema.channels.type}::text, 'unknown')`,
+        count: count(),
+      })
       .from(schema.conversations)
       .leftJoin(schema.channels, eq(schema.conversations.channelId, schema.channels.id))
-      .where(and(eq(schema.conversations.workspaceId, workspaceId), gte(schema.conversations.startedAt, thirtyDaysAgo)))
+      .where(
+        and(
+          eq(schema.conversations.workspaceId, workspaceId),
+          gte(schema.conversations.startedAt, thirtyDaysAgo)
+        )
+      )
       .groupBy(sql`coalesce(${schema.channels.type}::text, 'unknown')`),
 
     // Status distribution (30d)
-    db.select({ status: schema.conversations.status, count: count() })
+    db
+      .select({ status: schema.conversations.status, count: count() })
       .from(schema.conversations)
-      .where(and(eq(schema.conversations.workspaceId, workspaceId), gte(schema.conversations.startedAt, thirtyDaysAgo)))
+      .where(
+        and(
+          eq(schema.conversations.workspaceId, workspaceId),
+          gte(schema.conversations.startedAt, thirtyDaysAgo)
+        )
+      )
       .groupBy(schema.conversations.status),
 
     // Top employees by conversation count (30d)
-    db.select({
-      id: schema.employees.id,
-      name: schema.employees.name,
-      email: schema.employees.email,
-      area: schema.employees.area,
-      conversations: count(),
-    })
+    db
+      .select({
+        id: schema.employees.id,
+        name: schema.employees.name,
+        email: schema.employees.email,
+        area: schema.employees.area,
+        conversations: count(),
+      })
       .from(schema.conversations)
       .innerJoin(schema.employees, eq(schema.conversations.employeeId, schema.employees.id))
-      .where(and(eq(schema.conversations.workspaceId, workspaceId), gte(schema.conversations.startedAt, thirtyDaysAgo)))
-      .groupBy(schema.employees.id, schema.employees.name, schema.employees.email, schema.employees.area)
+      .where(
+        and(
+          eq(schema.conversations.workspaceId, workspaceId),
+          gte(schema.conversations.startedAt, thirtyDaysAgo)
+        )
+      )
+      .groupBy(
+        schema.employees.id,
+        schema.employees.name,
+        schema.employees.email,
+        schema.employees.area
+      )
       .orderBy(desc(count()))
       .limit(8),
 
     // Team stats (30d)
-    db.select({
-      teamId: schema.teams.id,
-      teamName: schema.teams.name,
-      teamColor: schema.teams.avatarColor,
-      conversations: countDistinct(schema.conversations.id),
-      tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)`,
-    })
+    db
+      .select({
+        teamId: schema.teams.id,
+        teamName: schema.teams.name,
+        teamColor: schema.teams.avatarColor,
+        conversations: countDistinct(schema.conversations.id),
+        tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)`,
+      })
       .from(schema.teams)
       .innerJoin(schema.agents, eq(schema.agents.teamId, schema.teams.id))
       .innerJoin(schema.conversations, eq(schema.conversations.agentId, schema.agents.id))
       .innerJoin(schema.messages, eq(schema.messages.conversationId, schema.conversations.id))
-      .where(and(eq(schema.teams.workspaceId, workspaceId), gte(schema.conversations.startedAt, thirtyDaysAgo)))
+      .where(
+        and(
+          eq(schema.teams.workspaceId, workspaceId),
+          gte(schema.conversations.startedAt, thirtyDaysAgo)
+        )
+      )
       .groupBy(schema.teams.id, schema.teams.name, schema.teams.avatarColor)
       .orderBy(desc(countDistinct(schema.conversations.id))),
 
     // Hourly distribution (last 30d) – hour of day 0-23
-    db.select({
-      hour: sql<number>`extract(hour from ${schema.conversations.startedAt})::int`,
-      count: count(),
-    })
+    db
+      .select({
+        hour: sql<number>`extract(hour from ${schema.conversations.startedAt})::int`,
+        count: count(),
+      })
       .from(schema.conversations)
-      .where(and(eq(schema.conversations.workspaceId, workspaceId), gte(schema.conversations.startedAt, thirtyDaysAgo)))
+      .where(
+        and(
+          eq(schema.conversations.workspaceId, workspaceId),
+          gte(schema.conversations.startedAt, thirtyDaysAgo)
+        )
+      )
       .groupBy(sql`extract(hour from ${schema.conversations.startedAt})`)
       .orderBy(sql`extract(hour from ${schema.conversations.startedAt})`),
 
     // Recent conversations (last 10)
-    db.select({
-      id: schema.conversations.id,
-      status: schema.conversations.status,
-      messageCount: schema.conversations.messageCount,
-      durationSeconds: schema.conversations.durationSeconds,
-      startedAt: schema.conversations.startedAt,
-      employeeName: schema.employees.name,
-      agentName: schema.agents.name,
-      channelType: schema.channels.type,
-    })
+    db
+      .select({
+        id: schema.conversations.id,
+        status: schema.conversations.status,
+        messageCount: schema.conversations.messageCount,
+        durationSeconds: schema.conversations.durationSeconds,
+        startedAt: schema.conversations.startedAt,
+        employeeName: schema.employees.name,
+        agentName: schema.agents.name,
+        channelType: schema.channels.type,
+      })
       .from(schema.conversations)
       .leftJoin(schema.employees, eq(schema.conversations.employeeId, schema.employees.id))
       .leftJoin(schema.agents, eq(schema.conversations.agentId, schema.agents.id))
@@ -684,10 +846,10 @@ export async function getFullDashboardStats(workspaceId: string): Promise<FullDa
   ]);
 
   // Merge activity series
-  const convMap = new Map(convsByDayRes.map(r => [r.date, r.count]));
-  const tokMap = new Map(toksByDayRes.map(r => [r.date, Number(r.tokens)]));
+  const convMap = new Map(convsByDayRes.map((r) => [r.date, r.count]));
+  const tokMap = new Map(toksByDayRes.map((r) => [r.date, Number(r.tokens)]));
   const allDates = Array.from(new Set([...convMap.keys(), ...tokMap.keys()])).sort();
-  const activityByDay = allDates.map(date => ({
+  const activityByDay = allDates.map((date) => ({
     date,
     conversations: convMap.get(date) ?? 0,
     tokens: tokMap.get(date) ?? 0,
@@ -698,7 +860,7 @@ export async function getFullDashboardStats(workspaceId: string): Promise<FullDa
   const conversationsMonth = convMonthRes[0]?.value ?? 0;
   const conversationsLastMonth = convLastMonthRes[0]?.value ?? 0;
 
-  const agentUsage = agentUsageRes.map(r => {
+  const agentUsage = agentUsageRes.map((r) => {
     const tokens = Number(r.tokens);
     const costPer1k = MODEL_COST_PER_1K[r.agentModel] ?? 0.008;
     const convs = r.conversations;
@@ -724,7 +886,7 @@ export async function getFullDashboardStats(workspaceId: string): Promise<FullDa
     return Math.round((lastMonthToks / 1000) * 0.008 * 100) / 100;
   })();
 
-  const teamStats = teamStatsRes.map(r => {
+  const teamStats = teamStatsRes.map((r) => {
     const tokens = Number(r.tokens);
     const costPer1k = 0.008;
     return {
@@ -738,7 +900,7 @@ export async function getFullDashboardStats(workspaceId: string): Promise<FullDa
   });
 
   // Fill hourly array: 0-23 with zeros for missing hours
-  const hourMap = new Map(hourlyRes.map(r => [r.hour, r.count]));
+  const hourMap = new Map(hourlyRes.map((r) => [r.hour, r.count]));
   const hourlyDist = Array.from({ length: 24 }, (_, h) => ({
     hour: h,
     count: hourMap.get(h) ?? 0,
@@ -760,13 +922,17 @@ export async function getFullDashboardStats(workspaceId: string): Promise<FullDa
     totalCostLastMonth,
     conversationsMonth,
     conversationsLastMonth,
-    avgTokensPerConv: conversationsMonth > 0 ? Math.round(totalTokensMonth / conversationsMonth) : 0,
+    avgTokensPerConv:
+      conversationsMonth > 0 ? Math.round(totalTokensMonth / conversationsMonth) : 0,
     activityByDay,
     agentUsage,
-    channelDistribution: channelDistRes.map(r => ({ type: r.type ?? "direct", count: r.count })),
-    statusDistribution: statusDistRes.map(r => ({ status: r.status ?? "unknown", count: r.count })),
+    channelDistribution: channelDistRes.map((r) => ({ type: r.type ?? "direct", count: r.count })),
+    statusDistribution: statusDistRes.map((r) => ({
+      status: r.status ?? "unknown",
+      count: r.count,
+    })),
     teamStats,
-    topEmployees: topEmployeesRes.map(r => ({
+    topEmployees: topEmployeesRes.map((r) => ({
       id: r.id,
       name: r.name,
       email: r.email,
@@ -774,7 +940,7 @@ export async function getFullDashboardStats(workspaceId: string): Promise<FullDa
       conversations: r.conversations,
     })),
     hourlyDist,
-    recentConversations: recentConvsRes.map(r => ({
+    recentConversations: recentConvsRes.map((r) => ({
       id: r.id,
       employeeName: r.employeeName ?? null,
       agentName: r.agentName ?? null,
