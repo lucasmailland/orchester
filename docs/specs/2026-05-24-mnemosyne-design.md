@@ -1266,6 +1266,79 @@ export interface CallParams {
 }
 ```
 
+### 25.4 Recommended Provider Catalog (workspace UI guidance)
+
+When a workspace owner first configures Mnemosyne, the UI shows recommended providers with live cost estimates calculated from `costPer1MTokens()`. **Defaults bias toward cheap-and-good models** so customers don't accidentally pick expensive defaults.
+
+**Small model (extraction + judging)** — REQUIRED:
+
+| Recommendation         | Provider             | Est. cost/mo | Strengths                        |
+| ---------------------- | -------------------- | ------------ | -------------------------------- |
+| ⭐ Most cost-effective | `gemini-flash-2.0`   | $0.82        | Cheap, fast, reliable JSON       |
+| 🚀 Fastest             | `groq/llama-3.3-70b` | $1.11        | 700 tok/s, free tier available   |
+| 💎 Most reliable       | `gpt-4o-mini`        | $1.58        | Best JSON mode, mature ecosystem |
+| 🧠 Best reasoning      | `deepseek-v3`        | $2.79        | Strong for the price             |
+| 🇪🇺 EU-resident         | `mistral-small-2410` | $1.72        | EU data residency                |
+| 💰 Premium             | `claude-haiku-4-5`   | $12          | Best instruction-following       |
+
+Plus: any other provider via Orchester's 88-adapter catalog (OpenRouter, Cohere, Together, Fireworks, Anyscale, etc.) or custom OpenAI-compatible endpoint.
+
+**Large model (optional retry escalation)**: defaults to "None — skip escalation" for cost. Customer can pick `gemini-pro-2.5`, `gpt-4o`, `claude-sonnet-4-6`, or any other.
+
+**Embedding model** — REQUIRED:
+
+| Recommendation          | Provider                        | Est. cost/mo            |
+| ----------------------- | ------------------------------- | ----------------------- |
+| ⭐ Cheapest viable      | `openai/text-embedding-3-small` | $0.05                   |
+| 🌍 Free tier            | `jina-embeddings-v3`            | $0 (10M tokens/mo free) |
+| 🎯 Best quality cheap   | `voyage-3-lite`                 | $0.04                   |
+| 💪 Best quality premium | `voyage-3` / `cohere-embed-v3`  | $0.20                   |
+
+**Rerank model** — OPTIONAL (skipped by default for cost). Customer enables only if recall quality demands it.
+
+### 25.5 Demo mode + Free tier auto-detection
+
+If workspace owner has configured providers with public free tiers (Groq free, Jina free, Gemini free tier with daily quota), Mnemosyne automatically routes operations through them when within quota. Display banner: _"Running on free tier — $0 cost. Upgrade providers to scale."_
+
+Free tiers as of May 2026:
+
+- **Groq**: 14400 requests/day on llama-3.3-70b
+- **Gemini**: 1500 requests/day on flash-2.0 (free tier API key)
+- **Jina embeddings**: 10M tokens/month
+- **Together AI**: $1 credit on signup
+- **Cohere**: 1000 calls/month trial
+
+A demo workspace can run entirely on free tiers up to thresholds. Mnemosyne tracks per-provider quotas + alerts when crossing 80%.
+
+### 25.6 BYO cost calculator (live in Inspector UI)
+
+The Studio Memory Inspector (§31) renders a live calculator:
+
+```
+┌─ Current month estimate ────────────────────────────┐
+│ Workspace: acme-prod                                 │
+│ Provider stack: gemini-flash-2.0 + openai-3-small    │
+│                                                       │
+│ Conversations this month:    1,247                   │
+│ Extractions triggered:         284 (77% skipped)    │
+│ Recalls served:              4,512                   │
+│   ↳ from cache (free):       2,189 (49%)            │
+│                                                       │
+│ Spend breakdown:                                     │
+│   Extraction LLM:      $0.66                         │
+│   Recall (no LLM):     $0.00                         │
+│   Embedding:           $0.04                         │
+│   ─────────────────────                              │
+│   Total month-to-date: $0.70                         │
+│   Projected month-end: $0.95                         │
+│                                                       │
+│ vs Mem0 OSS equivalent: $3.80 (75% savings)         │
+│ vs Engram equivalent:    $4.20                       │
+└──────────────────────────────────────────────────────┘
+```
+
+Updated in real-time. Per-workspace + per-namespace + organization-rollup views.
+
 ---
 
 ## 26. Cost Engineering (Tier 1) — 95% reduction, fully agnostic
@@ -1335,14 +1408,28 @@ Extraction pipeline:
 2. If "no" → skip. If "yes" → small model does extraction.
 3. Schema validation. On failure → escalate to large model retry.
 
-### 26.4 Local-first defaults (A4) — $0 in pure self-host
+### 26.4 BYO cloud API as default + Optional local inference (advanced)
 
-Install script provisions:
+**Critical operational note**: running local LLMs (Ollama 3B+) on cloud-hosted Orchester would require dedicated GPU per instance ($350-$2000/mo per server). That's operator-borne cost that violates §25 Charter rule #2 (zero platform-level third-party cost). **Local inference is NOT the default. It is an opt-in advanced configuration.**
 
-- Ollama with `nomic-embed-text` (embed) + `llama3.2-3b` (small) + `llama3.3-70b` (large) pre-pulled
-- `fastembed-rs` binary with cross-encoder model for rerank (10MB, CPU-fine)
+**DEFAULT (both cloud-hosted and self-host)**: Workspace MUST configure at minimum `mnemo.small_model` with a BYO API key. UI shows recommended models with live cost estimate (see §25.4).
 
-Self-host workspaces default to these. Customer overrides at workspace level via Orchester provider catalog. **Pure self-host = zero AI cost.**
+**Recommended cheap defaults (May 2026 pricing, per active workspace ~30k turns/mo)**:
+
+- `gemini-flash-2.0` → **$0.82/mo** (cheapest viable) ⭐
+- `groq/llama-3.3-70b` → $1.11/mo (fastest: 700 tok/s)
+- `gpt-4o-mini` → $1.58/mo (most reliable JSON)
+- `deepseek-v3` → $2.79/mo (capable for the price)
+- `claude-haiku-4-5` → $12/mo (premium)
+
+**OPT-IN LOCAL (advanced operators only)**:
+
+- Operator sets `MNEMO_LOCAL_INFERENCE_ENABLED=true` env flag at instance level
+- Customer configures workspace models pointing at `ollama/...` or `whisper.cpp`
+- **Customer responsible for compute** — their own host, their own GPU
+- Documented use cases: homelab self-host, on-prem zero-trust requirements, air-gapped deployments, customers with idle GPU capacity
+
+**Never auto-enabled. Never assumed available on cloud-hosted Orchester.** The install script offers Ollama setup as an OPTIONAL step with explicit warning about compute requirements.
 
 ### 26.5 Batched extraction window (A5) — 30% extra
 
@@ -1380,18 +1467,29 @@ Asymmetric write/read:
 
 Most memories never get hit → never embedded → free.
 
-### 26.9 Cost projection (provider-agnostic, 30k turns/month workspace)
+### 26.9 Cost projection — real BYO providers (30k turns/month active workspace)
 
-| Configuration                           | Cost/mo |
-| --------------------------------------- | ------- |
-| Spec baseline                           | $33     |
-| + A1 pre-filter                         | $6.60   |
-| + A7 hierarchical cache                 | $4.40   |
-| + A3 speculative tier                   | $2.80   |
-| + A2 opportunistic caching              | $1.50   |
-| **+ A4 local-first (Ollama self-host)** | **$0**  |
+After A1+A3+A7 optimizations (80% pre-filter + 50% speculative + 50% cache hit = ~3000 effective LLM extractions/mo, 12k effective recalls/mo):
 
-→ **95% reduction. Zero provider lock-in. Zero platform-level third-party cost.**
+| Workspace BYO configuration             | Extraction | Recall | Embed | **Total/mo** |
+| --------------------------------------- | ---------- | ------ | ----- | ------------ |
+| **gemini-flash-2.0** + openai-3-small   | $0.77      | $0.00  | $0.05 | **$0.82** ⭐ |
+| **groq/llama-3.3-70b** + openai-3-small | $1.06      | $0.00  | $0.05 | **$1.11**    |
+| **gpt-4o-mini** + openai-3-small        | $1.53      | $0.00  | $0.05 | **$1.58**    |
+| **mistral-small** + voyage-3-lite       | $1.68      | $0.00  | $0.04 | **$1.72**    |
+| **deepseek-v3** + jina-free-tier        | $2.79      | $0.00  | $0.00 | **$2.79**    |
+| **claude-haiku-4-5** + openai-3-small   | $12.00     | $0.00  | $0.05 | **$12.05**   |
+| **Self-host Ollama** (customer's GPU)   | $0         | $0     | $0    | **$0\***     |
+
+\* Customer's own hardware/cloud GPU compute. Platform operator pays $0.
+
+**Critical: platform operator pays $0 for AI regardless of choice.** Customer's API key handles all usage.
+
+Comparison vs OSS incumbents:
+
+- **Mem0 OSS**: same provider choices, no pre-filter (5x calls), no hierarchical cache, no speculative tier → ~$4-8/mo equivalent
+- **Engram**: no auto-extraction, agent-curated, but every turn includes save tool call → 2-3x more agent input tokens → ~$5-15/mo equivalent
+- **Mnemosyne**: lowest TCO in OSS via stack of agnostic optimizations
 
 ---
 
@@ -1730,13 +1828,370 @@ Same input + same state + same prompt versions → bit-identical output. Critica
 | **v1.5 — Bitemporal + Extraction V3 + Determinism + Benchmarks**            | 2 wk     | + Deterministic replay §34 + Benchmark CI scaffold §33                                                                             |
 | **v2.0 — Entities + KG + Inference Engine + Workflow Memory**               | 4 wk     | + Inference engine §28 + Workflow memory §29.1                                                                                     |
 | **v2.5 — Episodes + Memory Protocol + Skill Memory + KB Linkage**           | 2 wk     | + Skill memory §29.2 + KB linkage §30.1                                                                                            |
-| **v3.0 — Introspection + Feedback + Sleep-Time + Multi-modal + Namespaces** | 5 wk     | + Multi-modal §27 + Memory namespaces §30.2 + Local-first install scripts §26.4                                                    |
+| **v3.0 — Introspection + Feedback + Sleep-Time + Multi-modal + Namespaces** | 5 wk     | + Multi-modal §27 + Memory namespaces §30.2 + Provider failover §36.4                                                              |
 | **v3.5 — Federation + Contracts + Inspector v1**                            | 3 wk     | + Inspector UI v1 (edit/audit/forget) + Lazy embeddings §26.8                                                                      |
 | **v4.0 — Observability + Reference Apps + Public Benchmark**                | 3 wk     | + Public benchmark dashboard §33.3 + 3 reference apps                                                                              |
 
 **Total: ~25 weeks** (was 19 pre-Tier 1).
 **v1.0 ships in 4 weeks** with cost engineering integrated → already surpasses every OSS competitor on cost AND quality.
 
+### Enterprise tier additions (deferred phases)
+
+| Phase                                             | Duration | Scope                                                                                                                                    |
+| ------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **v3.x — Local inference opt-in**                 | 1 wk     | Optional Ollama/whisper.cpp installation docs, Docker compose recipes, GPU sizing guide. NOT default in any phase.                       |
+| **v4.5 — Enterprise Cost Governance**             | 3 wk     | §36 multi-level ceilings + spend forecasting + per-feature attribution + provider failover + free-tier auto-arbitrage + showback exports |
+| **v5.0 — Multi-region + Sharding**                | 4 wk     | §37 read replicas, pgvector sharding, capacity planning matrix, data residency, multi-region active-passive                              |
+| **v5.5 — BYO Credentials Vault + Zero-Knowledge** | 2 wk     | §38 AES-256-GCM + CMEK + rotation flow + multi-key + zero-knowledge mode + audit chain                                                   |
+
+**Total enterprise edition: ~35 weeks** for full vision including governance/scale/vault tier.
+
 ---
 
-**End of design v2.** Provider-agnostic. Zero platform-level third-party costs. Ready for review + writing-plans skill invocation.
+## 36. Enterprise Cost Governance
+
+Production-grade cost controls. Every Mnemosyne operation passes through a multi-level ceiling system + observability + attribution layer.
+
+### 36.1 Multi-level cost ceilings
+
+Five enforcement levels, hierarchically:
+
+```ts
+interface CostCeilings {
+  per_call_usd: number; // single LLM call max
+  per_conversation_usd: number; // sum over conversation lifetime
+  per_workspace_per_hour_usd: number;
+  per_workspace_per_day_usd: number;
+  per_workspace_per_month_usd: number;
+  organization_total_per_day_usd?: number; // org-wide if multi-workspace
+}
+```
+
+Each ceiling has 3 modes:
+
+- **WARN** — emit metric + UI notification at threshold
+- **THROTTLE** — slow down requests via queue backpressure
+- **HARD_FAIL** — reject with `cost_ceiling_exceeded` error + audit log
+
+Default policies for new workspaces:
+
+- 50% threshold → WARN (email + UI badge)
+- 80% → THROTTLE (queue depth +50%, lower priority)
+- 100% → HARD_FAIL (no more LLM ops until reset)
+
+### 36.2 Spend forecasting
+
+Daily cron projects month-end spend based on rolling-7-day average + growth rate. Stored in `mnemo_spend_forecast` table:
+
+```sql
+CREATE TABLE mnemo_spend_forecast (
+  id text PRIMARY KEY,
+  workspace_id text NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+  forecast_date date NOT NULL,
+  actual_mtd_usd numeric(10,4) NOT NULL,
+  projected_month_end_usd numeric(10,4) NOT NULL,
+  confidence_band_low_usd numeric(10,4),
+  confidence_band_high_usd numeric(10,4),
+  growth_rate_7d real,
+  trigger_alerts text[],  -- ['50pct','80pct','100pct','anomaly']
+  created_at timestamptz DEFAULT now()
+);
+```
+
+Surfaced in UI banner: _"Projected month-end: $4.20 — 30% over budget. [Review]"_
+
+Anomaly detection (variance > 3σ from rolling baseline) emits `anomaly_alert` action.
+
+### 36.3 Per-feature cost attribution
+
+Every `mnemo_usage_event` (extends existing `usage_event` schema) carries:
+
+```ts
+{
+  feature: 'extraction' | 'recall' | 'inference' | 'judge' | 'compare' | 'compaction' | 'decay' | 'sleep_time',
+  workspace_id, namespace_id?, conversation_id?, user_id?,
+  model, provider, cost_usd,
+  tokens_in, tokens_out,
+  cache_hit: boolean,
+  duration_ms,
+  request_id  -- correlates with OTel trace
+}
+```
+
+Dashboard splits cost by feature:
+
+```
+This month: $4.20 total
+├─ Extraction:    $2.80 (66%)  — 12 conversations
+├─ Recall:        $0.00 (0%)   — 412 hits, 60% cached
+├─ Inference:     $0.85 (20%)  — 89 queries
+├─ Judge:         $0.55 (13%)  — 22 verdicts
+├─ Sleep-time:    $0.00 (0%)   — ran nightly
+└─ Other:         $0.00
+```
+
+### 36.4 Provider failover + circuit breaker
+
+Per-provider circuit breaker (Hystrix-style):
+
+- 5 consecutive failures in 60s → OPEN circuit (rejects calls fast)
+- 30s timeout → HALF_OPEN (one probe allowed)
+- Probe success → CLOSED, normal traffic
+- Probe fail → back to OPEN, exponential timeout (max 5 min)
+
+Workspace can configure failover chain:
+
+```ts
+mnemo.failover_chain: [
+  { model: "gemini-flash-2.0", weight: 1.0 },        // primary
+  { model: "groq/llama-3.3-70b", weight: 1.0 },      // fallback 1
+  { model: "openrouter/auto", weight: 0.5 },         // last resort
+]
+```
+
+On primary OPEN → automatic failover to next in chain. Audit logged. Reverts when primary returns to CLOSED.
+
+### 36.5 BYO key vault + rotation
+
+See §38 for full spec. Per-workspace API keys stored encrypted AES-256-GCM + optional CMEK (BYO via AWS KMS / GCP KMS / Vault). Rotation flow: customer adds new key as `secondary`, system probes with secondary for 24h, on success promotes to `primary` and demotes old to `revoked` with grace window. Full audit trail.
+
+### 36.6 Showback / chargeback export
+
+CSV/JSON export of monthly costs for accounting systems:
+
+```
+/api/workspaces/:slug/mnemo/cost/export?format=csv&month=2026-05
+```
+
+Fields: workspace_id, namespace_id, feature, model, provider, requests, tokens_in, tokens_out, cost_usd, cache_hits, percentile_latencies.
+
+Integration adapters for: QuickBooks, Xero, NetSuite, SAP, custom webhook.
+
+### 36.7 Free tier auto-arbitrage
+
+If multiple providers configured with free tiers, Mnemosyne routes operations through whichever still has quota. State tracked in `mnemo_provider_quota`:
+
+```sql
+CREATE TABLE mnemo_provider_quota (
+  workspace_id text NOT NULL,
+  provider_id text NOT NULL,
+  daily_used_requests int DEFAULT 0,
+  monthly_used_tokens bigint DEFAULT 0,
+  daily_limit_requests int,
+  monthly_limit_tokens bigint,
+  last_reset_at timestamptz,
+  PRIMARY KEY (workspace_id, provider_id)
+);
+```
+
+Resets at provider's documented reset interval. UI shows "$0 spent today — Groq free tier (3,201/14,400 requests used)."
+
+---
+
+## 37. Scale + Multi-Region Operations
+
+For deployments handling 10k+ workspaces or 100M+ memories.
+
+### 37.1 Pgvector sharding strategy
+
+At 10M+ memories per workspace, HNSW index size becomes problematic (RAM-heavy). Mnemosyne supports two scale-out modes:
+
+**Vertical scale (default, recommended up to 5M memories/workspace)**:
+
+- Single HNSW index per primitive table
+- Tuning: `m=16, ef_construction=64` (current), bumpable to `m=32` for >1M memories
+- Index rebuilt nightly via `REINDEX CONCURRENTLY`
+
+**Horizontal partition (for 5M+ memories/workspace)**:
+
+- Postgres declarative partitioning on `mnemo_fact` by `workspace_id` hash
+- Partition count: 8 (default), configurable to 16 or 32 for largest workspaces
+- HNSW index per partition (smaller, faster builds)
+- Migration script: `mnemo migrate --partition-mode=hash --partitions=8`
+
+Documented at deployment time. Automatic recommendation based on `mnemo_health.memory_count` thresholds.
+
+### 37.2 Read replicas for recall
+
+Recall is read-heavy (50:1 ratio). Mnemosyne supports Postgres read replicas:
+
+```ts
+// packages/mnemosyne/src/config/replicas.ts
+mnemo.read_replicas: [
+  { url: "postgres://replica1.region-a/...", region: "us-east" },
+  { url: "postgres://replica2.region-b/...", region: "eu-west" },
+]
+mnemo.replica_lag_tolerance_ms: 500  // queries with `requireFresh: true` route to primary
+```
+
+Recall queries route to nearest replica (by region). Writes always go to primary. Mutations propagate via Postgres streaming replication. Replica lag visible in observability dashboard.
+
+### 37.3 Connection pool sizing
+
+Auto-tuned based on workspace count. Default formula:
+
+```
+pool_size = max(20, min(200, workspace_count / 50))
+```
+
+- 1k workspaces → 20 connections
+- 10k workspaces → 200 connections
+- 100k workspaces → 200 connections (capped, multi-region required)
+
+Per-region pools. Connection lease tracking per request for noisy-neighbor detection.
+
+### 37.4 Multi-region active-passive
+
+```
+        ┌────── Primary region (us-east) ──────┐
+        │   Postgres write + recall            │
+        │   pg-boss queue                      │
+        │   Extraction workers                 │
+        └──────────────────────────────────────┘
+                       ↓ streaming replication
+        ┌────── Replica region (eu-west) ──────┐
+        │   Postgres read replica              │
+        │   Recall serving                     │
+        │   Workers idle (standby)             │
+        └──────────────────────────────────────┘
+```
+
+Failover via `pg_promote()` + DNS swap. RTO: 5 min. RPO: < 5 sec (streaming lag).
+
+Multi-region active-active deferred to v5.0 (requires mutation log + deferred apply §12.1 + conflict resolution policy).
+
+### 37.5 Data residency declarations
+
+Workspace setting `mnemo.data_residency: 'us' | 'eu' | 'asia' | 'workspace-pinned'`:
+
+- `us` → all writes routed to US primary, replicas in US-only
+- `eu` → EU primary, GDPR-compliant
+- `workspace-pinned` → all replicas in same region as workspace (no cross-region replication)
+
+Charter compliance: GDPR Article 44 (cross-border transfers), HIPAA, SOC2 CC6.7.
+
+### 37.6 Capacity planning matrix
+
+Documented per deployment tier. Operators consult this before sizing:
+
+| Scale tier         | Workspaces | Total memories | Postgres size | Recommended hardware                                         |
+| ------------------ | ---------- | -------------- | ------------- | ------------------------------------------------------------ |
+| **Personal / Dev** | 1          | 10k            | 100 MB        | 2 vCPU, 4 GB RAM                                             |
+| **Small team**     | 10         | 100k           | 1 GB          | 4 vCPU, 8 GB RAM                                             |
+| **SMB**            | 100        | 1M             | 10 GB         | 8 vCPU, 32 GB RAM, NVMe                                      |
+| **Enterprise**     | 1,000      | 10M            | 100 GB        | Postgres cluster, 4 vCPU/8 GB primary + 2 replicas           |
+| **Mega**           | 10,000     | 100M           | 1 TB          | Sharded Postgres (8 partitions), 3-region, dedicated workers |
+| **Hyperscale**     | 100,000+   | 1B+            | 10+ TB        | Custom architecture; consult team                            |
+
+For each tier, expected p50/p99 latencies + monthly Postgres cost are tabulated.
+
+### 37.7 Tenant isolation guarantees at scale
+
+At 10k+ workspaces:
+
+- RLS+FORCE still enforced — Postgres handles RLS at any scale
+- Audit log integrity: continuous chain verification cron (verifies last 24h every hour)
+- Cross-tenant probe tests run continuously in production (synthetic workspaces probe each other, alert on any leak)
+- Per-workspace isolated connection pool optional (`mnemo.isolated_pool_per_workspace = true`) for highest-security customers
+
+---
+
+## 38. BYO Credentials Architecture
+
+Customer API keys are the most sensitive secret in Mnemosyne. Full vault treatment.
+
+### 38.1 Encryption at rest
+
+- AES-256-GCM with per-workspace data encryption key (DEK)
+- DEK encrypted with customer-master-key (CMK), supporting:
+  - Default: Postgres `pgcrypto` with master key in env (`MNEMO_MASTER_KEY`)
+  - Optional: BYO KMS — AWS KMS / GCP KMS / Vault Transit / Azure Key Vault
+- Key version tracked → rotation without re-encrypting data
+
+Schema:
+
+```sql
+CREATE TABLE mnemo_provider_credential (
+  id text PRIMARY KEY,
+  workspace_id text NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+  provider_id text NOT NULL,           -- 'openai', 'anthropic', etc.
+  key_name text NOT NULL,              -- 'primary' | 'secondary' | 'rotation'
+  encrypted_key bytea NOT NULL,        -- AES-256-GCM ciphertext
+  encryption_key_version int NOT NULL, -- references workspace DEK version
+  cmek_provider text,                  -- 'env' | 'aws-kms' | 'gcp-kms' | 'vault'
+  cmek_key_id text,
+  status text NOT NULL CHECK (status IN ('active','secondary','revoked','expired')),
+  expires_at timestamptz,              -- optional rotation reminder
+  last_used_at timestamptz,
+  created_by_user_id text REFERENCES "user"(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Audit table — append-only, hash-chained
+CREATE TABLE mnemo_credential_audit (
+  id text PRIMARY KEY,
+  workspace_id text NOT NULL,
+  credential_id text NOT NULL,
+  action text NOT NULL CHECK (action IN ('create','rotate','revoke','use','export','probe')),
+  actor_user_id text,
+  metadata jsonb,
+  prev_hash text NOT NULL,
+  hash text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+```
+
+### 38.2 Key rotation flow
+
+1. Customer adds new key as `key_name='secondary'`, status='secondary'
+2. System probes secondary with a no-op call (`embed("test")` or similar)
+3. On success → 24h validation period (5% of traffic shifted to secondary)
+4. On stable success → promote: secondary → primary, old primary → revoked (grace period 7 days)
+5. After grace → hard delete (decryption key zeroed)
+
+Customer initiates rotation via UI or API. Audit-logged at every transition.
+
+### 38.3 Revocation
+
+Customer can revoke any key:
+
+- `status = 'revoked'` immediately
+- All in-flight operations using that key fail with `credential_revoked`
+- Audit-logged with reason
+- Key material remains encrypted in DB for forensics until hard-delete after retention period (default 90 days)
+
+### 38.4 Multi-key support
+
+Workspace can have multiple keys per provider:
+
+- `primary` — default for new requests
+- `secondary` — used during rotation OR as failover
+- `rotation` — being validated
+
+Mnemosyne picks key based on request context (failover chain in §36.4).
+
+### 38.5 Audit guarantees
+
+Every credential operation appends to `mnemo_credential_audit` with hash chain (same pattern as existing `audit_log`). Tamper-evident. Verifiable via `mnemo doctor --check credential-audit-chain`.
+
+Export for compliance:
+
+```
+/api/workspaces/:slug/mnemo/credentials/audit?from=<date>&to=<date>&format=csv
+```
+
+### 38.6 Zero-knowledge mode (extreme security customers)
+
+Optional: customer can configure Mnemosyne with `MNEMO_ZERO_KNOWLEDGE_MODE=true`:
+
+- API keys never persist in DB
+- Customer's app injects key per-request via signed header
+- Mnemosyne validates signature, uses key in-memory, never logs/stores
+- Trade: customer must implement key delivery; no rotation UI
+
+For air-gapped + high-security deployments. Documented but not default.
+
+---
+
+**End of design v3 (enterprise edition).** Provider-agnostic by design + zero platform-level third-party costs + multi-level cost governance + multi-region scale + BYO credential vault. Ready for review + writing-plans skill invocation.
