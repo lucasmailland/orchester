@@ -3,8 +3,7 @@ import { cache } from "react";
 import { auth } from "./auth";
 import { headers } from "next/headers";
 import { getDb, schema } from "@orchester/db";
-import { and, eq, sql } from "drizzle-orm";
-import { safeLogError } from "./safe-log";
+import { and, asc, eq } from "drizzle-orm";
 import { recordTenantContextSet, recordTenantContextMissing } from "./tenant/telemetry";
 
 /**
@@ -19,9 +18,19 @@ export const getCurrentSession = cache(async () => {
 /**
  * Phase D: a typed slug variant is invoked by the shell layout. To
  * keep `cache()` deduping per-request we keep two memoized functions:
- * the legacy no-arg version (any-workspace fallback) and the
- * slug-scoped version that returns null when the user isn't a member
- * of that specific slug.
+ * the slug-scoped lookup (the only valid post-Phase-D entry point) and
+ * the legacy any-workspace fallback (kept ORDER BY created_at so the
+ * result is at least deterministic, but callers should prefer the slug
+ * variant).
+ *
+ * IMPORTANT: this function returns workspace + role only. It does NOT
+ * set any Postgres GUCs. The previous implementation called
+ * `set_config(..., false)` on the pooled connection, which leaked GUCs
+ * across requests (cross-tenant data leak post-FORCE). GUCs MUST now be
+ * applied per-transaction via `withTenantContext` (see
+ * `lib/tenant/context.ts`) — set_config with `is_local=true` inside a
+ * `db.transaction(...)` auto-reverts on commit/rollback and cannot leak
+ * across pooled connections.
  */
 async function loadWorkspace(
   userId: string,
@@ -31,7 +40,7 @@ async function loadWorkspace(
   role: schema.WorkspaceMemberRole;
 } | null> {
   const db = getDb();
-  const result = await db
+  const query = db
     .select({ workspace: schema.workspaces, role: schema.workspaceMembers.role })
     .from(schema.workspaceMembers)
     .innerJoin(schema.workspaces, eq(schema.workspaceMembers.workspaceId, schema.workspaces.id))
@@ -39,28 +48,26 @@ async function loadWorkspace(
       slug
         ? and(eq(schema.workspaceMembers.userId, userId), eq(schema.workspaces.slug, slug))
         : eq(schema.workspaceMembers.userId, userId)
-    )
-    .limit(1);
+    );
+  // Deterministic order for the no-slug fallback path: pick the oldest
+  // workspace the user belongs to. Without an ORDER BY postgres-js may
+  // return rows in any order, which made `getCurrentWorkspace()`
+  // non-deterministic.
+  const result = slug
+    ? await query.limit(1)
+    : await query.orderBy(asc(schema.workspaces.createdAt)).limit(1);
   return result[0] ?? null;
 }
 
-async function applyTenantGucs(workspaceId: string, userId: string): Promise<void> {
-  const db = getDb();
-  // Phase B: set the GUCs that Phase C's FORCE-RLS policies key off.
-  // SET LOCAL would require a transaction; set_config(..., is_local=false)
-  // persists for the connection. Acceptable for the read-only fetches a
-  // server component issues — mutating routes always use
-  // withTenantContext, which wraps in a transaction.
-  try {
-    await db.execute(sql`SELECT set_config('app.workspace_id', ${workspaceId}, false)`);
-    await db.execute(sql`SELECT set_config('app.user_id', ${userId}, false)`);
-    recordTenantContextSet();
-  } catch (e) {
-    safeLogError("[tenant] set_config failed:", e);
-    recordTenantContextMissing("set-config-failed");
-  }
-}
-
+/**
+ * Resolves the caller's session → workspace context for SSR (shell
+ * layout) and `requireAuth`.
+ *
+ * Does NOT set Postgres GUCs — see the comment on `loadWorkspace`.
+ * Route handlers that query FORCED tenant tables MUST wrap their DB
+ * work in `withTenantContext` (or an inline `db.transaction` + `SET
+ * LOCAL app.workspace_id`) so RLS allows the read.
+ */
 export const getCurrentWorkspace = cache(async () => {
   const session = await getCurrentSession();
   if (!session) {
@@ -74,7 +81,11 @@ export const getCurrentWorkspace = cache(async () => {
     return null;
   }
 
-  await applyTenantGucs(ctx.workspace.id, session.user.id);
+  // Telemetry only — the actual GUC application happens per-transaction
+  // via `withTenantContext`. Recording "set" here keeps the histogram
+  // honest about how many requests resolved a tenant context, even
+  // though the DB-level enforcement is delayed until the transaction.
+  recordTenantContextSet();
   return ctx;
 });
 
@@ -84,8 +95,10 @@ export const getCurrentWorkspace = cache(async () => {
  * AND when the user isn't a member, so the layout 404s either way
  * (we don't want to leak the existence of arbitrary workspaces).
  *
- * Sets the same GUCs as `getCurrentWorkspace` so downstream queries
- * remain tenant-scoped.
+ * Same caveat as `getCurrentWorkspace`: no GUCs are applied here.
+ * Server components / route handlers must scope DB reads via
+ * `withTenantContext` (per query, transaction-local) — see B3.1 fix
+ * notes for why session-level set_config was removed.
  */
 export const getCurrentWorkspaceBySlug = cache(async (slug: string) => {
   const session = await getCurrentSession();
@@ -100,7 +113,7 @@ export const getCurrentWorkspaceBySlug = cache(async (slug: string) => {
     return null;
   }
 
-  await applyTenantGucs(ctx.workspace.id, session.user.id);
+  recordTenantContextSet();
   return ctx;
 });
 
