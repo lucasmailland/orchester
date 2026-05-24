@@ -5,7 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@orchester/db";
 import { requireAuth } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
-import { appendAudit } from "@/lib/audit/log";
+import { appendAuditSync } from "@/lib/audit/log";
 
 /**
  * POST /api/workspaces — create a new workspace owned by the current
@@ -28,9 +28,13 @@ import { appendAudit } from "@/lib/audit/log";
  * (today only some related tables are FORCED; setting the GUC is
  * cheap and future-proofs the route).
  *
- * Audit entry is fire-and-forget via the async `appendAudit` wrapper;
- * the response doesn't wait for it so the user gets the new workspace
- * URL right away.
+ * Audit entry MUST be synchronous here. Workspace.create is the chain
+ * genesis (seq=1) for this workspace — if the fire-and-forget
+ * `appendAudit` swallows the write (e.g. transient DB hiccup, process
+ * crash before the deferred promise runs), every subsequent audit
+ * append for this workspace would either fail (no chain root) or
+ * silently rotate the chain past a missing genesis. We pay the extra
+ * round-trip on workspace creation to guarantee the root row lands.
  */
 export const dynamic = "force-dynamic";
 
@@ -93,7 +97,7 @@ export async function POST(req: NextRequest) {
     throw e;
   }
 
-  appendAudit(wsId, {
+  await appendAuditSync(wsId, {
     action: "workspace.create",
     actorUserId: ctx.user.id,
     actorKind: "user",
