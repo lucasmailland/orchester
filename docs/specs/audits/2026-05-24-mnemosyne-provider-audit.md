@@ -1,6 +1,8 @@
 # Mnemosyne Provider Audit — Brain Core v1.1
 
-**Date:** 2026-05-24 · **Status:** In progress
+**Date:** 2026-05-24 · **Status:** Complete · 2026-05-24
+
+**Summary:** 7 BLOCKING findings (4 hardcoded provider/model defaults + 5 Mode A compatibility gaps; F-003 and M-A-001 share a root, F-002 and M-A-001 share a root — net 7 distinct fix items) / 1 WARN finding (F-004, cosmetic) / 3 OK-as-example findings (F-005 false positive, B-001 already provider-agnostic via `llmCall`, B-002/B-003 indirect deps that are already provider-neutral). Fix plan covers all BLOCKING via 9 fix items (FIX-001 through FIX-009), all targeted at Phase 1 (Migration brain*\* → mnemo*\*).
 
 ## Goal
 
@@ -197,4 +199,113 @@ Mode B is **not a blocking gap** — fixing F-001/F-002/F-003 + M-A-005 (skip ex
 
 ## Fix plan
 
-(populated in Task 0.5)
+This section enumerates every BLOCKING fix required before the brain → mnemo migration can complete. WARN-level fixes are noted but deferred; OK-as-example items are listed for traceability only.
+
+### Phase 1 (Migration brain*\* → mnemo*\*) — REQUIRED BEFORE PHASE COMPLETION
+
+#### FIX-001: Remove hardcoded `"claude-haiku-4-5"` default in extract.ts
+
+**Severity:** BLOCKING (F-001).
+**Phase:** 1 (Migration).
+**Action:** During brain → mnemo rename, in `packages/mnemosyne/src/extraction/extract.ts` (port of `extract.ts`), change:
+
+```ts
+const model = input.model ?? "claude-haiku-4-5";
+```
+
+to require the caller to supply `model`. The caller (`packages/mnemosyne/src/extraction/job.ts`, port of `extract-job.ts`) resolves the value from the workspace setting `mnemo.small_model` via the existing `getWorkspaceSetting()` helper. If unset, throw a config error before enqueueing the job (don't silently pick a default).
+
+**Acceptance:** No string literal model names remain in `packages/mnemosyne/src/extraction/*.ts`. `grep -niE "claude-|gpt-|gemini|haiku|sonnet" packages/mnemosyne/src/extraction/*.ts` returns no hits except in comments tagged as examples.
+
+#### FIX-002: Remove hardcoded `"openai"` provider default in embed.ts
+
+**Severity:** BLOCKING (F-002).
+**Phase:** 1 (Migration).
+**Action:** In `packages/mnemosyne/src/recall/embed.ts` (port of `embed.ts`), drop the `?? "openai"` fallback. Caller (e.g. `recall/search.ts`, `primitives/fact.ts:createFact`) must pass `provider` resolved from `workspace.mnemo.embedding_provider`. If undefined → `embedMnemo` returns `[]` and the caller proceeds in Mode A (see FIX-006).
+
+**Acceptance:** `grep -niE "openai|anthropic|gemini" packages/mnemosyne/src/recall/embed.ts` returns no hits outside comments.
+
+#### FIX-003: Remove hardcoded `"text-embedding-3-small"` model default in embed.ts
+
+**Severity:** BLOCKING (F-003).
+**Phase:** 1 (Migration).
+**Action:** Same as FIX-002 — drop the default. Caller passes `model` from `workspace.mnemo.embedding_model`.
+
+**Acceptance:** Same grep as FIX-002 + `grep -niE "text-embedding-3|voyage|nomic" packages/mnemosyne/src/recall/embed.ts` empty.
+
+#### FIX-004: Comment cleanup in extract.ts (header + ExtractFactsInput JSDoc)
+
+**Severity:** WARN (F-004, cosmetic).
+**Phase:** 1 (Migration).
+**Action:** In `packages/mnemosyne/src/extraction/extract.ts`, reword the file header comment (line 4 of original) and the `model?` JSDoc (line 50 of original) to say "Uses the workspace's configured `mnemo.small_model` (cheap tier)" instead of "haiku/4o-mini". Charter §25 permits provider names as examples, but cleaner copy avoids future drift confusion.
+
+**Acceptance:** Header comment + JSDoc no longer mention specific provider SKUs.
+
+#### FIX-005: Mode A — short-circuit `embedMnemo` when no embedding provider configured
+
+**Severity:** BLOCKING (M-A-001).
+**Phase:** 1 (Migration).
+**Action:** In `packages/mnemosyne/src/recall/embed.ts`, add a `detectMode(workspaceId)` check (uses `packages/mnemosyne/src/modes/detect.ts`, scaffolded in Task 1.4 or 1.5 — verify exact task with controller; design assumption: detect.ts may not exist yet at audit time). When mode is `'A'`, return `[]` immediately without calling `embedRaw`. Cache invalidation behavior unchanged.
+
+**Acceptance:** Mode A workspace can call `embedMnemo` and receive `[]` without hitting the embedding API (unit test: mock `detectMode` to return `'A'`, assert `embedRaw` never called).
+
+#### FIX-006: Mode A — FTS fallback in `searchMnemo`
+
+**Severity:** BLOCKING (M-A-002).
+**Phase:** 1 (Migration) — or earliest moment after `modes/detect.ts` ships.
+**Action:** In `packages/mnemosyne/src/recall/search.ts` (port of `recall.ts:searchBrain`), add a branch:
+
+```ts
+if (mode === "A") {
+  // FTS path using text_lemmatized GIN index
+  return await tx.execute(sql`
+    SELECT id, ..., ts_rank_cd(text_lemmatized, plainto_tsquery('simple', ${query})) AS fts_score,
+           exp(-LN(2.0) * EXTRACT(EPOCH FROM (now() - created_at)) / (30.0 * 86400.0)) AS recency,
+           (ln(1.0 + hit_count) / ln(100.0)) AS frequency,
+           CASE WHEN pinned THEN 1.0 ELSE 0.0 END AS pin_bonus
+    FROM mnemo_fact
+    WHERE workspace_id = ${workspaceId}
+      AND status = 'active'
+      AND text_lemmatized @@ plainto_tsquery('simple', ${query})
+    ORDER BY fts_score DESC
+    LIMIT ${topK * 3}
+  `);
+  // score = 0.6*fts + 0.2*recency + 0.1*frequency + 0.1*pin
+}
+```
+
+**Acceptance:** Integration test: create workspace in Mode A, insert facts via Mnemosyne primitives, run `searchMnemo({ query: "spanish" })`, verify result set is non-empty and ranked by FTS score.
+
+#### FIX-007: Mode A — `createFact` persists with `embedding: null` when no provider
+
+**Severity:** BLOCKING (M-A-003).
+**Phase:** 1 (Migration).
+**Action:** In `packages/mnemosyne/src/primitives/fact.ts:createFact`, when the embed call returns `[]` (Mode A signal from FIX-005), persist the row with `embedding: null` and `embedding_model: null`. The schema (migration 0017) already allows nullable embedding.
+
+**Acceptance:** Integration test: `createFact` in Mode A workspace persists a row with `embedding IS NULL`, `text_lemmatized` populated by generated column trigger, `status = 'active'`.
+
+#### FIX-008: Mode A — `updateFact` skips re-embed when no provider
+
+**Severity:** BLOCKING (M-A-004).
+**Phase:** 1 (Migration).
+**Action:** In Mnemosyne `updateFact`, guard the re-embed block with `if (mode !== 'A')`. When Mode A and `patch.statement` is set, leave `embedding` as-is (don't null it out — preserves existing vectors if the workspace ever upgrades to Mode B). The GENERATED `text_lemmatized` column auto-refreshes on `UPDATE statement`.
+
+**Acceptance:** Integration test: `updateFact` in Mode A workspace with a `statement` change does NOT call `embedMnemo`, does NOT modify the `embedding` column.
+
+#### FIX-009: Mode A/B — skip extraction job entirely
+
+**Severity:** BLOCKING (M-A-005).
+**Phase:** 1 (Migration).
+**Action:** In `packages/mnemosyne/src/extraction/job.ts:enqueueMnemoExtract` (port of `enqueueBrainExtract`), wrap the body in `if (detectMode(workspaceId) !== 'C') { /* insert tracking row with state='skipped', skip_reason='no_llm_provider'; return; */ }`. Do NOT call `enqueue(JOB_MNEMO_EXTRACT, ...)`.
+
+**Acceptance:** Integration test: Mode A workspace, post a message that would normally trigger extraction → `mnemo_extraction_job` row exists with `state='skipped'`, `skip_reason='no_llm_provider'`; pg-boss queue receives zero jobs for that workspace.
+
+### Phase 2 (Decision Layer) — DEFERRED
+
+No fixes deferred to Phase 2. All BLOCKING items are addressable in Phase 1.
+
+### Out of scope (deferred to v1.5+)
+
+- **Provider Parity Suite benchmarks** — formal pairwise comparison of extraction quality across Anthropic / OpenAI / Gemini / Ollama. Not required for v1.0 ship.
+- **Prompt caching (`cache_control`, `prompt_cache_key`)** — Cost Tier 1 optimization. Mnemosyne v1.0 ships without it; B-001 verdict notes it as adapter-level opt-in.
+- **Streaming extraction** — current `llmCall` blocks. No use case identified for streaming the JSON array output.
