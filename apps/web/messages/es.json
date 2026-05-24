@@ -1135,5 +1135,110 @@
       "allDone": "¡Todo listo!"
     },
     "progressStep": "Paso {current} de {total}"
+  },
+  "workspace": {
+    "switcher": {
+      "label": "Cambiar workspace",
+      "search": "Buscar workspaces…",
+      "current": "Actual",
+      "other": "Otros workspaces",
+      "create": "Crear workspace",
+      "invite": "Invitar a compañero a {name}",
+      "openShortcut": "⌘K"
+    },
+    "create": {
+      "title": "Crear workspace",
+      "nameLabel": "Nombre del workspace",
+      "slugLabel": "Slug de URL",
+      "slugHint": "Minúsculas, números y guiones",
+      "slugAvailable": "disponible",
+      "slugTaken": "ya está en uso",
+      "slugChecking": "verificando…",
+      "timezoneLabel": "Zona horaria",
+      "colorLabel": "Color de acento",
+      "cancel": "Cancelar",
+      "submit": "Crear workspace",
+      "created": "Workspace creado"
+    },
+    "delete": {
+      "title": "Eliminar {name}",
+      "intro": "Esto va a:",
+      "willHide": "Ocultar el workspace a todos los miembros",
+      "willPause": "Pausar todas las integraciones y canales",
+      "willStop": "Detener todos los agentes y flujos",
+      "willEmail": "Enviarte un email con un link de restauración",
+      "windowExplainer": "Tenés {days} días para restaurar. Después, todos los datos se eliminan de forma permanente.",
+      "reasonLabel": "Motivo (opcional)",
+      "confirmLabel": "Escribí el slug del workspace para confirmar:",
+      "expected": "Esperado: {slug}",
+      "submit": "Eliminar workspace",
+      "deleted": "Workspace eliminado. Restaurá dentro de {days} días."
+    },
+    "restore": {
+      "title": "Restaurar {name}",
+      "deletedOn": "Eliminado el {date}",
+      "restoreUntil": "Podés restaurar hasta el {date}",
+      "daysRemaining": "{n} días restantes",
+      "tokenLabel": "Token de restauración (del email)",
+      "submit": "Restaurar workspace",
+      "continueDeletion": "Continuar con la eliminación",
+      "restored": "Workspace restaurado"
+    },
+    "suspended": {
+      "title": "Este workspace está en pausa (solo lectura)",
+      "body": "Podés ver datos y exportar, pero no editar ni enviar mensajes.",
+      "reason": "Motivo: {reason}",
+      "contactSupport": "Contactar soporte"
+    },
+    "export": {
+      "preparing": "Preparando tu exportación",
+      "exporting": "Exportando datos…",
+      "ready": "Exportación lista",
+      "failed": "Falló la exportación",
+      "availableUntil": "Disponible hasta {date}",
+      "download": "Descargar",
+      "retry": "Reintentar",
+      "dismiss": "Descartar"
+    },
+    "audit": {
+      "title": "Registro de auditoría",
+      "subtitle": "Cada cambio crítico queda registrado.",
+      "chainStatus": "Estado de la cadena",
+      "chainIntact": "Intacta",
+      "chainBroken": "Comprometida",
+      "lastVerified": "Última verificación {date}",
+      "loadMore": "Cargar más",
+      "noEvents": "Todavía no hay eventos registrados"
+    },
+    "featureFlags": {
+      "title": "Feature flags",
+      "subtitle": "Habilitá funcionalidades experimentales para este workspace.",
+      "search": "Buscar flags…",
+      "setBy": "Configurado por {actor} · {time}",
+      "system": "sistema"
+    },
+    "listPage": {
+      "title": "Tus workspaces",
+      "memberCount": "{n} miembros",
+      "lastVisited": "última visita {time}",
+      "createNew": "Crear nuevo workspace",
+      "recentlyDeleted": "Los workspaces eliminados recientemente todavía pueden restaurarse:",
+      "restoreCta": "Restaurar"
+    },
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "editor": "Editor",
+      "viewer": "Visualizador"
+    },
+    "errors": {
+      "workspaceNotFound": "Workspace no encontrado",
+      "notAMember": "No sos miembro de este workspace",
+      "suspended": "Este workspace está en pausa",
+      "deleted": "Este workspace fue eliminado",
+      "rateLimited": "Estás haciendo eso muy seguido. Probá de nuevo en {minutes} min.",
+      "slugInvalid": "Usá minúsculas, números y guiones (3-40 caracteres).",
+      "slugTaken": "Ese slug ya está en uso. Probá {suggestion}."
+    }
   }
 }

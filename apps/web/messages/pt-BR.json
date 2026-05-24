@@ -1135,5 +1135,110 @@
       "allDone": "Tudo pronto!"
     },
     "progressStep": "Passo {current} de {total}"
+  },
+  "workspace": {
+    "switcher": {
+      "label": "Trocar workspace",
+      "search": "Buscar workspaces…",
+      "current": "Atual",
+      "other": "Outros workspaces",
+      "create": "Criar workspace",
+      "invite": "Convidar colega para {name}",
+      "openShortcut": "⌘K"
+    },
+    "create": {
+      "title": "Criar workspace",
+      "nameLabel": "Nome do workspace",
+      "slugLabel": "Slug da URL",
+      "slugHint": "Letras minúsculas, números e hifens",
+      "slugAvailable": "disponível",
+      "slugTaken": "já está em uso",
+      "slugChecking": "verificando…",
+      "timezoneLabel": "Fuso horário",
+      "colorLabel": "Cor de destaque",
+      "cancel": "Cancelar",
+      "submit": "Criar workspace",
+      "created": "Workspace criado"
+    },
+    "delete": {
+      "title": "Excluir {name}",
+      "intro": "Isto vai:",
+      "willHide": "Ocultar o workspace de todos os membros",
+      "willPause": "Pausar todas as integrações e canais",
+      "willStop": "Parar todos os agentes e fluxos",
+      "willEmail": "Enviar um e-mail com link de restauração",
+      "windowExplainer": "Você tem {days} dias para restaurar. Depois disso, todos os dados são excluídos permanentemente.",
+      "reasonLabel": "Motivo (opcional)",
+      "confirmLabel": "Digite o slug do workspace para confirmar:",
+      "expected": "Esperado: {slug}",
+      "submit": "Excluir workspace",
+      "deleted": "Workspace excluído. Restaure em até {days} dias."
+    },
+    "restore": {
+      "title": "Restaurar {name}",
+      "deletedOn": "Excluído em {date}",
+      "restoreUntil": "Você pode restaurar até {date}",
+      "daysRemaining": "{n} dias restantes",
+      "tokenLabel": "Token de restauração (do e-mail)",
+      "submit": "Restaurar workspace",
+      "continueDeletion": "Continuar a exclusão",
+      "restored": "Workspace restaurado"
+    },
+    "suspended": {
+      "title": "Este workspace está pausado (somente leitura)",
+      "body": "Você pode visualizar dados e exportar, mas não pode editar nem enviar mensagens.",
+      "reason": "Motivo: {reason}",
+      "contactSupport": "Contatar suporte"
+    },
+    "export": {
+      "preparing": "Preparando sua exportação",
+      "exporting": "Exportando dados…",
+      "ready": "Exportação pronta",
+      "failed": "Falha na exportação",
+      "availableUntil": "Disponível até {date}",
+      "download": "Baixar",
+      "retry": "Tentar novamente",
+      "dismiss": "Dispensar"
+    },
+    "audit": {
+      "title": "Log de auditoria",
+      "subtitle": "Cada alteração crítica é registrada.",
+      "chainStatus": "Status da cadeia",
+      "chainIntact": "Íntegra",
+      "chainBroken": "Comprometida",
+      "lastVerified": "Última verificação {date}",
+      "loadMore": "Carregar mais",
+      "noEvents": "Nenhum evento registrado ainda"
+    },
+    "featureFlags": {
+      "title": "Feature flags",
+      "subtitle": "Habilite funcionalidades experimentais para este workspace.",
+      "search": "Buscar flags…",
+      "setBy": "Configurado por {actor} · {time}",
+      "system": "sistema"
+    },
+    "listPage": {
+      "title": "Seus workspaces",
+      "memberCount": "{n} membros",
+      "lastVisited": "última visita {time}",
+      "createNew": "Criar novo workspace",
+      "recentlyDeleted": "Workspaces excluídos recentemente ainda podem ser restaurados:",
+      "restoreCta": "Restaurar"
+    },
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "editor": "Editor",
+      "viewer": "Visualizador"
+    },
+    "errors": {
+      "workspaceNotFound": "Workspace não encontrado",
+      "notAMember": "Você não é membro deste workspace",
+      "suspended": "Este workspace está pausado",
+      "deleted": "Este workspace foi excluído",
+      "rateLimited": "Você está fazendo isso com muita frequência. Tente novamente em {minutes} min.",
+      "slugInvalid": "Use letras minúsculas, números e hifens (3-40 caracteres).",
+      "slugTaken": "Esse slug já está em uso. Tente {suggestion}."
+    }
   }
 }

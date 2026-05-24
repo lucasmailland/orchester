@@ -1135,5 +1135,110 @@
       "allDone": "You're all set!"
     },
     "progressStep": "Step {current} of {total}"
+  },
+  "workspace": {
+    "switcher": {
+      "label": "Switch workspace",
+      "search": "Search workspaces…",
+      "current": "Current",
+      "other": "Other workspaces",
+      "create": "Create workspace",
+      "invite": "Invite teammate to {name}",
+      "openShortcut": "⌘K"
+    },
+    "create": {
+      "title": "Create workspace",
+      "nameLabel": "Workspace name",
+      "slugLabel": "URL slug",
+      "slugHint": "Lowercase letters, numbers, hyphens",
+      "slugAvailable": "available",
+      "slugTaken": "already taken",
+      "slugChecking": "checking…",
+      "timezoneLabel": "Timezone",
+      "colorLabel": "Accent color",
+      "cancel": "Cancel",
+      "submit": "Create workspace",
+      "created": "Workspace created"
+    },
+    "delete": {
+      "title": "Delete {name}",
+      "intro": "This will:",
+      "willHide": "Hide the workspace from all members",
+      "willPause": "Pause all integrations and channels",
+      "willStop": "Stop all agents and flows",
+      "willEmail": "Send you an email with a restore link",
+      "windowExplainer": "You have {days} days to restore. After that, all data is permanently deleted.",
+      "reasonLabel": "Reason (optional)",
+      "confirmLabel": "Type the workspace slug to confirm:",
+      "expected": "Expected: {slug}",
+      "submit": "Delete workspace",
+      "deleted": "Workspace deleted. Restore within {days} days."
+    },
+    "restore": {
+      "title": "Restore {name}",
+      "deletedOn": "Deleted on {date}",
+      "restoreUntil": "You can restore until {date}",
+      "daysRemaining": "{n} days remaining",
+      "tokenLabel": "Restore token (from email)",
+      "submit": "Restore workspace",
+      "continueDeletion": "Continue deletion",
+      "restored": "Workspace restored"
+    },
+    "suspended": {
+      "title": "This workspace is paused (read-only)",
+      "body": "You can view data and export, but cannot edit or send messages.",
+      "reason": "Reason: {reason}",
+      "contactSupport": "Contact support"
+    },
+    "export": {
+      "preparing": "Preparing your export",
+      "exporting": "Exporting data…",
+      "ready": "Export ready",
+      "failed": "Export failed",
+      "availableUntil": "Available until {date}",
+      "download": "Download",
+      "retry": "Retry",
+      "dismiss": "Dismiss"
+    },
+    "audit": {
+      "title": "Audit log",
+      "subtitle": "Every critical change is recorded.",
+      "chainStatus": "Chain status",
+      "chainIntact": "Intact",
+      "chainBroken": "Broken",
+      "lastVerified": "Last verified {date}",
+      "loadMore": "Load more",
+      "noEvents": "No events recorded yet"
+    },
+    "featureFlags": {
+      "title": "Feature flags",
+      "subtitle": "Enable experimental features for this workspace.",
+      "search": "Search flags…",
+      "setBy": "Set by {actor} · {time}",
+      "system": "system"
+    },
+    "listPage": {
+      "title": "Your workspaces",
+      "memberCount": "{n} members",
+      "lastVisited": "last visited {time}",
+      "createNew": "Create new workspace",
+      "recentlyDeleted": "Recently deleted workspaces can still be restored:",
+      "restoreCta": "Restore"
+    },
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "editor": "Editor",
+      "viewer": "Viewer"
+    },
+    "errors": {
+      "workspaceNotFound": "Workspace not found",
+      "notAMember": "You're not a member of this workspace",
+      "suspended": "This workspace is paused",
+      "deleted": "This workspace was deleted",
+      "rateLimited": "You're doing that too often. Try again in {minutes} min.",
+      "slugInvalid": "Use lowercase letters, numbers, and hyphens (3-40 chars).",
+      "slugTaken": "That slug is already taken. Try {suggestion}."
+    }
   }
 }
