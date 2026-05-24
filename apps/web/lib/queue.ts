@@ -159,3 +159,4 @@ export const JOB_RETENTION = "data:retention";
 export const JOB_AUDIT_VERIFY_ALL = "audit:verify_all_chains";
 export const JOB_WORKSPACE_HARD_DELETE = "workspace:hard_delete";
 export const JOB_GDPR_EXPORT = "gdpr:export";
+export const JOB_GDPR_EXPORT_WATCHDOG = "gdpr:export:watchdog";

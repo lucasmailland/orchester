@@ -28,6 +28,7 @@ import {
   JOB_AUDIT_VERIFY_ALL,
   JOB_WORKSPACE_HARD_DELETE,
   JOB_GDPR_EXPORT,
+  JOB_GDPR_EXPORT_WATCHDOG,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
@@ -36,6 +37,7 @@ import { withCrossTenantAdmin } from "../lib/tenant/cron";
 import { runVerifyAllChains } from "../lib/audit/verify-job";
 import { runHardDeleteCron } from "../lib/tenant/hard-delete-job";
 import { runExportJob } from "../lib/gdpr/export-job";
+import { runExportWatchdog } from "../lib/gdpr/watchdog";
 
 interface FlowRunJob {
   runId: string;
@@ -139,6 +141,15 @@ async function main(): Promise<void> {
   await registerWorker<{ jobId: string }>(JOB_GDPR_EXPORT, async (job) => {
     await runExportJob(job.data.jobId);
   });
+
+  // ── GDPR export watchdog (cron, cada 15 min) ────────────────
+  // Reaps `exporting` rows abandoned by a crashed worker (the row would
+  // otherwise stay `exporting` forever — pg-boss retries the job but
+  // the state machine doesn't reset). Cross-tenant by design.
+  await registerWorker(JOB_GDPR_EXPORT_WATCHDOG, async () => {
+    await runExportWatchdog();
+  });
+  await schedule(JOB_GDPR_EXPORT_WATCHDOG, "*/15 * * * *");
 
   console.log("[worker] ready, waiting for jobs…");
 }
