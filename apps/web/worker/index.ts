@@ -27,6 +27,7 @@ import {
   JOB_RETENTION,
   JOB_AUDIT_VERIFY_ALL,
   JOB_WORKSPACE_HARD_DELETE,
+  JOB_GDPR_EXPORT,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
@@ -34,6 +35,7 @@ import { purgeOldData } from "../lib/retention";
 import { withCrossTenantAdmin } from "../lib/tenant/cron";
 import { runVerifyAllChains } from "../lib/audit/verify-job";
 import { runHardDeleteCron } from "../lib/tenant/hard-delete-job";
+import { runExportJob } from "../lib/gdpr/export-job";
 
 interface FlowRunJob {
   runId: string;
@@ -129,6 +131,14 @@ async function main(): Promise<void> {
     console.log("[worker] workspace:hard_delete tick");
   });
   await schedule(JOB_WORKSPACE_HARD_DELETE, "0 4 * * *"); // 04:00 UTC
+
+  // ── GDPR export worker (on-demand) ──────────────────────────
+  // Phase E.6: drives gdpr_export_job rows through the pending →
+  // exporting → completed state machine. No cron — request-handler
+  // enqueues by jobId.
+  await registerWorker<{ jobId: string }>(JOB_GDPR_EXPORT, async (job) => {
+    await runExportJob(job.data.jobId);
+  });
 
   console.log("[worker] ready, waiting for jobs…");
 }
