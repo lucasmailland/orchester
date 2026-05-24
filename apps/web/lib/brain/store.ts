@@ -8,6 +8,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { embedBrain } from "./embed";
+import type { EmbeddingProvider } from "@/lib/embeddings";
 import type { BrainFact, FactKind, FactScope } from "./types";
 
 type Tx = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
@@ -37,15 +38,28 @@ export interface CreateFactInput {
   pinned?: boolean;
   sourceMessageIds?: string[];
   metadata?: Record<string, unknown>;
-  /** Pre-computed embedding. If omitted, will be computed via embedBrain. */
+  /** Pre-computed embedding. If omitted and (embeddingProvider,
+   * embeddingModel) are both unset, the row is inserted with
+   * `embedding = NULL` (Mode A). */
   embedding?: number[];
+  /**
+   * Optional embedding provider + model. FIX-007 (audit): if both are
+   * provided, the statement is embedded; if either is missing, no
+   * embedding call is made (Mode A) and the row is persisted with
+   * `embedding = NULL`. Charter §25: this function never picks a
+   * provider default — the caller resolves these from workspace
+   * settings.
+   */
+  embeddingProvider?: EmbeddingProvider;
+  embeddingModel?: string;
   /** Required: must be inside withBrainTx OR be passed an existing tx. */
   tx: Tx;
 }
 
 /**
- * Insert a new fact. Auto-embeds the statement if no embedding is
- * provided. Returns the inserted row.
+ * Insert a new fact. Auto-embeds the statement if (embeddingProvider,
+ * embeddingModel) are both supplied. In Mode A (no embedding config)
+ * the row is inserted with `embedding = NULL` (FIX-007, M-A-003).
  *
  * Dedup: the unique partial index on (workspace, scope, scope_ref,
  * subject, md5(statement)) WHERE status='active' will throw on
@@ -56,9 +70,16 @@ export async function createFact(input: CreateFactInput): Promise<BrainFact> {
   const id = `bfact_${createId()}`;
   let embedding: number[] | null = input.embedding ?? null;
   if (!embedding) {
+    // FIX-007 (audit, M-A-003): embedBrain returns [] in Mode A (no
+    // embedding provider/model resolved). `vec` will then be undefined
+    // and `embedding` falls through to NULL — the row is persisted as
+    // a Mode A fact (no vector, but `text_lemmatized` GIN index still
+    // covers it for FTS recall via FIX-006).
     const [vec] = await embedBrain({
       workspaceId: input.workspaceId,
       texts: [input.statement],
+      ...(input.embeddingProvider ? { provider: input.embeddingProvider } : {}),
+      ...(input.embeddingModel ? { model: input.embeddingModel } : {}),
       tx: input.tx as DbClient,
     });
     embedding = vec ?? null;
