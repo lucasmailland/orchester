@@ -2194,4 +2194,237 @@ For air-gapped + high-security deployments. Documented but not default.
 
 ---
 
-**End of design v3 (enterprise edition).** Provider-agnostic by design + zero platform-level third-party costs + multi-level cost governance + multi-region scale + BYO credential vault. Ready for review + writing-plans skill invocation.
+## 39. Operational Modes — Graceful Degradation
+
+**Critical design property**: Mnemosyne does NOT require an LLM API token to function. It has three operational modes that customers pick based on compliance, cost, and capability needs. The DATABASE itself is the product — AI capabilities layer on top.
+
+### 39.1 Three modes
+
+| Mode                   | API keys required                                          | Cost/mo   | Best for                                                                                                                      |
+| ---------------------- | ---------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **A — Database-only**  | None                                                       | **$0**    | Regulated/air-gapped, evaluation phase, customers who can't use external AI, structured note-taking, decision logs without AI |
+| **B — Embedding-only** | embedding provider only (or local Ollama nomic-embed)      | $0–$0.05  | Privacy-conscious, cost-sensitive, hybrid recall without auto-extraction                                                      |
+| **C — Full AI**        | small LLM + embedding (+ optional large/multimodal/rerank) | $0.82–$12 | Full intelligence: auto-extraction + inference + multi-modal + self-improving                                                 |
+
+### 39.2 Capability matrix
+
+| Capability                                   |     Mode A      |         Mode B         |      Mode C       |
+| -------------------------------------------- | :-------------: | :--------------------: | :---------------: |
+| **Storage + multi-tenant**                   |                 |                        |                   |
+| CRUD facts / decisions / entities / episodes |       ✅        |           ✅           |        ✅         |
+| RLS+FORCE Pattern A isolation                |       ✅        |           ✅           |        ✅         |
+| Memory namespaces                            |       ✅        |           ✅           |        ✅         |
+| Multi-region + read replicas                 |       ✅        |           ✅           |        ✅         |
+| **Search + Graph**                           |                 |                        |                   |
+| Lexical search (Postgres FTS / BM25)         |       ✅        |           ✅           |        ✅         |
+| Topic-key shortcut                           |       ✅        |           ✅           |        ✅         |
+| Graph traversal (recursive CTE)              |       ✅        |           ✅           |        ✅         |
+| Bitemporal queries (`asOf`)                  |       ✅        |           ✅           |        ✅         |
+| Manual relation create                       |       ✅        |           ✅           |        ✅         |
+| Semantic search (pgvector cosine)            |       ❌        |           ✅           |        ✅         |
+| Hybrid 6-signal scoring                      |       ❌        |           ✅           |        ✅         |
+| Entity boost in recall                       |       ❌        |           ✅           |        ✅         |
+| Cross-modal search                           |       ❌        |     ⚠️ image only      |        ✅         |
+| **AI operations**                            |                 |                        |                   |
+| Auto-extraction from conversations           |       ❌        |           ❌           |        ✅         |
+| Conflict surfacing (candidate-on-write)      |       ❌        |    ⚠️ semantic only    |        ✅         |
+| Conflict judge (LLM)                         |       ❌        |           ❌           |        ✅         |
+| Inference engine (`mem_introspect`)          |       ❌        |           ❌           |        ✅         |
+| Auto-summary of episodes                     |       ❌        |           ❌           |        ✅         |
+| Suggest topic key                            |       ❌        |           ❌           |        ✅         |
+| Multi-modal extraction (vision/STT)          |       ❌        |           ❌           |        ✅         |
+| Self-improving feedback loops                |       ❌        |           ❌           |        ✅         |
+| Sleep-time pattern extraction                |       ❌        | ⚠️ semantic merge only |        ✅         |
+| **Operations + governance**                  |                 |                        |                   |
+| Audit hash chain                             |       ✅        |           ✅           |        ✅         |
+| Decay (time-based, no AI)                    |       ✅        |           ✅           |        ✅         |
+| Compaction                                   | ✅ lexical only |  ✅ + semantic dedup   |  ✅ + LLM merge   |
+| Cost ceilings + spend forecasting            | ✅ ($0 always)  |           ✅           |        ✅         |
+| Provider failover circuit breaker            |       N/A       |     ✅ embed only      |      ✅ all       |
+| BYO credentials vault                        |      empty      |       embed key        |     all keys      |
+| GDPR export                                  |       ✅        |           ✅           |        ✅         |
+| Memory health score                          | ✅ partial dims |  ✅ + recall quality   |   ✅ all 8 dims   |
+| **Agent surface**                            |                 |                        |                   |
+| MCP tools (CRUD subset)                      |       ✅        |           ✅           |        ✅         |
+| Memory contracts (manual ratify)             |       ✅        |           ✅           | ✅ + auto-suggest |
+| Memory introspection tools                   |       ❌        |           ❌           |        ✅         |
+| Studio Inspector UI                          |       ✅        |           ✅           |        ✅         |
+
+### 39.3 Auto-detection of active mode
+
+Mnemosyne detects active mode at workspace boot + per-request:
+
+```ts
+// packages/mnemosyne/src/modes/detect.ts
+export async function detectMode(
+  workspaceId: string,
+  tx: Tx
+): Promise<MnemoMode> {
+  const creds = await loadActiveCredentials(workspaceId, tx);
+  const hasLLM = creds.some(
+    (c) => c.provider_capability === "llm" && c.status === "active"
+  );
+  const hasEmbed = creds.some(
+    (c) => c.provider_capability === "embedding" && c.status === "active"
+  );
+  if (hasLLM && hasEmbed) return "C";
+  if (hasEmbed) return "B";
+  return "A";
+}
+```
+
+Cached for 5 min in workspace settings → revalidated on credential mutation. Per-request overridable for fallback testing.
+
+### 39.4 Capability discovery (for agents + clients)
+
+Tool `mnemosyne_capabilities()` returns:
+
+```json
+{
+  "mode": "B",
+  "available_tools": [
+    "mnemosyne_recall",
+    "mnemosyne_save_fact",
+    "mnemosyne_save_decision",
+    "mnemosyne_save_entity",
+    "mnemosyne_save_episode_summary",
+    "mnemosyne_search_topic",
+    "mnemosyne_get_memory",
+    "mnemosyne_update_memory",
+    "mnemosyne_forget_memory",
+    "mnemosyne_timeline",
+    "mnemosyne_health"
+  ],
+  "unavailable_tools": [
+    { "tool": "mnemosyne_judge", "reason": "no_llm_configured" },
+    { "tool": "mnemosyne_compare", "reason": "no_llm_configured" },
+    { "tool": "mnemosyne_introspect", "reason": "no_llm_configured" },
+    {
+      "tool": "mnemosyne_save_image_memory",
+      "reason": "no_multimodal_configured"
+    }
+  ],
+  "upgrade_hint": "Configure an LLM provider in workspace settings to enable AI operations.",
+  "estimated_cost_per_mode": {
+    "A_current": 0.0,
+    "B": 0.05,
+    "C_gemini_flash": 0.82,
+    "C_gpt_4o_mini": 1.58
+  }
+}
+```
+
+The agent reads this at session start and adapts. Tools unavailable aren't exposed in MCP tool listing (clean no-op).
+
+### 39.5 Tool degradation behavior
+
+Tools that COULD work with degraded quality choose the best available path:
+
+| Tool                     | Mode A                           | Mode B                                        | Mode C                           |
+| ------------------------ | -------------------------------- | --------------------------------------------- | -------------------------------- |
+| `mnemosyne_recall`       | FTS-only ranking                 | Hybrid (vec+FTS+entity+recency+frequency+pin) | Full hybrid + inference fallback |
+| `mnemosyne_search_topic` | Direct topic_key lookup          | + semantic fuzzy match                        | + LLM query expansion            |
+| `mnemosyne_save_*`       | Just persist                     | + auto-embed                                  | + auto-judge candidates          |
+| `mnemosyne_health`       | Coverage/freshness/contradiction | + recall quality                              | + all 8 dimensions               |
+| `mnemosyne_compaction`   | Lexical dedup only               | + semantic merge (cosine ≥ 0.92)              | + LLM merge for ambiguous        |
+
+No tool errors in lower modes — they return degraded but useful results with `degraded_mode_reason` in response metadata.
+
+### 39.6 Migration paths between modes (zero data loss, no downtime)
+
+- **A → B** (add embedding key): Mode flips automatically. Background job `embed-existing-memories` runs at sleep-time. New writes embed lazily (§26.8). FTS continues serving until embeddings catch up.
+- **B → C** (add LLM key): Mode flips. Auto-extraction starts on new conversations. Optional `re-extract-from-history` cron retro-processes recent N conversations (cost-bounded).
+- **C → B** (revoke LLM): Auto-extraction halts cleanly — pending jobs marked `skipped: degraded_mode`. Recall keeps semantic. AI-derived metadata preserved.
+- **B → A** (revoke embedding): FTS-only recall. Embeddings preserved in DB (NULL-tolerant queries).
+- **Any direction**: non-destructive. Customer can move freely.
+
+### 39.7 Schema supports all modes natively
+
+Every AI-derived field is nullable. Tables don't require AI metadata to be useful:
+
+```sql
+embedding         vector(1536),    -- NULL in Mode A; populated in B/C
+embedding_model   text,            -- NULL in Mode A
+text_lemmatized   tsvector,        -- ALWAYS populated (pure code; Mode A FTS uses this)
+confidence        real DEFAULT 0.7,-- DEFAULT in Mode A (manual saves)
+attributed_to     text,            -- NULL in Mode A (no LLM)
+linked_memory_ids text[] DEFAULT '{}'
+```
+
+Indexes:
+
+- `idx_mnemo_fact_fts` (GIN) — used in ALL modes
+- `idx_mnemo_fact_embedding_hnsw` — used in B/C only (empty in Mode A → query planner ignores)
+- All other indexes mode-independent
+
+### 39.8 Use cases per mode
+
+**Mode A — picked by:**
+
+- Regulated industries (healthcare, finance, gov) without AI approval
+- Air-gapped deployments
+- Initial evaluation (try Mnemosyne free)
+- Structured decision logging (ADR-like tool)
+- Personal knowledge management
+- Compliance evidence trails
+
+**Mode B — picked by:**
+
+- Privacy-conscious customers (embeddings can stay local via Ollama)
+- Cost-sensitive teams ($0.05/mo)
+- Hybrid manual-save + semantic-search setups
+- GDPR-strict (no LLM = no AI provider processes user data)
+
+**Mode C — picked by:**
+
+- Full agent memory (original Mnemosyne value proposition)
+- Multi-modal apps (voice, browser ext, email agents)
+- Self-improving systems
+- Reasoning-heavy applications
+
+### 39.9 Operator pricing matrix (1k active workspaces)
+
+| Mode | Customer/workspace | Operator total        | TAM unlocked                                  |
+| ---- | ------------------ | --------------------- | --------------------------------------------- |
+| A    | $0                 | $0 + Postgres hosting | Regulated, air-gapped, evaluation, low-budget |
+| B    | $0–0.05            | $0 + Postgres         | Privacy + cost-sensitive                      |
+| C    | $0.82–12           | $0 + Postgres         | Full intelligence, multimodal, premium        |
+
+**No mode burdens the operator with AI cost.** Platform-level cost is fixed and predictable.
+
+### 39.10 UI mode picker (workspace creation)
+
+```
+Welcome to Mnemosyne. Pick how much AI you want:
+
+┌─ Database mode (Free, recommended for evaluation) ─┐
+│ • Structured memory with graph queries              │
+│ • Lexical search, audit, multi-tenant               │
+│ • No external API needed                            │
+│ • Upgrade anytime, no data lost                     │
+│ [ Start in DB mode ]                                │
+└─────────────────────────────────────────────────────┘
+
+┌─ Embedding mode (~$0.05/mo) ───────────────────────┐
+│ • Everything in DB mode +                           │
+│ • Semantic search via embeddings                    │
+│ • Hybrid 6-signal scoring                           │
+│ • Required: 1 embedding API key                     │
+│ [ Configure embedding provider → ]                  │
+└─────────────────────────────────────────────────────┘
+
+┌─ Full AI mode ($0.82–12/mo) ────────────────────────┐
+│ • Everything in Embedding mode +                    │
+│ • Auto-extraction from conversations                │
+│ • Inference engine + multi-modal                    │
+│ • Self-improving memory                             │
+│ • Required: LLM + embedding API keys                │
+│ [ Configure providers → ]                           │
+└─────────────────────────────────────────────────────┘
+```
+
+Customer can switch modes at any time. Data preserved across switches.
+
+---
+
+**End of design v4 (graceful degradation).** Provider-agnostic + zero platform third-party cost + 3 operational modes (Mode A no-AI fully functional + Mode B embedding-only + Mode C full AI) + multi-level cost governance + multi-region scale + BYO credential vault + zero-knowledge mode. Customer pays $0–$12/mo. Operator pays $0 for AI regardless. Ready for review + writing-plans skill invocation.
