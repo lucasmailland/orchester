@@ -30,6 +30,8 @@ import {
   JOB_GDPR_EXPORT,
   JOB_GDPR_EXPORT_WATCHDOG,
   JOB_BRAIN_EXTRACT,
+  JOB_BRAIN_COMPACTION,
+  JOB_BRAIN_DECAY,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
@@ -40,6 +42,8 @@ import { runHardDeleteCron } from "../lib/tenant/hard-delete-job";
 import { runExportJob } from "../lib/gdpr/export-job";
 import { runExportWatchdog } from "../lib/gdpr/watchdog";
 import { runBrainExtractJob, type BrainExtractPayload } from "../lib/brain/extract-job";
+import { runBrainCompaction } from "../lib/brain/compaction";
+import { runBrainDecay } from "../lib/brain/decay";
 
 interface FlowRunJob {
   runId: string;
@@ -159,6 +163,21 @@ async function main(): Promise<void> {
   await registerWorker<BrainExtractPayload>(JOB_BRAIN_EXTRACT, async (job) => {
     await runBrainExtractJob(job.data);
   });
+
+  // ─── Brain Core daily compaction (dedup + hard-delete 30d-old
+  // forgotten facts). Runs at 03:30 UTC to stagger from GDPR + audit.
+  await registerWorker(JOB_BRAIN_COMPACTION, async () => {
+    await runBrainCompaction();
+  });
+  await schedule(JOB_BRAIN_COMPACTION, "30 3 * * *");
+
+  // ─── Brain Core daily decay (exponential relevance decay, half-life
+  // 30 days). Runs at 04:00 UTC, single SQL UPDATE across all
+  // workspaces (cross-tenant via cron_admin BYPASSRLS).
+  await registerWorker(JOB_BRAIN_DECAY, async () => {
+    await runBrainDecay();
+  });
+  await schedule(JOB_BRAIN_DECAY, "0 4 * * *");
 
   console.log("[worker] ready, waiting for jobs…");
 }
