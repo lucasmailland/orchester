@@ -112,4 +112,82 @@ describe("appendAuditSync", () => {
       expect(seqs[i]).toBe(seqs[i - 1]! + 1);
     }
   });
+
+  // B2.1 — legacy bootstrap rotation. Pre-Phase-A migrated rows have
+  // chain_hash = 64 zero-bytes. The first real append after such a row
+  // MUST explicitly rotate (prev_hash=null) and the rotation MUST be
+  // surfaced via stderr warn, not silently restart the chain on any
+  // zero-hash row inserted by an attacker.
+  it("rotates chain past a legacy bootstrap row (zero chain_hash) with prev_hash=null + warns", async () => {
+    const db = getDb();
+    const { createId } = await import("@paralleldrive/cuid2");
+
+    // Stand up a fresh workspace+owner so the chain starts clean
+    // (the suite-level wsA already has live entries; we need a workspace
+    // whose newest row is a synthetic zero-hash legacy bootstrap).
+    const wsId = createId();
+    const ownerId = createId();
+    await db.insert(schema.users).values({
+      id: ownerId,
+      email: `legacy-${ownerId}@test`,
+      name: "Legacy Owner",
+      emailVerified: true,
+    });
+    await db.insert(schema.workspaces).values({
+      id: wsId,
+      slug: `legacy-${wsId.slice(0, 8)}`,
+      name: "Legacy Bootstrap WS",
+      timezone: "UTC",
+      status: "active",
+      ownerUserId: ownerId,
+    });
+
+    // Seed a legacy bootstrap row (seq=12, chain_hash all zeros).
+    const ZERO = "0".repeat(64);
+    await db.insert(schema.auditLog).values({
+      id: createId(),
+      workspaceId: wsId,
+      seq: BigInt(12),
+      prevHash: ZERO,
+      payloadHash: ZERO,
+      chainHash: ZERO,
+      action: "workspace.create",
+      actorUserId: ownerId,
+      actorKind: "user",
+      actorIp: null,
+      actorUserAgent: null,
+      targetType: "workspace",
+      targetId: wsId,
+      meta: { legacy: true },
+      createdAt: new Date(),
+    });
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await appendAuditSync(wsId, {
+      action: "workspace.update",
+      actorUserId: ownerId,
+      actorKind: "user",
+      targetType: "workspace",
+      targetId: wsId,
+      meta: { firstAfterBootstrap: true },
+    });
+
+    // The new row must be at seq=13 with prev_hash = NULL (explicit rotation).
+    const rows = await db
+      .select()
+      .from(schema.auditLog)
+      .where(eq(schema.auditLog.workspaceId, wsId))
+      .orderBy(asc(schema.auditLog.seq));
+    const rotated = rows.find((r) => r.seq === BigInt(13));
+    expect(rotated).toBeDefined();
+    expect(rotated!.prevHash).toBeNull();
+
+    // And the rotation must be visible to operators (stderr warn).
+    const calls = warnSpy.mock.calls
+      .map((args) => args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" "))
+      .join("\n");
+    expect(calls).toContain("audit.chain.rotated_past_legacy_bootstrap");
+    warnSpy.mockRestore();
+  });
 });
