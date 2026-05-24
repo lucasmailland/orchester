@@ -24,7 +24,7 @@ import { invalidateMembership, invalidateAllMembershipFor } from "@/lib/tenant/m
 import { isAccessible } from "@/lib/tenant/lifecycle";
 import { requireAuth } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
-import { appendAudit } from "@/lib/audit/log";
+import { appendAuditSync } from "@/lib/audit/log";
 import { auth } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -87,7 +87,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
       body: { email: ctx.user.email, password: parsed.data.password },
     });
   } catch {
-    appendAudit(ws.id, {
+    // Use sync writer so audit lands before we 403; fire-and-forget
+    // appendAudit would silently drop on SIGTERM mid-response.
+    await appendAuditSync(ws.id, {
       action: "workspace.transfer_denied",
       actorUserId: ctx.user.id,
       actorKind: "user",
@@ -169,6 +171,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   // just this workspace) — they may have been impersonated across
   // peers; the next request from any pod should re-read every row.
   let sessionsRevoked = 0;
+  let sessionRevocationError: string | null = null;
   try {
     const deleted = await db
       .delete(schema.sessions)
@@ -181,11 +184,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     // changed in the DB and rolling back would leave the workspace
     // owner-less. Operators see this in the audit entry's
     // `sessionRevocationError` field below.
+    sessionRevocationError = e instanceof Error ? e.message : String(e);
     const { safeLogError } = await import("@/lib/safe-log");
     safeLogError("[transfer] failed to revoke previous-owner sessions:", e);
   }
 
-  appendAudit(ws.id, {
+  // Use the SYNC writer so a SIGTERM between the role swap and the
+  // audit write can't silently lose the entry. Both entries are
+  // chained sequentially so the second `member.session_revoked`
+  // inherits the chain hash from `workspace.transfer`.
+  await appendAuditSync(ws.id, {
     action: "workspace.transfer",
     actorUserId: ctx.user.id,
     actorKind: "user",
@@ -200,7 +208,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
 
   // Separate audit entry so forensic review can grep on
   // member.session_revoked without trawling every transfer.
-  appendAudit(ws.id, {
+  // `sessionRevocationError` is null on success — present only when
+  // the delete threw, so SOC can spot the partial-success case.
+  await appendAuditSync(ws.id, {
     action: "member.session_revoked",
     actorUserId: ctx.user.id,
     actorKind: "system",
@@ -211,6 +221,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
       previousRole: "owner",
       newRole: "admin",
       sessionsRevoked,
+      sessionRevocationError,
     },
   });
 
