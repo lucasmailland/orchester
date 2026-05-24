@@ -20,7 +20,7 @@ import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@orchester/db";
 import { resolveBySlug, invalidateCache } from "@/lib/tenant/resolve";
-import { invalidateMembership } from "@/lib/tenant/membership";
+import { invalidateMembership, invalidateAllMembershipFor } from "@/lib/tenant/membership";
 import { isAccessible } from "@/lib/tenant/lifecycle";
 import { requireAuth } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
@@ -149,6 +149,42 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   invalidateMembership(ctx.user.id, ws.id);
   invalidateMembership(parsed.data.newOwnerId, ws.id);
 
+  // Force a fresh login for the PREVIOUS owner. After transfer their
+  // authority over this workspace dropped from owner→admin; if their
+  // session was hijacked (the whole reason we required password
+  // re-prove on the way in), the attacker still holds a session
+  // token whose `activeWorkspaceId` may point at this workspace and
+  // whose previously-cached membership says "owner". Deleting every
+  // session row for them forces the next request to land on the
+  // login page and pick the workspace fresh, where the resolver
+  // sees the new role.
+  //
+  // We use a direct DELETE on the better-auth `session` table (no
+  // public API for "revoke sessions belonging to an arbitrary user"
+  // — `revokeUserSessions` revokes the CURRENT caller's sessions).
+  // Cascade is irrelevant: sessions have no children, so a delete
+  // is sufficient.
+  //
+  // Also wipe the previous owner's membership cache entirely (not
+  // just this workspace) — they may have been impersonated across
+  // peers; the next request from any pod should re-read every row.
+  let sessionsRevoked = 0;
+  try {
+    const deleted = await db
+      .delete(schema.sessions)
+      .where(eq(schema.sessions.userId, ctx.user.id))
+      .returning({ id: schema.sessions.id });
+    sessionsRevoked = deleted.length;
+    invalidateAllMembershipFor(ctx.user.id);
+  } catch (e) {
+    // Log but do NOT fail the transfer — ownership has already
+    // changed in the DB and rolling back would leave the workspace
+    // owner-less. Operators see this in the audit entry's
+    // `sessionRevocationError` field below.
+    const { safeLogError } = await import("@/lib/safe-log");
+    safeLogError("[transfer] failed to revoke previous-owner sessions:", e);
+  }
+
   appendAudit(ws.id, {
     action: "workspace.transfer",
     actorUserId: ctx.user.id,
@@ -158,6 +194,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     meta: {
       previousOwnerId: ctx.user.id,
       newOwnerId: parsed.data.newOwnerId,
+      sessionsRevoked,
+    },
+  });
+
+  // Separate audit entry so forensic review can grep on
+  // member.session_revoked without trawling every transfer.
+  appendAudit(ws.id, {
+    action: "member.session_revoked",
+    actorUserId: ctx.user.id,
+    actorKind: "system",
+    targetType: "user",
+    targetId: ctx.user.id,
+    meta: {
+      reason: "workspace.transfer",
+      previousRole: "owner",
+      newRole: "admin",
+      sessionsRevoked,
     },
   });
 
