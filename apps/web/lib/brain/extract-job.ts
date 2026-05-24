@@ -59,18 +59,22 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
         return;
       }
 
-      // FIX-001 (audit): resolve the workspace's small-tier chat model
-      // explicitly. extract.ts no longer carries a `claude-haiku-4-5`
-      // default — Mnemosyne Charter §25 forbids hardcoded model strings.
-      // If no fast-tier chat provider is configured, throw — the job
-      // will fail and pg-boss will surface it. FIX-009 (later commit)
-      // upgrades this to the formal "skipped" tracking path.
+      // FIX-001 + FIX-009 (audit, M-A-005): resolve the workspace's
+      // small-tier chat model. If none is configured the workspace is
+      // in Mode A — mark the job 'skipped' with reason 'no_llm_provider'
+      // and return without calling llmCall. pg-boss does NOT retry; the
+      // tracking row is the durable record.
       const resolved = await resolveSmallTierModel(payload.workspaceId, tx as unknown as Tx);
       if (!resolved) {
-        throw new Error(
-          "brain.extract: no fast-tier chat model configured for workspace " +
-            `${payload.workspaceId} (mnemo.small_model unset)`
-        );
+        await tx
+          .update(schema.brainExtractionJobs)
+          .set({
+            state: "skipped",
+            skipReason: "no_llm_provider",
+            completedAt: new Date(),
+          })
+          .where(eq(schema.brainExtractionJobs.id, payload.jobId));
+        return;
       }
 
       await tx
@@ -191,9 +195,28 @@ export async function enqueueBrainExtract(args: {
   const jobId = `bext_${createId()}`;
 
   try {
-    // Insert the tracking row (workspace-scoped — RLS FORCE on
-    // brain_extraction_job requires app.workspace_id set).
-    await withBrainTx(args.workspaceId, async (tx) => {
+    // FIX-009 (audit, M-A-005): Mode A short-circuit at enqueue time.
+    // If the workspace has no fast-tier chat model wired up, insert a
+    // tracking row with `state='skipped'` + `skip_reason='no_llm_provider'`
+    // and skip the pg-boss enqueue entirely. This prevents the worker
+    // from polling a job that would always no-op and avoids retry spam.
+    const skipped = await withBrainTx(args.workspaceId, async (tx) => {
+      const resolved = await resolveSmallTierModel(args.workspaceId, tx);
+      if (!resolved) {
+        await tx.insert(schema.brainExtractionJobs).values({
+          id: jobId,
+          workspaceId: args.workspaceId,
+          conversationId: args.conversationId,
+          state: "skipped",
+          skipReason: "no_llm_provider",
+          messageCount: args.messageCount,
+          factsProduced: 0,
+          completedAt: new Date(),
+        });
+        return true;
+      }
+      // Insert the tracking row (workspace-scoped — RLS FORCE on
+      // brain_extraction_job requires app.workspace_id set).
       await tx.insert(schema.brainExtractionJobs).values({
         id: jobId,
         workspaceId: args.workspaceId,
@@ -201,7 +224,9 @@ export async function enqueueBrainExtract(args: {
         state: "pending",
         messageCount: args.messageCount,
       });
+      return false;
     });
+    if (skipped) return;
 
     // Enqueue pg-boss job (singleton on conversation id)
     const { enqueue, JOB_BRAIN_EXTRACT } = await import("@/lib/queue");

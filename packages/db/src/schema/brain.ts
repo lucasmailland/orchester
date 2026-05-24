@@ -71,17 +71,19 @@ export const brainExtractionJobs = pgTable(
     conversationId: text("conversation_id")
       .notNull()
       .references(() => conversations.id, { onDelete: "cascade" }),
+    // FIX-009 (audit): 'skipped' state added in migration 0025 — Mode A
+    // workspaces record skipped extractions without faking 'done'.
     state: text("state").notNull().default("pending"),
     messageCount: integer("message_count").notNull(),
     factsProduced: integer("facts_produced").notNull().default(0),
+    /** FIX-009: populated when state='skipped' (e.g. 'no_llm_provider'). */
+    skipReason: text("skip_reason"),
     error: text("error"),
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [
-    index("idx_brain_extract_job_workspace_state").on(t.workspaceId, t.state, t.createdAt),
-  ]
+  (t) => [index("idx_brain_extract_job_workspace_state").on(t.workspaceId, t.state, t.createdAt)]
 );
 
 export type BrainFact = typeof brainFacts.$inferSelect;
