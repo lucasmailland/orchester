@@ -185,7 +185,7 @@ git pull origin main         # → "Already up to date."
 
 - Create: `docs/specs/audits/2026-05-24-mnemosyne-provider-audit.md`
 
-- [ ] **Step 1: Create directory + skeleton report**
+- [x] **Step 1: Create directory + skeleton report**
 
 ```bash
 mkdir -p /Users/lucasmailland/dev/orchester/docs/specs/audits
@@ -221,7 +221,7 @@ Audit all code in `apps/web/lib/brain/*` against Mnemosyne Charter §25 (Provide
 (populated in Task 0.5)
 ```
 
-- [ ] **Step 2: Commit the skeleton**
+- [x] **Step 2: Commit the skeleton**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -237,7 +237,7 @@ git -c commit.gpgsign=false commit -m "docs(audit): scaffold mnemosyne provider 
 
 - Modify: `docs/specs/audits/2026-05-24-mnemosyne-provider-audit.md`
 
-- [ ] **Step 1: Run audit grep**
+- [x] **Step 1: Run audit grep**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -252,7 +252,7 @@ cat /tmp/provider-audit.txt
 
 Expected: list of files + line numbers with each occurrence.
 
-- [ ] **Step 2: Populate "Hardcoded provider references" section in audit report**
+- [x] **Step 2: Populate "Hardcoded provider references" section in audit report**
 
 For each finding, document in the audit report:
 
@@ -272,7 +272,7 @@ Use this template per finding:
 **Fix:** Replace with `input.model ?? workspace.mnemo.small_model` resolved at call site
 ```
 
-- [ ] **Step 3: Commit findings section**
+- [x] **Step 3: Commit findings section**
 
 ```bash
 git add docs/specs/audits/2026-05-24-mnemosyne-provider-audit.md
@@ -287,7 +287,7 @@ git -c commit.gpgsign=false commit -m "docs(audit): record hardcoded provider re
 
 - Modify: `docs/specs/audits/2026-05-24-mnemosyne-provider-audit.md`
 
-- [ ] **Step 1: Identify provider-specific API calls**
+- [x] **Step 1: Identify provider-specific API calls**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -298,7 +298,7 @@ grep -nE "llmCall\(" apps/web/lib/brain/*.ts >> /tmp/behaviors-audit.txt
 cat /tmp/behaviors-audit.txt
 ```
 
-- [ ] **Step 2: Populate "Provider-specific behaviors" section**
+- [x] **Step 2: Populate "Provider-specific behaviors" section**
 
 For each `llmCall` invocation, document:
 
@@ -306,7 +306,7 @@ For each `llmCall` invocation, document:
 - Whether it would fail with a provider that lacks those features
 - Required adapter interface methods to make it agnostic
 
-- [ ] **Step 3: Commit behaviors section**
+- [x] **Step 3: Commit behaviors section**
 
 ```bash
 git add docs/specs/audits/2026-05-24-mnemosyne-provider-audit.md
@@ -321,7 +321,7 @@ git -c commit.gpgsign=false commit -m "docs(audit): catalog provider-specific be
 
 - Modify: `docs/specs/audits/2026-05-24-mnemosyne-provider-audit.md`
 
-- [ ] **Step 1: List every function that requires an LLM/embedding call**
+- [x] **Step 1: List every function that requires an LLM/embedding call**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -329,7 +329,7 @@ grep -nE "embedBrain|llmCall|recordAiUsage" apps/web/lib/brain/*.ts > /tmp/mode-
 cat /tmp/mode-a-audit.txt
 ```
 
-- [ ] **Step 2: Classify each into A/B/C requirement**
+- [x] **Step 2: Classify each into A/B/C requirement**
 
 For each function, in the audit doc:
 | Function | Brain file:line | Requires for Mode A | Requires for Mode B | Requires for Mode C |
@@ -338,11 +338,11 @@ For each function, in the audit doc:
 | searchBrain | recall.ts:69 | FTS fallback | embedding provider | + inference engine |
 | extractFacts | extract.ts:67 | N/A (skipped) | N/A (skipped) | LLM provider required |
 
-- [ ] **Step 3: Document Mode A gaps**
+- [x] **Step 3: Document Mode A gaps**
 
 Functions that currently have NO non-LLM/embedding fallback path → BLOCKING for Mode A support in Mnemosyne. List them.
 
-- [ ] **Step 4: Commit Mode A analysis**
+- [x] **Step 4: Commit Mode A analysis**
 
 ```bash
 git add docs/specs/audits/2026-05-24-mnemosyne-provider-audit.md
@@ -357,7 +357,7 @@ git -c commit.gpgsign=false commit -m "docs(audit): mode A compatibility analysi
 
 - Modify: `docs/specs/audits/2026-05-24-mnemosyne-provider-audit.md`
 
-- [ ] **Step 1: Categorize fixes by phase**
+- [x] **Step 1: Categorize fixes by phase**
 
 Populate "Fix plan" section with:
 
@@ -376,11 +376,11 @@ Each fix entry:
 **Acceptance:** No string literal model names remain in extraction code path.
 ```
 
-- [ ] **Step 2: Mark audit as Complete**
+- [x] **Step 2: Mark audit as Complete**
 
 Change status from `In progress` to `Complete · YYYY-MM-DD`. Add summary count: "X BLOCKING / Y WARN / Z OK-as-example findings; fix plan covers all BLOCKING."
 
-- [ ] **Step 3: Commit final audit**
+- [x] **Step 3: Commit final audit**
 
 ```bash
 git add docs/specs/audits/2026-05-24-mnemosyne-provider-audit.md
@@ -391,7 +391,7 @@ git -c commit.gpgsign=false commit -m "docs(audit): mnemosyne provider audit com
 
 ### Task 0.6: Push Phase 0 work to origin
 
-- [ ] **Step 1: Verify clean state**
+- [x] **Step 1: Verify clean state**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -401,7 +401,7 @@ git log --oneline origin/main..HEAD
 
 Expected: 5 commits ahead (skeleton + findings + behaviors + mode-a + fix-plan).
 
-- [ ] **Step 2: Push**
+- [ ] **Step 2: Push** _(deferred — controller batch-pushes at end of plan execution per instructions)_
 
 ```bash
 git push origin main
