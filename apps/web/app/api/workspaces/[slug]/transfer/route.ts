@@ -21,10 +21,12 @@ import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@orchester/db";
 import { resolveBySlug, invalidateCache } from "@/lib/tenant/resolve";
 import { invalidateMembership } from "@/lib/tenant/membership";
+import { isAccessible } from "@/lib/tenant/lifecycle";
 import { requireAuth } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { appendAudit } from "@/lib/audit/log";
 import { auth } from "@/lib/auth";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -44,17 +46,55 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     return NextResponse.json({ error: "role_insufficient" }, { status: 403 });
   }
 
+  const accessible = isAccessible(ws);
+  if (!accessible.ok) {
+    return NextResponse.json(
+      { error: accessible.reason },
+      { status: accessible.reason === "deleted" ? 410 : 423 }
+    );
+  }
+
   const parsed = await parseBody(req, Schema);
   if (!parsed.ok) return parsed.response;
 
+  // Rate-limit per-(user,workspace): 5 attempts then refill at one
+  // token every 180s (~20 attempts/hour). Critical because the next
+  // step is a password compare — without a limiter we leak
+  // brute-force capacity on the owner's credentials. Keying on
+  // user+workspace stops one bad actor from blowing the bucket of
+  // every workspace the victim owns.
+  const rl = await rateLimit(`transfer:${ctx.user.id}:${ws.id}`, {
+    capacity: 5,
+    refillPerSec: 1 / 180,
+  });
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "rate_limited" },
+      {
+        status: 429,
+        headers: { "retry-after": String(Math.ceil((rl.retryAfterMs ?? 60_000) / 1000)) },
+      }
+    );
+  }
+
   // Re-verify password via better-auth. If sign-in succeeds, password
   // is correct; we discard the resulting session — the existing one
-  // stays. If it fails we treat as forbidden.
+  // stays. If it fails we treat as forbidden AND audit the denial so
+  // forensic review can spot brute-force patterns even when the
+  // limiter mostly absorbs them.
   try {
     await auth.api.signInEmail({
       body: { email: ctx.user.email, password: parsed.data.password },
     });
   } catch {
+    appendAudit(ws.id, {
+      action: "workspace.transfer_denied",
+      actorUserId: ctx.user.id,
+      actorKind: "user",
+      targetType: "workspace",
+      targetId: ws.id,
+      meta: { reason: "password_invalid" },
+    });
     return NextResponse.json({ error: "password_invalid" }, { status: 403 });
   }
 
