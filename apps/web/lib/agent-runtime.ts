@@ -1,11 +1,20 @@
 import "server-only";
-import { getDb, schema } from "@orchester/db";
+import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { llmCall, type ChatMessage } from "./llm-call";
 import { executeTool, getToolDefinitions, type ToolCall } from "./tools";
 import { assertWithinSpend } from "./cost-alerts";
 import { recordAiUsage } from "./ai/run";
 import { calculateChatCostUsd } from "./pricing";
+
+/**
+ * Optional `tx?: WsDb` follows the project-wide pattern (see
+ * `lib/billing/quotas.ts`). When the caller is already inside a
+ * workspace transaction (channels router, flow engine wrap), passing
+ * tx keeps every internal SELECT/UPDATE on the same connection so
+ * FORCE RLS sees `app.workspace_id` SET LOCAL.
+ */
+type WsDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 
 /**
  * Single entry point that runs an agent for a chat turn.
@@ -43,6 +52,12 @@ export interface RunAgentParams {
   /** Optional context — enables memory_* tools to scope per-conversation/employee. */
   conversationId?: string;
   employeeId?: string;
+  /**
+   * Workspace transaction handle (R2-C). When the caller is already
+   * inside `withWorkspaceTx`, threading `tx` keeps the agent loadup,
+   * flow lookup, LLM call and tool calls on the same connection.
+   */
+  tx?: WsDb;
 }
 
 export interface RunAgentResult {
@@ -107,16 +122,17 @@ export function wrapUntrusted(content: string, source: string): string {
  */
 export function redactPii(content: string): string {
   if (process.env.AI_PII_REDACTION !== "1") return content;
-  return content
-    // Emails: algo@dominio.tld
-    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[REDACTED_EMAIL]")
-    // Teléfonos: opcional +, grupos de dígitos con separadores, 7+ dígitos.
-    .replace(
-      /(?<!\w)(\+?\d[\d\s().-]{6,}\d)(?!\w)/g,
-      (m) => ((m.replace(/\D/g, "").length >= 7 ? "[REDACTED_PHONE]" : m))
-    )
-    // Secuencias largas de dígitos contiguos (tarjetas, IDs nacionales, etc.)
-    .replace(/\b\d{12,}\b/g, "[REDACTED_NUMBER]");
+  return (
+    content
+      // Emails: algo@dominio.tld
+      .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[REDACTED_EMAIL]")
+      // Teléfonos: opcional +, grupos de dígitos con separadores, 7+ dígitos.
+      .replace(/(?<!\w)(\+?\d[\d\s().-]{6,}\d)(?!\w)/g, (m) =>
+        m.replace(/\D/g, "").length >= 7 ? "[REDACTED_PHONE]" : m
+      )
+      // Secuencias largas de dígitos contiguos (tarjetas, IDs nacionales, etc.)
+      .replace(/\b\d{12,}\b/g, "[REDACTED_NUMBER]")
+  );
 }
 
 /**
@@ -148,7 +164,7 @@ function validateJsonOutput(
     });
   }
   // Validación best-effort de `required` si el schema lo declara.
-  const required = (outputSchema?.required as unknown);
+  const required = outputSchema?.required as unknown;
   if (Array.isArray(required) && parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
     const obj = parsed as Record<string, unknown>;
     const missing = required.filter((k) => typeof k === "string" && !(k in obj));
@@ -176,6 +192,7 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
   if (p.agent.kind === "flow" && p.agent.flowId) {
     const lastUser = [...p.messages].reverse().find((m) => m.role === "user");
     const { executeFlow } = await import("./flow-engine");
+    // executeFlow opens its own withWorkspaceTx; tx not threaded here.
     // F-B1/F-1: el agente espera el resultado del flow para responder, pero
     // bounded por timeout — sin esto, un flow con polling de video colgaba el
     // turno por minutos hasta el serverless timeout. Si excede, el motor recibe
@@ -217,7 +234,7 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
       };
     }
     // Try to extract a `response` variable from the run output
-    const db = getDb();
+    const db = p.tx ?? getDb();
     const runs = await db
       .select()
       .from(schema.flowRuns)
@@ -228,8 +245,8 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
       typeof out?.response === "string"
         ? out.response
         : typeof out?.message === "string"
-        ? out.message
-        : "_(El flujo se ejecutó. Configurá una variable `response` o `message` para devolver texto.)_";
+          ? out.message
+          : "_(El flujo se ejecutó. Configurá una variable `response` o `message` para devolver texto.)_";
     return { content, tokensUsed: 0, model: "flow", flowRunId: result.runId };
   }
 
@@ -265,7 +282,8 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
     if (toolDefs.length > 0) callOpts.tools = toolDefs;
 
     // Spend cap / kill-switch en cada turno del loop tool-use (cubre test-chat + MCP).
-    await assertWithinSpend(p.workspaceId);
+    await assertWithinSpend(p.workspaceId, p.tx);
+    if (p.tx) callOpts.tx = p.tx;
     const r = await llmCall(callOpts);
     totalTokens += r.tokensUsed;
     // E2-2: metering por-turno. Sin esto el cap nunca acumulaba para test-chat/MCP.
@@ -298,6 +316,7 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
           agentId: p.agent.id,
           ...(p.conversationId ? { conversationId: p.conversationId } : {}),
           ...(p.employeeId ? { employeeId: p.employeeId } : {}),
+          ...(p.tx ? { tx: p.tx } : {}),
         });
         toolCalls.push({ name: tc.name, input: tc.input, output: out });
         // L1/F2: el output de la tool es contenido no confiable → lo entregamos
@@ -332,8 +351,8 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
 }
 
 /** Load agent from DB. */
-export async function loadAgent(workspaceId: string, agentId: string) {
-  const db = getDb();
+export async function loadAgent(workspaceId: string, agentId: string, tx?: WsDb) {
+  const db = tx ?? getDb();
   const rows = await db
     .select()
     .from(schema.agents)
