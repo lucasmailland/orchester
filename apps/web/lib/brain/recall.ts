@@ -87,8 +87,14 @@ export async function searchBrain(input: SearchBrainInput): Promise<RecallHit[]>
     ...(input.tx ? { tx: input.tx } : {}),
   });
 
-  if (!queryVec) return [];
-  const vecLiteral = `[${queryVec.join(",")}]`;
+  // FIX-006 (audit, M-A-002): Mode A FTS fallback. When `embedBrain`
+  // returns nothing (no embedding provider configured in the workspace),
+  // fall through to the lexical path via the `text_lemmatized` GIN
+  // index instead of returning []. The score collapses to
+  // 0.6*fts + 0.2*recency + 0.1*frequency + 0.1*pin (semantic dropped,
+  // relevance folded into recency since it shares the same half-life).
+  const vecLiteral = queryVec ? `[${queryVec.join(",")}]` : null;
+  const useFts = vecLiteral === null;
 
   // Run search inside a workspace-scoped txn so RLS FORCE allows the SELECT.
   const hits = await withBrainTx(input.workspaceId, async (tx) => {
@@ -96,7 +102,28 @@ export async function searchBrain(input: SearchBrainInput): Promise<RecallHit[]>
     // (exp(-ln(2) * Δt / H)) so it stays on the same scale as the
     // `relevance` column, which is decayed by the cron via the same
     // formula. Frequency uses ln(1 + hit_count) / ln(100).
-    const result = await tx.execute(sql`
+    const result = useFts
+      ? await tx.execute(sql`
+      SELECT
+        id, workspace_id, agent_id, scope, scope_ref, kind, subject,
+        statement, confidence, pinned, relevance, hit_count,
+        last_recalled_at, source_message_ids, metadata, status,
+        merged_into_id, created_at, updated_at,
+        ts_rank_cd(text_lemmatized, plainto_tsquery('simple', ${input.query})) AS fts_score,
+        exp(-LN(2.0) * EXTRACT(EPOCH FROM (now() - created_at)) / (30.0 * 86400.0)) AS recency,
+        (ln(1.0 + hit_count) / ln(100.0)) AS frequency,
+        CASE WHEN pinned THEN 1.0 ELSE 0.0 END AS pin_bonus
+      FROM brain_fact
+      WHERE workspace_id = ${input.workspaceId}
+        AND status = 'active'
+        AND text_lemmatized @@ plainto_tsquery('simple', ${input.query})
+        ${input.agentId ? sql`AND (agent_id = ${input.agentId} OR agent_id IS NULL)` : sql``}
+        ${input.scope ? sql`AND scope = ${input.scope}` : sql``}
+        ${input.scopeRef ? sql`AND scope_ref = ${input.scopeRef}` : sql``}
+      ORDER BY fts_score DESC
+      LIMIT ${topK * 3}
+    `)
+      : await tx.execute(sql`
       SELECT
         id, workspace_id, agent_id, scope, scope_ref, kind, subject,
         statement, confidence, pinned, relevance, hit_count,
@@ -137,7 +164,8 @@ export async function searchBrain(input: SearchBrainInput): Promise<RecallHit[]>
       merged_into_id: string | null;
       created_at: string;
       updated_at: string;
-      semantic: number;
+      semantic?: number;
+      fts_score?: number;
       recency: number;
       frequency: number;
       pin_bonus: number;
@@ -147,13 +175,17 @@ export async function searchBrain(input: SearchBrainInput): Promise<RecallHit[]>
     const rows = result as unknown as Row[];
 
     const scored: RecallHit[] = rows.map((r) => {
-      const semantic = Number(r.semantic);
+      const semantic = Number(r.semantic ?? 0);
+      const fts = Number(r.fts_score ?? 0);
       const recency = Number(r.recency);
       const frequency = Number(r.frequency);
       const relevance = Number(r.relevance);
       const pin = Number(r.pin_bonus);
-      const score =
-        0.5 * semantic + 0.15 * recency + 0.1 * frequency + 0.2 * relevance + 0.05 * pin;
+      // FIX-006: Mode A uses an FTS-driven score; vector mode keeps the
+      // hybrid formula. Both sum to 1.0 within their respective tracks.
+      const score = useFts
+        ? 0.6 * Math.min(1, fts) + 0.2 * recency + 0.1 * frequency + 0.1 * pin
+        : 0.5 * semantic + 0.15 * recency + 0.1 * frequency + 0.2 * relevance + 0.05 * pin;
       return {
         fact: {
           id: r.id,
