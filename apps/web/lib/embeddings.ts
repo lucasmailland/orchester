@@ -1,8 +1,17 @@
 import "server-only";
-import { getDb, schema } from "@orchester/db";
+import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { decrypt } from "./encryption";
 import { fetchWithTimeout } from "./http-util";
+
+/**
+ * Optional `tx?: WsDb` follows the project-wide pattern (see
+ * `lib/billing/quotas.ts`). When a caller is already inside a
+ * transaction with `app.workspace_id` SET LOCAL, passing the same
+ * handle keeps the `ai_provider` lookup on the same connection so
+ * FORCE RLS sees the GUC.
+ */
+type WsDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 
 const EMBED_TIMEOUT_MS = 60_000;
 
@@ -29,15 +38,15 @@ export async function embed(
   workspaceId: string,
   provider: EmbeddingProvider,
   model: string,
-  texts: string[]
+  texts: string[],
+  tx?: WsDb
 ): Promise<EmbeddingResult> {
   if (texts.length === 0) return { vectors: [], model, tokensUsed: 0 };
 
   // Locate provider key (reuse ai_provider rows configured in Settings)
-  const db = getDb();
+  const db = tx ?? getDb();
   // Map embedding provider → ai_provider.provider enum
-  const aiProviderKind: "openai" | "google" =
-    provider === "openai" ? "openai" : "google";
+  const aiProviderKind: "openai" | "google" = provider === "openai" ? "openai" : "google";
   const rows = await db
     .select()
     .from(schema.aiProviders)
@@ -66,19 +75,21 @@ async function embedOpenAI(
   model: string,
   texts: string[]
 ): Promise<EmbeddingResult> {
-  const r = await fetchWithTimeout("https://api.openai.com/v1/embeddings", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
+  const r = await fetchWithTimeout(
+    "https://api.openai.com/v1/embeddings",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ model, input: texts }),
     },
-    body: JSON.stringify({ model, input: texts }),
-  }, EMBED_TIMEOUT_MS);
+    EMBED_TIMEOUT_MS
+  );
   if (!r.ok) throw new Error(`OpenAI embeddings ${r.status}: ${await r.text()}`);
   const j = await r.json();
-  const vectors = (j.data ?? []).map((d: { embedding: number[] }) =>
-    normalizeTo1536(d.embedding)
-  );
+  const vectors = (j.data ?? []).map((d: { embedding: number[] }) => normalizeTo1536(d.embedding));
   return {
     vectors,
     model,
@@ -95,21 +106,23 @@ async function embedGoogle(
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
     model
   )}:batchEmbedContents?key=${encodeURIComponent(apiKey)}`;
-  const r = await fetchWithTimeout(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      requests: texts.map((t) => ({
-        model: `models/${model}`,
-        content: { parts: [{ text: t }] },
-      })),
-    }),
-  }, EMBED_TIMEOUT_MS);
+  const r = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        requests: texts.map((t) => ({
+          model: `models/${model}`,
+          content: { parts: [{ text: t }] },
+        })),
+      }),
+    },
+    EMBED_TIMEOUT_MS
+  );
   if (!r.ok) throw new Error(`Google embeddings ${r.status}: ${await r.text()}`);
   const j = await r.json();
-  const vectors = (j.embeddings ?? []).map((e: { values: number[] }) =>
-    normalizeTo1536(e.values)
-  );
+  const vectors = (j.embeddings ?? []).map((e: { values: number[] }) => normalizeTo1536(e.values));
   return {
     vectors,
     model,
