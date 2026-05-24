@@ -168,6 +168,7 @@ export const JOB_FLOW_RUN = "flow:run";
 export const JOB_FLOW_REAP = "flow:reap";
 export const JOB_KB_INGEST = "kb:ingest";
 export const JOB_BRAIN_EXTRACT = "brain:extract";
+export const JOB_MNEMO_EXTRACT = "mnemo.extract";
 export const JOB_BRAIN_COMPACTION = "brain:compaction";
 export const JOB_BRAIN_DECAY = "brain:decay";
 export const JOB_KB_REINDEX = "kb:reindex";
