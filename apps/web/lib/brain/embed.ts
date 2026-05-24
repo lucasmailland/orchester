@@ -27,7 +27,20 @@ function cacheKey(workspaceId: string, model: string, text: string): string {
 export interface EmbedBrainInput {
   workspaceId: string;
   texts: string[];
+  /**
+   * Embedding provider. REQUIRED per Mnemosyne Charter §25 (no
+   * hardcoded provider defaults). Audit FIX-002. If undefined the
+   * function returns `[]` rather than silently picking OpenAI —
+   * callers in Mode A (no embedding provider configured) get an
+   * empty result and downstream code (createFact / searchBrain) is
+   * expected to degrade gracefully (FIX-005, FIX-007).
+   */
   provider?: EmbeddingProvider;
+  /**
+   * Embedding model identifier. REQUIRED per Charter §25 (no
+   * hardcoded model defaults). Audit FIX-003. If undefined alongside
+   * `provider`, the function returns `[]` (Mode A signal).
+   */
   model?: string;
   tx?: DbClient;
 }
@@ -37,13 +50,24 @@ export interface EmbedBrainInput {
  * are returned synchronously; cache misses batch through the embedding
  * provider in one HTTP call.
  *
- * Provider/model default to whatever the workspace's primary KB uses
- * (looked up by caller); for v1 we accept the args from the caller and
- * don't introspect the workspace default. See OQ-B4.
+ * Charter §25 (audit FIX-002, FIX-003, FIX-005): if `provider` or
+ * `model` is unset, this returns `[]` immediately. The caller is
+ * responsible for resolving these from the workspace configuration
+ * (future `mnemo.embedding_provider` + `mnemo.embedding_model`
+ * settings); when the workspace has none configured we are in Mode A
+ * and embedding is gracefully unavailable.
  */
 export async function embedBrain(input: EmbedBrainInput): Promise<number[][]> {
-  const provider = input.provider ?? "openai";
-  const model = input.model ?? "text-embedding-3-small";
+  // FIX-002 + FIX-003 + FIX-005 (audit, Charter §25, M-A-001): no
+  // hardcoded provider/model fallback. When either side is undefined
+  // we are in Mode A — short-circuit to an empty result instead of
+  // silently picking OpenAI (which would throw inside `embedRaw` if
+  // the workspace has no OpenAI key configured). Downstream consumers
+  // (createFact / searchBrain / updateFact) handle `[]` per FIX-006,
+  // FIX-007, FIX-008.
+  if (!input.provider || !input.model) return [];
+  const provider = input.provider;
+  const model = input.model;
   const out: number[][] = new Array(input.texts.length);
   const misses: { idx: number; text: string }[] = [];
 
