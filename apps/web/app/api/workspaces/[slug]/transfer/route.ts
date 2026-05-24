@@ -1,0 +1,127 @@
+// apps/web/app/api/workspaces/[slug]/transfer/route.ts
+//
+// POST /api/workspaces/[slug]/transfer
+//
+// Transfers workspace ownership to another member. Requires the current
+// owner to re-prove with their password — irreversible action, defends
+// against session hijack.
+//
+// Flow:
+//   1. Caller MUST be the current owner.
+//   2. Caller submits { newOwnerId, password }.
+//   3. We re-verify password via better-auth (`signInEmail` with the
+//      caller's own email — succeeds iff password matches).
+//   4. New owner must already be a member; we promote them to owner +
+//      demote the previous owner to admin.
+//   5. Audit `workspace.transfer`. Invalidate membership cache for
+//      both parties so the role change propagates immediately.
+import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
+import { and, eq } from "drizzle-orm";
+import { getDb, schema } from "@orchester/db";
+import { resolveBySlug, invalidateCache } from "@/lib/tenant/resolve";
+import { invalidateMembership } from "@/lib/tenant/membership";
+import { requireAuth } from "@/lib/auth-guards";
+import { parseBody } from "@/lib/validation";
+import { appendAudit } from "@/lib/audit/log";
+import { auth } from "@/lib/auth";
+
+export const dynamic = "force-dynamic";
+
+const Schema = z.object({
+  newOwnerId: z.string().min(1),
+  password: z.string().min(1),
+});
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
+  const ctx = await requireAuth({ workspaceOptional: true });
+  if (ctx instanceof Response) return ctx;
+
+  const { slug } = await params;
+  const ws = await resolveBySlug(slug);
+  if (!ws) return NextResponse.json({ error: "workspace_not_found" }, { status: 404 });
+  if (ws.ownerUserId !== ctx.user.id) {
+    return NextResponse.json({ error: "role_insufficient" }, { status: 403 });
+  }
+
+  const parsed = await parseBody(req, Schema);
+  if (!parsed.ok) return parsed.response;
+
+  // Re-verify password via better-auth. If sign-in succeeds, password
+  // is correct; we discard the resulting session — the existing one
+  // stays. If it fails we treat as forbidden.
+  try {
+    await auth.api.signInEmail({
+      body: { email: ctx.user.email, password: parsed.data.password },
+    });
+  } catch {
+    return NextResponse.json({ error: "password_invalid" }, { status: 403 });
+  }
+
+  if (parsed.data.newOwnerId === ctx.user.id) {
+    return NextResponse.json({ error: "same_owner" }, { status: 400 });
+  }
+
+  const db = getDb();
+  // Verify the target is already a member.
+  const targetMember = await db
+    .select()
+    .from(schema.workspaceMembers)
+    .where(
+      and(
+        eq(schema.workspaceMembers.workspaceId, ws.id),
+        eq(schema.workspaceMembers.userId, parsed.data.newOwnerId)
+      )
+    )
+    .limit(1);
+  if (!targetMember[0]) {
+    return NextResponse.json({ error: "new_owner_not_a_member" }, { status: 422 });
+  }
+
+  // Perform the swap atomically so we never end up with two owners or
+  // zero owners.
+  await db.transaction(async (tx) => {
+    await tx
+      .update(schema.workspaces)
+      .set({ ownerUserId: parsed.data.newOwnerId, updatedAt: new Date() })
+      .where(eq(schema.workspaces.id, ws.id));
+    await tx
+      .update(schema.workspaceMembers)
+      .set({ role: "owner" })
+      .where(
+        and(
+          eq(schema.workspaceMembers.workspaceId, ws.id),
+          eq(schema.workspaceMembers.userId, parsed.data.newOwnerId)
+        )
+      );
+    await tx
+      .update(schema.workspaceMembers)
+      .set({ role: "admin" })
+      .where(
+        and(
+          eq(schema.workspaceMembers.workspaceId, ws.id),
+          eq(schema.workspaceMembers.userId, ctx.user.id)
+        )
+      );
+  });
+
+  invalidateCache(ws.id);
+  invalidateMembership(ctx.user.id, ws.id);
+  invalidateMembership(parsed.data.newOwnerId, ws.id);
+
+  appendAudit(ws.id, {
+    action: "workspace.transfer",
+    actorUserId: ctx.user.id,
+    actorKind: "user",
+    targetType: "workspace",
+    targetId: ws.id,
+    meta: {
+      previousOwnerId: ctx.user.id,
+      newOwnerId: parsed.data.newOwnerId,
+    },
+  });
+
+  return NextResponse.json({
+    workspace: { ...ws, ownerUserId: parsed.data.newOwnerId },
+  });
+}
