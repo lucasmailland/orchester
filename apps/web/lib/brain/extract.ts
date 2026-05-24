@@ -47,8 +47,15 @@ export interface ExtractFactsInput {
   agentId: string;
   /** Raw text of messages joined by newlines (role: content). */
   conversationSlice: string;
-  /** Model identifier to use; defaults to haiku-like cheap model. */
-  model?: string;
+  /**
+   * Model identifier to use. REQUIRED per Mnemosyne Charter §25 (no
+   * hardcoded provider/model defaults). The caller (extract-job.ts)
+   * resolves this from the workspace's configured cheap-tier model.
+   * In future Phase 2+, this will read `workspace.mnemo.small_model`
+   * via `getWorkspaceSetting()`; today the caller passes an explicit
+   * value (FIX-001 + FIX-008 audit-derived: fail-closed when unset).
+   */
+  model: string;
   tx: DbClient;
 }
 
@@ -71,7 +78,10 @@ export async function extractFacts(input: ExtractFactsInput): Promise<FactExtrac
   await assertWithinSpend(input.workspaceId, input.tx);
 
   const userContent = wrapUntrusted(input.conversationSlice, "conversation");
-  const model = input.model ?? "claude-haiku-4-5";
+  // FIX-001 (audit): no hardcoded model fallback. Caller MUST pass `model`.
+  // Mnemosyne Charter §25 forbids string-literal provider/model names in
+  // operational paths. Resolution lives in the caller (extract-job.ts).
+  const model = input.model;
   let raw: string;
   let tokensUsed = 0;
   try {

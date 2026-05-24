@@ -7,13 +7,16 @@
 import "server-only";
 import { asc, eq } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
-import { schema } from "@orchester/db";
+import { schema, type DbClient } from "@orchester/db";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 import { appendAudit } from "@/lib/audit/log";
 import { safeLogError } from "@/lib/safe-log";
+import { resolveSmallTierModel } from "./model-resolve";
 import { extractFacts } from "./extract";
 import { createFact, withBrainTx } from "./store";
 import { invalidateRecallCache } from "./recall";
+
+type Tx = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 
 export interface BrainExtractPayload {
   jobId: string; // brain_extraction_job.id
@@ -56,6 +59,20 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
         return;
       }
 
+      // FIX-001 (audit): resolve the workspace's small-tier chat model
+      // explicitly. extract.ts no longer carries a `claude-haiku-4-5`
+      // default — Mnemosyne Charter §25 forbids hardcoded model strings.
+      // If no fast-tier chat provider is configured, throw — the job
+      // will fail and pg-boss will surface it. FIX-009 (later commit)
+      // upgrades this to the formal "skipped" tracking path.
+      const resolved = await resolveSmallTierModel(payload.workspaceId, tx as unknown as Tx);
+      if (!resolved) {
+        throw new Error(
+          "brain.extract: no fast-tier chat model configured for workspace " +
+            `${payload.workspaceId} (mnemo.small_model unset)`
+        );
+      }
+
       await tx
         .update(schema.brainExtractionJobs)
         .set({
@@ -64,9 +81,7 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
         })
         .where(eq(schema.brainExtractionJobs.id, payload.jobId));
 
-      const slice = msgs
-        .map((m) => `${m.role}: ${m.content}`)
-        .join("\n");
+      const slice = msgs.map((m) => `${m.role}: ${m.content}`).join("\n");
 
       // 2. Extract facts via LLM (uses workspace's ai_provider key —
       // assertWithinSpend in llmCall will cap on budget exhaustion).
@@ -75,6 +90,7 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
         workspaceId: payload.workspaceId,
         agentId: payload.agentId,
         conversationSlice: slice,
+        model: resolved.modelId,
         tx: tx as unknown as Parameters<typeof extractFacts>[0]["tx"],
       });
 
@@ -82,7 +98,7 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
       // the cross-tenant admin txn — facts must be created with
       // app.workspace_id set so RLS write WITH CHECK is satisfied).
       const messageIds = msgs.map((m) => m.id);
-    await withBrainTx(payload.workspaceId, async (factTx) => {
+      await withBrainTx(payload.workspaceId, async (factTx) => {
         for (const f of facts) {
           try {
             await createFact({
