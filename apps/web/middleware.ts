@@ -61,6 +61,19 @@ export async function middleware(request: NextRequest) {
   const isApi = pathname.startsWith("/api/");
   const isStatic = pathname.startsWith("/_next/") || pathname === "/favicon.ico";
 
+  // Defense-in-depth: unconditionally drop any inbound `x-tenant-slug`
+  // header from the incoming request. We compute the tenant slug
+  // server-side from the signed session cookie further down and re-set
+  // the header from that trusted source. If we left the attacker-
+  // supplied value in place when the cookie is missing (no session, or
+  // session without an active workspace) it would survive into the
+  // forwarded request → server components / route handlers reading
+  // `x-tenant-slug` could be tricked into scoping queries to an
+  // arbitrary slug.
+  if (request.headers.has("x-tenant-slug")) {
+    request.headers.delete("x-tenant-slug");
+  }
+
   // Generamos nonce SIEMPRE para HTML responses; APIs y assets no lo necesitan
   // (no devuelven HTML).
   const nonce = isApi || isStatic ? "" : generateNonce();
@@ -116,7 +129,12 @@ export async function middleware(request: NextRequest) {
       const activeSlug = request.cookies.get("orch-active-workspace")?.value;
       if (activeSlug) {
         const newPath = `/${parsed.locale}/${activeSlug}${parsed.rest}`;
-        return NextResponse.redirect(new URL(newPath, request.url), 301);
+        // 307 over 301: preserves the HTTP method on the redirect AND
+        // is not aggressively cached by browsers / proxies the way 301
+        // is. Legacy URLs change rarely but they DO change (workspace
+        // rename, user switching workspaces) so a stale-forever cache
+        // is a foot-gun.
+        return NextResponse.redirect(new URL(newPath, request.url), 307);
       }
       return NextResponse.redirect(new URL(`/${parsed.locale}/workspaces`, request.url));
     }

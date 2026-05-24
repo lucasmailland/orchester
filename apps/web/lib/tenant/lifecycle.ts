@@ -130,6 +130,18 @@ export async function suspend(
   opts: { reason: string; userId: string }
 ): Promise<void> {
   const db = getDb();
+  // B2.4 — assert current status. A blind UPDATE would silently flip a
+  // deleted workspace to "suspended", stranding deletedAt and causing
+  // the hard-delete cron to skip the row forever.
+  const rows = await db
+    .select({ status: schema.workspaces.status })
+    .from(schema.workspaces)
+    .where(eq(schema.workspaces.id, workspaceId))
+    .limit(1);
+  const ws = rows[0];
+  if (!ws) throw new Error("workspace_not_found");
+  if (ws.status !== "active") throw new Error("workspace_lifecycle_invalid");
+
   await db
     .update(schema.workspaces)
     .set({
@@ -154,6 +166,18 @@ export async function suspend(
 
 export async function unsuspend(workspaceId: string, opts: { userId: string }): Promise<void> {
   const db = getDb();
+  // B2.4 — assert current status. Unsuspending an already-active workspace
+  // is a no-op masking a control-flow bug; unsuspending a deleted one
+  // would resurrect it without restore-token validation.
+  const rows = await db
+    .select({ status: schema.workspaces.status })
+    .from(schema.workspaces)
+    .where(eq(schema.workspaces.id, workspaceId))
+    .limit(1);
+  const ws = rows[0];
+  if (!ws) throw new Error("workspace_not_found");
+  if (ws.status !== "suspended") throw new Error("workspace_lifecycle_invalid");
+
   await db
     .update(schema.workspaces)
     .set({

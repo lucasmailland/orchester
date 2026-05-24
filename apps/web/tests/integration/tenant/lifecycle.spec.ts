@@ -84,4 +84,66 @@ describe("lifecycle", () => {
     expect(r.reason).toBe("suspended");
     await unsuspend(wsA.id, { userId: wsA.ownerId });
   });
+
+  // B2.4 — suspend/unsuspend must assert the current status to avoid
+  // silently flipping deletedAt → suspended (which would strand the row
+  // past the hard-delete cron) or unsuspending an already-active row
+  // and masking a control-flow bug.
+  it("suspend on a deleted workspace rejects with workspace_lifecycle_invalid", async () => {
+    // Stand up a fresh workspace so we don't disturb wsA's state across tests.
+    const { createId } = await import("@paralleldrive/cuid2");
+    const db = getDb();
+    const wsId = createId();
+    const ownerId = createId();
+    await db.insert(schema.users).values({
+      id: ownerId,
+      email: `b24-suspend-${ownerId}@test`,
+      name: "Owner",
+      emailVerified: true,
+    });
+    await db.insert(schema.workspaces).values({
+      id: wsId,
+      slug: `b24s-${wsId.slice(0, 8)}`,
+      name: "WS",
+      timezone: "UTC",
+      status: "active",
+      ownerUserId: ownerId,
+    });
+
+    await softDelete(wsId, { userId: ownerId });
+    await expect(suspend(wsId, { reason: "x", userId: ownerId })).rejects.toThrow(
+      "workspace_lifecycle_invalid"
+    );
+    // And the workspace is still deleted (no silent strand).
+    const after = await getWs(wsId);
+    expect(after!.status).toBe("deleted");
+    expect(after!.deletedAt).toBeInstanceOf(Date);
+  });
+
+  it("unsuspend on an active workspace rejects with workspace_lifecycle_invalid", async () => {
+    const { createId } = await import("@paralleldrive/cuid2");
+    const db = getDb();
+    const wsId = createId();
+    const ownerId = createId();
+    await db.insert(schema.users).values({
+      id: ownerId,
+      email: `b24-unsuspend-${ownerId}@test`,
+      name: "Owner",
+      emailVerified: true,
+    });
+    await db.insert(schema.workspaces).values({
+      id: wsId,
+      slug: `b24u-${wsId.slice(0, 8)}`,
+      name: "WS",
+      timezone: "UTC",
+      status: "active",
+      ownerUserId: ownerId,
+    });
+
+    await expect(unsuspend(wsId, { userId: ownerId })).rejects.toThrow(
+      "workspace_lifecycle_invalid"
+    );
+    const after = await getWs(wsId);
+    expect(after!.status).toBe("active");
+  });
 });
