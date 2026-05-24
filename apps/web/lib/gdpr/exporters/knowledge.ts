@@ -15,29 +15,30 @@ import type { ExporterDb } from "./workspace";
 export async function exportKnowledge(workspaceId: string, db?: ExporterDb) {
   const client = db ?? getDb();
 
-  const [bases, docs, chunks] = await Promise.all([
-    client
-      .select()
-      .from(schema.knowledgeBases)
-      .where(eq(schema.knowledgeBases.workspaceId, workspaceId)),
-    client
-      .select()
-      .from(schema.knowledgeDocs)
-      .where(eq(schema.knowledgeDocs.workspaceId, workspaceId)),
-    client
-      .select({
-        id: schema.knowledgeChunks.id,
-        docId: schema.knowledgeChunks.docId,
-        kbId: schema.knowledgeChunks.kbId,
-        workspaceId: schema.knowledgeChunks.workspaceId,
-        ordinal: schema.knowledgeChunks.ordinal,
-        text: schema.knowledgeChunks.text,
-        metadata: schema.knowledgeChunks.metadata,
-        createdAt: schema.knowledgeChunks.createdAt,
-      })
-      .from(schema.knowledgeChunks)
-      .where(eq(schema.knowledgeChunks.workspaceId, workspaceId)),
-  ]);
+  // Sequential awaits (no Promise.all): when `client` is a shared
+  // transaction handle, parallel queries collide on the single
+  // postgres-js connection. See the matching note in `agents.ts`.
+  const bases = await client
+    .select()
+    .from(schema.knowledgeBases)
+    .where(eq(schema.knowledgeBases.workspaceId, workspaceId));
+  const docs = await client
+    .select()
+    .from(schema.knowledgeDocs)
+    .where(eq(schema.knowledgeDocs.workspaceId, workspaceId));
+  const chunks = await client
+    .select({
+      id: schema.knowledgeChunks.id,
+      docId: schema.knowledgeChunks.docId,
+      kbId: schema.knowledgeChunks.kbId,
+      workspaceId: schema.knowledgeChunks.workspaceId,
+      ordinal: schema.knowledgeChunks.ordinal,
+      text: schema.knowledgeChunks.text,
+      metadata: schema.knowledgeChunks.metadata,
+      createdAt: schema.knowledgeChunks.createdAt,
+    })
+    .from(schema.knowledgeChunks)
+    .where(eq(schema.knowledgeChunks.workspaceId, workspaceId));
 
   return { bases, docs, chunks };
 }

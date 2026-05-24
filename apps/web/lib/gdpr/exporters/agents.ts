@@ -17,11 +17,25 @@ import type { ExporterDb } from "./workspace";
 export async function exportAgents(workspaceId: string, db?: ExporterDb) {
   const client = db ?? getDb();
 
-  const [teams, agents, channels] = await Promise.all([
-    client.select().from(schema.teams).where(eq(schema.teams.workspaceId, workspaceId)),
-    client.select().from(schema.agents).where(eq(schema.agents.workspaceId, workspaceId)),
-    client.select().from(schema.channels).where(eq(schema.channels.workspaceId, workspaceId)),
-  ]);
+  // Run sequentially (not Promise.all): when `client` is a transaction
+  // handle threaded down from `withCrossTenantAdmin`, parallel awaits
+  // would issue overlapping queries on the SAME pooled connection,
+  // which postgres-js rejects ("another statement is in progress").
+  // Sequential awaits cost ~3x the wallclock time per exporter but
+  // keep the txn valid; throughput here isn't latency-critical (the
+  // export worker is async — the UI polls progress).
+  const teams = await client
+    .select()
+    .from(schema.teams)
+    .where(eq(schema.teams.workspaceId, workspaceId));
+  const agents = await client
+    .select()
+    .from(schema.agents)
+    .where(eq(schema.agents.workspaceId, workspaceId));
+  const channels = await client
+    .select()
+    .from(schema.channels)
+    .where(eq(schema.channels.workspaceId, workspaceId));
 
   // Strip encrypted credentials + the webhook secret — both are
   // operational secrets, not data the requester needs in their export.

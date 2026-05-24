@@ -36,6 +36,20 @@ import { uploadZip } from "./storage";
 import { sendExportReadyEmail } from "./email";
 
 /**
+ * Hard cap on archive size before we refuse to upload. The current
+ * in-memory pipeline (`archiver` → `Buffer.concat` → adapter PUT)
+ * holds the full zip resident; on the worker pod this means a
+ * multi-GB tenant export trips the Node heap limit and SIGKILLs the
+ * process mid-pipeline (leaving the row stuck in `exporting` until
+ * the watchdog flips it).
+ *
+ * 1 GiB matches what the largest tenants we ship today produce with
+ * headroom; revisit this constant when the streaming-upload path
+ * lands (then we can drop the limit since we won't be buffering).
+ */
+const MAX_ARCHIVE_BYTES = 1 * 1024 * 1024 * 1024;
+
+/**
  * Pipeline definition. `weight` is the fraction of the 0..95 progress
  * window contributed by each step (we cap at 95 so the UI doesn't
  * flash 100% before the upload/email finishes). Weights must sum to
@@ -72,9 +86,34 @@ export async function runExportJob(jobId: string): Promise<void> {
       // Build the zip in memory. archiver emits 'data' chunks as each
       // entry is finalised; we accumulate them so `uploadZip` gets a
       // single Buffer (matching the adapter surface today).
+      //
+      // Size guard: workspaces with millions of messages or hundreds of
+      // ingested docs can produce multi-GB zips that OOM the worker
+      // pod before we ever reach `uploadZip`. We track the running
+      // byte total on every 'data' chunk and abort once it exceeds
+      // `MAX_ARCHIVE_BYTES`. The job is then flipped to `failed` with
+      // a deterministic `export_too_large` sentinel so ops / the UI
+      // can distinguish "your tenant is too big for the current
+      // pipeline" from a genuine bug.
       const archive = archiver("zip", { zlib: { level: 9 } });
       const chunks: Buffer[] = [];
-      archive.on("data", (c: Buffer) => chunks.push(c));
+      let bytesSoFar = 0;
+      const exportTooLargeErr = new Error("export_too_large");
+      archive.on("data", (c: Buffer) => {
+        chunks.push(c);
+        bytesSoFar += c.length;
+        if (bytesSoFar > MAX_ARCHIVE_BYTES) {
+          // Best-effort abort: lets `finalize()` settle via the 'error'
+          // listener wired up below. The throw in the loop / post-loop
+          // is the deterministic trigger; this just stops archiver from
+          // continuing to allocate.
+          try {
+            archive.abort();
+          } catch {
+            // ignore — error path propagates via the loop guard
+          }
+        }
+      });
       const done = new Promise<void>((resolve, reject) => {
         archive.on("end", () => resolve());
         archive.on("error", (err: Error) => reject(err));
@@ -89,10 +128,23 @@ export async function runExportJob(jobId: string): Promise<void> {
           .update(schema.gdprExportJobs)
           .set({ progress: Math.min(progress, 95) })
           .where(eq(schema.gdprExportJobs.id, jobId));
+        // If the size guard tripped during the append above, stop the
+        // pipeline. The 'data' listener already called
+        // `archive.abort()`; throwing here routes to the catch block
+        // and flips the job state with the size-guard sentinel.
+        if (bytesSoFar > MAX_ARCHIVE_BYTES) {
+          throw exportTooLargeErr;
+        }
       }
 
       await archive.finalize();
       await done;
+      // Final belt-and-suspenders check: if `finalize()` emitted the
+      // last chunks AFTER the loop already moved on, still trip the
+      // failure path here instead of uploading a too-large artefact.
+      if (bytesSoFar > MAX_ARCHIVE_BYTES) {
+        throw exportTooLargeErr;
+      }
 
       const buffer = Buffer.concat(chunks);
       const key = `${job.workspaceId}/${jobId}.zip`;

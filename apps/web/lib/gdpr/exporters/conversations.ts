@@ -15,16 +15,17 @@ import type { ExporterDb } from "./workspace";
 export async function exportConversations(workspaceId: string, db?: ExporterDb) {
   const client = db ?? getDb();
 
-  const [conversations, labels] = await Promise.all([
-    client
-      .select()
-      .from(schema.conversations)
-      .where(eq(schema.conversations.workspaceId, workspaceId)),
-    client
-      .select()
-      .from(schema.conversationLabels)
-      .where(eq(schema.conversationLabels.workspaceId, workspaceId)),
-  ]);
+  // Sequential awaits (no Promise.all): when `client` is a shared
+  // transaction handle, parallel queries collide on the single
+  // postgres-js connection. See the matching note in `agents.ts`.
+  const conversations = await client
+    .select()
+    .from(schema.conversations)
+    .where(eq(schema.conversations.workspaceId, workspaceId));
+  const labels = await client
+    .select()
+    .from(schema.conversationLabels)
+    .where(eq(schema.conversationLabels.workspaceId, workspaceId));
 
   return { conversations, labels };
 }
