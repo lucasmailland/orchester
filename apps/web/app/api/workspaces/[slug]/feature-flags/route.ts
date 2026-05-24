@@ -8,6 +8,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { resolveBySlug } from "@/lib/tenant/resolve";
 import { checkMembership } from "@/lib/tenant/membership";
+import { isAccessible } from "@/lib/tenant/lifecycle";
 import { requireAuth } from "@/lib/auth-guards";
 import { assertCan, ForbiddenError } from "@/lib/rbac";
 import { listFlags } from "@/lib/feature-flags";
@@ -24,6 +25,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
 
   const m = await checkMembership(ctx.user.id, ws.id);
   if (!m) return NextResponse.json({ error: "not_a_member" }, { status: 403 });
+
+  const accessible = isAccessible(ws);
+  if (!accessible.ok) {
+    return NextResponse.json(
+      { error: accessible.reason },
+      { status: accessible.reason === "deleted" ? 410 : 423 }
+    );
+  }
 
   try {
     assertCan(m.role, "settings.write");

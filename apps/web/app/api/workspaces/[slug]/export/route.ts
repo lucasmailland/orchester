@@ -11,8 +11,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
+import { sql } from "drizzle-orm";
 import { getDb, schema } from "@orchester/db";
 import { resolveBySlug } from "@/lib/tenant/resolve";
+import { isAccessible } from "@/lib/tenant/lifecycle";
 import { requireAuth } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { enqueue, JOB_GDPR_EXPORT } from "@/lib/queue";
@@ -35,18 +37,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     return NextResponse.json({ error: "role_insufficient" }, { status: 403 });
   }
 
+  const accessible = isAccessible(ws);
+  if (!accessible.ok) {
+    return NextResponse.json(
+      { error: accessible.reason },
+      { status: accessible.reason === "deleted" ? 410 : 423 }
+    );
+  }
+
   // Body is optional; validate strictly so unexpected fields fail loud.
   const parsed = await parseBody(req, Schema);
   if (!parsed.ok) return parsed.response;
 
   const db = getDb();
   const jobId = `exp_${createId()}`;
-  await db.insert(schema.gdprExportJobs).values({
-    id: jobId,
-    workspaceId: ws.id,
-    requestedByUserId: ctx.user.id,
-    state: "pending",
-    progress: 0,
+  // gdprExportJobs is FORCED — set the workspace GUC inside a
+  // transaction so the insert passes RLS.
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${ws.id}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+    await tx.insert(schema.gdprExportJobs).values({
+      id: jobId,
+      workspaceId: ws.id,
+      requestedByUserId: ctx.user.id,
+      state: "pending",
+      progress: 0,
+    });
   });
 
   // Enqueue worker; singleton-key prevents two simultaneous exports for

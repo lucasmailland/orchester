@@ -22,13 +22,24 @@ import { eq } from "drizzle-orm";
 import { getDb, schema } from "@orchester/db";
 import { resolveBySlug, invalidateCache } from "@/lib/tenant/resolve";
 import { checkMembership } from "@/lib/tenant/membership";
-import { softDelete } from "@/lib/tenant/lifecycle";
+import { softDelete, isAccessible } from "@/lib/tenant/lifecycle";
 import { appendAudit } from "@/lib/audit/log";
 import { assertCan, ForbiddenError } from "@/lib/rbac";
 import { requireAuth } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Map an isAccessible() failure reason to the right HTTP status:
+ *   - deleted  → 410 Gone (the workspace is in the 30-day restore
+ *     window or already hard-deleted; the resource is unavailable)
+ *   - suspended → 423 Locked (still exists, but no member operations
+ *     allowed until an admin lifts the suspension)
+ */
+function accessibilityResponse(reason: "deleted" | "suspended"): NextResponse {
+  return NextResponse.json({ error: reason }, { status: reason === "deleted" ? 410 : 423 });
+}
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const ctx = await requireAuth({ workspaceOptional: true });
@@ -44,6 +55,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
   if (!m) {
     return NextResponse.json({ error: "not_a_member" }, { status: 403 });
   }
+
+  const accessible = isAccessible(ws);
+  if (!accessible.ok) return accessibilityResponse(accessible.reason!);
 
   return NextResponse.json({
     workspace: {
@@ -80,6 +94,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sl
   if (!m) {
     return NextResponse.json({ error: "not_a_member" }, { status: 403 });
   }
+
+  const accessible = isAccessible(ws);
+  if (!accessible.ok) return accessibilityResponse(accessible.reason!);
 
   try {
     assertCan(m.role, "settings.write");
