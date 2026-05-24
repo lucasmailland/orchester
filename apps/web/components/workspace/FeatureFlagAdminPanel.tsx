@@ -32,6 +32,10 @@ export function FeatureFlagAdminPanel({ workspaceSlug }: Props) {
   const [flags, setFlags] = useState<FlagRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  // Track in-flight toggles by flagKey so we can disable the control
+  // and prevent out-of-order PUT responses leaving the UI desynced
+  // from the server (B4.6).
+  const [pendingFlagKeys, setPendingFlagKeys] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -53,6 +57,15 @@ export function FeatureFlagAdminPanel({ workspaceSlug }: Props) {
   }, [workspaceSlug]);
 
   async function toggle(flag: FlagRow, next: boolean) {
+    if (pendingFlagKeys.has(flag.flagKey)) return;
+    // Mark pending so the control is disabled for the duration of the
+    // PUT — prevents a rapid double-click from issuing two requests
+    // whose responses may arrive out of order.
+    setPendingFlagKeys((p) => {
+      const n = new Set(p);
+      n.add(flag.flagKey);
+      return n;
+    });
     // Optimistic flip.
     setFlags((prev) => prev.map((f) => (f.id === flag.id ? { ...f, enabled: next } : f)));
     try {
@@ -65,10 +78,16 @@ export function FeatureFlagAdminPanel({ workspaceSlug }: Props) {
         }
       );
       if (!r.ok) throw new Error(`status_${r.status}`);
-    } catch (e) {
+    } catch {
       // Rollback.
       setFlags((prev) => prev.map((f) => (f.id === flag.id ? { ...f, enabled: !next } : f)));
       toast.error(`Could not update ${flag.flagKey}`);
+    } finally {
+      setPendingFlagKeys((p) => {
+        const n = new Set(p);
+        n.delete(flag.flagKey);
+        return n;
+      });
     }
   }
 
@@ -116,10 +135,12 @@ export function FeatureFlagAdminPanel({ workspaceSlug }: Props) {
                 type="button"
                 onClick={() => void toggle(flag, !flag.enabled)}
                 aria-pressed={flag.enabled}
+                disabled={pendingFlagKeys.has(flag.flagKey)}
                 className={
-                  flag.enabled
+                  (flag.enabled
                     ? "h-6 w-11 rounded-full bg-emerald-500 px-1 transition-colors"
-                    : "h-6 w-11 rounded-full bg-zinc-300 px-1 transition-colors dark:bg-zinc-700"
+                    : "h-6 w-11 rounded-full bg-zinc-300 px-1 transition-colors dark:bg-zinc-700") +
+                  " disabled:cursor-not-allowed disabled:opacity-60"
                 }
               >
                 <span
