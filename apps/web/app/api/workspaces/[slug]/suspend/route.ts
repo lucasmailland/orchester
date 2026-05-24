@@ -34,6 +34,7 @@ import { parseBody } from "@/lib/validation";
 import { resolveBySlug } from "@/lib/tenant/resolve";
 import { suspend, unsuspend } from "@/lib/tenant/lifecycle";
 import { assertSystemAdmin, SystemAdminRequiredError } from "@/lib/rbac";
+import { appendAuditSync } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
 
@@ -98,6 +99,23 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const ws = await resolveBySlug(slug);
   if (!ws) {
     return NextResponse.json({ error: "workspace_not_found" }, { status: 404 });
+  }
+
+  // Trace the unsuspend attempt BEFORE the lifecycle call. If the
+  // workspace is already active, `unsuspend` throws
+  // workspace_lifecycle_invalid and the operator has no signal in the
+  // audit chain that anything was attempted — SOC would have nothing
+  // to grep for. We log the attempt up-front; on success the
+  // `workspace.unsuspend` entry inside lifecycle.ts confirms it.
+  if (ws.status === "active") {
+    await appendAuditSync(ws.id, {
+      action: "workspace.unsuspend_attempted",
+      actorUserId: ctx.user.id,
+      actorKind: "user",
+      targetType: "workspace",
+      targetId: ws.id,
+      meta: { result: "already_active" },
+    });
   }
 
   try {
