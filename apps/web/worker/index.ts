@@ -29,6 +29,7 @@ import {
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
 import { purgeOldData } from "../lib/retention";
+import { withCrossTenantAdmin } from "../lib/tenant/cron";
 
 interface FlowRunJob {
   runId: string;
@@ -63,8 +64,9 @@ async function main(): Promise<void> {
   );
 
   // ── Orphan-run reaper (cron, cada 5 min) ────────────────────
+  // Scans flow_run across all workspaces → cross-tenant by design.
   await registerWorker(JOB_FLOW_REAP, async () => {
-    const n = await reapStaleRuns();
+    const n = await withCrossTenantAdmin("flow-reaper", () => reapStaleRuns());
     if (n > 0) console.log(`[worker] flow:reap → marcó ${n} run(s) colgados como failed`);
   });
   await schedule(JOB_FLOW_REAP, "*/5 * * * *");
@@ -80,17 +82,22 @@ async function main(): Promise<void> {
   );
 
   // ── Usage aggregator (cron) ─────────────────────────────────
+  // Designed for cross-workspace rollups → wrap defensively even though
+  // it's a no-op today.
   await registerWorker(JOB_USAGE_AGGREGATE, async () => {
-    console.log("[worker] usage:aggregate tick");
-    // Hook para futuras consolidaciones diarias (rollup de usage_events,
-    // limpieza de runs antiguos, etc.). No-op por ahora.
+    await withCrossTenantAdmin("usage-aggregate", async () => {
+      console.log("[worker] usage:aggregate tick");
+      // Hook para futuras consolidaciones diarias (rollup de usage_events,
+      // limpieza de runs antiguos, etc.). No-op por ahora.
+    });
   });
   await schedule(JOB_USAGE_AGGREGATE, "0 3 * * *"); // 03:00 UTC
 
   // ── Data retention sweeper (cron, diario 03:30 UTC) ─────────
   // G1-1: purga flow_runs/flow_run_steps y webhook_deliveries viejos.
+  // Sweeps across all workspaces by date cutoffs → cross-tenant by design.
   await registerWorker(JOB_RETENTION, async () => {
-    const n = await purgeOldData();
+    const n = await withCrossTenantAdmin("data-retention", () => purgeOldData());
     console.log(
       `[worker] data:retention → runs=${n.runsDeleted} deliveries=${n.deliveriesDeleted} ` +
         `audit=${n.auditLogsDeleted} usage=${n.usageEventsDeleted} ` +
