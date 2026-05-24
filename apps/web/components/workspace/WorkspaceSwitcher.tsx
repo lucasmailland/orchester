@@ -9,9 +9,11 @@ import { useMyWorkspaces } from "./hooks/useMyWorkspaces";
 
 /**
  * Sidebar header chip — shows the active workspace name + slug and
- * opens the switcher dropdown on click. Also installs a global ⌘K /
- * Ctrl+K shortcut that toggles the dropdown from anywhere in the app
- * (Escape closes it).
+ * opens the switcher dropdown on click. Also installs a global
+ * ⌘⇧K / Ctrl+Shift+K shortcut that toggles the dropdown from anywhere
+ * in the app (Escape closes it). We use Shift-K (not plain ⌘K) so we
+ * don't collide with CommandPalette in the shell layout, which owns
+ * the bare ⌘K shortcut (B4.4).
  *
  * `activeSlug` comes from the URL route segment after Phase D's
  * migration; before that param is wired (legacy URLs) it's null and
@@ -25,10 +27,11 @@ export function WorkspaceSwitcher() {
   const { workspaces } = useMyWorkspaces();
   const active = workspaces.find((w) => w.slug === activeSlug);
 
-  // Keyboard shortcut ⌘K / Ctrl+K
+  // Keyboard shortcut ⌘⇧K / Ctrl+Shift+K (Shift-qualified to avoid
+  // colliding with the global ⌘K CommandPalette).
   useEffect(() => {
     function handler(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setOpen((o) => !o);
       }

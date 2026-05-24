@@ -1145,7 +1145,7 @@
       "other": "Outros workspaces",
       "create": "Criar workspace",
       "invite": "Convidar colega para {name}",
-      "openShortcut": "⌘K"
+      "openShortcut": "⌘⇧K"
     },
     "create": {
       "title": "Criar workspace",
