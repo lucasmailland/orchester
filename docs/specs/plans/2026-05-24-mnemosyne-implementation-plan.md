@@ -837,7 +837,7 @@ git -c commit.gpgsign=false commit -m "feat(db): drizzle schema for mnemo_fact +
 
 - Create: `packages/mnemosyne/src/tx.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mnemosyne/tests/integration/tx.spec.ts`:
 
@@ -875,7 +875,7 @@ describe("withMnemoTx", () => {
 });
 ```
 
-- [ ] **Step 2: Run test (should fail — tx.ts doesn't exist)**
+- [x] **Step 2: Run test (should fail — tx.ts doesn't exist)**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -884,7 +884,7 @@ pnpm --filter @orchester/mnemosyne test tests/integration/tx.spec.ts 2>&1 | tail
 
 Expected: FAIL with "Cannot find module '../src/tx'".
 
-- [ ] **Step 3: Write implementation**
+- [x] **Step 3: Write implementation**
 
 `packages/mnemosyne/src/tx.ts`:
 
@@ -916,7 +916,7 @@ export async function withMnemoTx<T>(
 export type { Tx };
 ```
 
-- [ ] **Step 4: Run test to verify passes**
+- [x] **Step 4: Run test to verify passes**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/integration/tx.spec.ts 2>&1 | tail -10
@@ -924,7 +924,7 @@ pnpm --filter @orchester/mnemosyne test tests/integration/tx.spec.ts 2>&1 | tail
 
 Expected: 1 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/mnemosyne/src/tx.ts packages/mnemosyne/tests/integration/tx.spec.ts
@@ -940,7 +940,7 @@ git -c commit.gpgsign=false commit -m "feat(mnemosyne): port withMnemoTx wrapper
 - Create: `packages/mnemosyne/src/recall/embed.ts`
 - Create: `packages/mnemosyne/tests/unit/embed.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mnemosyne/tests/unit/embed.test.ts`:
 
@@ -1000,7 +1000,7 @@ describe("embedMnemo", () => {
 });
 ```
 
-- [ ] **Step 2: Run test (should fail)**
+- [x] **Step 2: Run test (should fail)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/unit/embed.test.ts 2>&1 | tail -10
@@ -1008,7 +1008,7 @@ pnpm --filter @orchester/mnemosyne test tests/unit/embed.test.ts 2>&1 | tail -10
 
 Expected: FAIL with "Cannot find module '../../src/recall/embed'".
 
-- [ ] **Step 3: Write implementation**
+- [x] **Step 3: Write implementation**
 
 ```bash
 mkdir -p /Users/lucasmailland/dev/orchester/packages/mnemosyne/src/recall
@@ -1083,7 +1083,7 @@ export function invalidateEmbedding(workspaceId: string): void {
 }
 ```
 
-- [ ] **Step 4: Run test to verify passes**
+- [x] **Step 4: Run test to verify passes**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/unit/embed.test.ts 2>&1 | tail -10
@@ -1091,7 +1091,7 @@ pnpm --filter @orchester/mnemosyne test tests/unit/embed.test.ts 2>&1 | tail -10
 
 Expected: 2 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/mnemosyne/src/recall/embed.ts packages/mnemosyne/tests/unit/embed.test.ts
@@ -1107,7 +1107,7 @@ git -c commit.gpgsign=false commit -m "feat(mnemosyne): port embed wrapper with 
 - Create: `packages/mnemosyne/src/primitives/fact.ts`
 - Create: `packages/mnemosyne/tests/integration/fact-crud.spec.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mnemosyne/tests/integration/fact-crud.spec.ts`:
 
@@ -1171,7 +1171,7 @@ describe("primitives/fact", () => {
 });
 ```
 
-- [ ] **Step 2: Run test (should fail)**
+- [x] **Step 2: Run test (should fail)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/integration/fact-crud.spec.ts 2>&1 | tail -10
@@ -1179,7 +1179,7 @@ pnpm --filter @orchester/mnemosyne test tests/integration/fact-crud.spec.ts 2>&1
 
 Expected: FAIL with "Cannot find module".
 
-- [ ] **Step 3: Write implementation**
+- [x] **Step 3: Write implementation**
 
 ```bash
 mkdir -p /Users/lucasmailland/dev/orchester/packages/mnemosyne/src/primitives
@@ -1379,7 +1379,7 @@ export async function markRecalled(
 }
 ```
 
-- [ ] **Step 4: Run test to verify**
+- [x] **Step 4: Run test to verify**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/integration/fact-crud.spec.ts 2>&1 | tail -10
@@ -1387,7 +1387,7 @@ pnpm --filter @orchester/mnemosyne test tests/integration/fact-crud.spec.ts 2>&1
 
 Expected: 2 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/mnemosyne/src/primitives/fact.ts packages/mnemosyne/tests/integration/fact-crud.spec.ts
@@ -1402,7 +1402,7 @@ git -c commit.gpgsign=false commit -m "feat(mnemosyne): primitives/fact CRUD"
 
 - Modify: `apps/web/lib/queue.ts`
 
-- [ ] **Step 1: Add queue constant**
+- [x] **Step 1: Add queue constant**
 
 Find the existing JOB_BRAIN_EXTRACT export in `apps/web/lib/queue.ts` and add right after:
 
@@ -1410,7 +1410,7 @@ Find the existing JOB_BRAIN_EXTRACT export in `apps/web/lib/queue.ts` and add ri
 export const JOB_MNEMO_EXTRACT = "mnemo.extract";
 ```
 
-- [ ] **Step 2: Verify typecheck**
+- [x] **Step 2: Verify typecheck**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester/apps/web
@@ -1419,7 +1419,7 @@ npx tsc --noEmit 2>&1 | tail -5
 
 Expected: `TypeScript: No errors found`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
