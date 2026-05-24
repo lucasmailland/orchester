@@ -16,12 +16,12 @@ ship it, close.
 
 ## Components
 
-| Component                         | Why deferred                                                                 |
-| --------------------------------- | ---------------------------------------------------------------------------- |
-| `TransferOwnershipModal.tsx`      | Endpoint shipped (`/transfer`); UI deferred — admins can call via API today. |
-| `GdprExportProgress.tsx`          | Needs the job-status GET endpoint above first.                               |
-| `DeletedWorkspaceRestoreCard.tsx` | Restore endpoint shipped; standalone page deferred.                          |
-| `InviteMemberQuickAction.tsx`     | Existing settings members tab covers this.                                   |
+| Component                         | Status                                                                                                                                                                                                                                                             |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `TransferOwnershipModal.tsx`      | Shipped (wired into `DangerZoneSection`). Calls `POST /api/workspaces/[slug]/transfer`.                                                                                                                                                                            |
+| `GdprExportProgress.tsx`          | Shipped (mounted in shell layout). Polls `GET /api/workspaces/[slug]/export/[jobId]` every 3s; state in `localStorage`.                                                                                                                                            |
+| `DeletedWorkspaceRestoreCard.tsx` | Shipped + standalone page at `/[locale]/deleted/[id]`. Renders the restore form; auth required; non-enumerable failures.                                                                                                                                           |
+| `InviteMemberQuickAction.tsx`     | Skipped: `/api/workspaces/[slug]/invites` does not exist; only the cookie-scoped `/api/invites` does. The existing settings members tab already covers the invite workflow. Ship the slug-scoped invites endpoint first if a quick-action surface is still wanted. |
 
 ## Hardening
 
