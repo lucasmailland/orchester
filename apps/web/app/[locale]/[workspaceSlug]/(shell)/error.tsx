@@ -27,9 +27,7 @@ export default function ShellError({
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
-      <h1 className="font-display text-2xl font-bold tracking-tight text-strong">
-        {t("title")}
-      </h1>
+      <h1 className="font-display text-2xl font-bold tracking-tight text-strong">{t("title")}</h1>
       <p className="mt-2 max-w-md text-sm text-muted">{t("description")}</p>
 
       <div className="mt-7 flex flex-wrap items-center justify-center gap-3">

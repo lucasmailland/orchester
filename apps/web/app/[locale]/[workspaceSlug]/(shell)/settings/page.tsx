@@ -11,11 +11,7 @@ import { isStripeEnabled } from "@/lib/billing/stripe";
  * user. Las prefs de notificación se cargan en el cliente porque cambian con
  * cada toggle y no vale la pena prefetch.
  */
-export default async function SettingsPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
+export default async function SettingsPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "pages.settings" });
 

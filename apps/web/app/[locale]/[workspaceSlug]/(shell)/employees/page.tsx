@@ -3,18 +3,12 @@ import { EmployeeTable } from "@/components/employees/EmployeeTable";
 import { getEmployees } from "@/lib/db-queries";
 import { getCurrentWorkspace } from "@/lib/workspace";
 
-export default async function EmployeesPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
+export default async function EmployeesPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "pages.employees" });
 
   const workspace = await getCurrentWorkspace();
-  const employees = workspace
-    ? await getEmployees(workspace.workspace.id).catch(() => [])
-    : [];
+  const employees = workspace ? await getEmployees(workspace.workspace.id).catch(() => []) : [];
 
   const labels = {
     search: t("search"),
@@ -30,9 +24,7 @@ export default async function EmployeesPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-strong">
-          {t("title")}
-        </h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-strong">{t("title")}</h1>
         <p className="mt-1 text-sm text-muted">{t("subtitle")}</p>
       </div>
 

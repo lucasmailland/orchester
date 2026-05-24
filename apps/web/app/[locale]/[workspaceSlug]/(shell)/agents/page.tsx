@@ -14,12 +14,12 @@ export default async function AgentsPage() {
 
   return (
     <AgentsPageClient
-      agents={agents.map(a => ({
+      agents={agents.map((a) => ({
         ...a,
-        status: (a.status as "active" | "inactive" | "draft"),
+        status: a.status as "active" | "inactive" | "draft",
         systemPrompt: a.systemPrompt ?? null,
       }))}
-      teams={teams.map(t => ({ id: t.id, name: t.name, avatarColor: t.avatarColor ?? null }))}
+      teams={teams.map((t) => ({ id: t.id, name: t.name, avatarColor: t.avatarColor ?? null }))}
     />
   );
 }

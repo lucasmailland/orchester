@@ -4,11 +4,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
 import { KnowledgeDetailClient } from "@/components/knowledge/KnowledgeDetailClient";
 
-export default async function KbDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function KbDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const ws = await getCurrentWorkspace();
   if (!ws) return null;
@@ -17,10 +13,7 @@ export default async function KbDetailPage({
     .select()
     .from(schema.knowledgeBases)
     .where(
-      and(
-        eq(schema.knowledgeBases.id, id),
-        eq(schema.knowledgeBases.workspaceId, ws.workspace.id)
-      )
+      and(eq(schema.knowledgeBases.id, id), eq(schema.knowledgeBases.workspaceId, ws.workspace.id))
     )
     .limit(1);
   const kb = kbRows[0];
@@ -29,15 +22,18 @@ export default async function KbDetailPage({
     .select()
     .from(schema.knowledgeDocs)
     .where(
-      and(
-        eq(schema.knowledgeDocs.kbId, id),
-        eq(schema.knowledgeDocs.workspaceId, ws.workspace.id)
-      )
+      and(eq(schema.knowledgeDocs.kbId, id), eq(schema.knowledgeDocs.workspaceId, ws.workspace.id))
     )
     .orderBy(desc(schema.knowledgeDocs.createdAt));
   return (
     <KnowledgeDetailClient
-      kb={{ id: kb.id, name: kb.name, description: kb.description, embeddingProvider: kb.embeddingProvider, embeddingModel: kb.embeddingModel }}
+      kb={{
+        id: kb.id,
+        name: kb.name,
+        description: kb.description,
+        embeddingProvider: kb.embeddingProvider,
+        embeddingModel: kb.embeddingModel,
+      }}
       docs={docs.map((d) => ({
         id: d.id,
         title: d.title,

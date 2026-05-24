@@ -7,18 +7,12 @@ import { TeamsPageClient } from "@/components/teams/TeamsPageClient";
 import { getTeams } from "@/lib/db-queries";
 import { getCurrentWorkspace } from "@/lib/workspace";
 
-export default async function TeamsPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
+export default async function TeamsPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "pages.teams" });
 
   const workspace = await getCurrentWorkspace();
-  const teams = workspace
-    ? await getTeams(workspace.workspace.id).catch(() => [])
-    : [];
+  const teams = workspace ? await getTeams(workspace.workspace.id).catch(() => []) : [];
 
   const formLabels = {
     createTitle: t("createTitle"),
@@ -45,11 +39,7 @@ export default async function TeamsPage({
       </div>
 
       {teams.length === 0 ? (
-        <EmptyState
-          icon={<Users size={28} />}
-          title={t("empty")}
-          description=""
-        />
+        <EmptyState icon={<Users size={28} />} title={t("empty")} description="" />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {teams.map((team) => (

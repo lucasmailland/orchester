@@ -9,17 +9,12 @@ import { DashboardClientLazy } from "@/components/dashboard/DashboardClientLazy"
  * a high-impact mutation happens.
  */
 const getCachedDashboard = (workspaceId: string) =>
-  unstable_cache(
-    async () => getFullDashboardStats(workspaceId),
-    ["dashboard", workspaceId],
-    { revalidate: 30, tags: [`dashboard:${workspaceId}`] }
-  )();
+  unstable_cache(async () => getFullDashboardStats(workspaceId), ["dashboard", workspaceId], {
+    revalidate: 30,
+    tags: [`dashboard:${workspaceId}`],
+  })();
 
-export default async function DashboardPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
+export default async function DashboardPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
 
   const workspace = await getCurrentWorkspace();
