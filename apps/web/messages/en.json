@@ -843,6 +843,7 @@
         "members": "Team",
         "sessions": "Sessions",
         "audit": "Audit log",
+        "flags": "Feature flags",
         "developers": "Developers",
         "danger": "Danger zone"
       },
@@ -1208,7 +1209,14 @@
       "chainBroken": "Broken",
       "lastVerified": "Last verified {date}",
       "loadMore": "Load more",
-      "noEvents": "No events recorded yet"
+      "noEvents": "No events recorded yet",
+      "reverify": "Re-verify",
+      "verifyAria": "Re-verify audit chain",
+      "entries": "entries",
+      "action": "Action",
+      "actor": "Actor",
+      "target": "Target",
+      "when": "When"
     },
     "featureFlags": {
       "title": "Feature flags",

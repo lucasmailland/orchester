@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { Topbar } from "@/components/shell/Topbar";
 import { CommandPalette } from "@/components/shell/CommandPalette";
+import { SuspendedBanner } from "@/components/workspace/SuspendedBanner";
 import { getCurrentSession, getCurrentWorkspaceBySlug } from "@/lib/workspace";
 
 /**
@@ -54,6 +55,10 @@ export default async function ShellLayout({
           locale={locale}
           userName={session.user.name}
           userImage={session.user.image ?? null}
+        />
+        <SuspendedBanner
+          status={workspaceData.workspace.status as "active" | "suspended" | "deleted"}
+          reason={workspaceData.workspace.suspendedReason}
         />
         <main className="relative flex-1 overflow-y-auto">
           {/* Subtle grid + ambient glow */}

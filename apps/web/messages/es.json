@@ -844,6 +844,7 @@
         "members": "Equipo",
         "sessions": "Sesiones",
         "audit": "Audit log",
+        "flags": "Feature flags",
         "developers": "Desarrolladores",
         "danger": "Zona de peligro"
       },
@@ -1208,7 +1209,14 @@
       "chainBroken": "Comprometida",
       "lastVerified": "Última verificación {date}",
       "loadMore": "Cargar más",
-      "noEvents": "Todavía no hay eventos registrados"
+      "noEvents": "Todavía no hay eventos registrados",
+      "reverify": "Re-verificar",
+      "verifyAria": "Re-verificar la cadena de auditoría",
+      "entries": "entradas",
+      "action": "Acción",
+      "actor": "Actor",
+      "target": "Objetivo",
+      "when": "Cuándo"
     },
     "featureFlags": {
       "title": "Feature flags",
