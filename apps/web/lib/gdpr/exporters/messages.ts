@@ -11,16 +11,15 @@
 // cursor that streams JSON to the archiver entry directly.
 import "server-only";
 import { eq } from "drizzle-orm";
-import { getDb, schema } from "@orchester/db";
+import { schema } from "@orchester/db";
 import type { ExporterDb } from "./workspace";
 
-export async function exportMessages(workspaceId: string, db?: ExporterDb) {
-  const client = db ?? getDb();
-
-  // Join messages → conversations to filter by workspaceId, then
-  // project only the message columns so the shape stays clean for the
-  // downstream consumer.
-  const rows = await client
+export async function exportMessages(workspaceId: string, db: ExporterDb) {
+  // Single query — already sequential by construction. Join messages →
+  // conversations to filter by workspaceId, then project only the
+  // message columns so the shape stays clean for the downstream
+  // consumer.
+  const rows = await db
     .select({
       id: schema.messages.id,
       conversationId: schema.messages.conversationId,

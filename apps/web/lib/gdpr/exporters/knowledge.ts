@@ -9,24 +9,22 @@
 // elsewhere would defeat the embedding-model abstraction we ship.
 import "server-only";
 import { eq } from "drizzle-orm";
-import { getDb, schema } from "@orchester/db";
+import { schema } from "@orchester/db";
 import type { ExporterDb } from "./workspace";
 
-export async function exportKnowledge(workspaceId: string, db?: ExporterDb) {
-  const client = db ?? getDb();
-
-  // Sequential awaits (no Promise.all): when `client` is a shared
+export async function exportKnowledge(workspaceId: string, db: ExporterDb) {
+  // Sequential awaits (no Promise.all): when `db` is a shared
   // transaction handle, parallel queries collide on the single
   // postgres-js connection. See the matching note in `agents.ts`.
-  const bases = await client
+  const bases = await db
     .select()
     .from(schema.knowledgeBases)
     .where(eq(schema.knowledgeBases.workspaceId, workspaceId));
-  const docs = await client
+  const docs = await db
     .select()
     .from(schema.knowledgeDocs)
     .where(eq(schema.knowledgeDocs.workspaceId, workspaceId));
-  const chunks = await client
+  const chunks = await db
     .select({
       id: schema.knowledgeChunks.id,
       docId: schema.knowledgeChunks.docId,

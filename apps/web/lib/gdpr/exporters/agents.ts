@@ -11,28 +11,26 @@
 // archive flatter for the recipient.
 import "server-only";
 import { eq } from "drizzle-orm";
-import { getDb, schema } from "@orchester/db";
+import { schema } from "@orchester/db";
 import type { ExporterDb } from "./workspace";
 
-export async function exportAgents(workspaceId: string, db?: ExporterDb) {
-  const client = db ?? getDb();
-
-  // Run sequentially (not Promise.all): when `client` is a transaction
+export async function exportAgents(workspaceId: string, db: ExporterDb) {
+  // Run sequentially (not Promise.all): when `db` is a transaction
   // handle threaded down from `withCrossTenantAdmin`, parallel awaits
   // would issue overlapping queries on the SAME pooled connection,
   // which postgres-js rejects ("another statement is in progress").
   // Sequential awaits cost ~3x the wallclock time per exporter but
   // keep the txn valid; throughput here isn't latency-critical (the
   // export worker is async — the UI polls progress).
-  const teams = await client
+  const teams = await db
     .select()
     .from(schema.teams)
     .where(eq(schema.teams.workspaceId, workspaceId));
-  const agents = await client
+  const agents = await db
     .select()
     .from(schema.agents)
     .where(eq(schema.agents.workspaceId, workspaceId));
-  const channels = await client
+  const channels = await db
     .select()
     .from(schema.channels)
     .where(eq(schema.channels.workspaceId, workspaceId));

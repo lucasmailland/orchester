@@ -9,20 +9,18 @@
 // those are the whole point of the export. We don't redact them.
 import "server-only";
 import { eq } from "drizzle-orm";
-import { getDb, schema } from "@orchester/db";
+import { schema } from "@orchester/db";
 import type { ExporterDb } from "./workspace";
 
-export async function exportConversations(workspaceId: string, db?: ExporterDb) {
-  const client = db ?? getDb();
-
-  // Sequential awaits (no Promise.all): when `client` is a shared
+export async function exportConversations(workspaceId: string, db: ExporterDb) {
+  // Sequential awaits (no Promise.all): when `db` is a shared
   // transaction handle, parallel queries collide on the single
   // postgres-js connection. See the matching note in `agents.ts`.
-  const conversations = await client
+  const conversations = await db
     .select()
     .from(schema.conversations)
     .where(eq(schema.conversations.workspaceId, workspaceId));
-  const labels = await client
+  const labels = await db
     .select()
     .from(schema.conversationLabels)
     .where(eq(schema.conversationLabels.workspaceId, workspaceId));
