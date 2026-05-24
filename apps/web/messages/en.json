@@ -1181,9 +1181,16 @@
       "restoreUntil": "You can restore until {date}",
       "daysRemaining": "{n} days remaining",
       "tokenLabel": "Restore token (from email)",
+      "tokenPlaceholder": "rst_…",
+      "tokenHint": "Paste the token from the deletion email. Optional if you're the original owner.",
       "submit": "Restore workspace",
+      "submitting": "Restoring…",
       "continueDeletion": "Continue deletion",
-      "restored": "Workspace restored"
+      "restored": "Workspace restored",
+      "pageHeading": "Restore workspace",
+      "expiredOrInvalid": "This recovery link is expired or invalid.",
+      "expiredOrInvalidBody": "If you believe this is a mistake, contact support — the workspace may already have been restored, the 30-day window may have passed, or you may need to be signed in as the owner.",
+      "restoreFailed": "Restore failed"
     },
     "suspended": {
       "title": "This workspace is paused (read-only)",
@@ -1199,7 +1206,30 @@
       "availableUntil": "Available until {date}",
       "download": "Download",
       "retry": "Retry",
-      "dismiss": "Dismiss"
+      "dismiss": "Dismiss",
+      "progressLabel": "Export progress",
+      "title": "Workspace export"
+    },
+    "transfer": {
+      "title": "Transfer ownership",
+      "intro": "Transfer ownership of {name} to another admin. This is irreversible — you will become an admin.",
+      "selectMember": "Select new owner",
+      "selectPlaceholder": "Choose a member…",
+      "noEligible": "No other admins available. Promote a member to admin first.",
+      "passwordLabel": "Confirm your password",
+      "passwordHint": "We re-verify your password to defend against session hijack.",
+      "ackLabel": "I understand I will become an admin and need to log in again",
+      "submit": "Transfer ownership",
+      "submitting": "Transferring…",
+      "cancel": "Cancel",
+      "transferred": "Ownership transferred",
+      "passwordInvalid": "Password is incorrect",
+      "rateLimited": "Too many attempts. Try again in {minutes} min.",
+      "sameOwner": "You can't transfer to yourself.",
+      "notAMember": "The selected user is no longer a member.",
+      "openButton": "Transfer ownership",
+      "loadingMembers": "Loading members…",
+      "genericError": "Could not transfer ownership"
     },
     "audit": {
       "title": "Audit log",

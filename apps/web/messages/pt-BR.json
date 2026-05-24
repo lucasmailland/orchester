@@ -1181,9 +1181,16 @@
       "restoreUntil": "Você pode restaurar até {date}",
       "daysRemaining": "{n} dias restantes",
       "tokenLabel": "Token de restauração (do e-mail)",
+      "tokenPlaceholder": "rst_…",
+      "tokenHint": "Cole o token do e-mail de exclusão. Opcional se você é o owner original.",
       "submit": "Restaurar workspace",
+      "submitting": "Restaurando…",
       "continueDeletion": "Continuar a exclusão",
-      "restored": "Workspace restaurado"
+      "restored": "Workspace restaurado",
+      "pageHeading": "Restaurar workspace",
+      "expiredOrInvalid": "Este link de recuperação expirou ou é inválido.",
+      "expiredOrInvalidBody": "Se você acredita que isto é um erro, contate o suporte — o workspace pode ter sido restaurado, a janela de 30 dias pode ter passado, ou você pode precisar entrar como owner.",
+      "restoreFailed": "Falha ao restaurar"
     },
     "suspended": {
       "title": "Este workspace está pausado (somente leitura)",
@@ -1199,7 +1206,30 @@
       "availableUntil": "Disponível até {date}",
       "download": "Baixar",
       "retry": "Tentar novamente",
-      "dismiss": "Dispensar"
+      "dismiss": "Dispensar",
+      "progressLabel": "Progresso da exportação",
+      "title": "Exportação do workspace"
+    },
+    "transfer": {
+      "title": "Transferir propriedade",
+      "intro": "Transferir a propriedade de {name} para outro admin. Isto é irreversível — você vai virar admin.",
+      "selectMember": "Selecionar novo owner",
+      "selectPlaceholder": "Escolha um membro…",
+      "noEligible": "Nenhum outro admin disponível. Promova primeiro um membro a admin.",
+      "passwordLabel": "Confirme sua senha",
+      "passwordHint": "Reverificamos sua senha para evitar sequestro de sessão.",
+      "ackLabel": "Eu entendo que vou virar admin e vou precisar entrar de novo",
+      "submit": "Transferir propriedade",
+      "submitting": "Transferindo…",
+      "cancel": "Cancelar",
+      "transferred": "Propriedade transferida",
+      "passwordInvalid": "Senha incorreta",
+      "rateLimited": "Tentativas demais. Tente novamente em {minutes} min.",
+      "sameOwner": "Você não pode transferir para você mesmo.",
+      "notAMember": "O usuário selecionado não é mais membro.",
+      "openButton": "Transferir propriedade",
+      "loadingMembers": "Carregando membros…",
+      "genericError": "Não foi possível transferir a propriedade"
     },
     "audit": {
       "title": "Log de auditoria",

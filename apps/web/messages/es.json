@@ -1181,9 +1181,16 @@
       "restoreUntil": "Podés restaurar hasta el {date}",
       "daysRemaining": "{n} días restantes",
       "tokenLabel": "Token de restauración (del email)",
+      "tokenPlaceholder": "rst_…",
+      "tokenHint": "Pegá el token del email de eliminación. Opcional si sos el owner original.",
       "submit": "Restaurar workspace",
+      "submitting": "Restaurando…",
       "continueDeletion": "Continuar con la eliminación",
-      "restored": "Workspace restaurado"
+      "restored": "Workspace restaurado",
+      "pageHeading": "Restaurar workspace",
+      "expiredOrInvalid": "Este link de recuperación está expirado o es inválido.",
+      "expiredOrInvalidBody": "Si pensás que es un error, contactá a soporte — el workspace puede haber sido restaurado, la ventana de 30 días puede haber pasado, o quizá necesitás iniciar sesión como owner.",
+      "restoreFailed": "Falló la restauración"
     },
     "suspended": {
       "title": "Este workspace está en pausa (solo lectura)",
@@ -1199,7 +1206,30 @@
       "availableUntil": "Disponible hasta {date}",
       "download": "Descargar",
       "retry": "Reintentar",
-      "dismiss": "Descartar"
+      "dismiss": "Descartar",
+      "progressLabel": "Progreso de la exportación",
+      "title": "Exportación del workspace"
+    },
+    "transfer": {
+      "title": "Transferir propiedad",
+      "intro": "Transferir la propiedad de {name} a otro admin. Esto es irreversible — vas a pasar a ser admin.",
+      "selectMember": "Elegí el nuevo owner",
+      "selectPlaceholder": "Elegí un miembro…",
+      "noEligible": "No hay otros admins disponibles. Promové primero a un miembro a admin.",
+      "passwordLabel": "Confirmá tu contraseña",
+      "passwordHint": "Reverificamos tu contraseña para defendernos de un session hijack.",
+      "ackLabel": "Entiendo que voy a pasar a ser admin y voy a tener que volver a iniciar sesión",
+      "submit": "Transferir propiedad",
+      "submitting": "Transfiriendo…",
+      "cancel": "Cancelar",
+      "transferred": "Propiedad transferida",
+      "passwordInvalid": "La contraseña es incorrecta",
+      "rateLimited": "Demasiados intentos. Probá de nuevo en {minutes} min.",
+      "sameOwner": "No te podés transferir la propiedad a vos mismo.",
+      "notAMember": "El usuario seleccionado ya no es miembro.",
+      "openButton": "Transferir propiedad",
+      "loadingMembers": "Cargando miembros…",
+      "genericError": "No se pudo transferir la propiedad"
     },
     "audit": {
       "title": "Registro de auditoría",
