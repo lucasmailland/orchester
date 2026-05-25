@@ -2890,7 +2890,7 @@ git -c commit.gpgsign=false commit -m "feat(mnemosyne): candidate-on-write loop 
 - Create: `packages/db/migrations/0021_mnemosyne_citation.sql`
 - Create: `packages/db/migrations/0021_mnemosyne_citation.down.sql`
 
-- [ ] **Step 1: Write migration**
+- [x] **Step 1: Write migration**
 
 `packages/db/migrations/0021_mnemosyne_citation.sql`:
 
@@ -2924,14 +2924,14 @@ ALTER TABLE mnemo_citation FORCE  ROW LEVEL SECURITY;
 SELECT apply_pattern_a('mnemo_citation');
 ```
 
-- [ ] **Step 2: Down migration**
+- [x] **Step 2: Down migration**
 
 ```sql
 -- packages/db/migrations/0021_mnemosyne_citation.down.sql
 DROP TABLE IF EXISTS mnemo_citation CASCADE;
 ```
 
-- [ ] **Step 3: Apply + verify**
+- [x] **Step 3: Apply + verify**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -2941,7 +2941,7 @@ docker exec orchester-postgres psql -U orchester -d orchester -c "SELECT count(*
 
 Expected: 4.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/db/migrations/0021_mnemosyne_citation.sql packages/db/migrations/0021_mnemosyne_citation.down.sql
@@ -2958,7 +2958,7 @@ git -c commit.gpgsign=false commit -m "feat(db): migration 0021 — mnemo_citati
 - Create: `packages/mnemosyne/src/citation/store.ts`
 - Create: `packages/mnemosyne/tests/integration/citation-crud.spec.ts`
 
-- [ ] **Step 1: Add Drizzle table**
+- [x] **Step 1: Add Drizzle table**
 
 Append to `packages/db/src/schema/mnemosyne.ts`:
 
@@ -2995,7 +2995,7 @@ export const mnemoCitations = pgTable("mnemo_citation", {
 });
 ```
 
-- [ ] **Step 2: Write failing test**
+- [x] **Step 2: Write failing test**
 
 `packages/mnemosyne/tests/integration/citation-crud.spec.ts`:
 
@@ -3049,13 +3049,13 @@ describe("citation/store", () => {
 });
 ```
 
-- [ ] **Step 3: Run (fails)**
+- [x] **Step 3: Run (fails)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/integration/citation-crud.spec.ts 2>&1 | tail -10
 ```
 
-- [ ] **Step 4: Write implementation**
+- [x] **Step 4: Write implementation**
 
 ```bash
 mkdir -p /Users/lucasmailland/dev/orchester/packages/mnemosyne/src/citation
@@ -3154,7 +3154,7 @@ export async function listCitationsForMemory(
 }
 ```
 
-- [ ] **Step 5: Run (passes)**
+- [x] **Step 5: Run (passes)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/integration/citation-crud.spec.ts 2>&1 | tail -10
@@ -3162,7 +3162,7 @@ pnpm --filter @orchester/mnemosyne test tests/integration/citation-crud.spec.ts 
 
 Expected: 1 passed.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
