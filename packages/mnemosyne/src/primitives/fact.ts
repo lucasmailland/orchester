@@ -73,16 +73,29 @@ export interface CreateFactInput {
   embedding?: number[] | null;
   /**
    * Optional provider + model. If BOTH are provided AND `embedFn` is
-   * supplied AND `embedding` is omitted, the statement is embedded via
-   * the host-provided `embedFn` (wrapped by `embedMnemo`'s LRU cache).
-   * Charter §25: we never fall back to a hardcoded default — caller
-   * resolves these from workspace settings and passes the embed impl.
+   * supplied AND `embedding` is omitted AND `skipEmbed` is not set,
+   * the statement is embedded via the host-provided `embedFn`
+   * (wrapped by `embedMnemo`'s LRU cache). Charter §25: we never fall
+   * back to a hardcoded default — caller resolves these from workspace
+   * settings and passes the embed impl.
    */
   embeddingProvider?: EmbeddingProvider;
   embeddingModel?: string;
   /** Host-provided embedding function. Required only if provider+model
    *  are set and `embedding` is omitted. */
   embedFn?: EmbedFn;
+  /**
+   * v1.1 cost optimization (async batch embedding): when `true`, the
+   * fact is inserted with `embedding = NULL` regardless of any
+   * provider/model/embedFn supplied — the caller is responsible for
+   * enqueuing a background job that fills in the embedding later
+   * (see `createFactAsync` in `primitives/fact-async.ts`). FTS recall
+   * already handles NULL embeddings, so the fact is searchable
+   * immediately; vector search picks it up once the batch worker
+   * runs. Additive flag — defaults to false, leaving the synchronous
+   * embedding path unchanged for legacy callers and the PII pipeline.
+   */
+  skipEmbed?: boolean;
   tx: Tx;
 }
 
@@ -110,7 +123,13 @@ export async function createFact(input: CreateFactInput): Promise<MnemoFact> {
   }
 
   let embedding: number[] | null = input.embedding ?? null;
-  if (!embedding && input.embeddingProvider && input.embeddingModel && input.embedFn) {
+  if (
+    !embedding &&
+    !input.skipEmbed &&
+    input.embeddingProvider &&
+    input.embeddingModel &&
+    input.embedFn
+  ) {
     const [vec] = await embedMnemo({
       workspaceId: input.workspaceId,
       texts: [statement],
