@@ -184,23 +184,33 @@ async function llmCallInner(p: LlmCallParams): Promise<LlmCallResult> {
 }
 
 /**
- * Builds the Anthropic `system` field. When `boundary` is a positive integer
- * inside `[1, prompt.length-1]`, splits the prompt into a cached prefix +
- * uncached suffix using Anthropic's array form with `cache_control:
- * { type: "ephemeral" }`. Anthropic charges ~10% of the per-input-token rate
- * on cache hit (5-minute TTL on the segment).
+ * Builds the Anthropic `system` field. When `boundary` is set, marks the
+ * portion of `prompt` up to `boundary` with `cache_control:
+ * { type: "ephemeral" }`. Anthropic charges ~10% of the per-input-token
+ * rate on cache hit (5-minute TTL on the segment).
  *
- * Falls back to a plain string when no boundary or the boundary is at an edge
- * (full prompt cached or no cache possible). Conservatively defensive against
- * upstream miscomputations: empty/all-cached/all-dynamic collapse to string.
+ * Three behaviours:
+ *   1. `boundary === undefined` → plain string, no cache. Legacy.
+ *   2. `boundary >= prompt.length` (no dynamic suffix) → single cached
+ *      block covering the entire prompt. Useful when EVERY turn would
+ *      otherwise re-pay full price for an identical system prompt.
+ *   3. `boundary` inside `[1, prompt.length-1]` → split into cached
+ *      prefix + uncached dynamic suffix.
+ *
+ * Defensive against miscomputations: boundary <= 0 or empty prompt
+ * collapse to plain string (no errors raised upstream).
  */
 function buildAnthropicSystem(
   prompt: string,
   boundary: number | undefined
 ): string | Array<{ type: "text"; text: string; cache_control?: { type: "ephemeral" } }> {
   if (!prompt) return prompt;
-  if (!Number.isInteger(boundary) || boundary === undefined) return prompt;
-  if (boundary <= 0 || boundary >= prompt.length) return prompt;
+  if (boundary === undefined || !Number.isInteger(boundary)) return prompt;
+  if (boundary <= 0) return prompt;
+  // Cache-the-whole-prompt case: no dynamic suffix.
+  if (boundary >= prompt.length) {
+    return [{ type: "text", text: prompt, cache_control: { type: "ephemeral" } }];
+  }
   const cached = prompt.slice(0, boundary);
   const dynamic = prompt.slice(boundary);
   return [

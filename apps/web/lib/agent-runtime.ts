@@ -1,12 +1,22 @@
 import "server-only";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
-import { MEMORY_PROTOCOL_V1 } from "@orchester/mnemosyne";
+import {
+  MEMORY_PROTOCOL_V1,
+  searchMnemo,
+  renderFactsCompact,
+  getOrComputeSummary,
+  shouldTriggerRecall,
+  type RecallHit,
+  type UserProfileSummary,
+  type TriggerDecision,
+} from "@orchester/mnemosyne";
 import { llmCall, type ChatMessage } from "./llm-call";
 import { executeTool, getToolDefinitions, type ToolCall } from "./tools";
 import { assertWithinSpend } from "./cost-alerts";
 import { recordAiUsage } from "./ai/run";
 import { calculateChatCostUsd } from "./pricing";
+import { safeLogError } from "./safe-log";
 
 /**
  * Optional `tx?: WsDb` follows the project-wide pattern (see
@@ -71,6 +81,105 @@ export interface RunAgentResult {
 
 function interpolate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{([^}]+)\}\}/g, (_, k: string) => vars[k.trim()] ?? "");
+}
+
+/* ───────────────── Mnemosyne v1.1 — tiered memory wiring ───────────────── */
+
+/**
+ * Build the dynamic recall block: only invoked when `shouldTriggerRecall`
+ * says the user turn warrants it. Hard-capped at top-3 (anti-bloat) and
+ * rendered with `renderFactsCompact` (structured k:v lines) to keep token
+ * spend bounded. Returns "" on no hits or any failure — recall is an
+ * optimization, never a hard dependency.
+ *
+ * Defensive: `shouldTriggerRecall` is a pure function, but if it ever
+ * throws we default to triggering (over-recall is the safe failure mode).
+ * `searchMnemo` / `renderFactsCompact` failures log + return "" so the
+ * agent turn proceeds with no recall block (degrades, never breaks).
+ */
+async function buildRecallBlock(input: {
+  workspaceId: string;
+  agentId: string;
+  userTurn: string;
+  history: Array<{ role: "user" | "assistant"; content: string }>;
+}): Promise<string> {
+  let trigger: TriggerDecision;
+  try {
+    trigger = shouldTriggerRecall({ userTurn: input.userTurn, history: input.history });
+  } catch (e) {
+    // Pure-function classifier shouldn't throw; if it does, default to recall.
+    safeLogError("[agent-runtime] shouldTriggerRecall threw:", e);
+    trigger = { trigger: true, reason: "trigger-error", confidence: 0 };
+  }
+  if (!trigger.trigger) return "";
+  if (!input.userTurn) return "";
+
+  let hits: RecallHit[] = [];
+  try {
+    hits = await searchMnemo({
+      workspaceId: input.workspaceId,
+      query: input.userTurn,
+      history: input.history,
+      agentId: input.agentId,
+      maxResults: 3, // anti-bloat hard cap; new v1.1 default but explicit for clarity
+      enableContextualize: true,
+      enableHyDE: false, // opt-in later — costs a cheap LLM call per turn
+    });
+  } catch (e) {
+    safeLogError("[agent-runtime] searchMnemo failed:", e);
+    return "";
+  }
+  if (hits.length === 0) return "";
+
+  let rendered = "";
+  try {
+    rendered = renderFactsCompact(
+      hits.map((h) => h.fact),
+      { maxTokensApprox: 150, format: "structured" }
+    );
+  } catch (e) {
+    safeLogError("[agent-runtime] renderFactsCompact failed:", e);
+    return "";
+  }
+  if (!rendered) return "";
+  return `\n<recalled-memory>\n${rendered}\n</recalled-memory>`;
+}
+
+/**
+ * Build the profile summary block. Pulled from B1's pre-computed
+ * `getOrComputeSummary` (cheap read path — the cron does the heavy work).
+ * Returns "" on cold-start (no facts yet → null) or any failure.
+ *
+ * The summary is part of the CACHED prefix, so it pays a one-time cost
+ * to be included on first turn of the 5min window and ~10% on every
+ * subsequent turn that hits the cache.
+ *
+ * `getOrComputeSummary` opens its own `withMnemoTx` when no tx is
+ * passed; we deliberately do NOT thread `p.tx` through here because the
+ * agent's outer workspace tx is a Drizzle-typed handle that doesn't
+ * always match mnemosyne's `Tx` shape. Letting the summary call open its
+ * own short tx is safe (read+upsert on `mnemo_summary` only).
+ */
+async function buildProfileBlock(input: {
+  workspaceId: string;
+  agentId: string;
+  userId?: string;
+}): Promise<string> {
+  let summary: UserProfileSummary | null = null;
+  try {
+    summary = await getOrComputeSummary({
+      workspaceId: input.workspaceId,
+      agentId: input.agentId,
+      ...(input.userId && { userId: input.userId }),
+      // No `llm` / `model` — the read path uses heuristic fallback when
+      // the row is fresh enough. The daily cron does the LLM distillation.
+    });
+  } catch (e) {
+    safeLogError("[agent-runtime] getOrComputeSummary failed:", e);
+    return "";
+  }
+  if (!summary?.rawText) return "";
+  return `\n<user-profile freshness="${summary.freshness}">\n${summary.rawText}\n</user-profile>`;
 }
 
 /* ───────────────── Prompt-injection guardrails (L1) ───────────────── */
@@ -254,15 +363,20 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
   // Conversational agent — interpolate variables into system prompt
   const interpolatedPrompt = interpolate(systemPrompt, variables);
 
-  // Append response format hint for json/markdown
-  let finalPrompt = interpolatedPrompt;
+  // ── CACHED PREFIX (Mnemosyne v1.1 tiered injection) ──────────────────
+  // Composition: identity (interpolated agent prompt + responseFormat hint
+  // + L1 untrusted-data guardrail) + Memory Protocol + per-user profile
+  // summary. All STATIC across the 5-minute prompt-cache TTL. Anthropic
+  // bills at ~10% on cache hit; other providers ignore the marker and
+  // pay full price — graceful degradation, never an error.
+  let identityBlock = interpolatedPrompt;
   if (p.agent.responseFormat === "json") {
-    finalPrompt += "\n\nIMPORTANT: Respond ONLY with valid JSON. No markdown, no commentary.";
+    identityBlock += "\n\nIMPORTANT: Respond ONLY with valid JSON. No markdown, no commentary.";
   } else if (p.agent.responseFormat === "markdown") {
-    finalPrompt += "\n\nFormat your response in Markdown.";
+    identityBlock += "\n\nFormat your response in Markdown.";
   }
   // L1: instruir al modelo a tratar el contenido recuperado como datos.
-  finalPrompt += UNTRUSTED_CONTENT_GUARDRAIL;
+  identityBlock += UNTRUSTED_CONTENT_GUARDRAIL;
 
   // Mnemosyne §13: inject the Memory Protocol so every conversational
   // agent knows when/how to use mnemosyne_* tools (recall/save_fact/
@@ -270,7 +384,45 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
   // unambiguous; protocol body is version-locked in
   // `@orchester/mnemosyne`'s `protocol/v1.ts` (bumping the version
   // invalidates extractions tagged with the prior version).
-  finalPrompt += `\n\n---\n${MEMORY_PROTOCOL_V1}\n---\n`;
+  const protocolBlock = `\n\n---\n${MEMORY_PROTOCOL_V1}\n---\n`;
+
+  // Profile block — pulled from `getOrComputeSummary` (read path is cheap;
+  // distillation runs in the daily cron). Empty string on cold start.
+  const profileBlock = await buildProfileBlock({
+    workspaceId: p.workspaceId,
+    agentId: p.agent.id,
+    ...(p.employeeId && { userId: p.employeeId }),
+  });
+
+  const cachedPrefix = [identityBlock, protocolBlock, profileBlock].filter(Boolean).join("");
+
+  // ── DYNAMIC SUFFIX (no cache) ─────────────────────────────────────────
+  // The recalled top-3 facts. Only computed when `shouldTriggerRecall`
+  // says the user turn warrants it. Falls back to "" on no hits / any
+  // failure — recall is OPTIMIZATION, never a hard dependency.
+  const lastUserMsg = [...p.messages].reverse().find((m) => m.role === "user");
+  const historyForRecall = p.messages
+    .filter(
+      (m): m is ChatMessage & { role: "user" | "assistant" } =>
+        m.role === "user" || m.role === "assistant"
+    )
+    .map((m) => ({ role: m.role, content: m.content }));
+  const recallBlock = await buildRecallBlock({
+    workspaceId: p.workspaceId,
+    agentId: p.agent.id,
+    userTurn: lastUserMsg?.content ?? "",
+    history: historyForRecall,
+  });
+
+  // Stitch cached prefix + dynamic suffix. The boundary is the EXACT
+  // character offset where the cached prefix ends — `llmCall` will use it
+  // to split the Anthropic `system` field into a cached block + uncached
+  // block. We ALWAYS set a boundary (even when `recallBlock === ""`) so
+  // the static prefix is marked for cache: a future turn within the 5-min
+  // TTL will be billed at ~10% on the identity/protocol/profile chunk,
+  // which is the dominant cost when the dynamic suffix is small.
+  const finalPrompt = cachedPrefix + recallBlock;
+  const cacheBoundary = cachedPrefix.length > 0 ? cachedPrefix.length : undefined;
 
   // Tool-calling loop (currently Anthropic only — others fall through to plain chat)
   const toolDefs = enabledTools.length > 0 ? getToolDefinitions(enabledTools) : [];
@@ -287,6 +439,10 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
       messages,
       temperature,
       ...(maxTokens !== undefined && { maxTokens }),
+      // Mnemosyne v1.1: mark the cached prefix so Anthropic (and any
+      // future provider) bills the static portion at ~10% on cache hit.
+      // `undefined` boundary = no cache marker → legacy behaviour.
+      ...(cacheBoundary !== undefined && { systemPromptCacheBoundary: cacheBoundary }),
     };
     if (toolDefs.length > 0) callOpts.tools = toolDefs;
 
