@@ -40,12 +40,13 @@
 // cosine > 0.95 over 24h. Currently only L1 LRU is wired in this file.
 //
 // §0.1: package-clean — no `server-only`, no path aliases to the host
-// app. Embedding / LLM are dependency-injected.
+// app. Embedding / LLM / reranker are all dependency-injected.
 import { createHash } from "crypto";
 import { sql } from "drizzle-orm";
 import { embedMnemo, type EmbedFn, type EmbeddingProvider } from "./embed";
 import { recallCache, recallCacheKey } from "./cache";
 import { prepareQuery, type LlmCallFn, type PreparedQuery } from "./query-prep";
+import { noopRerank, type RerankFn } from "./rerank";
 import { withMnemoTx, type Tx } from "../tx";
 import type { FactKind, FactScope, FactStatus, MnemoFact } from "../primitives/fact";
 
@@ -103,6 +104,13 @@ export interface SearchMnemoInput {
    * both contextualization and HyDE are skipped — recall runs unchanged.
    */
   prepareQueryLlm?: LlmCallFn;
+  /**
+   * v1.1 — Optional cross-encoder reranker. If absent, identity rerank
+   * (just truncates to topK*2). See `./rerank.ts` for the Cohere helper
+   * `makeCohereRerank`. Charter §25: model/provider injected, never
+   * hardcoded in mnemosyne.
+   */
+  rerank?: RerankFn;
   /**
    * Optional transaction. If supplied, the search runs inside it. If
    * omitted, a workspace-scoped tx is opened via `withMnemoTx` so RLS
@@ -171,10 +179,14 @@ function rowToFact(r: FactRow): MnemoFact {
   };
 }
 
-async function runSearch(
+/**
+ * First-stage retrieval: FTS or vector hybrid, returns top `firstStageK`
+ * (over-fetched to give rerank headroom — typically 5x the final cap).
+ */
+async function runFirstStage(
   input: SearchMnemoInput,
   tx: Tx,
-  topK: number,
+  firstStageK: number,
   prepared: PreparedQuery
 ): Promise<RecallHit[]> {
   // v1.1: embed the HyDE hypothetical if present, otherwise the
@@ -219,7 +231,7 @@ async function runSearch(
           ${input.scope ? sql`AND scope = ${input.scope}` : sql``}
           ${input.scopeRef ? sql`AND scope_ref = ${input.scopeRef}` : sql``}
         ORDER BY fts_score DESC
-        LIMIT ${topK * 3}
+        LIMIT ${firstStageK}
       `)
     : await tx.execute(sql`
         SELECT
@@ -240,7 +252,7 @@ async function runSearch(
           ${input.scope ? sql`AND scope = ${input.scope}` : sql``}
           ${input.scopeRef ? sql`AND scope_ref = ${input.scopeRef}` : sql``}
         ORDER BY embedding <=> ${vecLiteral}::vector
-        LIMIT ${topK * 3}
+        LIMIT ${firstStageK}
       `);
 
   // postgres-js returns rows directly when iterated.
@@ -263,17 +275,54 @@ async function runSearch(
     };
   });
 
-  return scored.sort((a, b) => b.score - a.score).slice(0, topK);
+  return scored.sort((a, b) => b.score - a.score);
+}
+
+/**
+ * Run the full v1.1 pipeline inside a transaction: first-stage retrieval
+ * → cross-encoder rerank → hard cap. Pruning lands in a later commit.
+ */
+async function runSearchPipeline(
+  input: SearchMnemoInput,
+  tx: Tx,
+  prepared: PreparedQuery,
+  maxResults: number
+): Promise<RecallHit[]> {
+  // Over-fetch so the rerank has headroom (5x the final cap, floor 15).
+  const firstStageK = Math.max(15, maxResults * 5);
+  const firstStage = await runFirstStage(input, tx, firstStageK, prepared);
+
+  // Rerank pass. Budget = 2x final cap; the safe identity default just
+  // truncates to that budget without touching order.
+  const rerankFn = input.rerank ?? noopRerank;
+  const rerankK = Math.max(maxResults * 2, maxResults);
+  const rerankIndices = await rerankFn({
+    query: prepared.contextualized,
+    documents: firstStage.map((h) => h.fact.statement),
+    topK: rerankK,
+  });
+  const reranked: RecallHit[] = [];
+  const seen = new Set<number>();
+  for (const i of rerankIndices) {
+    if (seen.has(i)) continue;
+    seen.add(i);
+    const h = firstStage[i];
+    if (h) reranked.push(h);
+  }
+  // Defensive: misbehaving custom RerankFn that returns nothing → fall
+  // back to the hybrid-scored order. (noopRerank can't hit this path.)
+  const postRerank = reranked.length > 0 ? reranked : firstStage.slice(0, rerankK);
+
+  return postRerank.slice(0, maxResults);
 }
 
 /**
  * Hybrid recall over `mnemo_fact`. Returns the top-K ranked hits.
  *
- * v1.1: an opt-in query-prep stage (contextualization + HyDE) runs
- * BEFORE retrieval to fix the query-fact embedding mismatch (questions
- * vs. statements live in different vector-space regions). Both
- * transforms degrade gracefully — recall NEVER fails because of a
- * flaky LLM.
+ * v1.1 pipeline: query-prep (contextualize + HyDE) → first-stage hybrid
+ * retrieval → cross-encoder rerank → hard cap. All v1.1 stages are
+ * opt-in and degrade gracefully — recall NEVER fails because of a
+ * flaky LLM or a misbehaving reranker.
  *
  * Caller-supplied `tx` is used directly when present (the caller owns the
  * transaction lifecycle, e.g. when batching reads inside an existing
@@ -312,8 +361,10 @@ export async function searchMnemo(input: SearchMnemoInput): Promise<RecallHit[]>
   if (cached) return cached;
 
   const hits = input.tx
-    ? await runSearch(input, input.tx, topK, prepared)
-    : await withMnemoTx(input.workspaceId, (tx) => runSearch(input, tx as Tx, topK, prepared));
+    ? await runSearchPipeline(input, input.tx, prepared, topK)
+    : await withMnemoTx(input.workspaceId, (tx) =>
+        runSearchPipeline(input, tx as Tx, prepared, topK)
+      );
 
   recallCache.set(cacheK, hits as unknown as object);
   return hits;

@@ -84,3 +84,14 @@ export {
   type QueryPrepInput,
   type PreparedQuery,
 } from "./recall/query-prep";
+
+// v1.1 cross-encoder reranking. `noopRerank` is the safe identity
+// default; `makeCohereRerank` is a turn-key adapter for hosts with a
+// Cohere key. Charter §25: model is overridable per-call.
+export {
+  noopRerank,
+  makeCohereRerank,
+  type RerankFn,
+  type RerankInput,
+  type CohereRerankOptions,
+} from "./recall/rerank";
