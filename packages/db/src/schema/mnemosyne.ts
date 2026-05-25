@@ -202,6 +202,36 @@ export const mnemoRelations = pgTable("mnemo_relation", {
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });
 
+// Mnemosyne v1.1 — distilled user profile cache (migration 0028).
+// One row per (workspace, agent, user) triplet. Pre-computed daily by
+// `apps/web/worker/summary-job.ts` so the agent runtime can inject a
+// compact 80-150 token profile on EVERY turn (Layer 1) without paying
+// the cost of a fresh recall. RLS+FORCE on the table; `withMnemoTx`
+// gates every SELECT/INSERT/UPDATE/DELETE.
+export const mnemoSummary = pgTable("mnemo_summary", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  agentId: text("agent_id")
+    .notNull()
+    .references(() => agents.id, { onDelete: "cascade" }),
+  // Nullable: workspace-level summary used when the conversation has no
+  // single user attached (e.g. shared inbox, agent-to-agent flow).
+  userId: text("user_id"),
+  summaryText: text("summary_text").notNull(),
+  summaryStruct: jsonb("summary_struct").notNull().default({}),
+  sourceFactIds: text("source_fact_ids").array().notNull().default([]),
+  modelUsed: text("model_used"),
+  tokenCount: integer("token_count"),
+  generatedAt: timestamp("generated_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
+
 export const mnemoCitations = pgTable("mnemo_citation", {
   id: text("id").primaryKey(),
   workspaceId: text("workspace_id")
