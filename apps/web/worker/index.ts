@@ -34,6 +34,7 @@ import {
   JOB_BRAIN_DECAY,
   JOB_MNEMO_EMBED_FACT,
   JOB_MNEMO_EMBED_BATCH,
+  JOB_MNEMO_SUMMARY,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
@@ -47,6 +48,7 @@ import { runBrainExtractJob, type BrainExtractPayload } from "../lib/brain/extra
 import { runBrainCompaction } from "../lib/brain/compaction";
 import { runBrainDecay } from "../lib/brain/decay";
 import { runEmbedFactJob, runEmbedBatchSweep, type EmbedFactPayload } from "./embed-batch-job";
+import { summaryJobHandler, type SummaryJobPayload } from "./summary-job";
 
 interface FlowRunJob {
   runId: string;
@@ -201,6 +203,22 @@ async function main(): Promise<void> {
     await runEmbedBatchSweep();
   });
   await schedule(JOB_MNEMO_EMBED_BATCH, "*/1 * * * *");
+
+  // ─── Mnemosyne v1.1 Layer 1 summary refresh (daily cron) ──────────
+  // Walks every workspace that produced facts in the last 7 days,
+  // pre-distills a fresh per-(workspace,agent,user) summary, and
+  // caches it in `mnemo_summary` with a 24h TTL. The foreground turn
+  // hits the cache instead of paying for an LLM round-trip.
+  //
+  // Idempotent and degrades gracefully — workspaces without an LLM
+  // configured get a heuristic summary written (still saves the
+  // foreground turn from doing the heuristic work itself).
+  //
+  // 05:00 UTC stagger keeps it away from compaction/decay/audit.
+  await registerWorker<SummaryJobPayload>(JOB_MNEMO_SUMMARY, async (job) => {
+    await summaryJobHandler(job);
+  });
+  await schedule(JOB_MNEMO_SUMMARY, "0 5 * * *");
 
   console.log("[worker] ready, waiting for jobs…");
 }
