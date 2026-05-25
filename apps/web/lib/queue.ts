@@ -171,6 +171,11 @@ export const JOB_BRAIN_EXTRACT = "brain:extract";
 export const JOB_MNEMO_EXTRACT = "mnemo.extract";
 export const JOB_BRAIN_COMPACTION = "brain:compaction";
 export const JOB_BRAIN_DECAY = "brain:decay";
+// v1.1 cost optimization: per-fact async embedding (eager handler) +
+// periodic sweep (`mnemo.embed.batch`) that flushes unembedded facts
+// in batches of 100. See `apps/web/worker/embed-batch-job.ts`.
+export const JOB_MNEMO_EMBED_FACT = "mnemo.embed.fact";
+export const JOB_MNEMO_EMBED_BATCH = "mnemo.embed.batch";
 // v1.1 Layer 1 (Mnemosyne summary refresh): daily distillation cron
 // that pre-warms `mnemo_summary` rows so the foreground turn never
 // pays for an LLM round-trip. See apps/web/worker/summary-job.ts.

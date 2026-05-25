@@ -32,6 +32,8 @@ import {
   JOB_BRAIN_EXTRACT,
   JOB_BRAIN_COMPACTION,
   JOB_BRAIN_DECAY,
+  JOB_MNEMO_EMBED_FACT,
+  JOB_MNEMO_EMBED_BATCH,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
@@ -44,6 +46,7 @@ import { runExportWatchdog } from "../lib/gdpr/watchdog";
 import { runBrainExtractJob, type BrainExtractPayload } from "../lib/brain/extract-job";
 import { runBrainCompaction } from "../lib/brain/compaction";
 import { runBrainDecay } from "../lib/brain/decay";
+import { runEmbedFactJob, runEmbedBatchSweep, type EmbedFactPayload } from "./embed-batch-job";
 
 interface FlowRunJob {
   runId: string;
@@ -178,6 +181,26 @@ async function main(): Promise<void> {
     await runBrainDecay();
   });
   await schedule(JOB_BRAIN_DECAY, "0 4 * * *");
+
+  // ─── Mnemosyne async batch embedding (v1.1 cost optimization) ──────
+  // `mnemo.embed.fact` is the per-fact eager handler — pg-boss picks
+  // these up as they're enqueued by `createFactAsync`. The handler
+  // immediately drains pending fact embeddings for the workspace in a
+  // single batched API call (BATCH_SIZE=100), so a single enqueue
+  // typically embeds many co-pending facts in one shot.
+  //
+  // `mnemo.embed.batch` is the periodic safety net (every minute):
+  // scans for unembedded facts across all workspaces and flushes them
+  // in batches. Covers facts whose `createFactAsync` enqueue failed
+  // (orphan), or that landed during a worker outage. Recall via FTS
+  // continues to work in the interim — no user-visible degradation.
+  await registerWorker<EmbedFactPayload>(JOB_MNEMO_EMBED_FACT, async (job) => {
+    await runEmbedFactJob(job.data);
+  });
+  await registerWorker(JOB_MNEMO_EMBED_BATCH, async () => {
+    await runEmbedBatchSweep();
+  });
+  await schedule(JOB_MNEMO_EMBED_BATCH, "*/1 * * * *");
 
   console.log("[worker] ready, waiting for jobs…");
 }
