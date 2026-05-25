@@ -1,6 +1,7 @@
 import "server-only";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
+import { MEMORY_PROTOCOL_V1 } from "@orchester/mnemosyne";
 import { llmCall, type ChatMessage } from "./llm-call";
 import { executeTool, getToolDefinitions, type ToolCall } from "./tools";
 import { assertWithinSpend } from "./cost-alerts";
@@ -262,6 +263,14 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
   }
   // L1: instruir al modelo a tratar el contenido recuperado como datos.
   finalPrompt += UNTRUSTED_CONTENT_GUARDRAIL;
+
+  // Mnemosyne §13: inject the Memory Protocol so every conversational
+  // agent knows when/how to use mnemosyne_* tools (recall/save_fact/
+  // save_decision/judge). Delimited with `---` so model parsing is
+  // unambiguous; protocol body is version-locked in
+  // `@orchester/mnemosyne`'s `protocol/v1.ts` (bumping the version
+  // invalidates extractions tagged with the prior version).
+  finalPrompt += `\n\n---\n${MEMORY_PROTOCOL_V1}\n---\n`;
 
   // Tool-calling loop (currently Anthropic only — others fall through to plain chat)
   const toolDefs = enabledTools.length > 0 ? getToolDefinitions(enabledTools) : [];
