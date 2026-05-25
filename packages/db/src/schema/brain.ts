@@ -73,6 +73,8 @@ export const brainExtractionJobs = pgTable(
       .references(() => conversations.id, { onDelete: "cascade" }),
     // FIX-009 (audit): 'skipped' state added in migration 0025 — Mode A
     // workspaces record skipped extractions without faking 'done'.
+    // 'deferred_provider_outage' added in migration 0027 (v1.1 circuit
+    // breaker): the LLM provider was unavailable, retry after `deferUntil`.
     state: text("state").notNull().default("pending"),
     messageCount: integer("message_count").notNull(),
     factsProduced: integer("facts_produced").notNull().default(0),
@@ -81,6 +83,8 @@ export const brainExtractionJobs = pgTable(
     error: text("error"),
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
+    /** v1.1 circuit breaker: scheduled retry time when state='deferred_provider_outage'. */
+    deferUntil: timestamp("defer_until", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("idx_brain_extract_job_workspace_state").on(t.workspaceId, t.state, t.createdAt)]

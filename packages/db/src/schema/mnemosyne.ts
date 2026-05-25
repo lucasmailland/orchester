@@ -81,8 +81,13 @@ export const mnemoExtractionJobs = pgTable("mnemo_extraction_job", {
   conversationId: text("conversation_id")
     .notNull()
     .references(() => conversations.id, { onDelete: "cascade" }),
+  // 'deferred_provider_outage' added in migration 0027 (v1.1 circuit breaker):
+  // distinguishes a job whose extraction was deferred because the LLM
+  // provider was unavailable (retry later) from one that was intentionally
+  // skipped because the workspace has no provider configured (steady-state
+  // Mode A).
   state: text("state", {
-    enum: ["pending", "running", "done", "failed", "skipped"],
+    enum: ["pending", "running", "done", "failed", "skipped", "deferred_provider_outage"],
   })
     .notNull()
     .default("pending"),
@@ -92,6 +97,9 @@ export const mnemoExtractionJobs = pgTable("mnemo_extraction_job", {
   error: text("error"),
   startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }),
   completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+  // v1.1 circuit breaker: when state='deferred_provider_outage', this
+  // timestamp tells the worker when to re-attempt the job.
+  deferUntil: timestamp("defer_until", { withTimezone: true, mode: "date" }),
   metadata: jsonb("metadata").notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });
