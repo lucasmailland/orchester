@@ -3742,7 +3742,7 @@ git -c commit.gpgsign=false commit -m "feat(mnemosyne): adapter interface — pr
 - Create: `packages/mnemosyne/src/pii/detect.ts`
 - Create: `packages/mnemosyne/tests/unit/pii-detect.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mnemosyne/tests/unit/pii-detect.test.ts`:
 
@@ -3788,13 +3788,13 @@ describe("pii/detect", () => {
 });
 ```
 
-- [ ] **Step 2: Run (fails)**
+- [x] **Step 2: Run (fails)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/unit/pii-detect.test.ts 2>&1 | tail -10
 ```
 
-- [ ] **Step 3: Write patterns**
+- [x] **Step 3: Write patterns**
 
 ```bash
 mkdir -p /Users/lucasmailland/dev/orchester/packages/mnemosyne/src/pii
@@ -3840,7 +3840,7 @@ export const PII_SEVERITY: Record<PIICategory, number> = {
 };
 ```
 
-- [ ] **Step 4: Write detector**
+- [x] **Step 4: Write detector**
 
 `packages/mnemosyne/src/pii/detect.ts`:
 
@@ -3882,7 +3882,7 @@ export function detectPII(text: string): PIIDetectionResult {
 }
 ```
 
-- [ ] **Step 5: Run (passes)**
+- [x] **Step 5: Run (passes)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/unit/pii-detect.test.ts 2>&1 | tail -10
@@ -3890,7 +3890,7 @@ pnpm --filter @orchester/mnemosyne test tests/unit/pii-detect.test.ts 2>&1 | tai
 
 Expected: 6 passed.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/mnemosyne/src/pii/ packages/mnemosyne/tests/unit/pii-detect.test.ts
@@ -3906,7 +3906,7 @@ git -c commit.gpgsign=false commit -m "feat(mnemosyne): pii detection (regex lay
 - Create: `packages/mnemosyne/src/pii/redact.ts`
 - Create: `packages/mnemosyne/tests/unit/pii-redact.test.ts`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 `packages/mnemosyne/tests/unit/pii-redact.test.ts`:
 
@@ -3935,13 +3935,13 @@ describe("pii/redact", () => {
 });
 ```
 
-- [ ] **Step 2: Run (fails)**
+- [x] **Step 2: Run (fails)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/unit/pii-redact.test.ts 2>&1 | tail -10
 ```
 
-- [ ] **Step 3: Implementation**
+- [x] **Step 3: Implementation**
 
 `packages/mnemosyne/src/pii/redact.ts`:
 
@@ -3966,13 +3966,13 @@ export function redactPII(text: string): string {
 }
 ```
 
-- [ ] **Step 4: Run (passes)**
+- [x] **Step 4: Run (passes)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/unit/pii-redact.test.ts 2>&1 | tail -10
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/mnemosyne/src/pii/redact.ts packages/mnemosyne/tests/unit/pii-redact.test.ts
@@ -3994,7 +3994,7 @@ git -c commit.gpgsign=false commit -m "feat(mnemosyne): pii redact policy"
 - Create: `packages/mnemosyne/src/protocol/v1.ts`
 - Create: `packages/mnemosyne/tests/unit/protocol-v1.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mnemosyne/tests/unit/protocol-v1.test.ts`:
 
@@ -4035,13 +4035,13 @@ describe("protocol/v1", () => {
 });
 ```
 
-- [ ] **Step 2: Run (fails)**
+- [x] **Step 2: Run (fails)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/unit/protocol-v1.test.ts 2>&1 | tail -10
 ```
 
-- [ ] **Step 3: Write protocol**
+- [x] **Step 3: Write protocol**
 
 ```bash
 mkdir -p /Users/lucasmailland/dev/orchester/packages/mnemosyne/src/protocol
@@ -4099,7 +4099,7 @@ Before saying "done", call mnemosyne_save_episode_summary with:
 `;
 ```
 
-- [ ] **Step 4: Run (passes)**
+- [x] **Step 4: Run (passes)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/unit/protocol-v1.test.ts 2>&1 | tail -10
@@ -4107,7 +4107,7 @@ pnpm --filter @orchester/mnemosyne test tests/unit/protocol-v1.test.ts 2>&1 | ta
 
 Expected: 5 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/mnemosyne/src/protocol/v1.ts packages/mnemosyne/tests/unit/protocol-v1.test.ts
@@ -4123,7 +4123,7 @@ git -c commit.gpgsign=false commit -m "feat(mnemosyne): Memory Protocol v1 artif
 - Create: `packages/mnemosyne/src/modes/detect.ts`
 - Create: `packages/mnemosyne/tests/unit/modes-detect.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mnemosyne/tests/unit/modes-detect.test.ts`:
 
@@ -4159,13 +4159,13 @@ describe("modes/detect", () => {
 });
 ```
 
-- [ ] **Step 2: Run (fails)**
+- [x] **Step 2: Run (fails)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/unit/modes-detect.test.ts 2>&1 | tail -10
 ```
 
-- [ ] **Step 3: Write implementation**
+- [x] **Step 3: Write implementation**
 
 ```bash
 mkdir -p /Users/lucasmailland/dev/orchester/packages/mnemosyne/src/modes
@@ -4195,13 +4195,13 @@ export function resolveModeFromCapabilities(
 }
 ```
 
-- [ ] **Step 4: Run (passes)**
+- [x] **Step 4: Run (passes)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/unit/modes-detect.test.ts 2>&1 | tail -10
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/mnemosyne/src/modes/detect.ts packages/mnemosyne/tests/unit/modes-detect.test.ts
