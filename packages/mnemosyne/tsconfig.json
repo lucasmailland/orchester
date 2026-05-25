@@ -9,21 +9,22 @@
     // not consumed via project references anywhere yet, so dropping it
     // costs nothing and lets `tsc --noEmit` walk imports normally.
     //
-    // No `rootDir` either — the integration tests legitimately import
-    // from `apps/web/tests/fixtures/*`, which sits outside packages/.
-    // §0.1 (package-clean) constrains `src/`, not the test harness.
+    // rootDir = monorepo root: canonical fix for a package that
+    // legitimately consumes from siblings (apps/web test fixtures +
+    // packages/db schema). Explicitly setting it tells TS the
+    // compilation graph spans the monorepo, so it stops rejecting
+    // cross-package files as out-of-tree. Under `--noEmit` no output
+    // is written; rootDir's only remaining effect is the boundary
+    // check — and a monorepo-wide boundary is what we want here.
     //
-    // Path mapping mirrors apps/web/tsconfig.json so the cross-package
-    // fixture import (apps/web/tests/fixtures/workspaces.ts) resolves
-    // `@orchester/db` the same way the web app does — apps/web relies
-    // on `paths`, not node_modules symlinks, for that specifier.
-    // baseUrl will be removed in TS 7.0; we keep it because dropping it
-    // changes how `rootDir` is inferred — without baseUrl, TS narrows
-    // rootDir to the package dir and rejects the cross-package fixture
-    // import from apps/web/tests/fixtures/. Post-v1.0 polish task: extract
-    // fixtures to a shared package, then drop baseUrl + this comment.
-    // ignoreDeprecations="5.0" silences the TS 5.x deprecation error.
-    "ignoreDeprecations": "5.0",
+    // baseUrl is deprecated in TS 6.0 (removed in 7.0). Keeping it
+    // because dropping it changes how `paths` resolves on some
+    // toolchains (drizzle-kit still consults it as of this commit).
+    // `ignoreDeprecations: "6.0"` silences the deprecation error at
+    // the current TS version. Post-v1.0 polish: extract fixtures to
+    // a shared package, then drop baseUrl + ignoreDeprecations.
+    "rootDir": "../..",
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
       "@orchester/db": ["../db/src/index.ts"],
