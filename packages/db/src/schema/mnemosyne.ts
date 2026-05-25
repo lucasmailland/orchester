@@ -193,3 +193,32 @@ export const mnemoRelations = pgTable("mnemo_relation", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });
+
+export const mnemoCitations = pgTable("mnemo_citation", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  memoryKind: text("memory_kind", {
+    enum: ["fact", "decision", "entity", "episode"],
+  }).notNull(),
+  memoryId: text("memory_id").notNull(),
+  sourceKind: text("source_kind", {
+    enum: [
+      "message",
+      "document",
+      "tool_call",
+      "llm_extraction",
+      "user_edit",
+      "agent_save",
+      "imported",
+    ],
+  }).notNull(),
+  sourceId: text("source_id"),
+  extractorModel: text("extractor_model"),
+  extractorPromptVersion: text("extractor_prompt_version"),
+  judgeModel: text("judge_model"),
+  judgeRelationId: text("judge_relation_id"),
+  evidenceExcerpt: text("evidence_excerpt"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
