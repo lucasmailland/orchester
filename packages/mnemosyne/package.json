@@ -7,8 +7,7 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./schema": "./src/schema.ts",
-    "./tools": "./src/tools/index.ts"
+    "./protocol": "./src/protocol/v1.ts"
   },
   "scripts": {
     "test": "vitest run",
