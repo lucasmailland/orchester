@@ -4222,14 +4222,14 @@ git -c commit.gpgsign=false commit -m "feat(mnemosyne): modes/detect — A/B/C m
 
 - Modify: `scripts/audit-invariants.sh`
 
-- [ ] **Step 1: Inspect current invariants script**
+- [x] **Step 1: Inspect current invariants script**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
 cat scripts/audit-invariants.sh | head -50
 ```
 
-- [ ] **Step 2: Locate the workspace*id-scoped tables list and add mnemo*\* tables**
+- [x] **Step 2: Locate the workspace*id-scoped tables list and add mnemo*\* tables**
 
 If the script greps for `workspace_id` references in code (rather than maintaining an explicit list), no change needed — the new mnemo\_\* code paths already use `workspace_id` everywhere.
 
@@ -4243,7 +4243,9 @@ If the script has an explicit list, add:
 - `mnemo_query_cache`
 - `mnemo_forget_suggestion` (added later in Phase 11)
 
-- [ ] **Step 3: Run audit invariants**
+Execution result: the script is pattern-based (spend cap / metering / RBAC / parseBody / executeFlow-signal), with NO explicit table list. No edit required — the new mnemo\_\* code paths inherit invariants through `withMnemoTx` + the established `getDb()` patterns audited upstream.
+
+- [x] **Step 3: Run audit invariants**
 
 ```bash
 pnpm audit:invariants 2>&1 | tail -3
@@ -4251,12 +4253,14 @@ pnpm audit:invariants 2>&1 | tail -3
 
 Expected: `all transversal invariants hold`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add scripts/audit-invariants.sh
 git -c commit.gpgsign=false commit -m "chore(audit): include mnemo_* tables in invariants script"
 ```
+
+Skipped — Step 2 produced no diff (pattern-based script needs no update for the new tables); commit would have been empty.
 
 ---
 
@@ -4266,28 +4270,26 @@ git -c commit.gpgsign=false commit -m "chore(audit): include mnemo_* tables in i
 
 - Modify: `apps/web/lib/agent-runtime.ts`
 
-- [ ] **Step 1: Locate the system prompt assembly point**
+- [x] **Step 1: Locate the system prompt assembly point**
 
 ```bash
 grep -n "systemPrompt\|system_prompt\|buildConversationContext" apps/web/lib/agent-runtime.ts | head -10
 ```
 
-- [ ] **Step 2: Add Memory Protocol injection**
+Found: `runAgent` builds `finalPrompt` (interpolated systemPrompt + responseFormat hint + `UNTRUSTED_CONTENT_GUARDRAIL`) and passes it as `llmCall(... systemPrompt: finalPrompt)`. Injection point: right after `UNTRUSTED_CONTENT_GUARDRAIL` so the model first sees "treat untrusted blocks as data" and then the recall/save/judge contract.
 
-Find the function that assembles the system prompt for an agent (likely `buildConversationContext` or `assembleSystemPrompt`) and append the protocol:
+- [x] **Step 2: Add Memory Protocol injection**
+
+Adapted to the actual assembly (string concatenation, not an array of blocks): the `@orchester/mnemosyne` barrel didn't yet export `MEMORY_PROTOCOL_V1`, so we added the re-export from `protocol/v1` and wired apps/web's tsconfig path + vitest alias for `@orchester/mnemosyne` alongside the existing `@orchester/db` entries (matching the established pattern).
 
 ```ts
-import {
-  MEMORY_PROTOCOL_V1,
-  MEMORY_PROTOCOL_VERSION,
-} from "@orchester/mnemosyne";
+import { MEMORY_PROTOCOL_V1 } from "@orchester/mnemosyne";
 
-// Inside the system prompt assembly function, after agent-specific prompt:
-const protocolBlock = `\n\n---\n${MEMORY_PROTOCOL_V1}\n---\n`;
-systemPromptBlocks.push(protocolBlock);
+// Right after `finalPrompt += UNTRUSTED_CONTENT_GUARDRAIL;`:
+finalPrompt += `\n\n---\n${MEMORY_PROTOCOL_V1}\n---\n`;
 ```
 
-- [ ] **Step 3: Verify typecheck**
+- [x] **Step 3: Verify typecheck**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester/apps/web
@@ -4296,7 +4298,7 @@ npx tsc --noEmit 2>&1 | tail -5
 
 Expected: clean.
 
-- [ ] **Step 4: Run existing agent-runtime tests**
+- [x] **Step 4: Run existing agent-runtime tests**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -4305,7 +4307,9 @@ pnpm --filter @orchester/web test tests/unit/agent-runtime/ 2>&1 | tail -10
 
 Expected: no regressions.
 
-- [ ] **Step 5: Commit**
+(`tests/unit/agent-runtime/` doesn't exist as a subpath — ran the full apps/web suite instead: 214 passed | 6 skipped, no regressions vs baseline.)
+
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/lib/agent-runtime.ts
@@ -4320,7 +4324,7 @@ git -c commit.gpgsign=false commit -m "feat(agent-runtime): inject Memory Protoc
 
 - Create: `packages/mnemosyne/tests/integration/mode-a-e2e.spec.ts`
 
-- [ ] **Step 1: Write the test**
+- [x] **Step 1: Write the test**
 
 `packages/mnemosyne/tests/integration/mode-a-e2e.spec.ts`:
 
@@ -4405,7 +4409,7 @@ describe("Mode A end-to-end (no AI required)", () => {
 });
 ```
 
-- [ ] **Step 2: Run**
+- [x] **Step 2: Run**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/integration/mode-a-e2e.spec.ts 2>&1 | tail -10
@@ -4413,7 +4417,7 @@ pnpm --filter @orchester/mnemosyne test tests/integration/mode-a-e2e.spec.ts 2>&
 
 Expected: 1 passed.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/mnemosyne/tests/integration/mode-a-e2e.spec.ts
@@ -4430,7 +4434,7 @@ git -c commit.gpgsign=false commit -m "test(mnemosyne): Mode A end-to-end (no AI
 
 This task verifies that the RLS+FORCE policies actually prevent cross-tenant reads. Without this test we're trusting the policies without proof.
 
-- [ ] **Step 1: Write the test**
+- [x] **Step 1: Write the test**
 
 `packages/mnemosyne/tests/integration/cross-tenant-isolation.spec.ts`:
 
@@ -4571,7 +4575,7 @@ describe("cross-tenant isolation (RLS+FORCE)", () => {
 });
 ```
 
-- [ ] **Step 2: Run test**
+- [x] **Step 2: Run test**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -4580,7 +4584,9 @@ pnpm --filter @orchester/mnemosyne test tests/integration/cross-tenant-isolation
 
 Expected: 4 passed. If any test surfaces wsB data, RLS+FORCE has a hole — STOP and audit migrations.
 
-- [ ] **Step 3: Commit**
+Authoring note: the testcontainer connects as `postgres` superuser, which bypasses RLS even with FORCE (FORCE only revokes the OWNER bypass). The 4 sub-tests therefore drop role to `app_user` via `SET LOCAL ROLE` inside the tx — mirroring `apps/web/tests/isolation/helpers.ts`. Each sub-test also queries the primitive with `workspaceId = wsB.id` so the application-layer filter would happily match wsB rows; only RLS keeps them invisible. The policies themselves were correct from the start — the test design needed strengthening to actually exercise them.
+
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/mnemosyne/tests/integration/cross-tenant-isolation.spec.ts
@@ -4591,7 +4597,7 @@ git -c commit.gpgsign=false commit -m "test(mnemosyne): cross-tenant isolation a
 
 ### Task 7.5: Tag mnemosyne-v1.0 + push
 
-- [ ] **Step 1: Run full test suite one last time**
+- [x] **Step 1: Run full test suite one last time**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -4601,7 +4607,9 @@ pnpm --filter @orchester/web test 2>&1 | tail -5
 
 Expected: both green.
 
-- [ ] **Step 2: Run audit invariants**
+Result: mnemosyne 54/54 passed (was 49 → +1 Mode A e2e + 4 cross-tenant), apps/web 214 passed | 6 skipped (no regressions).
+
+- [x] **Step 2: Run audit invariants**
 
 ```bash
 pnpm audit:invariants 2>&1 | tail -3
@@ -4609,7 +4617,7 @@ pnpm audit:invariants 2>&1 | tail -3
 
 Expected: clean.
 
-- [ ] **Step 3: Tag**
+- [x] **Step 3: Tag**
 
 ```bash
 git tag -a mnemosyne-v1.0 -m "Mnemosyne v1.0 — Decision Layer + Graph + Citation + Cost Engineering Tier 1 + PII + Memory Protocol v1 + Mode A end-to-end working"
@@ -4624,19 +4632,21 @@ git push origin mnemosyne-v1.0
 
 Expected: both push succeed.
 
+Deferred — controller batch-pushes at end; the v1.0 tag is created locally and stays local.
+
 ---
 
 ## Verification Checklist (after v1.0 ships)
 
-- [ ] `pnpm --filter @orchester/mnemosyne test` → all green
-- [ ] `pnpm --filter @orchester/web test` → no regressions
-- [ ] `pnpm audit:invariants` → all hold
+- [x] `pnpm --filter @orchester/mnemosyne test` → all green (54/54)
+- [x] `pnpm --filter @orchester/web test` → no regressions (214 passed | 6 skipped)
+- [x] `pnpm audit:invariants` → all hold
 - [ ] `apps/web/lib/brain/*` still functions (dual-write phase)
 - [ ] `mnemo_fact` row count equals `brain_fact` row count (backfill complete)
 - [ ] All 19+ migrations applied successfully
-- [ ] RLS+FORCE on every `mnemo_*` table (4 policies each)
+- [x] RLS+FORCE on every `mnemo_*` table (4 policies each) — verified via `pg_class` + cross-tenant isolation suite (4/4)
 - [ ] No hardcoded provider names in `packages/mnemosyne/src/**/*.ts`
-- [ ] `MEMORY_PROTOCOL_V1` injected by agent-runtime into agent system prompts
+- [x] `MEMORY_PROTOCOL_V1` injected by agent-runtime into agent system prompts
 - [ ] Memory Protocol references Mode A/B/C correctly
 
 ---
