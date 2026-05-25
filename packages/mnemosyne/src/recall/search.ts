@@ -2,6 +2,16 @@
 //
 // searchMnemo — hybrid recall over `mnemo_fact`. Spec §5 (hybrid retrieval).
 //
+// v1.0 pipeline (FTS or vector) → v1.1 adds an opt-in query-prep stage
+// (contextualization + HyDE) BEFORE first-stage retrieval. The query-fact
+// embedding mismatch (questions vs. statements live in different vector-
+// space regions) is the primary recall-precision bug from the v1.0 audit
+// — HyDE is the fix: ask the LLM for a hypothetical statement-style
+// answer, embed THAT, and you land next to the right stored fact.
+//
+// Subsequent v1.1 commits add reranking, post-recall pruning, and the
+// hard cap on `maxResults`. This commit only touches the query path.
+//
 // Scoring (mirrors apps/web/lib/brain/recall.ts so the formulas stay aligned
 // across the two storage homes during the brain → mnemo migration window):
 //
@@ -28,21 +38,14 @@
 // TODO(v1.1): L3 query cache. `mnemo_query_cache` table exists (migration
 // 0022) and is meant to short-circuit semantically-similar queries via
 // cosine > 0.95 over 24h. Currently only L1 LRU is wired in this file.
-// Wiring L3 requires: (a) embedding the query (already done below for
-// Mode B/C, would need a Mode A bypass since Mode A has no embedding),
-// (b) a similarity probe against `mnemo_query_cache.query_embedding`
-// inside the same workspace tx, (c) write-back of (queryEmbedding,
-// resultIds, kinds) on miss with `top_k` matching the request. Skipped
-// in v1.0 to keep the recall hot path small while the rest of the
-// package stabilises.
 //
 // §0.1: package-clean — no `server-only`, no path aliases to the host
-// app. Embedding is dependency-injected via `embedFn` like the rest of
-// mnemosyne.
+// app. Embedding / LLM are dependency-injected.
 import { createHash } from "crypto";
 import { sql } from "drizzle-orm";
 import { embedMnemo, type EmbedFn, type EmbeddingProvider } from "./embed";
 import { recallCache, recallCacheKey } from "./cache";
+import { prepareQuery, type LlmCallFn, type PreparedQuery } from "./query-prep";
 import { withMnemoTx, type Tx } from "../tx";
 import type { FactKind, FactScope, FactStatus, MnemoFact } from "../primitives/fact";
 
@@ -66,7 +69,17 @@ export interface SearchMnemoInput {
   agentId?: string;
   scope?: FactScope;
   scopeRef?: string;
+  /**
+   * Legacy alias for `maxResults`. If both are set, `maxResults` wins.
+   * Kept for backward compat with v1.0 callers.
+   */
   topK?: number;
+  /**
+   * v1.1 — friendly alias for `topK`. Future commits will tighten the
+   * default and add anti-bloat caps; in this commit it's a transparent
+   * rename so callers can adopt the v1.1 vocabulary now.
+   */
+  maxResults?: number;
   /**
    * Optional embedding provider/model/fn. If all three are provided, the
    * search runs in Mode B/C (vector path). Otherwise it falls back to
@@ -75,6 +88,21 @@ export interface SearchMnemoInput {
   embeddingProvider?: EmbeddingProvider;
   embeddingModel?: string;
   embedFn?: EmbedFn;
+  /**
+   * v1.1 — Conversation history for query contextualization. If absent
+   * or shorter than 2 turns, contextualization is skipped (the raw
+   * query IS the self-contained query).
+   */
+  history?: Array<{ role: "user" | "assistant"; content: string }>;
+  /** v1.1 — Toggle HyDE. Default: true if `prepareQueryLlm` is provided. */
+  enableHyDE?: boolean;
+  /** v1.1 — Toggle query contextualization. Default: true if LLM provided. */
+  enableContextualize?: boolean;
+  /**
+   * v1.1 — Host-provided cheap-model caller for query-prep. If absent,
+   * both contextualization and HyDE are skipped — recall runs unchanged.
+   */
+  prepareQueryLlm?: LlmCallFn;
   /**
    * Optional transaction. If supplied, the search runs inside it. If
    * omitted, a workspace-scoped tx is opened via `withMnemoTx` so RLS
@@ -143,14 +171,23 @@ function rowToFact(r: FactRow): MnemoFact {
   };
 }
 
-async function runSearch(input: SearchMnemoInput, tx: Tx, topK: number): Promise<RecallHit[]> {
-  // Resolve query vector (Mode A → `[]` from embedMnemo when no embedFn
-  // supplied; we treat that as FTS fallback).
+async function runSearch(
+  input: SearchMnemoInput,
+  tx: Tx,
+  topK: number,
+  prepared: PreparedQuery
+): Promise<RecallHit[]> {
+  // v1.1: embed the HyDE hypothetical if present, otherwise the
+  // contextualized query. The lexical (FTS) query always uses the
+  // contextualized form (HyDE text would be too specific for FTS).
+  const embeddingQuery = prepared.hypothetical ?? prepared.contextualized;
+  const lexicalQuery = prepared.contextualized;
+
   let queryVec: number[] | undefined;
   if (input.embeddingProvider && input.embeddingModel && input.embedFn) {
     const vecs = await embedMnemo({
       workspaceId: input.workspaceId,
-      texts: [input.query],
+      texts: [embeddingQuery],
       provider: input.embeddingProvider,
       model: input.embeddingModel,
       embedFn: input.embedFn,
@@ -170,14 +207,14 @@ async function runSearch(input: SearchMnemoInput, tx: Tx, topK: number): Promise
           last_recalled_at, source_message_ids, attributed_to,
           linked_memory_ids, metadata, status, merged_into_id,
           valid_from, valid_to, created_at, updated_at,
-          ts_rank_cd(text_lemmatized, plainto_tsquery('simple', ${input.query})) AS fts_score,
+          ts_rank_cd(text_lemmatized, plainto_tsquery('simple', ${lexicalQuery})) AS fts_score,
           exp(-LN(2.0) * EXTRACT(EPOCH FROM (now() - created_at)) / (30.0 * 86400.0)) AS recency,
           (ln(1.0 + hit_count) / ln(100.0)) AS frequency,
           CASE WHEN pinned THEN 1.0 ELSE 0.0 END AS pin_bonus
         FROM mnemo_fact
         WHERE workspace_id = ${input.workspaceId}
           AND status = 'active'
-          AND text_lemmatized @@ plainto_tsquery('simple', ${input.query})
+          AND text_lemmatized @@ plainto_tsquery('simple', ${lexicalQuery})
           ${input.agentId ? sql`AND (agent_id = ${input.agentId} OR agent_id IS NULL)` : sql``}
           ${input.scope ? sql`AND scope = ${input.scope}` : sql``}
           ${input.scopeRef ? sql`AND scope_ref = ${input.scopeRef}` : sql``}
@@ -232,15 +269,36 @@ async function runSearch(input: SearchMnemoInput, tx: Tx, topK: number): Promise
 /**
  * Hybrid recall over `mnemo_fact`. Returns the top-K ranked hits.
  *
+ * v1.1: an opt-in query-prep stage (contextualization + HyDE) runs
+ * BEFORE retrieval to fix the query-fact embedding mismatch (questions
+ * vs. statements live in different vector-space regions). Both
+ * transforms degrade gracefully — recall NEVER fails because of a
+ * flaky LLM.
+ *
  * Caller-supplied `tx` is used directly when present (the caller owns the
  * transaction lifecycle, e.g. when batching reads inside an existing
  * workspace tx). Otherwise a fresh workspace-scoped tx is opened so RLS
  * FORCE permits the SELECT.
  */
 export async function searchMnemo(input: SearchMnemoInput): Promise<RecallHit[]> {
-  const topK = Math.min(Math.max(input.topK ?? 5, 1), 20);
+  // `maxResults` wins over legacy `topK`. Default 5 in this commit;
+  // a later commit will tighten it to 3 as an anti-bloat measure.
+  const requestedCap = input.maxResults ?? input.topK ?? 5;
+  const topK = Math.min(Math.max(requestedCap, 1), 20);
 
-  const queryHash = createHash("sha256").update(input.query).digest("hex").slice(0, 16);
+  // v1.1 query-prep. Defaults: enabled when LLM is supplied. No LLM → identity.
+  const prepared = await prepareQuery({
+    rawUserTurn: input.query,
+    history: input.history,
+    llm: input.prepareQueryLlm,
+    enableHyDE: input.enableHyDE,
+    enableContextualize: input.enableContextualize,
+  });
+
+  // Cache key: keyed on the prepared query (HyDE-or-contextualized) so
+  // two callers with the same raw turn but different history don't collide.
+  const cacheQuery = prepared.hypothetical ?? prepared.contextualized;
+  const queryHash = createHash("sha256").update(cacheQuery).digest("hex").slice(0, 16);
   const cacheK = recallCacheKey({
     workspaceId: input.workspaceId,
     queryHash,
@@ -254,8 +312,8 @@ export async function searchMnemo(input: SearchMnemoInput): Promise<RecallHit[]>
   if (cached) return cached;
 
   const hits = input.tx
-    ? await runSearch(input, input.tx, topK)
-    : await withMnemoTx(input.workspaceId, (tx) => runSearch(input, tx as Tx, topK));
+    ? await runSearch(input, input.tx, topK, prepared)
+    : await withMnemoTx(input.workspaceId, (tx) => runSearch(input, tx as Tx, topK, prepared));
 
   recallCache.set(cacheK, hits as unknown as object);
   return hits;

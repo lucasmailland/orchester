@@ -63,9 +63,24 @@ export {
 // §5 Hybrid retrieval — recall search over `mnemo_fact`. Mode A falls
 // back to FTS via the `text_lemmatized` GIN index; Mode B/C uses
 // pgvector semantic + the blended hybrid score.
+//
+// v1.1 adds an opt-in post-retrieval pipeline: query contextualization
+// + HyDE (hypothetical document embedding) → cross-encoder rerank →
+// post-recall pruning of near-duplicates → hard cap (default 3). All
+// new options are backward-compatible additions to `SearchMnemoInput`.
 export {
   searchMnemo,
   type SearchMnemoInput,
   type RecallHit,
   type RecallReasons,
 } from "./recall/search";
+
+// v1.1 query preparation: paraphrase + HyDE to fix the query-fact
+// embedding mismatch (questions vs. statements live in different
+// vector-space regions). Both transforms are LLM-backed and opt-in.
+export {
+  prepareQuery,
+  type LlmCallFn,
+  type QueryPrepInput,
+  type PreparedQuery,
+} from "./recall/query-prep";
