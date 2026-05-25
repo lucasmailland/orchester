@@ -95,3 +95,7 @@ export {
   type RerankInput,
   type CohereRerankOptions,
 } from "./recall/rerank";
+
+// v1.1 compact rendering — groups facts by kind and condenses
+// statements into k:v notation for prompt-budget-aware injection.
+export { renderFactsCompact, type CompactRenderOptions } from "./recall/render";
