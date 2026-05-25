@@ -3186,7 +3186,7 @@ git -c commit.gpgsign=false commit -m "feat(mnemosyne): citation/store CRUD"
 - Create: `packages/mnemosyne/src/extraction/prefilter.ts`
 - Create: `packages/mnemosyne/tests/unit/prefilter.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mnemosyne/tests/unit/prefilter.test.ts`:
 
@@ -3262,13 +3262,13 @@ describe("extraction/prefilter (A1)", () => {
 });
 ```
 
-- [ ] **Step 2: Run (fails)**
+- [x] **Step 2: Run (fails)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/unit/prefilter.test.ts 2>&1 | tail -10
 ```
 
-- [ ] **Step 3: Write implementation**
+- [x] **Step 3: Write implementation**
 
 ```bash
 mkdir -p /Users/lucasmailland/dev/orchester/packages/mnemosyne/src/extraction
@@ -3405,7 +3405,7 @@ export function shouldExtract(messages: PrefilterMessage[]): PrefilterResult {
 }
 ```
 
-- [ ] **Step 4: Run (passes)**
+- [x] **Step 4: Run (passes)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/unit/prefilter.test.ts 2>&1 | tail -10
@@ -3413,7 +3413,7 @@ pnpm --filter @orchester/mnemosyne test tests/unit/prefilter.test.ts 2>&1 | tail
 
 Expected: 6 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/mnemosyne/src/extraction/prefilter.ts packages/mnemosyne/tests/unit/prefilter.test.ts
@@ -3429,7 +3429,7 @@ git -c commit.gpgsign=false commit -m "feat(mnemosyne): A1 — heuristic pre-fil
 - Create: `packages/mnemosyne/src/recall/cache.ts`
 - Create: `packages/mnemosyne/tests/unit/recall-cache.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mnemosyne/tests/unit/recall-cache.test.ts`:
 
@@ -3482,13 +3482,13 @@ describe("recall/cache (A7 L1)", () => {
 });
 ```
 
-- [ ] **Step 2: Run (fails)**
+- [x] **Step 2: Run (fails)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/unit/recall-cache.test.ts 2>&1 | tail -10
 ```
 
-- [ ] **Step 3: Write implementation**
+- [x] **Step 3: Write implementation**
 
 `packages/mnemosyne/src/recall/cache.ts`:
 
@@ -3536,7 +3536,7 @@ export function invalidateRecallCacheForWorkspace(workspaceId: string): void {
 }
 ```
 
-- [ ] **Step 4: Run (passes)**
+- [x] **Step 4: Run (passes)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/unit/recall-cache.test.ts 2>&1 | tail -10
@@ -3544,7 +3544,7 @@ pnpm --filter @orchester/mnemosyne test tests/unit/recall-cache.test.ts 2>&1 | t
 
 Expected: 2 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/mnemosyne/src/recall/cache.ts packages/mnemosyne/tests/unit/recall-cache.test.ts
@@ -3560,7 +3560,7 @@ git -c commit.gpgsign=false commit -m "feat(mnemosyne): A7 L1 recall cache + wor
 - Create: `packages/db/migrations/0022_mnemosyne_query_cache.sql`
 - Create: `packages/db/migrations/0022_mnemosyne_query_cache.down.sql`
 
-- [ ] **Step 1: Write migration**
+- [x] **Step 1: Write migration**
 
 ```sql
 -- packages/db/migrations/0022_mnemosyne_query_cache.sql
@@ -3593,14 +3593,14 @@ ALTER TABLE mnemo_query_cache FORCE  ROW LEVEL SECURITY;
 SELECT apply_pattern_a('mnemo_query_cache');
 ```
 
-- [ ] **Step 2: Down migration**
+- [x] **Step 2: Down migration**
 
 ```sql
 -- packages/db/migrations/0022_mnemosyne_query_cache.down.sql
 DROP TABLE IF EXISTS mnemo_query_cache CASCADE;
 ```
 
-- [ ] **Step 3: Apply + commit**
+- [x] **Step 3: Apply + commit**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
@@ -3618,7 +3618,7 @@ git -c commit.gpgsign=false commit -m "feat(db): migration 0022 — mnemo_query_
 - Create: `packages/mnemosyne/src/adapters/types.ts`
 - Create: `packages/mnemosyne/src/adapters/factory.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mnemosyne/tests/unit/adapter-types.test.ts`:
 
@@ -3649,13 +3649,13 @@ describe("adapters/types", () => {
 });
 ```
 
-- [ ] **Step 2: Run (fails)**
+- [x] **Step 2: Run (fails)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/unit/adapter-types.test.ts 2>&1 | tail -10
 ```
 
-- [ ] **Step 3: Write types**
+- [x] **Step 3: Write types**
 
 ```bash
 mkdir -p /Users/lucasmailland/dev/orchester/packages/mnemosyne/src/adapters
@@ -3712,13 +3712,13 @@ export interface ModelAdapter {
 }
 ```
 
-- [ ] **Step 4: Run (passes)**
+- [x] **Step 4: Run (passes)**
 
 ```bash
 pnpm --filter @orchester/mnemosyne test tests/unit/adapter-types.test.ts 2>&1 | tail -10
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/lucasmailland/dev/orchester
