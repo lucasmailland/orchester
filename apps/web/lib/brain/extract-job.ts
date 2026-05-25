@@ -4,6 +4,12 @@
 // calls extractFacts, persists each fact via store.createFact, updates
 // brain_extraction_job state. Runs inside withCrossTenantAdmin so RLS
 // FORCE is satisfied for the message read across workspaces.
+//
+// v1.1 (circuit breaker): when the LLM provider is unhealthy (rolling
+// window of failures crosses the threshold), the job is DEFERRED with
+// `state='deferred_provider_outage'` + a `defer_until` timestamp. The
+// pg-boss send uses `startAfter` so the worker re-picks the conversation
+// once the cool-down elapses. Outage-period conversations are NOT lost.
 import "server-only";
 import { asc, eq } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
@@ -11,10 +17,24 @@ import { schema, type DbClient } from "@orchester/db";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 import { appendAudit } from "@/lib/audit/log";
 import { safeLogError } from "@/lib/safe-log";
+import {
+  getProviderHealth,
+  recordProviderResult,
+  resolveActiveMode,
+  resolveConfiguredMode,
+} from "@orchester/mnemosyne";
 import { resolveSmallTierModel } from "./model-resolve";
 import { extractFacts } from "./extract";
 import { createFact, withBrainTx } from "./store";
 import { invalidateRecallCache } from "./recall";
+
+/**
+ * Cool-down before pg-boss re-picks a deferred job. Keep small enough
+ * that a flapping provider doesn't strand the workspace's memory, large
+ * enough that we don't burn through retry budget while the provider is
+ * objectively down.
+ */
+const DEFER_WAIT_MS = 5 * 60 * 1000; // 5 minutes
 
 type Tx = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 
@@ -77,6 +97,69 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
         return;
       }
 
+      // v1.1 circuit breaker: even though a provider IS configured, the
+      // provider may be unhealthy right now (outage, rate limit, spend
+      // cap recently hit, network partition). Skip-vs-defer here matters
+      // because deferred jobs keep the conversation in queue for retry,
+      // skipped jobs lose it forever. We compute the active mode from
+      // the configured capabilities + the live health snapshot; if the
+      // active mode isn't 'C' we defer for DEFER_WAIT_MS and let pg-boss
+      // re-enqueue the job after the cool-down. RetryAfter equivalent:
+      // pg-boss `enqueue` with `startAfterSeconds`.
+      const health = getProviderHealth(payload.workspaceId);
+      const configured = resolveConfiguredMode({
+        hasLLM: true,
+        // We don't track embed status in the simple resolver for the job
+        // gate — extraction is LLM-only. If a chat provider IS configured
+        // (resolved truthy) we treat configured mode as 'C' for the
+        // purpose of detecting LLM outage.
+        hasEmbed: true,
+      });
+      const { active, degraded, reason } = await resolveActiveMode({
+        workspaceId: payload.workspaceId,
+        configured,
+        health,
+      });
+      // Extraction requires the chat provider. Active mode 'A' or 'B'
+      // (chat unavailable) → defer. Mode 'C' (even degraded with
+      // embedding down) is fine — extraction is LLM-only.
+      const chatDown = active === "A" || active === "B";
+      if (degraded && chatDown) {
+        const deferUntil = new Date(Date.now() + DEFER_WAIT_MS);
+        await tx
+          .update(schema.brainExtractionJobs)
+          .set({
+            state: "deferred_provider_outage",
+            skipReason: reason ?? "chat_unavailable",
+            deferUntil,
+          })
+          .where(eq(schema.brainExtractionJobs.id, payload.jobId));
+        // Re-enqueue at the cool-down boundary. Same payload, fresh
+        // pg-boss job; the brain_extraction_job row stays the durable
+        // record (worker reads it back by `jobId` on the next run).
+        try {
+          const { enqueue, JOB_BRAIN_EXTRACT } = await import("@/lib/queue");
+          await enqueue<BrainExtractPayload>(
+            JOB_BRAIN_EXTRACT,
+            {
+              jobId: payload.jobId,
+              workspaceId: payload.workspaceId,
+              conversationId: payload.conversationId,
+              agentId: payload.agentId,
+            },
+            {
+              startAfterSeconds: Math.ceil(DEFER_WAIT_MS / 1000),
+              retryLimit: 1,
+              expireInSeconds: 15 * 60,
+              singletonKey: `brain.extract:defer:${payload.conversationId}`,
+            }
+          );
+        } catch (enqErr) {
+          safeLogError("[brain.extract] failed to re-enqueue deferred job:", enqErr);
+        }
+        return;
+      }
+
       await tx
         .update(schema.brainExtractionJobs)
         .set({
@@ -90,13 +173,25 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
       // 2. Extract facts via LLM (uses workspace's ai_provider key —
       // assertWithinSpend in llmCall will cap on budget exhaustion).
       // Pass tx so getProviderKey reads inside the cross-tenant txn.
-      const facts = await extractFacts({
-        workspaceId: payload.workspaceId,
-        agentId: payload.agentId,
-        conversationSlice: slice,
-        model: resolved.modelId,
-        tx: tx as unknown as Parameters<typeof extractFacts>[0]["tx"],
-      });
+      //
+      // Wrap with circuit-breaker bookkeeping: each call records a
+      // health sample for the 'chat' provider. After N failures within
+      // the rolling window, subsequent jobs see `active != C` above and
+      // get deferred instead of repeatedly burning retries.
+      let facts;
+      try {
+        facts = await extractFacts({
+          workspaceId: payload.workspaceId,
+          agentId: payload.agentId,
+          conversationSlice: slice,
+          model: resolved.modelId,
+          tx: tx as unknown as Parameters<typeof extractFacts>[0]["tx"],
+        });
+        recordProviderResult(payload.workspaceId, "chat", true);
+      } catch (llmErr) {
+        recordProviderResult(payload.workspaceId, "chat", false);
+        throw llmErr;
+      }
 
       // 3. Persist each fact in a workspace-scoped txn (separate from
       // the cross-tenant admin txn — facts must be created with
