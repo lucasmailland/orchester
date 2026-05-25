@@ -33,12 +33,32 @@ export {
 } from "./conflict/fact-candidate";
 
 // §39 Operational Modes — Graceful Degradation. Pure-code resolver from a
-// capability snapshot (has LLM / has embed) to one of A / B / C.
+// capability snapshot (has LLM / has embed) to one of A / B / C, plus a
+// health-aware resolver that combines configured capabilities with live
+// provider health for graceful degradation under outage (v1.1).
 export {
   resolveModeFromCapabilities,
+  resolveConfiguredMode,
+  resolveActiveMode,
   type MnemoMode,
   type CapabilitySnapshot,
+  type ActiveModeResult,
+  type ResolveActiveModeInput,
+  type PartialAvailability,
+  type DegradationReason,
 } from "./modes/detect";
+
+// Provider health tracker (in-memory rolling-window). Feeds
+// `resolveActiveMode`. See packages/mnemosyne/src/modes/health.ts for
+// the window policy + HMR-safe stash details.
+export {
+  recordProviderResult,
+  getProviderHealth,
+  resetProviderHealth,
+  type ProviderKind,
+  type ProviderHealth,
+  type ProviderHealthSample,
+} from "./modes/health";
 
 // §5 Hybrid retrieval — recall search over `mnemo_fact`. Mode A falls
 // back to FTS via the `text_lemmatized` GIN index; Mode B/C uses
