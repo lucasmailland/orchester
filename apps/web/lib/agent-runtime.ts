@@ -97,7 +97,7 @@ function interpolate(template: string, vars: Record<string, string>): string {
  * `searchMnemo` / `renderFactsCompact` failures log + return "" so the
  * agent turn proceeds with no recall block (degrades, never breaks).
  */
-async function buildRecallBlock(input: {
+export async function buildRecallBlock(input: {
   workspaceId: string;
   agentId: string;
   userTurn: string;
@@ -160,7 +160,7 @@ async function buildRecallBlock(input: {
  * always match mnemosyne's `Tx` shape. Letting the summary call open its
  * own short tx is safe (read+upsert on `mnemo_summary` only).
  */
-async function buildProfileBlock(input: {
+export async function buildProfileBlock(input: {
   workspaceId: string;
   agentId: string;
   userId?: string;

@@ -200,7 +200,7 @@ async function llmCallInner(p: LlmCallParams): Promise<LlmCallResult> {
  * Defensive against miscomputations: boundary <= 0 or empty prompt
  * collapse to plain string (no errors raised upstream).
  */
-function buildAnthropicSystem(
+export function buildAnthropicSystem(
   prompt: string,
   boundary: number | undefined
 ): string | Array<{ type: "text"; text: string; cache_control?: { type: "ephemeral" } }> {
