@@ -30,6 +30,7 @@ fail() {
 ok() { printf '\033[32m✓\033[0m %s\n' "$1"; }
 
 WEB=apps/web
+MNEMO=packages/mnemosyne/src
 
 # Exclude .next/standalone build artifacts and the llm-call file itself
 # (which defines llmCall/llmStream and naturally doesn't call them).
@@ -39,6 +40,27 @@ FILES_WITH_LLM=$(grep -rln "llmCall(\\|llmStream(" "$WEB" --include='*.ts' \
 
 # ── Invariante 1 + 2: spend guard + metering en cada archivo con llm* ──────
 for f in $FILES_WITH_LLM; do
+  if ! grep -q "assertWithinSpend" "$f"; then
+    fail "spend guard missing in: $f (add: import { assertWithinSpend } + call before llmCall/llmStream)"
+  fi
+  if ! grep -q "recordAiUsage\\|persistAssistantTurn" "$f"; then
+    fail "metering missing in: $f (add: recordAiUsage after the LLM result, or use persistAssistantTurn)"
+  fi
+done
+
+# ── Mnemosyne package: same invariants 1 + 2 ───────────────────────────────
+# Audit 2026-05-24 (mnemosyne v1 final, §1.f) flagged that this script only
+# covered apps/web, so any future llmCall/llmStream landing inside
+# packages/mnemosyne/src/ would silently skip the spend-cap + metering gate.
+# Today zero files match (mnemosyne is DB-only at v1.0); the loop is
+# forward-defense — when extraction/judge adapters start calling the LLM,
+# they MUST pair every call with assertWithinSpend + recordAiUsage in the
+# same file. No exclusions: every file under packages/mnemosyne/src/ that
+# names llmCall(/llmStream( is in scope.
+FILES_WITH_LLM_MNEMO=$(grep -rln "llmCall(\\|llmStream(" "$MNEMO" --include='*.ts' \
+  | grep -v ".next/standalone" || true)
+
+for f in $FILES_WITH_LLM_MNEMO; do
   if ! grep -q "assertWithinSpend" "$f"; then
     fail "spend guard missing in: $f (add: import { assertWithinSpend } + call before llmCall/llmStream)"
   fi
