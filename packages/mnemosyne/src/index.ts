@@ -99,3 +99,52 @@ export {
 // v1.1 compact rendering — groups facts by kind and condenses
 // statements into k:v notation for prompt-budget-aware injection.
 export { renderFactsCompact, type CompactRenderOptions } from "./recall/render";
+
+// v1.1 cost optimization (async batch embedding). `createFactAsync`
+// inserts the fact with `embedding = NULL` and queues a host job to
+// fill in the vector later in batched API calls. FTS recall covers the
+// gap. See `apps/web/worker/embed-batch-job.ts` for the host worker.
+export {
+  createFactAsync,
+  EMBED_FACT_JOB_NAME,
+  type CreateFactAsyncInput,
+} from "./primitives/fact-async";
+
+// Host adapter contracts (queue callback, etc.). Keep mnemosyne pure —
+// the host supplies the concrete enqueue implementation.
+export type { EnqueueFn } from "./types";
+
+// v1.1 Layer 2 trigger classifier — pure heuristic, no LLM/DB call.
+// The agent runtime consults this on EVERY turn before deciding to
+// perform a dynamic recall search; the goal is to skip recall on
+// ~50% of turns that don't need it ("ok", "thanks") while staying
+// generous on anything that looks like it references past context.
+export {
+  shouldTriggerRecall,
+  type ShouldTriggerRecallInput,
+  type TriggerDecision,
+} from "./recall/triggering";
+
+// v1.1 Layer 1 distilled user profile — pre-computed compact summary
+// (80-150 tokens) cached in mnemo_summary and injected on EVERY turn.
+// `getOrComputeSummary` is the entry point for the agent runtime;
+// `distillFacts` + `renderSummaryText` + `heuristicSummary` are
+// surfaced for testing and the daily cron worker.
+export {
+  getOrComputeSummary,
+  distillFacts,
+  heuristicSummary,
+  renderSummaryText,
+  estimateTokens,
+  DISTILL_SYSTEM_PROMPT,
+  getSummary,
+  upsertSummary,
+  invalidateSummary,
+  type UserProfileSummary,
+  type GetOrComputeSummaryInput,
+  type UserProfileSummaryStruct,
+  type DistillInput,
+  type DistillResult,
+  type MnemoSummaryRow,
+  type UpsertSummaryInput,
+} from "./summary";
