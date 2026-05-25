@@ -20,7 +20,7 @@
 // the same file as `llmCall(`.
 import "server-only";
 import { sql } from "drizzle-orm";
-import { schema, getDb } from "@orchester/db";
+import { getDb } from "@orchester/db";
 import { getOrComputeSummary, type UserProfileSummary } from "@orchester/mnemosyne";
 import { llmCall } from "@/lib/llm-call";
 import { assertWithinSpend } from "@/lib/cost-alerts";

@@ -68,14 +68,6 @@ async function withMnemoTx<T>(
 const BATCH_SIZE = 100;
 
 /**
- * Cool-down before re-enqueuing a deferred fact (no provider
- * configured). 30 min is the same order as the brain-extract circuit
- * breaker — long enough to avoid retry spam, short enough that a
- * just-configured provider picks up backlogged facts within an hour.
- */
-const DEFER_WAIT_SECONDS = 30 * 60;
-
-/**
  * Max attempts per fact before stamping `metadata.embedding_failed`
  * and giving up. After this the fact stays NULL-embedded forever
  * (FTS still covers it).
@@ -160,10 +152,10 @@ async function flushPendingEmbeddings(workspaceId: string): Promise<number> {
   const provider = await resolveWorkspaceEmbeddingProvider(workspaceId);
   if (!provider) {
     // Mode A: no provider configured. Leave facts unembedded — FTS
-    // recall already covers them. Re-enqueue after DEFER_WAIT_SECONDS
-    // so the row gets picked up once the workspace wires a provider.
-    // We do NOT mark `embedding_failed` here — this is a recoverable
-    // config gap, not a per-fact failure.
+    // recall already covers them. The next periodic flush (every minute)
+    // re-checks the provider config, so the row gets picked up once the
+    // workspace wires a provider. We do NOT mark `embedding_failed`
+    // here — this is a recoverable config gap, not a per-fact failure.
     return 0;
   }
   const model = defaultEmbeddingModel(provider);
