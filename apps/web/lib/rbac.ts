@@ -34,7 +34,14 @@ export type Action =
   | "webhook.manage"
   | "audit.read"
   | "brain.read"
-  | "brain.write";
+  | "brain.write"
+  // Mnemosyne — latent at v1.0 (no routes consume these yet, per audit
+  // 2026-05-24 §2.e). Present so future mnemosyne_* HTTP/MCP routes have a
+  // ready gate. Mirrors brain.* shape: viewer reads, editor writes,
+  // admin gets admin-only ops (e.g. rebuild index, purge cache).
+  | "mnemo.read"
+  | "mnemo.write"
+  | "mnemo.admin";
 
 const PERMISSIONS: Record<Role, Action[]> = {
   viewer: [
@@ -43,6 +50,7 @@ const PERMISSIONS: Record<Role, Action[]> = {
     "settings.read",
     "billing.read",
     "brain.read",
+    "mnemo.read",
     // audit.read removido: los logs de auditoría son sensibles → admin+ only.
   ],
   editor: [
@@ -65,6 +73,8 @@ const PERMISSIONS: Record<Role, Action[]> = {
     "settings.read",
     "billing.read",
     "brain.read",
+    "mnemo.read",
+    "mnemo.write",
     // audit.read removido de editor: logs de auditoría son admin+ only.
   ],
   admin: [
@@ -96,6 +106,9 @@ const PERMISSIONS: Record<Role, Action[]> = {
     "audit.read",
     "brain.read",
     "brain.write",
+    "mnemo.read",
+    "mnemo.write",
+    "mnemo.admin",
   ],
   owner: [], // all — handled below
 };
