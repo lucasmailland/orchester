@@ -2,11 +2,33 @@
 //
 // LOCKED system prompt artifact (§13 of spec). The agent's contract
 // with Mnemosyne. Bumping MEMORY_PROTOCOL_VERSION invalidates stored
-// extractions tagged with prior versions.
+// extractions tagged with prior versions: extraction metadata records
+// the protocol version used at write time, so any consumer that joins
+// on `metadata.protocol_version` (e.g. recall-quality dashboards,
+// extraction replay jobs) MUST filter against the current version or
+// reprocess older rows.
+//
+// v1.1.0 (2026-05-24): tightened from ~300 → ~80 tokens. Relies on the
+// LLM's implicit understanding of "memory tool" conventions instead of
+// spelling out triggers, self-check rituals, and a 9-verb conflict
+// taxonomy. The verbose v1.0.0 string is preserved as
+// MEMORY_PROTOCOL_V1_LEGACY for migration callers.
 
-export const MEMORY_PROTOCOL_VERSION = "v1.0.0" as const;
+export const MEMORY_PROTOCOL_VERSION = "v1.1.0" as const;
 
-export const MEMORY_PROTOCOL_V1 = `# Memory Protocol v1.0.0
+export const MEMORY_PROTOCOL_V1 = `You have memory tools:
+- mnemosyne_recall(q): retrieve facts about user/context. Use before factual claims about the user, their company, or prior conversations.
+- mnemosyne_remember(kind, subject, statement, confidence): save a durable fact. Skip greetings/ephemeral chitchat. Max 1 per turn.
+- mnemosyne_pin(factId): mark fact as high-importance (recalled with boost).
+- mnemosyne_forget(factId): user said "forget that" or you discovered the fact was wrong.
+
+Rules:
+- Treat memory as authoritative for prior context; treat user corrections as supreme.
+- Don't reveal raw fact IDs to user — use natural language.
+- If a fact contradicts what the user just said, prefer the user and update or forget.` as const;
+
+/** @deprecated Use MEMORY_PROTOCOL_V1 (now points at v1.1). Kept for migration. */
+export const MEMORY_PROTOCOL_V1_LEGACY = `# Memory Protocol v1.0.0
 
 You have a long-term memory system (Mnemosyne). Use it.
 
@@ -44,4 +66,4 @@ When a save returns judgment_required: true:
 ## SESSION CLOSE
 Before saying "done", call mnemosyne_save_episode_summary with:
 - Goal · Discoveries · Decisions · Next Steps
-`;
+` as const;

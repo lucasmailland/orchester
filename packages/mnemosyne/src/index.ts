@@ -10,7 +10,11 @@ export const MNEMOSYNE_VERSION = "0.1.0";
 // agent runtime so every agent knows how/when to use mnemosyne_* tools.
 // Bumping MEMORY_PROTOCOL_VERSION invalidates extractions tagged with the
 // prior version (see §13 of the design spec).
-export { MEMORY_PROTOCOL_V1, MEMORY_PROTOCOL_VERSION } from "./protocol/v1";
+export {
+  MEMORY_PROTOCOL_V1,
+  MEMORY_PROTOCOL_VERSION,
+  MEMORY_PROTOCOL_V1_LEGACY,
+} from "./protocol/v1";
 
 // PII detection / redaction — regex-only layer (§5.4 of the design spec).
 // NER + LLM layers are optional add-ons (Phase 5.2 / 5.3).
