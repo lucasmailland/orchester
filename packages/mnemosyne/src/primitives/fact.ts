@@ -13,6 +13,7 @@
 import { createId } from "@paralleldrive/cuid2";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { schema } from "@orchester/db";
+import { redactPIIWithCategories } from "../pii/redact";
 import { embedMnemo, type EmbedFn, type EmbeddingProvider } from "../recall/embed";
 import type { Tx } from "../tx";
 
@@ -87,11 +88,32 @@ export interface CreateFactInput {
 
 export async function createFact(input: CreateFactInput): Promise<MnemoFact> {
   const id = `mfact_${createId()}`;
+
+  // ── PII redaction (Phase 5.1) ─────────────────────────────────────────
+  // Facts often contain legitimate identifiers (emails, URLs, phone
+  // numbers). We do NOT block on detection — we redact and store, then
+  // stash the matched categories in metadata.pii for audit. Embedding
+  // happens on the redacted statement so PII never crosses the embedding
+  // provider boundary.
+  let statement = input.statement;
+  let metadata: Record<string, unknown> = input.metadata ?? {};
+  const pii = redactPIIWithCategories(statement);
+  if (pii.categories.length > 0) {
+    statement = pii.redacted;
+    metadata = {
+      ...metadata,
+      pii: {
+        categories: pii.categories,
+        detected_at: new Date().toISOString(),
+      },
+    };
+  }
+
   let embedding: number[] | null = input.embedding ?? null;
   if (!embedding && input.embeddingProvider && input.embeddingModel && input.embedFn) {
     const [vec] = await embedMnemo({
       workspaceId: input.workspaceId,
-      texts: [input.statement],
+      texts: [statement],
       provider: input.embeddingProvider,
       model: input.embeddingModel,
       embedFn: input.embedFn,
@@ -110,7 +132,7 @@ export async function createFact(input: CreateFactInput): Promise<MnemoFact> {
       scopeRef: input.scopeRef ?? null,
       kind: input.kind,
       subject: input.subject,
-      statement: input.statement,
+      statement,
       confidence: input.confidence ?? 0.7,
       pinned: input.pinned ?? false,
       relevance: 1.0,
@@ -119,7 +141,7 @@ export async function createFact(input: CreateFactInput): Promise<MnemoFact> {
       attributedTo: input.attributedTo ?? null,
       embedding,
       embeddingModel: input.embeddingModel ?? null,
-      metadata: input.metadata ?? {},
+      metadata,
       status: "active",
     })
     .returning();

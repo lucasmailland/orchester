@@ -19,7 +19,7 @@ export {
 // PII detection / redaction — regex-only layer (§5.4 of the design spec).
 // NER + LLM layers are optional add-ons (Phase 5.2 / 5.3).
 export { detectPII, type PIIDetectionResult } from "./pii/detect";
-export { redactPII } from "./pii/redact";
+export { redactPII, redactPIIWithCategories, type RedactPIIResult } from "./pii/redact";
 export { PII_PATTERNS, PII_SEVERITY, type PIICategory } from "./pii/patterns";
 
 // Candidate-on-write for facts (v1.1 §7). Surfaces potential
