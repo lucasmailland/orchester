@@ -22,6 +22,16 @@ export { detectPII, type PIIDetectionResult } from "./pii/detect";
 export { redactPII } from "./pii/redact";
 export { PII_PATTERNS, PII_SEVERITY, type PIICategory } from "./pii/patterns";
 
+// Candidate-on-write for facts (v1.1 §7). Surfaces potential
+// contradictions when a new fact is saved so the caller can run LLM
+// judgment (Mode C) or queue for human review (Mode A/B).
+export {
+  saveFactWithCandidates,
+  type FactCandidate,
+  type SaveFactWithCandidatesInput,
+  type SaveFactWithCandidatesOutput,
+} from "./conflict/fact-candidate";
+
 // §39 Operational Modes — Graceful Degradation. Pure-code resolver from a
 // capability snapshot (has LLM / has embed) to one of A / B / C.
 export {
