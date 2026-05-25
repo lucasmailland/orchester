@@ -26,6 +26,25 @@ import { getCurrentSession } from "@/lib/workspace";
  * for different workspaces never share a connection / never see each
  * other's GUC state. set_config(..., true) makes the values local to
  * the transaction so they're auto-cleared on commit/rollback.
+ *
+ * ## Why `SET LOCAL ROLE app_user`?
+ *
+ * The 2026-05-24 final audit (P0 — see
+ * `docs/specs/audits/2026-05-24-mnemosyne-v1-final-audit.md` §1.b)
+ * found that the deployed `DATABASE_URL` connects as the `orchester`
+ * Postgres role, which is `rolsuper=t, rolbypassrls=t`. Every Pattern
+ * A policy on tenant-scoped tables is silently bypassed by the
+ * deployed app: isolation relied entirely on application-level GUC
+ * discipline.
+ *
+ * `SET LOCAL ROLE app_user` downgrades the transaction to a
+ * non-BYPASSRLS role (migration 0007_postgres_roles.sql) so RLS+FORCE
+ * actually applies, even when the connection role is elevated. The
+ * LOCAL scope means the role reverts on COMMIT/ROLLBACK, so pooled
+ * connections don't carry the elevation across callers. This is
+ * layer 1 of a defense-in-depth fix; layer 2 is connecting production
+ * directly as `app_user` (see ADR-0010 and the boot-time
+ * `assertSafeDbRole` check in `apps/web/lib/db-role-check.ts`).
  */
 export async function withTenantContext<T>(
   workspaceId: string,
@@ -44,6 +63,11 @@ export async function withTenantContext<T>(
 
   const db = getDb();
   return db.transaction(async (tx) => {
+    // ── Layer 1 of defense-in-depth (audit P0, 2026-05-24): downgrade
+    // the tx to `app_user` so RLS+FORCE actually applies even if the
+    // connection role is BYPASSRLS. MUST precede every GUC set so
+    // subsequent statements run under the non-elevated role.
+    await tx.execute(sql`SET LOCAL ROLE app_user`);
     // `true` => SET LOCAL semantics: GUCs auto-revert when the txn
     // ends, so they cannot leak across pooled connections.
     await tx.execute(sql`SELECT set_config('app.workspace_id', ${workspaceId}, true)`);

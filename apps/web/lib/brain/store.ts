@@ -14,13 +14,39 @@ import type { BrainFact, FactKind, FactScope } from "./types";
 type Tx = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 
 /**
- * Run `fn` inside a transaction with `app.workspace_id` SET LOCAL.
- * Use this for callers that don't have a `tx` in scope — every
- * mutating method below will set the GUC for you.
+ * Run `fn` inside a transaction with the role downgraded to `app_user`
+ * AND `app.workspace_id` SET LOCAL. Mirror of `withMnemoTx` for
+ * `brain_*` tables. Use this for callers that don't have a `tx` in
+ * scope — every mutating method below will set the GUC for you.
+ *
+ * ## Why `SET LOCAL ROLE app_user`?
+ *
+ * The 2026-05-24 final audit (P0 — see
+ * `docs/specs/audits/2026-05-24-mnemosyne-v1-final-audit.md` §1.b)
+ * found that the deployed `DATABASE_URL` connects as the `orchester`
+ * Postgres role, which is `rolsuper=t, rolbypassrls=t`. Every Pattern
+ * A policy on `brain_*` tables is silently bypassed by the deployed
+ * app: tenant isolation rests entirely on application-level GUC
+ * discipline.
+ *
+ * `SET LOCAL ROLE app_user` downgrades the transaction to a
+ * non-BYPASSRLS role (migration 0007_postgres_roles.sql) so RLS+FORCE
+ * actually enforces, regardless of how the connection is authenticated.
+ * LOCAL scope means the role reverts on COMMIT/ROLLBACK, so pooled
+ * connections don't leak the elevation between callers.
+ *
+ * This is layer 1 of a defense-in-depth fix; layer 2 is connecting
+ * production directly as `app_user` (see ADR-0010 and the boot-time
+ * `assertSafeDbRole` check in `apps/web/lib/db-role-check.ts`).
  */
 export async function withBrainTx<T>(workspaceId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
   const db = getDb();
   return db.transaction(async (tx) => {
+    // ── Layer 1 of defense-in-depth (audit P0, 2026-05-24): downgrade
+    // the tx to `app_user` so RLS+FORCE actually applies even if the
+    // connection role is BYPASSRLS. MUST precede the GUC set so
+    // subsequent statements run under the non-elevated role.
+    await tx.execute(sql`SET LOCAL ROLE app_user`);
     await tx.execute(sql`SELECT set_config('app.workspace_id', ${workspaceId}, true)`);
     return fn(tx);
   });
