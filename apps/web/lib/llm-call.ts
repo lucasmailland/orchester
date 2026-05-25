@@ -52,6 +52,22 @@ export interface LlmCallParams {
   temperature?: number;
   maxTokens?: number;
   tools?: ToolDefinitionForLlm[];
+  /**
+   * Mnemosyne v1.1 — prompt-cache boundary. Character offset into
+   * `systemPrompt`: everything BEFORE this index is the "static" prefix
+   * (identity + Memory Protocol + summary + tool descriptions) and is
+   * marked with `cache_control: { type: "ephemeral" }` so providers that
+   * support it (Anthropic, newer OpenAI) bill the cached portion at
+   * ~10% on cache hit. Everything AFTER is dynamic per-turn (top-K
+   * recall, conversation tail) and stays out of the cache.
+   *
+   * Provider-agnostic: providers that don't recognise cache_control
+   * silently ignore the field — the prompt is still sent intact, just
+   * at full price. NEVER an error.
+   *
+   * If absent, the prompt is sent uncached (legacy behaviour).
+   */
+  systemPromptCacheBoundary?: number;
   /** Id de correlación opcional para atar logs/errores de esta llamada (D1). */
   correlationId?: string;
   /**
@@ -167,6 +183,32 @@ async function llmCallInner(p: LlmCallParams): Promise<LlmCallResult> {
   }
 }
 
+/**
+ * Builds the Anthropic `system` field. When `boundary` is a positive integer
+ * inside `[1, prompt.length-1]`, splits the prompt into a cached prefix +
+ * uncached suffix using Anthropic's array form with `cache_control:
+ * { type: "ephemeral" }`. Anthropic charges ~10% of the per-input-token rate
+ * on cache hit (5-minute TTL on the segment).
+ *
+ * Falls back to a plain string when no boundary or the boundary is at an edge
+ * (full prompt cached or no cache possible). Conservatively defensive against
+ * upstream miscomputations: empty/all-cached/all-dynamic collapse to string.
+ */
+function buildAnthropicSystem(
+  prompt: string,
+  boundary: number | undefined
+): string | Array<{ type: "text"; text: string; cache_control?: { type: "ephemeral" } }> {
+  if (!prompt) return prompt;
+  if (!Number.isInteger(boundary) || boundary === undefined) return prompt;
+  if (boundary <= 0 || boundary >= prompt.length) return prompt;
+  const cached = prompt.slice(0, boundary);
+  const dynamic = prompt.slice(boundary);
+  return [
+    { type: "text", text: cached, cache_control: { type: "ephemeral" } },
+    { type: "text", text: dynamic },
+  ];
+}
+
 async function callAnthropic(p: LlmCallParams, apiKey: string): Promise<LlmCallResult> {
   // Build messages, encoding tool calls and tool results in Anthropic's content-block format
   const anthropicMessages = p.messages
@@ -201,7 +243,7 @@ async function callAnthropic(p: LlmCallParams, apiKey: string): Promise<LlmCallR
     model: p.model,
     max_tokens: p.maxTokens ?? 1024,
     temperature: p.temperature ?? 0.7,
-    system: p.systemPrompt,
+    system: buildAnthropicSystem(p.systemPrompt, p.systemPromptCacheBoundary),
     messages: anthropicMessages,
   };
 
@@ -509,7 +551,7 @@ async function* streamAnthropic(p: LlmCallParams, apiKey: string): AsyncGenerato
     model: p.model,
     max_tokens: p.maxTokens ?? 1024,
     temperature: p.temperature ?? 0.7,
-    system: p.systemPrompt,
+    system: buildAnthropicSystem(p.systemPrompt, p.systemPromptCacheBoundary),
     messages: anthropicMessages,
     stream: true,
   };
