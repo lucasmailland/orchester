@@ -17,6 +17,7 @@ import {
   useBrainFacts,
 } from "@/lib/hooks/use-brain-facts";
 import { useBrainHealthLatest } from "@/lib/hooks/use-brain-health";
+import { useBrainReviewCount } from "@/lib/hooks/use-brain-review-count";
 import { FactFilters } from "@/components/brain/FactFilters";
 import { FactRow } from "@/components/brain/FactRow";
 import { EditFactDialog } from "@/components/brain/EditFactDialog";
@@ -41,6 +42,7 @@ export function BrainInspectorClient() {
   const { items, total, error, isLoading, hasMore, loadingMore, loadMore, mutate } =
     useBrainFacts(filters);
   const { snapshot, isLoading: healthLoading } = useBrainHealthLatest();
+  const { count: reviewQueueCount } = useBrainReviewCount();
 
   const kpis = useMemo(() => {
     const totalFacts = snapshot?.factCountTotal ?? snapshot?.factCountActive ?? 0;
@@ -72,10 +74,6 @@ export function BrainInspectorClient() {
       },
     ];
   }, [snapshot, t]);
-
-  // Review queue badge — heuristic until D3 ships dedicated count.
-  // We surface forgotten count as a proxy.
-  const reviewQueueCount = snapshot?.factCountForgotten ?? 0;
 
   async function handlePinToggle(fact: Fact) {
     try {
@@ -142,6 +140,7 @@ export function BrainInspectorClient() {
             size="sm"
             startContent={<BookOpen className="h-3.5 w-3.5" />}
             className="bg-elevated text-body"
+            aria-label={t("actions.reviewCount", { count: reviewQueueCount })}
           >
             {t("actions.reviewQueue")}
             {reviewQueueCount > 0 ? (
