@@ -887,16 +887,18 @@ function EmptyCanvasGuide({
       <div className="pointer-events-auto my-auto w-full max-w-xl rounded-2xl border border-line bg-surface/95 p-6 shadow-xl backdrop-blur">
         <div className="text-center">
           <div className="text-2xl">🚀</div>
-          <h3 className="mt-2 text-sm font-semibold text-strong">Armemos tu primer flujo</h3>
+          <h3 className="mt-2 text-sm font-semibold text-strong">
+            Let&apos;s build your first flow
+          </h3>
           <p className="mt-1 text-xs leading-relaxed text-muted">
-            Un flujo es una secuencia de pasos automáticos. Empezá con una plantilla lista, desde
-            cero, o pedile al copiloto que lo arme por vos.
+            A flow is a sequence of automated steps. Start from a ready-made template, build from
+            scratch, or ask the copilot to draft it for you.
           </p>
         </div>
 
         <div className="mt-5">
           <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted">
-            Plantillas para empezar
+            Templates to start with
           </p>
           <div className="grid grid-cols-2 gap-2">
             {FLOW_TEMPLATES.map((t) => (

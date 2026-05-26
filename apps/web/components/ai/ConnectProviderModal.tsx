@@ -2,7 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { X, KeyRound, Loader2, Search } from "lucide-react";
-import { providersFor, CAPABILITY_LABELS, type Capability, type ProviderDef } from "@/lib/ai/catalog";
+import {
+  providersFor,
+  CAPABILITY_LABELS,
+  type Capability,
+  type ProviderDef,
+} from "@/lib/ai/catalog";
 
 /**
  * Modal para conectar un proveedor SIN salir del nodo/agente. Lista los
@@ -63,9 +68,15 @@ export function ConnectProviderModal({
       <div className="flex max-h-[80vh] w-full max-w-md flex-col rounded-2xl border border-line bg-surface shadow-2xl">
         <div className="flex items-center justify-between border-b border-line px-4 py-3">
           <span className="text-sm font-semibold text-strong">
-            Conectar un proveedor · {CAPABILITY_LABELS[capability].emoji} {CAPABILITY_LABELS[capability].es}
+            Conectar un proveedor · {CAPABILITY_LABELS[capability].emoji}{" "}
+            {CAPABILITY_LABELS[capability].es}
           </span>
-          <button type="button" onClick={onClose} aria-label="Cerrar" className="text-muted hover:text-body">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="text-muted hover:text-body"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -77,12 +88,16 @@ export function ConnectProviderModal({
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar proveedor…"
+                placeholder="Search providers…"
                 className="w-full rounded-lg border border-line bg-elevated py-2 pl-8 pr-3 text-sm text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
               />
             </div>
             <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
-              {list.length === 0 && <p className="p-2 text-xs text-muted">Ya conectaste todos los proveedores de esta capacidad.</p>}
+              {list.length === 0 && (
+                <p className="p-2 text-xs text-muted">
+                  You&apos;ve already connected every provider for this capability.
+                </p>
+              )}
               {list.map((p) => (
                 <button
                   key={p.id}
@@ -100,7 +115,11 @@ export function ConnectProviderModal({
           </div>
         ) : (
           <div className="space-y-3 p-4">
-            <button type="button" onClick={() => setPicked(null)} className="text-[11px] text-muted hover:text-body">
+            <button
+              type="button"
+              onClick={() => setPicked(null)}
+              className="text-[11px] text-muted hover:text-body"
+            >
               ← Elegir otro
             </button>
             <div className="text-sm font-medium text-strong">{picked.name}</div>
@@ -125,7 +144,12 @@ export function ConnectProviderModal({
               />
             )}
             {picked.docsUrl && (
-              <a href={picked.docsUrl} target="_blank" rel="noreferrer" className="block text-[11px] text-violet-600 dark:text-violet-400 hover:underline">
+              <a
+                href={picked.docsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="block text-[11px] text-violet-600 dark:text-violet-400 hover:underline"
+              >
                 ¿Dónde consigo la key? →
               </a>
             )}

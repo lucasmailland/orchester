@@ -90,7 +90,7 @@ export function InspectorForm({ node, locale, onChange, onDelete, availableData 
       {docs && (
         <details className="mb-3 rounded-lg border border-line bg-card">
           <summary className="flex cursor-pointer items-center gap-1.5 px-3 py-2 text-[11px] font-medium text-violet-600 dark:text-violet-400">
-            <HelpCircle className="h-3.5 w-3.5" /> ¿Cómo funciona este paso?
+            <HelpCircle className="h-3.5 w-3.5" /> How does this step work?
           </summary>
           <div className="space-y-2 px-3 pb-3 text-[11px] leading-relaxed text-muted">
             <p>{docs.whatFor[locale]}</p>
@@ -131,7 +131,7 @@ export function InspectorForm({ node, locale, onChange, onDelete, availableData 
       {advancedFields.length > 0 && (
         <details className="mt-4 rounded-lg border border-line bg-card">
           <summary className="flex cursor-pointer items-center gap-1.5 px-3 py-2 text-[11px] font-medium text-muted">
-            <ChevronDown className="h-3 w-3" /> Avanzado
+            <ChevronDown className="h-3 w-3" /> Advanced
           </summary>
           <div className="space-y-3 px-3 pb-3">
             {advancedFields.filter(visible).map((f) => (
@@ -290,7 +290,7 @@ function FieldRenderer({
             onChange={(e) => onChange(e.target.value)}
             className={inputCls}
           >
-            <option value="">Elegí una opción…</option>
+            <option value="">Choose an option…</option>
             {field.options?.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -308,7 +308,7 @@ function FieldRenderer({
             onChange={(e) => onChange(e.target.value)}
             className={inputCls}
           >
-            <option value="">Elegí una frecuencia…</option>
+            <option value="">Choose a frequency…</option>
             <option value="*/15 * * * *">{t("cronEvery15")}</option>
             <option value="0 * * * *">{t("cronHourly")}</option>
             <option value="0 9 * * *">{t("cronDaily")}</option>
@@ -326,12 +326,12 @@ function FieldRenderer({
             onChange={(e) => onChange(e.target.value)}
             className={inputCls}
           >
-            <option value="">Elegí cuánto esperar…</option>
-            <option value="30s">30 segundos</option>
-            <option value="1m">1 minuto</option>
-            <option value="5m">5 minutos</option>
-            <option value="1h">1 hora</option>
-            <option value="1d">1 día</option>
+            <option value="">Choose how long to wait…</option>
+            <option value="30s">30 seconds</option>
+            <option value="1m">1 minute</option>
+            <option value="5m">5 minutes</option>
+            <option value="1h">1 hour</option>
+            <option value="1d">1 day</option>
           </select>
         </div>
       );
@@ -638,7 +638,7 @@ function IntegrationActionField({
         onChange={(e) => onChange(`${e.target.value}::`)}
         className={inputCls}
       >
-        <option value="">Elegí una integración…</option>
+        <option value="">Choose an integration…</option>
         {integrations.map((x) => (
           <option key={x.id} value={x.id}>
             {x.name} ({x.type})
@@ -651,7 +651,7 @@ function IntegrationActionField({
           onChange={(e) => onChange(`${intId}::${e.target.value}`)}
           className={inputCls}
         >
-          <option value="">Elegí una acción…</option>
+          <option value="">Choose an action…</option>
           {actions.map((a) => (
             <option key={a.key} value={a.key} title={a.description}>
               {a.key}

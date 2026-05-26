@@ -96,13 +96,13 @@ export function ModelPicker({
     return (
       <>
         <div className="rounded-lg border border-line bg-card p-2.5 text-[11px] text-muted">
-          No tenés proveedores conectados para esto.
+          You don&apos;t have any providers connected for this.
           <button
             type="button"
             onClick={() => setConnectOpen(true)}
             className="ml-1 font-medium text-violet-600 dark:text-violet-400 hover:underline"
           >
-            Conectá uno acá →
+            Connect one here →
           </button>
         </div>
         {connectModal}
@@ -130,11 +130,11 @@ export function ModelPicker({
         onClick={() => setConnectOpen(true)}
         className="mt-1 text-[10px] text-violet-600 dark:text-violet-400 hover:underline"
       >
-        + Conectar otro proveedor
+        + Connect another provider
       </button>
       {value && !models.some((m) => m.id === value) && (
         <p className="mt-1 text-[10px] text-faint">
-          Modelo actual: <code className="font-mono">{value}</code>
+          Current model: <code className="font-mono">{value}</code>
         </p>
       )}
       {connectModal}
