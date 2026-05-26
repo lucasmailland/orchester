@@ -84,4 +84,14 @@ export interface FactExtractionInput {
    * 'inferred' on parse failure / omission.
    */
   attribution?: FactAttribution;
+  /**
+   * v1.6 (G2) — optional entity name the LLM thinks this fact is
+   * primarily about. The caller resolves this string to a
+   * `mnemo_entity.id` via `findOrCreate` and sets the resulting id on
+   * `mnemo_fact.entity_id`. `null` is an explicit signal that the LLM
+   * disowned an entity link (the fact is workspace-wide); `undefined`
+   * means the LLM did not classify (heuristic candidates pick up the
+   * slack downstream).
+   */
+  entityName?: string | null;
 }

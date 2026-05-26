@@ -49,6 +49,14 @@ const FactSchema = z.object({
   confidence: z.number().min(0).max(1).default(0.7),
   memory_type: MemoryTypeSchema,
   attribution: AttributionSchema,
+  // Mnemosyne v1.6 G2 — optional entity name the LLM thinks this fact
+  // is primarily ABOUT. The caller (extract-job.ts) resolves this
+  // string to a `mnemo_entity.id` via `findOrCreate` and sets the
+  // resulting id on the new fact. Optional + nullable so legacy LLM
+  // outputs (which never emit this field) still parse, and so the
+  // model can explicitly disown a fact (entity_name=null) when the
+  // fact is genuinely about the workspace as a whole.
+  entity_name: z.string().min(1).max(80).nullable().optional(),
 });
 
 // Cap at 5 to match the system prompt rule ("Max 5 facts per pass") and
@@ -63,6 +71,7 @@ Output ONLY a JSON array (no prose, no markdown fence). Each fact must have:
 - subject: who/what the fact is about (e.g. "user", "company", "@daisy"). 1-80 chars.
 - statement: the durable fact in one sentence. 10-400 chars. Past-tense OK if event.
 - confidence: 0-1, your certainty. Default 0.7.
+- entity_name: optional. The canonical name of the primary person/org/project this fact is about (e.g. "Lucas Mailland", "Acme Inc.", "Q2 launch"). Omit or null when the fact is workspace-wide.
 - memory_type: "semantic" | "episodic" | "procedural" | "working" — see classification below.
 - attribution: "user_stated" | "user_belief" | "objective_fact" | "inferred" — see below.
 
@@ -195,5 +204,12 @@ export async function extractFacts(input: ExtractFactsInput): Promise<FactExtrac
     // explicit values to keep the downstream call sites honest.
     memoryType: f.memory_type,
     attribution: f.attribution,
+    // v1.6 (G2): optional entity name the LLM thinks this fact is
+    // primarily about. The caller (extract-job.ts) resolves the
+    // string to a `mnemo_entity.id` via `findOrCreate`. We forward
+    // the raw string here so the resolution step has the LLM's
+    // intent verbatim, falling back to heuristic candidates when
+    // missing.
+    entityName: f.entity_name ?? null,
   }));
 }
