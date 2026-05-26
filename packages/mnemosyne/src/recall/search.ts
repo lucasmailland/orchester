@@ -130,6 +130,23 @@ export interface SearchMnemoInput {
    * FORCE allows the SELECT.
    */
   tx?: Tx;
+  /**
+   * v1.2 — Bitemporal time-travel. Only return facts that were valid at
+   * this point in time:
+   *   - `undefined` (default): "currently valid" — `valid_to IS NULL
+   *     OR valid_to > now()`. Backward compatible with the v1.0/v1.1
+   *     contract (facts without an explicit valid_to are always live).
+   *   - `Date`: snapshot view at that instant — `valid_from <= asOf
+   *     AND (valid_to IS NULL OR valid_to > asOf)`. NULL `valid_to`
+   *     is treated as +∞ so currently-live rows show up in any past
+   *     snapshot taken after they were inserted.
+   *
+   * Bitemporal columns are populated by the existing insert path
+   * (migration 0017+) and indexed by migration 0026
+   * (`idx_mnemo_fact_valid` over `tstzrange(valid_from, valid_to)`),
+   * so no schema change is needed for this feature.
+   */
+  asOf?: Date;
 }
 
 interface FactRow {
@@ -296,6 +313,18 @@ async function runFirstStage(
   const vecLiteral = queryVec && queryVec.length > 0 ? `[${queryVec.join(",")}]` : null;
   const useFts = vecLiteral === null;
 
+  // v1.2 — Bitemporal `asOf` filter. When `asOf` is unset the query
+  // returns "currently valid" rows (`valid_to IS NULL OR valid_to >
+  // now()`), preserving the v1.0/v1.1 contract that callers always
+  // see the live snapshot. When set, the query returns the historical
+  // view at that instant: `valid_from <= asOf AND (valid_to IS NULL
+  // OR valid_to > asOf)`. Both branches use the same SQL fragment so
+  // the GIST index `idx_mnemo_fact_valid` (migration 0026) over
+  // `tstzrange(valid_from, valid_to)` can be exploited identically.
+  const asOfFragment = input.asOf
+    ? sql`AND valid_from <= ${input.asOf} AND (valid_to IS NULL OR valid_to > ${input.asOf})`
+    : sql`AND (valid_to IS NULL OR valid_to > now())`;
+
   // v1.1 — also pull the `embedding` column so the post-recall pruning
   // stage can measure cosine between candidates without an extra round-
   // trip. In Mode A we explicitly select NULL so the column shape stays
@@ -317,6 +346,7 @@ async function runFirstStage(
         WHERE workspace_id = ${input.workspaceId}
           AND status = 'active'
           AND text_lemmatized @@ plainto_tsquery('simple', ${lexicalQuery})
+          ${asOfFragment}
           ${input.agentId ? sql`AND (agent_id = ${input.agentId} OR agent_id IS NULL)` : sql``}
           ${input.scope ? sql`AND scope = ${input.scope}` : sql``}
           ${input.scopeRef ? sql`AND scope_ref = ${input.scopeRef}` : sql``}
@@ -339,6 +369,7 @@ async function runFirstStage(
         WHERE workspace_id = ${input.workspaceId}
           AND status = 'active'
           AND embedding IS NOT NULL
+          ${asOfFragment}
           ${input.agentId ? sql`AND (agent_id = ${input.agentId} OR agent_id IS NULL)` : sql``}
           ${input.scope ? sql`AND scope = ${input.scope}` : sql``}
           ${input.scopeRef ? sql`AND scope_ref = ${input.scopeRef}` : sql``}
@@ -457,8 +488,18 @@ export async function searchMnemo(input: SearchMnemoInput): Promise<RecallHit[]>
 
   // Cache key: keyed on the prepared query (HyDE-or-contextualized) so
   // two callers with the same raw turn but different history don't collide.
+  // v1.2 — mix `asOf` into the hash so a time-travel query never collides
+  // with the present-day equivalent. `current` is a safe sentinel for the
+  // default no-asOf case; using a fixed string keeps the present-day
+  // cache hot across calls (we don't want `now()` ticks to invalidate it).
   const cacheQuery = prepared.hypothetical ?? prepared.contextualized;
-  const queryHash = createHash("sha256").update(cacheQuery).digest("hex").slice(0, 16);
+  const asOfTag = input.asOf ? input.asOf.toISOString() : "current";
+  const queryHash = createHash("sha256")
+    .update(cacheQuery)
+    .update("\x00")
+    .update(asOfTag)
+    .digest("hex")
+    .slice(0, 16);
   const cacheK = recallCacheKey({
     workspaceId: input.workspaceId,
     queryHash,

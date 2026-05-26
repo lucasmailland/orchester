@@ -9,6 +9,7 @@ import {
   real,
   boolean,
   integer,
+  numeric,
   timestamp,
   jsonb,
   vector,
@@ -230,6 +231,92 @@ export const mnemoSummary = pgTable("mnemo_summary", {
   expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
+
+// Mnemosyne v1.2 — memory drift detection (migration 0031).
+// One snapshot row per workspace per cron tick (daily). Tracks fact
+// counts, recall hit-rate, contradiction count, extraction backlog
+// and embedding coverage so the dashboard can spot drift over time.
+// Pure cache — every metric is recomputable from the existing
+// mnemo_* tables. RLS+FORCE Pattern A; reads/writes go through
+// `withMnemoTx`.
+export const mnemoHealth = pgTable("mnemo_health", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  snapshotAt: timestamp("snapshot_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  // counts
+  factCountActive: integer("fact_count_active").notNull(),
+  factCountArchived: integer("fact_count_archived").notNull(),
+  factCountEmbedded: integer("fact_count_embedded").notNull(),
+  factCountUnembedded: integer("fact_count_unembedded").notNull(),
+  decisionCountActive: integer("decision_count_active").notNull(),
+  relationCountConflicts: integer("relation_count_conflicts").notNull(),
+  // hit-rate quality
+  factsWithZeroHits: integer("facts_with_zero_hits").notNull(),
+  // numeric(4,3) — nullable: NULL when there's no telemetry to compute
+  // a rate (cold start) so the dashboard can distinguish "no data" from
+  // "rate is zero".
+  recallHitRate30d: numeric("recall_hit_rate_30d", { precision: 4, scale: 3 }),
+  // extraction quality
+  extractionJobsFailed7d: integer("extraction_jobs_failed_7d").notNull(),
+  extractionJobsDeferred: integer("extraction_jobs_deferred").notNull(),
+  // meta
+  computedInMs: integer("computed_in_ms").notNull(),
+  generatedAt: timestamp("generated_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .defaultNow(),
+});
+
+// Mnemosyne v1.2 — "The Janitor" cold-storage archive (migration 0029).
+// Mirrors `mnemo_fact` minus the heavy/transient columns (`embedding`,
+// `text_lemmatized`) plus three audit fields (`original_status`,
+// `archived_at`, `archive_reason`). Populated by the dedup + prune crons
+// in `apps/web/worker/` (dedup-job.ts, prune-job.ts) so the active
+// `mnemo_fact` table stays small and recall stays fast. RLS+FORCE
+// Pattern A — same `app.workspace_id` GUC gate as every other mnemo_*
+// table. Reads/writes only go through `withMnemoTx`.
+//
+// No FK back to `workspaces`: an archive row by definition outlives the
+// live mnemo_fact row, and we want the archive to survive even if the
+// host workspace is later soft-deleted. RLS still scopes access.
+export const mnemoFactArchive = pgTable("mnemo_fact_archive", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id").notNull(),
+  agentId: text("agent_id"),
+  scope: text("scope", {
+    enum: ["global", "conversation", "employee", "team"],
+  }).notNull(),
+  scopeRef: text("scope_ref"),
+  kind: text("kind", {
+    enum: ["preference", "trait", "event", "relationship", "skill", "concern", "other"],
+  }).notNull(),
+  subject: text("subject").notNull(),
+  statement: text("statement").notNull(),
+  // numeric(3,2) on the SQL side; drizzle maps numeric to string by
+  // default but we read these as numbers via SQL `::float` casts in the
+  // janitor — at the schema-typing layer `numeric` is the closest match.
+  confidence: numeric("confidence", { precision: 3, scale: 2 }).notNull(),
+  pinned: boolean("pinned").notNull().default(false),
+  relevance: numeric("relevance", { precision: 4, scale: 3 }).notNull(),
+  hitCount: integer("hit_count").notNull().default(0),
+  lastRecalledAt: timestamp("last_recalled_at", {
+    withTimezone: true,
+    mode: "date",
+  }),
+  sourceMessageIds: text("source_message_ids").array().notNull().default([]),
+  metadata: jsonb("metadata").notNull().default({}),
+  // Pre-archive status — was 'active' / 'forgotten' / 'merged'.
+  originalStatus: text("original_status").notNull(),
+  mergedIntoId: text("merged_into_id"),
+  archivedAt: timestamp("archived_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  // Why the janitor archived this row. 'merged' = consumed by a dedup
+  // primary; 'pruned_inactive' = old + zero hits + low relevance;
+  // 'pruned_low_relevance' = same but tripped only the relevance gate.
+  archiveReason: text("archive_reason").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
 });
 
 export const mnemoCitations = pgTable("mnemo_citation", {

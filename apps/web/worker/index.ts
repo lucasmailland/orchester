@@ -35,6 +35,7 @@ import {
   JOB_MNEMO_EMBED_FACT,
   JOB_MNEMO_EMBED_BATCH,
   JOB_MNEMO_SUMMARY,
+  JOB_MNEMO_HEALTH,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
@@ -49,6 +50,7 @@ import { runBrainCompaction } from "../lib/brain/compaction";
 import { runBrainDecay } from "../lib/brain/decay";
 import { runEmbedFactJob, runEmbedBatchSweep, type EmbedFactPayload } from "./embed-batch-job";
 import { summaryJobHandler, type SummaryJobPayload } from "./summary-job";
+import { healthJobHandler, type HealthJobPayload } from "./health-job";
 
 interface FlowRunJob {
   runId: string;
@@ -219,6 +221,20 @@ async function main(): Promise<void> {
     await summaryJobHandler(job);
   });
   await schedule(JOB_MNEMO_SUMMARY, "0 5 * * *");
+
+  // ─── Mnemosyne v1.2 health snapshot (daily drift detection) ─────────
+  // Walks every workspace with at least one fact and computes a
+  // `mnemo_health` row — fact counts, embedding coverage, recall
+  // hit-rate, contradictions, extraction backlog. Pure SQL aggregates,
+  // no LLM calls. Snapshot is the data source for the future Memory
+  // Inspector dashboard (v1.3).
+  //
+  // 06:00 UTC stagger keeps it after summary refresh (05:00) so the
+  // snapshot captures the freshest summary state.
+  await registerWorker<HealthJobPayload>(JOB_MNEMO_HEALTH, async (job) => {
+    await healthJobHandler(job);
+  });
+  await schedule(JOB_MNEMO_HEALTH, "0 6 * * *");
 
   console.log("[worker] ready, waiting for jobs…");
 }
