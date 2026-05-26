@@ -42,7 +42,8 @@
       "save": "Save",
       "discard": "Discard",
       "refreshNow": "Refresh now",
-      "menu": "Actions"
+      "menu": "Actions",
+      "reviewCount": "Open review queue ({count} pending)"
     },
     "filters": {
       "kind": "Kind",
@@ -483,8 +484,16 @@
       "subtitle": "Configure and manage all the AI agents in your workspace.",
       "model": "Model",
       "team": "Team",
-      "status": { "active": "Active", "inactive": "Inactive", "draft": "Draft" },
-      "statusBadge": { "active": "Active", "inactive": "Inactive", "draft": "Draft" },
+      "status": {
+        "active": "Active",
+        "inactive": "Inactive",
+        "draft": "Draft"
+      },
+      "statusBadge": {
+        "active": "Active",
+        "inactive": "Inactive",
+        "draft": "Draft"
+      },
       "newAgent": "New Agent",
       "createFirstAgent": "Create first agent",
       "noAgentsToShow": "No agents to show.",
@@ -1095,15 +1104,7 @@
         "deleted": "Account deleted",
         "deleteError": "Could not delete"
       },
-      "notifications": {
-        "title": "Notifications",
-        "description": "Choose what events trigger an email. Your preferences are personal — they don't affect the rest of the workspace.",
-        "loading": "Loading…",
-        "saveError": "Could not save the preference",
-        "defaultFrom": "{kind} default · change it to set your personal preference.",
-        "defaultWorkspace": "Workspace",
-        "defaultSystem": "System"
-      },
+      "notifications": "Notifications",
       "members": {
         "activeHeading": "Active members",
         "loading": "Loading…",
@@ -1258,21 +1259,7 @@
         "disableFailed": "Could not disable",
         "disabled": "2FA disabled"
       },
-      "danger": {
-        "title": "Danger zone",
-        "description": "Irreversible action. Deletes the workspace, all its agents, conversations, knowledge bases and members.",
-        "deleteButton": "Delete workspace",
-        "onlyOwner": "Only the workspace owner can delete it",
-        "yourRoleIs": "Your role is <b>{role}</b>. Ask the owner to do this.",
-        "modalTitle": "Delete workspace \"{name}\"?",
-        "modalDescription": "This cannot be undone. To confirm, type the workspace slug:",
-        "slugPlaceholder": "Type the slug here…",
-        "slugAria": "Confirm by typing the slug",
-        "cancel": "Cancel",
-        "deleteConfirm": "Delete permanently",
-        "deleted": "Workspace deleted",
-        "deleteError": "Could not delete the workspace"
-      },
+      "danger": "Danger Zone",
       "sections": {
         "providersTitle": "AI Providers",
         "providersDescription": "Connect AI providers (chat, image, embeddings, video, audio and more) with your own API key. Available models show up in the agent editor and flows.",
@@ -1294,14 +1281,12 @@
       "workspaceNamePlaceholder": "Acme Inc.",
       "save": "Save Changes",
       "saved": "Saved!",
-      "danger": "Danger Zone",
       "deleteWorkspace": "Delete Workspace",
       "deleteWarning": "This action is irreversible. All data will be permanently deleted.",
       "apiKeys": "API Keys",
       "apiKeysDescription": "Manage keys for external integrations.",
       "noApiKeys": "No API keys yet.",
       "addApiKey": "Add Key",
-      "notifications": "Notifications",
       "notificationsDescription": "Configure alert preferences.",
       "locale": "Language",
       "localeDescription": "Interface language for your account.",
@@ -1486,6 +1471,57 @@
       "rateLimited": "You're doing that too often. Try again in {minutes} min.",
       "slugInvalid": "Use lowercase letters, numbers, and hyphens (3-40 chars).",
       "slugTaken": "That slug is already taken. Try {suggestion}."
+    }
+  },
+  "settings": {
+    "memory": {
+      "title": "Memory operations",
+      "subtitle": "On-demand triggers for the Mnemosyne housekeeping crons. Each action enqueues a job that runs in the next worker tick.",
+      "adminOnly": "Only workspace admins can trigger memory operations.",
+      "lastRun": "Last run",
+      "ops": {
+        "health": {
+          "name": "Memory health snapshot",
+          "description": "Recomputes the memory health snapshot for this workspace (fact counts, embedding coverage, recall hit-rate, contradictions)."
+        },
+        "dedup": {
+          "name": "Dedup pass",
+          "description": "Merges near-duplicate facts (cosine ≥ 0.92) into a single primary record. Idempotent — re-runs find nothing to do."
+        },
+        "prune": {
+          "name": "Prune inactive facts",
+          "description": "Archives unpinned facts with no recall hits, age > 90 days, and relevance < 0.1. Reversible from the archive."
+        },
+        "consolidation": {
+          "name": "REM-style consolidation",
+          "description": "Clusters related facts and writes a one-sentence summary that supersedes them. Originals stay findable."
+        },
+        "review-sweep": {
+          "name": "Review-queue sweep",
+          "description": "Surfaces low-confidence facts into the review queue for human triage (cap 50 per run)."
+        },
+        "auto-pin": {
+          "name": "Auto-pin pass",
+          "description": "Evaluates the auto-pin rule set against active facts and pins matches. Skips user-overridden rows."
+        },
+        "summary": {
+          "name": "Summary refresh",
+          "description": "Pre-distills a per-(agent, user) memory summary so the next chat turn skips the LLM round-trip.",
+          "requiresAgent": "Trigger from agent settings — needs a specific agent."
+        }
+      },
+      "actions": {
+        "runNow": "Run now",
+        "cancel": "Cancel"
+      },
+      "confirm": {
+        "title": "Run {op}?",
+        "body": "This will enqueue the job for this workspace. It runs on the next worker tick — usually within a minute."
+      },
+      "toast": {
+        "enqueued": "Job enqueued — runs in the next worker tick.",
+        "enqueueError": "Couldn't enqueue: {message}"
+      }
     }
   }
 }

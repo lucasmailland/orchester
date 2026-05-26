@@ -42,7 +42,8 @@
       "save": "Salvar",
       "discard": "Descartar",
       "refreshNow": "Atualizar agora",
-      "menu": "Ações"
+      "menu": "Ações",
+      "reviewCount": "Abrir fila de revisão ({count} pendentes)"
     },
     "filters": {
       "kind": "Tipo",
@@ -483,8 +484,16 @@
       "subtitle": "Configure e gerencie todos os agentes de IA do seu workspace.",
       "model": "Modelo",
       "team": "Equipe",
-      "status": { "active": "Ativo", "inactive": "Inativo", "draft": "Rascunho" },
-      "statusBadge": { "active": "Ativo", "inactive": "Inativo", "draft": "Rascunho" },
+      "status": {
+        "active": "Ativo",
+        "inactive": "Inativo",
+        "draft": "Rascunho"
+      },
+      "statusBadge": {
+        "active": "Ativo",
+        "inactive": "Inativo",
+        "draft": "Rascunho"
+      },
       "newAgent": "Novo Agente",
       "createFirstAgent": "Criar primeiro agente",
       "noAgentsToShow": "Não há agentes para mostrar.",
@@ -1096,15 +1105,7 @@
         "deleted": "Conta excluída",
         "deleteError": "Não foi possível excluir"
       },
-      "notifications": {
-        "title": "Notificações",
-        "description": "Escolha quais eventos disparam um e-mail. Suas preferências são pessoais — não afetam o restante do workspace.",
-        "loading": "Carregando…",
-        "saveError": "Não foi possível salvar a preferência",
-        "defaultFrom": "Default {kind} · altere para definir sua preferência pessoal.",
-        "defaultWorkspace": "do workspace",
-        "defaultSystem": "do sistema"
-      },
+      "notifications": "Notificações",
       "members": {
         "activeHeading": "Membros ativos",
         "loading": "Carregando…",
@@ -1259,21 +1260,7 @@
         "disableFailed": "Não foi possível desativar",
         "disabled": "2FA desativado"
       },
-      "danger": {
-        "title": "Zona de perigo",
-        "description": "Ação irreversível. Apaga o workspace, todos seus agentes, conversas, knowledge bases e membros.",
-        "deleteButton": "Excluir workspace",
-        "onlyOwner": "Somente o owner do workspace pode excluí-lo",
-        "yourRoleIs": "Seu papel é <b>{role}</b>. Peça ao owner para fazer isso.",
-        "modalTitle": "Excluir o workspace \"{name}\"?",
-        "modalDescription": "Esta ação não pode ser desfeita. Para confirmar, digite o slug do workspace:",
-        "slugPlaceholder": "Digite o slug aqui…",
-        "slugAria": "Confirme digitando o slug",
-        "cancel": "Cancelar",
-        "deleteConfirm": "Excluir definitivamente",
-        "deleted": "Workspace excluído",
-        "deleteError": "Não foi possível excluir o workspace"
-      },
+      "danger": "Zona de Perigo",
       "sections": {
         "providersTitle": "Provedores de IA",
         "providersDescription": "Conecte provedores de IA (chat, imagem, embeddings, vídeo, áudio e mais) com sua própria API key. Os modelos disponíveis aparecem no editor de agentes e nos fluxos.",
@@ -1294,14 +1281,12 @@
       "workspaceNamePlaceholder": "Acme Inc.",
       "save": "Salvar Alterações",
       "saved": "Salvo!",
-      "danger": "Zona de Perigo",
       "deleteWorkspace": "Excluir Workspace",
       "deleteWarning": "Esta ação é irreversível. Todos os dados serão excluídos permanentemente.",
       "apiKeys": "Chaves de API",
       "apiKeysDescription": "Gerencie chaves para integrações externas.",
       "noApiKeys": "Sem chaves de API ainda.",
       "addApiKey": "Adicionar Chave",
-      "notifications": "Notificações",
       "notificationsDescription": "Configure suas preferências de alertas.",
       "locale": "Idioma",
       "localeDescription": "Idioma da interface para sua conta.",
@@ -1486,6 +1471,57 @@
       "rateLimited": "Você está fazendo isso com muita frequência. Tente novamente em {minutes} min.",
       "slugInvalid": "Use letras minúsculas, números e hifens (3-40 caracteres).",
       "slugTaken": "Esse slug já está em uso. Tente {suggestion}."
+    }
+  },
+  "settings": {
+    "memory": {
+      "title": "Operações de memória",
+      "subtitle": "Gatilhos manuais para os crons de manutenção do Mnemosyne. Cada ação enfileira um job que executa no próximo tick do worker.",
+      "adminOnly": "Apenas administradores do workspace podem disparar operações de memória.",
+      "lastRun": "Última execução",
+      "ops": {
+        "health": {
+          "name": "Snapshot de saúde",
+          "description": "Recalcula o snapshot de saúde do workspace (contagem de fatos, cobertura de embeddings, taxa de recall, contradições)."
+        },
+        "dedup": {
+          "name": "Deduplicação",
+          "description": "Funde fatos quase duplicados (cosseno ≥ 0,92) em um único registro primário. Idempotente."
+        },
+        "prune": {
+          "name": "Limpar fatos inativos",
+          "description": "Arquiva fatos sem pin, sem hits de recall, com idade > 90 dias e relevância < 0,1. Reversível do arquivo."
+        },
+        "consolidation": {
+          "name": "Consolidação estilo REM",
+          "description": "Agrupa fatos relacionados e escreve um resumo de uma frase que os substitui. Os originais permanecem disponíveis."
+        },
+        "review-sweep": {
+          "name": "Varredura da fila de revisão",
+          "description": "Insere fatos de baixa confiança na fila de revisão para triagem humana (limite 50 por execução)."
+        },
+        "auto-pin": {
+          "name": "Auto-pin",
+          "description": "Avalia as regras de auto-pin contra os fatos ativos e fixa as correspondências. Respeita overrides do usuário."
+        },
+        "summary": {
+          "name": "Refresh de resumo",
+          "description": "Pré-destila um resumo por (agente, usuário) para que o próximo turno pule o round-trip ao LLM.",
+          "requiresAgent": "Dispare nas configurações do agente — requer um agente específico."
+        }
+      },
+      "actions": {
+        "runNow": "Executar agora",
+        "cancel": "Cancelar"
+      },
+      "confirm": {
+        "title": "Executar {op}?",
+        "body": "Isso enfileira o job para este workspace. Executa no próximo tick do worker — geralmente em menos de um minuto."
+      },
+      "toast": {
+        "enqueued": "Job enfileirado — executa no próximo tick do worker.",
+        "enqueueError": "Não foi possível enfileirar: {message}"
+      }
     }
   }
 }

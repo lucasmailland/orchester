@@ -42,7 +42,8 @@
       "save": "Guardar",
       "discard": "Descartar",
       "refreshNow": "Actualizar ahora",
-      "menu": "Acciones"
+      "menu": "Acciones",
+      "reviewCount": "Abrir cola de revisión ({count} pendientes)"
     },
     "filters": {
       "kind": "Tipo",
@@ -483,8 +484,16 @@
       "subtitle": "Configura y gestiona todos los agentes de IA de tu workspace.",
       "model": "Modelo",
       "team": "Equipo",
-      "status": { "active": "Activo", "inactive": "Inactivo", "draft": "Borrador" },
-      "statusBadge": { "active": "Activo", "inactive": "Inactivo", "draft": "Borrador" },
+      "status": {
+        "active": "Activo",
+        "inactive": "Inactivo",
+        "draft": "Borrador"
+      },
+      "statusBadge": {
+        "active": "Activo",
+        "inactive": "Inactivo",
+        "draft": "Borrador"
+      },
       "newAgent": "Nuevo Agente",
       "createFirstAgent": "Crear primer agente",
       "noAgentsToShow": "No hay agentes que mostrar.",
@@ -1096,15 +1105,7 @@
         "deleted": "Cuenta eliminada",
         "deleteError": "No se pudo eliminar"
       },
-      "notifications": {
-        "title": "Notificaciones",
-        "description": "Elegí qué eventos te disparan un mail. Tus preferencias son personales — no afectan al resto del workspace.",
-        "loading": "Cargando…",
-        "saveError": "No se pudo guardar la preferencia",
-        "defaultFrom": "Default {kind} · cambialo para fijar tu preferencia personal.",
-        "defaultWorkspace": "del workspace",
-        "defaultSystem": "del sistema"
-      },
+      "notifications": "Notificaciones",
       "members": {
         "activeHeading": "Miembros activos",
         "loading": "Cargando…",
@@ -1259,21 +1260,7 @@
         "disableFailed": "No se pudo desactivar",
         "disabled": "2FA desactivado"
       },
-      "danger": {
-        "title": "Zona de peligro",
-        "description": "Acción irreversible. Borra el workspace, todos sus agentes, conversaciones, knowledge bases y miembros.",
-        "deleteButton": "Eliminar workspace",
-        "onlyOwner": "Solo el owner del workspace puede eliminarlo",
-        "yourRoleIs": "Tu rol es <b>{role}</b>. Pedile al owner que ejecute esta acción.",
-        "modalTitle": "¿Eliminar el workspace \"{name}\"?",
-        "modalDescription": "Esta acción no se puede deshacer. Para confirmar, escribí el slug del workspace:",
-        "slugPlaceholder": "Tipeá el slug acá…",
-        "slugAria": "Confirmá tipeando el slug",
-        "cancel": "Cancelar",
-        "deleteConfirm": "Eliminar definitivamente",
-        "deleted": "Workspace eliminado",
-        "deleteError": "No se pudo eliminar el workspace"
-      },
+      "danger": "Zona de Peligro",
       "sections": {
         "providersTitle": "Proveedores de IA",
         "providersDescription": "Conectá proveedores de IA (chat, imagen, embeddings, video, audio y más) con tu propia API key. Los modelos disponibles aparecen en el editor de agentes y los flujos.",
@@ -1294,14 +1281,12 @@
       "workspaceNamePlaceholder": "Acme Inc.",
       "save": "Guardar Cambios",
       "saved": "¡Guardado!",
-      "danger": "Zona de Peligro",
       "deleteWorkspace": "Eliminar Workspace",
       "deleteWarning": "Esta acción es irreversible. Todos los datos serán eliminados permanentemente.",
       "apiKeys": "Claves API",
       "apiKeysDescription": "Gestiona claves para integraciones externas.",
       "noApiKeys": "Sin claves API aún.",
       "addApiKey": "Agregar Clave",
-      "notifications": "Notificaciones",
       "notificationsDescription": "Configura tus preferencias de alertas.",
       "locale": "Idioma",
       "localeDescription": "Idioma de la interfaz para tu cuenta.",
@@ -1486,6 +1471,57 @@
       "rateLimited": "Estás haciendo eso muy seguido. Probá de nuevo en {minutes} min.",
       "slugInvalid": "Usá minúsculas, números y guiones (3-40 caracteres).",
       "slugTaken": "Ese slug ya está en uso. Probá {suggestion}."
+    }
+  },
+  "settings": {
+    "memory": {
+      "title": "Operaciones de memoria",
+      "subtitle": "Disparadores manuales para los cron de mantenimiento de Mnemosyne. Cada acción encola un job que corre en el próximo tick del worker.",
+      "adminOnly": "Solo los administradores del workspace pueden ejecutar operaciones de memoria.",
+      "lastRun": "Última ejecución",
+      "ops": {
+        "health": {
+          "name": "Snapshot de salud",
+          "description": "Recalcula el snapshot de salud del workspace (cantidad de hechos, cobertura de embeddings, hit-rate, contradicciones)."
+        },
+        "dedup": {
+          "name": "Deduplicación",
+          "description": "Fusiona hechos casi duplicados (coseno ≥ 0.92) en un único registro primario. Idempotente."
+        },
+        "prune": {
+          "name": "Limpiar hechos inactivos",
+          "description": "Archiva hechos sin pin, sin hits de recall, con antigüedad > 90 días y relevancia < 0.1. Reversible desde el archivo."
+        },
+        "consolidation": {
+          "name": "Consolidación estilo REM",
+          "description": "Agrupa hechos relacionados y escribe un resumen de una oración que los supersede. Los originales siguen disponibles."
+        },
+        "review-sweep": {
+          "name": "Barrido de cola de revisión",
+          "description": "Inserta hechos de baja confianza en la cola de revisión para triage humano (tope 50 por corrida)."
+        },
+        "auto-pin": {
+          "name": "Auto-pin",
+          "description": "Evalúa las reglas de auto-pin contra los hechos activos y fija las coincidencias. Respeta los overrides del usuario."
+        },
+        "summary": {
+          "name": "Refresh de resumen",
+          "description": "Pre-destila un resumen por (agente, usuario) para que el próximo turno no pague el round-trip al LLM.",
+          "requiresAgent": "Dispará desde la config del agente — requiere un agente específico."
+        }
+      },
+      "actions": {
+        "runNow": "Ejecutar ahora",
+        "cancel": "Cancelar"
+      },
+      "confirm": {
+        "title": "¿Ejecutar {op}?",
+        "body": "Esto encola el job para este workspace. Corre en el próximo tick del worker — usualmente en menos de un minuto."
+      },
+      "toast": {
+        "enqueued": "Job encolado — corre en el próximo tick del worker.",
+        "enqueueError": "No se pudo encolar: {message}"
+      }
     }
   }
 }
