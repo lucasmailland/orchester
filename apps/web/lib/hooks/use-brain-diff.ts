@@ -87,8 +87,13 @@ async function loadFacts(maxAgeMs: number, maxItems: number): Promise<Fact[]> {
   let cursor: string | null = null;
   let guard = 0;
   while (items.length < maxItems && guard < 50) {
+    // The /api/mnemo/facts route validates sortBy against the DB
+    // column whitelist (`updated_at`, `created_at`, `relevance`,
+    // `hit_count`). Pre-v1.6 this hook sent the friendly key
+    // ("updated") and got `400 Invalid sortBy` for every page, which
+    // surfaced as a blank Diff screen with "+0 facts" / "Nothing yet".
     const params = new URLSearchParams({
-      sortBy: "updated",
+      sortBy: "updated_at",
       order: "desc",
       limit: String(PAGE_LIMIT),
       status: "all",
@@ -111,10 +116,20 @@ async function loadFacts(maxAgeMs: number, maxItems: number): Promise<Fact[]> {
 }
 
 export function useBrainDiff(filters: DiffFilters) {
-  const window = useMemo(() => resolveWindow(filters), [filters]);
+  // Extract primitives so the useMemo dependency array compares by
+  // value, not by object reference. Parents pass `{ range }` as a
+  // fresh object on every render, which used to invalidate `window`
+  // (and therefore the SWR key) every render — SWR refetched in a
+  // loop (we observed 500+ network requests in 5 seconds during the
+  // v1.6 audit). Depending on primitives breaks the loop.
+  const { range, from, to } = filters;
+  const window = useMemo(
+    () => resolveWindow({ range, from, to } as DiffFilters),
+    [range, from, to]
+  );
   // Load two windows back so we can compute prior-window comparisons.
   const lookbackMs = window.durationMs * 2;
-  const key = `diff:${filters.range}:${window.start.toISOString()}:${window.end.toISOString()}`;
+  const key = `diff:${range}:${window.start.toISOString()}:${window.end.toISOString()}`;
 
   const { data, error, isLoading, mutate } = useSWR<Fact[]>(
     key,

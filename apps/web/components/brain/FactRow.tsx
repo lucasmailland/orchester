@@ -32,6 +32,26 @@ const SCOPE_LABEL_COLOR: Record<string, string> = {
   team: "bg-orange-500/15 text-orange-600 dark:text-orange-300",
 };
 
+// v1.6 cognitive surface — memory_type chip uses distinct hues from
+// `kind` so the operator can tell at a glance which cognitive bucket
+// the fact lives in (semantic vs episodic vs procedural vs working).
+const MEMORY_TYPE_COLOR: Record<string, string> = {
+  semantic: "bg-sky-500/15 text-sky-600 dark:text-sky-300",
+  episodic: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
+  procedural: "bg-amber-500/15 text-amber-600 dark:text-amber-300",
+  working: "bg-zinc-500/15 text-zinc-600 dark:text-zinc-300",
+};
+
+// Attribution (theory-of-mind provenance) — coloured so the operator
+// can see at a glance which facts the LLM inferred vs the user
+// explicitly stated.
+const ATTRIBUTION_COLOR: Record<string, string> = {
+  user_stated: "bg-violet-500/15 text-violet-600 dark:text-violet-300",
+  user_belief: "bg-blue-500/15 text-blue-600 dark:text-blue-300",
+  objective_fact: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
+  inferred: "bg-zinc-500/15 text-zinc-600 dark:text-zinc-300",
+};
+
 function relativeTime(iso: string | null): string {
   if (!iso) return "—";
   const date = new Date(iso);
@@ -113,7 +133,7 @@ export function FactRow({
 
       {/* Subject + statement */}
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="truncate font-semibold text-strong" title={fact.subject}>
             {fact.subject}
           </span>
@@ -137,6 +157,67 @@ export function FactRow({
           >
             {fact.scope}
           </Chip>
+          {/* v1.6 cognitive chips — only render when the API returned
+              them so legacy callers keep their existing row layout. */}
+          {fact.memoryType && fact.memoryType !== "semantic" ? (
+            <Tooltip
+              content={t("cognitive.memoryType", { value: fact.memoryType })}
+              placement="top"
+            >
+              <Chip
+                size="sm"
+                variant="flat"
+                className={cn(
+                  "h-5 text-[10px] uppercase tracking-wider",
+                  MEMORY_TYPE_COLOR[fact.memoryType] ?? MEMORY_TYPE_COLOR.semantic
+                )}
+              >
+                {fact.memoryType}
+              </Chip>
+            </Tooltip>
+          ) : null}
+          {fact.attribution && fact.attribution !== "inferred" ? (
+            <Tooltip
+              content={t("cognitive.attribution", { value: fact.attribution })}
+              placement="top"
+            >
+              <Chip
+                size="sm"
+                variant="flat"
+                className={cn(
+                  "h-5 text-[10px] uppercase tracking-wider",
+                  ATTRIBUTION_COLOR[fact.attribution] ?? ATTRIBUTION_COLOR.inferred
+                )}
+              >
+                {fact.attribution.replace("_", " ")}
+              </Chip>
+            </Tooltip>
+          ) : null}
+          {fact.actorId ? (
+            <Tooltip content={t("cognitive.actor", { actorId: fact.actorId })} placement="top">
+              <Chip
+                size="sm"
+                variant="flat"
+                className="h-5 bg-cyan-500/10 text-[10px] uppercase text-cyan-600 dark:text-cyan-300"
+              >
+                @{fact.actorId.slice(0, 6)}
+              </Chip>
+            </Tooltip>
+          ) : null}
+          {fact.protocolVersion && fact.protocolVersion !== "v1.1" ? (
+            <Tooltip
+              content={t("cognitive.protocol", { value: fact.protocolVersion })}
+              placement="top"
+            >
+              <Chip
+                size="sm"
+                variant="flat"
+                className="h-5 bg-violet-500/10 text-[10px] uppercase text-violet-500"
+              >
+                {fact.protocolVersion}
+              </Chip>
+            </Tooltip>
+          ) : null}
           {forgotten && (
             <Chip
               size="sm"

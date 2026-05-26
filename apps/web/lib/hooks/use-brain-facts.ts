@@ -22,6 +22,11 @@ export type FactKind =
   | "other";
 export type FactStatus = "active" | "forgotten" | "merged";
 
+// v1.6 cognitive primitives (migration 0033/0035/0037/0039/0041).
+export type FactMemoryType = "semantic" | "episodic" | "procedural" | "working";
+export type FactAttribution = "user_stated" | "user_belief" | "objective_fact" | "inferred";
+export type FactAttributedTo = "user" | "assistant" | "system";
+
 export interface Fact {
   id: string;
   workspaceId: string;
@@ -41,6 +46,14 @@ export interface Fact {
   status: FactStatus;
   createdAt: string;
   updatedAt: string;
+  // v1.6 cognitive surface. Optional on the type because legacy
+  // endpoints may not return them yet; the modern facts route does.
+  memoryType?: FactMemoryType;
+  attribution?: FactAttribution;
+  attributedTo?: FactAttributedTo | null;
+  actorId?: string | null;
+  entityId?: string | null;
+  protocolVersion?: string;
 }
 
 export interface FactsPage {
@@ -197,35 +210,50 @@ export function useBrainFacts(filters: FactsFilters) {
 }
 
 /**
- * Single-fact fetch via the same list endpoint (best-effort for detail).
- * The detail page also uses this hook to load the row before rendering.
+ * Single-fact fetch via the dedicated `/api/mnemo/facts/[id]` route.
+ *
+ * Pre-v1.6 this hook used the LIST route with `?id=…&limit=1`, which
+ * the list handler silently ignored — it returned an arbitrary fact
+ * (and 500'd on some edge cases). The dedicated GET endpoint always
+ * returns the right row or 404, and includes the full v1.6 cognitive
+ * surface (memory_type, attribution, actor_id, protocol_version).
  */
 export function useBrainFact(factId: string | null) {
-  const key = factId ? `/api/mnemo/facts?id=${encodeURIComponent(factId)}&limit=1` : null;
-  const { data, error, isLoading, mutate } = useSWR<FactsPage>(
+  const key = factId ? `/api/mnemo/facts/${encodeURIComponent(factId)}` : null;
+  const { data, error, isLoading, mutate } = useSWR<Fact | null>(
     key,
-    (url: string) => defensiveFetcher<FactsPage>(url, { items: [], nextCursor: null, total: 0 }),
+    (url: string) => defensiveFetcher<Fact | null>(url, null),
     SWR_DEFAULTS
   );
 
-  const fact = data?.items[0] ?? null;
-  return { fact, error, isLoading, mutate };
+  return { fact: data ?? null, error, isLoading, mutate };
 }
 
 /**
  * Citations for a fact. Lazy: pass `null` to skip until the user opens
  * the detail view.
+ *
+ * The route returns `{ citations: Citation[] }` (envelope shape), but
+ * earlier versions of this hook treated the response as a bare array
+ * and called `.map(...)` on the envelope object — which threw
+ * `TypeError: citations.map is not a function` and surfaced as the
+ * shell-level "Something went wrong" error boundary on every fact
+ * detail page. We accept both shapes for forward/backward compat.
  */
+type CitationsResponse = Citation[] | { citations: Citation[] };
+
 export function useFactCitations(factId: string | null) {
   const key = factId ? `/api/mnemo/facts/${encodeURIComponent(factId)}/citations` : null;
-  const { data, error, isLoading, mutate } = useSWR<Citation[]>(
+  const { data, error, isLoading, mutate } = useSWR<CitationsResponse>(
     key,
-    (url: string) => defensiveFetcher<Citation[]>(url, []),
+    (url: string) => defensiveFetcher<CitationsResponse>(url, []),
     SWR_DEFAULTS
   );
 
+  const citations = Array.isArray(data) ? data : (data?.citations ?? []);
+
   return {
-    citations: data ?? [],
+    citations,
     error,
     isLoading,
     mutate,

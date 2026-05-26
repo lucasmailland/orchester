@@ -235,6 +235,34 @@
       "reset": "Reset to now",
       "banner": "Viewing historical state from {date}. Edits are disabled in time-travel mode.",
       "editsDisabled": "Edits are disabled in time-travel mode"
+    },
+    "review": {
+      "title": "Review queue",
+      "subtitle": "Facts the agents flagged as low-confidence or contradictory. Resolve them so the recall pool stays trustworthy.",
+      "filterOpen": "Open",
+      "filterAll": "All",
+      "emptyTitle": "Queue is clear",
+      "emptyDescription": "Nothing needs your attention right now. New items show up when the workers flag a fact as low-confidence or contradictory.",
+      "queuedAgo": "Queued {when} ago",
+      "reason_low_confidence": "Low confidence",
+      "reason_contradiction": "Contradiction",
+      "reason_manual": "Manual",
+      "resolution_kept": "Kept",
+      "resolution_edited": "Edited",
+      "resolution_forgotten": "Forgotten",
+      "resolution_dismissed": "Dismissed",
+      "actionKeep": "Keep",
+      "actionEdit": "Open & edit",
+      "actionForget": "Forget",
+      "actionDismiss": "Dismiss",
+      "toastResolved": "Resolved.",
+      "toastResolveError": "Could not resolve. Try again."
+    },
+    "cognitive": {
+      "memoryType": "Memory type: {value}",
+      "attribution": "Attribution: {value}",
+      "actor": "Actor: {actorId}",
+      "protocol": "Memory Protocol {value}"
     }
   },
   "dashboard": {

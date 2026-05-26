@@ -235,6 +235,34 @@
       "reset": "Volver a ahora",
       "banner": "Viendo estado histórico al {date}. Las ediciones están deshabilitadas en modo histórico.",
       "editsDisabled": "Las ediciones están deshabilitadas en modo histórico"
+    },
+    "review": {
+      "title": "Cola de revisión",
+      "subtitle": "Hechos que los agentes marcaron como de baja confianza o contradictorios. Resolvelos para mantener la memoria confiable.",
+      "filterOpen": "Abiertos",
+      "filterAll": "Todos",
+      "emptyTitle": "Cola vacía",
+      "emptyDescription": "No hay nada para revisar. Aparecerán nuevos elementos cuando los workers marquen un hecho como dudoso o contradictorio.",
+      "queuedAgo": "Encolado hace {when}",
+      "reason_low_confidence": "Baja confianza",
+      "reason_contradiction": "Contradicción",
+      "reason_manual": "Manual",
+      "resolution_kept": "Conservado",
+      "resolution_edited": "Editado",
+      "resolution_forgotten": "Olvidado",
+      "resolution_dismissed": "Descartado",
+      "actionKeep": "Conservar",
+      "actionEdit": "Abrir y editar",
+      "actionForget": "Olvidar",
+      "actionDismiss": "Descartar",
+      "toastResolved": "Resuelto.",
+      "toastResolveError": "No se pudo resolver. Intentá de nuevo."
+    },
+    "cognitive": {
+      "memoryType": "Tipo de memoria: {value}",
+      "attribution": "Atribución: {value}",
+      "actor": "Actor: {actorId}",
+      "protocol": "Memory Protocol {value}"
     }
   },
   "dashboard": {

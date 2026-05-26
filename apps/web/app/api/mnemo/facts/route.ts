@@ -204,6 +204,10 @@ export async function GET(req: Request) {
   );
 
   // ── Query ───────────────────────────────────────────────────────
+  // v1.6: surface the cognitive columns (memory_type, attribution,
+  // actor_id, entity_id, protocol_version) so the Inspector's
+  // `FactRow` can render the chips and the detail panel can show
+  // the cognitive provenance without a follow-up call.
   type Row = {
     id: string;
     workspace_id: string;
@@ -219,10 +223,16 @@ export async function GET(req: Request) {
     hit_count: number;
     last_recalled_at: Date | null;
     source_message_ids: string[];
+    attributed_to: string | null;
     metadata: Record<string, unknown>;
     status: string;
     created_at: Date;
     updated_at: Date;
+    memory_type: string;
+    attribution: string;
+    actor_id: string | null;
+    entity_id: string | null;
+    protocol_version: string;
   };
 
   const { items, total } = await withMnemoTx(ctx.workspace.id, async (tx) => {
@@ -230,8 +240,10 @@ export async function GET(req: Request) {
       SELECT
         f.id, f.workspace_id, f.agent_id, f.scope, f.scope_ref, f.kind,
         f.subject, f.statement, f.confidence, f.pinned, f.relevance,
-        f.hit_count, f.last_recalled_at, f.source_message_ids, f.metadata,
-        f.status, f.created_at, f.updated_at
+        f.hit_count, f.last_recalled_at, f.source_message_ids,
+        f.attributed_to, f.metadata, f.status, f.created_at, f.updated_at,
+        f.memory_type, f.attribution, f.actor_id, f.entity_id,
+        f.protocol_version
       FROM mnemo_fact f
       WHERE ${whereSql}
       ORDER BY ${orderSql}
@@ -256,11 +268,19 @@ export async function GET(req: Request) {
   let nextCursor: string | null = null;
   if (hasMore) {
     const last = page[page.length - 1]!;
+    // `tx.execute(sql\`…\`)` returns column values as raw strings for
+    // timestamp columns (drizzle's typed query builder coerces to Date,
+    // but `execute(sql\`...\`)` does not). Wrapping with `new Date(...)`
+    // is safe for both string and Date inputs — without it, the
+    // `.toISOString()` call below throws TypeError on every hasMore=true
+    // response and the route 500s with an empty body. That was the
+    // mysterious 500 the v1.6 UI audit caught on fact-detail pages
+    // (`?id=…&limit=1` → LIMIT 2 → hasMore=true → throw).
     const colValue =
       sortByParam === "created_at"
-        ? last.created_at.toISOString()
+        ? new Date(last.created_at).toISOString()
         : sortByParam === "updated_at"
-          ? last.updated_at.toISOString()
+          ? new Date(last.updated_at).toISOString()
           : sortByParam === "relevance"
             ? Number(last.relevance)
             : Number(last.hit_count);
@@ -283,10 +303,18 @@ export async function GET(req: Request) {
       hitCount: Number(r.hit_count),
       lastRecalledAt: r.last_recalled_at,
       sourceMessageIds: r.source_message_ids,
+      attributedTo: r.attributed_to,
       metadata: r.metadata ?? {},
       status: r.status,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
+      // v1.6 cognitive surface — let the Inspector render chips
+      // without a follow-up call.
+      memoryType: r.memory_type,
+      attribution: r.attribution,
+      actorId: r.actor_id,
+      entityId: r.entity_id,
+      protocolVersion: r.protocol_version,
     })),
     nextCursor,
     total,

@@ -74,9 +74,19 @@ async function defensiveFetcher(url: string): Promise<FactsPage> {
  * loading the entire history.
  */
 export function useBrainTimeline(filters: TimelineFilters) {
-  const cutoff = useMemo(() => resolveCutoff(filters), [filters]);
+  // Extract primitives so the useMemo dependency array compares by
+  // value, not by object reference. Parents typically pass a fresh
+  // `{ range, from, to, maxItems }` object on every render, which used
+  // to invalidate `cutoff` (and therefore the SWR key) on every render,
+  // causing SWR to refetch in a tight loop. The same bug was caught in
+  // useBrainDiff during the v1.6 audit.
+  const { range, from, to } = filters;
   const maxItems = filters.maxItems ?? DEFAULT_MAX;
-  const key = `timeline:${filters.range}:${filters.from ?? ""}:${filters.to ?? ""}:${maxItems}`;
+  const cutoff = useMemo(
+    () => resolveCutoff({ range, from, to } as TimelineFilters),
+    [range, from, to]
+  );
+  const key = `timeline:${range}:${from ?? ""}:${to ?? ""}:${maxItems}`;
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<Fact[]>(
     key,
@@ -85,8 +95,11 @@ export function useBrainTimeline(filters: TimelineFilters) {
       let cursor: string | null = null;
       let guard = 0;
       while (items.length < maxItems && guard < 50) {
+        // /api/mnemo/facts validates sortBy against the DB column
+        // whitelist (created_at / updated_at / relevance / hit_count).
+        // Sending the friendly key ("created") 400'd every page.
         const params = new URLSearchParams({
-          sortBy: "created",
+          sortBy: "created_at",
           order: "desc",
           limit: String(PAGE_LIMIT),
           status: "all",
@@ -118,10 +131,10 @@ export function useBrainTimeline(filters: TimelineFilters) {
   // since the API doesn't accept it directly.
   const filtered = useMemo(() => {
     if (!data) return [];
-    if (filters.range !== "custom" || !filters.to) return data;
-    const toMs = new Date(filters.to).getTime();
+    if (range !== "custom" || !to) return data;
+    const toMs = new Date(to).getTime();
     return data.filter((f) => new Date(f.createdAt).getTime() <= toMs);
-  }, [data, filters.range, filters.to]);
+  }, [data, range, to]);
 
   return {
     facts: filtered,
