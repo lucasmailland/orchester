@@ -51,6 +51,17 @@ export interface CreateCitationInput {
   tx: Tx;
 }
 
+/**
+ * @public
+ * @sinceVersion 1.0 — public API surface, not yet consumed by host code as of v1.4.
+ *
+ * Persists a citation row linking a memory primitive (fact/decision) to
+ * its source span. Tested end-to-end but no production caller invokes
+ * it yet — the extraction pipeline today stamps source metadata onto
+ * facts inline rather than going through this dedicated row. The
+ * v1.5 Inspector + judge-trace UI will surface it. Surfaced by
+ * 2026-05-25-mnemosyne-v1.4-final-audit.md §P2 — intentionally retained.
+ */
 export async function createCitation(input: CreateCitationInput): Promise<Citation> {
   const id = `mcit_${createId()}`;
   const rows = await input.tx

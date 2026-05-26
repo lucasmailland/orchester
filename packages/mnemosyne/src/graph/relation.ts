@@ -89,6 +89,22 @@ export async function createRelation(input: CreateRelationInput): Promise<MnemoR
   return rows[0] as unknown as MnemoRelation;
 }
 
+/**
+ * @public
+ * @sinceVersion 1.0 — public API surface, not yet consumed by host code as of v1.4.
+ *
+ * Lists pending (un-judged) relation edges for a workspace, used by the
+ * judge worker / Inspector UI to surface multi-actor disagreement.
+ * Tested end-to-end but no production caller invokes it yet — judgment
+ * today flows through inline calls within the conflict surfacer rather
+ * than through a polled queue. Inspector v1.5 will light up the polled
+ * surface. Surfaced by 2026-05-25-mnemosyne-v1.4-final-audit.md §P2 —
+ * intentionally retained.
+ *
+ * Note: the audit also flagged a `dismissRelation` orphan but no such
+ * function exists in source — pending dismissal happens by re-judging
+ * the row to status='dismissed' via `judgeRelation`.
+ */
 export async function listPendingRelations(
   workspaceId: string,
   limit: number,

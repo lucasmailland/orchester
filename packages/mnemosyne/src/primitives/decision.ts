@@ -80,6 +80,18 @@ function computeNormalizedHash(input: {
     .digest("hex");
 }
 
+/**
+ * @public
+ * @sinceVersion 1.0 — public API surface, not yet consumed by host code as of v1.4.
+ *
+ * Persists a decision row with topic-key upsert + normalized-hash dedup.
+ * Tested end-to-end but no production caller invokes it yet (decisions
+ * are presently authored via the Inspector UI's planned v1.5 wiring +
+ * `saveDecisionWithCandidates` below). Kept stable because the agent
+ * runtime + Inspector will both lean on it once decision surfaces are
+ * lit up. Surfaced by 2026-05-25-mnemosyne-v1.4-final-audit.md §P2
+ * "orphan v1.0 code" — intentionally retained.
+ */
 export async function createDecision(input: CreateDecisionInput): Promise<MnemoDecision> {
   const normalizedHash = computeNormalizedHash(input);
 

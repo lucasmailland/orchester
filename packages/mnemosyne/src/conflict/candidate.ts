@@ -74,6 +74,17 @@ function sanitizeFTSCandidates(text: string): string {
   return tokens.map((t) => `"${t}"`).join(" | ");
 }
 
+/**
+ * @public
+ * @sinceVersion 1.0 — public API surface, not yet consumed by host code as of v1.4.
+ *
+ * Saves a decision and FTS-scans for conflict candidates in one call.
+ * Tested end-to-end but no production caller invokes it yet — Mnemosyne
+ * write paths today flow through `saveFactWithCandidates` (the fact
+ * counterpart) plus the extraction pipeline. The Inspector UI v1.5 will
+ * expose decision authoring + this is the wiring point. Surfaced by
+ * 2026-05-25-mnemosyne-v1.4-final-audit.md §P2 — intentionally retained.
+ */
 export async function saveDecisionWithCandidates(
   input: SaveDecisionInput
 ): Promise<SaveDecisionResult> {
