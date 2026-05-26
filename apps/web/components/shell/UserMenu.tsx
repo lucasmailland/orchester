@@ -89,12 +89,23 @@ export function UserMenu({ userName, userEmail, userImage }: UserMenuProps) {
   // footprint as the Dropdown's trigger. Once `mounted` flips to true
   // on the client, swap in the real Dropdown so React Aria's `useId()`
   // is only ever called client-side — no SSR/client id mismatch.
+  //
+  // We mark the swap-target subtree with `suppressHydrationWarning`
+  // because in Next 15 + React 19 concurrent rendering, `useEffect`
+  // can fire before React's hydration diff completes — meaning the
+  // first client paint sometimes uses `mounted=true` even though the
+  // SSR HTML was rendered with `mounted=false`. The visual content
+  // (avatar + initials) is identical between the two trees; only the
+  // wrapper className and React-Aria-injected aria-* attributes
+  // differ. Suppressing here is correct: we KNOW the trees converge
+  // after one paint and there's no user-visible flicker.
   if (!mounted) {
     return (
       <button
         type="button"
         aria-label={t("userMenu.openLabel")}
         className="ml-2 flex items-center rounded-full focus:outline-none"
+        suppressHydrationWarning
       >
         <Avatar
           size="sm"
@@ -116,6 +127,7 @@ export function UserMenu({ userName, userEmail, userImage }: UserMenuProps) {
           type="button"
           aria-label={t("userMenu.openLabel")}
           className="ml-2 flex items-center rounded-full transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-violet-500/60"
+          suppressHydrationWarning
         >
           <Avatar
             size="sm"

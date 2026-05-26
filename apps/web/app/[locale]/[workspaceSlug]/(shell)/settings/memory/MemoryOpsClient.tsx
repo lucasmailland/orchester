@@ -245,6 +245,12 @@ function RecallQualitySection({ isAdmin }: { isAdmin: boolean }) {
   const [settings, setSettings] = useState<RecallSettingsState>(DEFAULT_RECALL_SETTINGS);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  // HeroUI Select → React Aria useId() mismatches SSR vs the first
+  // client render under Next 15 + Turbopack (same root cause we fixed
+  // in FactFilters and Conversations). Render a placeholder until the
+  // component has mounted client-side so the Select tree never SSRs.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -353,26 +359,30 @@ function RecallQualitySection({ isAdmin }: { isAdmin: boolean }) {
           </p>
         </div>
         <div className="mt-3 grid gap-2 md:grid-cols-2">
-          <Select
-            size="sm"
-            aria-label="Premium provider"
-            label="Provider"
-            placeholder="Use default"
-            isDisabled={disabled}
-            selectedKeys={
-              settings.premiumEmbeddingProvider ? [settings.premiumEmbeddingProvider] : []
-            }
-            onSelectionChange={(keys) => {
-              const v = Array.from(keys as Set<string>)[0];
-              const next = v === "openai" || v === "voyage" || v === "cohere" ? v : null;
-              patch({ premiumEmbeddingProvider: next });
-            }}
-          >
-            <SelectItem key="">Use default</SelectItem>
-            <SelectItem key="openai">OpenAI</SelectItem>
-            <SelectItem key="voyage">Voyage</SelectItem>
-            <SelectItem key="cohere">Cohere</SelectItem>
-          </Select>
+          {mounted ? (
+            <Select
+              size="sm"
+              aria-label="Premium provider"
+              label="Provider"
+              placeholder="Use default"
+              isDisabled={disabled}
+              selectedKeys={
+                settings.premiumEmbeddingProvider ? [settings.premiumEmbeddingProvider] : []
+              }
+              onSelectionChange={(keys) => {
+                const v = Array.from(keys as Set<string>)[0];
+                const next = v === "openai" || v === "voyage" || v === "cohere" ? v : null;
+                patch({ premiumEmbeddingProvider: next });
+              }}
+            >
+              <SelectItem key="">Use default</SelectItem>
+              <SelectItem key="openai">OpenAI</SelectItem>
+              <SelectItem key="voyage">Voyage</SelectItem>
+              <SelectItem key="cohere">Cohere</SelectItem>
+            </Select>
+          ) : (
+            <div className="h-14 rounded-md bg-elevated" aria-hidden />
+          )}
           <Input
             size="sm"
             aria-label="Premium model"
