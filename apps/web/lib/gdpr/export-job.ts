@@ -27,6 +27,7 @@
 // Partial uploads are cleaned up by the adapter's abort path (S3
 // multipart `AbortMultipartUpload`; filesystem `unlink`).
 import "server-only";
+import { Transform } from "node:stream";
 import { eq } from "drizzle-orm";
 import archiver from "archiver";
 import { schema } from "@orchester/db";
@@ -90,40 +91,87 @@ export async function runExportJob(jobId: string): Promise<void> {
         .set({ state: "exporting", progress: 0, startedAt: new Date() })
         .where(eq(schema.gdprExportJobs.id, jobId));
 
-      // Streaming pipeline: archiver writes into the same stream that
-      // the storage adapter consumes. Peak memory is bounded by the
+      // Streaming pipeline: archiver writes into a Transform that
+      // counts bytes and forwards them downstream, where the storage
+      // adapter consumes them. Peak memory is bounded by the
       // archiver's deflate buffer + one multipart part (S3) or the
       // OS write buffer (filesystem), independent of the archive size.
       //
-      // Size guard: we attach a 'data' listener to count bytes and
-      // trip `MAX_ARCHIVE_BYTES` if a tenant has grown past what the
-      // policy allows. On trip we call `archive.abort()` which
-      // synthesises an 'error' on the stream; the adapter sees the
-      // error, cancels the upload (S3 multipart `AbortMultipartUpload`
-      // or filesystem unlink), and `uploadZip` rejects. The catch
-      // block flips state to `failed` with `export_too_large`.
+      // ## Why a Transform, not a 'data' listener
+      //
+      // Original F.5 attached a `'data'` listener on `archive` for
+      // byte counting. That listener flips the Readable into
+      // **flowing mode immediately** — bytes start emitting on the
+      // next tick. But the adapter's `pipeline(archive, sink)` call
+      // sits behind 5 dynamic `await import(...)` calls, so the
+      // first `archive.append()` produced bytes BEFORE the pipe
+      // target existed. Those bytes were consumed by the byte-
+      // counter and never reached disk; the resulting zip was
+      // missing its local file header and yauzl threw "invalid
+      // central directory file header signature". (Observed during
+      // the v1.0 GA test sweep: first 4 bytes were `[8d 90 3d 4f]`
+      // instead of `[50 4b 03 04]`.)
+      //
+      // A `Transform` in default (paused) mode buffers internally
+      // via _transform until a downstream consumer reads. So
+      // `archive.pipe(counter)` captures every byte from archive
+      // into counter's internal queue, and the adapter's later
+      // `pipeline(counter, sink)` drains the queue without losing
+      // the early chunks.
+      //
+      // ## Size guard
+      //
+      // `_transform` counts bytes per chunk. When the total trips
+      // `MAX_ARCHIVE_BYTES` we abort archive (so it stops producing)
+      // AND fail the transform with `export_too_large` (so the
+      // downstream pipeline rejects). The adapter's catch path
+      // cancels the upload (S3 multipart `AbortMultipartUpload` or
+      // filesystem unlink). The outer try/catch flips the job state
+      // to `failed` with the sentinel.
       const archive = archiver("zip", { zlib: { level: 9 } });
       let bytesSoFar = 0;
       let aborted = false;
       const exportTooLargeErr = new Error("export_too_large");
-      archive.on("data", (c: Buffer) => {
-        bytesSoFar += c.length;
-        if (bytesSoFar > MAX_ARCHIVE_BYTES && !aborted) {
-          aborted = true;
-          try {
-            archive.abort();
-          } catch {
-            // ignore — error path propagates via the size-guard check below
+
+      const counter = new Transform({
+        transform(chunk: Buffer, _encoding, callback) {
+          bytesSoFar += chunk.length;
+          if (bytesSoFar > MAX_ARCHIVE_BYTES && !aborted) {
+            aborted = true;
+            // Stop archive from producing more bytes; the abort fires
+            // an 'error' on the source side which propagates through
+            // the pipe to this Transform anyway. Best-effort: ignore
+            // any throw from abort() itself.
+            try {
+              archive.abort();
+            } catch {
+              // ignore — error path propagates via callback below
+            }
+            // Fail this Transform → downstream pipeline rejects →
+            // adapter cleans up → uploadZip rejects → outer catch
+            // flips the job to failed with the sentinel message.
+            return callback(exportTooLargeErr);
           }
-        }
+          // Pass the chunk through to the downstream consumer.
+          callback(null, chunk);
+        },
       });
 
+      // Wire archive → counter. Errors from archive propagate to
+      // counter via the pipe; if archive emits 'error' the counter
+      // destroys with the same error, and any downstream pipeline
+      // sees the failure.
+      archive.pipe(counter);
+
       // Kick off the upload concurrently with the archiver. The adapter
-      // begins consuming bytes as soon as the first chunk lands; we
-      // append per-step JSON below and await this promise after
-      // `finalize()`.
+      // begins consuming bytes from `counter` as soon as the first
+      // chunk lands; we append per-step JSON below and await this
+      // promise after `finalize()`. Critically: counter is in default
+      // (paused) mode and buffers bytes in its internal queue until
+      // the adapter's pipeline() picks them up, so no chunks are lost
+      // during the adapter's import-resolution window.
       const key = `${job.workspaceId}/${jobId}.zip`;
-      const uploadPromise = uploadZip(key, archive);
+      const uploadPromise = uploadZip(key, counter);
 
       let progress = 0;
       for (const step of STEPS) {

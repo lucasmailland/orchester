@@ -35,49 +35,81 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const ARCHIVER_GIB = 1 * 1024 * 1024 * 1024;
 
-type DataHandler = (chunk: { length: number }) => void;
+// Anything that quacks like a Writable for our pipe target. The real
+// production target is the byte-counting Transform; we never need the
+// full Writable API in the mock, just `.write(chunk)` and `.destroy(err)`.
+interface PipeTarget {
+  write(chunk: Buffer): boolean;
+  destroy?(err?: Error): void;
+}
 
 interface FakeArchive {
-  // exactOptionalPropertyTypes: dataHandler is set lazily by the `on`
-  // mock when the production code subscribes to "data". Until then it
-  // stays `undefined`. With the strict flag enabled, an optional
-  // property cannot be assigned `undefined`; spelling it as a union
-  // expresses the same intent without tripping the rule.
-  dataHandler: DataHandler | undefined;
+  // The real production code does `archive.pipe(counter)` ONCE on the
+  // Transform that counts bytes. We capture the pipe target on the
+  // first pipe() call so subsequent append()s can write bytes through it.
+  pipeTarget: PipeTarget | undefined;
   appendChunkLengths: number[];
-  on: ReturnType<typeof vi.fn>;
+  pipe: ReturnType<typeof vi.fn>;
   append: ReturnType<typeof vi.fn>;
   finalize: ReturnType<typeof vi.fn>;
   abort: ReturnType<typeof vi.fn>;
-  pipe: ReturnType<typeof vi.fn>;
-  read: ReturnType<typeof vi.fn>;
+  on: ReturnType<typeof vi.fn>;
+  // Convenience helper exposed for the "abort latching" test —
+  // simulates archiver flushing pending bytes after an abort. Writes
+  // directly to the pipe target, bypassing the append queue, so the
+  // size-guard inside the Transform fires on the chunk we hand it.
+  flushAfterAbort(length: number): void;
 }
 
 const { archiverFactory, uploadZipMock, archiveRef, setCalls, sendEmailMock } = vi.hoisted(() => {
   const archiveRef = { current: null as FakeArchive | null };
   // Per-test queue: each `archive.append(...)` consumes one entry,
   // treats it as the "byte length" of the appended chunk, and
-  // synchronously fires the data handler with that length. Tests set
-  // this queue to control when the guard trips.
+  // synchronously writes a Buffer of that length to the pipe target
+  // (the real Transform from production code). Tests set this queue
+  // to control when the guard trips.
   const chunkLengthsQueue: number[] = [];
 
   const factory = vi.fn(() => {
     const fake: FakeArchive = {
-      dataHandler: undefined,
+      pipeTarget: undefined,
       appendChunkLengths: [],
-      on: vi.fn((event: string, handler: DataHandler) => {
-        if (event === "data") fake.dataHandler = handler;
-        return fake;
+      pipe: vi.fn((dest: PipeTarget) => {
+        fake.pipeTarget = dest;
+        return dest;
       }),
       append: vi.fn(() => {
         const len = chunkLengthsQueue.shift() ?? 1024; // default 1 KiB
         fake.appendChunkLengths.push(len);
-        if (fake.dataHandler) fake.dataHandler({ length: len });
+        // Write a real-size Buffer (zero-filled is fine — only `.length`
+        // matters to the byte-counter) into the pipe target. The pipe
+        // target is the production Transform that counts bytes and
+        // may call back into `fake.abort` if MAX_ARCHIVE_BYTES trips.
+        if (fake.pipeTarget) {
+          fake.pipeTarget.write(Buffer.alloc(len));
+        }
       }),
-      finalize: vi.fn(async () => {}),
+      finalize: vi.fn(async () => {
+        // End the downstream pipe so the consumer (mocked uploadZip)
+        // sees an EOF rather than hanging on backpressure. We cast
+        // through unknown because PipeTarget intentionally exposes
+        // only the methods our mock invokes; the real production
+        // target is a Node.js Transform which always has .end().
+        const maybeEndable = fake.pipeTarget as unknown as { end?: () => void };
+        if (maybeEndable && typeof maybeEndable.end === "function") {
+          maybeEndable.end();
+        }
+      }),
       abort: vi.fn(),
-      pipe: vi.fn().mockReturnThis(),
-      read: vi.fn(),
+      // The new architecture doesn't register a 'data' listener on
+      // archive itself — byte counting lives inside the downstream
+      // Transform — so `on` is a no-op chainable.
+      on: vi.fn().mockReturnThis(),
+      flushAfterAbort: (length: number) => {
+        if (fake.pipeTarget) {
+          fake.pipeTarget.write(Buffer.alloc(length));
+        }
+      },
     };
     archiveRef.current = fake;
     return fake;
@@ -247,12 +279,16 @@ describe("Phase F.5 regression — archive size guard trips at MAX_ARCHIVE_BYTES
 
     expect(archiveRef.current!.abort).toHaveBeenCalledTimes(1);
 
-    // Now simulate archiver emitting more chunks after we already
-    // aborted (this is a quirk of the underlying stream). The
-    // handler is still installed; firing it again MUST NOT re-call
-    // abort because `aborted` latched to true on the first trip.
-    archiveRef.current!.dataHandler!({ length: ARCHIVER_GIB });
-    archiveRef.current!.dataHandler!({ length: ARCHIVER_GIB });
+    // Now simulate archiver flushing more bytes after we already
+    // aborted (this is a quirk of the underlying stream — archiver
+    // can finish writing a few in-flight chunks before its abort
+    // propagates). The Transform's `aborted` flag latched to `true`
+    // on the first trip, so subsequent writes through the pipe
+    // MUST NOT re-call abort. `flushAfterAbort` writes directly
+    // into the pipe target, bypassing the append queue, to exercise
+    // exactly this scenario.
+    archiveRef.current!.flushAfterAbort(ARCHIVER_GIB);
+    archiveRef.current!.flushAfterAbort(ARCHIVER_GIB);
     expect(archiveRef.current!.abort).toHaveBeenCalledTimes(1);
   });
 
