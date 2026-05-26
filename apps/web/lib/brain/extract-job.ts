@@ -67,19 +67,40 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
   try {
     await withCrossTenantAdmin("brain.extract", async (tx) => {
       // v1.5 — load the conversation row first so we know which
-      // end-user (employee) the facts belong to. The `actor_id` field
-      // on `mnemo_fact` (migration 0037) is populated from this id;
-      // NULL = workspace-shared (legacy behaviour) when no employee
-      // is associated with the conversation.
+      // end-user (employee) the facts belong to AND whether the
+      // sensitivity flag is on. The `actor_id` field on `mnemo_fact`
+      // (migration 0037) is populated from `employee_id`; NULL =
+      // workspace-shared (legacy behaviour) when no employee is
+      // associated with the conversation. The `memory_learning_paused`
+      // column (migration 0038) is the forward gate — when true we
+      // short-circuit BEFORE pulling the slice / burning a token.
       const convRows = await tx
         .select({
           id: schema.conversations.id,
           employeeId: schema.conversations.employeeId,
+          memoryLearningPaused: schema.conversations.memoryLearningPaused,
         })
         .from(schema.conversations)
         .where(eq(schema.conversations.id, payload.conversationId))
         .limit(1);
       const conv = convRows[0] ?? null;
+
+      if (conv?.memoryLearningPaused) {
+        // Sensitivity gate hit. Mark skipped + return — NO LLM call,
+        // NO facts. The Inspector can later flip the flag and a fresh
+        // extract job will run on the next user turn. Already-extracted
+        // facts from earlier turns stay put (forward gate, not retroactive).
+        await tx
+          .update(schema.brainExtractionJobs)
+          .set({
+            state: "skipped_sensitivity",
+            skipReason: "memory_learning_paused",
+            factsProduced: 0,
+            completedAt: new Date(),
+          })
+          .where(eq(schema.brainExtractionJobs.id, payload.jobId));
+        return;
+      }
 
       // 1. Pull conversation messages
       const msgs = await tx
