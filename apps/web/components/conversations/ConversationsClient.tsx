@@ -96,6 +96,22 @@ export function ConversationsClient({ agents, labels }: { agents: Agent[]; label
   });
   const [selected, setSelected] = useState<Conv | null>(null);
 
+  // HeroUI Select uses React Aria's `useId()` under the hood. With
+  // Next.js 15 + Turbopack the IDs that get baked into the SSR HTML
+  // don't match the IDs the client generates on the first render
+  // pass — every Select trigger throws a hydration mismatch warning
+  // on the `id` and `aria-labelledby` attributes. The components work,
+  // but the console gets noisy and React drops the SSR'd portion.
+  //
+  // Standard React Aria workaround: defer mounting the Selects until
+  // after hydration. Render a stable placeholder skeleton during SSR
+  // and on first client render, then swap in the real Selects on the
+  // second client render once `mounted` is true. The placeholder
+  // matches the Select trigger's footprint so the filter bar doesn't
+  // jump.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const PAGE_SIZE = 50;
 
   function buildQs(offset: number): URLSearchParams {
@@ -232,91 +248,108 @@ export function ConversationsClient({ agents, labels }: { agents: Agent[]; label
             the React tree (visible chevron + visible menu + keyboard
             nav + consistent dark/light theming with the rest of the
             shell). All four use selectedKeys for controlled state and
-            empty-string sentinel for "All". */}
-        <Select
-          aria-label={t("filterByStatus")}
-          size="sm"
-          placeholder={t("statusFilter")}
-          selectedKeys={filters.status ? new Set([filters.status]) : new Set()}
-          onSelectionChange={(keys) => {
-            const v = Array.from(keys as Set<string>)[0] ?? "";
-            setFilters({ ...filters, status: v });
-          }}
-          className="w-[160px] shrink-0"
-          variant="flat"
-          classNames={{
-            trigger: "h-9 min-h-9 bg-elevated border border-line data-[hover=true]:bg-elevated",
-            value: "text-xs text-body",
-          }}
-        >
-          <SelectItem key="open">{t("status.openPl")}</SelectItem>
-          <SelectItem key="escalated">{t("status.escalatedPl")}</SelectItem>
-          <SelectItem key="closed">{t("status.closedPl")}</SelectItem>
-        </Select>
-        <Select
-          aria-label={t("filterByChannel")}
-          size="sm"
-          placeholder={t("channelFilter")}
-          selectedKeys={filters.channel ? new Set([filters.channel]) : new Set()}
-          onSelectionChange={(keys) => {
-            const v = Array.from(keys as Set<string>)[0] ?? "";
-            setFilters({ ...filters, channel: v });
-          }}
-          className="w-[160px] shrink-0"
-          variant="flat"
-          classNames={{
-            trigger: "h-9 min-h-9 bg-elevated border border-line data-[hover=true]:bg-elevated",
-            value: "text-xs text-body",
-          }}
-        >
-          <SelectItem key="widget">{t("channel.widget")}</SelectItem>
-          <SelectItem key="telegram">{t("channel.telegram")}</SelectItem>
-          <SelectItem key="whatsapp">{t("channel.whatsapp")}</SelectItem>
-          <SelectItem key="slack">{t("channel.slack")}</SelectItem>
-          <SelectItem key="email">{t("channel.email")}</SelectItem>
-          <SelectItem key="api">{t("channel.api")}</SelectItem>
-        </Select>
-        <Select
-          aria-label={t("filterByAgent")}
-          size="sm"
-          placeholder={t("agentFilter")}
-          selectedKeys={filters.agentId ? new Set([filters.agentId]) : new Set()}
-          onSelectionChange={(keys) => {
-            const v = Array.from(keys as Set<string>)[0] ?? "";
-            setFilters({ ...filters, agentId: v });
-          }}
-          className="w-[180px] shrink-0"
-          variant="flat"
-          classNames={{
-            trigger: "h-9 min-h-9 bg-elevated border border-line data-[hover=true]:bg-elevated",
-            value: "text-xs text-body",
-          }}
-        >
-          {agents.map((a) => (
-            <SelectItem key={a.id}>{a.name}</SelectItem>
-          ))}
-        </Select>
-        {labels.length > 0 && (
-          <Select
-            aria-label={t("tagFilter")}
-            size="sm"
-            placeholder={t("tagFilter")}
-            selectedKeys={filters.tag ? new Set([filters.tag]) : new Set()}
-            onSelectionChange={(keys) => {
-              const v = Array.from(keys as Set<string>)[0] ?? "";
-              setFilters({ ...filters, tag: v });
-            }}
-            className="w-[160px] shrink-0"
-            variant="flat"
-            classNames={{
-              trigger: "h-9 min-h-9 bg-elevated border border-line data-[hover=true]:bg-elevated",
-              value: "text-xs text-body",
-            }}
-          >
-            {labels.map((l) => (
-              <SelectItem key={l.name}>{l.name}</SelectItem>
-            ))}
-          </Select>
+            empty-string sentinel for "All".
+            Deferred via `mounted` to avoid React Aria SSR id mismatch
+            (Next 15 / Turbopack); placeholder skeleton keeps the
+            filter bar layout stable until hydration finishes. */}
+        {!mounted ? (
+          <>
+            <div className="h-9 w-[160px] shrink-0 rounded-lg border border-line bg-elevated" />
+            <div className="h-9 w-[160px] shrink-0 rounded-lg border border-line bg-elevated" />
+            <div className="h-9 w-[180px] shrink-0 rounded-lg border border-line bg-elevated" />
+            {labels.length > 0 ? (
+              <div className="h-9 w-[160px] shrink-0 rounded-lg border border-line bg-elevated" />
+            ) : null}
+          </>
+        ) : (
+          <>
+            <Select
+              aria-label={t("filterByStatus")}
+              size="sm"
+              placeholder={t("statusFilter")}
+              selectedKeys={filters.status ? new Set([filters.status]) : new Set()}
+              onSelectionChange={(keys) => {
+                const v = Array.from(keys as Set<string>)[0] ?? "";
+                setFilters({ ...filters, status: v });
+              }}
+              className="w-[160px] shrink-0"
+              variant="flat"
+              classNames={{
+                trigger: "h-9 min-h-9 bg-elevated border border-line data-[hover=true]:bg-elevated",
+                value: "text-xs text-body",
+              }}
+            >
+              <SelectItem key="open">{t("status.openPl")}</SelectItem>
+              <SelectItem key="escalated">{t("status.escalatedPl")}</SelectItem>
+              <SelectItem key="closed">{t("status.closedPl")}</SelectItem>
+            </Select>
+            <Select
+              aria-label={t("filterByChannel")}
+              size="sm"
+              placeholder={t("channelFilter")}
+              selectedKeys={filters.channel ? new Set([filters.channel]) : new Set()}
+              onSelectionChange={(keys) => {
+                const v = Array.from(keys as Set<string>)[0] ?? "";
+                setFilters({ ...filters, channel: v });
+              }}
+              className="w-[160px] shrink-0"
+              variant="flat"
+              classNames={{
+                trigger: "h-9 min-h-9 bg-elevated border border-line data-[hover=true]:bg-elevated",
+                value: "text-xs text-body",
+              }}
+            >
+              <SelectItem key="widget">{t("channel.widget")}</SelectItem>
+              <SelectItem key="telegram">{t("channel.telegram")}</SelectItem>
+              <SelectItem key="whatsapp">{t("channel.whatsapp")}</SelectItem>
+              <SelectItem key="slack">{t("channel.slack")}</SelectItem>
+              <SelectItem key="email">{t("channel.email")}</SelectItem>
+              <SelectItem key="api">{t("channel.api")}</SelectItem>
+            </Select>
+            <Select
+              aria-label={t("filterByAgent")}
+              size="sm"
+              placeholder={t("agentFilter")}
+              selectedKeys={filters.agentId ? new Set([filters.agentId]) : new Set()}
+              onSelectionChange={(keys) => {
+                const v = Array.from(keys as Set<string>)[0] ?? "";
+                setFilters({ ...filters, agentId: v });
+              }}
+              className="w-[180px] shrink-0"
+              variant="flat"
+              classNames={{
+                trigger: "h-9 min-h-9 bg-elevated border border-line data-[hover=true]:bg-elevated",
+                value: "text-xs text-body",
+              }}
+            >
+              {agents.map((a) => (
+                <SelectItem key={a.id}>{a.name}</SelectItem>
+              ))}
+            </Select>
+            {labels.length > 0 && (
+              <Select
+                aria-label={t("tagFilter")}
+                size="sm"
+                placeholder={t("tagFilter")}
+                selectedKeys={filters.tag ? new Set([filters.tag]) : new Set()}
+                onSelectionChange={(keys) => {
+                  const v = Array.from(keys as Set<string>)[0] ?? "";
+                  setFilters({ ...filters, tag: v });
+                }}
+                className="w-[160px] shrink-0"
+                variant="flat"
+                classNames={{
+                  trigger:
+                    "h-9 min-h-9 bg-elevated border border-line data-[hover=true]:bg-elevated",
+                  value: "text-xs text-body",
+                }}
+              >
+                {labels.map((l) => (
+                  <SelectItem key={l.name}>{l.name}</SelectItem>
+                ))}
+              </Select>
+            )}
+          </>
         )}
       </div>
 

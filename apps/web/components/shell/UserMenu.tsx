@@ -10,7 +10,7 @@
 // Kept narrow on purpose: every other shell action lives in the
 // sidebar; the user menu is for ME (the operator) — my profile, my
 // session.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   Avatar,
@@ -38,6 +38,13 @@ export function UserMenu({ userName, userEmail, userImage }: UserMenuProps) {
   const locale = params?.locale ?? "en";
   const ws = params?.workspaceSlug ?? "";
   const [signingOut, setSigningOut] = useState(false);
+  // HeroUI Dropdown uses React Aria's `useId()` which generates IDs
+  // that don't match between SSR and the first client render under
+  // Next 15 + Turbopack. Gate the Dropdown on `mounted` and render
+  // a plain avatar button until hydration completes — same trigger
+  // footprint, no menu attached, so the topbar layout doesn't jump.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const initials = userName
     ? userName
@@ -76,6 +83,30 @@ export function UserMenu({ userName, userEmail, userImage }: UserMenuProps) {
         void handleSignOut();
         return;
     }
+  }
+
+  // Server / pre-hydration render: plain avatar with the same visual
+  // footprint as the Dropdown's trigger. Once `mounted` flips to true
+  // on the client, swap in the real Dropdown so React Aria's `useId()`
+  // is only ever called client-side — no SSR/client id mismatch.
+  if (!mounted) {
+    return (
+      <button
+        type="button"
+        aria-label={t("userMenu.openLabel")}
+        className="ml-2 flex items-center rounded-full focus:outline-none"
+      >
+        <Avatar
+          size="sm"
+          name={initials}
+          {...(userImage ? { src: userImage } : {})}
+          classNames={{
+            base: "bg-gradient-to-br from-violet-600 to-blue-600 h-7 w-7",
+            name: "text-white font-semibold text-[10px]",
+          }}
+        />
+      </button>
+    );
   }
 
   return (
