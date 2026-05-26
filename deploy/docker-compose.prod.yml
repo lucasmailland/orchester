@@ -93,7 +93,13 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://orchester:${POSTGRES_PASSWORD}@postgres:5432/orchester
+      # Runtime connects as `app_user` (NOINHERIT, no BYPASSRLS) so RLS+FORCE
+      # Pattern A actually applies on the wire. Migrations need a superuser
+      # connection — keep that on a SEPARATE MIGRATION_DATABASE_URL (set in
+      # .env) so elevated creds never leak into the runtime container.
+      # See ADR-0010 and docs/specs/audits/2026-05-25-mnemosyne-v1.4-final-audit.md
+      # (P1: prod compose Layer 3 was missed when v1.0 landed Layers 1+2).
+      DATABASE_URL: postgresql://app_user:app@postgres:5432/orchester
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
       AUTH_URL: https://${DOMAIN:?set DOMAIN in .env}
       NEXT_PUBLIC_APP_URL: https://${DOMAIN}
@@ -150,7 +156,9 @@ services:
     environment:
       NODE_ENV: production
       WORKER_MODE: "true"
-      DATABASE_URL: postgresql://orchester:${POSTGRES_PASSWORD}@postgres:5432/orchester
+      # Same posture as `web`: connect as `app_user` (non-BYPASSRLS).
+      # See ADR-0010 and 2026-05-25-mnemosyne-v1.4-final-audit.md (P1).
+      DATABASE_URL: postgresql://app_user:app@postgres:5432/orchester
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
       STORAGE_DRIVER: s3
       S3_ENDPOINT: http://minio:9000
