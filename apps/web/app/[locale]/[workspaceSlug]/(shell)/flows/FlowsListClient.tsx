@@ -99,7 +99,7 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
             type="button"
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            onClick={() => router.push(`/${locale}/flows/${f.id}`)}
+            onClick={() => router.push(`/${locale}/${workspaceSlug}/flows/${f.id}`)}
             className="rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
           >
             <div className="mb-2 flex items-center gap-2">
