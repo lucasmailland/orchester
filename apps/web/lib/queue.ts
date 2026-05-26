@@ -205,6 +205,13 @@ export const JOB_MNEMO_PRUNE = "mnemo.janitor.prune";
 // See apps/web/worker/{review-sweep,auto-pin}-job.ts.
 export const JOB_MNEMO_REVIEW_SWEEP = "mnemo.review.sweep";
 export const JOB_MNEMO_AUTO_PIN = "mnemo.auto-pin";
+// v1.4 REM-style nightly consolidation. Once a week (Sunday 02:00
+// UTC, BEFORE the janitor at 03:00) the cron clusters related facts
+// per workspace (same subject + kind + cosine >= 0.75, size >= 4),
+// asks the cheap-tier LLM to write a one-sentence consolidated
+// summary, and stamps `derived_from` edges from members to the
+// summary. See `apps/web/worker/consolidation-job.ts`.
+export const JOB_MNEMO_CONSOLIDATION = "mnemo.consolidation";
 export const JOB_KB_REINDEX = "kb:reindex";
 export const JOB_WEBHOOK_DELIVER = "webhook:deliver";
 export const JOB_USAGE_AGGREGATE = "usage:aggregate";

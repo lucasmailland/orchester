@@ -40,6 +40,7 @@ import {
   JOB_MNEMO_PRUNE,
   JOB_MNEMO_REVIEW_SWEEP,
   JOB_MNEMO_AUTO_PIN,
+  JOB_MNEMO_CONSOLIDATION,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
@@ -59,6 +60,7 @@ import { runDedupSweep } from "./dedup-job";
 import { runPruneSweep } from "./prune-job";
 import { runReviewSweep } from "./review-sweep-job";
 import { runAutoPin } from "./auto-pin-job";
+import { runConsolidationSweep } from "./consolidation-job";
 
 interface FlowRunJob {
   runId: string;
@@ -286,6 +288,23 @@ async function main(): Promise<void> {
     await runAutoPin();
   });
   await schedule(JOB_MNEMO_AUTO_PIN, "30 4 * * *");
+
+  // ─── Mnemosyne v1.4 REM-style consolidation (weekly cron) ──────────
+  // Sunday 02:00 UTC — BEFORE the janitor's dedup pass at 03:00. Walks
+  // every workspace with embedded facts, clusters related facts (same
+  // subject + kind, cosine >= 0.75, size >= 4), asks the cheap-tier
+  // LLM to write a one-sentence summary that supersedes them, and
+  // stamps `derived_from` edges from members to the summary. The
+  // originals stay `status='active'` (findable); the summary becomes
+  // the canonical recall hit. Graceful: workspaces without an LLM
+  // configured are skipped silently.
+  //
+  // Stagger before dedup so dedup doesn't accidentally collapse a
+  // freshly-created summary with one of its members.
+  await registerWorker(JOB_MNEMO_CONSOLIDATION, async () => {
+    await runConsolidationSweep();
+  });
+  await schedule(JOB_MNEMO_CONSOLIDATION, "0 2 * * 0");
 
   console.log("[worker] ready, waiting for jobs…");
 }
