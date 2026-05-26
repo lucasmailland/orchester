@@ -47,7 +47,7 @@ async function handleOne(req: JsonRpcReq, auth: McpAuth): Promise<object | null>
         capabilities: { tools: { listChanged: false } },
         serverInfo: MCP_SERVER_INFO,
         instructions:
-          "Orchester MCP: gestioná agentes de IA, conversaciones, knowledge (RAG), flujos y empleados del workspace. Empezá por list_agents o list_flows.",
+          "Orchester MCP: manage AI agents, conversations, knowledge (RAG), flows, and employees in the workspace. Start with list_agents or list_flows.",
       });
     case "notifications/initialized":
     case "notifications/cancelled":
@@ -64,7 +64,7 @@ async function handleOne(req: JsonRpcReq, auth: McpAuth): Promise<object | null>
       return rpcResult(req.id, result);
     }
     default:
-      return rpcError(req.id, -32601, `Método no soportado: ${req.method}`);
+      return rpcError(req.id, -32601, `Method not supported: ${req.method}`);
   }
 }
 
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
   const auth = await authenticateApiKey(request.headers.get("authorization"));
   if (!auth) {
     return NextResponse.json(
-      rpcError(null, -32000, "API key inválida o ausente (Authorization: Bearer ok_live_…)"),
+      rpcError(null, -32000, "API key missing or invalid (Authorization: Bearer ok_live_…)"),
       { status: 401 }
     );
   }
@@ -94,14 +94,14 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(rpcError(null, -32700, "JSON inválido"), { status: 400 });
+    return NextResponse.json(rpcError(null, -32700, "Invalid JSON"), { status: 400 });
   }
 
   // Batch o request único. Cap de batch para evitar amplificación (un solo
   // token de rate-limit no debe habilitar N llamadas pesadas).
   const isBatch = Array.isArray(body);
   if (isBatch && (body as unknown[]).length > 20) {
-    return NextResponse.json(rpcError(null, -32600, "Batch demasiado grande (máx 20)"), {
+    return NextResponse.json(rpcError(null, -32600, "Batch too large (max 20)"), {
       status: 400,
     });
   }
@@ -109,7 +109,7 @@ export async function POST(request: Request) {
   const responses: object[] = [];
   for (const r of reqs) {
     if (!r || r.jsonrpc !== "2.0" || typeof r.method !== "string") {
-      responses.push(rpcError(r?.id ?? null, -32600, "Request JSON-RPC inválido"));
+      responses.push(rpcError(r?.id ?? null, -32600, "Invalid JSON-RPC request"));
       continue;
     }
     const res = await handleOne(r, auth);
@@ -127,7 +127,7 @@ export async function GET() {
     rpcError(
       null,
       -32000,
-      "Usá POST con JSON-RPC. Este server MCP es POST-only (Streamable HTTP)."
+      "Use POST with JSON-RPC. This MCP server is POST-only (Streamable HTTP)."
     ),
     { status: 405 }
   );
