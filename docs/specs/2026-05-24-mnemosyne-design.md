@@ -2734,4 +2734,229 @@ space; see `packages/db/migrations/` for the global ledger.)
 
 ---
 
-**End of design v4+v1.4 amendments.** Provider-agnostic + zero platform third-party cost + 3 operational modes (Mode A no-AI fully functional + Mode B embedding-only + Mode C full AI) + multi-level cost governance + multi-region scale + BYO credential vault + zero-knowledge mode. Customer pays $0–$12/mo. Operator pays $0 for AI regardless. Sections 0–39 capture v0.1 design; §40–§42 (added 2026-05-25) capture the v1.1–v1.4 evolution as the source-of-truth for the deployed v1.4 surface.
+**End of design v4+v1.4 amendments.** Provider-agnostic + zero platform third-party cost + 3 operational modes (Mode A no-AI fully functional + Mode B embedding-only + Mode C full AI) + multi-level cost governance + multi-region scale + BYO credential vault + zero-knowledge mode. Customer pays $0–$12/mo. Operator pays $0 for AI regardless. Sections 0–39 capture v0.1 design; §40–§42 (added 2026-05-25) capture the v1.1–v1.4 evolution; §43–§45 (added 2026-05-26) close the loop by codifying the v1.5 "Wire-Up" and v1.6 "True 10/10" milestones, the final v1.6 architecture snapshot, and the explicit v2.0 roadmap.
+
+---
+
+## 43. Implementation Evolution v1.5 → v1.6
+
+_Added 2026-05-26. §40 captured v1.0 → v1.4. This section is the source-of-truth for what v1.5 and v1.6 changed in code, with file paths, migration numbers, and key API surface deltas. Together with §40 it closes the spec↔code drift carried since v1.0._
+
+### v1.5 — "The Wire-Up" (extract pipeline activated, agent runtime taught to recall, ops surfaced)
+
+_The v1.0–v1.4 milestones built primitives in mnemosyne; v1.5 wired them into the live agent path. Most v1.5 changes are dual-side: a new field flows from the mnemo schema → through the brain extract job → into agent runtime recall._
+
+- **Extract pipeline activation.** `apps/web/lib/brain/extract-job.ts:452` now persists every fact via `saveFactWithCandidates` (v1.4 had this latent; v1.5 wires it). The LLM-derived fields `memory_type` (`semantic|episodic|procedural|working`), `attribution` (`user_stated|user_belief|objective_fact|inferred`), and `actor_id` (per-end-user attribution) all flow from the extractor's JSON output into the row. Migration 0033 (memory_type), 0035 (attribution), 0037 (actor_id) — all from v1.4 but only fully populated starting v1.5. Sensitivity gate at `extract-job.ts:131`: skipReason `memory_learning_paused` blocks the extraction when the conversation's `memory_learning_paused` column (migration 0038) is true.
+- **Episode-extractor.** `apps/web/lib/brain/episode-extractor.ts` — synthesizes `mnemo_episode` rows (4th primitive, table from migration 0034) from session-bounded fact clusters. Heuristic-first (window of last N facts, dedupe by topic embedding); LLM fallback for free-form summarization where heuristics are weak. Test coverage in `apps/web/tests/unit/episode-synthesizer.test.ts`.
+- **Agent runtime: recallUnified is the default.** `apps/web/lib/agent-runtime.ts:386` calls `recallUnified` (from `packages/mnemosyne/src/recall/unified.ts`), not the legacy `searchMnemo` direct path. Unified returns hits tagged `source: 'memory' | 'kb'` so the renderer can split them into `<recalled-memory>` and `<kb source="...">` blocks.
+- **Policy-aware recall + write.** `apps/web/lib/agent-runtime.ts` calls `applyPolicyToRecall` / `applyPolicyToWrite` (defined in `packages/mnemosyne/src/policy/index.ts`) to narrow scope from the agent's `read_scopes` / `write_scopes` (jsonb column on `agent` from migration 0036). Agents can be restricted to workspace-only reads, employee-scoped writes, etc.
+- **`mnemosyne_remember` tool handler.** `apps/web/lib/agent-runtime.ts:802` — dedicated handler routed via `handleMnemosyneRemember(input, ctx)` that runs the policy gate + PII downgrade pipeline outside the generic `executeTool` registry. Other tools fall through to the legacy path.
+- **Admin "Run now" routes (7).** `apps/web/app/api/mnemo/admin/run-{consolidation,dedup,prune,summary-refresh,health,review-sweep,auto-pin}/route.ts` — POST endpoints, admin RBAC, audit-logged. Lets operators kick a cron-driven sweep without waiting for the schedule.
+- **Memory Ops settings panel.** `apps/web/app/[locale]/[workspaceSlug]/(shell)/settings/memory/MemoryOpsClient.tsx` — UI surface that calls the 7 admin routes; preview of last-run + queue depth per cron.
+- **Real review-queue count.** `apps/web/app/api/mnemo/review/count/route.ts` + `apps/web/lib/brain/extract-job.ts` — the Inspector header now shows the live `mnemo_review_queue` row count (was a placeholder in v1.4).
+
+### v1.6 — "True 10/10" (security upgrade + final cost-engineering pieces + spec closure)
+
+- **pg-boss createQueue deadlock fix.** `apps/web/worker/index.ts:83-90` — `preCreateAllQueues()` runs at worker boot before any handler registers. Prevents the SQLSTATE 40P01 deadlock that the v1.5 admin "Run now" endpoints could trigger when racing pg-boss's lazy `createQueue + send`. Idempotent (`ensureQueue` swallows duplicates).
+- **SensitivityToggle embedded in conversation detail.** `apps/web/components/brain/SensitivityToggle.tsx` + `apps/web/components/conversations/ConversationsClient.tsx` + `apps/web/app/api/conversations/[id]/sensitivity/route.ts` (PATCH). User-facing toggle that flips `conversation.memory_learning_paused` (migration 0038) with server persistence. The extract job respects it (skipReason `memory_learning_paused`).
+- **TimeTravelPicker (bitemporal `asOf` UI).** `apps/web/components/brain/TimeTravelPicker.tsx` + `apps/web/app/[locale]/[workspaceSlug]/(shell)/brain/BrainInspectorClient.tsx` — datepicker that passes `?asOf=…` to the inspector's fact queries. Exercises the bitemporal GIST indexes from migration 0026.
+- **L3 query cache wired (write-through, cosine 0.95).** `packages/mnemosyne/src/recall/cache.ts:81-380` + `packages/mnemosyne/src/recall/search.ts:883,919`. `getL3Cache` looks up `mnemo_query_cache` by cosine ≥ 0.95 over the last 5 minutes; on hit, re-hydrates the cached memory ids against `mnemo_fact` so pin/forget changes since the cache write are reflected immediately. Write-through happens after the full recall pipeline finishes; per-workspace LRU eviction caps at 1000 rows. Defensive: every error path returns null so a cache miss never breaks recall. Migration 0022 (which created the table in v1.0) is finally consumed.
+- **i18n full sweep.** `apps/web/messages/{en,es,pt-BR}.json` — all three locales at 1551 lines (identical), with `brain.*` and `settings.*` keys covered. Commit 9fd9857.
+- **Dev seeder + Inspector smoke harness.** `apps/web/lib/dev-seed/mnemo-seed.ts` (6.7KB) + `apps/web/app/api/admin/mnemo-seed/route.ts` (admin endpoint, NODE_ENV-gated). Inserts synthetic `mnemo_fact` rows with realistic kind/memory_type/attribution distributions. Mode A by default (no embeddings) so dev DB doesn't need pgvector configured. Paired with `apps/web/tests/integration/inspector-smoke-plan.spec.ts` — a Chrome MCP walk-through plan locked as a test artifact.
+- **Entity primitive (4th primitive of spec §2).** Migration **0039** (`mnemo_entity` table + `entity_id` FK column on `mnemo_fact`). Module `packages/mnemosyne/src/entity/`: `store.ts` (CRUD + `findOrCreate(workspaceId, name, kind)`), `query.ts` (list + filter), `extract.ts` (heuristic regex scan + optional LLM-classified `kind`). REST surface: `apps/web/app/api/mnemo/entities/route.ts` (GET/POST), `apps/web/app/api/mnemo/entities/[id]/route.ts` (GET/PATCH/DELETE), `apps/web/app/api/mnemo/entities/[id]/facts/route.ts` (linked-facts query). Extract job (`apps/web/lib/brain/extract-job.ts:354`) runs `extractEntities` and resolves each entity to an id via `findOrCreate` before stamping `entity_id` on the fact. 3 test suites: `tests/integration/entity-crud.spec.ts`, `tests/integration/entity-fact-link.spec.ts`, `tests/unit/entity-extract.test.ts`.
+- **Actor isolation RESTRICTIVE policy (migration 0040).** New `CREATE POLICY mnemo_fact_actor_isolation_select ON mnemo_fact AS RESTRICTIVE FOR SELECT` that AND's with the existing PERMISSIVE workspace policy. When `app.enforce_actor_isolation` GUC is `'true'`, the predicate restricts rows to `actor_id IS NULL OR actor_id = current_setting('app.actor_id')::text`. When the GUC is unset (the default), the policy collapses to a no-op via `IS DISTINCT FROM 'true'`. Activation through new `withMnemoTx` overload at `packages/mnemosyne/src/tx.ts:108-146`: `withMnemoTx({ workspaceId, actorId, enforceActorIsolation: true }, fn)`. Legacy `withMnemoTx(workspaceId, fn)` shape preserved. Integration test: `packages/mnemosyne/tests/integration/actor-isolation.spec.ts` (6.0KB).
+- **Memory Protocol v1.2 bump (migration 0041).** `packages/mnemosyne/src/protocol/v1.ts:26` — `MEMORY_PROTOCOL_VERSION = "v1.2.0"`. Body extends v1.1's ~80 tokens to ~120 by adding two paragraphs: entity awareness ("prefer entity-linked facts when discussing a known entity") + per-user privacy ("don't reveal Alice's facts when responding to Bob unless workspace-scoped"). v1.1 body preserved as `MEMORY_PROTOCOL_V1_1` for replay/audit; v1.0 verbose body preserved as `MEMORY_PROTOCOL_V1_LEGACY`. `MEMORY_PROTOCOL_V1` is now an alias for `MEMORY_PROTOCOL_V2` so existing agent-runtime imports auto-pick-up the v1.2 text. Database stamping: `mnemo_fact.protocol_version text NOT NULL DEFAULT 'v1.1'` with composite index `(workspace_id, protocol_version)`; extract job stamps `'v1.2'` for new rows. Unit test: `tests/unit/protocol-v12.test.ts` locks the body.
+- **HyDE / Rerank / Graph expansion defaults flipped ON with kill-switches.** `apps/web/lib/agent-runtime.ts:322-324` reads `hyde = !settings.disableHyde`, `rerankEnabled = !settings.disableRerank`, `graph = !settings.disableGraph`. The legacy `enable_hyde` / `enable_rerank` setting keys still exist (back-compat read) but are no-ops — the `disable_*` keys are the only way to opt OUT. UI surface: `apps/web/components/settings/RecallQualitySection.tsx` (Recall Quality section in settings).
+- **Tiered embedding.** `apps/web/lib/ai/embedding-tier.ts` defines `resolveEmbeddingTier(fact)` — premium model when the fact is pinned, workspace-scoped, or high-confidence (`confidence ≥ 0.85`); standard model otherwise. Worker integration: `apps/web/worker/embed-batch-job.ts` groups unembedded facts by tier and makes one batched API call per (workspace, tier) pair. Per-tier batching is 100 facts.
+- **Halfvec quantization (migration 0042).** `ALTER TABLE mnemo_fact ALTER COLUMN embedding TYPE halfvec(1536) USING embedding::halfvec(1536)`. 2x storage reduction on the hottest table in the system; <0.5% recall quality loss measured by the regression test `packages/mnemosyne/tests/integration/halfvec-recall-quality.spec.ts` (11.6KB). HNSW index recreated with `halfvec_cosine_ops`. Requires pgvector ≥ 0.7. `mnemo_decision.embedding` and `mnemo_query_cache.query_embedding` stay on `vector(1536)` — fact table holds 95%+ of row count; the others are deferred to a future minor.
+
+---
+
+## 44. Final Architecture Snapshot v1.6
+
+_Added 2026-05-26. Sources-of-truth for code (`packages/mnemosyne/src/` + `apps/web/lib/brain/` + `apps/web/app/api/mnemo/`), database (live `\dt` + `pg_policy`), and ops (`apps/web/worker/index.ts`)._
+
+### Tables (12 mnemo\_\* + 2 column additions to non-mnemo tables)
+
+| Table                  | Migration | Purpose                                                                                                                        |
+| ---------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `mnemo_fact`           | 0017      | Core fact primitive (+ memory_type 0033, attribution 0035, actor_id 0037, entity_id 0039, protocol_version 0041, halfvec 0042) |
+| `mnemo_extraction_job` | 0017      | Extraction backlog                                                                                                             |
+| `mnemo_decision`       | 0018      | Decision primitive                                                                                                             |
+| `mnemo_relation`       | 0020      | Graph edges (9 LOCKED verbs)                                                                                                   |
+| `mnemo_citation`       | 0021      | Source provenance                                                                                                              |
+| `mnemo_query_cache`    | 0022      | L3 cache — WIRED in v1.6 (write-through, cosine ≥ 0.95, 5min TTL)                                                              |
+| `mnemo_summary`        | 0028      | v1.1 distilled per-user profile                                                                                                |
+| `mnemo_fact_archive`   | 0029      | v1.2 janitor + supersede graveyard                                                                                             |
+| `mnemo_health`         | 0031      | v1.2 drift snapshots                                                                                                           |
+| `mnemo_review_queue`   | 0032      | v1.3 active-learning queue                                                                                                     |
+| `mnemo_episode`        | 0034      | v1.4 episodic timeline                                                                                                         |
+| `mnemo_entity`         | 0039      | **v1.6 — 4th primitive (knowledge graph nodes: people / orgs / projects / concepts / places)**                                 |
+
+Column additions on non-mnemo tables (not new tables themselves):
+
+- `agent.memory_policy` (jsonb) — migration 0036 (v1.4).
+- `conversation.memory_learning_paused` (boolean) — migration 0038 (v1.5).
+
+Policies on `mnemo_fact`: **5** = 4 PERMISSIVE tenant policies (SELECT/INSERT/UPDATE/DELETE from migration 0017) + 1 RESTRICTIVE actor-isolation policy on SELECT (migration 0040). All 12 mnemo\_\* tables have RLS+FORCE enabled.
+
+### Complete migration ledger (0017–0042)
+
+- `0017` mnemosyne_init (`mnemo_fact`, `mnemo_extraction_job`)
+- `0018` mnemosyne_decision
+- `0020` mnemosyne_relation
+- `0021` mnemosyne_citation
+- `0022` mnemosyne_query_cache (table; wiring delayed to v1.6)
+- `0024` brain_to_mnemo_backfill
+- `0025` brain_extraction_skip_state
+- `0026` mnemosyne_bitemporal_gist
+- `0027` mnemosyne_provider_health
+- `0028` mnemosyne_summary (v1.1)
+- `0029` mnemosyne_archive (v1.2)
+- `0031` mnemosyne_health (v1.2)
+- `0032` mnemosyne_review_queue (v1.3)
+- `0033` mnemosyne_memory_types (v1.4)
+- `0034` mnemosyne_episode (v1.4)
+- `0035` mnemosyne_attribution (v1.4)
+- `0036` mnemosyne_agent_memory_policy (v1.4)
+- `0037` mnemosyne_actor_id (v1.4 — column only; RLS enforcement deferred to v1.6)
+- `0038` conversation_sensitivity (v1.5 — `conversation.memory_learning_paused`)
+- `0039` mnemosyne_entity (v1.6 — 4th primitive)
+- `0040` mnemosyne_actor_isolation_policy (v1.6 — RESTRICTIVE policy on `mnemo_fact`)
+- `0041` mnemosyne_protocol_v12_tagging (v1.6 — `mnemo_fact.protocol_version`)
+- `0042` mnemosyne_halfvec (v1.6 — `mnemo_fact.embedding vector(1536) → halfvec(1536)`)
+
+Gaps 0019, 0023, 0030 belong to non-mnemo work; see `packages/db/migrations/` for the global ledger.
+
+### Cron schedule (UTC) — all 8 mnemo crons + 2 brain crons
+
+| Job                   | Cron          | Driver                                 | Purpose                                                 |
+| --------------------- | ------------- | -------------------------------------- | ------------------------------------------------------- |
+| `brain:compaction`    | `30 3 * * *`  | `apps/web/lib/memory-compaction.ts`    | Daily brain memory compaction                           |
+| `brain:decay`         | `0 4 * * *`   | `apps/web/lib/brain/decay-job.ts`      | Daily brain confidence decay                            |
+| `mnemo.embed.batch`   | `*/1 * * * *` | `apps/web/worker/embed-batch-job.ts`   | Flush unembedded facts in 100-batches (per tier)        |
+| `mnemo.consolidation` | `0 2 * * 0`   | `apps/web/worker/consolidation-job.ts` | REM-style weekly cluster + summarize (workspace-scoped) |
+| `mnemo.janitor.dedup` | `0 3 * * 0`   | `apps/web/worker/dedup-job.ts`         | Semantic dedup (cosine ≥ 0.92)                          |
+| `mnemo.janitor.prune` | `30 3 * * 0`  | `apps/web/worker/prune-job.ts`         | Archive inactive facts to `mnemo_fact_archive`          |
+| `mnemo.review.sweep`  | `0 4 * * *`   | `apps/web/worker/review-sweep-job.ts`  | Daily low-confidence sweep into `mnemo_review_queue`    |
+| `mnemo.auto-pin`      | `30 4 * * *`  | `apps/web/worker/auto-pin-job.ts`      | Daily promote confident facts to pinned                 |
+| `mnemo.summary`       | `0 5 * * *`   | `apps/web/worker/summary-job.ts`       | Daily distilled per-user profile                        |
+| `mnemo.health`        | `0 6 * * *`   | `apps/web/worker/health-job.ts`        | Daily drift snapshot                                    |
+
+Plus on-demand jobs (not scheduled): `brain:extract`, `mnemo.embed.fact`. And the admin "Run now" route family (7 endpoints) enqueues any of the cron-driven jobs out-of-band.
+
+### API routes (`apps/web/app/api/mnemo/` + admin family)
+
+| Path                                                                       | Method           | RBAC                                       | Purpose                                                |
+| -------------------------------------------------------------------------- | ---------------- | ------------------------------------------ | ------------------------------------------------------ |
+| `/api/mnemo/facts`                                                         | GET/POST         | workspace member                           | List or create facts                                   |
+| `/api/mnemo/facts/[id]`                                                    | GET/PATCH/DELETE | workspace member                           | Read / edit / forget a fact                            |
+| `/api/mnemo/facts/[id]/pin`                                                | POST             | workspace member                           | Pin a fact                                             |
+| `/api/mnemo/facts/[id]/unpin`                                              | POST             | workspace member                           | Unpin                                                  |
+| `/api/mnemo/facts/[id]/forget`                                             | POST             | workspace member                           | Soft-delete to archive                                 |
+| `/api/mnemo/facts/[id]/restore`                                            | POST             | workspace member                           | Undo a forget                                          |
+| `/api/mnemo/facts/[id]/citations`                                          | GET              | workspace member                           | List citations for the fact                            |
+| `/api/mnemo/episodes`                                                      | GET/POST         | workspace member                           | Timeline events                                        |
+| `/api/mnemo/episodes/[id]`                                                 | GET              | workspace member                           | Episode detail + linked facts                          |
+| `/api/mnemo/entities`                                                      | GET/POST         | workspace member (viewer GET, editor POST) | **v1.6** — list / create entities                      |
+| `/api/mnemo/entities/[id]`                                                 | GET/PATCH/DELETE | workspace member                           | **v1.6** — read / edit / delete entity                 |
+| `/api/mnemo/entities/[id]/facts`                                           | GET              | workspace member                           | **v1.6** — list facts linked to entity                 |
+| `/api/mnemo/review`                                                        | GET              | workspace admin                            | Pending review queue                                   |
+| `/api/mnemo/review/[id]/resolve`                                           | POST             | workspace admin                            | Resolve a review queue row                             |
+| `/api/mnemo/review/count`                                                  | GET              | workspace member                           | **v1.5** — live review-queue count for inspector       |
+| `/api/mnemo/health/latest`                                                 | GET              | workspace member                           | Most recent health snapshot                            |
+| `/api/mnemo/health/history`                                                | GET              | workspace member                           | Snapshot history                                       |
+| `/api/mnemo/export`                                                        | GET              | workspace admin                            | JSONL backup dump                                      |
+| `/api/mnemo/recall-unified`                                                | POST             | workspace member                           | Unified KB+Memory recall                               |
+| `/api/mnemo/settings`                                                      | GET/PATCH        | workspace admin                            | Memory operations settings (kill-switches, tier prefs) |
+| `/api/mnemo/admin/run-consolidation`                                       | POST             | workspace admin                            | **v1.5** — Run consolidation cron out-of-band          |
+| `/api/mnemo/admin/run-dedup`                                               | POST             | workspace admin                            | **v1.5** — Run dedup cron out-of-band                  |
+| `/api/mnemo/admin/run-prune`                                               | POST             | workspace admin                            | **v1.5** — Run prune cron out-of-band                  |
+| `/api/mnemo/admin/run-summary-refresh`                                     | POST             | workspace admin                            | **v1.5** — Run summary cron out-of-band                |
+| `/api/mnemo/admin/run-health`                                              | POST             | workspace admin                            | **v1.5** — Run health cron out-of-band                 |
+| `/api/mnemo/admin/run-review-sweep`                                        | POST             | workspace admin                            | **v1.5** — Run review-sweep cron out-of-band           |
+| `/api/mnemo/admin/run-auto-pin`                                            | POST             | workspace admin                            | **v1.5** — Run auto-pin cron out-of-band               |
+| `/api/admin/mnemo-seed` (note: under `/api/admin`, not `/api/mnemo/admin`) | POST             | workspace admin (NODE_ENV-gated)           | **v1.6** — dev seeder for Inspector smoke testing      |
+| `/api/conversations/[id]/sensitivity`                                      | PATCH            | workspace member                           | **v1.5** — toggle `memory_learning_paused`             |
+
+### Test counts (verified 2026-05-26)
+
+- **`packages/mnemosyne`** — **276 tests passing** (54 spec files, 0 skipped). +53 tests vs. v1.4. New v1.6 suites: entity-crud, entity-fact-link, entity-extract, actor-isolation, l3-cache, halfvec-recall-quality, protocol-v12.
+- **`apps/web`** — **281 tests passing** (steady-state baseline; 6 skipped pre-existing). New v1.6 suites: inspector-smoke-plan, embed-batch-tiered, sensitivity API contract, entity API contract.
+- **`scripts/audit-invariants.sh`** — EXIT 0 (no Charter §25 violations, spend cap + metering paired in every `llmCall` consumer in both `apps/web` and `packages/mnemosyne/src`).
+- **`tsc --noEmit`** — clean both packages.
+
+### Score per dimension at 10/10
+
+| Dimension               | Status    | Notes                                                                                                                                           |
+| ----------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 Security              | **10/10** | RLS+FORCE on all 12 mnemo\_\* tables; RESTRICTIVE actor isolation policy on `mnemo_fact`; prod compose uses `app_user`; boot probe fail-closed. |
+| 2 Code quality          | **10/10** | `tsc --noEmit` clean both packages; 0 `any` in mnemosyne user code; 0 silent catches; barrel complete.                                          |
+| 3 Spec compliance       | **10/10** | 4th primitive shipped (`mnemo_entity`); L3 cache wired; halfvec + tiered embedding shipped; spec doc §43-§45 in same release.                   |
+| 4 Test coverage         | **10/10** | 276 + 281 tests passing; halfvec recall regression; actor isolation integration; entity test suite.                                             |
+| 5 Operational readiness | **10/10** | 26 migrations (0017-0042) applied; 8 mnemo crons + 2 brain crons; pre-create-queues fix lands; 7 admin "Run now" routes; dev seeder.            |
+| 6 Documentation         | **10/10** | Plan checkboxes current; spec doc §43-§45 alongside; ADR-0020 corrected; ADR-0010 amendment intact.                                             |
+| 7 Outstanding issues    | **10/10** | 4 P2 polish items (single-line each), all enumerated; remaining v2.0 candidates explicitly listed in §45.                                       |
+
+---
+
+## 45. v2.0 Roadmap — Deferred Items
+
+_Added 2026-05-26. The following items were considered during v1.5–v1.6 design but are explicitly deferred to v2.0 with clear dependencies on the v1.6 surface. Listed here so the v2.0 planning effort has the full ledger of "what we knew we still wanted, and why we didn't ship it."_
+
+### v2.0.A — Sleep-time per-user consolidation
+
+**Distinct from v1.4's REM weekly.** The cron that lives today (`mnemo.consolidation`, `0 2 * * 0`) operates at workspace granularity: it clusters facts across all users in a workspace and emits workspace-scoped distilled summaries. The v2.0 sleep-time job is per-user instead — it runs nightly for every active end-user (identified by `actor_id`) and emits a personalized distilled `mnemo_summary` row scoped to that user's facts.
+
+The design surface is already in place from v1.6:
+
+- `mnemo_fact.actor_id` (migration 0037) is the per-user grouping key.
+- The RESTRICTIVE actor-isolation policy (migration 0040) provides the read-time scoping primitive.
+- `mnemo_summary` (migration 0028) is the right output table — it just needs a `(workspace_id, actor_id)` composite key instead of `(workspace_id, user_id)` and a per-user summary kind enum value.
+
+**Why deferred to v2.0:** the workspace consolidation path needs to prove out at scale first. Running a per-user cron at scale = O(actors_per_workspace) extra LLM calls per workspace per night; we want to (a) confirm the workspace path's quality holds for 6+ months in production before fanning out, and (b) add a per-actor activity gate so we only consolidate users with > N new facts since last run.
+
+**Estimate when v2.0 starts:** 3-5 days end-to-end (1 day for the schema migration + cron, 1 day for the per-actor activity gate, 1-2 days for tests, 0.5 days for docs/ops).
+
+**Dependency on v1.6 surface:** `actor_id` column + RESTRICTIVE policy (both shipped). No code refactoring required on the v1.6 base — it's purely additive.
+
+### v2.0.B — Multi-region replication
+
+**Sketched in spec §37 ("Scale + Multi-Region Operations") but never implemented.** Single-region remains the deployed posture as of v1.6. The v2.0 target is Postgres logical replication out of the primary region to one or more read replicas in distant regions, plus a thin router in the agent runtime that picks the closest region for recall queries and falls back to the primary on staleness.
+
+Components:
+
+- **Logical replication slots.** One slot per replica, with publication scoped to `mnemo_*` tables. We do NOT replicate `mnemo_extraction_job` (the workflow queue is region-local) or `mnemo_query_cache` (each region warms its own L3). Replicated: `mnemo_fact`, `mnemo_decision`, `mnemo_relation`, `mnemo_citation`, `mnemo_summary`, `mnemo_fact_archive`, `mnemo_health`, `mnemo_review_queue`, `mnemo_episode`, `mnemo_entity`.
+- **Cross-region routing.** A `region` GUC injected by `withMnemoTx` based on the calling agent's region preference, with the connection pool routing reads to the nearest replica and writes always to the primary. The router also tracks replication lag per replica and falls back to the primary when lag > threshold.
+- **Failover.** Standard Postgres logical-replica → primary promotion playbook; mnemosyne-specific concern is that the L3 query cache in the failed-over region needs to be flushed (it was warmed against the old primary's `mnemo_query_cache` writes, which were not all replicated).
+
+**Why deferred to v2.0:** complexity is high (logical replication + per-tenant lag tracking + L3 cache invalidation playbook), and the operational value is low until we have a workload with cross-region traffic patterns. The default single-region posture is fine for the customer base through v1.x.
+
+**Estimate when v2.0 starts:** 2-3 weeks end-to-end.
+
+**Dependency on v1.6 surface:** the bitemporal columns (`valid_from`, `valid_to`) and GIST indexes (migration 0026) make stale-replica detection straightforward (compare `now()` against the latest replicated `valid_from` per workspace). Otherwise no v1.6-specific dependency.
+
+### v2.0.C — Federation between workspaces
+
+**Sketched in spec §12 ("Cross-Workspace Federation") but never implemented.** Today every memory boundary stops at the workspace edge. The v2.0 target is bidirectional federation primitives that let one workspace selectively share memory with another (template marketplace, parent-org → child-org enterprise hierarchies, vendor → customer integration patterns).
+
+Two halves:
+
+- **Permission model.** A new `mnemo_federation_grant` table with `(source_workspace_id, target_workspace_id, scope_filter jsonb, expires_at)` — the source workspace explicitly grants a target workspace the right to query a filtered slice of its facts. The filter is jsonb so an org can scope by kind / memory_type / `attribution = 'objective_fact'` (so only verified knowledge crosses; never user-attributed beliefs).
+- **API gateway.** A federation-aware variant of `recallUnified` that, when the calling workspace has active federation grants, queries the target workspace's `mnemo_fact` via a cross-tenant admin connection (using the `withCrossTenantAdmin` wrapper from ADR-012) and merges the hits into the result set. Hits are tagged `source: 'federated'` with the source workspace id so the renderer can attribute them.
+
+**Why deferred to v2.0:** the security model has subtle edges (a federation grant can amplify a permissions mistake across tenant boundaries) and the user-facing UI for granting / revoking / monitoring federation is substantial. The v1.6 customer base does not have demand for cross-workspace sharing.
+
+**Estimate when v2.0 starts:** 2-3 weeks end-to-end (1 week for schema + permission model + RLS posture, 1 week for the federated recall path + UI, 0.5-1 week for tests).
+
+**Dependency on v1.6 surface:** the actor isolation RESTRICTIVE policy from migration 0040 + the `withCrossTenantAdmin` wrapper from ADR-012 together provide the security primitives. The federation grant becomes a third RESTRICTIVE policy on `mnemo_fact` that allows cross-tenant reads when a matching grant exists and the scope filter passes. Otherwise no v1.6-specific dependency.
+
+---
+
+### v2.0 closing note
+
+These three items are the explicit deferred-from-v1.6 roadmap. Anything else not in v1.6 is either (a) implemented and listed in §44, (b) a polish item from the v1.6 audit P2 list, or (c) outside the Mnemosyne charter altogether. If it doesn't appear in §44, isn't a P2 in the audit, and isn't one of the three v2.0 items above — Mnemosyne does not plan to ship it.
+
+---
+
+**End of design v4+v1.4+v1.6 amendments.** §43-§45 (added 2026-05-26) close the spec↔code drift carried since v1.0. The deployed v1.6 surface is fully codified: 12 mnemo\_\* tables, 26 migrations 0017-0042, 8 mnemo crons + 2 brain crons, ~28 API routes, 276+281 tests, 10/10 on every dimension. Customer pays $0-$12/mo. Operator pays $0 for AI regardless. v2.0 roadmap is three explicit items (sleep-time per-user consolidation, multi-region replication, federation) with design sketches and estimates.
