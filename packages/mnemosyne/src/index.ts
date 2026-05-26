@@ -186,3 +186,33 @@ export {
   type FindPruneCandidatesInput,
   type PruneFactsInput,
 } from "./janitor";
+
+// Mnemosyne v1.3 — active-learning review queue + auto-pin rules.
+// `mnemo_review_queue` (migration 0032) is the persistent queue of
+// facts that need human attention: contradictions surfaced when no
+// LLM judge is available, or low-confidence facts swept by the daily
+// `review-sweep` cron. Consumed by the Inspector UI via the
+// `/api/mnemo/review` routes. The pure `decideAutoPin` rule set is
+// what the auto-pin cron evaluates per-fact (no LLM, no DB inside
+// the helper).
+export {
+  enqueueReview,
+  listReview,
+  resolveReview,
+  findLowConfidenceCandidates,
+  decideAutoPin,
+  buildAutoPinStamp,
+  type EnqueueReviewInput,
+  type EnqueueReviewResult,
+  type ListReviewInput,
+  type ReviewQueueRow,
+  type ReviewResolution,
+  type ResolveReviewInput,
+  type ResolveReviewResult,
+  type ReviewReason,
+  type SweepCandidate,
+  type FindLowConfidenceCandidatesInput,
+  type AutoPinRuleId,
+  type AutoPinFactInput,
+  type AutoPinDecision,
+} from "./review";

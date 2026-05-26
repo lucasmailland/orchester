@@ -23,7 +23,13 @@
 // would explode. The caller decides what to do with candidates.
 
 import { sql } from "drizzle-orm";
-import { createFact, type CreateFactInput, type FactKind, type MnemoFact } from "../primitives/fact";
+import {
+  createFact,
+  type CreateFactInput,
+  type FactKind,
+  type MnemoFact,
+} from "../primitives/fact";
+import { enqueueReview } from "../review/queue";
 
 export interface FactCandidate {
   candidate: Pick<MnemoFact, "id" | "subject" | "statement" | "kind" | "confidence">;
@@ -37,6 +43,16 @@ export interface SaveFactWithCandidatesOutput {
   newFact: MnemoFact;
   candidates: FactCandidate[];
   judgmentRequired: boolean;
+  /**
+   * v1.3 active-learning hook. Set when `judgmentRequired` flipped to
+   * true AND the caller opted into `enqueueOnNoJudge` (i.e. Mode A/B
+   * with no LLM judge available). The host UI surfaces this row in
+   * the Memory Inspector queue.
+   *
+   * Null when `enqueueOnNoJudge` was false or judgment was not
+   * required.
+   */
+  enqueuedReviewId: string | null;
 }
 
 export type SaveFactWithCandidatesInput = CreateFactInput & {
@@ -48,6 +64,14 @@ export type SaveFactWithCandidatesInput = CreateFactInput & {
   ftsThreshold?: number;
   /** Max candidates returned. Default 5. */
   candidateLimit?: number;
+  /**
+   * v1.3: when true AND `judgmentRequired` ends up true, enqueue a
+   * `mnemo_review_queue` row (reason='contradiction') so a human
+   * triages the contradiction. Hosts in Mode C (LLM judge available)
+   * leave this false and resolve via the judge instead. Default
+   * false to keep the legacy callers (extraction pipeline) unchanged.
+   */
+  enqueueOnNoJudge?: boolean;
 };
 
 const FTS_THRESHOLD_DEFAULT = 0.05;
@@ -128,5 +152,21 @@ export async function saveFactWithCandidates(
     (c) => c.reason === "same_subject" || c.similarity > threshold
   );
 
-  return { newFact, candidates, judgmentRequired };
+  // 4. v1.3 active-learning enqueue. When the host opted in
+  //    (`enqueueOnNoJudge: true`, typical for Mode A/B with no LLM
+  //    judge configured) AND we surfaced a real contradiction, queue
+  //    a `mnemo_review_queue` row so a human triages it. The dedup
+  //    inside `enqueueReview` makes this safe to call repeatedly.
+  let enqueuedReviewId: string | null = null;
+  if (input.enqueueOnNoJudge && judgmentRequired) {
+    const r = await enqueueReview({
+      workspaceId: input.workspaceId,
+      factId: newFact.id,
+      reason: "contradiction",
+      tx: input.tx,
+    });
+    enqueuedReviewId = r.id;
+  }
+
+  return { newFact, candidates, judgmentRequired, enqueuedReviewId };
 }
