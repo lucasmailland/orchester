@@ -52,7 +52,11 @@ export function GeneralSection({ workspace }: Props) {
   async function save() {
     if (!dirty) return;
     setSaving(true);
-    const r = await fetch(`/api/workspaces/${workspace.id}`, {
+    // /api/workspaces/[slug] keys on the workspace slug (not id). Pre-fix
+    // this used `workspace.id` and every Save returned 404
+    // `workspace_not_found` because `resolveBySlug` couldn't find a
+    // workspace whose slug equals the id cuid.
+    const r = await fetch(`/api/workspaces/${workspace.slug}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: name.trim(), timezone }),
