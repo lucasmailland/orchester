@@ -1,12 +1,8 @@
-// /[locale]/[workspaceSlug]/brain — full Brain Core page (Stats + Panel)
-import { BrainStats } from "@/components/brain/BrainStats";
-import { BrainPanel } from "@/components/brain/BrainPanel";
+// Memory Inspector — list view.
+// Consumes D1's `/api/mnemo/*` surface. Defensive: handles 404 from
+// not-yet-shipped routes by falling back to the empty state.
+import { BrainInspectorClient } from "./BrainInspectorClient";
 
 export default function BrainPage() {
-  return (
-    <div className="space-y-8 p-6">
-      <BrainStats />
-      <BrainPanel />
-    </div>
-  );
+  return <BrainInspectorClient />;
 }
