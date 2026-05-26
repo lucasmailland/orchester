@@ -84,7 +84,7 @@ export function ConfirmDialogHost(): ReactNode {
                 onClick={() => close(false)}
                 className="rounded-lg px-3 py-1.5 text-xs text-muted hover:bg-hover hover:text-body"
               >
-                {state.cancelText ?? "Cancelar"}
+                {state.cancelText ?? "Cancel"}
               </button>
               <button
                 type="button"
@@ -96,7 +96,7 @@ export function ConfirmDialogHost(): ReactNode {
                     : "rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-400"
                 }
               >
-                {state.confirmText ?? "Confirmar"}
+                {state.confirmText ?? "Confirm"}
               </button>
             </div>
           </motion.div>

@@ -61,7 +61,11 @@ export function ModelPicker({
     const byProvider: Record<string, ModelOpt[]> = {};
     for (const m of models) (byProvider[m.provider] ??= []).push(m);
     const nameOf = (id: string) => providers.find((p) => p.id === id)?.name ?? id;
-    return Object.entries(byProvider).map(([pid, ms]) => ({ providerId: pid, providerName: nameOf(pid), models: ms }));
+    return Object.entries(byProvider).map(([pid, ms]) => ({
+      providerId: pid,
+      providerName: nameOf(pid),
+      models: ms,
+    }));
   }, [models, providers]);
 
   const cls =
@@ -81,7 +85,11 @@ export function ModelPicker({
   ) : null;
 
   if (loading) {
-    return <div className="rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-xs text-faint">Cargando modelos…</div>;
+    return (
+      <div className="rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-xs text-faint">
+        Loading models…
+      </div>
+    );
   }
 
   if (models.length === 0) {
@@ -89,7 +97,11 @@ export function ModelPicker({
       <>
         <div className="rounded-lg border border-line bg-card p-2.5 text-[11px] text-muted">
           No tenés proveedores conectados para esto.
-          <button type="button" onClick={() => setConnectOpen(true)} className="ml-1 font-medium text-violet-600 dark:text-violet-400 hover:underline">
+          <button
+            type="button"
+            onClick={() => setConnectOpen(true)}
+            className="ml-1 font-medium text-violet-600 dark:text-violet-400 hover:underline"
+          >
             Conectá uno acá →
           </button>
         </div>
@@ -121,7 +133,9 @@ export function ModelPicker({
         + Conectar otro proveedor
       </button>
       {value && !models.some((m) => m.id === value) && (
-        <p className="mt-1 text-[10px] text-faint">Modelo actual: <code className="font-mono">{value}</code></p>
+        <p className="mt-1 text-[10px] text-faint">
+          Modelo actual: <code className="font-mono">{value}</code>
+        </p>
       )}
       {connectModal}
     </>

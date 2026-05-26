@@ -44,21 +44,21 @@ export function InviteAcceptClient({ token, invite }: Props) {
     });
     setAccepting(false);
     if (r.ok) {
-      toast.success("Invitación aceptada");
+      toast.success("Invitation accepted");
       router.push(`/${locale}`);
     } else {
       const j = await r.json();
-      toast.error(j.error ?? "No se pudo aceptar");
+      toast.error(j.error ?? "Couldn't accept");
     }
   }
 
   return (
     <div className="max-w-md rounded-2xl border border-violet-500/30 bg-zinc-900/50 p-6 text-center">
       <h1 className="text-lg font-semibold text-zinc-100">
-        Te invitaron a {invite.workspaceName}
+        You were invited to {invite.workspaceName}
       </h1>
       <p className="mt-1.5 text-sm text-zinc-400">
-        Rol: <span className="font-mono text-violet-300">{invite.role}</span>
+        Role: <span className="font-mono text-violet-300">{invite.role}</span>
       </p>
       <button
         type="button"
@@ -66,7 +66,7 @@ export function InviteAcceptClient({ token, invite }: Props) {
         disabled={accepting}
         className="mt-5 w-full rounded-lg bg-violet-500 px-4 py-2 text-sm font-medium text-white hover:bg-violet-400 disabled:opacity-50"
       >
-        {accepting ? "Aceptando…" : "Aceptar invitación"}
+        {accepting ? "Accepting…" : "Accept invitation"}
       </button>
     </div>
   );

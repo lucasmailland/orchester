@@ -56,25 +56,36 @@ const AGENT_LABELS = {
   cancel: "Cancel",
 };
 
-export function AgentRow({ id, name, role, model, status, teamId, teamName, systemPrompt, statusLabels, editable = false }: AgentRowProps) {
+export function AgentRow({
+  id,
+  name,
+  role,
+  model,
+  status,
+  teamId,
+  teamName,
+  systemPrompt,
+  statusLabels,
+  editable = false,
+}: AgentRowProps) {
   const s = STATUS_CONFIG[status];
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
 
   async function handleDelete() {
     const ok = await confirm({
-      title: "Eliminar agente",
-      description: "Esta acción no se puede deshacer.",
-      confirmText: "Eliminar",
+      title: "Delete agent",
+      description: "This action cannot be undone.",
+      confirmText: "Delete",
       destructive: true,
     });
     if (!ok) return;
     const r = await fetch(`/api/agents/${id}`, { method: "DELETE" });
     if (r.ok) {
-      toast.success("Agente eliminado");
+      toast.success("Agent deleted");
       router.refresh();
     } else {
-      toast.error("No se pudo eliminar");
+      toast.error("Couldn't delete");
     }
   }
 
@@ -125,12 +136,8 @@ export function AgentRow({ id, name, role, model, status, teamId, teamName, syst
             {model}
           </span>
           <div className="flex items-center gap-1.5">
-            {teamName && (
-              <span className="text-[11px] text-faint">{teamName} ·</span>
-            )}
-            <span className={cn("text-[11px] font-medium", s.label)}>
-              {statusLabels[status]}
-            </span>
+            {teamName && <span className="text-[11px] text-faint">{teamName} ·</span>}
+            <span className={cn("text-[11px] font-medium", s.label)}>{statusLabels[status]}</span>
           </div>
         </div>
 

@@ -10,7 +10,7 @@ export default function LocaleLoading() {
         viewBox="0 0 24 24"
         fill="none"
         role="status"
-        aria-label="Cargando"
+        aria-label="Loading"
       >
         <circle
           className="opacity-25"
