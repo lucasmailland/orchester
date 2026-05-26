@@ -276,3 +276,19 @@ export {
   type UnifiedRecallHit,
   type RecallUnifiedInput,
 } from "./recall/unified";
+
+// Mnemosyne v1.4 — REM-style consolidation. Nightly cron clusters
+// related facts (same subject + kind, cosine >= 0.75) and asks the
+// workspace's cheap-tier LLM to write a one-sentence summary that
+// supersedes them via `derived_from` edges. The summary becomes the
+// canonical recall hit; originals stay active and reachable through
+// `expandGraph` traversal of the same edges. See
+// `apps/web/worker/consolidation-job.ts` for the cron driver.
+export {
+  findConsolidationClusters,
+  consolidateCluster,
+  type ConsolidationCluster,
+  type FindConsolidationClustersInput,
+  type ConsolidateClusterInput,
+  type ConsolidateClusterOutput,
+} from "./consolidation";
