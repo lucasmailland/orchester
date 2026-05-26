@@ -6,6 +6,12 @@
 
 export const MNEMOSYNE_VERSION = "0.1.0";
 
+// Transaction wrapper — sets `app.workspace_id` GUC + downgrades to
+// app_user role so RLS+FORCE Pattern A actually enforces. Host crons
+// and agent-runtime callers use this to wrap any tenant-scoped DB
+// access (see ADR-0010 for the role-downgrade rationale).
+export { withMnemoTx, type Tx } from "./tx";
+
 // Memory Protocol v1 — frozen system-prompt artifact injected by the host
 // agent runtime so every agent knows how/when to use mnemosyne_* tools.
 // Bumping MEMORY_PROTOCOL_VERSION invalidates extractions tagged with the
@@ -148,3 +154,19 @@ export {
   type MnemoSummaryRow,
   type UpsertSummaryInput,
 } from "./summary";
+
+// v1.2 Memory drift detection — periodic per-workspace snapshot of
+// fact counts, recall hit-rate, contradiction surface, extraction
+// backlog and embedding coverage. Computed by the daily cron in
+// `apps/web/worker/health-job.ts` and surfaced via `GET /api/mnemo/health`.
+// Pure cache — `computeHealthSnapshot` re-derives every metric from
+// the existing mnemo_* tables in a handful of small queries.
+export {
+  computeHealthSnapshot,
+  getHealthSnapshot,
+  persistHealthSnapshot,
+  type HealthSnapshot,
+  type GetHealthSnapshotInput,
+  type ComputeHealthSnapshotInput,
+  type PersistHealthSnapshotInput,
+} from "./health";

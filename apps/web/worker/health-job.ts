@@ -19,9 +19,10 @@ import { sql } from "drizzle-orm";
 import {
   computeHealthSnapshot,
   persistHealthSnapshot,
+  withMnemoTx,
   type HealthSnapshot,
+  type Tx,
 } from "@orchester/mnemosyne";
-import { withMnemoTx } from "@orchester/mnemosyne/tx";
 import { safeLogError } from "@/lib/safe-log";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 
@@ -46,7 +47,7 @@ interface JobLike {
  */
 async function refreshWorkspace(workspaceId: string): Promise<HealthSnapshot | null> {
   try {
-    return await withMnemoTx(workspaceId, async (tx) => {
+    return await withMnemoTx(workspaceId, async (tx: Tx) => {
       const snap = await computeHealthSnapshot({ workspaceId, tx });
       await persistHealthSnapshot({ workspaceId, snapshot: snap, tx });
       return snap;
