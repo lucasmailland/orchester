@@ -43,24 +43,42 @@ export function CitationsList({ factId }: CitationsListProps) {
 
   return (
     <ul className="space-y-2">
-      {citations.map((c) => (
-        <li key={c.id} className="rounded-lg border border-line bg-card p-3">
-          <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-wider text-faint">
-            <span>{c.role}</span>
-            <span title={c.createdAt}>{new Date(c.createdAt).toLocaleDateString()}</span>
+      {citations.map((c) => {
+        // Deep-link target: full conversation + message anchor when both
+        // ids are available. The conversation detail page reads
+        // `#message-{id}` as a scroll target — if the route doesn't ship
+        // anchor-scroll yet the link still navigates to the conversation
+        // (hash is ignored, no broken UX).
+        const href = c.conversationId
+          ? `/${locale}/${ws}/conversations/${c.conversationId}#message-${c.id}`
+          : null;
+        const Card = (
+          <div className="rounded-lg border border-line bg-card p-3 transition-colors hover:border-violet-500/40 hover:bg-elevated">
+            <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-wider text-faint">
+              <span>{c.role}</span>
+              <span title={c.createdAt}>{new Date(c.createdAt).toLocaleDateString()}</span>
+            </div>
+            <p className="mt-1.5 line-clamp-3 text-xs text-body">{c.content}</p>
+            {href ? (
+              <span className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-violet-500">
+                {t("detail.openConversation")}
+                <ExternalLink className="h-3 w-3" />
+              </span>
+            ) : null}
           </div>
-          <p className="mt-1.5 line-clamp-3 text-xs text-body">{c.content}</p>
-          {c.conversationId ? (
-            <Link
-              href={`/${locale}/${ws}/conversations/${c.conversationId}`}
-              className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-violet-500 hover:text-violet-400"
-            >
-              {t("detail.openConversation")}
-              <ExternalLink className="h-3 w-3" />
-            </Link>
-          ) : null}
-        </li>
-      ))}
+        );
+        return (
+          <li key={c.id}>
+            {href ? (
+              <Link href={href} className="block">
+                {Card}
+              </Link>
+            ) : (
+              Card
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
