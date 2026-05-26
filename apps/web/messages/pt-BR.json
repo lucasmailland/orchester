@@ -18,6 +18,214 @@
     "group_data": "Dados",
     "group_system": "Sistema"
   },
+  "brain": {
+    "title": "Memória",
+    "subtitle": "Todos os fatos duráveis que os agentes aprenderam",
+    "stats": {
+      "totalFacts": "Total de fatos",
+      "pinned": "Fixados",
+      "embedded": "Indexados",
+      "active": "Ativos",
+      "forgotten": "Esquecidos",
+      "noData": "Ainda sem dados"
+    },
+    "actions": {
+      "export": "Exportar",
+      "reviewQueue": "Fila de revisão",
+      "edit": "Editar",
+      "pin": "Fixar",
+      "unpin": "Desafixar",
+      "pinned": "Fixado",
+      "forget": "Esquecer",
+      "restore": "Restaurar",
+      "viewCitations": "Ver citações",
+      "save": "Salvar",
+      "discard": "Descartar",
+      "refreshNow": "Atualizar agora",
+      "menu": "Ações"
+    },
+    "filters": {
+      "kind": "Tipo",
+      "kindAll": "Todos os tipos",
+      "scope": "Escopo",
+      "scopeAll": "Todos os escopos",
+      "scope_global": "Global",
+      "scope_conversation": "Conversa",
+      "scope_employee": "Funcionário",
+      "scope_team": "Equipe",
+      "status": "Status",
+      "status_active": "Ativo",
+      "status_forgotten": "Esquecido",
+      "status_merged": "Mesclado",
+      "statusForgotten": "Esquecido",
+      "pinnedOnly": "Fixados",
+      "search": "Buscar declarações...",
+      "sortBy": "Ordenar por",
+      "sortUpdated": "Atualizado",
+      "sortCreated": "Criado",
+      "sortRelevance": "Relevância",
+      "sortHits": "Recuperações"
+    },
+    "list": {
+      "showing": "Exibindo {count} de {total}",
+      "loadMore": "Carregar mais"
+    },
+    "empty": {
+      "title": "Ainda sem memórias",
+      "description": "Conecte um provedor de IA em Configurações → Provedores e deixe seus agentes começarem a aprender.",
+      "ctaLabel": "Abrir Provedores"
+    },
+    "detail": {
+      "fact": "Fato",
+      "statement": "Declaração",
+      "subject": "Sujeito",
+      "kind": "Tipo",
+      "scope": "Escopo",
+      "confidence": "Confiança",
+      "pinned": "Fixado",
+      "metadata": "Metadados",
+      "citations": "Citações",
+      "activity": "Atividade",
+      "timestamps": "Datas",
+      "createdAt": "Criado",
+      "updatedAt": "Atualizado",
+      "back": "Voltar",
+      "editTitle": "Editar memória",
+      "openConversation": "Abrir conversa",
+      "recalledNTimes": "Recuperado {count, plural, =0 {0 vezes} =1 {uma vez} other {# vezes}}",
+      "lastRecalled": "Última recuperação {when}",
+      "neverRecalled": "Nunca recuperado",
+      "sourceCount": "{count, plural, =0 {Sem fontes} =1 {1 fonte} other {# fontes}}",
+      "noCitations": "Ainda sem citações",
+      "characterCount": "{used}/{max} caracteres"
+    },
+    "health": {
+      "title": "Saúde",
+      "factCountActive": "Fatos ativos — 30 dias",
+      "recallHitRate": "Taxa de recuperação — 30 dias",
+      "lastRefresh": "Atualizado {when}"
+    },
+    "toast": {
+      "saved": "Memória salva",
+      "saveError": "Não foi possível salvar",
+      "pinned": "Fixado",
+      "unpinned": "Desafixado",
+      "pinError": "Não foi possível atualizar",
+      "forgotten": "Esquecido",
+      "forgetError": "Não foi possível esquecer",
+      "restored": "Restaurado",
+      "restoreError": "Não foi possível restaurar"
+    },
+    "errors": {
+      "loadFailed": "Não foi possível carregar a memória.",
+      "retry": "Tentar novamente",
+      "citationsFailed": "Não foi possível carregar as citações."
+    },
+    "timeline": {
+      "title": "Linha do tempo",
+      "subtitle": "Registro cronológico do que seus agentes aprenderam e quando. Mais recente primeiro.",
+      "rangeLabel": "Período",
+      "range": {
+        "7d": "Últimos 7 dias",
+        "30d": "Últimos 30 dias",
+        "90d": "Últimos 90 dias",
+        "all": "Tudo",
+        "custom": "Personalizado"
+      },
+      "daySummary": "{learned} aprendidos · {forgotten} esquecidos",
+      "sourceConversation": "Da conversa",
+      "empty": "Sem eventos de memória neste período ainda.",
+      "error": "Não foi possível carregar a linha do tempo. Tente atualizar.",
+      "refresh": "Atualizar"
+    },
+    "diff": {
+      "title": "Diff de memória",
+      "subtitle": "O que mudou na memória no período selecionado.",
+      "rangeLabel": "Comparar",
+      "range": {
+        "7d": "Últimos 7 dias",
+        "30d": "Últimos 30 dias",
+        "custom": "Personalizado"
+      },
+      "refresh": "Atualizar",
+      "columns": {
+        "added": "Adicionados",
+        "forgotten": "Esquecidos",
+        "updated": "Atualizados"
+      },
+      "emptyAdded": "Sem fatos novos neste período.",
+      "emptyForgotten": "Nenhum fato esquecido neste período.",
+      "emptyUpdated": "Sem edições de fatos neste período.",
+      "error": "Não foi possível carregar o diff. Tente atualizar.",
+      "kpi": {
+        "net": "Variação líquida",
+        "facts": "fatos",
+        "priorPeriod": "Período anterior: +{count}",
+        "topKind": "Tipo principal",
+        "topKindDetail": "+{count} novos",
+        "topSubject": "Sujeito mais ativo",
+        "topSubjectDetail": "{count} novos",
+        "empty": "—",
+        "emptyDetail": "Nada ainda"
+      }
+    },
+    "export": {
+      "title": "Exporte sua memória",
+      "subtitle": "Todos os fatos duráveis, decisões, relações e citações que os agentes aprenderam sobre este workspace.",
+      "format": "Formato",
+      "jsonTitle": "JSON",
+      "jsonDescription": "Exportação completa — fatos, decisões, relações, citações. Ideal para reimportar ou analisar.",
+      "csvTitle": "CSV",
+      "csvDescription": "Uma linha por fato. Não inclui decisões nem relações.",
+      "scope": "O que incluir",
+      "scopeAll": "Tudo",
+      "scopeByKind": "Filtrar por tipo",
+      "scopeByScope": "Filtrar por escopo",
+      "download": "Baixar",
+      "success": "Download iniciado.",
+      "error": "Não foi possível gerar a exportação. Tente novamente.",
+      "notReady": "A exportação ainda não está disponível — tente em um minuto.",
+      "whatsInside": "O que está na exportação",
+      "schema": {
+        "facts": "id, scope, kind, subject, statement, confidence, pinned, status, createdAt, updatedAt.",
+        "decisions": "Decisões destiladas registradas pelos agentes (id, statement, justificativa, links para fatos-fonte).",
+        "relations": "Arestas entre fatos (sujeito ↔ predicado ↔ objeto, com confiança).",
+        "citations": "Ponteiros para as mensagens-fonte que produziram cada fato — IDs de mensagem, não conteúdo."
+      },
+      "privacyTitle": "Sobre esta exportação",
+      "privacyBody": "Esta exportação contém tudo que os agentes lembram deste workspace. Não inclui as conversas-fonte — apenas referências (IDs de mensagem)."
+    },
+    "undo": {
+      "title": "Mudanças recentes",
+      "subtitle": "As últimas 20 mudanças na memória. Reverta qualquer uma dos últimos 7 dias.",
+      "refresh": "Atualizar",
+      "windowNote": "Apenas mudanças dos últimos 7 dias podem ser revertidas. Entradas mais antigas são exibidas para referência.",
+      "empty": "Nenhuma mudança recente registrada.",
+      "comingSoonTitle": "Registro de auditoria em breve",
+      "comingSoonBody": "Você verá aqui todas as mudanças de memória assim que o feed de auditoria for ativado.",
+      "error": "Não foi possível carregar o registro. Tente atualizar.",
+      "revertButton": "Reverter",
+      "revertDisabled": "Fora da janela de 7 dias para reverter.",
+      "revertUnsupported": "Esta mudança ainda não pode ser revertida automaticamente.",
+      "revertSuccess": "Revertido.",
+      "revertError": "Falha ao reverter.",
+      "actorSystem": "Sistema",
+      "actorUser": "Usuário",
+      "actions": {
+        "created": "Criado",
+        "updated": "Atualizado",
+        "forgotten": "Esquecido",
+        "restored": "Restaurado",
+        "pinned": "Fixado",
+        "unpinned": "Desafixado"
+      }
+    },
+    "sensitivity": {
+      "toggleLabel": "Não aprender desta conversa",
+      "toggleHelp": "Pausa a extração de memória para esta conversa. Você pode reativar quando quiser.",
+      "bannerPaused": "O aprendizado de memória está pausado para esta conversa."
+    }
+  },
   "dashboard": {
     "title": "Command Center",
     "live": "LIVE",

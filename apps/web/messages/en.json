@@ -18,6 +18,214 @@
     "group_data": "Data",
     "group_system": "System"
   },
+  "brain": {
+    "title": "Memory",
+    "subtitle": "All durable facts the agents have learned",
+    "stats": {
+      "totalFacts": "Total facts",
+      "pinned": "Pinned",
+      "embedded": "Embedded",
+      "active": "Active",
+      "forgotten": "Forgotten",
+      "noData": "No data yet"
+    },
+    "actions": {
+      "export": "Export",
+      "reviewQueue": "Review queue",
+      "edit": "Edit",
+      "pin": "Pin",
+      "unpin": "Unpin",
+      "pinned": "Pinned",
+      "forget": "Forget",
+      "restore": "Restore",
+      "viewCitations": "View citations",
+      "save": "Save",
+      "discard": "Discard",
+      "refreshNow": "Refresh now",
+      "menu": "Actions"
+    },
+    "filters": {
+      "kind": "Kind",
+      "kindAll": "All kinds",
+      "scope": "Scope",
+      "scopeAll": "All scopes",
+      "scope_global": "Global",
+      "scope_conversation": "Conversation",
+      "scope_employee": "Employee",
+      "scope_team": "Team",
+      "status": "Status",
+      "status_active": "Active",
+      "status_forgotten": "Forgotten",
+      "status_merged": "Merged",
+      "statusForgotten": "Forgotten",
+      "pinnedOnly": "Pinned",
+      "search": "Search statements...",
+      "sortBy": "Sort by",
+      "sortUpdated": "Updated",
+      "sortCreated": "Created",
+      "sortRelevance": "Relevance",
+      "sortHits": "Hit count"
+    },
+    "list": {
+      "showing": "Showing {count} of {total}",
+      "loadMore": "Load more"
+    },
+    "empty": {
+      "title": "No memories yet",
+      "description": "Connect an AI provider in Settings → Providers and let your agents start learning.",
+      "ctaLabel": "Open Providers"
+    },
+    "detail": {
+      "fact": "Fact",
+      "statement": "Statement",
+      "subject": "Subject",
+      "kind": "Kind",
+      "scope": "Scope",
+      "confidence": "Confidence",
+      "pinned": "Pinned",
+      "metadata": "Metadata",
+      "citations": "Citations",
+      "activity": "Activity",
+      "timestamps": "Timestamps",
+      "createdAt": "Created",
+      "updatedAt": "Updated",
+      "back": "Back",
+      "editTitle": "Edit memory",
+      "openConversation": "Open conversation",
+      "recalledNTimes": "Recalled {count, plural, =0 {0 times} =1 {once} other {# times}}",
+      "lastRecalled": "Last recalled {when}",
+      "neverRecalled": "Never recalled yet",
+      "sourceCount": "{count, plural, =0 {No sources} =1 {1 source} other {# sources}}",
+      "noCitations": "No citations yet",
+      "characterCount": "{used}/{max} characters"
+    },
+    "health": {
+      "title": "Health",
+      "factCountActive": "Active facts — 30 days",
+      "recallHitRate": "Recall hit rate — 30 days",
+      "lastRefresh": "Updated {when}"
+    },
+    "toast": {
+      "saved": "Memory saved",
+      "saveError": "Couldn't save",
+      "pinned": "Pinned",
+      "unpinned": "Unpinned",
+      "pinError": "Couldn't update pin",
+      "forgotten": "Forgotten",
+      "forgetError": "Couldn't forget",
+      "restored": "Restored",
+      "restoreError": "Couldn't restore"
+    },
+    "errors": {
+      "loadFailed": "Couldn't load memory.",
+      "retry": "Retry",
+      "citationsFailed": "Couldn't load citations."
+    },
+    "timeline": {
+      "title": "Memory timeline",
+      "subtitle": "Chronological log of what your agents learned and when. Newest first.",
+      "rangeLabel": "Range",
+      "range": {
+        "7d": "Last 7 days",
+        "30d": "Last 30 days",
+        "90d": "Last 90 days",
+        "all": "All time",
+        "custom": "Custom"
+      },
+      "daySummary": "{learned} learned · {forgotten} forgotten",
+      "sourceConversation": "From conversation",
+      "empty": "No memory events in this period yet.",
+      "error": "Couldn't load the timeline. Try refreshing.",
+      "refresh": "Refresh"
+    },
+    "diff": {
+      "title": "Memory diff",
+      "subtitle": "What changed in memory across the selected window.",
+      "rangeLabel": "Compare",
+      "range": {
+        "7d": "Last 7 days",
+        "30d": "Last 30 days",
+        "custom": "Custom"
+      },
+      "refresh": "Refresh",
+      "columns": {
+        "added": "Added",
+        "forgotten": "Forgotten",
+        "updated": "Updated"
+      },
+      "emptyAdded": "No new facts in this window.",
+      "emptyForgotten": "No facts forgotten in this window.",
+      "emptyUpdated": "No fact edits in this window.",
+      "error": "Couldn't load the diff. Try refreshing.",
+      "kpi": {
+        "net": "Net change",
+        "facts": "facts",
+        "priorPeriod": "Prior period: +{count}",
+        "topKind": "Top kind",
+        "topKindDetail": "+{count} new",
+        "topSubject": "Most active subject",
+        "topSubjectDetail": "{count} new",
+        "empty": "—",
+        "emptyDetail": "Nothing yet"
+      }
+    },
+    "export": {
+      "title": "Export your memory",
+      "subtitle": "All durable facts, decisions, relations, and citations the agents have learned about your workspace.",
+      "format": "Format",
+      "jsonTitle": "JSON",
+      "jsonDescription": "Full export — facts, decisions, relations, citations. Best for reimport or analysis.",
+      "csvTitle": "CSV",
+      "csvDescription": "One row per fact. Doesn't include decisions or relations.",
+      "scope": "What to include",
+      "scopeAll": "Everything",
+      "scopeByKind": "Filter by kind",
+      "scopeByScope": "Filter by scope",
+      "download": "Download",
+      "success": "Download started.",
+      "error": "Couldn't generate export. Please try again.",
+      "notReady": "Export isn't available yet — try again in a minute.",
+      "whatsInside": "What's in the export",
+      "schema": {
+        "facts": "id, scope, kind, subject, statement, confidence, pinned, status, createdAt, updatedAt.",
+        "decisions": "Distilled decisions logged by agents (id, statement, rationale, links to source facts).",
+        "relations": "Edges between facts (subject ↔ predicate ↔ object, with confidence).",
+        "citations": "Pointers to the source messages that produced each fact — message IDs, not message bodies."
+      },
+      "privacyTitle": "About this export",
+      "privacyBody": "This export contains everything your agents remember about this workspace. It does not include source conversations themselves — only references to them (message IDs)."
+    },
+    "undo": {
+      "title": "Recent changes",
+      "subtitle": "The last 20 changes to memory. Revert any of them from the last 7 days.",
+      "refresh": "Refresh",
+      "windowNote": "Only changes from the last 7 days are revertible. Older entries are shown for reference.",
+      "empty": "No recent changes recorded.",
+      "comingSoonTitle": "Audit log coming soon",
+      "comingSoonBody": "We'll show every memory change here as soon as the audit feed lands.",
+      "error": "Couldn't load the change log. Try refreshing.",
+      "revertButton": "Revert",
+      "revertDisabled": "Outside the 7-day revert window.",
+      "revertUnsupported": "This change can't be reverted automatically yet.",
+      "revertSuccess": "Reverted.",
+      "revertError": "Revert failed.",
+      "actorSystem": "System",
+      "actorUser": "User",
+      "actions": {
+        "created": "Created",
+        "updated": "Updated",
+        "forgotten": "Forgotten",
+        "restored": "Restored",
+        "pinned": "Pinned",
+        "unpinned": "Unpinned"
+      }
+    },
+    "sensitivity": {
+      "toggleLabel": "Don't learn from this conversation",
+      "toggleHelp": "Pause memory extraction for this conversation. You can turn it back on anytime.",
+      "bannerPaused": "Memory learning is paused for this conversation."
+    }
+  },
   "dashboard": {
     "title": "Command Center",
     "live": "LIVE",
