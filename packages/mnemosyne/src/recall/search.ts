@@ -53,6 +53,7 @@ import { prepareQuery, type LlmCallFn, type PreparedQuery } from "./query-prep";
 import { noopRerank, type RerankFn } from "./rerank";
 import { withMnemoTx, type Tx } from "../tx";
 import type { FactKind, FactScope, FactStatus, MemoryType, MnemoFact } from "../primitives/fact";
+import type { Attribution } from "../types";
 
 export interface RecallReasons {
   semantic: number;
@@ -191,6 +192,35 @@ export interface SearchMnemoInput {
    * in migration 0033.
    */
   memoryTypes?: MemoryType[];
+  /**
+   * v1.4 — per-conversation actor isolation (migration 0037). When set,
+   * recall is restricted to facts whose `actor_id` column matches the
+   * supplied id OR is NULL (so workspace-shared facts remain visible).
+   * Default: undefined — no filter (preserves v1.3 behaviour, every
+   * fact in the workspace is recallable regardless of attribution).
+   *
+   * Wired into both the FTS and vector branches as:
+   *   `AND (actor_id = $actorId OR actor_id IS NULL)`
+   * which exploits the partial `idx_mnemo_fact_actor` index from
+   * migration 0037 for the matched-actor leg; the NULL leg falls back
+   * to the workspace scan, already covered by the workspace_id filter.
+   */
+  actorId?: string;
+  /**
+   * v1.4 — theory-of-mind attribution filter (migration 0035). When
+   * set to a non-empty array, only facts whose `attribution` column
+   * is IN this list are returned. Default: undefined / empty array →
+   * no filter (preserves v1.3 behaviour). Common patterns:
+   *   - `['user_stated']`         — only facts the user explicitly said.
+   *   - `['user_stated','user_belief']` — the user's perspective.
+   *   - `['objective_fact']`      — only canonical / verifiable facts.
+   *
+   * Wired into both the FTS and vector branches as
+   *   `AND attribution = ANY($attributions)`
+   * which is a small bitmap scan on a 4-value enum — the existing
+   * (workspace_id, status) indexes already filter the bulk.
+   */
+  attributionFilter?: Attribution[];
 }
 
 interface FactRow {
@@ -220,6 +250,9 @@ interface FactRow {
   /** v1.4 — projected into the SELECT for both branches; defaulted at
    *  the SQL layer so legacy rows surface as 'semantic'. */
   memory_type: MemoryType;
+  /** v1.4 — projected into the SELECT for both branches; defaulted at
+   *  the SQL layer so legacy rows surface as 'inferred'. */
+  attribution: Attribution;
   semantic?: number;
   fts_score?: number;
   recency: number;
@@ -327,6 +360,10 @@ function rowToFact(r: FactRow): MnemoFact {
     // the column (e.g. an older driver shim returning undefined for
     // unknown columns).
     memoryType: r.memory_type ?? "semantic",
+    // v1.4 — defensive default to 'inferred' for the same reason as
+    // `memoryType`. SQL DEFAULT already enforces this at insert time
+    // for every legacy row.
+    attribution: r.attribution ?? "inferred",
   };
 }
 
@@ -382,15 +419,39 @@ async function runFirstStage(
   // an accidental zero-row trap if a caller's upstream `.filter()`
   // chain produces an empty list. The (workspace_id, memory_type)
   // partial index from migration 0033 covers the bitmap scan.
+  // Note: postgres-js requires an explicit ::text[] cast on the bound
+  // array param — without it the driver sends the array as a single
+  // scalar and Postgres reports `malformed array literal: "episodic"`.
+  // We mirror the cast pattern used by the graph-expansion neighbor
+  // query below (`sql.param(verbList)::text[]`).
   const memoryTypesFragment =
     input.memoryTypes && input.memoryTypes.length > 0
-      ? sql`AND memory_type = ANY(${input.memoryTypes})`
+      ? sql`AND memory_type = ANY(${sql.param(input.memoryTypes)}::text[])`
       : sql``;
 
   // v1.1 — also pull the `embedding` column so the post-recall pruning
   // stage can measure cosine between candidates without an extra round-
   // trip. In Mode A we explicitly select NULL so the column shape stays
   // identical across both branches.
+  // v1.4 — per-conversation actor isolation. When `actorId` is set we
+  // include facts attributed to that actor PLUS workspace-shared facts
+  // (`actor_id IS NULL`). When unset the column is ignored — preserves
+  // v1.3 behaviour where every workspace fact is visible. Uses the
+  // partial `idx_mnemo_fact_actor` index from migration 0037 for the
+  // matched-actor leg; the NULL leg falls back to the workspace scan.
+  const actorIdFragment = input.actorId
+    ? sql`AND (actor_id = ${input.actorId} OR actor_id IS NULL)`
+    : sql``;
+
+  // v1.4 — theory-of-mind attribution filter. Empty array is treated
+  // as "no filter" so callers building the list dynamically don't
+  // have to special-case the empty case (e.g. when a UI filter pill
+  // chain returns []). The 4-value enum stays cheap to scan.
+  const attributionFragment =
+    input.attributionFilter && input.attributionFilter.length > 0
+      ? sql`AND attribution = ANY(${sql.param(input.attributionFilter)}::text[])`
+      : sql``;
+
   const result = useFts
     ? await tx.execute(sql`
         SELECT
@@ -398,7 +459,7 @@ async function runFirstStage(
           statement, confidence, pinned, relevance, hit_count,
           last_recalled_at, source_message_ids, attributed_to,
           linked_memory_ids, metadata, status, merged_into_id,
-          valid_from, valid_to, created_at, updated_at, memory_type,
+          valid_from, valid_to, created_at, updated_at, memory_type, attribution,
           NULL::text AS embedding,
           ts_rank_cd(text_lemmatized, plainto_tsquery('simple', ${lexicalQuery})) AS fts_score,
           exp(-LN(2.0) * EXTRACT(EPOCH FROM (now() - created_at)) / (30.0 * 86400.0)) AS recency,
@@ -410,6 +471,8 @@ async function runFirstStage(
           AND text_lemmatized @@ plainto_tsquery('simple', ${lexicalQuery})
           ${asOfFragment}
           ${memoryTypesFragment}
+          ${actorIdFragment}
+          ${attributionFragment}
           ${input.agentId ? sql`AND (agent_id = ${input.agentId} OR agent_id IS NULL)` : sql``}
           ${input.scope ? sql`AND scope = ${input.scope}` : sql``}
           ${input.scopeRef ? sql`AND scope_ref = ${input.scopeRef}` : sql``}
@@ -422,7 +485,7 @@ async function runFirstStage(
           statement, confidence, pinned, relevance, hit_count,
           last_recalled_at, source_message_ids, attributed_to,
           linked_memory_ids, metadata, status, merged_into_id,
-          valid_from, valid_to, created_at, updated_at, memory_type,
+          valid_from, valid_to, created_at, updated_at, memory_type, attribution,
           embedding::text AS embedding,
           (1.0 - (embedding <=> ${vecLiteral}::vector)) AS semantic,
           exp(-LN(2.0) * EXTRACT(EPOCH FROM (now() - created_at)) / (30.0 * 86400.0)) AS recency,
@@ -434,6 +497,8 @@ async function runFirstStage(
           AND embedding IS NOT NULL
           ${asOfFragment}
           ${memoryTypesFragment}
+          ${actorIdFragment}
+          ${attributionFragment}
           ${input.agentId ? sql`AND (agent_id = ${input.agentId} OR agent_id IS NULL)` : sql``}
           ${input.scope ? sql`AND scope = ${input.scope}` : sql``}
           ${input.scopeRef ? sql`AND scope_ref = ${input.scopeRef}` : sql``}
@@ -762,12 +827,19 @@ export async function searchMnemo(input: SearchMnemoInput): Promise<RecallHit[]>
     input.memoryTypes && input.memoryTypes.length > 0
       ? [...input.memoryTypes].sort().join(",")
       : "all";
+  // v1.4 — mix `actorId` into the hash so a per-actor recall never
+  // collides with the workspace-wide one (different result sets). The
+  // "all" sentinel matches the no-actor default; using a fixed string
+  // keeps the workspace-wide cache hot across calls.
+  const actorTag = input.actorId ?? "all";
   const queryHash = createHash("sha256")
     .update(cacheQuery)
     .update("\x00")
     .update(asOfTag)
     .update("\x00")
     .update(memTypesTag)
+    .update("\x00")
+    .update(actorTag)
     .digest("hex")
     .slice(0, 16);
   const cacheK = recallCacheKey({

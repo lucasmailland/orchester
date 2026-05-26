@@ -118,7 +118,12 @@ export {
 
 // Host adapter contracts (queue callback, etc.). Keep mnemosyne pure —
 // the host supplies the concrete enqueue implementation.
-export type { EnqueueFn } from "./types";
+//
+// v1.4 — `Attribution` is the theory-of-mind discriminator surfaced
+// on every fact (`MnemoFact.attribution`) and accepted by
+// `searchMnemo({ attributionFilter })`. See migration 0035 +
+// `src/types.ts` for the cognitive vocabulary.
+export type { EnqueueFn, Attribution } from "./types";
 
 // v1.1 Layer 2 trigger classifier — pure heuristic, no LLM/DB call.
 // The agent runtime consults this on EVERY turn before deciding to
@@ -216,3 +221,58 @@ export {
   type AutoPinFactInput,
   type AutoPinDecision,
 } from "./review";
+
+// Mnemosyne v1.4 — "The Cognitive Leap".
+//
+// `MemoryType` separates facts the way human cognition does:
+//   • semantic    — durable factual knowledge ('Lucas prefers TS').
+//   • episodic    — events tied to a specific moment, linked to
+//                   `mnemo_episode`.
+//   • procedural  — how-to ('when X happens, do Y').
+//   • working     — current conversation only; ephemeral.
+//
+// The `mnemo_episode` table (migration 0034) carries rich timeline
+// events (meetings, decisions, milestones) — distinct from
+// `mnemo_fact` because an episode has duration + multiple linked
+// facts + a narrative arc. See `episode/index.ts` for the CRUD +
+// timeline-query surface.
+export {
+  createEpisode,
+  getEpisode,
+  listEpisodes,
+  linkFactToEpisode,
+  type MemoryType,
+  type MnemoEpisode,
+  type CreateEpisodeInput,
+  type ListEpisodesInput,
+  type LinkFactToEpisodeInput,
+} from "./episode";
+
+// Mnemosyne v1.4 — per-agent memory policy. The `AgentMemoryPolicy`
+// type lives on `agent.memory_policy` (migration 0036) and is applied
+// to recall + write paths via `applyPolicyToRecall` and
+// `applyPolicyToWrite`. `parseAgentMemoryPolicy` validates an
+// untrusted shape (e.g. from a PATCH request body) before persisting.
+export {
+  DEFAULT_AGENT_MEMORY_POLICY,
+  parseAgentMemoryPolicy,
+  applyPolicyToRecall,
+  applyPolicyToWrite,
+  type AgentMemoryPolicy,
+  type PolicyScope,
+} from "./policy";
+
+// Mnemosyne v1.4 — unified recall (KB + Memory in one endpoint).
+// The host injects a `KbChunkProvider` against its own knowledge_chunk
+// table; mnemosyne stays KB-agnostic. The blended score lives in
+// [0, 1] across both source types so downstream code (citation,
+// rendering) doesn't have to branch.
+export {
+  recallUnified,
+  type KbChunkProvider,
+  type KbChunk,
+  type KbChunkSource,
+  type UnifiedRecallSource,
+  type UnifiedRecallHit,
+  type RecallUnifiedInput,
+} from "./recall/unified";

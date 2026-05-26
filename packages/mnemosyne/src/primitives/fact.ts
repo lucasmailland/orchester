@@ -16,6 +16,7 @@ import { schema } from "@orchester/db";
 import { redactPIIWithCategories } from "../pii/redact";
 import { embedMnemo, type EmbedFn, type EmbeddingProvider } from "../recall/embed";
 import type { Tx } from "../tx";
+import type { Attribution } from "../types";
 
 export type FactKind =
   | "preference"
@@ -27,6 +28,14 @@ export type FactKind =
   | "other";
 export type FactScope = "global" | "conversation" | "employee" | "team";
 export type FactStatus = "active" | "merged" | "forgotten";
+/**
+ * Mnemosyne v1.4 — "The Cognitive Leap". Separates facts by the way
+ * human cognition does. Default 'semantic' matches the SQL DEFAULT so
+ * legacy callers (and every pre-v1.4 row) keep their current behaviour.
+ * Re-exported from `./episode` so consumers can grab the type from
+ * either entry point.
+ */
+export type MemoryType = "semantic" | "episodic" | "procedural" | "working";
 
 export interface MnemoFact {
   id: string;
@@ -53,6 +62,44 @@ export interface MnemoFact {
   validTo: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  /**
+   * v1.4 — cognitive classification (default 'semantic'). See MemoryType.
+   *
+   * Marked optional on the public type so legacy row-mappers (janitor
+   * dedup / prune helpers, hand-rolled test fixtures) keep compiling
+   * without a forced update. Every row produced by `createFact` after
+   * v1.4 carries this field; mappers that omit it leave it undefined
+   * and downstream consumers treat the absence as 'semantic'.
+   */
+  memoryType?: MemoryType;
+  /**
+   * v1.4 — per-conversation actor isolation (migration 0037). When set,
+   * tracks the User.id this fact was learned from. NULL = workspace-
+   * shared (current behaviour). Semantic reference, no FK.
+   *
+   * Marked optional (rather than `string | null`) so legacy row-
+   * mappers (janitor dedup/prune helpers, hand-rolled test fixtures)
+   * keep compiling without a forced update. Every row produced by
+   * `createFact` after v1.4 carries this field explicitly; mappers
+   * that omit it leave it undefined and downstream consumers treat
+   * the absence as workspace-shared (same semantics as NULL).
+   */
+  actorId?: string | null;
+  /**
+   * v1.4 — theory-of-mind attribution (migration 0035). Tracks the
+   * cognitive provenance of the fact:
+   *   `user_stated` (the user said it) /
+   *   `user_belief` (the user thinks it; may not be true) /
+   *   `objective_fact` (canonical/verifiable) /
+   *   `inferred` (extractor-derived, default).
+   *
+   * Marked optional on the public type so legacy row-mappers (janitor
+   * dedup / prune helpers, hand-rolled test fixtures) keep compiling
+   * without a forced update. Every row produced by `createFact` after
+   * v1.4 carries this field; mappers that omit it leave it undefined
+   * and downstream consumers treat the absence as 'inferred'.
+   */
+  attribution?: Attribution;
 }
 
 export interface CreateFactInput {
@@ -68,6 +115,31 @@ export interface CreateFactInput {
   sourceMessageIds?: string[];
   attributedTo?: "user" | "assistant" | "system" | null;
   metadata?: Record<string, unknown>;
+  /**
+   * v1.4 — cognitive classification. Defaults to 'semantic' so every
+   * existing caller keeps producing the same row shape as v1.3. The
+   * extraction pipeline overrides this when it detects an event tied
+   * to a specific moment ('episodic'), a how-to ('procedural'), or
+   * the current conversation only ('working').
+   */
+  memoryType?: MemoryType;
+  /**
+   * v1.4 — per-conversation actor isolation (migration 0037). When
+   * set, attributes the fact to a specific end-user (User.id). NULL =
+   * workspace-shared (current behaviour). The extraction pipeline
+   * populates this from the conversation's user when known; legacy
+   * callers omit it and the row defaults to NULL.
+   */
+  actorId?: string | null;
+  /**
+   * v1.4 — theory-of-mind attribution (migration 0035). When omitted,
+   * defaults to `'inferred'` so every legacy caller (and every v1.4
+   * caller that hasn't been updated yet) keeps producing the same row
+   * shape. Extraction-pipeline upgrades classify each emitted fact
+   * explicitly; manual save endpoints pass through whatever the user
+   * specified (user-edited facts typically become `'user_stated'`).
+   */
+  attribution?: Attribution;
   /** Pre-computed embedding. If omitted and no embeddingProvider+Model,
    * the row is inserted without an embedding (Mode A). */
   embedding?: number[] | null;
@@ -162,6 +234,21 @@ export async function createFact(input: CreateFactInput): Promise<MnemoFact> {
       embeddingModel: input.embeddingModel ?? null,
       metadata,
       status: "active",
+      // v1.4 — explicit default keeps the row shape stable when callers
+      // omit `memoryType`. Without this the drizzle layer would emit
+      // INSERT … DEFAULT VALUES for the column and rely on the SQL
+      // DEFAULT, which works but obscures intent at this call site.
+      memoryType: input.memoryType ?? "semantic",
+      // v1.4 — per-conversation actor isolation (migration 0037).
+      // NULL = workspace-shared (default); the extraction pipeline
+      // populates this from the conversation's user when known.
+      actorId: input.actorId ?? null,
+      // v1.4 — theory-of-mind attribution (migration 0035). The
+      // explicit default keeps the application code honest about the
+      // cognitive provenance — callers that don't know default to
+      // 'inferred' (matches the SQL DEFAULT) rather than letting the
+      // column silently fall back at the DB layer.
+      attribution: input.attribution ?? "inferred",
     })
     .returning();
   return rows[0] as unknown as MnemoFact;
