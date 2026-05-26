@@ -4,6 +4,7 @@
 #
 # Genera:
 #   BETTER_AUTH_SECRET     — base64 random, 32 bytes (44 chars)
+#   COOKIE_SIGNING_SECRET  — base64 random, 32 bytes (44 chars)
 #   ENCRYPTION_SECRET      — hex random, 32 bytes (64 chars)
 #   POSTGRES_PASSWORD      — base64 random, 24 bytes
 #   MINIO_ROOT_PASSWORD    — base64 random, 24 bytes
@@ -26,6 +27,7 @@ cat <<EOF
 # NO commitear este archivo. Movelo a tu secret manager (Doppler/Vault/etc.).
 
 BETTER_AUTH_SECRET="$(openssl rand -base64 32 | tr -d '\n')"
+COOKIE_SIGNING_SECRET="$(openssl rand -base64 32 | tr -d '\n')"
 ENCRYPTION_SECRET="$(openssl rand -hex 32)"
 POSTGRES_PASSWORD="$(openssl rand -base64 24 | tr -d '/+=\n' | head -c 24)"
 MINIO_ROOT_PASSWORD="$(openssl rand -base64 24 | tr -d '/+=\n' | head -c 24)"

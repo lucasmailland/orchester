@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import {
   Search,
   X,
@@ -474,6 +474,9 @@ function ConversationDrawer({
   // v1.6 G1-2: memory-learning gate, source of truth is the server.
   // Loaded from the conversation GET, persisted via PATCH /sensitivity.
   const [memoryPaused, setMemoryPaused] = useState<boolean>(false);
+  // a11y-005: stable id so the drawer wrapper can reference its title
+  // via `aria-labelledby` (drawer behaves as a `dialog`).
+  const titleId = useId();
 
   useEffect(() => {
     fetch(`/api/conversations/${conversation.id}`)
@@ -485,6 +488,20 @@ function ConversationDrawer({
         if (typeof paused === "boolean") setMemoryPaused(paused);
       });
   }, [conversation.id]);
+
+  // a11y-005: Escape closes the drawer. The drawer is mounted only when
+  // a conversation is selected, so adding/removing the listener follows
+  // its lifecycle (no need to guard on open state).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   const onMemoryPausedToggle = useCallback(
     async (next: boolean) => {
@@ -561,12 +578,17 @@ function ConversationDrawer({
 
   return (
     <div className="fixed inset-0 z-40 flex">
-      <div className="flex-1 bg-black/50" onClick={onClose} />
-      <div className="flex h-full w-[560px] flex-col border-l border-line bg-surface">
+      <div className="flex-1 bg-black/50" onClick={onClose} aria-hidden="true" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="flex h-full w-[560px] flex-col border-l border-line bg-surface"
+      >
         <div className="flex items-center justify-between border-b border-line px-5 py-3">
           <div className="flex items-center gap-2 text-sm text-strong">
-            <User className="h-4 w-4 text-muted" />
-            <span className="font-medium">
+            <User className="h-4 w-4 text-muted" aria-hidden="true" />
+            <span id={titleId} className="font-medium">
               {conversation.employeeName ??
                 conversation.customerName ??
                 conversation.customerEmail ??
@@ -580,8 +602,13 @@ function ConversationDrawer({
             )}
             <span className="text-[11px] text-muted">· {conversation.channelType}</span>
           </div>
-          <button onClick={onClose} type="button" className="text-muted hover:text-body">
-            <X className="h-4 w-4" />
+          <button
+            onClick={onClose}
+            type="button"
+            aria-label={t("close")}
+            className="text-muted hover:text-body"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 

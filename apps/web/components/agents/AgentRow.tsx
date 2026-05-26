@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Bot, Pencil, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { APPLE_EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { AgentFormModal } from "./AgentFormModal";
@@ -70,6 +71,7 @@ export function AgentRow({
 }: AgentRowProps) {
   const s = STATUS_CONFIG[status];
   const router = useRouter();
+  const t = useTranslations("pages.agents");
   const [editOpen, setEditOpen] = useState(false);
 
   async function handleDelete() {
@@ -145,13 +147,17 @@ export function AgentRow({
         {editable && (
           <div className="ml-2 flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
             <button
+              type="button"
               onClick={() => setEditOpen(true)}
+              aria-label={t("editAria", { name })}
               className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-body transition-colors"
             >
               <Pencil size={13} />
             </button>
             <button
+              type="button"
               onClick={handleDelete}
+              aria-label={t("deleteAria", { name })}
               className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-colors"
             >
               <Trash2 size={13} />

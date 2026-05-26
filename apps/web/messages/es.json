@@ -369,6 +369,7 @@
     "themeLight": "Cambiar a modo claro",
     "themeDark": "Cambiar a modo oscuro",
     "selectLanguage": "Seleccionar idioma",
+    "skipToContent": "Saltar al contenido",
     "commandPalette": {
       "label": "Paleta de comandos",
       "placeholder": "Buscar agente, flujo, KB, página…",
@@ -957,6 +958,7 @@
       "anonymous": "Anónimo",
       "takeOverBadge": "take-over",
       "withAgent": "con",
+      "close": "Cerrar",
       "filterByStatus": "Filtrar por estado",
       "filterByChannel": "Filtrar por canal",
       "filterByAgent": "Filtrar por agente",
@@ -1080,7 +1082,8 @@
       "connectedOk": "Conectado correctamente",
       "savedButFailed": "Guardado, pero la conexión falló: {error}",
       "nameLabel": "Nombre",
-      "saveAndTest": "Guardar y probar"
+      "saveAndTest": "Guardar y probar",
+      "close": "Cerrar"
     },
     "usage": {
       "title": "Uso",
@@ -1397,7 +1400,41 @@
       "finishing": "Configurando tu workspace…",
       "allDone": "¡Todo listo!"
     },
-    "progressStep": "Paso {current} de {total}"
+    "progressStep": "Paso {current} de {total}",
+    "checklist": {
+      "title": "Primeros pasos",
+      "subtitle": "5 cosas para hacer primero en tu workspace",
+      "tasks": {
+        "createAgent": {
+          "title": "Creá tu primer agente",
+          "description": "Definí un prompt, modelo y herramientas para darle a tu equipo un colega de IA."
+        },
+        "connectProvider": {
+          "title": "Conectá un proveedor de modelos",
+          "description": "Agregá una clave API para que tus agentes puedan llamar a un modelo."
+        },
+        "setupChannel": {
+          "title": "Configurá un canal",
+          "description": "Conectá tus agentes a un widget web, WhatsApp, Slack o email."
+        },
+        "inviteTeammate": {
+          "title": "Invitá a un compañero",
+          "description": "Sumá a alguien para que el workspace no sea de una sola persona."
+        },
+        "firstRun": {
+          "title": "Corré un flujo o enviá un mensaje",
+          "description": "Dispará tu primera conversación o run de flujo — prueba de que todo funciona."
+        }
+      },
+      "cta": {
+        "getStarted": "Empezar",
+        "done": "Listo"
+      },
+      "completed": {
+        "banner": "Workspace listo — ya está todo configurado.",
+        "dismiss": "Cerrar"
+      }
+    }
   },
   "workspace": {
     "switcher": {

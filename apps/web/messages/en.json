@@ -369,6 +369,7 @@
     "themeLight": "Switch to light mode",
     "themeDark": "Switch to dark mode",
     "selectLanguage": "Select language",
+    "skipToContent": "Skip to content",
     "commandPalette": {
       "label": "Command palette",
       "placeholder": "Search agent, flow, KB, page…",
@@ -957,6 +958,7 @@
       "anonymous": "Anonymous",
       "takeOverBadge": "take-over",
       "withAgent": "with",
+      "close": "Close",
       "filterByStatus": "Filter by status",
       "filterByChannel": "Filter by channel",
       "filterByAgent": "Filter by agent",
@@ -1080,7 +1082,8 @@
       "connectedOk": "Connected successfully",
       "savedButFailed": "Saved, but the connection failed: {error}",
       "nameLabel": "Name",
-      "saveAndTest": "Save and test"
+      "saveAndTest": "Save and test",
+      "close": "Close"
     },
     "usage": {
       "title": "Usage",
@@ -1397,7 +1400,41 @@
       "finishing": "Setting up your workspace…",
       "allDone": "You're all set!"
     },
-    "progressStep": "Step {current} of {total}"
+    "progressStep": "Step {current} of {total}",
+    "checklist": {
+      "title": "Get started",
+      "subtitle": "5 things to do first in your workspace",
+      "tasks": {
+        "createAgent": {
+          "title": "Create your first agent",
+          "description": "Define a system prompt, model, and tools to give your team an AI teammate."
+        },
+        "connectProvider": {
+          "title": "Connect a model provider",
+          "description": "Add an API key so your agents can actually call a language model."
+        },
+        "setupChannel": {
+          "title": "Set up a channel",
+          "description": "Wire your agents to a web widget, WhatsApp, Slack, or email."
+        },
+        "inviteTeammate": {
+          "title": "Invite a teammate",
+          "description": "Bring someone in so the workspace isn't a one-person show."
+        },
+        "firstRun": {
+          "title": "Run a flow or send a message",
+          "description": "Kick off your first conversation or flow run — proof it all works end-to-end."
+        }
+      },
+      "cta": {
+        "getStarted": "Get started",
+        "done": "Done"
+      },
+      "completed": {
+        "banner": "Workspace ready — you're set up.",
+        "dismiss": "Dismiss"
+      }
+    }
   },
   "workspace": {
     "switcher": {

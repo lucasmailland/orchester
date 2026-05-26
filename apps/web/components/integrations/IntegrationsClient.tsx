@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import {
@@ -252,6 +252,25 @@ function ConfigModal({
   const [name, setName] = useState(connector.name);
   const [config, setConfig] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  // a11y-006: stable ids so `<label htmlFor>` and `aria-labelledby`
+  // wire up correctly across renders.
+  const titleId = useId();
+  const nameId = useId();
+  // The per-field ids are derived from a single base + the field key so
+  // each `<input>` matches its sibling `<label>` exactly.
+  const fieldsBase = useId();
+
+  // a11y-006: Escape closes the modal. Mirrors the backdrop click.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   async function save() {
     for (const f of connector.fields) {
@@ -281,13 +300,23 @@ function ConfigModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-2xl border border-line bg-surface p-5">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="relative w-full max-w-md rounded-2xl border border-line bg-surface p-5"
+      >
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-display text-lg font-semibold text-strong">
+          <h3 id={titleId} className="font-display text-lg font-semibold text-strong">
             {t("connectTitle", { name: connector.name })}
           </h3>
-          <button onClick={onClose} type="button" className="text-muted hover:text-body">
-            <X className="h-4 w-4" />
+          <button
+            onClick={onClose}
+            type="button"
+            aria-label={t("close")}
+            className="text-muted hover:text-body"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
         {connector.needsOAuthApp && (
@@ -297,29 +326,36 @@ function ConfigModal({
         )}
         <div className="space-y-3">
           <div>
-            <label className="mb-1 block text-xs text-muted">{t("nameLabel")}</label>
+            <label htmlFor={nameId} className="mb-1 block text-xs text-muted">
+              {t("nameLabel")}
+            </label>
             <input
+              id={nameId}
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
             />
           </div>
-          {connector.fields.map((f) => (
-            <div key={f.key}>
-              <label className="mb-1 block text-xs text-muted">
-                {f.label}
-                {f.required && <span className="text-rose-600 dark:text-rose-400"> *</span>}
-              </label>
-              <input
-                type={f.type === "password" ? "password" : "text"}
-                placeholder={f.placeholder}
-                value={config[f.key] ?? ""}
-                onChange={(e) => setConfig((p) => ({ ...p, [f.key]: e.target.value }))}
-                className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
-              />
-              {f.help && <p className="mt-1 text-[10px] text-faint">{f.help}</p>}
-            </div>
-          ))}
+          {connector.fields.map((f) => {
+            const fieldId = `${fieldsBase}-${f.key}`;
+            return (
+              <div key={f.key}>
+                <label htmlFor={fieldId} className="mb-1 block text-xs text-muted">
+                  {f.label}
+                  {f.required && <span className="text-rose-600 dark:text-rose-400"> *</span>}
+                </label>
+                <input
+                  id={fieldId}
+                  type={f.type === "password" ? "password" : "text"}
+                  placeholder={f.placeholder}
+                  value={config[f.key] ?? ""}
+                  onChange={(e) => setConfig((p) => ({ ...p, [f.key]: e.target.value }))}
+                  className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
+                />
+                {f.help && <p className="mt-1 text-[10px] text-faint">{f.help}</p>}
+              </div>
+            );
+          })}
         </div>
         <button
           type="button"

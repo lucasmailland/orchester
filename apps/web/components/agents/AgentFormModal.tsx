@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
@@ -64,6 +64,29 @@ export function AgentFormModal({
   const [error, setError] = useState("");
 
   const isEdit = !!initial;
+  // a11y-003: stable ids for `aria-labelledby` and `<label htmlFor>` /
+  // `<input id>` pairing. `useId` returns SSR-safe values.
+  const titleId = useId();
+  const nameId = useId();
+  const roleId = useId();
+  const promptId = useId();
+  const teamSelectId = useId();
+  const modelId = useId();
+  const statusId = useId();
+
+  // a11y-003: Escape closes the dialog. We only attach when the modal is
+  // open so background pages aren't burdened with an extra listener.
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
 
   async function handleSubmit(e: { preventDefault: () => void }) {
     e.preventDefault();
@@ -116,18 +139,23 @@ export function AgentFormModal({
               exit={{ opacity: 0, scale: 0.95, y: 8 }}
               transition={{ duration: 0.2 }}
               className="w-full max-w-lg"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={titleId}
             >
               <div className="max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-violet-500/20 bg-surface shadow-2xl shadow-black/80 ring-1 ring-violet-500/10">
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-line px-6 py-4">
-                  <h2 className="font-display text-base font-bold text-strong">
+                  <h2 id={titleId} className="font-display text-base font-bold text-strong">
                     {isEdit ? labels.editTitle : labels.createTitle}
                   </h2>
                   <button
+                    type="button"
                     onClick={onClose}
+                    aria-label={labels.cancel}
                     className="flex h-7 w-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-hover hover:text-body"
                   >
-                    <X size={15} />
+                    <X size={15} aria-hidden="true" />
                   </button>
                 </div>
 
@@ -135,8 +163,11 @@ export function AgentFormModal({
                 <form onSubmit={handleSubmit} className="space-y-5 p-6">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted">{labels.nameLabel}</label>
+                      <label htmlFor={nameId} className="text-xs font-medium text-muted">
+                        {labels.nameLabel}
+                      </label>
                       <input
+                        id={nameId}
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder="HR Assistant"
@@ -145,8 +176,11 @@ export function AgentFormModal({
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted">{labels.roleLabel}</label>
+                      <label htmlFor={roleId} className="text-xs font-medium text-muted">
+                        {labels.roleLabel}
+                      </label>
                       <input
+                        id={roleId}
                         value={role}
                         onChange={(e) => setRole(e.target.value)}
                         placeholder="HR Specialist"
@@ -157,8 +191,11 @@ export function AgentFormModal({
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted">{labels.promptLabel}</label>
+                    <label htmlFor={promptId} className="text-xs font-medium text-muted">
+                      {labels.promptLabel}
+                    </label>
                     <textarea
+                      id={promptId}
                       value={systemPrompt}
                       onChange={(e) => setSystemPrompt(e.target.value)}
                       placeholder="You are a helpful HR assistant that..."
@@ -170,10 +207,11 @@ export function AgentFormModal({
 
                   {teams && teams.length > 0 && (
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted">
+                      <label htmlFor={teamSelectId} className="text-xs font-medium text-muted">
                         {labels.teamLabel ?? "Team"}
                       </label>
                       <select
+                        id={teamSelectId}
                         value={selectedTeamId}
                         onChange={(e) => setSelectedTeamId(e.target.value)}
                         className={cn(inputClass, "cursor-pointer")}
@@ -189,8 +227,11 @@ export function AgentFormModal({
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted">{labels.modelLabel}</label>
+                      <label htmlFor={modelId} className="text-xs font-medium text-muted">
+                        {labels.modelLabel}
+                      </label>
                       <select
+                        id={modelId}
                         value={model}
                         onChange={(e) => setModel(e.target.value)}
                         className={cn(inputClass, "cursor-pointer")}
@@ -203,8 +244,11 @@ export function AgentFormModal({
                       </select>
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted">{labels.statusLabel}</label>
+                      <label htmlFor={statusId} className="text-xs font-medium text-muted">
+                        {labels.statusLabel}
+                      </label>
                       <select
+                        id={statusId}
                         value={status}
                         onChange={(e) => setStatus(e.target.value)}
                         className={cn(inputClass, "cursor-pointer")}

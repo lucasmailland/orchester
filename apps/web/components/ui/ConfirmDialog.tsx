@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, type ReactNode } from "react";
+import { useState, useCallback, useEffect, useRef, useId, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle } from "lucide-react";
 
@@ -31,6 +31,10 @@ export function confirm(opts: ConfirmOptions): Promise<boolean> {
 export function ConfirmDialogHost(): ReactNode {
   const [state, setState] = useState<DialogState | null>(null);
   const resolverRef = useRef<((v: boolean) => void) | null>(null);
+  // a11y-004: stable id to associate the dialog with its title via
+  // `aria-labelledby`. `useId` is SSR-safe.
+  const titleId = useId();
+  const descId = useId();
 
   const open = useCallback((opts: ConfirmOptions) => {
     return new Promise<boolean>((resolve) => {
@@ -41,11 +45,25 @@ export function ConfirmDialogHost(): ReactNode {
 
   externalConfirm = open;
 
-  const close = (result: boolean) => {
+  const close = useCallback((result: boolean) => {
     resolverRef.current?.(result);
     resolverRef.current = null;
     setState(null);
-  };
+  }, []);
+
+  // a11y-004: Escape closes the dialog with a "no" result. Mirrors the
+  // backdrop-click behaviour so keyboard users have parity with mouse.
+  useEffect(() => {
+    if (!state?.open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        close(false);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [state?.open, close]);
 
   return (
     <AnimatePresence>
@@ -63,18 +81,26 @@ export function ConfirmDialogHost(): ReactNode {
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.15 }}
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            aria-describedby={state.description ? descId : undefined}
             className="w-full max-w-sm rounded-2xl border border-line bg-surface p-5 shadow-2xl"
           >
             <div className="mb-3 flex items-start gap-3">
               {state.destructive && (
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-500/15 text-red-600 dark:text-red-400">
-                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTriangle className="h-4 w-4" aria-hidden="true" />
                 </div>
               )}
               <div>
-                <h3 className="text-sm font-semibold text-strong">{state.title}</h3>
+                <h3 id={titleId} className="text-sm font-semibold text-strong">
+                  {state.title}
+                </h3>
                 {state.description && (
-                  <p className="mt-1 text-xs text-muted">{state.description}</p>
+                  <p id={descId} className="mt-1 text-xs text-muted">
+                    {state.description}
+                  </p>
                 )}
               </div>
             </div>

@@ -952,3 +952,81 @@ export async function getFullDashboardStats(
     })),
   };
 }
+
+/**
+ * Phase L.1 onboarding checklist state.
+ *
+ * A snapshot of 5 booleans that drive the first-run checklist on the
+ * dashboard. Each flag flips to `true` the moment the corresponding
+ * resource exists for this workspace; once all five are `true` the
+ * dashboard hides the checklist (or shows a "workspace ready" banner
+ * the operator can dismiss permanently via localStorage).
+ *
+ * The flags are read-only — no caller mutates them. They reflect
+ * what's actually in the DB right now, so a row arriving from any
+ * source (the wizard, the seed script, a direct API call) updates the
+ * checklist on the next request without any extra plumbing.
+ */
+export interface OnboardingChecklistState {
+  hasAgent: boolean;
+  hasProvider: boolean;
+  hasChannel: boolean;
+  hasTeammate: boolean;
+  hasActivity: boolean;
+}
+
+export async function getOnboardingChecklistState(
+  workspaceId: string,
+  tx?: WsDb
+): Promise<OnboardingChecklistState> {
+  const db = tx ?? getDb();
+
+  // Each LIMIT 1 keeps the round-trips cheap — we only need to know
+  // whether the table has ≥1 (or ≥2 for members) row for this workspace.
+  // Drizzle's `count()` would force a full table scan under RLS; the
+  // `select … limit 1` shape lets postgres short-circuit on the first
+  // hit, which matters when a busy workspace has thousands of rows.
+  const [agentRows, providerRows, channelRows, memberRows, convRows, flowRunRows] =
+    await Promise.all([
+      db
+        .select({ id: schema.agents.id })
+        .from(schema.agents)
+        .where(eq(schema.agents.workspaceId, workspaceId))
+        .limit(1),
+      db
+        .select({ id: schema.aiProviders.id })
+        .from(schema.aiProviders)
+        .where(eq(schema.aiProviders.workspaceId, workspaceId))
+        .limit(1),
+      db
+        .select({ id: schema.channels.id })
+        .from(schema.channels)
+        .where(eq(schema.channels.workspaceId, workspaceId))
+        .limit(1),
+      // Teammate = ≥2 members (owner + at least one other). Pulling 2
+      // rows is enough to discriminate without a full count().
+      db
+        .select({ id: schema.workspaceMembers.id })
+        .from(schema.workspaceMembers)
+        .where(eq(schema.workspaceMembers.workspaceId, workspaceId))
+        .limit(2),
+      db
+        .select({ id: schema.conversations.id })
+        .from(schema.conversations)
+        .where(eq(schema.conversations.workspaceId, workspaceId))
+        .limit(1),
+      db
+        .select({ id: schema.flowRuns.id })
+        .from(schema.flowRuns)
+        .where(eq(schema.flowRuns.workspaceId, workspaceId))
+        .limit(1),
+    ]);
+
+  return {
+    hasAgent: agentRows.length > 0,
+    hasProvider: providerRows.length > 0,
+    hasChannel: channelRows.length > 0,
+    hasTeammate: memberRows.length >= 2,
+    hasActivity: convRows.length > 0 || flowRunRows.length > 0,
+  };
+}

@@ -16,18 +16,20 @@ export const metadata: Metadata = {
   description: "Build teams of AI agents for your enterprise in minutes.",
 };
 
-export default async function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // El middleware setea `x-nonce` por request. next-themes inyecta un script
   // inline anti-flash; sin nonce el CSP lo bloquea (error en consola). Se lo
   // pasamos para que quede dentro del allowlist del CSP.
-  const nonce: string | undefined = (await headers()).get("x-nonce") ?? undefined;
+  const h = await headers();
+  const nonce: string | undefined = h.get("x-nonce") ?? undefined;
+  // a11y-001: middleware forwards the URL-derived locale via `x-locale`
+  // so the root layout can announce the right language to AT. Falls back
+  // to "en" only for non-localized routes (which shouldn't exist with
+  // `localePrefix: "always"`, but defending the cast).
+  const locale = h.get("x-locale") ?? "en";
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body
         className={`${GeistSans.variable} ${GeistMono.variable} ${syne.variable} font-sans antialiased`}
       >

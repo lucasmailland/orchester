@@ -163,6 +163,11 @@ export async function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", csp);
+  // a11y-001: expose the URL-derived locale to the root layout so it can
+  // render `<html lang={locale}>`. The root layout sits above the
+  // `[locale]` segment and cannot read its `params`, so we forward the
+  // value we already extracted at line 88.
+  requestHeaders.set("x-locale", locale);
 
   // Phase B (tenant hardening): forward the active workspace slug from the
   // cookie into a header that server components / route handlers can read

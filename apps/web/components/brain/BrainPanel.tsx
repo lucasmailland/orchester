@@ -192,6 +192,7 @@ export function BrainPanel() {
                     "rounded-md p-1.5 hover:bg-hover",
                     fact.pinned ? "text-violet-400" : "text-muted"
                   )}
+                  aria-label={fact.pinned ? "Unpin" : "Pin"}
                   title={fact.pinned ? "Unpin" : "Pin"}
                 >
                   <Pin className="h-3.5 w-3.5" fill={fact.pinned ? "currentColor" : "none"} />
@@ -200,6 +201,7 @@ export function BrainPanel() {
                   type="button"
                   onClick={() => deleteFact(fact.id)}
                   className="rounded-md p-1.5 text-muted hover:bg-hover hover:text-red-400"
+                  aria-label="Forget"
                   title="Forget"
                 >
                   <Trash2 className="h-3.5 w-3.5" />

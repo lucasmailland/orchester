@@ -16,9 +16,14 @@
 #   docker compose -f deploy/docker-compose.prod.yml --profile observability up -d
 #
 # Variables esperadas en .env (al lado de este archivo):
-#   DOMAIN, AUTH_SECRET, ENCRYPTION_SECRET,
+#   DOMAIN, BETTER_AUTH_SECRET, ENCRYPTION_SECRET, COOKIE_SIGNING_SECRET,
 #   POSTGRES_PASSWORD, MINIO_ROOT_USER, MINIO_ROOT_PASSWORD,
 #   ANTHROPIC_API_KEY (o el provider que uses), SMTP_*
+#
+# Generar secretos:
+#   BETTER_AUTH_SECRET     openssl rand -base64 32
+#   ENCRYPTION_SECRET      openssl rand -hex 32        (64 hex chars / 32 bytes)
+#   COOKIE_SIGNING_SECRET  openssl rand -base64 32
 
 version: "3.9"
 
@@ -100,11 +105,16 @@ services:
       # See ADR-0010 and docs/specs/audits/2026-05-25-mnemosyne-v1.4-final-audit.md
       # (P1: prod compose Layer 3 was missed when v1.0 landed Layers 1+2).
       DATABASE_URL: postgresql://app_user:app@postgres:5432/orchester
-      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
-      AUTH_URL: https://${DOMAIN:?set DOMAIN in .env}
+      # better-auth reads its signing secret + base URL from these exact
+      # names (see apps/web/lib/auth.ts + lib/env.ts). Don't rename them.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
+      BETTER_AUTH_URL: https://${DOMAIN:?set DOMAIN in .env}
       NEXT_PUBLIC_APP_URL: https://${DOMAIN}
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET:?set ENCRYPTION_SECRET in .env}
-      # Storage → MinIO
+      # HMAC secret for signed cookies + signed export URLs. lib/cookies.ts
+      # throws fail-closed in production if this is missing.
+      COOKIE_SIGNING_SECRET: ${COOKIE_SIGNING_SECRET:?set COOKIE_SIGNING_SECRET in .env}
+      # KB uploads → MinIO (used by lib/storage.ts)
       STORAGE_DRIVER: s3
       S3_ENDPOINT: http://minio:9000
       S3_REGION: us-east-1
@@ -112,6 +122,12 @@ services:
       S3_ACCESS_KEY: ${MINIO_ROOT_USER}
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       S3_FORCE_PATH_STYLE: "true"
+      # GDPR data exports (Article 20 portability). `filesystem` writes the
+      # zip to GDPR_EXPORT_DIR which is volume-backed so cross-container
+      # signed-URL downloads work and survive restarts. Switch to "s3" if
+      # you want the export bucket separated from KB uploads.
+      STORAGE_BACKEND: filesystem
+      GDPR_EXPORT_DIR: /var/lib/orchester/exports
       # Mail → SMTP del cliente (Plunk, Postal, Mailcow, lo que sea)
       MAIL_DRIVER: smtp
       SMTP_HOST: ${SMTP_HOST:-}
@@ -131,6 +147,11 @@ services:
       SELF_HOSTED: "true"
     expose:
       - "3000"
+    volumes:
+      # Shared volume with `worker`: worker writes GDPR export zips here,
+      # web serves them via /api/exports/[token]. MUST be the same named
+      # volume on both services.
+      - gdpr-exports:/var/lib/orchester/exports
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
@@ -144,10 +165,10 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile
     restart: unless-stopped
-    # El worker comparte libs con Next que importan `server-only`; correrlo con
-    # tsx dispara ERR_REQUIRE_CYCLE_MODULE (Node ≥22) + el throw de server-only.
-    # Lo bundleamos con esbuild (alias server-only→vacío) y corremos node puro.
-    command: ["sh", "-c", "node apps/web/worker/build.mjs && node apps/web/worker/.dist/worker.mjs"]
+    # Worker es un bundle ESM pre-construido en la etapa builder del Dockerfile
+    # (esbuild, alias server-only/client-only → vacío). Self-contained: no
+    # necesita tsx ni los TS sources de packages/* en el runtime.
+    command: ["node", "apps/web/worker/.dist/worker.mjs"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -159,7 +180,14 @@ services:
       # Same posture as `web`: connect as `app_user` (non-BYPASSRLS).
       # See ADR-0010 and 2026-05-25-mnemosyne-v1.4-final-audit.md (P1).
       DATABASE_URL: postgresql://app_user:app@postgres:5432/orchester
-      ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
+      # better-auth secrets are imported by lib/* even from worker code
+      # paths (lib/queue → lib/flow-engine → lib/auth). Keep both env
+      # vars in sync between web + worker so a key rotation doesn't
+      # split-brain the services.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
+      ENCRYPTION_SECRET: ${ENCRYPTION_SECRET:?set ENCRYPTION_SECRET in .env}
+      # JOB_GDPR_EXPORT signs download URLs with this secret — required.
+      COOKIE_SIGNING_SECRET: ${COOKIE_SIGNING_SECRET:?set COOKIE_SIGNING_SECRET in .env}
       STORAGE_DRIVER: s3
       S3_ENDPOINT: http://minio:9000
       S3_REGION: us-east-1
@@ -167,10 +195,26 @@ services:
       S3_ACCESS_KEY: ${MINIO_ROOT_USER}
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       S3_FORCE_PATH_STYLE: "true"
+      # GDPR exports — share the same volume + backend as `web` so the
+      # signed-URL download route can read what the worker wrote.
+      STORAGE_BACKEND: filesystem
+      GDPR_EXPORT_DIR: /var/lib/orchester/exports
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GOOGLE_AI_API_KEY: ${GOOGLE_AI_API_KEY:-}
       SELF_HOSTED: "true"
+    volumes:
+      - gdpr-exports:/var/lib/orchester/exports
+    # Worker is a long-running process with no HTTP listener — the
+    # smoke test is "node process is still alive AND pg-boss is
+    # connected". `pg_isready` against postgres catches the connection
+    # half; the process liveness is observable via `docker ps`.
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'apps/web/worker/.dist/worker.mjs' >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     logging: *default-logging
 
   caddy:
@@ -224,3 +268,4 @@ volumes:
   caddy-data:
   caddy-config:
   glitchtip-redis:
+  gdpr-exports:

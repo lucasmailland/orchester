@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { Topbar } from "@/components/shell/Topbar";
 import { CommandPalette } from "@/components/shell/CommandPalette";
@@ -48,8 +49,20 @@ export default async function ShellLayout({
     notFound();
   }
 
+  const t = await getTranslations("shell");
+
   return (
     <div className="flex h-screen overflow-hidden bg-app">
+      {/* a11y-002: skip-to-content link. Visually hidden until focused
+          (Tab on page load lands here first) so keyboard users can jump
+          past Sidebar + Topbar + CommandPalette controls straight into
+          the page. Targets the `id="main-content"` `<main>` below. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-violet-600 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-violet-300"
+      >
+        {t("skipToContent")}
+      </a>
       <Sidebar locale={locale} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar
@@ -62,7 +75,11 @@ export default async function ShellLayout({
           status={workspaceData.workspace.status as "active" | "suspended" | "deleted"}
           reason={workspaceData.workspace.suspendedReason}
         />
-        <main className="relative flex-1 overflow-y-auto">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="relative flex-1 overflow-y-auto focus:outline-none"
+        >
           {/* Subtle grid + ambient glow */}
           <div className="pointer-events-none absolute inset-0 bg-grid" />
           <div className="pointer-events-none absolute inset-0 bg-ambient" />
