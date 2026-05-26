@@ -108,6 +108,57 @@ export const mnemoFacts = pgTable("mnemo_fact", {
   })
     .notNull()
     .default("inferred"),
+  // Mnemosyne v1.6 — link to a `mnemo_entity` row (migration 0039).
+  // NULL when the extraction pipeline could not resolve a canonical
+  // entity (legacy behaviour preserved). Populated when the fact is
+  // primarily about a known entity ("Lucas prefers TS" → entity for
+  // user "Lucas"). The reverse direction is the entity's
+  // `mention_count` denormalised on `mnemo_entity`.
+  entityId: text("entity_id"),
+  // Mnemosyne v1.6 — Memory Protocol version this fact was extracted
+  // under (migration 0041). SQL DEFAULT is 'v1.1' so every legacy row
+  // tags itself with the protocol active at the time. New extractions
+  // explicitly set 'v1.2' at the application layer.
+  protocolVersion: text("protocol_version").notNull().default("v1.1"),
+});
+
+// Mnemosyne v1.6 — the entity primitive (migration 0039). The 4th
+// cognitive primitive alongside fact / decision / episode. A
+// canonical "thing" (person / organization / project / concept /
+// place / other) that facts can reference via
+// `mnemo_fact.entity_id`. RLS+FORCE Pattern A; reads/writes through
+// `withMnemoTx(workspaceId, …)`.
+export const mnemoEntity = pgTable("mnemo_entity", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  // Canonical display name — "Lucas Mailland", "Acme Inc.", "Q2
+  // launch". Unique per (workspace_id, name, kind).
+  name: text("name").notNull(),
+  // 6-value cognitive vocabulary. SQL CHECK constraint enforces it;
+  // the enum array here keeps the TS layer in sync.
+  kind: text("kind", {
+    enum: ["person", "organization", "project", "concept", "place", "other"],
+  }).notNull(),
+  // Alternate spellings / handles. The extraction pipeline uses these
+  // for dedup ("@lucas" ↔ "Lucas Mailland"). GIN-indexed in SQL.
+  aliases: text("aliases").array().notNull().default([]),
+  // Self-reference for merge. NULL = this row is canonical.
+  canonicalId: text("canonical_id"),
+  // LLM-generated one-sentence description. Nullable — heuristic-only
+  // extractions leave this empty until the LLM-assisted pass fills it.
+  description: text("description"),
+  metadata: jsonb("metadata").notNull().default({}),
+  firstSeenAt: timestamp("first_seen_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .defaultNow(),
+  mentionCount: integer("mention_count").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });
 
 export const mnemoExtractionJobs = pgTable("mnemo_extraction_job", {
