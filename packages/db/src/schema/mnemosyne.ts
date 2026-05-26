@@ -72,6 +72,42 @@ export const mnemoFacts = pgTable("mnemo_fact", {
   validTo: timestamp("valid_to", { withTimezone: true, mode: "date" }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  // Mnemosyne v1.4 — "The Cognitive Leap" (migration 0033).
+  // Separates facts the way human cognition does:
+  //   • semantic    — durable factual knowledge (default; preserves
+  //                   pre-v1.4 behaviour because every existing row
+  //                   migrates to 'semantic').
+  //   • episodic    — events tied to a specific moment, linked to
+  //                   `mnemo_episode` via metadata.episode_id.
+  //   • procedural  — how-to ("when X happens, do Y").
+  //   • working     — current conversation only; ephemeral.
+  // Stored as text + CHECK constraint at the DB layer; the enum array
+  // here keeps the type info in sync without paying ENUM-evolution
+  // cost in Postgres.
+  memoryType: text("memory_type", {
+    enum: ["semantic", "episodic", "procedural", "working"],
+  })
+    .notNull()
+    .default("semantic"),
+  // Mnemosyne v1.4 — per-conversation actor isolation (migration 0037).
+  // Tracks WHICH end-user the fact was learned from. NULL = workspace-
+  // shared (preserves the current behaviour: all facts visible to the
+  // workspace). Set to a User.id when the extraction pipeline has a
+  // concrete actor for the conversation. No FK — actors come+go
+  // independently of facts; this is a semantic reference.
+  actorId: text("actor_id"),
+  // Mnemosyne v1.4 — theory-of-mind attribution (migration 0035).
+  // Cognitive provenance of the fact, distinct from `attributedTo`
+  // (which records the message-author role) and `sourceMessageIds`
+  // (literal evidence). The 4-value vocabulary is enforced by the
+  // SQL CHECK constraint; the enum array here keeps the TS layer in
+  // sync. Default 'inferred' preserves v1.3 row shape — every legacy
+  // row migrates to 'inferred' without a backfill pass.
+  attribution: text("attribution", {
+    enum: ["user_stated", "user_belief", "objective_fact", "inferred"],
+  })
+    .notNull()
+    .default("inferred"),
 });
 
 export const mnemoExtractionJobs = pgTable("mnemo_extraction_job", {
@@ -343,6 +379,39 @@ export const mnemoReviewQueue = pgTable("mnemo_review_queue", {
   resolution: text("resolution", {
     enum: ["kept", "edited", "forgotten", "dismissed"],
   }),
+});
+
+// Mnemosyne v1.4 — episodic timeline (migration 0034).
+// Rich events (meetings, decisions, milestones) that aggregate multiple
+// facts under a narrative arc. Distinct from `mnemo_fact` because an
+// episode carries duration + a topic vocabulary + a linked-fact list.
+// Many facts can reference one episode via `mnemo_fact.metadata.episode_id`,
+// set by the extraction pipeline; the `linkedFactIds` column on the
+// episode is the denormalised reverse direction for cheap timeline
+// rendering. RLS+FORCE Pattern A — every read/write through
+// `withMnemoTx(workspaceId, ...)`.
+export const mnemoEpisode = pgTable("mnemo_episode", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  narrative: text("narrative").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "date" }).notNull(),
+  durationMinutes: integer("duration_minutes"),
+  // Free-form participant ids (user_ids OR agent_ids); no FK so the
+  // episode survives a deleted participant for audit purposes.
+  participants: text("participants").array().notNull().default([]),
+  // Topical tags ("deployment", "Q2-roadmap"); GIN-indexed in SQL.
+  topics: text("topics").array().notNull().default([]),
+  // Denormalised reverse pointer to mnemo_fact ids. We could derive
+  // this from a join, but the timeline UI page reads it on every
+  // tick so we keep it on the row.
+  linkedFactIds: text("linked_fact_ids").array().notNull().default([]),
+  sourceConversationId: text("source_conversation_id"),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });
 
 export const mnemoCitations = pgTable("mnemo_citation", {
