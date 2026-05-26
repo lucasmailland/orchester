@@ -20,7 +20,15 @@ export async function parseBody<T extends z.ZodTypeAny>(
 ): Promise<{ ok: true; data: z.infer<T> } | { ok: false; response: Response }> {
   let raw: unknown;
   try {
-    raw = await req.json();
+    // Empty bodies (POST with no payload, e.g. /facts/[id]/pin and the
+    // other action endpoints whose schema is `z.object({})`) used to
+    // throw `SyntaxError: Unexpected end of JSON input` here and
+    // surface as 400 "Body inválido", breaking every Pin/Unpin/Forget/
+    // Restore click from the Inspector. We treat an empty body as `{}`
+    // so action routes can keep their schemas as `z.object({}).loose()`
+    // without forcing every client to send `JSON.stringify({})`.
+    const text = await req.text();
+    raw = text.trim() === "" ? {} : JSON.parse(text);
   } catch {
     return {
       ok: false,
@@ -39,10 +47,7 @@ export async function parseBody<T extends z.ZodTypeAny>(
     });
     return {
       ok: false,
-      response: NextResponse.json(
-        { error: "Validación fallida", issues },
-        { status: 400 }
-      ),
+      response: NextResponse.json({ error: "Validación fallida", issues }, { status: 400 }),
     };
   }
 
