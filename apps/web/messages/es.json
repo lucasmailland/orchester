@@ -643,7 +643,7 @@
           "toolsSectionSubtitle": "El agente puede llamarlas durante la conversación",
           "loading": "Cargando…",
           "variablesSectionTitle": "Variables",
-          "variablesSectionSubtitle": "Interpoladas en el prompt como {{name}}",
+          "variablesSectionSubtitle": "Cada variable se referencia en el prompt por su nombre entre llaves dobles",
           "brandingSectionTitle": "Branding",
           "brandingSectionSubtitle": "Personalidad visual del agente",
           "colorLabel": "Color",

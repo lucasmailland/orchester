@@ -30,9 +30,17 @@ export function TeamCard({
 }: TeamCardProps) {
   const t = useTranslations("pages.teams");
   const color = avatarColor ?? "#7C3AED";
+  // `w[0]` returns a single UTF-16 *code unit*. For team names like
+  // "🎯 Comercial" the first word is the emoji "🎯" (U+1F3AF), encoded
+  // in UTF-16 as the surrogate pair 🎯 — so `w[0]` produces a
+  // lone high surrogate, which React serializes one way on the server
+  // and another way on the client → "Hydration failed because the
+  // server rendered text didn't match the client" on every team card.
+  // Iterating with the string iterator gives full Unicode code points,
+  // so emojis stay intact and ASCII initials still get uppercased.
   const initials = name
     .split(" ")
-    .map((w) => w[0])
+    .map((w) => [...w][0] ?? "")
     .slice(0, 2)
     .join("")
     .toUpperCase();

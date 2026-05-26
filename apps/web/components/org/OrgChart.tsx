@@ -37,7 +37,8 @@ function bezier(x1: number, y1: number, x2: number, y2: number) {
 }
 
 function layoutRect(el: HTMLElement, container: HTMLElement) {
-  let top = 0, left = 0;
+  let top = 0,
+    left = 0;
   let cur: HTMLElement | null = el;
   while (cur && cur !== container) {
     top += cur.offsetTop;
@@ -90,7 +91,10 @@ export function OrgChart({ workspaceName, teams }: OrgChartProps) {
     const id = setTimeout(compute, 80);
     const ro = new ResizeObserver(compute);
     if (containerRef.current) ro.observe(containerRef.current);
-    return () => { clearTimeout(id); ro.disconnect(); };
+    return () => {
+      clearTimeout(id);
+      ro.disconnect();
+    };
   }, [compute]);
 
   const totalAgents = teams.reduce((s, t) => s + t.agents.length, 0);
@@ -115,7 +119,10 @@ export function OrgChart({ workspaceName, teams }: OrgChartProps) {
           </linearGradient>
           <filter id="og-glow" x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
           </filter>
         </defs>
 
@@ -140,7 +147,6 @@ export function OrgChart({ workspaceName, teams }: OrgChartProps) {
 
       {/* Tree layout */}
       <div className="relative flex flex-col items-center gap-14 py-8" style={{ zIndex: 1 }}>
-
         {/* ── Workspace node ── */}
         <motion.div
           ref={workspaceRef}
@@ -165,11 +171,15 @@ export function OrgChart({ workspaceName, teams }: OrgChartProps) {
           </div>
           <div className="ml-2 flex items-center gap-5 border-l border-line pl-5">
             <div className="text-center">
-              <p className="text-2xl font-bold tabular-nums text-violet-600 dark:text-violet-400">{teams.length}</p>
+              <p className="text-2xl font-bold tabular-nums text-violet-600 dark:text-violet-400">
+                {teams.length}
+              </p>
               <p className="text-[10px] font-medium uppercase tracking-widest text-muted">Teams</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold tabular-nums text-blue-600 dark:text-blue-400">{totalAgents}</p>
+              <p className="text-2xl font-bold tabular-nums text-blue-600 dark:text-blue-400">
+                {totalAgents}
+              </p>
               <p className="text-[10px] font-medium uppercase tracking-widest text-muted">Agents</p>
             </div>
           </div>
@@ -179,14 +189,22 @@ export function OrgChart({ workspaceName, teams }: OrgChartProps) {
         <div className="flex flex-wrap justify-center gap-10">
           {teams.map((team, ti) => {
             const color = team.avatarColor ?? "#3B3BFF";
-            const initials = team.name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
+            // Iterate code points to keep emoji intact — see TeamCard.tsx
+            // for the full explanation of the surrogate-pair hydration bug.
+            const initials = team.name
+              .split(" ")
+              .map((w) => [...w][0] ?? "")
+              .slice(0, 2)
+              .join("")
+              .toUpperCase();
 
             return (
               <div key={team.id} className="flex flex-col items-center gap-5">
-
                 {/* Team card */}
                 <motion.div
-                  ref={el => { if (el) teamRefs.current.set(team.id, el); }}
+                  ref={(el) => {
+                    if (el) teamRefs.current.set(team.id, el);
+                  }}
                   initial={{ opacity: 0, y: 24 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.45, delay: 0.25 + ti * 0.1, ease: APPLE_EASE }}
@@ -205,9 +223,7 @@ export function OrgChart({ workspaceName, teams }: OrgChartProps) {
                       {initials}
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-strong">
-                        {team.name}
-                      </p>
+                      <p className="truncate text-sm font-bold text-strong">{team.name}</p>
                       <p className="text-[11px] text-muted">
                         {team.agents.length} agent{team.agents.length !== 1 ? "s" : ""}
                       </p>
@@ -225,10 +241,16 @@ export function OrgChart({ workspaceName, teams }: OrgChartProps) {
                   {team.agents.map((agent, ai) => (
                     <motion.div
                       key={agent.id}
-                      ref={el => { if (el) agentRefs.current.set(`${team.id}:${agent.id}`, el); }}
+                      ref={(el) => {
+                        if (el) agentRefs.current.set(`${team.id}:${agent.id}`, el);
+                      }}
                       initial={{ opacity: 0, y: 18 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.38, delay: 0.65 + ti * 0.1 + ai * 0.07, ease: APPLE_EASE }}
+                      transition={{
+                        duration: 0.38,
+                        delay: 0.65 + ti * 0.1 + ai * 0.07,
+                        ease: APPLE_EASE,
+                      }}
                       whileHover={{ y: -2, scale: 1.015, transition: { duration: 0.15 } }}
                       className="w-56 cursor-default rounded-xl border border-line bg-card p-3"
                     >
@@ -246,8 +268,18 @@ export function OrgChart({ workspaceName, teams }: OrgChartProps) {
                           <p className="truncate text-[10px] text-muted">{agent.role}</p>
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_DOT[agent.status] ?? "bg-zinc-600")} />
-                          <span className={cn("text-[9px] font-semibold uppercase", STATUS_LABEL[agent.status] ?? "text-muted")}>
+                          <span
+                            className={cn(
+                              "h-1.5 w-1.5 rounded-full",
+                              STATUS_DOT[agent.status] ?? "bg-zinc-600"
+                            )}
+                          />
+                          <span
+                            className={cn(
+                              "text-[9px] font-semibold uppercase",
+                              STATUS_LABEL[agent.status] ?? "text-muted"
+                            )}
+                          >
                             {agent.status}
                           </span>
                         </div>
@@ -258,7 +290,6 @@ export function OrgChart({ workspaceName, teams }: OrgChartProps) {
                     </motion.div>
                   ))}
                 </div>
-
               </div>
             );
           })}

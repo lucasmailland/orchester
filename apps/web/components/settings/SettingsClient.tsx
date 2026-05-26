@@ -92,22 +92,31 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
     [stripeEnabled]
   );
 
-  const [activeTab, setActiveTab] = useState<string>(() => {
-    if (typeof window === "undefined") return "general";
-    const hash = window.location.hash.replace("#", "");
-    return visibleTabs.find((tab) => tab.id === hash)?.id ?? "general";
-  });
+  // SSR and the first client render BOTH start on "general" — the lazy
+  // initializer used to read `window.location.hash` on the client, which
+  // produced an active tab that differed from the server's (server always
+  // rendered "general"). That diverged the nav's `aria-current` and the
+  // active section's icon between the two trees → "Hydration failed
+  // because the server rendered HTML didn't match the client" every time
+  // someone deep-linked to `/settings#members` or any other anchor.
+  //
+  // The hash is now applied in a useEffect, so the first paint matches
+  // SSR exactly and the deep-link bumps the tab on the next tick. The
+  // visual flicker is imperceptible (one frame) and the avatar dropdown's
+  // `/settings#account` jumps still work because the same effect fires
+  // both on mount and on every `hashchange`.
+  const [activeTab, setActiveTab] = useState<string>("general");
 
-  // Sync with URL hash → enables deep-links to /settings#providers.
   useEffect(() => {
-    function onHash() {
+    function applyHash() {
       const hash = window.location.hash.replace("#", "");
       if (hash && visibleTabs.find((tab) => tab.id === hash)) {
         setActiveTab(hash);
       }
     }
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
+    applyHash(); // initial deep-link
+    window.addEventListener("hashchange", applyHash);
+    return () => window.removeEventListener("hashchange", applyHash);
   }, [visibleTabs]);
 
   function selectTab(id: string) {
