@@ -13,10 +13,30 @@
 // spelling out triggers, self-check rituals, and a 9-verb conflict
 // taxonomy. The verbose v1.0.0 string is preserved as
 // MEMORY_PROTOCOL_V1_LEGACY for migration callers.
+//
+// v1.2.0 (Mnemosyne v1.6): appends two short paragraphs at the end —
+// entity awareness + per-user privacy. Keeps the total under ~120
+// tokens. `MEMORY_PROTOCOL_V1` is now an alias for the v1.2 string
+// to ease the agent-runtime migration (no caller has to switch
+// imports just for the bump); `MEMORY_PROTOCOL_V2` is the explicit
+// name for the same string; `MEMORY_PROTOCOL_V1_LEGACY` continues to
+// hold the v1.0.0 text for downstream replay/audit jobs that need to
+// reason about the pre-v1.1 vocabulary.
 
-export const MEMORY_PROTOCOL_VERSION = "v1.1.0" as const;
+export const MEMORY_PROTOCOL_VERSION = "v1.2.0" as const;
 
-export const MEMORY_PROTOCOL_V1 = `You have memory tools:
+/**
+ * Mnemosyne v1.6 — Memory Protocol v1.2. Adds two short paragraphs
+ * to the v1.1 base:
+ *   • Entity awareness — agents should prefer entity-linked facts
+ *     when discussing a known entity.
+ *   • Per-user privacy — facts have an `actor_id` indicating which
+ *     end-user contributed them; cross-actor leakage is disallowed
+ *     unless the fact is workspace-scoped.
+ *
+ * Total length target: ~120 tokens (v1.1 was ~80; we're adding ~40).
+ */
+export const MEMORY_PROTOCOL_V2 = `You have memory tools:
 - mnemosyne_recall(q): retrieve facts about user/context. Use before factual claims about the user, their company, or prior conversations.
 - mnemosyne_remember(kind, subject, statement, confidence): save a durable fact. Skip greetings/ephemeral chitchat. Max 1 per turn.
 - mnemosyne_pin(factId): mark fact as high-importance (recalled with boost).
@@ -25,9 +45,23 @@ export const MEMORY_PROTOCOL_V1 = `You have memory tools:
 Rules:
 - Treat memory as authoritative for prior context; treat user corrections as supreme.
 - Don't reveal raw fact IDs to user — use natural language.
-- If a fact contradicts what the user just said, prefer the user and update or forget.` as const;
+- If a fact contradicts what the user just said, prefer the user and update or forget.
 
-/** @deprecated Use MEMORY_PROTOCOL_V1 (now points at v1.1). Kept for migration. */
+Entity awareness: When the user mentions a person, organization, or project by name, prefer facts linked to that entity (mnemo_entity). Use mnemosyne_recall with the entity name to surface them.
+
+Per-user privacy: Facts have an actor_id indicating which end-user contributed them. When responding to user Bob, do not reveal facts contributed by user Alice unless they are workspace-scoped. Treat user_belief and user_stated facts as belonging to that user specifically.` as const;
+
+/**
+ * Active protocol string. v1.6 onward: this is an alias for
+ * MEMORY_PROTOCOL_V2 so existing agent-runtime callers that import
+ * `MEMORY_PROTOCOL_V1` automatically pick up the v1.2 text without a
+ * code change. The name is preserved to avoid breaking host imports
+ * during the migration window — call sites can switch to
+ * `MEMORY_PROTOCOL_V2` at their own pace.
+ */
+export const MEMORY_PROTOCOL_V1 = MEMORY_PROTOCOL_V2;
+
+/** @deprecated Use MEMORY_PROTOCOL_V1 (now points at v1.2). Kept for migration. */
 export const MEMORY_PROTOCOL_V1_LEGACY = `# Memory Protocol v1.0.0
 
 You have a long-term memory system (Mnemosyne). Use it.
@@ -67,3 +101,21 @@ When a save returns judgment_required: true:
 Before saying "done", call mnemosyne_save_episode_summary with:
 - Goal · Discoveries · Decisions · Next Steps
 ` as const;
+
+/**
+ * Mnemosyne v1.6 — explicit v1.1 string, preserved separately for
+ * extraction-replay jobs that need to reason about what the v1.1
+ * protocol said (vs the v1.2 it now silently aliases to). The
+ * `MEMORY_PROTOCOL_V1` export points at v1.2 to ease the runtime
+ * migration; this constant is the verbatim v1.1 text.
+ */
+export const MEMORY_PROTOCOL_V1_1 = `You have memory tools:
+- mnemosyne_recall(q): retrieve facts about user/context. Use before factual claims about the user, their company, or prior conversations.
+- mnemosyne_remember(kind, subject, statement, confidence): save a durable fact. Skip greetings/ephemeral chitchat. Max 1 per turn.
+- mnemosyne_pin(factId): mark fact as high-importance (recalled with boost).
+- mnemosyne_forget(factId): user said "forget that" or you discovered the fact was wrong.
+
+Rules:
+- Treat memory as authoritative for prior context; treat user corrections as supreme.
+- Don't reveal raw fact IDs to user — use natural language.
+- If a fact contradicts what the user just said, prefer the user and update or forget.` as const;

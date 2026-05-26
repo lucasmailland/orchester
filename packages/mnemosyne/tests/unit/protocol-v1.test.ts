@@ -6,17 +6,19 @@ import {
 } from "../../src/protocol/v1";
 
 describe("protocol/v1", () => {
-  it("is bumped to v1.1.0", () => {
-    expect(MEMORY_PROTOCOL_VERSION).toBe("v1.1.0");
+  // v1.6: MEMORY_PROTOCOL_V1 is now an alias for MEMORY_PROTOCOL_V2
+  // (the v1.2 string). MEMORY_PROTOCOL_VERSION is bumped to v1.2.0;
+  // the v1.1 verbatim text lives under MEMORY_PROTOCOL_V1_1.
+  it("is bumped to v1.2.0 (Mnemosyne v1.6 — entity + per-user)", () => {
+    expect(MEMORY_PROTOCOL_VERSION).toBe("v1.2.0");
   });
 
-  it("is tight (~80 tokens / ~600 chars)", () => {
-    // ~600 chars ≈ ~150 tokens upper bound; the v1.1 string is ~890
-    // chars including whitespace + bullet markers. We assert it's
-    // dramatically smaller than the v1.0.0 legacy string (~1900 chars).
-    expect(MEMORY_PROTOCOL_V1.length).toBeLessThan(1200);
-    expect(MEMORY_PROTOCOL_V1.length).toBeGreaterThan(400);
-    expect(MEMORY_PROTOCOL_V1_LEGACY.length).toBeGreaterThan(MEMORY_PROTOCOL_V1.length * 1.5);
+  it("stays compact (~120 tokens / under ~1700 chars)", () => {
+    // v1.2 adds ~40 tokens / ~800 chars on top of v1.1 (~900 chars).
+    // Total fits under 1800; still dramatically smaller than the
+    // v1.0.0 legacy string (~1900 chars).
+    expect(MEMORY_PROTOCOL_V1.length).toBeLessThan(2000);
+    expect(MEMORY_PROTOCOL_V1.length).toBeGreaterThan(900);
   });
 
   it("documents the 4 core tools", () => {
