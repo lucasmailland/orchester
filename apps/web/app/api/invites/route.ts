@@ -79,9 +79,9 @@ export async function POST(req: Request) {
     const { sendEmail } = await import("@/lib/email");
     await sendEmail({
       to: email,
-      subject: `Te invitaron al workspace ${ctx.workspace.name}`,
-      text: `Hola, te invitaron a ${ctx.workspace.name} en Orchester. Aceptá la invitación: ${inviteUrl}`,
-      html: `<p>Hola, te invitaron a <b>${ctx.workspace.name}</b> en Orchester.</p><p><a href="${inviteUrl}">Aceptar invitación</a></p>`,
+      subject: `You've been invited to the ${ctx.workspace.name} workspace`,
+      text: `Hi — you've been invited to ${ctx.workspace.name} on Orchester. Accept the invitation: ${inviteUrl}`,
+      html: `<p>Hi — you've been invited to <b>${ctx.workspace.name}</b> on Orchester.</p><p><a href="${inviteUrl}">Accept invitation</a></p>`,
     });
   } catch {}
   await logAudit({

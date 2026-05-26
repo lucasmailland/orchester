@@ -56,10 +56,9 @@ export function PricingCta({ locale, plan, label, highlight }: Props) {
     };
   }, []);
 
-  const base =
-    highlight
-      ? "mt-6 block w-full rounded-lg bg-violet-500 py-2 text-center text-sm font-medium text-white hover:bg-violet-400 disabled:opacity-50"
-      : "mt-6 block w-full rounded-lg border border-line py-2 text-center text-sm font-medium text-body hover:bg-hover disabled:opacity-50";
+  const base = highlight
+    ? "mt-6 block w-full rounded-lg bg-violet-500 py-2 text-center text-sm font-medium text-white hover:bg-violet-400 disabled:opacity-50"
+    : "mt-6 block w-full rounded-lg border border-line py-2 text-center text-sm font-medium text-body hover:bg-hover disabled:opacity-50";
 
   if (plan === "business") {
     return (
@@ -100,7 +99,7 @@ export function PricingCta({ locale, plan, label, highlight }: Props) {
       return;
     }
     if (!stripeEnabled) {
-      toast.info("Este deployment es self-hosted: ya tenés uso sin límites.");
+      toast.info("This deployment is self-hosted — usage is already unlimited.");
       return;
     }
     setBusy(true);

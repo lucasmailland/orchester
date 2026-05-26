@@ -59,7 +59,7 @@ async function handleOne(req: JsonRpcReq, auth: McpAuth): Promise<object | null>
     case "tools/call": {
       const name = String(req.params?.name ?? "");
       const args = (req.params?.arguments as Record<string, unknown>) ?? {};
-      if (!name) return rpcError(req.id, -32602, "params.name requerido");
+      if (!name) return rpcError(req.id, -32602, "params.name required");
       const result = await callMcpTool(name, args, auth);
       return rpcResult(req.id, result);
     }
@@ -124,7 +124,11 @@ export async function POST(request: Request) {
 /** Algunos clients hacen GET para abrir un stream SSE; respondemos 405 (usamos POST-only). */
 export async function GET() {
   return NextResponse.json(
-    rpcError(null, -32000, "Usá POST con JSON-RPC. Este server MCP es POST-only (Streamable HTTP)."),
+    rpcError(
+      null,
+      -32000,
+      "Usá POST con JSON-RPC. Este server MCP es POST-only (Streamable HTTP)."
+    ),
     { status: 405 }
   );
 }

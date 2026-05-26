@@ -1,20 +1,25 @@
 import Link from "next/link";
-import { ArrowRight, Bot, Workflow, MessageSquare, Zap, Shield, Sparkles, Code2 } from "lucide-react";
+import {
+  ArrowRight,
+  Bot,
+  Workflow,
+  MessageSquare,
+  Zap,
+  Shield,
+  Sparkles,
+  Code2,
+} from "lucide-react";
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/workspace";
 
 /**
- * Landing público.
+ * Public landing page.
  *
- * - Si el visitante ya tiene sesión, lo mandamos directo al dashboard
- *   (no queremos que un usuario logueado pierda tiempo viendo el pitch).
- * - Si no, mostramos el pitch + CTAs a /signup.
+ * - If the visitor already has a session, send them straight to the dashboard
+ *   (a logged-in user shouldn't have to wade through the pitch).
+ * - Otherwise show the pitch + CTAs to /signup.
  */
-export default async function WelcomePage({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
+export default async function WelcomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const session = await getCurrentSession();
   if (session) redirect(`/${locale}`);
@@ -22,33 +27,33 @@ export default async function WelcomePage({
   const features = [
     {
       icon: Bot,
-      title: "Agentes que entienden tu negocio",
-      desc: "Definí roles, prompts y herramientas. Cada agente tiene su propio modelo, knowledge base y guard-rails.",
+      title: "Agents that understand your business",
+      desc: "Define roles, prompts, and tools. Each agent gets its own model, knowledge base, and guard-rails.",
     },
     {
       icon: Workflow,
-      title: "Flujos visuales sin código",
-      desc: "Conectá triggers, condiciones y acciones en un canvas. Ramas, retries y estado tipado out-of-the-box.",
+      title: "Visual flows, no code",
+      desc: "Wire triggers, conditions, and actions on a canvas. Branches, retries, and typed state out of the box.",
     },
     {
       icon: MessageSquare,
-      title: "Multi-canal real",
-      desc: "Web widget, WhatsApp, Telegram, Slack, email y API. Una sola conversación, todos los canales.",
+      title: "Real multi-channel",
+      desc: "Web widget, WhatsApp, Telegram, Slack, email, and API. One conversation, every channel.",
     },
     {
       icon: Zap,
-      title: "Streaming token-por-token",
-      desc: "Respuestas que aparecen mientras el modelo piensa. UX de primer nivel con SSE nativo.",
+      title: "Token-by-token streaming",
+      desc: "Responses appear while the model thinks. First-class UX with native SSE.",
     },
     {
       icon: Shield,
-      title: "Seguridad enterprise",
-      desc: "SSO, 2FA, audit log, RBAC, GDPR, encriptación at-rest. CSP con nonce y rate-limit pluggable.",
+      title: "Enterprise security",
+      desc: "SSO, 2FA, audit log, RBAC, GDPR, at-rest encryption. CSP with nonce and pluggable rate limiting.",
     },
     {
       icon: Sparkles,
-      title: "Costo bajo control",
-      desc: "Budget mensual por empleado. Alertas a 70/90/100%. Cost breakdown por conversación y por mensaje.",
+      title: "Cost under control",
+      desc: "Monthly budget per employee. Alerts at 70/90/100%. Cost breakdown by conversation and by message.",
     },
   ];
 
@@ -64,9 +69,15 @@ export default async function WelcomePage({
             <span className="font-display text-lg font-semibold tracking-tight">Orchester</span>
           </Link>
           <nav className="hidden items-center gap-6 text-sm text-zinc-400 md:flex">
-            <Link href={`/${locale}/welcome#features`} className="hover:text-zinc-100">Producto</Link>
-            <Link href={`/${locale}/pricing`} className="hover:text-zinc-100">Precios</Link>
-            <Link href={`/${locale}/docs`} className="hover:text-zinc-100">Docs</Link>
+            <Link href={`/${locale}/welcome#features`} className="hover:text-zinc-100">
+              Product
+            </Link>
+            <Link href={`/${locale}/pricing`} className="hover:text-zinc-100">
+              Pricing
+            </Link>
+            <Link href={`/${locale}/docs`} className="hover:text-zinc-100">
+              Docs
+            </Link>
             <a
               href="https://github.com/orchester-io/orchester"
               target="_blank"
@@ -81,13 +92,13 @@ export default async function WelcomePage({
               href={`/${locale}/login`}
               className="hidden text-sm text-zinc-400 hover:text-zinc-100 sm:inline"
             >
-              Ingresar
+              Sign in
             </Link>
             <Link
               href={`/${locale}/signup`}
               className="rounded-lg bg-violet-500 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-violet-400"
             >
-              Empezar gratis
+              Get started free
             </Link>
           </div>
         </div>
@@ -109,32 +120,33 @@ export default async function WelcomePage({
             <Sparkles className="h-3 w-3" /> Open source · Self-hostable
           </span>
           <h1 className="mt-6 font-display text-4xl font-bold tracking-tight md:text-6xl">
-            La plataforma de agentes IA<br />
+            The AI agent platform
+            <br />
             <span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-blue-400 bg-clip-text text-transparent">
-              que tu equipo merece.
+              your team deserves.
             </span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base text-zinc-400 md:text-lg">
-            Construí, conectá y desplegá agentes en minutos. Multi-canal, multi-modelo, con
-            costos bajo control y la seguridad que necesita una empresa real.
+            Build, connect, and ship agents in minutes. Multi-channel, multi-model, with cost under
+            control and the security a real enterprise needs.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
               href={`/${locale}/signup`}
               className="group flex items-center gap-2 rounded-xl bg-violet-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_40px_-10px_rgba(139,92,246,0.6)] hover:bg-violet-400"
             >
-              Empezar gratis
+              Get started free
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
             <Link
               href={`/${locale}/pricing`}
               className="rounded-xl border border-white/[0.08] px-5 py-2.5 text-sm font-medium text-zinc-200 hover:bg-white/5"
             >
-              Ver precios
+              See pricing
             </Link>
           </div>
           <p className="mt-4 text-[11px] text-zinc-600">
-            Plan Free para siempre · No requiere tarjeta · Self-host gratis
+            Free plan forever · No credit card required · Self-host for free
           </p>
         </div>
       </section>
@@ -144,10 +156,11 @@ export default async function WelcomePage({
         <div className="mx-auto max-w-6xl px-6">
           <div className="text-center">
             <h2 className="font-display text-3xl font-bold tracking-tight md:text-4xl">
-              Todo lo que necesitás. Nada que no.
+              Everything you need. Nothing you don&apos;t.
             </h2>
             <p className="mx-auto mt-3 max-w-2xl text-sm text-zinc-500">
-              Pensado para equipos que ya pasaron por el dolor de armar agentes con scripts sueltos.
+              Built for teams who&apos;ve already lived through the pain of stitching agents
+              together from loose scripts.
             </p>
           </div>
           <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -176,42 +189,42 @@ export default async function WelcomePage({
           <div className="grid items-center gap-10 md:grid-cols-2">
             <div>
               <h2 className="font-display text-2xl font-bold tracking-tight md:text-3xl">
-                Tu modelo, tu nube, tu data.
+                Your model, your cloud, your data.
               </h2>
               <p className="mt-3 text-sm text-zinc-400">
-                Bring-your-own-key para Anthropic, OpenAI, Google y Azure. Self-host con un
-                comando, o usá nuestra cloud. Tus datos nunca salen de tu infra si así lo querés.
+                Bring-your-own-key for Anthropic, OpenAI, Google, and Azure. Self-host with one
+                command, or use our cloud. Your data never leaves your infra unless you want it to.
               </p>
               <ul className="mt-5 space-y-2 text-sm text-zinc-300">
                 <li className="flex items-start gap-2">
                   <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-violet-400" />
-                  <span>Postgres + pgvector para conocimiento (RAG)</span>
+                  <span>Postgres + pgvector for knowledge (RAG)</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-violet-400" />
-                  <span>Workers en background con retry exponencial</span>
+                  <span>Background workers with exponential retry</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-violet-400" />
-                  <span>Webhooks firmados (HMAC) con re-intentos automáticos</span>
+                  <span>Signed webhooks (HMAC) with automatic retries</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-violet-400" />
-                  <span>OpenTelemetry y métricas en tiempo real</span>
+                  <span>OpenTelemetry and real-time metrics</span>
                 </li>
               </ul>
             </div>
             <div className="rounded-2xl border border-white/[0.06] bg-black p-1">
               <pre className="overflow-x-auto rounded-xl bg-zinc-950 p-5 font-mono text-[11px] leading-relaxed text-zinc-300">
-{`# Self-host en 30 segundos
+                {`# Self-host in 30 seconds
 $ git clone https://github.com/orchester-io/orchester
 $ cd orchester
 $ docker compose up -d
 
-# O usá la cloud:
+# Or use the cloud:
 $ open https://orchester.io/signup
 
-# Conectá tu primer canal:
+# Connect your first channel:
 $ curl -XPOST $URL/api/channels \\
     -d '{"type":"telegram","token":"$BOT_TOKEN"}'`}
               </pre>
@@ -224,16 +237,16 @@ $ curl -XPOST $URL/api/channels \\
       <section className="border-t border-white/[0.06] py-20">
         <div className="mx-auto max-w-4xl px-6 text-center">
           <h2 className="font-display text-3xl font-bold tracking-tight md:text-4xl">
-            Listo para tu primer agente en producción?
+            Ready for your first agent in production?
           </h2>
           <p className="mt-3 text-sm text-zinc-400">
-            Plan Free para siempre. No te pedimos tarjeta. Cancelás cuando quieras.
+            Free plan forever. No credit card required. Cancel anytime.
           </p>
           <Link
             href={`/${locale}/signup`}
             className="mt-7 inline-flex items-center gap-2 rounded-xl bg-violet-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_40px_-10px_rgba(139,92,246,0.6)] hover:bg-violet-400"
           >
-            Crear cuenta <ArrowRight className="h-4 w-4" />
+            Create account <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </section>
@@ -243,9 +256,15 @@ $ curl -XPOST $URL/api/channels \\
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6">
           <span>© {new Date().getFullYear()} Orchester</span>
           <div className="flex gap-4">
-            <Link href={`/${locale}/privacy`} className="hover:text-zinc-300">Privacidad</Link>
-            <Link href={`/${locale}/terms`} className="hover:text-zinc-300">Términos</Link>
-            <Link href={`/${locale}/docs`} className="hover:text-zinc-300">Docs</Link>
+            <Link href={`/${locale}/privacy`} className="hover:text-zinc-300">
+              Privacy
+            </Link>
+            <Link href={`/${locale}/terms`} className="hover:text-zinc-300">
+              Terms
+            </Link>
+            <Link href={`/${locale}/docs`} className="hover:text-zinc-300">
+              Docs
+            </Link>
             <a
               href="https://github.com/orchester-io/orchester"
               target="_blank"

@@ -10,7 +10,7 @@ import { Loader2, CreditCard } from "lucide-react";
  */
 export function CheckoutLauncher({ locale, plan }: { locale: string; plan: string }) {
   const router = useRouter();
-  const [msg, setMsg] = useState("Preparando tu suscripción…");
+  const [msg, setMsg] = useState("Preparing your subscription…");
   const fired = useRef(false);
 
   useEffect(() => {
@@ -29,10 +29,10 @@ export function CheckoutLauncher({ locale, plan }: { locale: string; plan: strin
           return;
         }
         // Stripe off o error → seguimos al dashboard, el plan free igual sirve.
-        setMsg("Billing no disponible en este deployment. Te llevamos al panel…");
+        setMsg("Billing isn't available in this deployment. Taking you to the dashboard…");
         setTimeout(() => router.replace(`/${locale}`), 1500);
       } catch {
-        setMsg("No se pudo iniciar el pago. Te llevamos al panel…");
+        setMsg("Couldn't start checkout. Taking you to the dashboard…");
         setTimeout(() => router.replace(`/${locale}`), 1500);
       }
     })();
