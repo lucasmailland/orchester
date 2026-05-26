@@ -37,19 +37,30 @@ Introduce a new package `@orchester/mnemosyne` — Postgres-only at v1.0,
 no new infrastructure. The package owns six tables and one set of public
 APIs (`commit`, `recall`, `relate`, `cite`).
 
+> **Amendment 2026-05-25 (post-v1.4):** This ADR was written at v1.0
+> design time and undercounted the v1.4 surface. See the "Amendment
+> 2026-05-25 — v1.1 → v1.4 evolution" section at the end of this ADR
+> for the up-to-date table list, verb list, and shipped extensions.
+
 Concrete commitments:
 
-- **Storage.** Six tables — `mnemo_fact`, `mnemo_decision`,
+- **Storage.** Six tables at v1.0 — `mnemo_fact`, `mnemo_decision`,
   `mnemo_relation`, `mnemo_citation`, `mnemo_extraction_job`,
   `mnemo_query_cache` — all RLS+FORCE (ADR-010 Pattern A). Tenant key is
   `workspace_id`. Bitemporal validity is captured via
   `(valid_from, valid_to)` GIST-indexed ranges on facts and decisions
-  (migration `0026_mnemoyne_bitemporal_gist.sql`).
+  (migration `0026_mnemoyne_bitemporal_gist.sql`). v1.1–v1.4 add five
+  more tables (`mnemo_summary`, `mnemo_fact_archive`, `mnemo_health`,
+  `mnemo_review_queue`, `mnemo_episode`) — see the amendment below.
 - **Recall.** Hybrid pgvector HNSW + Postgres FTS (same shape as
   `knowledge_chunk`, ADR-018). The relation graph is traversable via a
   recursive CTE over `mnemo_relation`; verbs are locked to a fixed set
-  of 9 — `relates_to`, `contradicts`, `supports`, `derives_from`,
-  `assigned_to`, `blocks`, `mentions`, `references`, `succeeds`.
+  of 9 — `related`, `compatible`, `scoped`, `conflicts_with`,
+  `supersedes`, `not_conflict`, `derived_from`, `part_of`, `member_of`.
+  (See `packages/mnemosyne/src/graph/verbs.ts` — `RELATION_VERBS` is the
+  single source of truth; the older list above of `relates_to`,
+  `contradicts`, `supports`, `derives_from`, `assigned_to`, `blocks`,
+  `mentions`, `references`, `succeeds` was a draft never deployed.)
 - **Protocol.** `MEMORY_PROTOCOL_VERSION = "v1.0.0"` is frozen. The
   string is injected into the agent system prompt at runtime by
   `apps/web/lib/agent-runtime.ts` so every agent has a stable contract
@@ -101,10 +112,75 @@ RLS posture needs an explicit cross-tenant wrapper (ADR-012 pattern).
 (3) A provider ships a primitive that subsumes both `mnemo_fact` and
 `mnemo_relation` — collapse the schema then, not before.
 
+## Amendment 2026-05-25 — v1.1 → v1.4 evolution
+
+The original Decision section listed six tables and a (never-deployed)
+draft verb list. The shipped v1.4 surface is:
+
+**Tables — 11 mnemo\_\* + one column on `agent`:**
+
+| Table                  | Migration | Role                                       |
+| ---------------------- | --------- | ------------------------------------------ |
+| `mnemo_fact`           | 0017      | Core fact primitive (+0033 memory_type,    |
+|                        |           | +0035 attribution, +0037 actor_id)         |
+| `mnemo_extraction_job` | 0017      | Extraction backlog                         |
+| `mnemo_decision`       | 0018      | Decision primitive                         |
+| `mnemo_relation`       | 0020      | Graph edges (9 LOCKED verbs)               |
+| `mnemo_citation`       | 0021      | Source provenance                          |
+| `mnemo_query_cache`    | 0022      | L3 cache — table provisioned, NOT wired    |
+| `mnemo_summary`        | 0028      | v1.1 — distilled per-user profile          |
+| `mnemo_fact_archive`   | 0029      | v1.2 — janitor + supersede graveyard       |
+| `mnemo_health`         | 0031      | v1.2 — drift snapshots                     |
+| `mnemo_review_queue`   | 0032      | v1.3 — active-learning queue               |
+| `mnemo_episode`        | 0034      | v1.4 — episodic timeline                   |
+| `agent.memory_policy`  | 0036      | jsonb column (not a new table) — per-agent |
+|                        |           | recall/write policy applier                |
+
+**LOCKED verb list (9 — `RELATION_VERB_VERSION = v1.0.0`):**
+
+`related`, `compatible`, `scoped`, `conflicts_with`, `supersedes`,
+`not_conflict`, `derived_from`, `part_of`, `member_of`.
+
+Source of truth: `packages/mnemosyne/src/graph/verbs.ts`. Re-ordering or
+changing any string in the array is a breaking protocol bump that
+invalidates every stored judgment (see header doc-comment in that file).
+
+**Memory Protocol** — v1.0.0 frozen at v1.0; v1.1 introduced a compact
+~80-token variant (`MEMORY_PROTOCOL_V1`) plus the legacy ~300-token
+form (`MEMORY_PROTOCOL_V1_LEGACY`) retained for back-compat. The
+version string stayed `v1.0.0` because tool surface + semantics did not
+break; the change was prompt-length only.
+
+**Operational mode reframing** — Mode A is no longer a configuration
+target. Live provider-health degradation can push a Mode-C workspace
+down to A/B mid-turn (circuit breaker). `resolveActiveMode` is the
+runtime answer; `resolveConfiguredMode` answers the static-config
+question. See `src/modes/{detect,health}.ts`.
+
+**Cumulative roadmap milestones:**
+
+- v1.1 "The Brain" — quality + cost (HyDE, rerank, prune, compact
+  render, contradiction-on-write, tiered injection, prompt-caching,
+  async embedding, distilled summary cron).
+- v1.2 "The Janitor" — `mnemo_fact_archive`, bitemporal `asOf`,
+  health-snapshot drift detection, dedup + prune crons.
+- v1.3 "The Inspector" — 11 API routes under `/api/mnemo/*`,
+  `mnemo_review_queue` + active-learning sweep, auto-pin rules,
+  Inspector UI.
+- v1.4 "The Cognitive Leap" — memory_type, episodes,
+  attribution, 1-hop graph expansion in recall, REM-style
+  consolidation, per-agent memory policy, actor_id, unified KB+Memory
+  recall.
+
+Full evolution detail in `docs/specs/2026-05-24-mnemosyne-design.md`
+§40 (added 2026-05-25).
+
 ## Links
 
-- Design: `docs/specs/2026-05-24-mnemosyne-design.md`
+- Design: `docs/specs/2026-05-24-mnemosyne-design.md` (§40 evolution,
+  §41 deferred, §42 v1.4 snapshot)
 - Plan: `docs/specs/plans/2026-05-24-mnemosyne-implementation-plan.md`
-- Final audit: `docs/specs/audits/2026-05-24-mnemosyne-v1-final-audit.md`
+- Initial audit: `docs/specs/audits/2026-05-24-mnemosyne-v1-final-audit.md`
+- Final audit: `docs/specs/audits/2026-05-25-mnemosyne-v1.4-final-audit.md`
 - Related: ADR-006 (app-layer tenancy), ADR-010 (RLS+FORCE),
   ADR-014..019 (brain_core), ADR-012 (cross-tenant admin wrapper).
