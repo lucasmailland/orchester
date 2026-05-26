@@ -48,7 +48,7 @@
 import { createHash } from "crypto";
 import { sql } from "drizzle-orm";
 import { embedMnemo, type EmbedFn, type EmbeddingProvider } from "./embed";
-import { recallCache, recallCacheKey } from "./cache";
+import { recallCache, recallCacheKey, getL3Cache, setL3Cache } from "./cache";
 import { prepareQuery, type LlmCallFn, type PreparedQuery } from "./query-prep";
 import { noopRerank, type RerankFn } from "./rerank";
 import { withMnemoTx, type Tx } from "../tx";
@@ -854,6 +854,55 @@ export async function searchMnemo(input: SearchMnemoInput): Promise<RecallHit[]>
   const cached = recallCache.get(cacheK) as RecallHit[] | undefined;
   if (cached) return cached;
 
+  // v1.6 G1-4: L3 query cache. Only consult when (a) we have an
+  // embedding provider — Mode A FTS-only has no query vector — AND
+  // (b) we're NOT in time-travel mode — historical snapshots must
+  // not be cached as "current" recall and risk leaking stale state.
+  const useL3 =
+    !input.asOf && !!input.embeddingProvider && !!input.embeddingModel && !!input.embedFn;
+  let queryVecForL3: number[] | null = null;
+  if (useL3) {
+    try {
+      // Run inside a tx so RLS sees `app.workspace_id`. Honor caller-
+      // owned tx when present.
+      const computeAndLookup = async (tx: Tx): Promise<RecallHit[] | null> => {
+        // Re-use the same embedding query the first-stage uses so the
+        // vector matches what would have been computed downstream.
+        const embeddingQuery = prepared.hypothetical ?? prepared.contextualized;
+        const vecs = await embedMnemo({
+          workspaceId: input.workspaceId,
+          texts: [embeddingQuery],
+          provider: input.embeddingProvider!,
+          model: input.embeddingModel!,
+          embedFn: input.embedFn!,
+          tx: tx as never,
+        });
+        const vec = vecs[0];
+        if (!vec || vec.length === 0) return null;
+        queryVecForL3 = vec;
+        const l3Hit = await getL3Cache(input.workspaceId, vec, tx, {
+          scope: input.scope ?? null,
+          scopeRef: input.scopeRef ?? null,
+          agentId: input.agentId ?? null,
+          topK,
+        });
+        return l3Hit ? l3Hit.hits : null;
+      };
+      const l3Hits = input.tx
+        ? await computeAndLookup(input.tx)
+        : await withMnemoTx(input.workspaceId, (tx) => computeAndLookup(tx as Tx));
+      if (l3Hits) {
+        // Warm the L1 LRU too so repeated identical queries don't re-
+        // hit the table.
+        recallCache.set(cacheK, l3Hits as unknown as object);
+        return l3Hits;
+      }
+    } catch {
+      // L3 lookup must NEVER break recall — fall through to the full
+      // pipeline on any error.
+    }
+  }
+
   const hits = input.tx
     ? await runSearchPipeline(input, input.tx, prepared, topK)
     : await withMnemoTx(input.workspaceId, (tx) =>
@@ -861,5 +910,26 @@ export async function searchMnemo(input: SearchMnemoInput): Promise<RecallHit[]>
       );
 
   recallCache.set(cacheK, hits as unknown as object);
+
+  // v1.6 G1-4: write-through into L3. Skip in time-travel mode and
+  // when we never computed a query vector (Mode A or embed failure).
+  if (useL3 && queryVecForL3) {
+    const rowId = `${input.workspaceId}:${queryHash}:${topK}`;
+    const writer = async (tx: Tx): Promise<void> => {
+      await setL3Cache(input.workspaceId, queryVecForL3!, hits, tx, {
+        rowId,
+        scope: input.scope ?? null,
+        scopeRef: input.scopeRef ?? null,
+        agentId: input.agentId ?? null,
+        topK,
+      });
+    };
+    try {
+      if (input.tx) await writer(input.tx);
+      else await withMnemoTx(input.workspaceId, (tx) => writer(tx as Tx));
+    } catch {
+      // never break recall on cache-write failure
+    }
+  }
   return hits;
 }
