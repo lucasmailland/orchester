@@ -4,7 +4,7 @@
 // Multi-tenant memory architecture for AI agents.
 // See docs/specs/2026-05-24-mnemosyne-design.md
 
-export const MNEMOSYNE_VERSION = "0.1.0";
+export const MNEMOSYNE_VERSION = "1.4.0";
 
 // Transaction wrapper — sets `app.workspace_id` GUC + downgrades to
 // app_user role so RLS+FORCE Pattern A actually enforces. Host crons
