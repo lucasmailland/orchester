@@ -39,6 +39,8 @@ import { resolveSmallTierModel } from "./model-resolve";
 import { extractFacts } from "./extract";
 import { withBrainTx } from "./store";
 import { invalidateRecallCache } from "./recall";
+import { extractEpisode } from "./episode-extractor";
+import { llmCall } from "@/lib/llm-call";
 
 /**
  * Cool-down before pg-boss re-picks a deferred job. Keep small enough
@@ -64,6 +66,9 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
   // is admin-initiated (cron / inbound event), legitimate cross-tenant
   // access through cron_admin role.
   let factsProduced = 0;
+  // Snapshot facts saved this run so we can pass their ids to the
+  // episode synthesizer once the per-fact loop finishes.
+  const savedFactIds: string[] = [];
   try {
     await withCrossTenantAdmin("brain.extract", async (tx) => {
       // v1.5 — load the conversation row first so we know which
@@ -85,7 +90,22 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
         .limit(1);
       const conv = convRows[0] ?? null;
 
-      if (conv?.memoryLearningPaused) {
+      if (!conv) {
+        // Conversation row vanished between enqueue and run (deleted /
+        // FK cascade). Mark the job done with zero facts so the UI
+        // doesn't spin and pg-boss doesn't retry.
+        await tx
+          .update(schema.brainExtractionJobs)
+          .set({
+            state: "done",
+            factsProduced: 0,
+            completedAt: new Date(),
+          })
+          .where(eq(schema.brainExtractionJobs.id, payload.jobId));
+        return;
+      }
+
+      if (conv.memoryLearningPaused) {
         // Sensitivity gate hit. Mark skipped + return — NO LLM call,
         // NO facts. The Inspector can later flip the flag and a fresh
         // extract job will run on the next user turn. Already-extracted
@@ -255,7 +275,7 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
       await withMnemoTx(payload.workspaceId, async (factTx) => {
         for (const f of facts) {
           try {
-            await saveFactWithCandidates({
+            const result = await saveFactWithCandidates({
               workspaceId: payload.workspaceId,
               agentId: payload.agentId,
               scope: "conversation",
@@ -289,6 +309,7 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
               // is safe to call on every fact.
               enqueueOnNoJudge: true,
             });
+            savedFactIds.push(result.newFact.id);
             factsProduced++;
           } catch (e: unknown) {
             // Likely unique violation (dedup) — fine, skip. mnemo_fact
@@ -302,7 +323,32 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
         }
       });
 
-      // 4. Mark done + drop recall cache for the workspace so the new
+      // 4. Episode synthesis. Only worth a second LLM hop when the slice
+      // actually produced multiple facts — single-fact slices rarely
+      // describe a compound timeline event. `extractEpisode` carries
+      // its own assertWithinSpend + recordAiUsage (audit invariant)
+      // and is best-effort: any failure is logged and swallowed so it
+      // never fails the parent extraction.
+      if (savedFactIds.length >= 2) {
+        try {
+          await withMnemoTx(payload.workspaceId, async (epiTx) => {
+            await extractEpisode({
+              workspaceId: payload.workspaceId,
+              conversationId: payload.conversationId,
+              agentId: payload.agentId,
+              conversationSlice: slice,
+              factIds: savedFactIds,
+              model: resolved.modelId,
+              llm: llmCall,
+              tx: epiTx,
+            });
+          });
+        } catch (epiErr) {
+          safeLogError("[brain.extract] episode synthesis failed:", epiErr);
+        }
+      }
+
+      // 5. Mark done + drop recall cache for the workspace so the new
       // facts surface on the next recall.
       await tx
         .update(schema.brainExtractionJobs)
@@ -315,7 +361,7 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
 
       invalidateRecallCache(payload.workspaceId);
 
-      // 5. Single audit row per extraction batch (B-T8: don't spam
+      // 6. Single audit row per extraction batch (B-T8: don't spam
       // per-fact, the source_message_ids cover that).
       appendAudit(payload.workspaceId, {
         action: "brain.fact.extracted",
