@@ -52,7 +52,7 @@ export function ConnectProviderModal({
     });
     setSaving(false);
     if (!r.ok) {
-      setError("No se pudo conectar. Revisá la API key.");
+      setError("Couldn't connect. Double-check the API key.");
       return;
     }
     onConnected(picked.id);
@@ -68,13 +68,13 @@ export function ConnectProviderModal({
       <div className="flex max-h-[80vh] w-full max-w-md flex-col rounded-2xl border border-line bg-surface shadow-2xl">
         <div className="flex items-center justify-between border-b border-line px-4 py-3">
           <span className="text-sm font-semibold text-strong">
-            Conectar un proveedor · {CAPABILITY_LABELS[capability].emoji}{" "}
+            Connect a provider · {CAPABILITY_LABELS[capability].emoji}{" "}
             {CAPABILITY_LABELS[capability].es}
           </span>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Cerrar"
+            aria-label="Close"
             className="text-muted hover:text-body"
           >
             <X className="h-4 w-4" />
@@ -107,7 +107,7 @@ export function ConnectProviderModal({
                 >
                   <span>{p.name}</span>
                   <span className="text-[10px] text-faint">
-                    {p.kind === "aggregator" ? "agregador" : p.kind === "local" ? "local" : ""}
+                    {p.kind === "aggregator" ? "aggregator" : p.kind === "local" ? "local" : ""}
                   </span>
                 </button>
               ))}
@@ -120,7 +120,7 @@ export function ConnectProviderModal({
               onClick={() => setPicked(null)}
               className="text-[11px] text-muted hover:text-body"
             >
-              ← Elegir otro
+              ← Pick another
             </button>
             <div className="text-sm font-medium text-strong">{picked.name}</div>
             <div className="relative">
@@ -150,7 +150,7 @@ export function ConnectProviderModal({
                 rel="noreferrer"
                 className="block text-[11px] text-violet-600 dark:text-violet-400 hover:underline"
               >
-                ¿Dónde consigo la key? →
+                Where do I get the key? →
               </a>
             )}
             {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
@@ -160,7 +160,7 @@ export function ConnectProviderModal({
               disabled={!apiKey.trim() || saving}
               className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-violet-500 py-2 text-sm font-medium text-white hover:bg-violet-400 disabled:opacity-40"
             >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Conectar"}
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Connect"}
             </button>
           </div>
         )}
