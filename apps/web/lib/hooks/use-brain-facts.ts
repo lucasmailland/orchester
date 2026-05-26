@@ -82,6 +82,13 @@ export interface FactsFilters {
   sortBy?: SortBy;
   order?: SortOrder;
   limit?: number;
+  /**
+   * v1.6 G1-3: bitemporal time-travel. When set the route applies
+   * `valid_from <= asOf AND (valid_to IS NULL OR valid_to > asOf)`
+   * so the Inspector renders the memory snapshot at that instant.
+   * Pass `null`/`undefined` for "now" (default).
+   */
+  asOf?: Date | null;
 }
 
 /**
@@ -141,6 +148,7 @@ function buildFactsQuery(filters: FactsFilters, cursor?: string | null): string 
   if (filters.sortBy) params.set("sortBy", SORT_KEY_TO_API[filters.sortBy]);
   if (filters.order) params.set("order", filters.order);
   if (filters.limit) params.set("limit", String(filters.limit));
+  if (filters.asOf) params.set("asOf", filters.asOf.toISOString());
   if (cursor) params.set("cursor", cursor);
   const qs = params.toString();
   return `/api/mnemo/facts${qs ? `?${qs}` : ""}`;

@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Download, BookOpen, BrainCircuit, AlertCircle } from "lucide-react";
+import { Download, BookOpen, BrainCircuit, AlertCircle, History } from "lucide-react";
 import { Button, Skeleton, Chip } from "@heroui/react";
 import { notify } from "@/lib/toast";
 import {
@@ -22,6 +22,7 @@ import { FactFilters } from "@/components/brain/FactFilters";
 import { FactRow } from "@/components/brain/FactRow";
 import { EditFactDialog } from "@/components/brain/EditFactDialog";
 import { HealthDashboard } from "@/components/brain/HealthDashboard";
+import { TimeTravelPicker } from "@/components/brain/TimeTravelPicker";
 
 const DEFAULT_FILTERS: FactsFilters = {
   status: "active",
@@ -34,13 +35,45 @@ export function BrainInspectorClient() {
   const t = useTranslations("brain");
   const router = useRouter();
   const params = useParams<{ locale: string; workspaceSlug: string }>();
+  const searchParams = useSearchParams();
   const locale = params?.locale ?? "en";
   const ws = params?.workspaceSlug ?? "";
 
+  // v1.6 G1-3: bitemporal "view memory as of …" state. Source of truth
+  // is the URL query param `?asOf=ISO` so the historical view is
+  // shareable. `null` = view current memory.
+  const asOfFromUrl = useMemo<Date | null>(() => {
+    const raw = searchParams?.get("asOf");
+    if (!raw) return null;
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }, [searchParams]);
+  const [asOf, setAsOf] = useState<Date | null>(asOfFromUrl);
+
+  // Reflect external URL changes (e.g. back/forward) into local state.
+  useEffect(() => {
+    setAsOf(asOfFromUrl);
+  }, [asOfFromUrl]);
+
+  const onAsOfChange = useCallback(
+    (next: Date | null) => {
+      setAsOf(next);
+      const sp = new URLSearchParams(searchParams?.toString() ?? "");
+      if (next) sp.set("asOf", next.toISOString());
+      else sp.delete("asOf");
+      // shallow URL update — Next 15 App Router treats router.replace as
+      // a soft nav; we just want the URL to reflect the chosen instant.
+      const qs = sp.toString();
+      router.replace(`/${locale}/${ws}/brain${qs ? `?${qs}` : ""}`, { scroll: false });
+    },
+    [searchParams, router, locale, ws]
+  );
+
   const [filters, setFilters] = useState<FactsFilters>(DEFAULT_FILTERS);
+  const filtersWithAsOf = useMemo<FactsFilters>(() => ({ ...filters, asOf }), [filters, asOf]);
   const [editing, setEditing] = useState<Fact | null>(null);
   const { items, total, error, isLoading, hasMore, loadingMore, loadMore, mutate } =
-    useBrainFacts(filters);
+    useBrainFacts(filtersWithAsOf);
   const { snapshot, isLoading: healthLoading } = useBrainHealthLatest();
   const { count: reviewQueueCount } = useBrainReviewCount();
 
@@ -75,7 +108,17 @@ export function BrainInspectorClient() {
     ];
   }, [snapshot, t]);
 
+  // v1.6 G1-3: in time-travel mode edits are disabled — the user is
+  // viewing a historical snapshot and we don't want to mutate the
+  // current state of the world by accident. Each handler bails early
+  // with a toast.
+  const isTimeTravel = asOf !== null;
+
   async function handlePinToggle(fact: Fact) {
+    if (isTimeTravel) {
+      notify.error(t("timeTravel.editsDisabled"));
+      return;
+    }
     try {
       if (fact.pinned) await unpinFact(fact.id);
       else await pinFact(fact.id);
@@ -87,6 +130,10 @@ export function BrainInspectorClient() {
   }
 
   async function handleForget(fact: Fact) {
+    if (isTimeTravel) {
+      notify.error(t("timeTravel.editsDisabled"));
+      return;
+    }
     try {
       await forgetFact(fact.id);
       notify.success(t("toast.forgotten"));
@@ -97,6 +144,10 @@ export function BrainInspectorClient() {
   }
 
   async function handleRestore(fact: Fact) {
+    if (isTimeTravel) {
+      notify.error(t("timeTravel.editsDisabled"));
+      return;
+    }
     try {
       await restoreFact(fact.id);
       notify.success(t("toast.restored"));
@@ -111,6 +162,10 @@ export function BrainInspectorClient() {
   }
 
   function handleEdit(fact: Fact) {
+    if (isTimeTravel) {
+      notify.error(t("timeTravel.editsDisabled"));
+      return;
+    }
     setEditing(fact);
   }
 
@@ -133,6 +188,9 @@ export function BrainInspectorClient() {
           <p className="mt-1 text-sm text-muted">{t("subtitle")}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {/* v1.6 G1-3: bitemporal time-travel — Inspector renders the
+              memory snapshot at the chosen instant. */}
+          <TimeTravelPicker value={asOf} onChange={onAsOfChange} />
           <Button
             as={Link}
             href={`/${locale}/${ws}/brain/review`}
@@ -164,6 +222,20 @@ export function BrainInspectorClient() {
           </Button>
         </div>
       </header>
+
+      {/* v1.6 G1-3: time-travel banner — surfaces above the KPI strip
+          so it's the FIRST thing the operator sees when in a
+          historical view. */}
+      {isTimeTravel ? (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-xs text-amber-700 dark:text-amber-200">
+          <History className="h-4 w-4 shrink-0 text-amber-500" aria-hidden />
+          <span>
+            {t("timeTravel.banner", {
+              date: asOf!.toLocaleDateString(locale, { dateStyle: "long" }),
+            })}
+          </span>
+        </div>
+      ) : null}
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">

@@ -87,6 +87,26 @@ export async function GET(req: Request) {
   const statusParam = (params.get("status") ?? "active").toLowerCase();
   const qParam = params.get("q");
 
+  // v1.6 G1-3: bitemporal `asOf` query parameter. When provided we
+  // filter to facts whose `[valid_from, valid_to)` bitemporal interval
+  // contains `asOf` — i.e. the snapshot of memory at that instant.
+  // Same semantics as `searchMnemo({ asOf })`. Future dates are
+  // rejected — they would always return zero rows and we don't want
+  // operators thinking memory was empty just because they pasted
+  // tomorrow's date.
+  const asOfParam = params.get("asOf");
+  let asOfDate: Date | null = null;
+  if (asOfParam) {
+    const parsed = new Date(asOfParam);
+    if (Number.isNaN(parsed.getTime())) {
+      return NextResponse.json({ error: "Invalid asOf timestamp" }, { status: 400 });
+    }
+    if (parsed.getTime() > Date.now()) {
+      return NextResponse.json({ error: "asOf cannot be in the future" }, { status: 400 });
+    }
+    asOfDate = parsed;
+  }
+
   if (kindParam && !ALLOWED_KINDS.has(kindParam)) {
     return NextResponse.json({ error: "Invalid kind" }, { status: 400 });
   }
@@ -119,6 +139,14 @@ export async function GET(req: Request) {
   const conds = [sql`f.workspace_id = ${ctx.workspace.id}`];
   if (statusParam !== "all") {
     conds.push(sql`f.status = ${statusParam}`);
+  }
+  // v1.6 G1-3: bitemporal snapshot filter. Matches the SQL used in
+  // `searchMnemo` so the Inspector and the runtime recall agree on
+  // what existed at that instant.
+  if (asOfDate) {
+    conds.push(
+      sql`f.valid_from <= ${asOfDate} AND (f.valid_to IS NULL OR f.valid_to > ${asOfDate})`
+    );
   }
   if (kindParam) conds.push(sql`f.kind = ${kindParam}`);
   if (scopeParam) conds.push(sql`f.scope = ${scopeParam}`);
