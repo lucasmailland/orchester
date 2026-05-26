@@ -29,7 +29,7 @@
 // The host (apps/web) supplies the enqueue callback; mnemosyne never
 // imports pg-boss / BullMQ / Redis.
 
-import { createFact, type CreateFactInput, type MnemoFact } from "./fact";
+import { createFact, type CreateFactInput, type EmbeddingTier, type MnemoFact } from "./fact";
 import type { EnqueueFn } from "../types";
 
 /**
@@ -120,14 +120,21 @@ export async function createFactAsync(input: CreateFactAsyncInput): Promise<Mnem
   // extract-job's try/catch around createFact) can log + alert. The
   // host worker `embed-batch-job.ts` ALSO scans for unembedded facts
   // as a backstop (defense in depth).
-  await enqueueEmbed(EMBED_FACT_JOB_NAME, {
+  //
+  // v1.6 — include the embedding tier in the enqueue payload so the
+  // worker can group pending facts by tier without re-classifying.
+  // Default to 'default' so legacy callers that don't pass a tier
+  // produce a well-formed payload.
+  const enqueueData: Record<string, unknown> = {
     factId: fact.id,
     workspaceId: input.workspaceId,
     // Pass the (potentially PII-redacted) statement as written to the
     // row, NOT the raw input.statement — PII redaction happens inside
     // createFact, and we want the embedding to match what's stored.
     statement: fact.statement,
-  });
+    embeddingTier: (input.embeddingTier ?? "default") satisfies EmbeddingTier,
+  };
+  await enqueueEmbed(EMBED_FACT_JOB_NAME, enqueueData);
 
   return fact;
 }

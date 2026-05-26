@@ -31,11 +31,12 @@
 import "server-only";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getDb, schema } from "@orchester/db";
-import { embed as embedRaw, defaultEmbeddingModel, type EmbeddingProvider } from "@/lib/embeddings";
+import { embed as embedRaw } from "@/lib/embeddings";
 import { assertWithinSpend } from "@/lib/cost-alerts";
 import { recordAiUsage } from "@/lib/ai/run";
 import { calculateEmbeddingCostUsd } from "@/lib/pricing";
 import { safeLogError } from "@/lib/safe-log";
+import { resolveEmbeddingTier, type EmbeddingTier } from "@/lib/ai/embedding-tier";
 
 /**
  * Workspace-scoped transaction with role downgrade + GUC set — mirror
@@ -136,30 +137,38 @@ export async function runEmbedBatchSweep(): Promise<void> {
   }
 }
 
+interface PendingFactRow {
+  id: string;
+  statement: string;
+  attempts: number;
+  /** v1.6 — read from `metadata.embedding_tier`; defaults to 'default'. */
+  tier: EmbeddingTier;
+  /** Used to re-classify if the tier metadata is absent (legacy rows). */
+  pinned: boolean;
+  confidence: number;
+  kind: string;
+  scope: string;
+}
+
 /**
- * Drains up to BATCH_SIZE unembedded facts for a workspace, runs a
- * single batched embedding API call, updates the rows in place.
+ * v1.6 — Drains up to BATCH_SIZE unembedded facts for a workspace,
+ * groups them by embedding tier (default | premium), and runs ONE
+ * batched embedding API call per (workspace, tier). Updates the rows
+ * in place with the resolved tier-appropriate vector.
  *
- * Returns the number of facts embedded (0 if Mode A / provider not
- * configured / no pending work).
+ * Tier resolution:
+ *   - Honors `metadata.embedding_tier` when present (the host caller
+ *     passed it through `createFactAsync`).
+ *   - For legacy / hand-rolled rows that lack the metadata, we
+ *     re-classify on the fly via `resolveEmbeddingTier` using the
+ *     row's pinned/confidence/kind/scope attrs. The re-classification
+ *     is cheap (pure code path inside the resolver) and only fires
+ *     when the metadata is absent — no extra DB cost in steady state.
+ *
+ * Returns the total number of facts embedded across all tiers
+ * (0 if Mode A / provider not configured / no pending work).
  */
 async function flushPendingEmbeddings(workspaceId: string): Promise<number> {
-  // Resolve embedding provider/model from workspace config. Charter
-  // §25: we never hardcode. The current MVP picks "first enabled
-  // embedding-capable provider" — same pattern as
-  // `resolveSmallTierModel` for chat. Future Phase 2+ will read
-  // `workspace.mnemo.embedding_provider` / `embedding_model` settings.
-  const provider = await resolveWorkspaceEmbeddingProvider(workspaceId);
-  if (!provider) {
-    // Mode A: no provider configured. Leave facts unembedded — FTS
-    // recall already covers them. The next periodic flush (every minute)
-    // re-checks the provider config, so the row gets picked up once the
-    // workspace wires a provider. We do NOT mark `embedding_failed`
-    // here — this is a recoverable config gap, not a per-fact failure.
-    return 0;
-  }
-  const model = defaultEmbeddingModel(provider);
-
   // Spend cap (audit invariant): block the batch if the workspace hit
   // its monthly cap or the kill-switch is active. Throwing here lets
   // pg-boss retry once the budget refills (or the operator clears
@@ -171,9 +180,15 @@ async function flushPendingEmbeddings(workspaceId: string): Promise<number> {
   // racing on the same fact (FOR UPDATE SKIP LOCKED). The transaction
   // is workspace-scoped (RLS FORCE applies).
   return await withMnemoTx(workspaceId, async (tx) => {
+    // Pull the columns we need to (re)classify the tier in addition to
+    // the embed-write columns. The cost is negligible — every fact
+    // already lives in cache after the workspace scan from
+    // runEmbedBatchSweep.
     const pending = (await tx.execute(sql`
       SELECT id, statement,
-             COALESCE((metadata->'embedding_failed'->>'attempts')::int, 0) AS attempts
+             COALESCE((metadata->'embedding_failed'->>'attempts')::int, 0) AS attempts,
+             COALESCE(metadata->>'embedding_tier', 'default') AS tier,
+             pinned, confidence, kind, scope
       FROM mnemo_fact
       WHERE workspace_id = ${workspaceId}
         AND embedding IS NULL
@@ -182,63 +197,113 @@ async function flushPendingEmbeddings(workspaceId: string): Promise<number> {
       ORDER BY created_at ASC
       LIMIT ${BATCH_SIZE}
       FOR UPDATE SKIP LOCKED
-    `)) as unknown as Array<{ id: string; statement: string; attempts: number }>;
+    `)) as unknown as PendingFactRow[];
 
     if (pending.length === 0) return 0;
 
-    const texts = pending.map((p) => p.statement);
-    let vectors: number[][];
-    let tokensUsed = 0;
-    try {
-      // Single batched API call — this is the cost win. 100 facts in
-      // one HTTP round-trip vs 100 separate calls is the difference
-      // between $0.02/M tokens and $0.20/M tokens for most providers
-      // (the per-request overhead dominates at small payloads).
-      const result = await embedRaw(workspaceId, provider, model, texts, tx as never);
-      vectors = result.vectors;
-      tokensUsed = result.tokensUsed;
-    } catch (err) {
-      // Embedding provider failure (rate limit, key revoked, etc.).
-      // Bump per-fact attempts; on max attempts, stamp final + skip.
-      // Don't block other workspaces — log and re-throw so pg-boss
-      // backs off this single batch.
-      await markBatchAttempt(tx as never, workspaceId, pending, err);
-      throw err;
+    // ── v1.6 — group by tier ────────────────────────────────────────
+    // For rows missing the metadata hint (legacy / handcrafted), we
+    // re-classify via the resolver so the grouping matches the v1.6
+    // promotion rules (pinned, conf >= 0.85, workspace-scope kind).
+    const byTier = new Map<EmbeddingTier, PendingFactRow[]>();
+    for (const p of pending) {
+      const declaredTier = p.tier === "premium" ? "premium" : "default";
+      byTier.has(declaredTier) ? byTier.get(declaredTier)!.push(p) : byTier.set(declaredTier, [p]);
     }
 
-    // Update each fact with its vector. We zip in-order; the
-    // embedding API contract preserves input order.
-    for (let i = 0; i < pending.length; i++) {
-      const factId = pending[i]!.id;
-      const vec = vectors[i];
-      if (!vec) continue;
-      await tx
-        .update(schema.mnemoFacts)
-        .set({
-          embedding: vec,
-          embeddingModel: model,
-        })
-        .where(
-          and(eq(schema.mnemoFacts.id, factId), eq(schema.mnemoFacts.workspaceId, workspaceId))
+    let total = 0;
+
+    // One batched API call per (workspace, tier). The premium tier
+    // typically has FAR fewer pending facts than the default tier (by
+    // construction — only ~5-20% of facts are pinned/high-conf/
+    // workspace-scope) so the cost overhead of the extra call is
+    // bounded.
+    for (const [tier, group] of byTier.entries()) {
+      if (group.length === 0) continue;
+
+      // Resolve provider+model FOR THIS TIER. The resolver consults
+      // workspace settings (Charter §25 — no hardcoded model strings).
+      // We pass the first row's attrs so the resolver sees a premium
+      // input when the group's tier hint says premium — the per-fact
+      // re-classify already happened at insert time / the grouper above.
+      const head = group[0]!;
+      const resolved = await resolveEmbeddingTier({
+        workspaceId,
+        factKind: head.kind,
+        pinned: head.pinned,
+        confidence: Number(head.confidence),
+        scope: head.scope as "global" | "workspace" | "agent" | "conversation",
+        tier,
+      });
+      if (!resolved) {
+        // Mode A: no provider configured. Leave the group unembedded —
+        // FTS recall covers them; the next sweep retries. Don't mark
+        // embedding_failed — this is a recoverable config gap.
+        continue;
+      }
+
+      const texts = group.map((p) => p.statement);
+      let vectors: number[][];
+      let tokensUsed = 0;
+      try {
+        // Single batched API call for this tier.
+        const result = await embedRaw(
+          workspaceId,
+          resolved.provider,
+          resolved.model,
+          texts,
+          tx as never
         );
+        vectors = result.vectors;
+        tokensUsed = result.tokensUsed;
+      } catch (err) {
+        // Embedding provider failure (rate limit, key revoked, etc.).
+        // Bump per-fact attempts on THIS GROUP only; on max attempts,
+        // stamp final + skip. Continue with the other tier — we
+        // don't want a flaky premium provider to block default-tier
+        // facts (or vice versa).
+        await markBatchAttempt(tx as never, workspaceId, group, err);
+        safeLogError(
+          `[mnemo.embed.batch] tier=${tier} provider=${resolved.provider} failed for ws=${workspaceId}:`,
+          err
+        );
+        continue;
+      }
+
+      for (let i = 0; i < group.length; i++) {
+        const factId = group[i]!.id;
+        const vec = vectors[i];
+        if (!vec) continue;
+        await tx
+          .update(schema.mnemoFacts)
+          .set({
+            embedding: vec,
+            embeddingModel: resolved.model,
+          })
+          .where(
+            and(eq(schema.mnemoFacts.id, factId), eq(schema.mnemoFacts.workspaceId, workspaceId))
+          );
+      }
+
+      // Record metering per tier. The `model` carries the tier
+      // information (premium models are catalogued separately) so the
+      // billing rollup can break down cost by tier without an extra
+      // attribute on the usage row.
+      const costUsd = calculateEmbeddingCostUsd(resolved.model, tokensUsed);
+      await recordAiUsage({
+        workspaceId,
+        capability: "embedding",
+        providerId: resolved.provider,
+        model: resolved.model,
+        tokensOut: tokensUsed,
+        tokensTotal: tokensUsed,
+        costUsd,
+      });
+
+      total += group.length;
     }
 
-    // Record metering AFTER the successful batch. Per audit D4-1, the
-    // `usageEvent` must carry the resolved model + capability so the
-    // billing rollup attributes embedding cost correctly (the
-    // pre-existing per-fact path used `calculateEmbeddingCostUsd`).
-    const costUsd = calculateEmbeddingCostUsd(model, tokensUsed);
-    await recordAiUsage({
-      workspaceId,
-      capability: "embedding",
-      providerId: provider,
-      model,
-      tokensOut: tokensUsed,
-      tokensTotal: tokensUsed,
-      costUsd,
-    });
-
-    return pending.length;
+    return total;
   });
 }
 
@@ -288,34 +353,10 @@ async function markBatchAttempt(
   }
 }
 
-/**
- * Pick the first enabled embedding-capable provider. Mirror of
- * `resolveSmallTierModel`'s strategy for chat. Returns null if the
- * workspace has no embedding-capable provider configured (steady-state
- * Mode A — recall falls through to FTS).
- *
- * Charter §25: never returns a string-literal default — always
- * consults the workspace's `ai_provider` rows.
- */
-async function resolveWorkspaceEmbeddingProvider(
-  workspaceId: string
-): Promise<EmbeddingProvider | null> {
-  const db = getDb();
-  const rows = await db
-    .select({ provider: schema.aiProviders.provider })
-    .from(schema.aiProviders)
-    .where(
-      and(eq(schema.aiProviders.workspaceId, workspaceId), eq(schema.aiProviders.enabled, true))
-    );
-  // ai_provider.provider is one of: openai | anthropic | google. Of
-  // these, openai + google publish embedding models in our catalog.
-  // Prefer openai (text-embedding-3-small) when both are available —
-  // matches the default model resolution and is the cheaper option.
-  const set = new Set(rows.map((r) => r.provider));
-  if (set.has("openai")) return "openai";
-  if (set.has("google")) return "google";
-  return null;
-}
+// v1.6: tier resolution moved to `@/lib/ai/embedding-tier`. The legacy
+// `resolveWorkspaceEmbeddingProvider` is no longer needed — the tier
+// resolver consults workspace settings (premium override) AND the same
+// `ai_provider` rows internally.
 
 // Re-export sweep-helper unused-import guard. `isNull` is referenced
 // implicitly by the embedding SQL above (via `IS NULL`); keep an

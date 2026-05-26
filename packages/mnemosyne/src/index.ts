@@ -10,14 +10,27 @@ export const MNEMOSYNE_VERSION = "1.4.0";
 // app_user role so RLS+FORCE Pattern A actually enforces. Host crons
 // and agent-runtime callers use this to wrap any tenant-scoped DB
 // access (see ADR-0010 for the role-downgrade rationale).
-export { withMnemoTx, type Tx } from "./tx";
+//
+// v1.6 — `MnemoTxOptions` lets callers opt into per-actor isolation
+// (sets `app.actor_id` + flips `app.enforce_actor_isolation`). The
+// plain `withMnemoTx(workspaceId, fn)` form is preserved for every
+// legacy caller via overload.
+export { withMnemoTx, type Tx, type MnemoTxOptions } from "./tx";
 
 // Memory Protocol v1 — frozen system-prompt artifact injected by the host
 // agent runtime so every agent knows how/when to use mnemosyne_* tools.
 // Bumping MEMORY_PROTOCOL_VERSION invalidates extractions tagged with the
 // prior version (see §13 of the design spec).
+//
+// v1.6 — `MEMORY_PROTOCOL_V1` now aliases the v1.2 string (entity
+// awareness + per-user privacy paragraphs appended). Explicit
+// `MEMORY_PROTOCOL_V2` exported for callers that want the unambiguous
+// name; `MEMORY_PROTOCOL_V1_1` keeps the verbatim v1.1 text for replay
+// jobs.
 export {
   MEMORY_PROTOCOL_V1,
+  MEMORY_PROTOCOL_V2,
+  MEMORY_PROTOCOL_V1_1,
   MEMORY_PROTOCOL_VERSION,
   MEMORY_PROTOCOL_V1_LEGACY,
 } from "./protocol/v1";
@@ -292,3 +305,44 @@ export {
   type ConsolidateClusterInput,
   type ConsolidateClusterOutput,
 } from "./consolidation";
+
+// Mnemosyne v1.6 "True 10/10" — additive type exports.
+//
+// `EmbeddingTier` is the discriminator surfaced on `CreateFactInput`
+// (and `CreateFactAsyncInput`) so the host can pre-classify each fact
+// before insertion. The batch worker reads `metadata.embedding_tier`
+// to group pending facts and issue one API call per (workspace, tier).
+// See `apps/web/lib/ai/embedding-tier.ts` for the classifier.
+export type { EmbeddingTier } from "./primitives/fact";
+
+// ─────────────────────────────────────────────────────────────────────
+// Mnemosyne v1.6 G2 — Entity primitive exports (additive block).
+//
+// The 4th cognitive primitive alongside fact, decision, episode. A
+// canonical "thing" (person / organization / project / concept /
+// place / other) that facts reference via `mnemo_fact.entity_id`.
+// Migration 0039 ships the table + the `entity_id` column; the
+// extraction pipeline (apps/web/lib/brain/extract-job.ts) calls
+// `findOrCreate` to dedupe mentions per turn. See
+// packages/mnemosyne/src/entity/ for the module layout.
+// ─────────────────────────────────────────────────────────────────────
+export {
+  createEntity,
+  getEntity,
+  updateEntity,
+  findByAlias,
+  findOrCreate,
+  listEntities,
+  listFactsForEntity,
+  extractEntities,
+  type EntityKind,
+  type MnemoEntity,
+  type CreateEntityInput,
+  type UpdateEntityInput,
+  type FindOrCreateInput,
+  type ListEntitiesInput,
+  type ListFactsForEntityInput,
+  type EntityCandidate,
+  type ExtractEntitiesInput,
+  type EntityLlmCallFn,
+} from "./entity";

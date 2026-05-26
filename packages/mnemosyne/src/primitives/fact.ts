@@ -100,7 +100,29 @@ export interface MnemoFact {
    * and downstream consumers treat the absence as 'inferred'.
    */
   attribution?: Attribution;
+  /**
+   * v1.6 (G2) — link to `mnemo_entity` row (migration 0039). NULL =
+   * workspace-shared / no resolved entity. Optional on the type so
+   * legacy row mappers keep compiling without a forced update.
+   */
+  entityId?: string | null;
+  /**
+   * v1.6 (G2) — Memory Protocol version under which this fact was
+   * extracted (migration 0041). Defaults to 'v1.1' at the SQL layer.
+   * Optional on the type so legacy row mappers keep compiling.
+   */
+  protocolVersion?: string;
 }
+
+/**
+ * v1.6 — embedding tier. Set by the resolver to mark a fact as
+ * "premium" (uses the workspace's premium embedding model) or
+ * "default" (cheap-tier). The value is opaque to the primitive — we
+ * just stash it in `metadata.embedding_tier` so the batch worker
+ * (`embed-batch-job.ts`) can group pending facts by tier and issue
+ * one batched API call per (workspace, tier).
+ */
+export type EmbeddingTier = "default" | "premium";
 
 export interface CreateFactInput {
   workspaceId: string;
@@ -115,6 +137,14 @@ export interface CreateFactInput {
   sourceMessageIds?: string[];
   attributedTo?: "user" | "assistant" | "system" | null;
   metadata?: Record<string, unknown>;
+  /**
+   * v1.6 — embedding tier hint. When set, the fact is stored with
+   * `metadata.embedding_tier = <tier>` so the batch worker can group
+   * pending facts and issue one API call per (workspace, tier).
+   * Defaults to 'default' (omit to opt out of tiering — back-compat
+   * with v1.5 callers).
+   */
+  embeddingTier?: EmbeddingTier;
   /**
    * v1.4 — cognitive classification. Defaults to 'semantic' so every
    * existing caller keeps producing the same row shape as v1.3. The
@@ -140,6 +170,23 @@ export interface CreateFactInput {
    * specified (user-edited facts typically become `'user_stated'`).
    */
   attribution?: Attribution;
+  /**
+   * v1.6 (G2) — link to a `mnemo_entity` row (migration 0039). NULL
+   * when the extraction pipeline could not resolve a canonical entity
+   * (legacy behaviour preserved). Populated when the fact is
+   * primarily about a known entity ("Lucas prefers TS" → entity for
+   * user "Lucas"). The reverse direction (mention_count on the
+   * entity row) is bumped by `findOrCreate`.
+   */
+  entityId?: string | null;
+  /**
+   * v1.6 (G2) — Memory Protocol version under which this fact was
+   * extracted (migration 0041). Defaults to 'v1.1' at the SQL layer
+   * so legacy callers keep producing v1.1-tagged rows. Extraction-
+   * pipeline upgrades set 'v1.2' explicitly. Free-form text (not an
+   * enum) so future protocol bumps don't require a fact.ts change.
+   */
+  protocolVersion?: string;
   /** Pre-computed embedding. If omitted and no embeddingProvider+Model,
    * the row is inserted without an embedding (Mode A). */
   embedding?: number[] | null;
@@ -191,6 +238,17 @@ export async function createFact(input: CreateFactInput): Promise<MnemoFact> {
         categories: pii.categories,
         detected_at: new Date().toISOString(),
       },
+    };
+  }
+
+  // v1.6 — tiered embedding hint. The batch worker reads this to
+  // group pending facts by tier and issue one batched API call per
+  // (workspace, tier). Stored in metadata so we don't need a column
+  // migration; the embed-batch-job reads it back via the JSONB path.
+  if (input.embeddingTier) {
+    metadata = {
+      ...metadata,
+      embedding_tier: input.embeddingTier,
     };
   }
 
@@ -249,6 +307,19 @@ export async function createFact(input: CreateFactInput): Promise<MnemoFact> {
       // 'inferred' (matches the SQL DEFAULT) rather than letting the
       // column silently fall back at the DB layer.
       attribution: input.attribution ?? "inferred",
+      // v1.6 (G2) — link to a `mnemo_entity` row (migration 0039).
+      // NULL when the extraction pipeline could not resolve a
+      // canonical entity. We pass `null` explicitly so a missing
+      // input is round-tripped as NULL rather than UNDEFINED (which
+      // drizzle would skip and the SQL DEFAULT for the column is
+      // NULL anyway, but the explicit value keeps the insert audit
+      // trail honest).
+      entityId: input.entityId ?? null,
+      // v1.6 (G2) — Memory Protocol version tag (migration 0041).
+      // The SQL DEFAULT is 'v1.1' for back-compat; callers that
+      // produce v1.2-classified facts (extract-job.ts after the
+      // v1.6 upgrade) pass 'v1.2' explicitly.
+      protocolVersion: input.protocolVersion ?? "v1.1",
     })
     .returning();
   return rows[0] as unknown as MnemoFact;

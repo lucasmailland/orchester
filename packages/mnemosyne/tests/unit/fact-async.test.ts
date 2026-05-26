@@ -100,11 +100,13 @@ describe("createFactAsync — enqueue path", () => {
     expect(result.id).toBe("mfact_xyz");
 
     // enqueueEmbed called with the contract: queue name + payload.
+    // v1.6: payload now includes `embeddingTier` (default 'default').
     expect(enqueueEmbed).toHaveBeenCalledTimes(1);
     expect(enqueueEmbed).toHaveBeenCalledWith(EMBED_FACT_JOB_NAME, {
       factId: "mfact_xyz",
       workspaceId: "ws_test",
       statement: "prefers Spanish",
+      embeddingTier: "default",
     });
   });
 
@@ -128,10 +130,15 @@ describe("createFactAsync — enqueue path", () => {
 
     // The enqueue MUST receive the redacted version — embedding the
     // raw input would leak PII to the embedding provider.
+    //
+    // v1.6: the payload also carries `embeddingTier` (default 'default'
+    // when the caller doesn't override). The PII expectation stays the
+    // same; we add the new field to the expected shape.
     expect(enqueueEmbed).toHaveBeenCalledWith(EMBED_FACT_JOB_NAME, {
       factId: expect.any(String),
       workspaceId: "ws_test",
       statement: "contact me at [REDACTED-email]",
+      embeddingTier: "default",
     });
   });
 
