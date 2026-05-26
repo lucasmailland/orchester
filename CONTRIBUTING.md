@@ -103,10 +103,14 @@ These have `@maintainer` CODEOWNERS review required:
 - `apps/web/lib/net-guard.ts` — SSRF guard
 - `apps/web/lib/flow-engine.ts` — the executor (RCE-sensitive `code` node)
 - `apps/web/lib/cost-alerts.ts` — spend cap / kill-switch
-- `packages/db/drizzle/` — DB migrations
+- `apps/web/lib/tenant/` — multi-tenant context + RLS plumbing
+- `apps/web/lib/gdpr/` — data export pipeline (handles user PII)
+- `packages/db/drizzle/`, `packages/db/migrations/` — DB schema + RLS policies
 - `scripts/audit-invariants.sh` — the CI invariants guard
 
 If you're touching one of these, expect a thorough review and please write a clear changeset.
+
+**Found a vulnerability instead of fixing one?** Please don't open a public issue. Follow the private disclosure flow in [`SECURITY.md`](SECURITY.md) — there's a 72-hour ack SLA and a safe-harbour clause for good-faith research.
 
 ## The CI invariants guard
 
