@@ -22,17 +22,57 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // test we can `.mockReturnValueOnce` / `.mockResolvedValueOnce` and assert
 // call counts. The constants are passthroughs so the runtime can still
 // import them for its prompt assembly (not exercised in these unit tests).
-const searchMnemoMock = vi.fn();
+const recallUnifiedMock = vi.fn();
 const renderFactsCompactMock = vi.fn();
 const getOrComputeSummaryMock = vi.fn();
 const shouldTriggerRecallMock = vi.fn();
+const applyPolicyToRecallMock = vi.fn((_p, x) => x);
+const makeCohereRerankMock = vi.fn();
+const noopRerankMock = vi.fn();
 
 vi.mock("@orchester/mnemosyne", () => ({
   MEMORY_PROTOCOL_V1: "MEMORY_PROTOCOL_V1_FIXTURE_TEXT",
-  searchMnemo: searchMnemoMock,
+  DEFAULT_AGENT_MEMORY_POLICY: {
+    write_scope_default: "workspace",
+    read_scopes: ["workspace", "agent"],
+    sensitive_categories: [],
+  },
+  applyPolicyToRecall: applyPolicyToRecallMock,
+  recallUnified: recallUnifiedMock,
   renderFactsCompact: renderFactsCompactMock,
   getOrComputeSummary: getOrComputeSummaryMock,
   shouldTriggerRecall: shouldTriggerRecallMock,
+  makeCohereRerank: makeCohereRerankMock,
+  noopRerank: noopRerankMock,
+  parseAgentMemoryPolicy: vi.fn((x) => x),
+}));
+
+// Stub the host-side helpers so we control policy / settings without DB.
+vi.mock("@/lib/policy/agent-memory", () => ({
+  getAgentMemoryPolicy: vi.fn(async () => ({
+    write_scope_default: "workspace",
+    read_scopes: ["workspace", "agent"],
+    sensitive_categories: [],
+  })),
+}));
+
+vi.mock("@/lib/settings/mnemo", () => ({
+  getMnemoSettings: vi.fn(async () => ({
+    enableHyde: false,
+    rerankProvider: null,
+  })),
+  MNEMO_SETTING_KEYS: {
+    ENABLE_HYDE: "mnemo.enable_hyde",
+    RERANK_PROVIDER: "mnemo.rerank_provider",
+  },
+}));
+
+vi.mock("@/lib/recall-unified", () => ({
+  makeKbChunkProvider: vi.fn(() => null),
+}));
+
+vi.mock("@/lib/agent-tools/mnemosyne-remember", () => ({
+  handleMnemosyneRemember: vi.fn(),
 }));
 
 // `safeLogError` is exercised on defensive paths — quiet it so the test
@@ -80,10 +120,12 @@ let buildProfileBlock: typeof import("@/lib/agent-runtime").buildProfileBlock;
 let buildAnthropicSystem: typeof import("@/lib/llm-call").buildAnthropicSystem;
 
 beforeEach(async () => {
-  searchMnemoMock.mockReset();
+  recallUnifiedMock.mockReset();
   renderFactsCompactMock.mockReset();
   getOrComputeSummaryMock.mockReset();
   shouldTriggerRecallMock.mockReset();
+  applyPolicyToRecallMock.mockReset();
+  applyPolicyToRecallMock.mockImplementation((_p, x) => x);
   safeLogErrorMock.mockReset();
   vi.resetModules();
   ({ buildRecallBlock, buildProfileBlock } = await import("@/lib/agent-runtime"));
@@ -91,7 +133,7 @@ beforeEach(async () => {
 });
 
 describe("buildRecallBlock — Layer 2 conditional recall", () => {
-  it("skips searchMnemo when shouldTriggerRecall returns false", async () => {
+  it("skips recallUnified when shouldTriggerRecall returns false", async () => {
     shouldTriggerRecallMock.mockReturnValueOnce({
       trigger: false,
       reason: "greeting",
@@ -109,19 +151,31 @@ describe("buildRecallBlock — Layer 2 conditional recall", () => {
     // ── The whole point of the trigger: we don't pay for a vector
     // search when the user just said "ok". If this fails, Layer 2 is
     // running on every turn and the cost-optimization is silently undone.
-    expect(searchMnemoMock).not.toHaveBeenCalled();
+    expect(recallUnifiedMock).not.toHaveBeenCalled();
     expect(renderFactsCompactMock).not.toHaveBeenCalled();
   });
 
-  it("calls searchMnemo with maxResults:3 when trigger fires", async () => {
+  it("calls recallUnified with the unified options when trigger fires", async () => {
     shouldTriggerRecallMock.mockReturnValueOnce({
       trigger: true,
       reason: "reference_word",
       confidence: 0.95,
     });
-    searchMnemoMock.mockResolvedValueOnce([
-      { fact: { id: "f1", kind: "preference", subject: "user", statement: "uses TS" } },
-      { fact: { id: "f2", kind: "preference", subject: "user", statement: "based in BA" } },
+    recallUnifiedMock.mockResolvedValueOnce([
+      {
+        source: "memory",
+        id: "f1",
+        content: "uses TS",
+        score: 0.8,
+        metadata: { kind: "preference", subject: "user", pinned: false, memoryType: "semantic" },
+      },
+      {
+        source: "memory",
+        id: "f2",
+        content: "based in BA",
+        score: 0.7,
+        metadata: { kind: "preference", subject: "user", pinned: false, memoryType: "semantic" },
+      },
     ]);
     renderFactsCompactMock.mockReturnValueOnce("[preference] lang:TS, location:BA");
 
@@ -132,25 +186,29 @@ describe("buildRecallBlock — Layer 2 conditional recall", () => {
       history: [{ role: "user", content: "hi" }],
     });
 
-    expect(searchMnemoMock).toHaveBeenCalledOnce();
-    const call = searchMnemoMock.mock.calls[0]![0];
-    expect(call.maxResults).toBe(3);
+    expect(recallUnifiedMock).toHaveBeenCalledOnce();
+    const call = recallUnifiedMock.mock.calls[0]![0];
+    expect(call.topK).toBe(5);
     expect(call.workspaceId).toBe("ws_1");
     expect(call.agentId).toBe("ag_1");
     expect(call.query).toBe("what was the language we discussed before?");
+    expect(call.enableContextualize).toBe(true);
+    // HyDE/Cohere stay opt-in — settings mock returns defaults.
+    expect(call.enableHyDE).toBe(false);
+    expect(call.rerank).toBeUndefined();
     // Block wraps render output in <recalled-memory>.
     expect(out).toContain("<recalled-memory>");
     expect(out).toContain("[preference] lang:TS, location:BA");
     expect(out).toContain("</recalled-memory>");
   });
 
-  it("returns empty when searchMnemo finds zero hits", async () => {
+  it("returns empty when recallUnified finds zero hits", async () => {
     shouldTriggerRecallMock.mockReturnValueOnce({
       trigger: true,
       reason: "default",
       confidence: 0.5,
     });
-    searchMnemoMock.mockResolvedValueOnce([]);
+    recallUnifiedMock.mockResolvedValueOnce([]);
 
     const out = await buildRecallBlock({
       workspaceId: "ws_1",
@@ -163,13 +221,13 @@ describe("buildRecallBlock — Layer 2 conditional recall", () => {
     expect(renderFactsCompactMock).not.toHaveBeenCalled();
   });
 
-  it("returns empty + logs when searchMnemo throws (defensive)", async () => {
+  it("returns empty + logs when recallUnified throws (defensive)", async () => {
     shouldTriggerRecallMock.mockReturnValueOnce({
       trigger: true,
       reason: "default",
       confidence: 0.5,
     });
-    searchMnemoMock.mockRejectedValueOnce(new Error("pgvector index missing"));
+    recallUnifiedMock.mockRejectedValueOnce(new Error("pgvector index missing"));
 
     const out = await buildRecallBlock({
       workspaceId: "ws_1",
@@ -181,14 +239,14 @@ describe("buildRecallBlock — Layer 2 conditional recall", () => {
     // Recall is OPTIMIZATION — a DB failure must NEVER break a turn.
     expect(out).toBe("");
     expect(safeLogErrorMock).toHaveBeenCalledOnce();
-    expect(safeLogErrorMock.mock.calls[0]![0]).toContain("searchMnemo");
+    expect(safeLogErrorMock.mock.calls[0]![0]).toContain("recallUnified");
   });
 
   it("defaults to trigger=true when shouldTriggerRecall itself throws", async () => {
     shouldTriggerRecallMock.mockImplementationOnce(() => {
       throw new Error("classifier blew up");
     });
-    searchMnemoMock.mockResolvedValueOnce([]);
+    recallUnifiedMock.mockResolvedValueOnce([]);
 
     await buildRecallBlock({
       workspaceId: "ws_1",
@@ -200,7 +258,7 @@ describe("buildRecallBlock — Layer 2 conditional recall", () => {
     // Trigger failure is logged and we proceed AS IF triggered — over-
     // recall is the safe failure mode (under-recall hides context).
     expect(safeLogErrorMock).toHaveBeenCalled();
-    expect(searchMnemoMock).toHaveBeenCalledOnce();
+    expect(recallUnifiedMock).toHaveBeenCalledOnce();
   });
 });
 

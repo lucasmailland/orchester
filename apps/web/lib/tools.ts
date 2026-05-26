@@ -206,7 +206,10 @@ const BUILTINS: Record<string, ToolDefinition> = {
     inputSchema: {
       type: "object",
       properties: {
-        query: { type: "string", description: "Natural language query, e.g. 'user preferences about meetings'" },
+        query: {
+          type: "string",
+          description: "Natural language query, e.g. 'user preferences about meetings'",
+        },
         topK: { type: "number", description: "How many facts to return (1-20)", default: 5 },
       },
       required: ["query"],
@@ -223,6 +226,47 @@ const BUILTINS: Record<string, ToolDefinition> = {
         key: { type: "string" },
       },
       required: ["scope"],
+    },
+  },
+  // v1.5 — Mnemosyne durable-fact tool. The handler lives in
+  // lib/agent-tools/mnemosyne-remember.ts (not in the executeTool
+  // switch below) so the policy + PII pipeline stays isolated. The
+  // definition is registered here so `getToolDefinitions` surfaces it
+  // when the agent's `tools` config opts in.
+  mnemosyne_remember: {
+    name: "mnemosyne_remember",
+    description:
+      "Save a durable fact about the user, their company, or the conversation. Use for preferences, traits, decisions, events, or learned facts. The fact is persisted, embedded for semantic recall, and surfaced on future turns. Sensitive PII may be auto-downgraded to private-to-this-agent scope per workspace policy.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        kind: {
+          type: "string",
+          enum: ["preference", "trait", "event", "relationship", "skill", "concern", "other"],
+          description: "Discriminator for the fact type.",
+        },
+        subject: {
+          type: "string",
+          description: "Who/what the statement is about ('user', employee name, 'workspace').",
+        },
+        statement: {
+          type: "string",
+          description: "Natural-language body of the fact.",
+        },
+        confidence: {
+          type: "number",
+          minimum: 0,
+          maximum: 1,
+          description: "Caller confidence in the fact (0..1). Defaults to 0.7.",
+        },
+        scope: {
+          type: "string",
+          enum: ["global", "conversation", "employee", "team"],
+          description:
+            "Storage scope. Omit to use the agent's policy default. Sensitive PII may force a downgrade regardless.",
+        },
+      },
+      required: ["kind", "subject", "statement"],
     },
   },
 };
