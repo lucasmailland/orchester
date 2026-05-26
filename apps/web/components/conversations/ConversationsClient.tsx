@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Search,
   X,
@@ -10,9 +10,11 @@ import {
   Tag as TagIcon,
   UserCheck,
   DollarSign,
+  ShieldOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
+import { SensitivityToggle } from "@/components/brain/SensitivityToggle";
 
 interface Conv {
   id: string;
@@ -399,12 +401,16 @@ function ConversationDrawer({
   onUpdated: () => void;
 }) {
   const t = useTranslations("pages.conversations");
+  const tSens = useTranslations("brain.sensitivity");
   const [messages, setMessages] = useState<Msg[]>([]);
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(conversation.status);
   const [tags, setTags] = useState<string[]>(conversation.tags ?? []);
   const [budget, setBudget] = useState<BudgetStatus | null>(null);
+  // v1.6 G1-2: memory-learning gate, source of truth is the server.
+  // Loaded from the conversation GET, persisted via PATCH /sensitivity.
+  const [memoryPaused, setMemoryPaused] = useState<boolean>(false);
 
   useEffect(() => {
     fetch(`/api/conversations/${conversation.id}`)
@@ -412,8 +418,27 @@ function ConversationDrawer({
       .then((d) => {
         setMessages(d?.messages ?? []);
         setBudget(d?.budget ?? null);
+        const paused = d?.conversation?.memoryLearningPaused;
+        if (typeof paused === "boolean") setMemoryPaused(paused);
       });
   }, [conversation.id]);
+
+  const onMemoryPausedToggle = useCallback(
+    async (next: boolean) => {
+      const r = await fetch(`/api/conversations/${conversation.id}/sensitivity`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paused: next }),
+      });
+      if (!r.ok) {
+        toast.error(tSens("toggleError"));
+        throw new Error("sensitivity toggle failed");
+      }
+      setMemoryPaused(next);
+      toast.success(next ? tSens("toastPaused") : tSens("toastResumed"));
+    },
+    [conversation.id, tSens]
+  );
 
   const totalCost = conversation.totalCostUsd != null ? Number(conversation.totalCostUsd) : 0;
   const totalTokens = conversation.totalTokens ?? 0;
@@ -497,6 +522,17 @@ function ConversationDrawer({
           </button>
         </div>
 
+        {/* v1.6 G1-2: memory-learning paused banner. Surfaces when the
+            conversation has the sensitivity gate flipped ON — the brain
+            extract-job will skip this conversation entirely until it's
+            resumed. */}
+        {memoryPaused && (
+          <div className="flex items-start gap-2 border-b border-amber-500/20 bg-amber-500/5 px-5 py-2 text-[11px] text-amber-700 dark:text-amber-200">
+            <ShieldOff className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden />
+            <span>{tSens("bannerPaused")}</span>
+          </div>
+        )}
+
         {/* Resumen de costo + budget del empleado (Sprint C3) */}
         {(totalCost > 0 || budget) && (
           <div className="flex flex-wrap items-center gap-3 border-b border-line bg-card px-5 py-2 text-[11px]">
@@ -515,6 +551,21 @@ function ConversationDrawer({
             )}
           </div>
         )}
+
+        {/* v1.6 G1-2: per-conversation memory sensitivity gate. Server-
+            persisted via PATCH /sensitivity. The toggle component itself
+            renders its own banner inline; we render an additional banner
+            at the very top of the drawer for higher visibility. */}
+        <div className="border-b border-line px-5 py-3">
+          <SensitivityToggle
+            conversationId={conversation.id}
+            showBanner={false}
+            serverPersist={{
+              paused: memoryPaused,
+              onToggle: onMemoryPausedToggle,
+            }}
+          />
+        </div>
 
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-2.5 text-xs">
           <select

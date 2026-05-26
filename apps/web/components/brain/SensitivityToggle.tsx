@@ -11,6 +11,16 @@ interface Props {
   initialValue?: boolean;
   /** Show the inline "learning paused" banner under the toggle when ON. */
   showBanner?: boolean;
+  /**
+   * v1.6 G1-2: server-side persistence wiring. When provided, the toggle
+   * hits the PATCH endpoint instead of localStorage and surfaces an error
+   * toast on failure (rolling back the optimistic UI). If omitted, falls
+   * back to the legacy localStorage path so existing callers keep working.
+   */
+  serverPersist?: {
+    paused: boolean;
+    onToggle: (next: boolean) => Promise<void>;
+  };
 }
 
 const STORAGE_KEY = "mnemo:sensitivity-pauses";
@@ -47,28 +57,58 @@ function writeMap(next: Record<string, boolean>) {
  * Server-side enforcement (skipping extraction when paused) is owned by
  * the backend in v1.4 — for v1.3 this is UI + storage only.
  */
-export function SensitivityToggle({ conversationId, initialValue, showBanner = true }: Props) {
+export function SensitivityToggle({
+  conversationId,
+  initialValue,
+  showBanner = true,
+  serverPersist,
+}: Props) {
   const t = useTranslations("brain.sensitivity");
-  const [paused, setPaused] = useState<boolean>(!!initialValue);
-  const [hydrated, setHydrated] = useState(false);
+  const useServer = !!serverPersist;
+  const [paused, setPaused] = useState<boolean>(useServer ? serverPersist!.paused : !!initialValue);
+  const [hydrated, setHydrated] = useState<boolean>(useServer); // server mode: hydrated immediately from prop
+  const [busy, setBusy] = useState(false);
+
+  // Keep state in sync with server-driven prop changes.
+  useEffect(() => {
+    if (useServer) {
+      setPaused(serverPersist!.paused);
+    }
+  }, [useServer, serverPersist]);
 
   useEffect(() => {
+    if (useServer) return; // server mode: no localStorage read
     const map = readMap();
     if (typeof map[conversationId] === "boolean") {
       setPaused(map[conversationId]!);
     }
     setHydrated(true);
-  }, [conversationId]);
+  }, [conversationId, useServer]);
 
   const onChange = useCallback(
-    (next: boolean) => {
+    async (next: boolean) => {
+      // Optimistic update either way.
+      const previous = paused;
       setPaused(next);
+      if (useServer) {
+        setBusy(true);
+        try {
+          await serverPersist!.onToggle(next);
+        } catch {
+          // Roll back optimistic UI on error — the caller is expected to
+          // surface a toast.error.
+          setPaused(previous);
+        } finally {
+          setBusy(false);
+        }
+        return;
+      }
       const map = readMap();
       if (next) map[conversationId] = true;
       else delete map[conversationId];
       writeMap(map);
     },
-    [conversationId]
+    [conversationId, useServer, serverPersist, paused]
   );
 
   return (
@@ -81,7 +121,7 @@ export function SensitivityToggle({ conversationId, initialValue, showBanner = t
         <Switch
           isSelected={paused}
           onValueChange={onChange}
-          isDisabled={!hydrated}
+          isDisabled={!hydrated || busy}
           aria-label={t("toggleLabel")}
         />
       </label>
