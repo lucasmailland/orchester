@@ -17,11 +17,38 @@ import { calculateChatCostUsd } from "@/lib/pricing";
 import type { DbClient } from "@orchester/db";
 import type { FactExtractionInput, FactKind } from "./types";
 
+/**
+ * Mnemosyne v1.5 (F1) — the LLM is now asked to classify each fact along
+ * two additional axes:
+ *
+ *   • memory_type — how the fact should be stored. The four cognitive
+ *     buckets: semantic (durable factual knowledge, the default),
+ *     episodic (events bound to a moment), procedural (how-to), working
+ *     (this-conversation-only, ephemeral).
+ *   • attribution — the cognitive provenance. user_stated (literal user
+ *     speech), user_belief (user holds the opinion but may be wrong),
+ *     objective_fact (verifiable), inferred (extractor-derived, default).
+ *
+ * Both are OPTIONAL on the wire and default at the zod layer so any LLM
+ * output that omits either (or returns a junk value caught by the
+ * outer try/catch) still parses cleanly. The defaults match the SQL
+ * DEFAULTs on mnemo_fact so a missing classification keeps the row
+ * shape identical to v1.4.
+ */
+const MemoryTypeSchema = z
+  .enum(["semantic", "episodic", "procedural", "working"])
+  .default("semantic");
+const AttributionSchema = z
+  .enum(["user_stated", "user_belief", "objective_fact", "inferred"])
+  .default("inferred");
+
 const FactSchema = z.object({
   kind: z.enum(["preference", "trait", "event", "relationship", "skill", "concern", "other"]),
   subject: z.string().min(1).max(80),
   statement: z.string().min(10).max(400),
   confidence: z.number().min(0).max(1).default(0.7),
+  memory_type: MemoryTypeSchema,
+  attribution: AttributionSchema,
 });
 
 // Cap at 5 to match the system prompt rule ("Max 5 facts per pass") and
@@ -36,6 +63,20 @@ Output ONLY a JSON array (no prose, no markdown fence). Each fact must have:
 - subject: who/what the fact is about (e.g. "user", "company", "@daisy"). 1-80 chars.
 - statement: the durable fact in one sentence. 10-400 chars. Past-tense OK if event.
 - confidence: 0-1, your certainty. Default 0.7.
+- memory_type: "semantic" | "episodic" | "procedural" | "working" — see classification below.
+- attribution: "user_stated" | "user_belief" | "objective_fact" | "inferred" — see below.
+
+memory_type classification:
+- "semantic"  — durable factual knowledge ("user prefers TypeScript"). DEFAULT.
+- "episodic"  — events bound to a specific date or moment ("Q2 review on 2026-04-15").
+- "procedural"— how-to / runbook ("when the deploy fails, restart the worker").
+- "working"   — relevant only in this conversation, ephemeral context ("user is currently debugging issue #42").
+
+attribution classification:
+- "user_stated"    — the user literally said it ("I love TS").
+- "user_belief"    — the user holds the opinion but may be wrong ("the new release broke X").
+- "objective_fact" — verifiable, canonical ("the company is headquartered in Buenos Aires").
+- "inferred"       — you deduced it from context, the user did not say it directly. DEFAULT.
 
 Rules:
 - Drop ephemeral details (greetings, time-of-day chitchat).
@@ -148,5 +189,11 @@ export async function extractFacts(input: ExtractFactsInput): Promise<FactExtrac
     subject: f.subject,
     statement: f.statement,
     confidence: f.confidence,
+    // v1.5 (F1): pass through the LLM's cognitive classification. Both
+    // are zod-defaulted ('semantic' / 'inferred') so absent fields are
+    // already filled by the schema parse above — we forward them as
+    // explicit values to keep the downstream call sites honest.
+    memoryType: f.memory_type,
+    attribution: f.attribution,
   }));
 }
