@@ -115,6 +115,21 @@ async function defensiveFetcher<T>(url: string, emptyValue: T): Promise<T> {
   }
 }
 
+/**
+ * The UI uses friendly sort keys (`updated`, `created`, `hits`) but
+ * the `/api/mnemo/facts` route validates against the DB column names
+ * (`updated_at`, `created_at`, `hit_count`). Mismatched values are
+ * rejected with a 400, which surfaces in the Inspector as
+ * "Something went wrong". Map here so both sides keep their natural
+ * vocabulary.
+ */
+const SORT_KEY_TO_API: Record<SortBy, string> = {
+  updated: "updated_at",
+  created: "created_at",
+  hits: "hit_count",
+  relevance: "relevance",
+};
+
 function buildFactsQuery(filters: FactsFilters, cursor?: string | null): string {
   const params = new URLSearchParams();
   if (filters.kind) params.set("kind", filters.kind);
@@ -123,7 +138,7 @@ function buildFactsQuery(filters: FactsFilters, cursor?: string | null): string 
   if (typeof filters.pinned === "boolean") params.set("pinned", String(filters.pinned));
   if (filters.status) params.set("status", filters.status);
   if (filters.q) params.set("q", filters.q);
-  if (filters.sortBy) params.set("sortBy", filters.sortBy);
+  if (filters.sortBy) params.set("sortBy", SORT_KEY_TO_API[filters.sortBy]);
   if (filters.order) params.set("order", filters.order);
   if (filters.limit) params.set("limit", String(filters.limit));
   if (cursor) params.set("cursor", cursor);

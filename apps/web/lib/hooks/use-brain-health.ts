@@ -56,16 +56,26 @@ export function useBrainHealthLatest() {
 
 /**
  * 30-day rolling history for the line charts.
+ *
+ * The endpoint returns either a bare array (older shape) or an object
+ * `{ days, snapshots }` (the v1.3 shape shipped by D1's history route).
+ * Normalise here so the chart consumer always gets an array — passing
+ * the object form straight to `.map(...)` triggers the
+ * "TypeError: ...map is not a function" ShellError seen on first load.
  */
+type HistoryResponse = HealthSnapshot[] | { days?: number; snapshots: HealthSnapshot[] };
+
 export function useBrainHealthHistory(days = 30) {
-  const { data, error, isLoading, mutate } = useSWR<HealthSnapshot[]>(
+  const { data, error, isLoading, mutate } = useSWR<HistoryResponse>(
     `/api/mnemo/health/history?days=${days}`,
-    (url: string) => healthFetcher<HealthSnapshot[]>(url, []),
+    (url: string) => healthFetcher<HistoryResponse>(url, []),
     SWR_DEFAULTS
   );
 
+  const history: HealthSnapshot[] = Array.isArray(data) ? data : (data?.snapshots ?? []);
+
   return {
-    history: data ?? [],
+    history,
     error,
     isLoading,
     mutate,
