@@ -34,9 +34,17 @@ MNEMO=packages/mnemosyne/src
 
 # Exclude .next/standalone build artifacts and the llm-call file itself
 # (which defines llmCall/llmStream and naturally doesn't call them).
+# Also exclude test files — tests mention `llmCall(` as the function
+# they exercise via mocks; pairing them with assertWithinSpend +
+# recordAiUsage would be theatre. The invariant is about PRODUCTION
+# callers. Test directories: `__tests__/`, `tests/`, `*.test.ts`,
+# `*.spec.ts`.
 FILES_WITH_LLM=$(grep -rln "llmCall(\\|llmStream(" "$WEB" --include='*.ts' \
   | grep -v ".next/standalone" \
-  | grep -v "lib/llm-call.ts" || true)
+  | grep -v "lib/llm-call.ts" \
+  | grep -v "__tests__/" \
+  | grep -v "/tests/" \
+  | grep -vE "\.(test|spec)\.ts$" || true)
 
 # ── Invariante 1 + 2: spend guard + metering en cada archivo con llm* ──────
 for f in $FILES_WITH_LLM; do
@@ -110,7 +118,10 @@ done < <(find "$WEB/app/api" -name 'route.ts' -type f)
 EXECUTE_FLOW_CALLERS=$(grep -rln "executeFlow(" "$WEB" --include='*.ts' \
   | grep -v ".next/standalone" \
   | grep -v "lib/flow-engine.ts" \
-  | grep -v "worker/index.ts" || true)
+  | grep -v "worker/index.ts" \
+  | grep -v "__tests__/" \
+  | grep -v "/tests/" \
+  | grep -vE "\.(test|spec)\.ts$" || true)
 
 for f in $EXECUTE_FLOW_CALLERS; do
   # Heurística: si el archivo llama executeFlow() debe contener "signal:"

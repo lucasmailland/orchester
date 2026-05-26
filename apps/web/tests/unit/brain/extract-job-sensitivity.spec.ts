@@ -91,6 +91,7 @@ vi.mock("@orchester/mnemosyne", () => ({
   resolveConfiguredMode: vi.fn(() => "C"),
   saveFactWithCandidates: saveFactWithCandidatesMock,
   withMnemoTx: withMnemoTxMock,
+  shouldExtract: vi.fn(() => ({ yes: true, reason: "mock" })),
 }));
 
 vi.mock("@/lib/brain/model-resolve", () => ({
