@@ -12,6 +12,7 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { schema } from "@orchester/db";
+import { redactSecrets } from "../redact";
 import type { ExporterDb } from "./workspace";
 
 export async function exportMessages(workspaceId: string, db: ExporterDb) {
@@ -37,5 +38,16 @@ export async function exportMessages(workspaceId: string, db: ExporterDb) {
     .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
     .where(eq(schema.conversations.workspaceId, workspaceId));
 
-  return { messages: rows };
+  // Phase F.3 (2026-05-26): scrub `metadata` defensively. The JSONB
+  // column is written by router.ts (quota / handoff / budget reasons,
+  // benign today) and by tools.ts; future handlers could land an
+  // upstream tool response there and leak credentials through the
+  // export. The structured exporter is hardened by column-selection
+  // but the JSON shape isn't. Walk + redact every metadata payload.
+  const scrubbed = rows.map((m) => ({
+    ...m,
+    metadata: redactSecrets(m.metadata),
+  }));
+
+  return { messages: scrubbed };
 }

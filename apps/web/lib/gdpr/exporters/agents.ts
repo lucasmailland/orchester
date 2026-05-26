@@ -12,6 +12,7 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { schema } from "@orchester/db";
+import { redactSecrets } from "../redact";
 import type { ExporterDb } from "./workspace";
 
 export async function exportAgents(workspaceId: string, db: ExporterDb) {
@@ -44,9 +45,16 @@ export async function exportAgents(workspaceId: string, db: ExporterDb) {
     return rest;
   });
 
+  // Phase F.3 (2026-05-26): defensive scrub over the JSONB columns on
+  // agents (`config`, `tools`, `variables`, `branding`) — they can land
+  // arbitrary operator-supplied content (e.g. a variable holding an
+  // API key for use in a prompt template). Column-selection alone is
+  // not enough since the columns themselves are unstructured.
+  const scrubbedAgents = agents.map((a) => redactSecrets(a) as typeof a);
+
   return {
     teams,
-    agents,
+    agents: scrubbedAgents,
     channels: sanitisedChannels,
   };
 }

@@ -14,13 +14,18 @@
 // workspace the requester targeted. Exporters receive `tx` so their
 // SELECTs inherit the cross-tenant GUC.
 //
-// Why in-memory (not true streaming yet): `archiver` supports
-// streaming output, but the storage adapters currently sink to a
-// single PUT or `writeFile`. Splitting that surface is a follow-up;
-// for the workspace sizes we ship today the buffer cost is small
-// enough that the simpler code path wins. The buffer-shaped surface
-// also keeps progress reporting linear and the failure mode clean
-// (a partial zip never reaches storage).
+// Streaming pipeline (post-2026-05-26, Phase F.5): `archiver` writes
+// straight into a PassThrough that the storage adapter consumes —
+// S3 via `@aws-sdk/lib-storage`'s multipart `Upload`, filesystem via
+// `pipeline(stream, createWriteStream(...))`. Peak memory is bounded
+// by archiver's deflate buffer + a single multipart part (5–10 MB)
+// instead of the entire archive, so multi-GB tenant exports no longer
+// OOM the worker.
+//
+// Size guard semantics unchanged: a 'data' listener tracks bytes
+// written and aborts the stream once `MAX_ARCHIVE_BYTES` trips.
+// Partial uploads are cleaned up by the adapter's abort path (S3
+// multipart `AbortMultipartUpload`; filesystem `unlink`).
 import "server-only";
 import { eq } from "drizzle-orm";
 import archiver from "archiver";
@@ -85,41 +90,40 @@ export async function runExportJob(jobId: string): Promise<void> {
         .set({ state: "exporting", progress: 0, startedAt: new Date() })
         .where(eq(schema.gdprExportJobs.id, jobId));
 
-      // Build the zip in memory. archiver emits 'data' chunks as each
-      // entry is finalised; we accumulate them so `uploadZip` gets a
-      // single Buffer (matching the adapter surface today).
+      // Streaming pipeline: archiver writes into the same stream that
+      // the storage adapter consumes. Peak memory is bounded by the
+      // archiver's deflate buffer + one multipart part (S3) or the
+      // OS write buffer (filesystem), independent of the archive size.
       //
-      // Size guard: workspaces with millions of messages or hundreds of
-      // ingested docs can produce multi-GB zips that OOM the worker
-      // pod before we ever reach `uploadZip`. We track the running
-      // byte total on every 'data' chunk and abort once it exceeds
-      // `MAX_ARCHIVE_BYTES`. The job is then flipped to `failed` with
-      // a deterministic `export_too_large` sentinel so ops / the UI
-      // can distinguish "your tenant is too big for the current
-      // pipeline" from a genuine bug.
+      // Size guard: we attach a 'data' listener to count bytes and
+      // trip `MAX_ARCHIVE_BYTES` if a tenant has grown past what the
+      // policy allows. On trip we call `archive.abort()` which
+      // synthesises an 'error' on the stream; the adapter sees the
+      // error, cancels the upload (S3 multipart `AbortMultipartUpload`
+      // or filesystem unlink), and `uploadZip` rejects. The catch
+      // block flips state to `failed` with `export_too_large`.
       const archive = archiver("zip", { zlib: { level: 9 } });
-      const chunks: Buffer[] = [];
       let bytesSoFar = 0;
+      let aborted = false;
       const exportTooLargeErr = new Error("export_too_large");
       archive.on("data", (c: Buffer) => {
-        chunks.push(c);
         bytesSoFar += c.length;
-        if (bytesSoFar > MAX_ARCHIVE_BYTES) {
-          // Best-effort abort: lets `finalize()` settle via the 'error'
-          // listener wired up below. The throw in the loop / post-loop
-          // is the deterministic trigger; this just stops archiver from
-          // continuing to allocate.
+        if (bytesSoFar > MAX_ARCHIVE_BYTES && !aborted) {
+          aborted = true;
           try {
             archive.abort();
           } catch {
-            // ignore — error path propagates via the loop guard
+            // ignore — error path propagates via the size-guard check below
           }
         }
       });
-      const done = new Promise<void>((resolve, reject) => {
-        archive.on("end", () => resolve());
-        archive.on("error", (err: Error) => reject(err));
-      });
+
+      // Kick off the upload concurrently with the archiver. The adapter
+      // begins consuming bytes as soon as the first chunk lands; we
+      // append per-step JSON below and await this promise after
+      // `finalize()`.
+      const key = `${job.workspaceId}/${jobId}.zip`;
+      const uploadPromise = uploadZip(key, archive);
 
       let progress = 0;
       for (const step of STEPS) {
@@ -130,27 +134,19 @@ export async function runExportJob(jobId: string): Promise<void> {
           .update(schema.gdprExportJobs)
           .set({ progress: Math.min(progress, 95) })
           .where(eq(schema.gdprExportJobs.id, jobId));
-        // If the size guard tripped during the append above, stop the
-        // pipeline. The 'data' listener already called
-        // `archive.abort()`; throwing here routes to the catch block
-        // and flips the job state with the size-guard sentinel.
         if (bytesSoFar > MAX_ARCHIVE_BYTES) {
           throw exportTooLargeErr;
         }
       }
 
       await archive.finalize();
-      await done;
-      // Final belt-and-suspenders check: if `finalize()` emitted the
-      // last chunks AFTER the loop already moved on, still trip the
-      // failure path here instead of uploading a too-large artefact.
+      // Belt + suspenders on the final byte count once finalize has
+      // flushed the central directory.
       if (bytesSoFar > MAX_ARCHIVE_BYTES) {
         throw exportTooLargeErr;
       }
-
-      const buffer = Buffer.concat(chunks);
-      const key = `${job.workspaceId}/${jobId}.zip`;
-      const { signedUrl, expiresAt } = await uploadZip(key, buffer);
+      const { signedUrl, expiresAt } = await uploadPromise;
+      const bytesTotal = bytesSoFar;
 
       const ownerRows = await tx
         .select({ email: schema.users.email })
@@ -181,7 +177,7 @@ export async function runExportJob(jobId: string): Promise<void> {
           storageKey: key,
           signedUrl,
           signedUrlExpiresAt: expiresAt,
-          bytesTotal: BigInt(buffer.byteLength),
+          bytesTotal: BigInt(bytesTotal),
           completedAt: new Date(),
           // null = email sent (or stub path), string = surface the
           // provider message so the user knows to use the URL directly.

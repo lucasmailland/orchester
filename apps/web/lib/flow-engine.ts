@@ -25,6 +25,16 @@ type WsDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 async function withFlowTx<T>(workspaceId: string, fn: (tx: WsDb) => Promise<T>): Promise<T> {
   const db = getDb();
   return db.transaction(async (tx) => {
+    // Phase F.2 fix (post-2026-05-26): match `withTenantContext` and
+    // `withWorkspaceTx` in `tenant/context.ts` by downgrading the tx
+    // to `app_user` BEFORE setting the GUC. Without this, when the
+    // connection role is `rolbypassrls=t` (the deployed `orchester`
+    // role per 2026-05-24 audit P0), FORCE RLS is bypassed entirely
+    // and the GUC is decorative. The inline `executeFlow` path is the
+    // only place a flow run is reached without going through
+    // `withWorkspaceTx`/`withTenantContext` first, so it's the only
+    // surface that was still exposed to this gap.
+    await tx.execute(sql`SET LOCAL ROLE app_user`);
     await tx.execute(sql`SELECT set_config('app.workspace_id', ${workspaceId}, true)`);
     return fn(tx);
   });

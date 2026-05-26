@@ -78,6 +78,36 @@ export async function withTenantContext<T>(
 }
 
 /**
+ * Like `withTenantContext` but skips the session/membership check —
+ * for **system-authenticated** entry points (webhooks already validated
+ * via channel secret, async workers, the LLM provider-key lookup from
+ * inside `llmStream` after the parent tx has closed). The caller takes
+ * responsibility for having authenticated the request out-of-band.
+ *
+ * Still sets `app_user` role + `app.workspace_id` GUC, so FORCE RLS
+ * applies and the workspace boundary is enforced at the DB layer
+ * regardless of where the call originated. Same Postgres tx semantics
+ * as `withTenantContext`: per-call, GUCs auto-revert at commit.
+ *
+ * Returns the callback's result. Throws if `workspaceId` is empty.
+ *
+ * **Do not use** from user-facing API routes — they should use
+ * `withTenantContext` so membership is verified.
+ */
+export async function withWorkspaceTx<T>(
+  workspaceId: string,
+  fn: (tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0]) => Promise<T>
+): Promise<T> {
+  if (!workspaceId) throw new TenantContextError("workspace_not_found");
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SET LOCAL ROLE app_user`);
+    await tx.execute(sql`SELECT set_config('app.workspace_id', ${workspaceId}, true)`);
+    return fn(tx);
+  });
+}
+
+/**
  * Read tenant context implicitly from the request. Edge middleware is
  * responsible for resolving the URL slug → workspace id and stamping
  * it as `x-tenant-id` on the forwarded headers (Phase D); route

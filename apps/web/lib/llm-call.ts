@@ -1,5 +1,6 @@
 import "server-only";
 import { getDb, schema, type DbClient } from "@orchester/db";
+import { withWorkspaceTx } from "@/lib/tenant/context";
 import { eq, and } from "drizzle-orm";
 import { decrypt } from "./encryption";
 import { type ProviderType } from "./providers";
@@ -114,9 +115,25 @@ export class ProviderNotConfiguredError extends Error {
   }
 }
 
-async function getProviderKey(workspaceId: string, provider: string, tx?: WsDb) {
-  const db = tx ?? getDb();
-  const rows = await db
+async function getProviderKey(
+  workspaceId: string,
+  provider: string,
+  tx?: WsDb
+): Promise<{ apiKey: string; endpoint: string | null }> {
+  // Phase F.1 fix (post-2026-05-26): under FORCE RLS, this SELECT
+  // against `ai_provider` returns 0 rows unless `app.workspace_id` is
+  // SET LOCAL on the connection. Callers running inside a workspace
+  // tx (llmCall under runConversationalTurn) thread their `tx` in and
+  // we use it. Callers running OUTSIDE any tx (llmStream after the
+  // history/memory tx has closed — generators can't suspend across
+  // tx boundaries) get a short-lived workspace tx opened just for
+  // this read. Either way the GUC is set when the row is fetched.
+  if (!tx) {
+    return withWorkspaceTx(workspaceId, (innerTx) =>
+      getProviderKey(workspaceId, provider, innerTx)
+    );
+  }
+  const rows = await tx
     .select()
     .from(schema.aiProviders)
     .where(

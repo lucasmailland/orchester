@@ -10,6 +10,7 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { schema } from "@orchester/db";
+import { redactSecrets } from "../redact";
 import type { ExporterDb } from "./workspace";
 
 export async function exportKnowledge(workspaceId: string, db: ExporterDb) {
@@ -38,5 +39,16 @@ export async function exportKnowledge(workspaceId: string, db: ExporterDb) {
     .from(schema.knowledgeChunks)
     .where(eq(schema.knowledgeChunks.workspaceId, workspaceId));
 
-  return { bases, docs, chunks };
+  // Phase F.3 (2026-05-26): scrub free-form text + metadata across all
+  // three tables. Chunk `text` is user content (the body of the doc),
+  // but operators frequently paste config snippets, API keys, or
+  // example payloads into knowledge bases without realising those go
+  // out in GDPR exports verbatim. Defence in depth — false positives
+  // are acceptable here (the requester gets `<REDACTED>` instead of
+  // their sample key; clarification is one email away).
+  return {
+    bases: bases.map((b) => redactSecrets(b) as typeof b),
+    docs: docs.map((d) => redactSecrets(d) as typeof d),
+    chunks: chunks.map((c) => redactSecrets(c) as typeof c),
+  };
 }

@@ -59,24 +59,36 @@ class S3Adapter implements StorageAdapter {
     key: string,
     payload: NodeJS.ReadableStream | Buffer
   ): Promise<{ signedUrl: string; expiresAt: Date }> {
-    const { S3Client, PutObjectCommand } = await loadS3Client();
+    const { S3Client } = await loadS3Client();
+    const { Upload } = await loadS3LibStorage();
     const bucket = requireS3Bucket();
     const region = process.env["AWS_REGION"] ?? "us-east-1";
     const s3 = new S3Client({ region });
-    const body = Buffer.isBuffer(payload) ? payload : await streamToBuffer(payload);
 
-    await s3.send(
-      new PutObjectCommand({
+    // Phase F.5 (2026-05-26): true streaming via multipart Upload.
+    // Accepts Buffer or ReadableStream transparently; multi-GB
+    // archives no longer buffer into memory. On source-stream error
+    // (e.g. archiver size-guard abort), Upload aborts the multipart
+    // via `AbortMultipartUpload` so we don't leak storage cost.
+    const upload = new Upload({
+      client: s3,
+      params: {
         Bucket: bucket,
         Key: key,
-        Body: body,
+        // lib-storage's Upload accepts Node.js Readable streams at
+        // runtime, but its type narrows to
+        // `StreamingBlobPayloadInputTypes` (a more restrictive
+        // intersection). Our payload is `NodeJS.ReadableStream |
+        // Buffer`; at runtime archiver always passes a real Node
+        // Readable so the SDK is happy. Cast through unknown to
+        // assert the structural compatibility we've verified.
+        Body: payload as unknown as Buffer,
         ContentType: "application/zip",
-        // Defense in depth: encrypt at rest with SSE-S3. Bucket policy
-        // should ALSO enforce this; we set it here so we don't depend
-        // on policy correctness for crypto.
+        // SSE-S3 defence in depth; bucket policy should ALSO enforce.
         ServerSideEncryption: "AES256",
-      })
-    );
+      },
+    });
+    await upload.done();
 
     return this.regenerateSignedUrl(key);
   }
@@ -117,6 +129,16 @@ async function loadS3Presigner() {
   return signerMod;
 }
 
+async function loadS3LibStorage() {
+  const libMod = await import("@aws-sdk/lib-storage").catch(() => null);
+  if (!libMod) {
+    throw new Error(
+      "S3 streaming upload requires @aws-sdk/lib-storage — install it or set STORAGE_BACKEND=filesystem"
+    );
+  }
+  return libMod;
+}
+
 function requireS3Bucket(): string {
   const bucket = process.env["GDPR_EXPORT_BUCKET"];
   if (!bucket) {
@@ -140,7 +162,10 @@ class FilesystemAdapter implements StorageAdapter {
     key: string,
     payload: NodeJS.ReadableStream | Buffer
   ): Promise<{ signedUrl: string; expiresAt: Date }> {
-    const { writeFile, mkdir } = await import("node:fs/promises");
+    const { writeFile, mkdir, unlink } = await import("node:fs/promises");
+    const { createWriteStream } = await import("node:fs");
+    const { pipeline } = await import("node:stream/promises");
+    const { Readable } = await import("node:stream");
     const path = await import("node:path");
 
     const dir = process.env["GDPR_EXPORT_DIR"] ?? "/tmp/orchester-exports";
@@ -150,8 +175,38 @@ class FilesystemAdapter implements StorageAdapter {
     // `<workspaceId>/<jobId>.zip` and we don't want to mkdir nested
     // workspace dirs (one less surface for path traversal).
     const filePath = path.join(dir, key.replace(/\//g, "_"));
-    const body = Buffer.isBuffer(payload) ? payload : await streamToBuffer(payload);
-    await writeFile(filePath, body);
+
+    if (Buffer.isBuffer(payload)) {
+      // Small / buffered uploads stay on the simple atomic-write path.
+      await writeFile(filePath, payload);
+    } else {
+      // Phase F.5 (2026-05-26): true streaming. Pipe the archiver
+      // straight into the on-disk write stream so we never hold the
+      // full archive resident. On source error (size-guard abort),
+      // `pipeline` rejects and we unlink the partial file so we don't
+      // leak orphan multi-GB junk under GDPR_EXPORT_DIR.
+      const sink = createWriteStream(filePath);
+      try {
+        // Cast: archiver and any other Node stream that quacks as
+        // ReadableStream is acceptable. `pipeline` accepts both
+        // Readable subclasses and async iterables, but we Normalise
+        // here so the implementation surface is one code path.
+        const source =
+          typeof (payload as { pipe?: unknown }).pipe === "function"
+            ? (payload as InstanceType<typeof Readable>)
+            : Readable.from(payload as AsyncIterable<Buffer>);
+        await pipeline(source, sink);
+      } catch (err) {
+        // Best-effort cleanup; ignore "no such file" if the write
+        // never opened.
+        try {
+          await unlink(filePath);
+        } catch {
+          // ignore
+        }
+        throw err;
+      }
+    }
 
     return this.regenerateSignedUrl(key);
   }
@@ -164,13 +219,11 @@ class FilesystemAdapter implements StorageAdapter {
   }
 }
 
-async function streamToBuffer(s: NodeJS.ReadableStream): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  for await (const c of s) {
-    chunks.push(typeof c === "string" ? Buffer.from(c) : (c as Buffer));
-  }
-  return Buffer.concat(chunks);
-}
+// `streamToBuffer` was the pre-F.5 fallback used by both adapters
+// when the export job buffered the whole archive into memory. With
+// the streaming pipeline the helper is no longer reachable from any
+// production path. Left out of the module entirely; revive from git
+// history if a future Buffer-only adapter needs it.
 
 let adapter: StorageAdapter | null = null;
 

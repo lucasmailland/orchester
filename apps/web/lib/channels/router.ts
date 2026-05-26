@@ -1,14 +1,7 @@
 import "server-only";
 import { createId } from "@paralleldrive/cuid2";
-import { eq, and, desc, sql } from "drizzle-orm";
-import {
-  getDb,
-  schema,
-  type DbClient,
-  type Conversation,
-  type Agent,
-  type Channel,
-} from "@orchester/db";
+import { eq, and, desc } from "drizzle-orm";
+import { schema, type DbClient, type Conversation, type Agent, type Channel } from "@orchester/db";
 import { llmCall, llmStream, type ChatMessage } from "@/lib/llm-call";
 import { getToolDefinitions, executeTool } from "@/lib/tools";
 import { executeFlow } from "@/lib/flow-engine";
@@ -39,20 +32,14 @@ export interface OutboundResponse {
  */
 type WsTx = Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 
-/**
- * Helper: corre `fn` dentro de una transacción del workspace con el GUC
- * `app.workspace_id` SET LOCAL — todo lo que se escriba/lea adentro pasa
- * por FORCE RLS con el contexto correcto. Mismo patrón que
- * `withTenantContext` y `withCrossTenantAdmin`, pero acá no validamos
- * membership (lo hace el caller — el webhook ya autenticó el canal).
- */
-async function withWorkspaceTx<T>(workspaceId: string, fn: (tx: WsTx) => Promise<T>): Promise<T> {
-  const db = getDb();
-  return db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT set_config('app.workspace_id', ${workspaceId}, true)`);
-    return fn(tx);
-  });
-}
+// Phase F.1 follow-up (post-2026-05-26): promoted the local
+// `withWorkspaceTx` helper into `lib/tenant/context.ts` so other
+// system-context callers (`getProviderKey` inside `llmStream` after
+// its parent tx has closed) can reuse the exact same pattern instead
+// of duplicating the `SET LOCAL ROLE app_user` + GUC dance. We
+// import it back here under the original name so the rest of this
+// file is untouched.
+import { withWorkspaceTx } from "@/lib/tenant/context";
 
 /**
  * Contexto resuelto para una conversación conversacional lista para invocar LLM.
@@ -457,8 +444,13 @@ async function runConversationalTurn(
     // Spend cap / kill-switch (E1-1/E3-1): aplica también al chat entrante.
     // El bypass de este check fue el principal hallazgo de la meta-auditoría.
     await assertWithinSpend(workspaceId, db);
+    // Phase F.1 fix (post-2026-05-26): thread `tx` into llmCall so
+    // `getProviderKey` runs on the connection that has `app.workspace_id`
+    // SET LOCAL. Without it, FORCE RLS rejects the read of
+    // `ai_provider.api_key` and the tool-using turn fails in production.
     const r = await llmCall({
       workspaceId,
+      tx,
       model: activeAgent.model,
       systemPrompt: activeSystemPrompt,
       messages: chatMsgs,
@@ -478,8 +470,14 @@ async function runConversationalTurn(
       const toolResults = [];
       for (const tc of r.toolCalls) {
         try {
+          // Phase F.1 fix: tools run on the same tx that has
+          // `app.workspace_id` SET LOCAL. `executeTool` already accepts
+          // `ctx.tx` and threads it into memory_set / memory_get /
+          // knowledge_search / mnemosyne_remember. Without this, any
+          // tool reading tenant tables hits FORCE RLS rejection.
           const out = await executeTool(tc.name, tc.input as Record<string, unknown>, {
             workspaceId,
+            tx,
             variables: (activeAgent.variables as Record<string, string>) ?? {},
             agentId: activeAgent.id,
             conversationId: conversation.id,
@@ -530,12 +528,17 @@ async function runConversationalTurn(
             activeAgent = newAgentRows[0];
             activeTools = getToolDefinitions(activeAgent.tools ?? []);
             // Re-inyectá memorias del nuevo agente (cambia el contexto).
-            const newMems = await getRelevantMemories({
-              agentId: activeAgent.id,
-              workspaceId,
-              conversationId: conversation.id,
-              employeeId: conversation.employeeId ?? undefined,
-            });
+            // Phase F.1 fix: thread `tx` so the SELECT runs under the
+            // turn's tenant context.
+            const newMems = await getRelevantMemories(
+              {
+                agentId: activeAgent.id,
+                workspaceId,
+                conversationId: conversation.id,
+                employeeId: conversation.employeeId ?? undefined,
+              },
+              tx
+            );
             activeSystemPrompt =
               activeAgent.systemPrompt +
               wrapMemoryBlock(formatMemoriesAsPromptBlock(newMems)) +

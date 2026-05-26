@@ -6,6 +6,7 @@
 import "server-only";
 import { and, eq } from "drizzle-orm";
 import { schema } from "@orchester/db";
+import { redactSecrets } from "../redact";
 import type { ExporterDb } from "./workspace";
 
 export async function exportBrain(workspaceId: string, db: ExporterDb) {
@@ -32,10 +33,11 @@ export async function exportBrain(workspaceId: string, db: ExporterDb) {
     })
     .from(schema.brainFacts)
     .where(
-      and(
-        eq(schema.brainFacts.workspaceId, workspaceId),
-        eq(schema.brainFacts.status, "active")
-      )
+      and(eq(schema.brainFacts.workspaceId, workspaceId), eq(schema.brainFacts.status, "active"))
     );
-  return rows;
+  // Phase F.3 (2026-05-26): brain facts are extracted from
+  // conversation text, so an upstream prompt or tool response that
+  // contained an API key gets memorialised in `statement` + `metadata`
+  // verbatim. Scrub before export.
+  return rows.map((r) => redactSecrets(r) as typeof r);
 }
