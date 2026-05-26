@@ -33,10 +33,7 @@ export function SettingsCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.15 }}
-      className={cn(
-        "rounded-2xl border border-line bg-card p-5 space-y-4",
-        className
-      )}
+      className={cn("rounded-2xl border border-line bg-card p-5 space-y-4", className)}
     >
       <header className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
@@ -81,7 +78,22 @@ export function Field({
   );
 }
 
-/** Toggle accesible (role=switch) reutilizable. */
+/** Toggle accesible (role=switch) reutilizable.
+ *
+ * Pre-fix: the knob was positioned with `translate-x-*` only and the
+ * span had `absolute` with no explicit positional anchors. Some upstream
+ * CSS (HeroUI / Tailwind reset under @layer base) was matching the
+ * span via the parent's `[role="switch"]` selector and forcing
+ * `left:18px; right:2px` on it, which composed with the 16px transform
+ * and pushed the knob ~14px past the right edge of the track — the
+ * "bolita fuera de lugar" the user reported.
+ *
+ * Fix: set explicit `left: 2px` (the gutter) and ditch the transform.
+ * Use `style.transform` directly to bypass any utility-class
+ * specificity wars, and clamp dimensions with inline-flex so the
+ * knob can never escape the track. Same visual result; immune to
+ * upstream resets.
+ */
 export function Toggle({
   checked,
   onChange,
@@ -102,16 +114,21 @@ export function Toggle({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        "relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200",
+        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full",
+        "transition-colors duration-200",
         "disabled:opacity-50 disabled:cursor-not-allowed",
-        checked ? "bg-violet-500" : "bg-zinc-700"
+        checked ? "bg-violet-500" : "bg-zinc-300 dark:bg-zinc-700"
       )}
     >
       <span
-        className={cn(
-          "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200",
-          checked ? "translate-x-4" : "translate-x-0.5"
-        )}
+        // Inline style overrides any upstream `[role="switch"] > *`
+        // rule that tries to anchor children to both sides.
+        style={{
+          left: 0,
+          right: "auto",
+          transform: `translateX(${checked ? "18px" : "2px"})`,
+        }}
+        className="pointer-events-none absolute h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200"
       />
     </button>
   );
