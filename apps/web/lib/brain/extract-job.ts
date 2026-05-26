@@ -1,9 +1,19 @@
 // apps/web/lib/brain/extract-job.ts
 //
 // pg-boss handler for JOB_BRAIN_EXTRACT. Loads the conversation slice,
-// calls extractFacts, persists each fact via store.createFact, updates
-// brain_extraction_job state. Runs inside withCrossTenantAdmin so RLS
-// FORCE is satisfied for the message read across workspaces.
+// calls extractFacts, persists each fact via `saveFactWithCandidates`
+// from @orchester/mnemosyne (writes to `mnemo_fact` + surfaces
+// contradictions + queues a review row when no LLM judge is wired).
+// Updates brain_extraction_job state. Runs inside withCrossTenantAdmin
+// so RLS FORCE is satisfied for the message read across workspaces.
+//
+// v1.5 — extraction now wires the cognitive metadata that
+// `mnemo_fact` carries since v1.4: `memory_type` (semantic/episodic/
+// procedural/working), `attribution` (user_stated/user_belief/
+// objective_fact/inferred), and `actor_id` (per-end-user). The LLM
+// classifies the first two; the conversation's employee id supplies
+// the third when known. Defaults at the zod layer + this call site
+// keep legacy callers shape-stable.
 //
 // v1.1 (circuit breaker): when the LLM provider is unhealthy (rolling
 // window of failures crosses the threshold), the job is DEFERRED with
@@ -22,10 +32,12 @@ import {
   recordProviderResult,
   resolveActiveMode,
   resolveConfiguredMode,
+  saveFactWithCandidates,
+  withMnemoTx,
 } from "@orchester/mnemosyne";
 import { resolveSmallTierModel } from "./model-resolve";
 import { extractFacts } from "./extract";
-import { createFact, withBrainTx } from "./store";
+import { withBrainTx } from "./store";
 import { invalidateRecallCache } from "./recall";
 
 /**
@@ -54,6 +66,21 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
   let factsProduced = 0;
   try {
     await withCrossTenantAdmin("brain.extract", async (tx) => {
+      // v1.5 — load the conversation row first so we know which
+      // end-user (employee) the facts belong to. The `actor_id` field
+      // on `mnemo_fact` (migration 0037) is populated from this id;
+      // NULL = workspace-shared (legacy behaviour) when no employee
+      // is associated with the conversation.
+      const convRows = await tx
+        .select({
+          id: schema.conversations.id,
+          employeeId: schema.conversations.employeeId,
+        })
+        .from(schema.conversations)
+        .where(eq(schema.conversations.id, payload.conversationId))
+        .limit(1);
+      const conv = convRows[0] ?? null;
+
       // 1. Pull conversation messages
       const msgs = await tx
         .select({
@@ -193,14 +220,21 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
         throw llmErr;
       }
 
-      // 3. Persist each fact in a workspace-scoped txn (separate from
-      // the cross-tenant admin txn — facts must be created with
-      // app.workspace_id set so RLS write WITH CHECK is satisfied).
+      // 3. Persist each fact via mnemosyne's `saveFactWithCandidates`
+      // (writes to `mnemo_fact`, runs contradiction detection, queues a
+      // review row when judgmentRequired AND no LLM judge is wired).
+      // Use `withMnemoTx` because the function operates on mnemo_*
+      // tables — the GUC + role downgrade live there, not in withBrainTx.
+      //
+      // The cognitive fields (memory_type, attribution, actor_id) flow
+      // through verbatim: the LLM classifier provides the first two via
+      // FactSchema, and the conversation's employeeId becomes the
+      // actor_id (NULL = workspace-shared when unset).
       const messageIds = msgs.map((m) => m.id);
-      await withBrainTx(payload.workspaceId, async (factTx) => {
+      await withMnemoTx(payload.workspaceId, async (factTx) => {
         for (const f of facts) {
           try {
-            await createFact({
+            await saveFactWithCandidates({
               workspaceId: payload.workspaceId,
               agentId: payload.agentId,
               scope: "conversation",
@@ -210,14 +244,38 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
               statement: f.statement,
               confidence: f.confidence,
               sourceMessageIds: messageIds,
+              // v1.5 — cognitive classification piped through from
+              // the LLM. Defaults at the zod layer in extract.ts mean
+              // these are always defined values ('semantic' / 'inferred').
+              memoryType: f.memoryType ?? "semantic",
+              attribution: f.attribution ?? "inferred",
+              // v1.5 — per-conversation actor isolation. When the
+              // conversation has an associated employee (the end-user),
+              // attribute the fact to them so per-actor recall filters
+              // can scope reads later. Workspace-shared (NULL) when
+              // no actor is resolvable.
+              actorId: conv?.employeeId ?? null,
+              // Mode A path: no embedding provider/model wired here.
+              // Mnemosyne's createFact handles NULL embeddings; FTS
+              // recall via text_lemmatized covers the gap until the
+              // batch embedding worker runs.
               tx: factTx,
+              // v1.3 active-learning hook: when judgmentRequired flips
+              // true AND the host has no LLM judge wired (today we
+              // never wire one in the extraction path), enqueue a
+              // review-queue row so a human triages the contradiction.
+              // The enqueue is dedup'd inside `enqueueReview` so this
+              // is safe to call on every fact.
+              enqueueOnNoJudge: true,
             });
             factsProduced++;
           } catch (e: unknown) {
-            // Likely unique violation (dedup) — fine, skip.
+            // Likely unique violation (dedup) — fine, skip. mnemo_fact
+            // has its own dedup index keyed off (workspace, scope,
+            // scope_ref, subject, md5(statement)) WHERE status='active'.
             const msg = e instanceof Error ? e.message : String(e);
-            if (!/duplicate key|uniq_brain_fact/.test(msg)) {
-              safeLogError("[brain.extract] createFact failed:", e);
+            if (!/duplicate key|uniq_mnemo_fact|uniq_brain_fact/.test(msg)) {
+              safeLogError("[brain.extract] saveFactWithCandidates failed:", e);
             }
           }
         }
