@@ -36,6 +36,8 @@ import {
   JOB_MNEMO_EMBED_BATCH,
   JOB_MNEMO_SUMMARY,
   JOB_MNEMO_HEALTH,
+  JOB_MNEMO_DEDUP,
+  JOB_MNEMO_PRUNE,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
@@ -51,6 +53,8 @@ import { runBrainDecay } from "../lib/brain/decay";
 import { runEmbedFactJob, runEmbedBatchSweep, type EmbedFactPayload } from "./embed-batch-job";
 import { summaryJobHandler, type SummaryJobPayload } from "./summary-job";
 import { healthJobHandler, type HealthJobPayload } from "./health-job";
+import { runDedupSweep } from "./dedup-job";
+import { runPruneSweep } from "./prune-job";
 
 interface FlowRunJob {
   runId: string;
@@ -235,6 +239,28 @@ async function main(): Promise<void> {
     await healthJobHandler(job);
   });
   await schedule(JOB_MNEMO_HEALTH, "0 6 * * *");
+
+  // ─── Mnemosyne v1.2 janitor: weekly memory self-maintenance ─────────
+  // dedup (Sunday 03:00 UTC): semantic merge of near-duplicate facts.
+  //   Walks workspaces with embedded facts, clusters by cosine >= 0.92,
+  //   archives duplicates into mnemo_fact_archive with archive_reason
+  //   = 'merged'. Folds hit_count + source_message_ids into the primary.
+  // prune (Sunday 03:30 UTC): archive inactive low-relevance facts.
+  //   Walks workspaces, finds active facts where hit_count = 0,
+  //   age > 90 days, relevance < 0.1, NOT pinned. Archives with
+  //   archive_reason = 'pruned_inactive'.
+  // Both are idempotent — re-runs find nothing to do. Stagger keeps
+  // dedup before prune so dedup doesn't accidentally re-archive a row
+  // prune has already moved.
+  await registerWorker(JOB_MNEMO_DEDUP, async () => {
+    await runDedupSweep();
+  });
+  await schedule(JOB_MNEMO_DEDUP, "0 3 * * 0");
+
+  await registerWorker(JOB_MNEMO_PRUNE, async () => {
+    await runPruneSweep();
+  });
+  await schedule(JOB_MNEMO_PRUNE, "30 3 * * 0");
 
   console.log("[worker] ready, waiting for jobs…");
 }

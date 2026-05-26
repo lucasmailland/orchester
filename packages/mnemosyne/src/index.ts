@@ -170,3 +170,19 @@ export {
   type ComputeHealthSnapshotInput,
   type PersistHealthSnapshotInput,
 } from "./health";
+
+// Mnemosyne v1.2 — Janitor: memory self-maintenance.
+// Semantic dedup and inactive-pruning crons keep storage from
+// growing junky over time. Both write to `mnemo_fact_archive`
+// (migration 0029) for traceability.
+export {
+  findDedupCandidates,
+  mergeCluster,
+  findPruneCandidates,
+  pruneFacts,
+  type DedupCandidate,
+  type FindDedupCandidatesInput,
+  type MergeClusterInput,
+  type FindPruneCandidatesInput,
+  type PruneFactsInput,
+} from "./janitor";

@@ -7,7 +7,7 @@
 //
 // §0.1: package-clean — no `server-only`, no host imports.
 import { createId } from "@paralleldrive/cuid2";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { schema } from "@orchester/db";
 import type { Tx } from "../tx";
 
@@ -159,9 +159,13 @@ export async function invalidateSummary(
       ? isNull(schema.mnemoSummary.userId)
       : eq(schema.mnemoSummary.userId, userId);
 
+  // Use epoch (Jan 1, 1970) — drizzle's `mode: "date"` column expects a JS
+  // Date, and a raw `sql\`now()\`` expression silently no-ops on UPDATE for
+  // typed-mode columns. Epoch is unambiguously in the past, so the cache
+  // freshness check (`expiresAt.getTime() > Date.now()`) always fails.
   await tx
     .update(schema.mnemoSummary)
-    .set({ expiresAt: sql`now()` })
+    .set({ expiresAt: new Date(0) })
     .where(
       and(
         eq(schema.mnemoSummary.workspaceId, workspaceId),

@@ -188,6 +188,12 @@ export const JOB_MNEMO_SUMMARY = "mnemo.summary";
 // and embedding coverage. Persisted to `mnemo_health` and surfaced via
 // `GET /api/mnemo/health`. See apps/web/worker/health-job.ts.
 export const JOB_MNEMO_HEALTH = "mnemo.health";
+// v1.2 janitor crons — weekly memory maintenance.
+// dedup: semantic merge of near-duplicates (cosine >= 0.92).
+// prune: archive facts with hit_count=0 + age > 90d + relevance < 0.1.
+// Both write to mnemo_fact_archive. See apps/web/worker/{dedup,prune}-job.ts.
+export const JOB_MNEMO_DEDUP = "mnemo.janitor.dedup";
+export const JOB_MNEMO_PRUNE = "mnemo.janitor.prune";
 export const JOB_KB_REINDEX = "kb:reindex";
 export const JOB_WEBHOOK_DELIVER = "webhook:deliver";
 export const JOB_USAGE_AGGREGATE = "usage:aggregate";
