@@ -129,6 +129,15 @@ export interface RecallUnifiedInput {
   prepareQueryLlm?: LlmCallFn;
   history?: Array<{ role: "user" | "assistant"; content: string }>;
   actorId?: string;
+  /**
+   * v1.6 — forward to searchMnemo so the memory leg can 1-hop expand
+   * via the `derived_from` / `supersedes` / `part_of` / `member_of` /
+   * `scoped` / `related` edges. KB hits are not expanded (kbProvider
+   * is content-only). When omitted, searchMnemo's own default applies
+   * (currently OFF at the package layer; the agent runtime flips it
+   * ON via this passthrough as part of the v1.6 defaults).
+   */
+  expandGraph?: boolean;
   /** Optional transaction. Forwarded to searchMnemo. */
   tx?: Tx;
 }
@@ -167,6 +176,9 @@ export async function recallUnified(input: RecallUnifiedInput): Promise<UnifiedR
       : {}),
     ...(input.prepareQueryLlm !== undefined ? { prepareQueryLlm: input.prepareQueryLlm } : {}),
     ...(input.history !== undefined ? { history: input.history } : {}),
+    // v1.6 — passthrough so the recall pipeline can 1-hop expand
+    // when the host (agent-runtime) enables it.
+    ...(input.expandGraph !== undefined ? { expandGraph: input.expandGraph } : {}),
     ...(input.tx !== undefined ? { tx: input.tx } : {}),
   };
 

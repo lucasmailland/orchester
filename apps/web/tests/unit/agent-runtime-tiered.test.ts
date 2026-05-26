@@ -193,9 +193,18 @@ describe("buildRecallBlock — Layer 2 conditional recall", () => {
     expect(call.agentId).toBe("ag_1");
     expect(call.query).toBe("what was the language we discussed before?");
     expect(call.enableContextualize).toBe(true);
-    // HyDE/Cohere stay opt-in — settings mock returns defaults.
-    expect(call.enableHyDE).toBe(false);
-    expect(call.rerank).toBeUndefined();
+    // v1.6 "True 10/10": HyDE/rerank/graph default ON. The mocked
+    // settings object has `disableHyde === undefined` (legacy shape),
+    // and the v1.6 runtime treats undefined as "not disabled" → feature
+    // is ON. Existing settings rows without disable_* flags keep the
+    // ON-by-default behaviour, which is the whole point of the flip.
+    expect(call.enableHyDE).toBe(true);
+    expect(call.expandGraph).toBe(true);
+    // The mocked makeCohereRerank returns a vi.fn() — but the runtime
+    // only wires it when COHERE_API_KEY is set. We don't set the env
+    // here, so the runtime falls back to the local lexical reranker.
+    // Either way `rerank` is now a function, not undefined.
+    expect(typeof call.rerank).toBe("function");
     // Block wraps render output in <recalled-memory>.
     expect(out).toContain("<recalled-memory>");
     expect(out).toContain("[preference] lang:TS, location:BA");

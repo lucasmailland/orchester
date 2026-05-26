@@ -9,7 +9,6 @@ import {
   getOrComputeSummary,
   shouldTriggerRecall,
   makeCohereRerank,
-  noopRerank,
   type AgentMemoryPolicy,
   type UnifiedRecallHit,
   type RecallUnifiedInput,
@@ -96,6 +95,105 @@ function interpolate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{([^}]+)\}\}/g, (_, k: string) => vars[k.trim()] ?? "");
 }
 
+/* ───────────────── Mnemosyne v1.6 — local lexical reranker ───────────────── */
+
+/**
+ * Build a lightweight local reranker. Used when the v1.6 defaults flip
+ * rerank ON but the workspace has no `COHERE_API_KEY` configured —
+ * something is better than nothing, and pure-TS lexical overlap
+ * already beats identity rerank for short fact statements.
+ *
+ * Scoring: BM25-ish term overlap on the lowercased, stopword-stripped
+ * tokens of (query, document). Each document gets a score; we sort
+ * desc and return up to `topK` indices.
+ *
+ * Pure / deterministic — runs in the request hot path and adds <1ms
+ * for typical fact counts (the package layer over-fetches to 5x cap,
+ * so we score ~15-25 docs per turn).
+ */
+function makeLocalLexicalRerank(): RerankFn {
+  const STOP = new Set([
+    "a",
+    "an",
+    "the",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "of",
+    "to",
+    "in",
+    "on",
+    "at",
+    "for",
+    "with",
+    "as",
+    "by",
+    "and",
+    "or",
+    "but",
+    "not",
+    "this",
+    "that",
+    "these",
+    "those",
+    "it",
+    "its",
+    "they",
+    "them",
+    "i",
+    "you",
+    "we",
+    "he",
+    "she",
+    "his",
+    "her",
+    "their",
+    "do",
+    "does",
+    "did",
+    "have",
+    "has",
+    "had",
+    "what",
+    "when",
+    "where",
+    "why",
+    "how",
+  ]);
+  function tokenize(s: string): string[] {
+    return s
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]+/g, " ")
+      .split(/\s+/)
+      .filter((t) => t.length > 1 && !STOP.has(t));
+  }
+  return async ({ query, documents, topK }) => {
+    if (documents.length === 0 || topK <= 0) return [];
+    const qTokens = tokenize(query);
+    if (qTokens.length === 0) {
+      // Degenerate query — return input order capped to topK.
+      return Array.from({ length: Math.min(documents.length, topK) }, (_, i) => i);
+    }
+    const qSet = new Set(qTokens);
+    const scored = documents.map((d, i) => {
+      const tokens = tokenize(d);
+      if (tokens.length === 0) return { i, s: 0 };
+      let hits = 0;
+      for (const t of tokens) if (qSet.has(t)) hits++;
+      // Normalize by sqrt of length — long facts shouldn't dominate
+      // just because they have more words.
+      const s = hits / Math.sqrt(tokens.length);
+      return { i, s };
+    });
+    scored.sort((a, b) => b.s - a.s);
+    return scored.slice(0, topK).map((x) => x.i);
+  };
+}
+
 /* ───────────────── Mnemosyne v1.4 — unified recall wiring ───────────────── */
 
 /**
@@ -160,24 +258,35 @@ export interface BuildRecallBlockInput {
 }
 
 /**
- * Build the dynamic recall block (v1.4 unified). Pipeline:
+ * Build the dynamic recall block (v1.6 unified). Pipeline:
  *
  *   1. `shouldTriggerRecall` (pure heuristic) — skip on greetings, etc.
  *   2. Load agent memory policy + workspace settings (both NEVER throw,
  *      they fall back to safe defaults).
- *   3. Build the unified-recall input with all opt-ins:
- *        - `expandGraph: true` (always — one extra SQL query, ~10-15%
- *          recall quality lift)
- *        - HyDE only if the workspace opted in AND a cheap LLM is
- *          available
- *        - Cohere rerank only if the workspace opted in AND
- *          COHERE_API_KEY is present
- *        - KB provider only if `kbId` is supplied
+ *   3. v1.6 "True 10/10" — HyDE / cross-encoder rerank / 1-hop graph
+ *      expansion are ALL default-ON. Each respects a per-workspace
+ *      kill-switch in `mnemo.disable_*` so an operator can opt out
+ *      without code changes:
+ *        - HyDE → enabled unless `settings.disableHyde === true`
+ *        - rerank → enabled unless `settings.disableRerank === true`.
+ *          Cohere is used when `COHERE_API_KEY` is present (best
+ *          quality); the lightweight local lexical reranker
+ *          (`noopLocalRerank`) is used otherwise so the workspace
+ *          still gets *some* rerank lift without a paid provider.
+ *        - graph expansion → enabled unless `settings.disableGraph === true`.
+ *      Back-compat: the v1.5 `enable_hyde=true` legacy flag is a
+ *      no-op now (the v1.6 default is ON; the new disable_* flag is
+ *      the only way to opt OUT).
  *   4. Apply policy via `applyPolicyToRecall` (narrows scope when the
  *      policy is workspace-only).
  *   5. Call `recallUnified` and render: KB hits as `<kb source="...">`
  *      blocks, memory hits via `renderFactsCompact` inside
  *      `<recalled-memory>`.
+ *
+ * Cost note: HyDE adds ~1 cheap LLM call per recall-triggering turn.
+ * At ~$0.0001/call (Haiku-tier rates) and 10k turns/month per
+ * workspace, that's ~$1/month — well under noise floor for typical
+ * workspaces. Operators with tighter budgets flip `disable_hyde`.
  *
  * Every layer is wrapped in try/catch — recall is OPTIMIZATION, not a
  * hard dependency. A flaky reranker / KB / policy load NEVER breaks
@@ -205,21 +314,38 @@ export async function buildRecallBlock(input: BuildRecallBlockInput): Promise<st
     getMnemoSettings(input.workspaceId, input.tx),
   ]);
 
-  // ── Build the reranker (only when the workspace opted in AND the
-  // key is present). makeCohereRerank already falls back to noopRerank
-  // on network failure, so wiring it is safe even on a flaky provider.
+  // ── v1.6 defaults flip: HyDE / rerank / graph default ON. The
+  // disable_* kill-switches let an operator opt OUT per-workspace.
+  // The legacy `enable_hyde=true` flag is preserved on the settings
+  // shape (back-compat read) but it's a no-op now — the disable_*
+  // flag is the only way to flip the feature off.
+  const hyde = !settings.disableHyde;
+  const rerankEnabled = !settings.disableRerank;
+  const graph = !settings.disableGraph;
+
+  // ── Build the reranker. v1.6: Cohere when an API key is present
+  // (best quality), local lexical otherwise so we ALWAYS get some
+  // rerank signal. makeCohereRerank already falls back to noopRerank
+  // on network failure so a flaky upstream can never crash recall.
   let rerankFn: RerankFn | undefined;
-  if (settings.rerankProvider === "cohere") {
+  if (rerankEnabled) {
     const apiKey = process.env.COHERE_API_KEY;
     if (apiKey) {
       try {
         rerankFn = makeCohereRerank(apiKey, {
+          ...(settings.rerankModel ? { model: settings.rerankModel } : {}),
           onError: (err) => safeLogError("[agent-runtime] cohere rerank failed:", err),
         });
       } catch (e) {
         safeLogError("[agent-runtime] makeCohereRerank threw:", e);
-        rerankFn = noopRerank;
+        rerankFn = makeLocalLexicalRerank();
       }
+    } else {
+      // No paid provider configured — fall back to the local lexical
+      // reranker. It's pure-TS, deterministic, and slightly better
+      // than identity for short fact statements (the BM25-ish term
+      // overlap reorders strong matches above weak ones).
+      rerankFn = makeLocalLexicalRerank();
     }
   }
 
@@ -236,10 +362,8 @@ export async function buildRecallBlock(input: BuildRecallBlockInput): Promise<st
     history: input.history,
     topK: 5,
     enableContextualize: true,
-    enableHyDE: settings.enableHyde,
-    // expandGraph is always-on per the brief: the overhead is a single
-    // extra SQL query and gains ~10-15% recall quality. The package's
-    // search.ts already guards against hub-fact blow-up.
+    enableHyDE: hyde,
+    expandGraph: graph,
     ...(rerankFn ? { rerank: rerankFn } : {}),
     ...(kbProvider ? { kbProvider } : {}),
     ...(input.actorId ? { actorId: input.actorId } : {}),
