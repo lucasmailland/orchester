@@ -140,10 +140,13 @@ export async function registerWorker<T = unknown>(
  * in a cron does NOT cause double-execution. Hard-delete, retention and
  * audit-verify are non-idempotent in the worst case (concurrent
  * hard-delete = race; concurrent retention = delete twice). The next
- * cron tick picks up missed work anyway. Also explicitly disable expiry:
- * cron jobs fire on schedule, pg-boss's default expireInSeconds=3600
- * would silently kill a long-running GDPR export then re-enqueue it,
- * producing concurrent multi-GB allocations.
+ * cron tick picks up missed work anyway. We push expiry far out (24h)
+ * instead of disabling: cron jobs fire on schedule, pg-boss's default
+ * expireInSeconds=3600 would silently kill a long-running GDPR export
+ * then re-enqueue it, producing concurrent multi-GB allocations. pg-boss
+ * 11+ asserts expireInSeconds >= 1 so we cannot use 0; pg-boss also caps
+ * expiration at strictly < 24 hours, so we use 23 (the largest legal value)
+ * to cover every long-running cron in the system (GDPR export, retention).
  */
 export async function schedule(name: string, cron: string, data: unknown = {}): Promise<void> {
   const boss = await getBoss();
@@ -151,7 +154,7 @@ export async function schedule(name: string, cron: string, data: unknown = {}): 
   await boss.schedule(name, cron, data, {
     tz: "UTC",
     retryLimit: 0,
-    expireInSeconds: 0,
+    expireInHours: 23,
   });
 }
 
@@ -180,6 +183,11 @@ export const JOB_MNEMO_EMBED_BATCH = "mnemo.embed.batch";
 // that pre-warms `mnemo_summary` rows so the foreground turn never
 // pays for an LLM round-trip. See apps/web/worker/summary-job.ts.
 export const JOB_MNEMO_SUMMARY = "mnemo.summary";
+// v1.2 memory drift detection: daily per-workspace snapshot of fact
+// counts, recall hit-rate, contradiction surface, extraction backlog
+// and embedding coverage. Persisted to `mnemo_health` and surfaced via
+// `GET /api/mnemo/health`. See apps/web/worker/health-job.ts.
+export const JOB_MNEMO_HEALTH = "mnemo.health";
 export const JOB_KB_REINDEX = "kb:reindex";
 export const JOB_WEBHOOK_DELIVER = "webhook:deliver";
 export const JOB_USAGE_AGGREGATE = "usage:aggregate";
