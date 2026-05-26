@@ -1,11 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Avatar } from "@heroui/react";
 import { useTranslations } from "next-intl";
 import { ThemeToggle } from "./ThemeToggle";
 import { LanguageSelector } from "./LanguageSelector";
 import { PresentationModeToggle } from "./PresentationModeToggle";
+import { UserMenu } from "./UserMenu";
 import { fadeInDown } from "@/lib/motion";
 import { usePresentationMode } from "@/components/providers/PresentationModeProvider";
 import { cn } from "@/lib/utils";
@@ -14,21 +14,13 @@ interface TopbarProps {
   /** Reserved for future locale-aware widgets in the topbar. */
   locale: string;
   userName?: string;
+  userEmail?: string;
   userImage?: string | null;
 }
 
-export function Topbar({ locale: _locale, userName, userImage }: TopbarProps) {
+export function Topbar({ locale: _locale, userName, userEmail, userImage }: TopbarProps) {
   const { isPresenting } = usePresentationMode();
   const t = useTranslations("shell");
-
-  const initials = userName
-    ? userName
-        .split(" ")
-        .map((w) => w[0])
-        .slice(0, 2)
-        .join("")
-        .toUpperCase()
-    : "U";
 
   return (
     <motion.header
@@ -72,17 +64,7 @@ export function Topbar({ locale: _locale, userName, userImage }: TopbarProps) {
 
         <div className="ml-2 h-5 w-px bg-line" />
 
-        <div className="ml-2 cursor-pointer">
-          <Avatar
-            size="sm"
-            name={initials}
-            {...(userImage ? { src: userImage } : {})}
-            classNames={{
-              base: "bg-gradient-to-br from-violet-600 to-blue-600 h-7 w-7",
-              name: "text-white font-semibold text-[10px]",
-            }}
-          />
-        </div>
+        <UserMenu userName={userName} userEmail={userEmail} userImage={userImage} />
       </div>
     </motion.header>
   );

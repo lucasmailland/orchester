@@ -388,6 +388,22 @@
         "channels": "Canales",
         "settings": "Ajustes"
       }
+    },
+    "userMenu": {
+      "openLabel": "Abrir menú de cuenta",
+      "menuLabel": "Menú de cuenta",
+      "identityLabel": "Identidad",
+      "shortcutsLabel": "Atajos",
+      "unnamedUser": "Cuenta",
+      "accountLabel": "Configuración de cuenta",
+      "accountDescription": "Perfil, contraseña, 2FA",
+      "settingsLabel": "Configuración del workspace",
+      "settingsDescription": "Equipo, plan, integraciones",
+      "memoryLabel": "Operaciones de memoria",
+      "memoryDescription": "Crons + calidad de recall",
+      "signOutLabel": "Cerrar sesión",
+      "signingOut": "Cerrando sesión…",
+      "signOutError": "No se pudo cerrar sesión. Intentá de nuevo."
     }
   },
   "emptyStates": {

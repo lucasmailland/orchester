@@ -12,6 +12,7 @@ import {
   DollarSign,
   ShieldOff,
 } from "lucide-react";
+import { Select, SelectItem } from "@heroui/react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { SensitivityToggle } from "@/components/brain/SensitivityToggle";
@@ -224,69 +225,98 @@ export function ConversationsClient({ agents, labels }: { agents: Agent[]; label
             className="w-full rounded-lg border border-line bg-elevated py-1.5 pl-8 pr-2 text-xs text-strong outline-none focus:border-violet-500/60"
           />
         </div>
-        <label htmlFor="conv-filter-status" className="sr-only">
-          {t("filterByStatus")}
-        </label>
-        <select
-          id="conv-filter-status"
-          name="status"
-          value={filters.status}
-          onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-          className="rounded-lg border border-line bg-elevated px-2 py-1.5 text-xs text-body outline-none"
+        {/* HeroUI Select dropdowns — pre-v1.6 these were native
+            `<select>` elements which DO work in production but render
+            the OS dropdown that's invisible to MCP-driven UI audits.
+            Upgrading to HeroUI Select makes the dropdown live inside
+            the React tree (visible chevron + visible menu + keyboard
+            nav + consistent dark/light theming with the rest of the
+            shell). All four use selectedKeys for controlled state and
+            empty-string sentinel for "All". */}
+        <Select
+          aria-label={t("filterByStatus")}
+          size="sm"
+          placeholder={t("statusFilter")}
+          selectedKeys={filters.status ? new Set([filters.status]) : new Set()}
+          onSelectionChange={(keys) => {
+            const v = Array.from(keys as Set<string>)[0] ?? "";
+            setFilters({ ...filters, status: v });
+          }}
+          className="w-[160px] shrink-0"
+          variant="flat"
+          classNames={{
+            trigger: "h-9 min-h-9 bg-elevated border border-line data-[hover=true]:bg-elevated",
+            value: "text-xs text-body",
+          }}
         >
-          <option value="">{t("statusFilter")}</option>
-          <option value="open">{t("status.openPl")}</option>
-          <option value="escalated">{t("status.escalatedPl")}</option>
-          <option value="closed">{t("status.closedPl")}</option>
-        </select>
-        <label htmlFor="conv-filter-channel" className="sr-only">
-          {t("filterByChannel")}
-        </label>
-        <select
-          id="conv-filter-channel"
-          name="channel"
-          value={filters.channel}
-          onChange={(e) => setFilters({ ...filters, channel: e.target.value })}
-          className="rounded-lg border border-line bg-elevated px-2 py-1.5 text-xs text-body outline-none"
+          <SelectItem key="open">{t("status.openPl")}</SelectItem>
+          <SelectItem key="escalated">{t("status.escalatedPl")}</SelectItem>
+          <SelectItem key="closed">{t("status.closedPl")}</SelectItem>
+        </Select>
+        <Select
+          aria-label={t("filterByChannel")}
+          size="sm"
+          placeholder={t("channelFilter")}
+          selectedKeys={filters.channel ? new Set([filters.channel]) : new Set()}
+          onSelectionChange={(keys) => {
+            const v = Array.from(keys as Set<string>)[0] ?? "";
+            setFilters({ ...filters, channel: v });
+          }}
+          className="w-[160px] shrink-0"
+          variant="flat"
+          classNames={{
+            trigger: "h-9 min-h-9 bg-elevated border border-line data-[hover=true]:bg-elevated",
+            value: "text-xs text-body",
+          }}
         >
-          <option value="">{t("channelFilter")}</option>
-          <option value="widget">{t("channel.widget")}</option>
-          <option value="telegram">{t("channel.telegram")}</option>
-          <option value="whatsapp">{t("channel.whatsapp")}</option>
-          <option value="slack">{t("channel.slack")}</option>
-          <option value="email">{t("channel.email")}</option>
-          <option value="api">{t("channel.api")}</option>
-        </select>
-        <label htmlFor="conv-filter-agent" className="sr-only">
-          {t("filterByAgent")}
-        </label>
-        <select
-          id="conv-filter-agent"
-          name="agent"
-          value={filters.agentId}
-          onChange={(e) => setFilters({ ...filters, agentId: e.target.value })}
-          className="rounded-lg border border-line bg-elevated px-2 py-1.5 text-xs text-body outline-none"
+          <SelectItem key="widget">{t("channel.widget")}</SelectItem>
+          <SelectItem key="telegram">{t("channel.telegram")}</SelectItem>
+          <SelectItem key="whatsapp">{t("channel.whatsapp")}</SelectItem>
+          <SelectItem key="slack">{t("channel.slack")}</SelectItem>
+          <SelectItem key="email">{t("channel.email")}</SelectItem>
+          <SelectItem key="api">{t("channel.api")}</SelectItem>
+        </Select>
+        <Select
+          aria-label={t("filterByAgent")}
+          size="sm"
+          placeholder={t("agentFilter")}
+          selectedKeys={filters.agentId ? new Set([filters.agentId]) : new Set()}
+          onSelectionChange={(keys) => {
+            const v = Array.from(keys as Set<string>)[0] ?? "";
+            setFilters({ ...filters, agentId: v });
+          }}
+          className="w-[180px] shrink-0"
+          variant="flat"
+          classNames={{
+            trigger: "h-9 min-h-9 bg-elevated border border-line data-[hover=true]:bg-elevated",
+            value: "text-xs text-body",
+          }}
         >
-          <option value="">{t("agentFilter")}</option>
           {agents.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
+            <SelectItem key={a.id}>{a.name}</SelectItem>
           ))}
-        </select>
+        </Select>
         {labels.length > 0 && (
-          <select
-            value={filters.tag}
-            onChange={(e) => setFilters({ ...filters, tag: e.target.value })}
-            className="rounded-lg border border-line bg-elevated px-2 py-1.5 text-xs text-body outline-none"
+          <Select
+            aria-label={t("tagFilter")}
+            size="sm"
+            placeholder={t("tagFilter")}
+            selectedKeys={filters.tag ? new Set([filters.tag]) : new Set()}
+            onSelectionChange={(keys) => {
+              const v = Array.from(keys as Set<string>)[0] ?? "";
+              setFilters({ ...filters, tag: v });
+            }}
+            className="w-[160px] shrink-0"
+            variant="flat"
+            classNames={{
+              trigger: "h-9 min-h-9 bg-elevated border border-line data-[hover=true]:bg-elevated",
+              value: "text-xs text-body",
+            }}
           >
-            <option value="">{t("tagFilter")}</option>
             {labels.map((l) => (
-              <option key={l.id} value={l.name}>
-                {l.name}
-              </option>
+              <SelectItem key={l.name}>{l.name}</SelectItem>
             ))}
-          </select>
+          </Select>
         )}
       </div>
 

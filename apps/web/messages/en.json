@@ -388,6 +388,22 @@
         "channels": "Channels",
         "settings": "Settings"
       }
+    },
+    "userMenu": {
+      "openLabel": "Open account menu",
+      "menuLabel": "Account menu",
+      "identityLabel": "Account identity",
+      "shortcutsLabel": "Shortcuts",
+      "unnamedUser": "Account",
+      "accountLabel": "Account settings",
+      "accountDescription": "Profile, password, 2FA",
+      "settingsLabel": "Workspace settings",
+      "settingsDescription": "Team, plan, integrations",
+      "memoryLabel": "Memory operations",
+      "memoryDescription": "Cron triggers + recall quality",
+      "signOutLabel": "Sign out",
+      "signingOut": "Signing out…",
+      "signOutError": "Could not sign out. Try again."
     }
   },
   "emptyStates": {

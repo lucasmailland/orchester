@@ -388,6 +388,22 @@
         "channels": "Canais",
         "settings": "Configurações"
       }
+    },
+    "userMenu": {
+      "openLabel": "Abrir menu da conta",
+      "menuLabel": "Menu da conta",
+      "identityLabel": "Identidade",
+      "shortcutsLabel": "Atalhos",
+      "unnamedUser": "Conta",
+      "accountLabel": "Configurações da conta",
+      "accountDescription": "Perfil, senha, 2FA",
+      "settingsLabel": "Configurações do workspace",
+      "settingsDescription": "Equipe, plano, integrações",
+      "memoryLabel": "Operações de memória",
+      "memoryDescription": "Crons + qualidade de recall",
+      "signOutLabel": "Sair",
+      "signingOut": "Saindo…",
+      "signOutError": "Não foi possível sair. Tente novamente."
     }
   },
   "emptyStates": {

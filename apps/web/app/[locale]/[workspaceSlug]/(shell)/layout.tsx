@@ -55,6 +55,7 @@ export default async function ShellLayout({
         <Topbar
           locale={locale}
           userName={session.user.name}
+          userEmail={session.user.email}
           userImage={session.user.image ?? null}
         />
         <SuspendedBanner
