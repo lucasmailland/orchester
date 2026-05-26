@@ -52,7 +52,7 @@ import { recallCache, recallCacheKey } from "./cache";
 import { prepareQuery, type LlmCallFn, type PreparedQuery } from "./query-prep";
 import { noopRerank, type RerankFn } from "./rerank";
 import { withMnemoTx, type Tx } from "../tx";
-import type { FactKind, FactScope, FactStatus, MnemoFact } from "../primitives/fact";
+import type { FactKind, FactScope, FactStatus, MemoryType, MnemoFact } from "../primitives/fact";
 
 export interface RecallReasons {
   semantic: number;
@@ -66,6 +66,14 @@ export interface RecallHit {
   fact: MnemoFact;
   score: number;
   reasons: RecallReasons;
+  /**
+   * v1.4 — when this hit was reached via 1-hop graph traversal from
+   * another hit (rather than the direct hybrid-retrieval path), this
+   * carries the parent's fact id. `undefined` / `null` means the hit
+   * came from the direct retrieval. See `expandGraph` on
+   * `SearchMnemoInput` for the activation flag.
+   */
+  expandedFromId?: string | null;
 }
 
 export interface SearchMnemoInput {
@@ -131,6 +139,26 @@ export interface SearchMnemoInput {
    */
   tx?: Tx;
   /**
+   * v1.4 — expand the top-K result set via 1-hop graph traversal over
+   * `mnemo_relation`. When enabled, after the rerank+prune stage we
+   * fetch facts connected to the top result via any of: `derived_from`,
+   * `supersedes`, `part_of`, `member_of`, `scoped`, `related`. Each
+   * neighbor's score is the parent's score × `expandDecay` (default 0.7).
+   * Neighbors are deduplicated against the top-K and the hard cap is
+   * re-applied. Hard cap on neighbors fetched: 10 per parent.
+   *
+   * Excluded verbs: `conflicts_with` (never expand into a contradiction),
+   * `not_conflict` (low signal — explicit "not related" marker), and
+   * `compatible` (too noisy).
+   */
+  expandGraph?: boolean;
+  /**
+   * v1.4 — multiplicative decay applied to a neighbor's score before it
+   * competes with the direct hits. Default 0.7. Bounded at [0, 1].
+   * `expandGraph` must also be true for this to take effect.
+   */
+  expandDecay?: number;
+  /**
    * v1.2 — Bitemporal time-travel. Only return facts that were valid at
    * this point in time:
    *   - `undefined` (default): "currently valid" — `valid_to IS NULL
@@ -147,6 +175,22 @@ export interface SearchMnemoInput {
    * so no schema change is needed for this feature.
    */
   asOf?: Date;
+  /**
+   * v1.4 — restrict recall to specific memory types. When unset, all
+   * four types ('semantic' | 'episodic' | 'procedural' | 'working')
+   * are searched (backward compatible with v1.3 callers). The most
+   * common pattern is the agent runtime passing `['semantic',
+   * 'episodic']` for factual user turns and `['procedural']` when
+   * invoking a tool. An explicit empty array `[]` is treated as
+   * "no filter" — same as unset — to avoid an accidental zero-row
+   * trap from upstream `.filter()` chains.
+   *
+   * Wired into both the FTS and vector branches as
+   *   `AND memory_type = ANY($types)`
+   * which uses the (workspace_id, memory_type) partial index added
+   * in migration 0033.
+   */
+  memoryTypes?: MemoryType[];
 }
 
 interface FactRow {
@@ -173,6 +217,9 @@ interface FactRow {
   valid_to: string | null;
   created_at: string;
   updated_at: string;
+  /** v1.4 — projected into the SELECT for both branches; defaulted at
+   *  the SQL layer so legacy rows surface as 'semantic'. */
+  memory_type: MemoryType;
   semantic?: number;
   fts_score?: number;
   recency: number;
@@ -276,6 +323,10 @@ function rowToFact(r: FactRow): MnemoFact {
     validTo: r.valid_to ? new Date(r.valid_to) : null,
     createdAt: new Date(r.created_at),
     updatedAt: new Date(r.updated_at),
+    // v1.4 — defensive default to 'semantic' if the projection misses
+    // the column (e.g. an older driver shim returning undefined for
+    // unknown columns).
+    memoryType: r.memory_type ?? "semantic",
   };
 }
 
@@ -325,6 +376,17 @@ async function runFirstStage(
     ? sql`AND valid_from <= ${input.asOf} AND (valid_to IS NULL OR valid_to > ${input.asOf})`
     : sql`AND (valid_to IS NULL OR valid_to > now())`;
 
+  // v1.4 — Memory-type filter. When the caller passes a non-empty
+  // `memoryTypes` array we restrict the result to that subset. An
+  // empty array is treated as "no filter" (same as unset) to avoid
+  // an accidental zero-row trap if a caller's upstream `.filter()`
+  // chain produces an empty list. The (workspace_id, memory_type)
+  // partial index from migration 0033 covers the bitmap scan.
+  const memoryTypesFragment =
+    input.memoryTypes && input.memoryTypes.length > 0
+      ? sql`AND memory_type = ANY(${input.memoryTypes})`
+      : sql``;
+
   // v1.1 — also pull the `embedding` column so the post-recall pruning
   // stage can measure cosine between candidates without an extra round-
   // trip. In Mode A we explicitly select NULL so the column shape stays
@@ -336,7 +398,7 @@ async function runFirstStage(
           statement, confidence, pinned, relevance, hit_count,
           last_recalled_at, source_message_ids, attributed_to,
           linked_memory_ids, metadata, status, merged_into_id,
-          valid_from, valid_to, created_at, updated_at,
+          valid_from, valid_to, created_at, updated_at, memory_type,
           NULL::text AS embedding,
           ts_rank_cd(text_lemmatized, plainto_tsquery('simple', ${lexicalQuery})) AS fts_score,
           exp(-LN(2.0) * EXTRACT(EPOCH FROM (now() - created_at)) / (30.0 * 86400.0)) AS recency,
@@ -347,6 +409,7 @@ async function runFirstStage(
           AND status = 'active'
           AND text_lemmatized @@ plainto_tsquery('simple', ${lexicalQuery})
           ${asOfFragment}
+          ${memoryTypesFragment}
           ${input.agentId ? sql`AND (agent_id = ${input.agentId} OR agent_id IS NULL)` : sql``}
           ${input.scope ? sql`AND scope = ${input.scope}` : sql``}
           ${input.scopeRef ? sql`AND scope_ref = ${input.scopeRef}` : sql``}
@@ -359,7 +422,7 @@ async function runFirstStage(
           statement, confidence, pinned, relevance, hit_count,
           last_recalled_at, source_message_ids, attributed_to,
           linked_memory_ids, metadata, status, merged_into_id,
-          valid_from, valid_to, created_at, updated_at,
+          valid_from, valid_to, created_at, updated_at, memory_type,
           embedding::text AS embedding,
           (1.0 - (embedding <=> ${vecLiteral}::vector)) AS semantic,
           exp(-LN(2.0) * EXTRACT(EPOCH FROM (now() - created_at)) / (30.0 * 86400.0)) AS recency,
@@ -370,6 +433,7 @@ async function runFirstStage(
           AND status = 'active'
           AND embedding IS NOT NULL
           ${asOfFragment}
+          ${memoryTypesFragment}
           ${input.agentId ? sql`AND (agent_id = ${input.agentId} OR agent_id IS NULL)` : sql``}
           ${input.scope ? sql`AND scope = ${input.scope}` : sql``}
           ${input.scopeRef ? sql`AND scope_ref = ${input.scopeRef}` : sql``}
@@ -447,10 +511,206 @@ async function runSearchPipeline(
   const threshold = input.pruneRedundantThreshold ?? 0.88;
   const pruned = prunePostRecall(postRerank, threshold, maxResults);
 
+  // v1.4 — opt-in 1-hop graph expansion. Pruned (and capped) hits act
+  // as the parent set. We over-fetch neighbors (decay-discounted) and
+  // re-apply the hard cap so a stronger neighbor can crowd out a
+  // weaker direct hit. Bounded at 10 neighbors per parent to keep the
+  // tail tractable; the cap re-applies at the end so the user-facing
+  // result count never exceeds `maxResults`.
+  let expanded: ScoredHit[] = pruned;
+  if (input.expandGraph && pruned.length > 0) {
+    const decay = clamp01ish(input.expandDecay ?? 0.7);
+    const neighbors = await fetchOneHopNeighbors(pruned, input.workspaceId, tx, decay);
+    if (neighbors.length > 0) {
+      // Dedup neighbors against the parents AND against each other —
+      // the same fact may be reachable from two parents; keep the
+      // higher-scored one (we iterated parents by score, so first-wins
+      // already biases toward stronger parents).
+      const seenIds = new Set(pruned.map((h) => h.fact.id));
+      const dedupedNeighbors: ScoredHit[] = [];
+      for (const n of neighbors) {
+        if (seenIds.has(n.fact.id)) continue;
+        seenIds.add(n.fact.id);
+        dedupedNeighbors.push(n);
+      }
+      // Concat + sort by score so neighbors can promote past direct
+      // hits when their parent was very high. Re-apply the hard cap.
+      const combined = [...pruned, ...dedupedNeighbors];
+      combined.sort((a, b) => b.score - a.score);
+      expanded = combined.slice(0, maxResults);
+    }
+  }
+
   // Strip the internal `embedding` field — it's never part of the
   // public RecallHit contract (the rowToFact mapper already sets
   // `fact.embedding: null` for the same reason).
-  return pruned.map(({ embedding: _e, ...hit }) => hit);
+  return expanded.map(({ embedding: _e, ...hit }) => hit);
+}
+
+/**
+ * Clamp a decay factor to [0, 1]. Anything else (NaN, negative, > 1)
+ * collapses to the safe defaults so a misconfigured caller can't blow
+ * up the ranking. Centralised here so the public option stays a plain
+ * `number` without zod overhead.
+ */
+function clamp01ish(n: number): number {
+  if (!Number.isFinite(n)) return 0.7;
+  if (n < 0) return 0;
+  if (n > 1) return 1;
+  return n;
+}
+
+/** v1.4 — verbs we DO expand into. Locked subset of the 9-verb
+ *  vocabulary; the excluded set (`conflicts_with`, `not_conflict`,
+ *  `compatible`) is documented on the `expandGraph` field of
+ *  `SearchMnemoInput`. Kept private — the list IS the contract. */
+const EXPAND_VERBS = [
+  "derived_from",
+  "supersedes",
+  "part_of",
+  "member_of",
+  "scoped",
+  "related",
+] as const;
+
+/** Hard cap on neighbors fetched per parent to keep the second-stage
+ *  query bounded on hub-like facts (a single fact with hundreds of
+ *  edges would otherwise dominate the result set). */
+const MAX_NEIGHBORS_PER_PARENT = 10;
+
+interface RelationEdgeRow {
+  src_id: string;
+  dst_id: string;
+  verb: string;
+}
+
+/**
+ * Pull every neighbor reachable in 1 hop from `parents` via the
+ * whitelisted verbs and hydrate them into ScoredHit rows. Score is the
+ * parent's score × decay; reasons are inherited from the parent so the
+ * downstream caller (render layer) can still explain the hit if it
+ * wants. `expandedFromId` is stamped so callers can distinguish direct
+ * hits from graph hops.
+ *
+ * Two queries: (1) the relation lookup constrained to the whitelisted
+ * verb set + parent ids; (2) a single hydration SELECT against
+ * `mnemo_fact` for the distinct neighbor ids. The relations table is
+ * RLS-gated by the workspace GUC just like `mnemo_fact`, so no
+ * explicit workspace_id is needed in the WHERE — we add it anyway as
+ * defense-in-depth and to help the planner pick the right index.
+ *
+ * Returns rows in PARENT order, so dedup-first-wins biases toward the
+ * strongest parent's neighbor. Mode A and Mode B/C both work — the
+ * hydration query carries the same column shape we already use, with
+ * NULL embedding so the post-recall pruner cannot drop neighbors a
+ * second time (we want them in the final mix).
+ */
+async function fetchOneHopNeighbors(
+  parents: ScoredHit[],
+  workspaceId: string,
+  tx: Tx,
+  decay: number
+): Promise<ScoredHit[]> {
+  if (parents.length === 0 || decay === 0) return [];
+  const parentIds = parents.map((p) => p.fact.id);
+  const verbList = Array.from(EXPAND_VERBS);
+
+  // ── 1. relation edges ────────────────────────────────────────────
+  // source_kind is hardcoded 'fact' — the brief scopes v1.4 expansion
+  // to fact→fact edges; decision/episode expansion stays out of the
+  // contract until E1's mnemo_episode lands. We also filter target_kind
+  // to 'fact' so we don't accidentally hydrate decision ids against
+  // `mnemo_fact` (would return zero rows but wastes the round-trip).
+  const edgeResult = await tx.execute(sql`
+    SELECT source_id AS src_id, target_id AS dst_id, relation AS verb
+    FROM mnemo_relation
+    WHERE workspace_id = ${workspaceId}
+      AND source_kind = 'fact'
+      AND target_kind = 'fact'
+      AND source_id = ANY(${sql.param(parentIds)}::text[])
+      AND relation = ANY(${sql.param(verbList)}::text[])
+  `);
+  const edges = edgeResult as unknown as RelationEdgeRow[];
+  if (edges.length === 0) return [];
+
+  // Map parent.id → first MAX_NEIGHBORS_PER_PARENT neighbor ids. We
+  // walk edges in arrival order, so a hub fact's tail just gets
+  // truncated rather than dropping signal randomly.
+  const neighborIdsByParent = new Map<string, string[]>();
+  for (const e of edges) {
+    let arr = neighborIdsByParent.get(e.src_id);
+    if (!arr) {
+      arr = [];
+      neighborIdsByParent.set(e.src_id, arr);
+    }
+    if (arr.length < MAX_NEIGHBORS_PER_PARENT) arr.push(e.dst_id);
+  }
+
+  // Distinct neighbor ids across all parents — used for the single
+  // hydration query below. A neighbor reachable from two parents is
+  // fetched ONCE and attributed to its first parent (by score order).
+  const distinctNeighborIds = Array.from(new Set(edges.map((e) => e.dst_id)));
+  if (distinctNeighborIds.length === 0) return [];
+
+  // ── 2. hydrate neighbor facts ─────────────────────────────────────
+  // Same SELECT shape as the FTS branch of runFirstStage minus the
+  // score columns — recency / frequency / pin_bonus are recomputed
+  // server-side so the inherited score isn't a stale snapshot.
+  // `status='active'` matches the direct-hit filter; we don't want to
+  // surface forgotten facts via expansion.
+  const hydrationResult = await tx.execute(sql`
+    SELECT
+      id, workspace_id, agent_id, scope, scope_ref, kind, subject,
+      statement, confidence, pinned, relevance, hit_count,
+      last_recalled_at, source_message_ids, attributed_to,
+      linked_memory_ids, metadata, status, merged_into_id,
+      valid_from, valid_to, created_at, updated_at, memory_type,
+      NULL::text AS embedding,
+      0.0 AS fts_score,
+      exp(-LN(2.0) * EXTRACT(EPOCH FROM (now() - created_at)) / (30.0 * 86400.0)) AS recency,
+      (ln(1.0 + hit_count) / ln(100.0)) AS frequency,
+      CASE WHEN pinned THEN 1.0 ELSE 0.0 END AS pin_bonus
+    FROM mnemo_fact
+    WHERE workspace_id = ${workspaceId}
+      AND status = 'active'
+      AND (valid_to IS NULL OR valid_to > now())
+      AND id = ANY(${sql.param(distinctNeighborIds)}::text[])
+  `);
+  const hydrationRows = hydrationResult as unknown as FactRow[];
+  if (hydrationRows.length === 0) return [];
+
+  const factById = new Map<string, FactRow>();
+  for (const r of hydrationRows) factById.set(r.id, r);
+
+  // ── 3. assemble ScoredHits in parent-score order ─────────────────
+  // First-wins dedup: if the same neighbor is reachable from p1 (high
+  // score) and p2 (lower), we keep the p1 attribution. Caller's
+  // `seenIds` set in `runSearchPipeline` enforces this between
+  // direct-hit and neighbor sets; we enforce it WITHIN the neighbor
+  // set here.
+  const out: ScoredHit[] = [];
+  const seenNeighbors = new Set<string>();
+  for (const parent of parents) {
+    const ids = neighborIdsByParent.get(parent.fact.id);
+    if (!ids) continue;
+    for (const id of ids) {
+      if (seenNeighbors.has(id)) continue;
+      const row = factById.get(id);
+      if (!row) continue; // hydration dropped it (RLS / status mismatch).
+      seenNeighbors.add(id);
+      out.push({
+        fact: rowToFact(row),
+        score: parent.score * decay,
+        // Inherit the parent's reasons so the render layer can still
+        // explain "why this fact was relevant" — the expansion is a
+        // proximity claim, not a fresh ranking signal.
+        reasons: parent.reasons,
+        embedding: null,
+        expandedFromId: parent.fact.id,
+      });
+    }
+  }
+  return out;
 }
 
 /**
@@ -494,10 +754,20 @@ export async function searchMnemo(input: SearchMnemoInput): Promise<RecallHit[]>
   // cache hot across calls (we don't want `now()` ticks to invalidate it).
   const cacheQuery = prepared.hypothetical ?? prepared.contextualized;
   const asOfTag = input.asOf ? input.asOf.toISOString() : "current";
+  // v1.4 — mix `memoryTypes` into the hash so a typed query never
+  // collides with the "all types" query for the same text. Sort first
+  // so `['episodic','semantic']` and `['semantic','episodic']` share
+  // the same cache bucket. Empty array / undefined → 'all' sentinel.
+  const memTypesTag =
+    input.memoryTypes && input.memoryTypes.length > 0
+      ? [...input.memoryTypes].sort().join(",")
+      : "all";
   const queryHash = createHash("sha256")
     .update(cacheQuery)
     .update("\x00")
     .update(asOfTag)
+    .update("\x00")
+    .update(memTypesTag)
     .digest("hex")
     .slice(0, 16);
   const cacheK = recallCacheKey({
