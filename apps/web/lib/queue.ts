@@ -84,6 +84,24 @@ export interface EnqueueOptions {
   singletonKey?: string;
 }
 
+/**
+ * v1.6 G1-1: Defensive enqueue against 40P01 (deadlock_detected).
+ *
+ * The pg-boss `createQueue` + first `send` on the same name from two
+ * concurrent admin endpoints (e.g. run-consolidation racing run-auto-pin)
+ * can deadlock on the `pgboss.queue` row — Postgres reports SQLSTATE
+ * 40P01. Postgres aborts ONE of the transactions; the other proceeds.
+ * Retrying the aborted enqueue exactly once is safe: pg-boss state is
+ * already self-consistent at that point.
+ */
+async function isDeadlockError(err: unknown): Promise<boolean> {
+  if (!err || typeof err !== "object") return false;
+  const code = (err as { code?: string }).code;
+  if (code === "40P01") return true;
+  const msg = err instanceof Error ? err.message : String(err);
+  return /deadlock detected/i.test(msg);
+}
+
 export async function enqueue<T = unknown>(
   name: string,
   data: T,
@@ -98,7 +116,19 @@ export async function enqueue<T = unknown>(
   };
   if (opts.startAfterSeconds) sendOpts["startAfter"] = opts.startAfterSeconds;
   if (opts.singletonKey) sendOpts["singletonKey"] = opts.singletonKey;
-  return boss.send(name, data, sendOpts);
+  try {
+    return await boss.send(name, data, sendOpts);
+  } catch (e) {
+    if (await isDeadlockError(e)) {
+      const { safeLogError } = await import("./safe-log");
+      safeLogError(`[queue] enqueue "${name}" hit 40P01, retrying once:`, e);
+      // Best-effort: re-warm the queue row in case the deadlock was on it.
+      _ensuredQueues.delete(name);
+      await ensureQueue(name);
+      return boss.send(name, data, sendOpts);
+    }
+    throw e;
+  }
 }
 
 export type WorkerHandler<T = unknown> = (job: Job<T>) => Promise<void>;
@@ -219,3 +249,63 @@ export const JOB_AUDIT_VERIFY_ALL = "audit:verify_all_chains";
 export const JOB_WORKSPACE_HARD_DELETE = "workspace:hard_delete";
 export const JOB_GDPR_EXPORT = "gdpr:export";
 export const JOB_GDPR_EXPORT_WATCHDOG = "gdpr:export:watchdog";
+
+/**
+ * v1.6 G1-1: Canonical list of every queue the worker process owns.
+ *
+ * The worker pre-creates these at boot via `preCreateAllQueues`, so the
+ * first admin enqueue (e.g. POST /api/mnemo/admin/run-consolidation) does
+ * NOT race pg-boss's lazy `createQueue` + `send` deadlock window.
+ *
+ * Keep this list in sync with the `await registerWorker(...)` calls in
+ * `apps/web/worker/index.ts`. Adding a queue here is cheap — it just
+ * means one extra row pre-created in `pgboss.queue` at boot.
+ */
+export const ALL_QUEUES: readonly string[] = [
+  JOB_FLOW_RUN,
+  JOB_FLOW_REAP,
+  JOB_KB_INGEST,
+  JOB_BRAIN_EXTRACT,
+  JOB_BRAIN_COMPACTION,
+  JOB_BRAIN_DECAY,
+  JOB_MNEMO_EMBED_FACT,
+  JOB_MNEMO_EMBED_BATCH,
+  JOB_MNEMO_SUMMARY,
+  JOB_MNEMO_HEALTH,
+  JOB_MNEMO_DEDUP,
+  JOB_MNEMO_PRUNE,
+  JOB_MNEMO_REVIEW_SWEEP,
+  JOB_MNEMO_AUTO_PIN,
+  JOB_MNEMO_CONSOLIDATION,
+  JOB_KB_REINDEX,
+  JOB_WEBHOOK_DELIVER,
+  JOB_USAGE_AGGREGATE,
+  JOB_RETENTION,
+  JOB_AUDIT_VERIFY_ALL,
+  JOB_WORKSPACE_HARD_DELETE,
+  JOB_GDPR_EXPORT,
+  JOB_GDPR_EXPORT_WATCHDOG,
+];
+
+/**
+ * v1.6 G1-1: Pre-create every queue row at worker boot.
+ *
+ * Idempotent via `ensureQueue` (duplicates swallowed). Wraps every
+ * createQueue in its own try/catch so one bad name doesn't abort the
+ * whole boot. The admin endpoints that ran into the deadlock
+ * (run-consolidation, run-auto-pin) call `enqueue` directly from the
+ * request handler — without this pre-create the FIRST enqueue triggers
+ * pg-boss's lazy createQueue path which is what races.
+ */
+export async function preCreateAllQueues(): Promise<void> {
+  const { safeLogError } = await import("./safe-log");
+  await getBoss(); // ensure boss.start() completed first
+  for (const name of ALL_QUEUES) {
+    try {
+      await ensureQueue(name);
+    } catch (e) {
+      safeLogError(`[queue] preCreateAllQueues failed for "${name}":`, e);
+      // continue — one bad queue must not abort the whole boot
+    }
+  }
+}

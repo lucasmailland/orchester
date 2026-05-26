@@ -20,6 +20,7 @@ import {
   registerWorker,
   schedule,
   shutdownQueue,
+  preCreateAllQueues,
   JOB_FLOW_RUN,
   JOB_FLOW_REAP,
   JOB_WEBHOOK_DELIVER,
@@ -78,6 +79,15 @@ interface WebhookDeliverJob {
 
 async function main(): Promise<void> {
   console.log("[worker] booting…");
+
+  // ── v1.6 G1-1: pre-create every queue row BEFORE any handler ────
+  // Without this, the first admin enqueue (e.g. POST
+  // /api/mnemo/admin/run-consolidation) races pg-boss's lazy
+  // createQueue + send and deadlocks on the `pgboss.queue` row
+  // (SQLSTATE 40P01). Idempotent — duplicates are swallowed inside
+  // ensureQueue.
+  await preCreateAllQueues();
+  console.log("[worker] queues pre-created");
 
   // ── Flow runner ────────────────────────────────────────────
   await registerWorker<FlowRunJob>(

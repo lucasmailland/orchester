@@ -25,7 +25,9 @@
     "test:watch": "vitest",
     "worker:build": "node worker/build.mjs",
     "worker": "node worker/build.mjs && node worker/.dist/worker.mjs",
-    "worker:prod": "node worker/build.mjs && node worker/.dist/worker.mjs"
+    "worker:prod": "node worker/build.mjs && node worker/.dist/worker.mjs",
+    "queue:init": "tsx scripts/init-queues.ts",
+    "i18n:check": "tsx scripts/i18n-check.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1053.0",
