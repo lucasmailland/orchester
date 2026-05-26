@@ -1,9 +1,23 @@
-import { pgTable, text, timestamp, pgEnum, integer, boolean, jsonb, numeric, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  timestamp,
+  pgEnum,
+  integer,
+  boolean,
+  jsonb,
+  numeric,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 import { workspaces } from "./workspaces";
 
 export const agentStatusEnum = pgEnum("agent_status", ["active", "inactive", "draft"]);
 export const agentKindEnum = pgEnum("agent_kind", ["conversational", "flow"]);
-export const agentResponseFormatEnum = pgEnum("agent_response_format", ["text", "json", "markdown"]);
+export const agentResponseFormatEnum = pgEnum("agent_response_format", [
+  "text",
+  "json",
+  "markdown",
+]);
 export const channelTypeEnum = pgEnum("channel_type", [
   "web",
   "widget",
@@ -14,7 +28,11 @@ export const channelTypeEnum = pgEnum("channel_type", [
   "api",
 ]);
 export const channelStatusEnum = pgEnum("channel_status", ["active", "inactive"]);
-export const conversationStatusEnum = pgEnum("conversation_status", ["open", "closed", "escalated"]);
+export const conversationStatusEnum = pgEnum("conversation_status", [
+  "open",
+  "closed",
+  "escalated",
+]);
 export const messageRoleEnum = pgEnum("message_role", ["user", "assistant", "system"]);
 
 export const teams = pgTable("team", {
@@ -55,6 +73,23 @@ export const agents = pgTable("agent", {
   config: jsonb("config").$type<Record<string, unknown>>().default({}),
   temperature: numeric("temperature", { precision: 3, scale: 2 }).default("0.70"),
   maxTokens: integer("max_tokens"),
+  // Mnemosyne v1.4 — per-agent memory policy (migration 0036).
+  // jsonb to match the dynamic shape ({write_scope_default, read_scopes,
+  // sensitive_categories}). The default mirrors the SQL default and is
+  // the canonical TS source of truth lives in
+  // `packages/mnemosyne/src/policy/index.ts` (DEFAULT_AGENT_MEMORY_POLICY).
+  memoryPolicy: jsonb("memory_policy")
+    .$type<{
+      write_scope_default: "workspace" | "agent" | "conversation";
+      read_scopes: Array<"workspace" | "agent" | "conversation">;
+      sensitive_categories: string[];
+    }>()
+    .notNull()
+    .default({
+      write_scope_default: "workspace",
+      read_scopes: ["workspace", "agent"],
+      sensitive_categories: [],
+    }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -105,10 +140,7 @@ export const employees = pgTable(
   },
   (t) => ({
     // Email único por workspace (evita que un seed corrido 2 veces duplique gente)
-    uniqWorkspaceEmail: uniqueIndex("uniq_employee_workspace_email").on(
-      t.workspaceId,
-      t.email
-    ),
+    uniqWorkspaceEmail: uniqueIndex("uniq_employee_workspace_email").on(t.workspaceId, t.email),
   })
 );
 
