@@ -224,7 +224,17 @@
     "sensitivity": {
       "toggleLabel": "Não aprender desta conversa",
       "toggleHelp": "Pausa a extração de memória para esta conversa. Você pode reativar quando quiser.",
-      "bannerPaused": "O aprendizado de memória está pausado para esta conversa."
+      "bannerPaused": "O aprendizado de memória está pausado para esta conversa.",
+      "toastPaused": "Aprendizado de memória pausado",
+      "toastResumed": "Aprendizado de memória retomado",
+      "toggleError": "Falha ao atualizar configuração de memória"
+    },
+    "timeTravel": {
+      "label": "Ver memória em:",
+      "now": "Agora",
+      "reset": "Voltar para agora",
+      "banner": "Vendo estado histórico de {date}. Edições estão desabilitadas no modo histórico.",
+      "editsDisabled": "Edições estão desabilitadas no modo histórico"
     }
   },
   "dashboard": {
@@ -1105,7 +1115,15 @@
         "deleted": "Conta excluída",
         "deleteError": "Não foi possível excluir"
       },
-      "notifications": "Notificações",
+      "notifications": {
+        "title": "Notificações",
+        "description": "Escolha quais eventos do workspace disparam e-mails. A configuração se aplica apenas à sua conta.",
+        "loading": "Carregando preferências…",
+        "saveError": "Não foi possível salvar a preferência",
+        "defaultFrom": "Padrão de {kind}",
+        "defaultWorkspace": "workspace",
+        "defaultSystem": "sistema"
+      },
       "members": {
         "activeHeading": "Membros ativos",
         "loading": "Carregando…",
@@ -1260,7 +1278,13 @@
         "disableFailed": "Não foi possível desativar",
         "disabled": "2FA desativado"
       },
-      "danger": "Zona de Perigo",
+      "danger": {
+        "title": "Zona de Perigo",
+        "description": "Ações irreversíveis. Transfira a propriedade ou arquive o workspace. Apenas owners podem usar estes controles.",
+        "deleteButton": "Arquivar workspace",
+        "onlyOwner": "Apenas o owner do workspace pode realizar esta ação",
+        "yourRoleIs": "Sua função atual é <b>{role}</b>."
+      },
       "sections": {
         "providersTitle": "Provedores de IA",
         "providersDescription": "Conecte provedores de IA (chat, imagem, embeddings, vídeo, áudio e mais) com sua própria API key. Os modelos disponíveis aparecem no editor de agentes e nos fluxos.",

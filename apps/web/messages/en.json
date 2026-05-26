@@ -224,7 +224,17 @@
     "sensitivity": {
       "toggleLabel": "Don't learn from this conversation",
       "toggleHelp": "Pause memory extraction for this conversation. You can turn it back on anytime.",
-      "bannerPaused": "Memory learning is paused for this conversation."
+      "bannerPaused": "Memory learning is paused for this conversation.",
+      "toastPaused": "Memory learning paused",
+      "toastResumed": "Memory learning resumed",
+      "toggleError": "Failed to update memory setting"
+    },
+    "timeTravel": {
+      "label": "View memory as of:",
+      "now": "Now",
+      "reset": "Reset to now",
+      "banner": "Viewing historical state from {date}. Edits are disabled in time-travel mode.",
+      "editsDisabled": "Edits are disabled in time-travel mode"
     }
   },
   "dashboard": {
@@ -1104,7 +1114,15 @@
         "deleted": "Account deleted",
         "deleteError": "Could not delete"
       },
-      "notifications": "Notifications",
+      "notifications": {
+        "title": "Notifications",
+        "description": "Choose which workspace events trigger email notifications. Settings apply to your account only.",
+        "loading": "Loading preferences…",
+        "saveError": "Could not save the preference",
+        "defaultFrom": "Default from {kind}",
+        "defaultWorkspace": "workspace",
+        "defaultSystem": "system"
+      },
       "members": {
         "activeHeading": "Active members",
         "loading": "Loading…",
@@ -1259,7 +1277,13 @@
         "disableFailed": "Could not disable",
         "disabled": "2FA disabled"
       },
-      "danger": "Danger Zone",
+      "danger": {
+        "title": "Danger Zone",
+        "description": "Irreversible actions. Transfer ownership or soft-delete the workspace. Only owners can use these controls.",
+        "deleteButton": "Soft-delete workspace",
+        "onlyOwner": "Only the workspace owner can perform this action",
+        "yourRoleIs": "Your current role is <b>{role}</b>."
+      },
       "sections": {
         "providersTitle": "AI Providers",
         "providersDescription": "Connect AI providers (chat, image, embeddings, video, audio and more) with your own API key. Available models show up in the agent editor and flows.",

@@ -224,7 +224,17 @@
     "sensitivity": {
       "toggleLabel": "No aprender de esta conversación",
       "toggleHelp": "Pausa la extracción de memoria para esta conversación. Podés reactivarla cuando quieras.",
-      "bannerPaused": "El aprendizaje de memoria está pausado para esta conversación."
+      "bannerPaused": "El aprendizaje de memoria está pausado para esta conversación.",
+      "toastPaused": "Aprendizaje de memoria pausado",
+      "toastResumed": "Aprendizaje de memoria reanudado",
+      "toggleError": "No se pudo actualizar la configuración de memoria"
+    },
+    "timeTravel": {
+      "label": "Ver memoria al:",
+      "now": "Ahora",
+      "reset": "Volver a ahora",
+      "banner": "Viendo estado histórico al {date}. Las ediciones están deshabilitadas en modo histórico.",
+      "editsDisabled": "Las ediciones están deshabilitadas en modo histórico"
     }
   },
   "dashboard": {
@@ -1105,7 +1115,15 @@
         "deleted": "Cuenta eliminada",
         "deleteError": "No se pudo eliminar"
       },
-      "notifications": "Notificaciones",
+      "notifications": {
+        "title": "Notificaciones",
+        "description": "Elegí qué eventos del workspace generan emails. La configuración aplica solo a tu cuenta.",
+        "loading": "Cargando preferencias…",
+        "saveError": "No se pudo guardar la preferencia",
+        "defaultFrom": "Por defecto de {kind}",
+        "defaultWorkspace": "workspace",
+        "defaultSystem": "sistema"
+      },
       "members": {
         "activeHeading": "Miembros activos",
         "loading": "Cargando…",
@@ -1260,7 +1278,13 @@
         "disableFailed": "No se pudo desactivar",
         "disabled": "2FA desactivado"
       },
-      "danger": "Zona de Peligro",
+      "danger": {
+        "title": "Zona de Peligro",
+        "description": "Acciones irreversibles. Transferí la propiedad o archivá el workspace. Solo los owners pueden usar estos controles.",
+        "deleteButton": "Archivar workspace",
+        "onlyOwner": "Solo el owner del workspace puede realizar esta acción",
+        "yourRoleIs": "Tu rol actual es <b>{role}</b>."
+      },
       "sections": {
         "providersTitle": "Proveedores de IA",
         "providersDescription": "Conectá proveedores de IA (chat, imagen, embeddings, video, audio y más) con tu propia API key. Los modelos disponibles aparecen en el editor de agentes y los flujos.",
