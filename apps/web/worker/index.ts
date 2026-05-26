@@ -38,6 +38,8 @@ import {
   JOB_MNEMO_HEALTH,
   JOB_MNEMO_DEDUP,
   JOB_MNEMO_PRUNE,
+  JOB_MNEMO_REVIEW_SWEEP,
+  JOB_MNEMO_AUTO_PIN,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
@@ -55,6 +57,8 @@ import { summaryJobHandler, type SummaryJobPayload } from "./summary-job";
 import { healthJobHandler, type HealthJobPayload } from "./health-job";
 import { runDedupSweep } from "./dedup-job";
 import { runPruneSweep } from "./prune-job";
+import { runReviewSweep } from "./review-sweep-job";
+import { runAutoPin } from "./auto-pin-job";
 
 interface FlowRunJob {
   runId: string;
@@ -261,6 +265,27 @@ async function main(): Promise<void> {
     await runPruneSweep();
   });
   await schedule(JOB_MNEMO_PRUNE, "30 3 * * 0");
+
+  // ─── Mnemosyne v1.3 active-learning crons (daily) ──────────────────
+  // review.sweep (04:00 UTC): scans for low-confidence (< 0.5)
+  // unpinned facts not already in the queue and enqueues them with
+  // reason='low_confidence'. Cap 50/workspace/run. Dedup against
+  // 'contradiction' rows is handled inside enqueueReview.
+  await registerWorker(JOB_MNEMO_REVIEW_SWEEP, async () => {
+    await runReviewSweep();
+  });
+  await schedule(JOB_MNEMO_REVIEW_SWEEP, "0 4 * * *");
+
+  // auto-pin (04:30 UTC): evaluates the pure rule set in
+  // `decideAutoPin` and pins matching rows, stamping
+  // metadata.auto_pinned = { rule, at }. Skips rows where the user
+  // previously unpinned (metadata.auto_pinned_overridden = true).
+  // Stagger after review.sweep so the queued low-confidence rows
+  // aren't competing with the auto-pin pass.
+  await registerWorker(JOB_MNEMO_AUTO_PIN, async () => {
+    await runAutoPin();
+  });
+  await schedule(JOB_MNEMO_AUTO_PIN, "30 4 * * *");
 
   console.log("[worker] ready, waiting for jobs…");
 }

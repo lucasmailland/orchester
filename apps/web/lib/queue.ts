@@ -194,6 +194,17 @@ export const JOB_MNEMO_HEALTH = "mnemo.health";
 // Both write to mnemo_fact_archive. See apps/web/worker/{dedup,prune}-job.ts.
 export const JOB_MNEMO_DEDUP = "mnemo.janitor.dedup";
 export const JOB_MNEMO_PRUNE = "mnemo.janitor.prune";
+// v1.3 active-learning crons — daily.
+// review.sweep: scans for confidence<0.5 inactive facts and enqueues
+// them into mnemo_review_queue (reason='low_confidence').
+// auto-pin: evaluates the rule set in mnemosyne's decideAutoPin
+// against active facts and pins the matches, stamping
+// metadata.auto_pinned = {rule, at}. Honours the user-override flag
+// metadata.auto_pinned_overridden = true (set when the user unpins
+// an auto-pinned row).
+// See apps/web/worker/{review-sweep,auto-pin}-job.ts.
+export const JOB_MNEMO_REVIEW_SWEEP = "mnemo.review.sweep";
+export const JOB_MNEMO_AUTO_PIN = "mnemo.auto-pin";
 export const JOB_KB_REINDEX = "kb:reindex";
 export const JOB_WEBHOOK_DELIVER = "webhook:deliver";
 export const JOB_USAGE_AGGREGATE = "usage:aggregate";
