@@ -35,13 +35,14 @@
 // Recency and `relevance` MUST share the same decay model so they live on
 // the same numeric scale when blended. Both use true half-life with H=30d.
 //
-// Cache: L1 = in-process LRU via ./cache.ts (60s TTL, workspace-scoped).
-// L2 (embedding) lives inside `embedMnemo`. L3 (`mnemo_query_cache`) is
-// intentionally unwired in v1.0 — see TODO below.
-//
-// TODO(v1.1): L3 query cache. `mnemo_query_cache` table exists (migration
-// 0022) and is meant to short-circuit semantically-similar queries via
-// cosine > 0.95 over 24h. Currently only L1 LRU is wired in this file.
+// Cache layers (all wired in v1.6):
+//   - L1: in-process LRU via ./cache.ts (60s TTL, workspace-scoped, ~5K entries).
+//   - L2: embedding cache lives inside `embedMnemo` (workspace-keyed LRU).
+//   - L3: `mnemo_query_cache` table — semantic-similar query cache.
+//     Cosine ≥ 0.95 lookup within 5min TTL, per-workspace 1000-row cap.
+//     Wired via getL3Cache + setL3Cache from ./cache.ts. Only fires when
+//     `asOf` is unset (time-travel queries bypass L3 — historical state
+//     must come from the live SQL).
 //
 // §0.1: package-clean — no `server-only`, no path aliases to the host
 // app. Embedding / LLM / reranker are all dependency-injected.

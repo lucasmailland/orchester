@@ -24,7 +24,7 @@ import "server-only";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
 import { createEpisode, linkFactToEpisode, type Tx as MnemoTx } from "@orchester/mnemosyne";
-import { llmCall, type LlmCallParams, type LlmCallResult } from "@/lib/llm-call";
+import { type LlmCallParams, type LlmCallResult } from "@/lib/llm-call";
 import { wrapUntrusted } from "@/lib/agent-runtime";
 import { safeLogError } from "@/lib/safe-log";
 import { assertWithinSpend } from "@/lib/cost-alerts";
