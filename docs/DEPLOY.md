@@ -85,7 +85,10 @@ POSTGRES, MINIO) in one go.
 | --------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `STORAGE_BACKEND`                       | `filesystem`                                    | GDPR export adapter. `filesystem` writes zips to `GDPR_EXPORT_DIR` (the `gdpr-exports` named volume); `s3` switches to presigned URLs against `GDPR_EXPORT_BUCKET`.       |
 | `GDPR_EXPORT_DIR`                       | `/var/lib/orchester/exports` (in the container) | Volume-backed in compose. Survives restarts so signed download URLs stay valid for the 7-day TTL.                                                                         |
-| `SENTRY_DSN`                            | unset                                           | Point at GlitchTip or Sentry. Without it, errors only land in container stdout.                                                                                           |
+| `SENTRY_DSN`                            | unset                                           | Point at GlitchTip or Sentry. Without it, errors only land in container stdout. See § Sentry observability below.                                                         |
+| `SENTRY_TRACES_SAMPLE_RATE`             | `0.1`                                           | 0..1 — fraction of transactions traced when Sentry is enabled.                                                                                                            |
+| `SENTRY_RELEASE`                        | unset                                           | Release tag (git SHA / version) attached to Sentry events. Required if you later wire source-maps upload.                                                                 |
+| `NEXT_PUBLIC_SENTRY_DSN`                | unset                                           | Browser-side DSN. Inlined at build time — leave unset and `@sentry/nextjs` is tree-shaken from the client bundle.                                                         |
 | `POSTHOG_KEY` / `POSTHOG_HOST`          | unset                                           | Self-hosted PostHog. Without it, no product analytics.                                                                                                                    |
 | `GOOGLE_CLIENT_ID` / `_SECRET`          | unset                                           | Enables Google OAuth signup. Without it, only email/password auth.                                                                                                        |
 | `STRIPE_SECRET_KEY` / `_WEBHOOK_SECRET` | unset                                           | Self-host defaults to `SELF_HOSTED=true` → all workspaces on the "enterprise" plan with unlimited quotas. Only set Stripe vars if you run a hosted commercial deployment. |
@@ -93,6 +96,41 @@ POSTGRES, MINIO) in one go.
 
 The full schema lives in `apps/web/lib/env.ts`. Boot fails fast with a
 single aggregated error listing every missing/invalid var.
+
+### Sentry observability
+
+The integration is fully **opt-in**. When `SENTRY_DSN` is unset:
+
+- `@sentry/nextjs` is never imported at runtime (the import lives behind
+  an `if (process.env.SENTRY_DSN)` guard in `apps/web/instrumentation.ts`
+  and `apps/web/lib/observability.ts`).
+- `NEXT_PUBLIC_SENTRY_DSN` left unset at build time tree-shakes the
+  client-side Sentry init out of the browser bundle entirely (verified
+  by inspecting `.next/static/chunks` post-build).
+- The dev server boots silently — no `[sentry]` warnings, no extra
+  modules in the graph.
+
+To enable Sentry (or a Sentry-compatible target like GlitchTip):
+
+| Variable                    | Purpose                                                  |
+| --------------------------- | -------------------------------------------------------- |
+| `SENTRY_DSN`                | Server + edge DSN.                                       |
+| `SENTRY_TRACES_SAMPLE_RATE` | Optional. Default `0.1`.                                 |
+| `SENTRY_RELEASE`            | Optional. Release tag (e.g. git SHA) attached to events. |
+| `NEXT_PUBLIC_SENTRY_DSN`    | Optional. Browser-side DSN — inlined at build time.      |
+
+Once these are set, errors thrown in route handlers, server actions,
+React Server Components, the worker, and the browser are forwarded to
+Sentry via the standard `instrumentation.ts` + `onRequestError` hooks,
+and `recordMetric` / `logWithContext` from `lib/observability.ts`
+double-dispatch to the SDK.
+
+**Source-maps upload is intentionally NOT wired in this commit.** It
+requires a Sentry org account and the `SENTRY_AUTH_TOKEN` / `SENTRY_ORG`
+/ `SENTRY_PROJECT` env vars, plus a `withSentryConfig()` wrap in
+`next.config.ts`. Add them later when you have a Sentry org provisioned;
+the existing `register()` and `onRequestError()` hooks will keep
+working unchanged.
 
 ## First-run setup
 
@@ -108,8 +146,21 @@ After `docker compose up -d` reports all services `healthy`:
 3. **Smoke-test a chat.** Agents → Quick Start → message it. A
    successful round-trip confirms the provider key + the worker queue
    (`pg-boss`) are wired correctly.
-4. **(Optional)** seed demo content:
+4. **(Optional)** seed a turnkey demo workspace so you can explore a
+   working product instead of empty states:
+
    ```bash
+   # Lightweight: NEW "Acme Inc." workspace (slug=demo) with 3 agents,
+   # 2 channels, 1 KB (3 docs / hand-written chunks, embeddings deferred),
+   # 3 closed sample conversations, 1 draft flow, 2 employees, 1 owner
+   # (demo@orchester.local). Idempotent — aborts if a workspace with
+   # slug="demo" already exists.
+   docker compose -f deploy/docker-compose.prod.yml exec web \
+     pnpm --filter @orchester/web seed:demo
+
+   # Heavier (optional): adds extra volume (16 employees, 14 agents,
+   # 22 conversations, multi-node flows, 4 KBs) INTO an existing
+   # workspace. Run after the owner signs in once.
    docker compose -f deploy/docker-compose.prod.yml exec web \
      pnpm --filter @orchester/db seed:demo
    ```

@@ -7,19 +7,21 @@
 //
 // Renders nothing for non-suspended workspaces so the shell layout can
 // mount it unconditionally.
-"use client";
-
+//
+// Server Component — no client behaviour, just translation + JSX. Keeps
+// next-intl client runtime out of the per-route bundle for the common
+// case (active workspaces) where the component returns null anyway.
 import { AlertOctagon } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
 
 interface Props {
   status: "active" | "suspended" | "deleted";
   reason?: string | null;
 }
 
-export function SuspendedBanner({ status, reason }: Props) {
-  const t = useTranslations("workspace.suspended");
+export async function SuspendedBanner({ status, reason }: Props) {
   if (status !== "suspended") return null;
+  const t = await getTranslations("workspace.suspended");
 
   return (
     <div

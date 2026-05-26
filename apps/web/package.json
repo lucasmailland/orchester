@@ -28,7 +28,8 @@
     "worker:prod": "node worker/build.mjs && node worker/.dist/worker.mjs",
     "queue:init": "tsx scripts/init-queues.ts",
     "i18n:check": "tsx scripts/i18n-check.ts",
-    "kb:backfill": "tsx scripts/backfill-seed-kb.ts"
+    "kb:backfill": "tsx scripts/backfill-seed-kb.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1053.0",
@@ -68,6 +69,9 @@
     "swr": "^2.4.1",
     "tailwind-merge": "^2.6.0",
     "zod": "^4.3.6"
+  },
+  "optionalDependencies": {
+    "@sentry/nextjs": "^10.54.0"
   },
   "devDependencies": {
     "@faker-js/faker": "^10.4.0",

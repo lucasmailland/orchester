@@ -4,6 +4,7 @@ import { HeroUIProvider } from "@heroui/react";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import { PresentationModeProvider } from "./PresentationModeProvider";
+import { SentryClientInit } from "./SentryClientInit";
 import { ConfirmDialogHost } from "@/components/ui/ConfirmDialog";
 
 export function Providers({
@@ -23,6 +24,9 @@ export function Providers({
         {...(nonce ? { nonce } : {})}
       >
         <PresentationModeProvider>
+          {/* Renders null + tree-shakes out unless NEXT_PUBLIC_SENTRY_DSN
+              is set at build time. See SentryClientInit.tsx. */}
+          <SentryClientInit />
           {children}
           <ConfirmDialogHost />
           <Toaster

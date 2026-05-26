@@ -1,5 +1,5 @@
 import { getTranslations } from "next-intl/server";
-import { OrgCanvas } from "@/components/org/OrgCanvas";
+import { OrgCanvasLazy } from "@/components/org/OrgCanvasLazy";
 
 export default async function OrgPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -11,7 +11,7 @@ export default async function OrgPage({ params }: { params: Promise<{ locale: st
         <h1 className="font-display text-2xl font-bold tracking-tight text-strong">{t("title")}</h1>
         <p className="mt-1 text-sm text-muted">{t("subtitle")}</p>
       </div>
-      <OrgCanvas />
+      <OrgCanvasLazy />
     </div>
   );
 }

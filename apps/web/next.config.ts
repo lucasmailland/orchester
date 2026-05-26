@@ -46,6 +46,12 @@ const nextConfig: NextConfig = {
       "@hookform/resolvers",
       "sonner",
       "cmdk",
+      // Audit 2026-05-26: also tree-shake these barrels — they're imported
+      // from many client components, so even small per-module savings add up.
+      "swr",
+      "@dagrejs/dagre",
+      "tailwind-merge",
+      "clsx",
     ],
     serverSourceMaps: false,
   },
