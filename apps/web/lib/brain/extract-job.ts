@@ -42,6 +42,7 @@ import {
 } from "@orchester/mnemosyne";
 import { resolveSmallTierModel } from "./model-resolve";
 import { extractFacts } from "./extract";
+import { shouldExtract } from "@orchester/mnemosyne";
 import { withBrainTx } from "./store";
 import { invalidateRecallCache } from "./recall";
 import { extractEpisode } from "./episode-extractor";
@@ -249,6 +250,30 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
           startedAt: new Date(),
         })
         .where(eq(schema.brainExtractionJobs.id, payload.jobId));
+
+      // v1.6 P2 fix — A1 heuristic prefilter (Charter §A1, ~80% LLM
+      // call savings). Before paying the extraction model, run a pure-
+      // code check for signal-bearing tokens (preferences, decisions,
+      // named entities). Greetings/acks/short replies short-circuit
+      // here with no spend cost and no metering event recorded.
+      const prefilter = shouldExtract(
+        msgs.map((m) => ({
+          role: m.role as "user" | "assistant" | "system" | "tool",
+          content: m.content,
+        }))
+      );
+      if (!prefilter.yes) {
+        await tx
+          .update(schema.brainExtractionJobs)
+          .set({
+            state: "done",
+            factsProduced: 0,
+            skipReason: `prefilter:${prefilter.reason}`,
+            completedAt: new Date(),
+          })
+          .where(eq(schema.brainExtractionJobs.id, payload.jobId));
+        return;
+      }
 
       const slice = msgs.map((m) => `${m.role}: ${m.content}`).join("\n");
 

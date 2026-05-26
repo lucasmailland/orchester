@@ -346,3 +346,10 @@ export {
   type ExtractEntitiesInput,
   type EntityLlmCallFn,
 } from "./entity";
+
+// A1 — Heuristic extraction pre-filter. Pure code, zero cost. Wired
+// into extract-job to skip ~80% of LLM extraction calls on turns with
+// no durable-fact signal (greetings, smalltalk, pure ACKs). Saves the
+// majority of the per-turn extraction spend on noisy workspaces.
+// See packages/mnemosyne/src/extraction/prefilter.ts for the rule set.
+export { shouldExtract, type PrefilterMessage, type PrefilterResult } from "./extraction/prefilter";
