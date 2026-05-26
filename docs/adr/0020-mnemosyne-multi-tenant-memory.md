@@ -175,12 +175,72 @@ question. See `src/modes/{detect,health}.ts`.
 Full evolution detail in `docs/specs/2026-05-24-mnemosyne-design.md`
 §40 (added 2026-05-25).
 
+## Amendment 2026-05-26 — v1.5 + v1.6
+
+- **v1.5 "The Wire-Up"** — connected every v1.4 latent feature to
+  the live agent runtime. `extract-job` populates `memory_type`,
+  `attribution`, `actor_id`, calls `saveFactWithCandidates` for
+  contradiction detection, and gates on `conversation.memory_learning_paused`.
+  Agent-runtime defaults to `recallUnified` (KB + Memory blended),
+  applies per-agent `applyPolicyToRecall` / `applyPolicyToWrite`,
+  routes `mnemosyne_remember` tool calls through a host-side handler.
+  Episodes synthesized when ≥2 facts surface from a slice.
+
+- **v1.6 "True 10/10"** — three architectural additions:
+  1. **Entity primitive** (migration 0039) — the 4th primitive from
+     spec §2. `mnemo_entity` with kind (person/organization/project/
+     concept/place/other), aliases, canonical_id for merge chains.
+     `mnemo_fact.entity_id` FK links facts to entities; extract-job
+     uses `findOrCreate` to dedup mentions.
+
+  2. **Actor-isolation RLS enforcement** (migration 0040) — a
+     **RESTRICTIVE** policy `mnemo_fact_actor_isolation_select` AND'd
+     with the workspace policy. Opt-in via `app.enforce_actor_isolation`
+     GUC (off by default → policy is no-op). `withMnemoTx(opts)`
+     accepts `actorId` + `enforceActorIsolation` flags.
+     **Important gotcha:** must be RESTRICTIVE not PERMISSIVE —
+     PostgreSQL OR's permissive policies, so a permissive variant
+     would never filter. Caught by an integration test, not the spec.
+
+  3. **Memory Protocol v1.2** (migration 0041) — `MEMORY_PROTOCOL_V2`
+     adds entity awareness and per-user privacy ("don't reveal
+     Alice-attributed facts when responding to Bob unless
+     workspace-scoped"). `mnemo_fact.protocol_version` tags each
+     fact with the protocol active at extraction time.
+
+  Plus performance / storage closure:
+  - **Halfvec quantization** (migration 0042) — `mnemo_fact.embedding`
+    migrated from `vector(1536)` to `halfvec(1536)`. Storage 2×
+    smaller; recall regression top-1/top-3 stays at 100% on dev seed.
+  - **Tiered embedding** — `resolveEmbeddingTier` picks premium for
+    pinned / workspace-scope / high-confidence facts; default for
+    the rest. `embed-batch-job` groups by tier — one API call per
+    (workspace, tier) pair.
+  - **HyDE / cross-encoder rerank / 1-hop graph expansion** flipped
+    from opt-in to default-on with per-workspace kill-switches.
+  - **L3 query cache** wired (cosine ≥0.95, 5min TTL, 1000-cap).
+  - **Bitemporal `asOf` UI** (`TimeTravelPicker`) with URL persistence.
+  - **A1 heuristic prefilter** wired into `extract-job` — Charter
+    §A1 cost optimization (~80% LLM call savings on noisy
+    workspaces). Was orphan code through v1.5 audit cycle; wired
+    by the fresh re-audit closure commit.
+
+Final table count: **12 mnemo\_\* tables**. Migrations 0017→0042. Tests:
+276 mnemosyne + 281 apps/web. Score 10/10 across seven audit dimensions.
+
+Full evolution detail extended in `docs/specs/2026-05-24-mnemosyne-design.md`
+§43 (v1.5+v1.6 evolution), §44 (final architecture snapshot v1.6),
+§45 (v2.0 roadmap — sleep-time consolidation, multi-region
+replication, federation between workspaces — explicitly not in v1.6).
+
 ## Links
 
-- Design: `docs/specs/2026-05-24-mnemosyne-design.md` (§40 evolution,
-  §41 deferred, §42 v1.4 snapshot)
+- Design: `docs/specs/2026-05-24-mnemosyne-design.md` (§40-§42 v1.4,
+  §43-§45 v1.5/v1.6/v2.0 roadmap)
 - Plan: `docs/specs/plans/2026-05-24-mnemosyne-implementation-plan.md`
 - Initial audit: `docs/specs/audits/2026-05-24-mnemosyne-v1-final-audit.md`
-- Final audit: `docs/specs/audits/2026-05-25-mnemosyne-v1.4-final-audit.md`
+- v1.4 audit: `docs/specs/audits/2026-05-25-mnemosyne-v1.4-final-audit.md`
+- v1.6 audit: `docs/specs/audits/2026-05-26-mnemosyne-v1.6-final-audit.md`
+- Fresh re-audit: `docs/specs/audits/2026-05-26-mnemosyne-FINAL-fresh-audit.md`
 - Related: ADR-006 (app-layer tenancy), ADR-010 (RLS+FORCE),
   ADR-014..019 (brain_core), ADR-012 (cross-tenant admin wrapper).
