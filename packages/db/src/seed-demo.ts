@@ -208,89 +208,21 @@ async function main() {
     },
   ]);
 
-  await db.insert(schema.knowledgeDocs).values([
-    {
-      id: createId(),
-      kbId: KB.product,
-      workspaceId: wsId,
-      title: "Getting Started.md",
-      source: "text",
-      status: "ready",
-      chunkCount: 12,
-    },
-    {
-      id: createId(),
-      kbId: KB.product,
-      workspaceId: wsId,
-      title: "API Reference v1.md",
-      source: "text",
-      status: "ready",
-      chunkCount: 47,
-    },
-    {
-      id: createId(),
-      kbId: KB.product,
-      workspaceId: wsId,
-      title: "Pricing & Plans.md",
-      source: "text",
-      status: "ready",
-      chunkCount: 8,
-    },
-    {
-      id: createId(),
-      kbId: KB.hr,
-      workspaceId: wsId,
-      title: "Política de Vacaciones 2026.pdf",
-      source: "upload",
-      status: "ready",
-      chunkCount: 18,
-    },
-    {
-      id: createId(),
-      kbId: KB.hr,
-      workspaceId: wsId,
-      title: "Código de Conducta.md",
-      source: "text",
-      status: "ready",
-      chunkCount: 22,
-    },
-    {
-      id: createId(),
-      kbId: KB.hr,
-      workspaceId: wsId,
-      title: "Beneficios y Compensación.md",
-      source: "text",
-      status: "ready",
-      chunkCount: 14,
-    },
-    {
-      id: createId(),
-      kbId: KB.itRunbook,
-      workspaceId: wsId,
-      title: "VPN Troubleshooting.md",
-      source: "text",
-      status: "ready",
-      chunkCount: 9,
-    },
-    {
-      id: createId(),
-      kbId: KB.itRunbook,
-      workspaceId: wsId,
-      title: "Postgres Restore Procedure.md",
-      source: "text",
-      status: "ready",
-      chunkCount: 16,
-    },
-    {
-      id: createId(),
-      kbId: KB.brand,
-      workspaceId: wsId,
-      title: "Tone of Voice.md",
-      source: "text",
-      status: "ready",
-      chunkCount: 11,
-    },
-  ]);
+  // Previously this block seeded 9 doc rows with `status: "ready"` and
+  // hard-coded `chunkCount` values, but never produced any actual chunks
+  // (no entries in `knowledge_chunk`). The result: operators saw "ready"
+  // documents in the UI that returned nothing from RAG search, which
+  // looked like a broken demo. Per the 2026-05-26 audit, we now leave the
+  // KBs empty in the seed and let operators upload real docs through
+  // POST /api/knowledge-bases/[id]/docs — that route runs the real
+  // chunking + embedding pipeline against the workspace's connected
+  // provider, producing chunks with non-null `embedding` vectors that
+  // RAG can actually retrieve.
+  //
+  // If you want a turnkey demo with pre-populated content, run the
+  // `scripts/backfill-seed-kb.ts` helper after seeding — it POSTs the
+  // canonical 9 docs through the production upload endpoint, so they
+  // arrive in the DB the same way a real upload would.
 
   // ── 4. Agents (14) ─────────────────────────────────────────────────────
   console.log("→ Creating 14 agents (conversational + flow)…");
