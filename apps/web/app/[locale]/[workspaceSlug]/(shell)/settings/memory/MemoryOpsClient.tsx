@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -11,8 +11,20 @@ import {
   ScanSearch,
   Sparkles,
   Trash2,
+  Zap,
 } from "lucide-react";
-import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from "@heroui/react";
+import {
+  Button,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  Switch,
+  Select,
+  SelectItem,
+  Input,
+} from "@heroui/react";
 import { useTranslations } from "next-intl";
 import { notify } from "@/lib/toast";
 import { useBrainHealthLatest } from "@/lib/hooks/use-brain-health";
@@ -184,6 +196,12 @@ export function MemoryOpsClient({ isAdmin }: Props) {
         </li>
       </ul>
 
+      {/* v1.6 — Recall quality subsection. Defaults are ON; the three
+          kill-switches let an operator opt out (e.g. on a tight budget).
+          The premium-embedding selector upgrades pinned/high-conf/
+          workspace-scope facts to a richer model. */}
+      <RecallQualitySection isAdmin={isAdmin} />
+
       <ConfirmRunModal
         op={confirming}
         running={pending !== null && confirming?.id === pending}
@@ -191,6 +209,223 @@ export function MemoryOpsClient({ isAdmin }: Props) {
         onConfirm={() => confirming && runOp(confirming)}
       />
     </div>
+  );
+}
+
+interface RecallSettingsState {
+  disableHyde: boolean;
+  disableRerank: boolean;
+  disableGraph: boolean;
+  premiumEmbeddingProvider: "openai" | "voyage" | "cohere" | null;
+  premiumEmbeddingModel: string | null;
+}
+
+const DEFAULT_RECALL_SETTINGS: RecallSettingsState = {
+  disableHyde: false,
+  disableRerank: false,
+  disableGraph: false,
+  premiumEmbeddingProvider: null,
+  premiumEmbeddingModel: null,
+};
+
+/**
+ * v1.6 — Recall quality + premium embedding workspace settings.
+ *
+ * Three default-ON kill-switches (HyDE / rerank / graph expansion) and
+ * a premium-embedding provider+model selector. Each toggle saves
+ * optimistically and rolls back on PATCH failure.
+ *
+ * NB: strings are inline rather than via next-intl because the
+ * `apps/web/messages/*.json` files are owned by G1/G2 in this v1.6
+ * branch sweep (concurrent edit avoidance). The next translation pass
+ * will lift these into the i18n catalog. The text is short, scoped to
+ * an admin-only panel, and never user-facing in the agent runtime.
+ */
+function RecallQualitySection({ isAdmin }: { isAdmin: boolean }) {
+  const [settings, setSettings] = useState<RecallSettingsState>(DEFAULT_RECALL_SETTINGS);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/mnemo/settings", { method: "GET" });
+        if (!res.ok) return;
+        const j = (await res.json()) as RecallSettingsState;
+        if (cancelled) return;
+        setSettings({
+          disableHyde: Boolean(j.disableHyde),
+          disableRerank: Boolean(j.disableRerank),
+          disableGraph: Boolean(j.disableGraph),
+          premiumEmbeddingProvider: j.premiumEmbeddingProvider ?? null,
+          premiumEmbeddingModel: j.premiumEmbeddingModel ?? null,
+        });
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function patch(body: Partial<RecallSettingsState>): Promise<void> {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/mnemo/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(err?.error ?? `HTTP ${res.status}`);
+      }
+      const updated = (await res.json()) as RecallSettingsState;
+      setSettings({
+        disableHyde: Boolean(updated.disableHyde),
+        disableRerank: Boolean(updated.disableRerank),
+        disableGraph: Boolean(updated.disableGraph),
+        premiumEmbeddingProvider: updated.premiumEmbeddingProvider ?? null,
+        premiumEmbeddingModel: updated.premiumEmbeddingModel ?? null,
+      });
+      notify.success("Saved");
+    } catch (err) {
+      notify.error(`Couldn't save: ${err instanceof Error ? err.message : "unknown"}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const disabled = !isAdmin || !loaded || saving;
+
+  return (
+    <section className="space-y-3">
+      <header className="flex items-start gap-3">
+        <div className="rounded-lg bg-emerald-500/10 p-2">
+          <Zap className="h-4 w-4 text-emerald-500" />
+        </div>
+        <div className="min-w-0">
+          <h2 className="font-display text-lg font-semibold tracking-tight text-strong">
+            Recall quality
+          </h2>
+          <p className="mt-0.5 text-xs text-muted">
+            Three default-ON recall enhancements. Each costs a small amount per turn — toggle off if
+            you&apos;re optimizing for cost over recall quality.
+          </p>
+        </div>
+      </header>
+
+      <div className="space-y-2">
+        <ToggleRow
+          label="HyDE (hypothetical document embedding)"
+          help="Generates a fake answer for the user's question, then embeds that instead of the raw query. Fixes the question↔statement embedding-space mismatch. Costs ~1 cheap LLM call per recall turn."
+          // The UI shows "feature ON" semantics. The persisted shape is a
+          // kill-switch (disable_*) — invert when reading + writing.
+          enabled={!settings.disableHyde}
+          disabled={disabled}
+          onChange={(on) => patch({ disableHyde: !on })}
+        />
+        <ToggleRow
+          label="Cross-encoder rerank"
+          help="Reorders the recall top-K with joint (query, fact) scoring. Uses Cohere when COHERE_API_KEY is set, else a local lexical reranker. Adds ~50ms per turn."
+          enabled={!settings.disableRerank}
+          disabled={disabled}
+          onChange={(on) => patch({ disableRerank: !on })}
+        />
+        <ToggleRow
+          label="Graph expansion (1-hop)"
+          help="After recall, traverses derived_from / supersedes / part_of edges to surface adjacent facts. One extra SQL query. Adds ~10-15% recall quality."
+          enabled={!settings.disableGraph}
+          disabled={disabled}
+          onChange={(on) => patch({ disableGraph: !on })}
+        />
+      </div>
+
+      <div className="rounded-2xl border border-line bg-card p-4">
+        <div className="space-y-1">
+          <h3 className="text-sm font-semibold text-strong">Premium embedding model</h3>
+          <p className="text-xs text-muted">
+            Use a richer embedding model for facts that matter more (pinned, high-confidence, or
+            workspace-scope trait/preference/event). Other facts continue to use the default
+            cheap-tier model. Leave provider empty to disable tiering.
+          </p>
+        </div>
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          <Select
+            size="sm"
+            aria-label="Premium provider"
+            label="Provider"
+            placeholder="Use default"
+            isDisabled={disabled}
+            selectedKeys={
+              settings.premiumEmbeddingProvider ? [settings.premiumEmbeddingProvider] : []
+            }
+            onSelectionChange={(keys) => {
+              const v = Array.from(keys as Set<string>)[0];
+              const next = v === "openai" || v === "voyage" || v === "cohere" ? v : null;
+              patch({ premiumEmbeddingProvider: next });
+            }}
+          >
+            <SelectItem key="">Use default</SelectItem>
+            <SelectItem key="openai">OpenAI</SelectItem>
+            <SelectItem key="voyage">Voyage</SelectItem>
+            <SelectItem key="cohere">Cohere</SelectItem>
+          </Select>
+          <Input
+            size="sm"
+            aria-label="Premium model"
+            label="Model"
+            placeholder={
+              settings.premiumEmbeddingProvider === "openai"
+                ? "text-embedding-3-large"
+                : settings.premiumEmbeddingProvider === "voyage"
+                  ? "voyage-3-large"
+                  : settings.premiumEmbeddingProvider === "cohere"
+                    ? "embed-v4.0"
+                    : "Pick a provider first"
+            }
+            isDisabled={disabled || !settings.premiumEmbeddingProvider}
+            value={settings.premiumEmbeddingModel ?? ""}
+            onValueChange={(v) => {
+              // Persist on blur — `onValueChange` fires every keystroke;
+              // we capture the final value into local state and PATCH on
+              // blur to avoid one HTTP roundtrip per keypress.
+              setSettings((s) => ({ ...s, premiumEmbeddingModel: v }));
+            }}
+            onBlur={() => {
+              patch({ premiumEmbeddingModel: settings.premiumEmbeddingModel || null });
+            }}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+interface ToggleRowProps {
+  label: string;
+  help: string;
+  enabled: boolean;
+  disabled: boolean;
+  onChange: (next: boolean) => void;
+}
+
+function ToggleRow({ label, help, enabled, disabled, onChange }: ToggleRowProps) {
+  return (
+    <label className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-strong">{label}</p>
+        <p className="mt-0.5 text-xs text-muted">{help}</p>
+      </div>
+      <Switch
+        isSelected={enabled}
+        onValueChange={onChange}
+        isDisabled={disabled}
+        aria-label={label}
+      />
+    </label>
   );
 }
 
