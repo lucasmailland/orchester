@@ -169,6 +169,15 @@ export const conversations = pgTable("conversation", {
   deflected: boolean("deflected").notNull().default(false),
   assignedToUserId: text("assigned_to_user_id"),
   takenOverAt: timestamp("taken_over_at"),
+  /**
+   * Mnemosyne v1.5 (migration 0038) — per-conversation memory
+   * sensitivity gate. When `true`, the brain extraction pipeline
+   * short-circuits with `state='skipped_sensitivity'` before the LLM
+   * call. Use for legal-hold, HR-sensitive, or otherwise out-of-bounds
+   * conversations. Forward gate only — does not retroactively forget
+   * facts already extracted from earlier turns.
+   */
+  memoryLearningPaused: boolean("memory_learning_paused").notNull().default(false),
   startedAt: timestamp("started_at").notNull().defaultNow(),
   endedAt: timestamp("ended_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
