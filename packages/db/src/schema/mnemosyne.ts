@@ -319,6 +319,32 @@ export const mnemoFactArchive = pgTable("mnemo_fact_archive", {
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
 });
 
+// Mnemosyne v1.3 — active learning review queue (migration 0032).
+// One row per fact that needs human attention. Created either by:
+//   • `saveFactWithCandidates` when judgmentRequired=true and no LLM
+//     judge is available (Mode A/B) — reason='contradiction'.
+//   • The daily `review-sweep-job` cron — reason='low_confidence'.
+//   • A UI user explicitly adding a fact for review — reason='manual'.
+// Decoupled from `mnemo_fact` (no FK) so the janitor crons can archive
+// or merge a fact without blocking on open review rows. RLS+FORCE
+// Pattern A; reads/writes flow through `withMnemoTx`.
+export const mnemoReviewQueue = pgTable("mnemo_review_queue", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  factId: text("fact_id").notNull(),
+  reason: text("reason", {
+    enum: ["low_confidence", "contradiction", "manual"],
+  }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),
+  resolvedBy: text("resolved_by"),
+  resolution: text("resolution", {
+    enum: ["kept", "edited", "forgotten", "dismissed"],
+  }),
+});
+
 export const mnemoCitations = pgTable("mnemo_citation", {
   id: text("id").primaryKey(),
   workspaceId: text("workspace_id")
