@@ -16,8 +16,7 @@ This release is the v1.0 milestone — multi-tenant correctness hardened
 end-to-end, the **Mnemosyne** cognitive memory layer reaches v1.6, and
 the GDPR data-portability pipeline is rebuilt to stream instead of
 buffer. The platform is ready for production self-host and managed
-cloud at this point. See [`docs/specs/plans/2026-05-26-v1.0-ga-plan.md`](docs/specs/plans/2026-05-26-v1.0-ga-plan.md)
-for the work plan that produced this release.
+cloud at this point.
 
 ### Added
 
@@ -81,9 +80,9 @@ for the work plan that produced this release.
 
 ### Documentation
 
-- **v1.0 GA work plan** at `docs/specs/plans/2026-05-26-v1.0-ga-plan.md`.
 - **Mnemosyne v1.6 final audit** + ADR-0020 amendment + v2.0 roadmap (`docs/specs/§43–§45`).
 - **CONTRIBUTING.md** cross-references SECURITY.md and adds `lib/tenant/` + `lib/gdpr/` + `packages/db/migrations/` to the CODEOWNERS-protected security-sensitive areas list.
+- **Verification runbooks** moved out of `tests/perf/` into `docs/runbooks/` (`tenant-context-verification.md`, `workspace-switcher-verification.md`, `lifecycle-features-smoke.md`).
 
 ### Migrations
 
