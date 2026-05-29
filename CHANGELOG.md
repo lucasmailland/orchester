@@ -181,5 +181,6 @@ new empty [Unreleased] is added on top.
 The version comparison links at the bottom should also be updated.
 -->
 
-[Unreleased]: https://github.com/lucasmailland/orchester/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/lucasmailland/orchester/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/lucasmailland/orchester/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/lucasmailland/orchester/releases/tag/v0.1.0
