@@ -8,6 +8,14 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
     globals: true,
+    // Integration suites under `tests/integration/**` spin up a real
+    // pgvector container via testcontainers (image pull + migrations).
+    // Under load (Docker contention from sibling pods / multiple test
+    // files in parallel), startup regularly exceeds the 10s vitest
+    // default and fails `beforeAll`. 60s gives realistic headroom
+    // without masking actual hangs.
+    hookTimeout: 60_000,
+    testTimeout: 60_000,
   },
   resolve: {
     alias: {

@@ -157,6 +157,17 @@ export async function runExportJob(jobId: string): Promise<void> {
         },
       });
 
+      // Defense-in-depth: a no-op 'error' listener on `counter`
+      // prevents Node's default "uncaughtException on emit('error')
+      // with zero listeners" behaviour during the brief window
+      // between `archive.pipe(counter)` and the adapter's internal
+      // `pipeline(counter, sink)` subscribing its own listener. The
+      // adapter's listener still receives the error (Node allows
+      // multiple listeners on EventEmitters), so the failure
+      // propagation contract is preserved.
+      counter.on("error", () => {
+        /* swallow — downstream pipeline() handles real propagation */
+      });
       // Wire archive → counter. Errors from archive propagate to
       // counter via the pipe; if archive emits 'error' the counter
       // destroys with the same error, and any downstream pipeline

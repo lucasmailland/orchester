@@ -25,7 +25,7 @@ const nextConfig: NextConfig = {
    * resolver can't follow. If you can lazy-import the module inside a
    * Node-runtime guard instead of adding here, please do.
    */
-  serverExternalPackages: ["pg", "pg-boss", "pgpass", "redis"],
+  serverExternalPackages: ["pg", "pg-boss", "pgpass", "postgres", "redis"],
 
   images: {
     formats: ["image/avif", "image/webp"],

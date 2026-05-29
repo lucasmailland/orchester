@@ -56,7 +56,13 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await teardownTestWorkspaces();
-  await fs.rm(exportDir, { recursive: true, force: true });
+  // Defensive: if beforeAll() failed before `exportDir` was assigned
+  // (testcontainer startup hang under load), `fs.rm(undefined, …)`
+  // throws a TypeError and masks the real beforeAll error. Guard so
+  // the original failure surfaces unobstructed.
+  if (exportDir) {
+    await fs.rm(exportDir, { recursive: true, force: true });
+  }
 });
 
 async function seedConversation(wsId: string, agentId: string) {
