@@ -25,8 +25,28 @@
 // the source of truth for the originating pod; other pods get the
 // invalidation via NOTIFY OR after their own per-cache TTL elapses.
 import "server-only";
-import postgres from "postgres";
+// Type-only import — keeps `postgres` out of the edge runtime's module
+// graph. `instrumentation.ts` is compiled for BOTH runtimes and webpack/
+// turbopack statically trace dynamic imports; making `postgres` a value
+// import here pulled `perf_hooks` into the edge bundle, which fails at
+// build time. We `await import("postgres")` lazily inside the only two
+// functions that actually need the driver — both gated by code paths
+// that only run in Node runtime (instrumentation-node.ts + writes).
+import type postgres from "postgres";
 import { safeLogError } from "@/lib/safe-log";
+
+/**
+ * Lazily load the postgres-js factory once per process. Lives behind a
+ * cache so the dynamic import resolves only on first use; subsequent
+ * calls are synchronous lookups against the cached module reference.
+ */
+let postgresFactoryPromise: Promise<typeof postgres> | null = null;
+async function getPostgresFactory(): Promise<typeof postgres> {
+  if (!postgresFactoryPromise) {
+    postgresFactoryPromise = import("postgres").then((m) => m.default);
+  }
+  return postgresFactoryPromise;
+}
 
 export type Invalidation =
   | { kind: "workspace"; key: string }
@@ -61,34 +81,40 @@ export function startListener(): void {
     return;
   }
   listenerStarted = true;
-  // Dedicated connection — postgres-js keeps a single socket open for
-  // LISTEN. idle_timeout:0 prevents the client from recycling it.
-  listenerSql = postgres(url, { max: 1, idle_timeout: 0, connect_timeout: 10 });
-  listenerSql
-    .listen(
-      CHANNEL,
-      (payload) => {
-        try {
-          const msg = JSON.parse(payload) as Invalidation;
-          for (const h of handlers) {
-            try {
-              h(msg);
-            } catch (e) {
-              safeLogError("[cluster-cache] handler error:", e);
+  // Async IIFE: keeps the public API synchronous while resolving the
+  // dynamic postgres import + LISTEN registration in the background.
+  // Any failure resets `listenerStarted` so the next call can retry.
+  void (async () => {
+    try {
+      const postgresFactory = await getPostgresFactory();
+      // Dedicated connection — postgres-js keeps a single socket open
+      // for LISTEN. idle_timeout:0 prevents recycling.
+      listenerSql = postgresFactory(url, { max: 1, idle_timeout: 0, connect_timeout: 10 });
+      await listenerSql.listen(
+        CHANNEL,
+        (payload) => {
+          try {
+            const msg = JSON.parse(payload) as Invalidation;
+            for (const h of handlers) {
+              try {
+                h(msg);
+              } catch (e) {
+                safeLogError("[cluster-cache] handler error:", e);
+              }
             }
+          } catch (e) {
+            safeLogError("[cluster-cache] invalid payload:", { payload, error: e });
           }
-        } catch (e) {
-          safeLogError("[cluster-cache] invalid payload:", { payload, error: e });
+        },
+        () => {
+          console.log("[cluster-cache] listening on", CHANNEL);
         }
-      },
-      () => {
-        console.log("[cluster-cache] listening on", CHANNEL);
-      }
-    )
-    .catch((e) => {
+      );
+    } catch (e) {
       safeLogError("[cluster-cache] listen failed:", e);
       listenerStarted = false;
-    });
+    }
+  })();
 }
 
 /**
@@ -127,7 +153,8 @@ export async function broadcastInvalidation(msg: Invalidation): Promise<void> {
     // (e.g. tests that exercise broadcast in isolation). Reuse the
     // same dedicated client so we don't spin up another pool.
     if (!listenerSql) {
-      listenerSql = postgres(url, { max: 1, idle_timeout: 0, connect_timeout: 10 });
+      const postgresFactory = await getPostgresFactory();
+      listenerSql = postgresFactory(url, { max: 1, idle_timeout: 0, connect_timeout: 10 });
     }
     await listenerSql.notify(CHANNEL, JSON.stringify(msg));
   } catch (e) {

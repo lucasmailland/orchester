@@ -160,6 +160,14 @@ Si tira ✗ en algo, arreglalo antes de seguir.
 # Reemplazá los <vars> con valores reales
 DOMAIN=https://orchester.tu-dominio.com
 
+# Automated endpoint sweep (curl-based, covers /api/health, CSP headers,
+# robots.txt, sitemap, security.txt). Falla loud con exit 1.
+DOMAIN=$DOMAIN pnpm --filter @orchester/web test:smoke
+# o directamente: bash scripts/smoke-test.sh
+
+# Pre-launch orchestrator (preflight + verify-email + smoke-test + TLS + health):
+bash scripts/go-live.sh
+
 # 1. Health público
 curl -f $DOMAIN/api/health | jq .
 

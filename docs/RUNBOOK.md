@@ -329,3 +329,36 @@ Outline (sin script automatizado todavía):
 3. Restore.
 4. DNS swap (`dig +short A...` → IP de B).
 5. Decommission A después de 7 días.
+
+---
+
+## Load test del test-chat
+
+Cuando sospeches que la latencia del `/api/agents/[id]/test-chat` se degradó
+(p99 sostenido > 3s) o querés validar capacidad antes de un lanzamiento:
+
+```bash
+# Requiere k6 instalado: brew install k6
+BASE_URL=https://orchester.tu-dominio.com \
+AGENT_ID=ag_xxx \
+SESSION_COOKIE='better-auth.session_token=...' \
+pnpm loadtest:chat
+# o: k6 run scripts/loadtest-test-chat.js
+```
+
+50 VUs durante 2 min, thresholds p95 < 2s / fail rate < 1%. Exit 1 si no se
+cumple (gateable en CI nightly). Ver `scripts/loadtest-test-chat.js`.
+
+---
+
+## Verification runbooks
+
+Manual smoke reproducible para features críticos:
+
+- `docs/runbooks/tenant-context-verification.md` — middleware tenant-slug
+  forwarding, `app.workspace_id`/`app.user_id` GUCs, `withCrossTenantAdmin`.
+- `docs/runbooks/workspace-switcher-verification.md` — multi-tab independence,
+  legacy 301 redirects, switcher latency.
+- `docs/runbooks/lifecycle-features-smoke.md` — soft-delete + restore + GDPR
+  export end-to-end (SQL + automated gates).
+- `docs/runbooks/incident-response.md` — pager-style playbook para incidents.

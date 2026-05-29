@@ -17,8 +17,9 @@ admin telemetry endpoint. RLS is **not yet FORCED** — that's Phase C.
 1. `tenant.context.missing_count / tenant.context.set_count < 1%`
    sustained over a representative sample window (the spec asks for 7
    days; for local pre-prod verification a 100-request sample is fine).
-2. Median request latency within ±5% of the Phase 0 baseline at
-   `tests/perf/baseline.md`.
+2. Median request latency within ±5% of the Phase 0 baseline captured
+   pre-rollout (k6 against `/api/agents/[id]/test-chat`; see
+   `scripts/loadtest-test-chat.js`).
 3. Integration suite (`tests/integration/`) green against
    not-yet-FORCED RLS. (Already verified — 106 tests pass at
    tag `phase-b-complete`.)
@@ -55,9 +56,9 @@ admin telemetry endpoint. RLS is **not yet FORCED** — that's Phase C.
 
 ## Perf baseline check
 
-Re-run the Phase 0 latency probe (see `tests/perf/baseline.md` for the
-canonical procedure) and compare medians. Document any regression > 5%
-here before moving to Phase C.
+Re-run the latency probe (`pnpm loadtest:chat`, see
+`scripts/loadtest-test-chat.js` for thresholds) and compare medians.
+Document any regression > 5% here before promoting.
 
 ## Known Phase B trade-offs (documented inline)
 

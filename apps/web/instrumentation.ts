@@ -41,14 +41,22 @@ export async function register(): Promise<void> {
   }
 
   if (process.env["NEXT_RUNTIME"] !== "nodejs") return;
-  await import("./instrumentation-node");
+  // `/* webpackIgnore: true */` prevents webpack from statically tracing
+  // this import into the edge bundle. Without it webpack follows the string
+  // literal at build time (ignoring the early-return guard above, which is
+  // only a runtime check) and pulls in cluster-cache.ts → postgres →
+  // perf_hooks, which doesn't exist in the edge runtime and fails the build.
+  await import(/* webpackIgnore: true */ "./instrumentation-node");
 
   // ── Defense-in-depth layer 2 (audit P0, 2026-05-24): fail-closed if the
   // deployed DATABASE_URL points at a SUPERUSER / BYPASSRLS role. Layer 1
   // (SET LOCAL ROLE app_user inside tx wrappers) covers the request path,
   // but this probe is the deploy-time tripwire that catches the connection
   // config itself. See apps/web/lib/db-role-check.ts and ADR-0010.
-  const { assertSafeDbRole } = await import("./lib/db-role-check");
+  //
+  // webpackIgnore: db-role-check → @orchester/db → postgres → perf_hooks
+  // (Node builtin absent from edge runtime). Same reasoning as above.
+  const { assertSafeDbRole } = await import(/* webpackIgnore: true */ "./lib/db-role-check");
   if (process.env["NODE_ENV"] === "production") {
     // In prod we WANT a thrown error to propagate — failed boot is the
     // intended behaviour, signals to the orchestrator to mark the deploy
