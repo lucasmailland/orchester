@@ -8,9 +8,10 @@ Releases are produced by [release-please](https://github.com/googleapis/release-
 
 ## [Unreleased]
 
-> **Draft for v1.0.0 — release-please will promote this block when the
-> release commit lands.** Edits welcome; nothing here ships until the
-> v1.0.0 tag.
+## [1.0.0] — 2026-05-28
+
+> First stable release. Multi-tenant correctness hardened end-to-end,
+> Mnemosyne cognitive memory v1.6, GDPR streaming pipeline.
 
 This release is the v1.0 milestone — multi-tenant correctness hardened
 end-to-end, the **Mnemosyne** cognitive memory layer reaches v1.6, and
