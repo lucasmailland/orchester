@@ -33,6 +33,10 @@ export {
   MEMORY_PROTOCOL_V1_1,
   MEMORY_PROTOCOL_VERSION,
   MEMORY_PROTOCOL_V1_LEGACY,
+  // v1.1 #28 — anti-pattern guidance for memory tool usage; separate
+  // from the version-locked protocol so iteration doesn't invalidate
+  // extraction metadata.
+  MEMORY_RECALL_GUIDANCE,
 } from "./protocol/v1";
 
 // PII detection / redaction — regex-only layer (§5.4 of the design spec).
@@ -352,4 +356,22 @@ export {
 // no durable-fact signal (greetings, smalltalk, pure ACKs). Saves the
 // majority of the per-turn extraction spend on noisy workspaces.
 // See packages/mnemosyne/src/extraction/prefilter.ts for the rule set.
-export { shouldExtract, type PrefilterMessage, type PrefilterResult } from "./extraction/prefilter";
+export {
+  shouldExtract,
+  shouldExtractBackfill,
+  type PrefilterMessage,
+  type PrefilterResult,
+} from "./extraction/prefilter";
+
+// v1.1 #1+2 — Pointer index + drawer-grep.
+// See packages/mnemosyne/src/index/pointer.ts for the architecture.
+export {
+  extractPointerTerms,
+  upsertPointerTerms,
+  lookupPointer,
+  rebuildPointerIndex,
+  type UpsertPointerInput,
+  type LookupPointerInput,
+  type PointerHit,
+  type RebuildPointerInput,
+} from "./index/pointer";

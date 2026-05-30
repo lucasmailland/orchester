@@ -127,3 +127,40 @@ export function shouldExtract(messages: PrefilterMessage[]): PrefilterResult {
     reason: positive ? "indicator_match" : "no_indicator",
   };
 }
+
+/**
+ * v1.1 #20 — Sweeper backfill prefilter. Applies a LOWER threshold than
+ * `shouldExtract` so the sweeper catches turns that the strict live
+ * prefilter silently dropped.
+ *
+ * Differences from `shouldExtract`:
+ *   - `totalChars` floor: 20 (vs 40) — very short single-exchange turns
+ *     can still carry a preference or fact.
+ *   - `no_content_tokens` floor: 2 (vs 5) — sparse exchanges with 2-3
+ *     content words still deserve an LLM pass.
+ *   - `POSITIVE_INDICATORS` check: DROPPED — the strict heuristic is the
+ *     main source of false negatives; the LLM will decide what's worth
+ *     storing in the second pass. Conversations without indicators are
+ *     returned as `yes: true, reason: "backfill_no_indicator"`.
+ *
+ * Only the `no_dialogue` hard gate remains: turns with no user/assistant
+ * messages are never extractable regardless of sweep threshold.
+ */
+export function shouldExtractBackfill(messages: PrefilterMessage[]): PrefilterResult {
+  const totalChars = messages.reduce((s, m) => s + m.content.length, 0);
+  if (totalChars < 20) return { yes: false, reason: "too_short" };
+
+  const hasDialogue = messages.some((m) => m.role === "user" || m.role === "assistant");
+  if (!hasDialogue) return { yes: false, reason: "no_dialogue" };
+
+  const tokens = extractContentTokens(messages);
+  if (tokens.length < 2) return { yes: false, reason: "no_content_tokens" };
+
+  // Unlike `shouldExtract`, we do NOT require POSITIVE_INDICATORS — the
+  // LLM is the final judge in the second pass.
+  const positive = POSITIVE_INDICATORS.some((re) => messages.some((m) => re.test(m.content)));
+  return {
+    yes: true,
+    reason: positive ? "indicator_match" : "backfill_no_indicator",
+  };
+}

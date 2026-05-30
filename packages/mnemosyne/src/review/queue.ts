@@ -2,12 +2,16 @@
 //
 // Mnemosyne v1.3 — active-learning review queue helpers.
 //
-// `mnemo_review_queue` (migration 0032) is the persistent queue of
-// facts that need a human pass. Two distinct producers, one consumer:
+// `mnemo_review_queue` (migration 0032, extended by 0044) is the
+// persistent queue of facts and decisions that need a human pass.
+// Three distinct producers, one consumer:
 //
 //   • `saveFactWithCandidates` (Mode A/B path) calls `enqueueReview`
 //     with reason='contradiction' when judgmentRequired flips to true
 //     and the host has no LLM judge to auto-resolve.
+//   • `saveDecisionWithCandidates` (v1.1 #24, Mode A/B path) calls
+//     `enqueueReview` with reason='contradiction' and decisionId when
+//     it surfaces a conflict candidate and enqueueOnNoJudge=true.
 //   • The `review-sweep` cron (apps/web/worker/review-sweep-job.ts)
 //     enqueues low-confidence inactive facts daily with
 //     reason='low_confidence'.
@@ -27,7 +31,18 @@ export type ReviewReason = "low_confidence" | "contradiction" | "manual";
 
 export interface EnqueueReviewInput {
   workspaceId: string;
-  factId: string;
+  /**
+   * ID of the fact to queue. Exactly one of `factId` / `decisionId`
+   * must be supplied — `enqueueReview` throws if both or neither are set.
+   */
+  factId?: string;
+  /**
+   * v1.1 #24 — ID of the decision to queue. Mutually exclusive with
+   * `factId`. Enables `saveDecisionWithCandidates` to enqueue a review
+   * row when it surfaces a contradiction candidate, mirroring the
+   * behaviour of `saveFactWithCandidates`.
+   */
+  decisionId?: string;
   reason: ReviewReason;
   tx: Tx;
 }
@@ -37,41 +52,49 @@ export interface EnqueueReviewResult {
    *  duplicate-suppression hit. */
   id: string;
   /** True iff a fresh row was inserted. False when an open queue row
-   *  already targeted this (workspace, fact) pair. */
+   *  already targeted this (workspace, source) pair. */
   inserted: boolean;
 }
 
 /**
  * Insert a review-queue row, but DO NOT duplicate an existing open
- * row for the same `(workspace_id, fact_id)`. The two producers
- * (saveFactWithCandidates, review-sweep cron) can race: a fact saved
- * with judgmentRequired in the morning and then swept as
- * low-confidence in the evening should not produce two rows. The
- * partial index `idx_mnemo_review_queue_workspace_unresolved`
- * (resolved_at IS NULL) keeps this check on a small hot index.
+ * row for the same `(workspace_id, fact_id)` or `(workspace_id,
+ * decision_id)`. The two producers (saveFactWithCandidates,
+ * review-sweep cron, and now saveDecisionWithCandidates) can race:
+ * a source saved with judgmentRequired in the morning and swept later
+ * should not produce two rows. The partial indexes on each source column
+ * keep the suppression check on small hot indexes.
  *
- * Suppression is by (workspace_id, fact_id, resolved_at IS NULL).
- * The earlier `reason` wins — the cron's later visit silently no-ops
- * rather than overwriting a richer contradiction signal.
+ * v1.1 #24: exactly one of `factId` / `decisionId` must be supplied.
+ * Invariant is enforced here and backed by DB CHECK constraint
+ * `mnemo_review_queue_source_check` (migration 0044).
  */
 export async function enqueueReview(input: EnqueueReviewInput): Promise<EnqueueReviewResult> {
-  const { workspaceId, factId, reason, tx } = input;
+  const { workspaceId, factId, decisionId, reason, tx } = input;
 
-  // Suppression read: a single index hop via the partial index. We
-  // run this inside the same tx as the insert so a concurrent
-  // enqueue can't slip through — Postgres serializable behaviour
-  // under RLS+FORCE is enough here (the row count is tiny and the
-  // race window is microseconds; no need for a heavier lock).
+  // Invariant: exactly one source id must be provided.
+  if ((factId == null) === (decisionId == null)) {
+    throw new Error("enqueueReview: exactly one of factId or decisionId must be supplied");
+  }
+
+  // Suppression read: look for an open row targeting the same source.
+  const suppressionWhere =
+    factId != null
+      ? and(
+          eq(schema.mnemoReviewQueue.workspaceId, workspaceId),
+          eq(schema.mnemoReviewQueue.factId, factId),
+          isNull(schema.mnemoReviewQueue.resolvedAt)
+        )
+      : and(
+          eq(schema.mnemoReviewQueue.workspaceId, workspaceId),
+          eq(schema.mnemoReviewQueue.decisionId, decisionId!),
+          isNull(schema.mnemoReviewQueue.resolvedAt)
+        );
+
   const existing = await tx
     .select({ id: schema.mnemoReviewQueue.id })
     .from(schema.mnemoReviewQueue)
-    .where(
-      and(
-        eq(schema.mnemoReviewQueue.workspaceId, workspaceId),
-        eq(schema.mnemoReviewQueue.factId, factId),
-        isNull(schema.mnemoReviewQueue.resolvedAt)
-      )
-    )
+    .where(suppressionWhere)
     .limit(1);
 
   const prev = existing[0];
@@ -81,7 +104,8 @@ export async function enqueueReview(input: EnqueueReviewInput): Promise<EnqueueR
   await tx.insert(schema.mnemoReviewQueue).values({
     id,
     workspaceId,
-    factId,
+    factId: factId ?? null,
+    decisionId: decisionId ?? null,
     reason,
   });
   return { id, inserted: true };
@@ -101,7 +125,10 @@ export interface ListReviewInput {
 export interface ReviewQueueRow {
   id: string;
   workspaceId: string;
-  factId: string;
+  /** Populated for fact-sourced rows; null for decision-sourced rows. */
+  factId: string | null;
+  /** v1.1 #24 — populated for decision-sourced rows; null for fact-sourced. */
+  decisionId: string | null;
   reason: ReviewReason;
   createdAt: Date;
   resolvedAt: Date | null;
@@ -118,7 +145,7 @@ export async function listReview(input: ListReviewInput): Promise<ReviewQueueRow
   const { workspaceId, reason, includeResolved = false, limit = 50, tx } = input;
   const cap = Math.min(Math.max(limit, 1), 200);
   const rows = (await tx.execute(sql`
-    SELECT id, workspace_id, fact_id, reason,
+    SELECT id, workspace_id, fact_id, decision_id, reason,
            created_at, resolved_at, resolved_by, resolution
     FROM mnemo_review_queue
     WHERE workspace_id = ${workspaceId}
@@ -129,7 +156,8 @@ export async function listReview(input: ListReviewInput): Promise<ReviewQueueRow
   `)) as unknown as Array<{
     id: string;
     workspace_id: string;
-    fact_id: string;
+    fact_id: string | null;
+    decision_id: string | null;
     reason: ReviewReason;
     created_at: Date;
     resolved_at: Date | null;
@@ -139,7 +167,8 @@ export async function listReview(input: ListReviewInput): Promise<ReviewQueueRow
   return rows.map((r) => ({
     id: r.id,
     workspaceId: r.workspace_id,
-    factId: r.fact_id,
+    factId: r.fact_id ?? null,
+    decisionId: r.decision_id ?? null,
     reason: r.reason,
     createdAt: r.created_at instanceof Date ? r.created_at : new Date(r.created_at),
     resolvedAt: r.resolved_at
@@ -166,9 +195,13 @@ export interface ResolveReviewResult {
   /** True when an open row was resolved. False when the row was
    *  already resolved (idempotent re-resolve) or doesn't exist. */
   resolved: boolean;
-  /** The fact_id of the row (so the route handler can cascade to
-   *  forgetFact / edit / etc.). NULL when the row doesn't exist. */
+  /** The fact_id of the row for fact-sourced reviews (so the route
+   *  handler can cascade to forgetFact / edit / etc.). NULL for
+   *  decision-sourced rows or when the row doesn't exist. */
   factId: string | null;
+  /** v1.1 #24 — the decision_id for decision-sourced reviews. NULL
+   *  for fact-sourced rows or when the row doesn't exist. */
+  decisionId: string | null;
 }
 
 /**
@@ -203,13 +236,18 @@ export async function resolveReview(input: ResolveReviewInput): Promise<ResolveR
     .returning({
       id: schema.mnemoReviewQueue.id,
       factId: schema.mnemoReviewQueue.factId,
+      decisionId: schema.mnemoReviewQueue.decisionId,
     });
   const row = updated[0];
-  if (row) return { resolved: true, factId: row.factId };
+  if (row)
+    return { resolved: true, factId: row.factId ?? null, decisionId: row.decisionId ?? null };
   // Row exists but is already resolved? OR doesn't exist? Disambiguate
   // for the caller.
   const lookup = await tx
-    .select({ factId: schema.mnemoReviewQueue.factId })
+    .select({
+      factId: schema.mnemoReviewQueue.factId,
+      decisionId: schema.mnemoReviewQueue.decisionId,
+    })
     .from(schema.mnemoReviewQueue)
     .where(
       and(
@@ -218,7 +256,11 @@ export async function resolveReview(input: ResolveReviewInput): Promise<ResolveR
       )
     )
     .limit(1);
-  return { resolved: false, factId: lookup[0]?.factId ?? null };
+  return {
+    resolved: false,
+    factId: lookup[0]?.factId ?? null,
+    decisionId: lookup[0]?.decisionId ?? null,
+  };
 }
 
 export interface SweepCandidate {

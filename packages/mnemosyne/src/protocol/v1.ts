@@ -103,6 +103,19 @@ Before saying "done", call mnemosyne_save_episode_summary with:
 ` as const;
 
 /**
+ * v1.1 — #28: anti-pattern guidance for memory tool usage. Injected
+ * alongside (but separate from) MEMORY_PROTOCOL_V2 by the host agent
+ * runtime. Lives outside the version-locked protocol so we can iterate
+ * on it without invalidating stored extraction metadata.
+ *
+ * Target: ~60 tokens. Augments — never replaces — the protocol tool list.
+ */
+export const MEMORY_RECALL_GUIDANCE = `Memory tool usage:
+- Prefer one mnemosyne_recall with a broad natural-language query over multiple narrow recalls. The pipeline does hybrid retrieval + rerank — let it work.
+- After a recall, use what came back. Don't issue follow-up recalls for sub-questions a fact in the result set already answers.
+- memory_get returns a whole scope bag in one call. Don't fetch the same scope twice in a turn.` as const;
+
+/**
  * Mnemosyne v1.6 — explicit v1.1 string, preserved separately for
  * extraction-replay jobs that need to reason about what the v1.1
  * protocol said (vs the v1.2 it now silently aliases to). The

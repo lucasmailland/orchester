@@ -39,6 +39,23 @@ function rpcError(id: string | number | null | undefined, code: number, message:
   return { jsonrpc: "2.0" as const, id: id ?? null, error: { code, message } };
 }
 
+/**
+ * v1.1 — #28: anti-pattern guidance for the connecting MCP client.
+ * Tool calls cost real tokens for the client AND server compute, so we
+ * steer clients away from list-then-loop usage that explodes on large
+ * workspaces. Kept under ~400 tokens — every connect pays for this
+ * once. Newlines are `\n` so the JSON-RPC serialization stays clean.
+ */
+const MCP_INSTRUCTIONS = [
+  "Orchester MCP: manage AI agents, conversations, knowledge (RAG), flows, and employees in the workspace. Start with list_agents or list_flows.",
+  "",
+  "Usage guidance (avoid the list+loop anti-pattern — 5–10 targeted calls beat 50 speculative ones, typically a 10× cost ratio):",
+  "- For knowledge retrieval, call `search_knowledge` with a natural-language query. If you know the kbId, pass it; otherwise call once against the most likely kb. Do NOT iterate `list_knowledge_bases` and re-issue `search_knowledge` against each one.",
+  "- When inspecting conversations, read what you need from `list_conversations` (it already returns summary fields) before issuing per-id `get_conversation`. Only fetch full conversations you actually intend to read.",
+  "- Keep batches small and queries specific. Tool calls cost tokens on your side and compute on ours.",
+  "- Prefer one well-targeted call to N speculative ones; ask the user before fanning out.",
+].join("\n");
+
 async function handleOne(req: JsonRpcReq, auth: McpAuth): Promise<object | null> {
   switch (req.method) {
     case "initialize":
@@ -46,8 +63,7 @@ async function handleOne(req: JsonRpcReq, auth: McpAuth): Promise<object | null>
         protocolVersion: MCP_PROTOCOL_VERSION,
         capabilities: { tools: { listChanged: false } },
         serverInfo: MCP_SERVER_INFO,
-        instructions:
-          "Orchester MCP: manage AI agents, conversations, knowledge (RAG), flows, and employees in the workspace. Start with list_agents or list_flows.",
+        instructions: MCP_INSTRUCTIONS,
       });
     case "notifications/initialized":
     case "notifications/cancelled":

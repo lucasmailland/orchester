@@ -42,6 +42,7 @@ import {
   JOB_MNEMO_REVIEW_SWEEP,
   JOB_MNEMO_AUTO_PIN,
   JOB_MNEMO_CONSOLIDATION,
+  JOB_MNEMO_SWEEPER,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
@@ -62,6 +63,7 @@ import { runPruneSweep } from "./prune-job";
 import { runReviewSweep } from "./review-sweep-job";
 import { runAutoPin } from "./auto-pin-job";
 import { runConsolidationSweep } from "./consolidation-job";
+import { runSweeperBatch, type SweeperPayload } from "./mnemo-sweeper-job";
 
 interface FlowRunJob {
   runId: string;
@@ -315,6 +317,32 @@ async function main(): Promise<void> {
     await runConsolidationSweep();
   });
   await schedule(JOB_MNEMO_CONSOLIDATION, "0 2 * * 0");
+
+  // ─── Mnemosyne v1.1 #20 — message-grain backfill sweeper ────────────
+  // Sunday 01:00 UTC — BEFORE the consolidation pass at 02:00. Walks
+  // brain_extraction_job rows whose state='skipped' and skip_reason is
+  // a prefilter-class reason (no_indicator, no_content_tokens, …). For
+  // each such conversation it re-runs `shouldExtractBackfill()` — a
+  // more permissive variant that drops the POSITIVE_INDICATORS gate —
+  // and re-enqueues qualifying conversations for a fresh LLM extraction.
+  //
+  // Cursor-resumable: the handler self-re-enqueues with an updated
+  // cursor after each BATCH_SIZE=100 batch so large workspaces are
+  // swept incrementally without hitting the job timeout.
+  await registerWorker<SweeperPayload>(JOB_MNEMO_SWEEPER, async (job) => {
+    const stats = await runSweeperBatch(job.data);
+    if (stats.conversationsScanned > 0) {
+      console.log(
+        `[worker] mnemo.sweeper ` +
+          `scanned=${stats.conversationsScanned} ` +
+          `reenqueued=${stats.conversationsReenqueued} ` +
+          `skipped=${stats.conversationsSkipped} ` +
+          `hasMore=${stats.hasMore}`
+      );
+    }
+  });
+  // Weekly cron kick-starts the sweep (cursor=null = scan from beginning).
+  await schedule(JOB_MNEMO_SWEEPER, "0 1 * * 0", { cursor: null } satisfies SweeperPayload);
 
   console.log("[worker] ready, waiting for jobs…");
 }

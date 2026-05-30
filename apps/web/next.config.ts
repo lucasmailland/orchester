@@ -25,7 +25,23 @@ const nextConfig: NextConfig = {
    * resolver can't follow. If you can lazy-import the module inside a
    * Node-runtime guard instead of adding here, please do.
    */
-  serverExternalPackages: ["pg", "pg-boss", "pgpass", "postgres", "redis"],
+  serverExternalPackages: [
+    "pg",
+    "pg-boss",
+    "pgpass",
+    "postgres",
+    "redis",
+    // Sentry server SDK and its OpenTelemetry dependency chain use `require()`
+    // in ways webpack cannot statically analyze (require-in-the-middle).
+    // Mark the full chain as server externals so webpack resolves them from
+    // node_modules at runtime instead of bundling, preventing the
+    // "Critical dependency: require function cannot be statically extracted" crash.
+    "@sentry/nextjs",
+    "@sentry/node",
+    "@opentelemetry/instrumentation",
+    "require-in-the-middle",
+    "import-in-the-middle",
+  ],
 
   images: {
     formats: ["image/avif", "image/webp"],
@@ -81,4 +97,17 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withNextIntl(nextConfig);
+// next-intl v3.x sets `experimental.turbo` (deprecated Next.js 15.3+ API) for
+// its Turbopack resolve alias. Migrate the value to the top-level `turbopack`
+// key so Next.js stops emitting the deprecation warning. Remove this shim once
+// next-intl is updated to use `turbopack` directly.
+const resolvedConfig = withNextIntl(nextConfig);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const legacyTurbo = (resolvedConfig as any).experimental?.turbo;
+if (legacyTurbo) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (resolvedConfig as any).turbopack = { ...(resolvedConfig as any).turbopack, ...legacyTurbo };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  delete (resolvedConfig as any).experimental.turbo;
+}
+export default resolvedConfig;

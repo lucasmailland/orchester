@@ -241,6 +241,14 @@ export const JOB_MNEMO_AUTO_PIN = "mnemo.auto-pin";
 // summary, and stamps `derived_from` edges from members to the
 // summary. See `apps/web/worker/consolidation-job.ts`.
 export const JOB_MNEMO_CONSOLIDATION = "mnemo.consolidation";
+// v1.1 #20 — message-grain backfill sweeper. Weekly cursor-resumable
+// cron (Sunday 01:00 UTC, BEFORE consolidation at 02:00) that
+// re-examines conversations skipped by the strict live prefilter
+// (`shouldExtract` returning false) and re-enqueues them for LLM
+// extraction using a more permissive threshold
+// (`shouldExtractBackfill`). Conversations with existing successful
+// extractions are skipped. See `apps/web/worker/mnemo-sweeper-job.ts`.
+export const JOB_MNEMO_SWEEPER = "mnemo.sweeper.backfill";
 export const JOB_KB_REINDEX = "kb:reindex";
 export const JOB_WEBHOOK_DELIVER = "webhook:deliver";
 export const JOB_USAGE_AGGREGATE = "usage:aggregate";
@@ -277,6 +285,7 @@ export const ALL_QUEUES: readonly string[] = [
   JOB_MNEMO_REVIEW_SWEEP,
   JOB_MNEMO_AUTO_PIN,
   JOB_MNEMO_CONSOLIDATION,
+  JOB_MNEMO_SWEEPER,
   JOB_KB_REINDEX,
   JOB_WEBHOOK_DELIVER,
   JOB_USAGE_AGGREGATE,

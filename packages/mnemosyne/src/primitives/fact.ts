@@ -11,10 +11,11 @@
 // §0.1: this file is package-clean — no `server-only`, no path aliases
 // to the host app. Embedding is dependency-injected via `embedFn`.
 import { createId } from "@paralleldrive/cuid2";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { schema } from "@orchester/db";
 import { redactPIIWithCategories } from "../pii/redact";
 import { embedMnemo, type EmbedFn, type EmbeddingProvider } from "../recall/embed";
+import { upsertPointerTerms } from "../index/pointer";
 import type { Tx } from "../tx";
 import type { Attribution } from "../types";
 
@@ -112,7 +113,71 @@ export interface MnemoFact {
    * Optional on the type so legacy row mappers keep compiling.
    */
   protocolVersion?: string;
+  /**
+   * v1.1 #10 — Hebbian trace strength in [0.05, 5.0]. Default 1.0.
+   * Potentiated by +0.05 on each qualifying recall (Cepeda ≥ 1 h
+   * spacing); decays exponentially between recalls (Ebbinghaus curve).
+   * Optional on the type so legacy row-mappers keep compiling.
+   */
+  memoryStrength?: number;
+  /**
+   * v1.1 #10 — forgetting-curve time constant in days. Higher = slower
+   * decay. Default 1.0. Incremented on each potentiating recall so
+   * frequently-recalled facts become progressively harder to forget.
+   * Optional on the type so legacy row-mappers keep compiling.
+   */
+  memoryStability?: number;
+  /**
+   * v1.1 #10 — timestamp of the last decay + potentiation pass.
+   * NULL = fact was never recalled via markRecalled (strength is at the
+   * DB default of 1.0). Optional on the type so legacy row-mappers
+   * keep compiling.
+   */
+  lastStrengthUpdate?: Date | null;
 }
+
+// ─── v1.1 #10 — Hebbian / Ebbinghaus constants ───────────────────────────────
+//
+// Exported so callers can display the ceiling in UI ("strength 4.2 / 5.0")
+// and unit tests can assert exact math without hardcoding magic numbers.
+
+/** Increment added to `memory_strength` on each qualifying recall. */
+export const POTENTIATION_INCREMENT = 0.05;
+/** Increment added to `memory_stability` on each potentiating recall. */
+export const STABILITY_INCREMENT = 0.1;
+/** Upper bound of the `memory_strength` range. */
+export const MAX_MEMORY_STRENGTH = 5.0;
+/** Lower bound — a fact can never decay to zero (minimum trace). */
+export const MIN_MEMORY_STRENGTH = 0.05;
+/** Cepeda spacing threshold: recalls closer than this are not potentiated. */
+export const CEPEDA_SPACING_SECONDS = 3600; // 1 hour
+
+/**
+ * v1.1 #10 — Pure Ebbinghaus decay formula. Exported for unit-testing.
+ *
+ * Computes how much `memory_strength` decays over `secondsSince` seconds
+ * given the current `stability` (time constant in days). The floor of
+ * `MIN_MEMORY_STRENGTH` prevents complete forgetting — a fact always
+ * retains a minimal trace.
+ *
+ * Formula: strength × exp(-days_elapsed / stability)
+ *
+ * @param strength       Current memory_strength (should be in [MIN, MAX]).
+ * @param stability      Current memory_stability (time constant, days ≥ 1.0).
+ * @param secondsSince   Seconds elapsed since the last markRecalled call.
+ * @returns              Decayed strength, floored at MIN_MEMORY_STRENGTH.
+ */
+export function computeHebbianDecay(
+  strength: number,
+  stability: number,
+  secondsSince: number
+): number {
+  if (secondsSince <= 0) return strength;
+  const daysSince = secondsSince / 86400;
+  return Math.max(MIN_MEMORY_STRENGTH, strength * Math.exp(-daysSince / stability));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * v1.6 — embedding tier. Set by the resolver to mark a fact as
@@ -322,7 +387,25 @@ export async function createFact(input: CreateFactInput): Promise<MnemoFact> {
       protocolVersion: input.protocolVersion ?? "v1.1",
     })
     .returning();
-  return rows[0] as unknown as MnemoFact;
+
+  const fact = rows[0] as unknown as MnemoFact;
+
+  // v1.1 #1+2 — pointer index: wire the new fact's content into the
+  // routing index so future queries can be directed to this entity's
+  // drawer. Only facts with a resolved entity_id enter the pointer;
+  // facts without one (workspace-shared) are only reachable via the
+  // existing full first-stage retrieval. This call shares the same
+  // transaction so the pointer is always consistent with the fact row.
+  if (input.entityId) {
+    await upsertPointerTerms({
+      workspaceId: input.workspaceId,
+      entityId: input.entityId,
+      statement, // post-PII redaction
+      tx: input.tx,
+    });
+  }
+
+  return fact;
 }
 
 export async function getFact(
@@ -372,12 +455,79 @@ export async function listFacts(input: ListFactsInput): Promise<MnemoFact[]> {
   return rows as unknown as MnemoFact[];
 }
 
+/**
+ * Mark a batch of facts as recalled. Updates hit_count, last_recalled_at,
+ * and — via the v1.1 #10 Hebbian model — memory_strength, memory_stability,
+ * and last_strength_update atomically in a single UPDATE.
+ *
+ * Hebbian potentiation (per-row, in SQL):
+ *   1. Ebbinghaus decay: the stored strength is first decayed by
+ *      `exp(-days_since_last_update / stability)` to account for the
+ *      time since the previous recall.
+ *   2. Cepeda spacing guard: potentiation (+0.05) is ONLY applied when
+ *      the gap since `last_recalled_at` is ≥ 1 hour. Closer recalls
+ *      count toward hit_count but do not strengthen the trace.
+ *   3. Stability increment (+0.1) mirrors potentiation — it happens on
+ *      the same qualifying recalls, not on rapid re-reads.
+ *
+ * This is a bulk UPDATE so all rows are processed in one round-trip.
+ * The SQL CASE expressions handle the per-row branching server-side;
+ * no per-row TypeScript loop is needed.
+ */
 export async function markRecalled(workspaceId: string, factIds: string[], tx: Tx): Promise<void> {
   if (factIds.length === 0) return;
-  await tx
-    .update(schema.mnemoFacts)
-    .set({ hitCount: sql`hit_count + 1`, lastRecalledAt: new Date() })
-    .where(
-      and(eq(schema.mnemoFacts.workspaceId, workspaceId), inArray(schema.mnemoFacts.id, factIds))
-    );
+  await tx.execute(sql`
+    UPDATE mnemo_fact
+    SET
+      hit_count        = hit_count + 1,
+      last_recalled_at = NOW(),
+
+      -- v1.1 #10 — Hebbian strength: decay then conditionally potentiate.
+      memory_strength = CASE
+        -- First-ever strength update: default starts at 1.0; no elapsed
+        -- time to decay, so go straight to potentiation.
+        WHEN last_strength_update IS NULL THEN
+          LEAST(${MAX_MEMORY_STRENGTH}, 1.0 + ${POTENTIATION_INCREMENT})
+
+        -- Cepeda spacing satisfied (≥ 1 h since last recall, or the fact
+        -- has been recalled before but never under the Hebbian model):
+        -- apply Ebbinghaus decay, then potentiate.
+        WHEN (last_recalled_at IS NULL
+              OR EXTRACT(EPOCH FROM (NOW() - last_recalled_at)) >= ${CEPEDA_SPACING_SECONDS}) THEN
+          LEAST(
+            ${MAX_MEMORY_STRENGTH},
+            GREATEST(${MIN_MEMORY_STRENGTH},
+              memory_strength * EXP(
+                -EXTRACT(EPOCH FROM (NOW() - last_strength_update))
+                  / 86400.0 / memory_stability
+              )
+            ) + ${POTENTIATION_INCREMENT}
+          )
+
+        -- Too soon (< 1 h): decay only, no potentiation.
+        ELSE
+          GREATEST(${MIN_MEMORY_STRENGTH},
+            memory_strength * EXP(
+              -EXTRACT(EPOCH FROM (NOW() - last_strength_update))
+                / 86400.0 / memory_stability
+            )
+          )
+        END,
+
+      -- v1.1 #10 — Stability: increments only on potentiating recalls
+      -- (the spacing condition is checked identically to strength above).
+      memory_stability = CASE
+        WHEN last_strength_update IS NULL THEN
+          memory_stability + ${STABILITY_INCREMENT}
+        WHEN (last_recalled_at IS NULL
+              OR EXTRACT(EPOCH FROM (NOW() - last_recalled_at)) >= ${CEPEDA_SPACING_SECONDS}) THEN
+          memory_stability + ${STABILITY_INCREMENT}
+        ELSE memory_stability
+        END,
+
+      last_strength_update = NOW()
+
+    WHERE workspace_id = ${workspaceId}
+      AND id = ANY(${sql.param(factIds)}::text[])
+  `);
 }

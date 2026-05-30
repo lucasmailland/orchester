@@ -140,6 +140,59 @@ describe("graph/relation", () => {
     expect(judged?.markedByKind).toBe("llm_judge");
   });
 
+  it("provenance: defaults to NULL (LLM-derived) and persists 'heuristic' when set", async () => {
+    // v1.1 #11 — round-trip provenance through createRelation.
+    const d1 = await withMnemoTx(wsA.id, (tx) =>
+      createDecision({
+        workspaceId: wsA.id,
+        kind: "policy",
+        title: "Provenance source",
+        body: "src",
+        tx,
+      })
+    );
+    const d2 = await withMnemoTx(wsA.id, (tx) =>
+      createDecision({
+        workspaceId: wsA.id,
+        kind: "policy",
+        title: "Provenance target",
+        body: "tgt",
+        tx,
+      })
+    );
+
+    // Default: no provenance field => persisted as NULL (LLM-derived).
+    const rDefault = await withMnemoTx(wsA.id, (tx) =>
+      createRelation({
+        workspaceId: wsA.id,
+        sourceKind: "decision",
+        sourceId: d1.id,
+        targetKind: "decision",
+        targetId: d2.id,
+        relation: "related",
+        markedByKind: "llm_judge",
+        tx,
+      })
+    );
+    expect(rDefault.provenance).toBeNull();
+
+    // Explicit 'heuristic' value round-trips through the insert.
+    const rHeuristic = await withMnemoTx(wsA.id, (tx) =>
+      createRelation({
+        workspaceId: wsA.id,
+        sourceKind: "decision",
+        sourceId: d1.id,
+        targetKind: "decision",
+        targetId: d2.id,
+        relation: "related",
+        markedByKind: "system",
+        provenance: "heuristic",
+        tx,
+      })
+    );
+    expect(rHeuristic.provenance).toBe("heuristic");
+  });
+
   it("multi-actor disagreement allowed (no UNIQUE on source+target+verb)", async () => {
     const d1 = await withMnemoTx(wsA.id, (tx) =>
       createDecision({
@@ -185,5 +238,107 @@ describe("graph/relation", () => {
     );
     // Same source/target/verb, but two distinct rows must exist.
     expect(r2.id).not.toBe(r1.id);
+  });
+
+  // v1.1 #12 — inverted-interval WRITE guard
+  it("rejects a validTo that is before validFrom", async () => {
+    const d1 = await withMnemoTx(wsA.id, (tx) =>
+      createDecision({
+        workspaceId: wsA.id,
+        kind: "policy",
+        title: "interval guard src",
+        body: "src body",
+        tx,
+      })
+    );
+    const d2 = await withMnemoTx(wsA.id, (tx) =>
+      createDecision({
+        workspaceId: wsA.id,
+        kind: "policy",
+        title: "interval guard dst",
+        body: "dst body",
+        tx,
+      })
+    );
+
+    const past = new Date("2020-01-01T00:00:00Z");
+    const future = new Date("2030-01-01T00:00:00Z");
+
+    await expect(
+      withMnemoTx(wsA.id, (tx) =>
+        createRelation({
+          workspaceId: wsA.id,
+          sourceKind: "decision",
+          sourceId: d1.id,
+          targetKind: "decision",
+          targetId: d2.id,
+          relation: "related",
+          markedByKind: "agent",
+          validFrom: future,
+          validTo: past, // inverted — must throw
+          tx,
+        })
+      )
+    ).rejects.toThrow("inverted validity interval");
+  });
+
+  it("accepts a valid interval (validFrom <= validTo)", async () => {
+    const d1 = await withMnemoTx(wsA.id, (tx) =>
+      createDecision({
+        workspaceId: wsA.id,
+        kind: "policy",
+        title: "valid interval src",
+        body: "src body",
+        tx,
+      })
+    );
+    const d2 = await withMnemoTx(wsA.id, (tx) =>
+      createDecision({
+        workspaceId: wsA.id,
+        kind: "policy",
+        title: "valid interval dst",
+        body: "dst body",
+        tx,
+      })
+    );
+
+    const past = new Date("2020-01-01T00:00:00Z");
+    const future = new Date("2030-01-01T00:00:00Z");
+
+    // validFrom === validTo (edge case: point-in-time validity) — allowed.
+    const r1 = await withMnemoTx(wsA.id, (tx) =>
+      createRelation({
+        workspaceId: wsA.id,
+        sourceKind: "decision",
+        sourceId: d1.id,
+        targetKind: "decision",
+        targetId: d2.id,
+        relation: "compatible",
+        markedByKind: "agent",
+        validFrom: past,
+        validTo: past,
+        tx,
+      })
+    );
+    expect(r1.validFrom).toEqual(past);
+    expect(r1.validTo).toEqual(past);
+
+    // validFrom < validTo — normal range.
+    const r2 = await withMnemoTx(wsA.id, (tx) =>
+      createRelation({
+        workspaceId: wsA.id,
+        sourceKind: "decision",
+        sourceId: d1.id,
+        targetKind: "decision",
+        targetId: d2.id,
+        relation: "scoped",
+        markedByKind: "agent",
+        validFrom: past,
+        validTo: future,
+        tx,
+      })
+    );
+    expect(r2.validFrom).toEqual(past);
+    expect(r2.validTo).toEqual(future);
   });
 });

@@ -192,6 +192,102 @@ describe("recall/search — v1.4 1-hop graph expansion", () => {
     expect(ids).not.toContain(child.id);
   });
 
+  it("v1.1 #11 — heuristic-provenance edges decay harder than LLM-derived ones", async () => {
+    // Seed two neighbors from the same parent. Edge 1 is LLM-derived
+    // (provenance NULL) → decay = base (0.7). Edge 2 is heuristic →
+    // decay = min(base, 0.5) = 0.5. The LLM neighbor must end up with
+    // a strictly higher inherited score than the heuristic neighbor.
+    invalidateRecallCacheForWorkspace(wsA.id);
+
+    const { parent, llmChild, heuristicChild } = await withMnemoTx(wsA.id, async (tx) => {
+      const parent = await createFact({
+        workspaceId: wsA.id,
+        scope: "global",
+        kind: "trait",
+        subject: "user",
+        statement: "expandgraph_anchor_provenance — parent for asymmetric decay test",
+        tx,
+      });
+      const llmChild = await createFact({
+        workspaceId: wsA.id,
+        scope: "global",
+        kind: "event",
+        subject: "user",
+        statement: "llm-derived neighbor — reachable only via 1-hop expansion",
+        tx,
+      });
+      const heuristicChild = await createFact({
+        workspaceId: wsA.id,
+        scope: "global",
+        kind: "event",
+        subject: "user",
+        statement: "heuristic neighbor — reachable only via 1-hop expansion",
+        tx,
+      });
+      await createRelation({
+        workspaceId: wsA.id,
+        sourceKind: "fact",
+        sourceId: parent.id,
+        targetKind: "fact",
+        targetId: llmChild.id,
+        relation: "derived_from",
+        markedByKind: "llm_judge",
+        // provenance omitted ⇒ NULL ⇒ LLM-derived (status quo).
+        tx,
+      });
+      await createRelation({
+        workspaceId: wsA.id,
+        sourceKind: "fact",
+        sourceId: parent.id,
+        targetKind: "fact",
+        targetId: heuristicChild.id,
+        relation: "derived_from",
+        markedByKind: "system",
+        provenance: "heuristic",
+        tx,
+      });
+      return { parent, llmChild, heuristicChild };
+    });
+
+    const hits = await searchMnemo({
+      workspaceId: wsA.id,
+      query: "expandgraph_anchor_provenance",
+      // Both neighbors must survive the cap, hence 5.
+      maxResults: 5,
+      expandGraph: true,
+      // Explicit base decay 0.7 — heuristic cap is min(0.7, 0.5) = 0.5.
+      expandDecay: 0.7,
+    });
+
+    const ids = hits.map((h) => h.fact.id);
+    expect(ids).toContain(parent.id);
+    expect(ids).toContain(llmChild.id);
+    expect(ids).toContain(heuristicChild.id);
+
+    const parentHit = hits.find((h) => h.fact.id === parent.id);
+    const llmHit = hits.find((h) => h.fact.id === llmChild.id);
+    const heuristicHit = hits.find((h) => h.fact.id === heuristicChild.id);
+    expect(parentHit).toBeDefined();
+    expect(llmHit?.expandedFromId).toBe(parent.id);
+    expect(heuristicHit?.expandedFromId).toBe(parent.id);
+
+    // The core invariant: heuristic edge's decay (0.5) < LLM edge's
+    // decay (0.7), so for the same parent score the heuristic neighbor
+    // must end up with a strictly lower inherited score.
+    expect(heuristicHit!.score).toBeLessThan(llmHit!.score);
+    // And both must be strictly below the parent (any decay < 1).
+    expect(llmHit!.score).toBeLessThan(parentHit!.score);
+    // Sanity: the ratio matches the decay ratio (within float noise).
+    // heuristic / llm == 0.5 / 0.7 ≈ 0.714. Both neighbors derive from
+    // the SAME parent, so the parent-score factor cancels and the ratio
+    // is determined entirely by `decayForEdge`. If runFirstStage ever
+    // changes parent ordering / scoring in a way that gives the two
+    // neighbors different parents, this assertion will drift — pin the
+    // parent explicitly in that case.
+    const ratio = heuristicHit!.score / llmHit!.score;
+    expect(ratio).toBeCloseTo(0.5 / 0.7, 5);
+  });
+
   it("clamps `expandDecay` outside [0,1] to a safe default", async () => {
     invalidateRecallCacheForWorkspace(wsA.id);
 

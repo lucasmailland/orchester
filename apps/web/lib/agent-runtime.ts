@@ -3,6 +3,7 @@ import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import {
   MEMORY_PROTOCOL_V1,
+  MEMORY_RECALL_GUIDANCE,
   applyPolicyToRecall,
   recallUnified,
   renderFactsCompact,
@@ -693,6 +694,12 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
   // invalidates extractions tagged with the prior version).
   const protocolBlock = `\n\n---\n${MEMORY_PROTOCOL_V1}\n---\n`;
 
+  // v1.1 #28 — anti-pattern guidance for memory tool usage. Lives in
+  // the cached prefix (billed at cached rate) but is iterable
+  // independently of the version-locked protocol — bumping the
+  // guidance does NOT invalidate stored extraction metadata.
+  const guidanceBlock = `\n${MEMORY_RECALL_GUIDANCE}\n---\n`;
+
   // Profile block — pulled from `getOrComputeSummary` (read path is cheap;
   // distillation runs in the daily cron). Empty string on cold start.
   const profileBlock = await buildProfileBlock({
@@ -701,7 +708,9 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
     ...(p.employeeId && { userId: p.employeeId }),
   });
 
-  const cachedPrefix = [identityBlock, protocolBlock, profileBlock].filter(Boolean).join("");
+  const cachedPrefix = [identityBlock, protocolBlock, guidanceBlock, profileBlock]
+    .filter(Boolean)
+    .join("");
 
   // ── DYNAMIC SUFFIX (no cache) ─────────────────────────────────────────
   // The recalled top-3 facts. Only computed when `shouldTriggerRecall`

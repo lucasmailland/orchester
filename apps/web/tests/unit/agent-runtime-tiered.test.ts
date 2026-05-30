@@ -32,6 +32,7 @@ const noopRerankMock = vi.fn();
 
 vi.mock("@orchester/mnemosyne", () => ({
   MEMORY_PROTOCOL_V1: "MEMORY_PROTOCOL_V1_FIXTURE_TEXT",
+  MEMORY_RECALL_GUIDANCE: "RECALL_GUIDANCE_FIXTURE",
   DEFAULT_AGENT_MEMORY_POLICY: {
     write_scope_default: "workspace",
     read_scopes: ["workspace", "agent"],

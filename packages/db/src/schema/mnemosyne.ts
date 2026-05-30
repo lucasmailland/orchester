@@ -5,6 +5,8 @@
 
 import {
   pgTable,
+  primaryKey,
+  index,
   text,
   real,
   boolean,
@@ -120,6 +122,24 @@ export const mnemoFacts = pgTable("mnemo_fact", {
   // tags itself with the protocol active at the time. New extractions
   // explicitly set 'v1.2' at the application layer.
   protocolVersion: text("protocol_version").notNull().default("v1.1"),
+  // Mnemosyne v1.1 #10 — Hebbian potentiation + Ebbinghaus decay
+  // (migration 0045).
+  //
+  //   memoryStrength      — trace strength in [0.05, 5.0]. Default 1.0.
+  //                         Potentiated by +0.05 on each qualifying recall
+  //                         (Cepeda ≥ 1 h spacing); decays exponentially
+  //                         between recalls (Ebbinghaus forgetting curve).
+  //   memoryStability     — forgetting-curve time constant (days). Default
+  //                         1.0. Incremented by +0.1 on each potentiating
+  //                         recall so frequently-recalled facts decay slower.
+  //   lastStrengthUpdate  — timestamp of last decay + potentiation pass.
+  //                         NULL = fact never recalled via markRecalled.
+  memoryStrength: real("memory_strength").notNull().default(1.0),
+  memoryStability: real("memory_stability").notNull().default(1.0),
+  lastStrengthUpdate: timestamp("last_strength_update", {
+    withTimezone: true,
+    mode: "date",
+  }),
 });
 
 // Mnemosyne v1.6 — the entity primitive (migration 0039). The 4th
@@ -280,6 +300,14 @@ export const mnemoRelations = pgTable("mnemo_relation", {
   }).notNull(),
   markedByModel: text("marked_by_model"),
   markedByPromptVersion: text("marked_by_prompt_version"),
+  // Mnemosyne v1.1 #11 — edge provenance (migration 0043).
+  // NULL ⇒ LLM-derived (status-quo, the vast majority); 'heuristic' ⇒
+  // synthesized by the system (alias merge, coreference, deterministic
+  // dedup). Free text (no enum constraint) so future provenances
+  // ('import', 'rule', …) don't require an ALTER TYPE migration —
+  // the application layer in `packages/mnemosyne/src/graph/relation.ts`
+  // is the chokepoint that gates what values land on disk.
+  provenance: text("provenance"),
   conversationId: text("conversation_id").references(() => conversations.id, {
     onDelete: "set null",
   }),
@@ -420,7 +448,17 @@ export const mnemoReviewQueue = pgTable("mnemo_review_queue", {
   workspaceId: text("workspace_id")
     .notNull()
     .references(() => workspaces.id, { onDelete: "cascade" }),
-  factId: text("fact_id").notNull(),
+  // v1.1 #24 — fact_id is now nullable (migration 0044). Exactly one of
+  // (fact_id, decision_id) must be non-NULL per row; enforced by the DB
+  // CHECK constraint `mnemo_review_queue_source_check` and at the
+  // application layer in `enqueueReview`. The "no FK" pattern is
+  // intentional (same as the original 0032 schema) — a fact or decision
+  // may move to an archive table between enqueue and resolve; the
+  // reviewer UI handles the "source gone" case gracefully.
+  factId: text("fact_id"),
+  /** v1.1 #24 — optional decision_id for contradiction rows produced by
+   *  `saveDecisionWithCandidates`. Null on fact-sourced rows. */
+  decisionId: text("decision_id"),
   reason: text("reason", {
     enum: ["low_confidence", "contradiction", "manual"],
   }).notNull(),
@@ -464,6 +502,36 @@ export const mnemoEpisode = pgTable("mnemo_episode", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });
+
+// Mnemosyne v1.1 #1+2 — Pointer index (migration 0046).
+//
+// Lightweight routing table that maps content terms to the entity
+// (drawer) that most frequently uses them. The recall pipeline uses
+// this to route a query to the 1-5 most relevant entities before
+// running the full first-stage FTS/vector search, achieving
+// dramatically higher precision for entity-specific queries.
+//
+// Primary key (workspace_id, term, entity_id) — one row per (term,
+// entity) pair. `mention_count` tracks how many distinct facts within
+// that entity's drawer reference the term; the pointer lookup ranks
+// entities by SUM(mention_count) for the query's token set.
+export const mnemoPointer = pgTable(
+  "mnemo_pointer",
+  {
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    term: text("term").notNull(),
+    entityId: text("entity_id").notNull(),
+    mentionCount: integer("mention_count").notNull().default(1),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workspaceId, t.term, t.entityId] }),
+    index("idx_mnemo_pointer_lookup").on(t.workspaceId, t.term, t.mentionCount),
+    index("idx_mnemo_pointer_entity").on(t.workspaceId, t.entityId),
+  ]
+);
 
 export const mnemoCitations = pgTable("mnemo_citation", {
   id: text("id").primaryKey(),

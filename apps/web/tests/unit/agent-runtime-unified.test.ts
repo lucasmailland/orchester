@@ -20,6 +20,7 @@ const { recallUnifiedMock, renderFactsCompactMock, applyPolicyToRecallMock } = m
 
 vi.mock("@orchester/mnemosyne", () => ({
   MEMORY_PROTOCOL_V1: "PROTOCOL_FIXTURE",
+  MEMORY_RECALL_GUIDANCE: "RECALL_GUIDANCE_FIXTURE",
   DEFAULT_AGENT_MEMORY_POLICY: {
     write_scope_default: "workspace",
     read_scopes: ["workspace", "agent"],

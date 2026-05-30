@@ -78,6 +78,82 @@ export function invalidateRecallCacheForWorkspace(workspaceId: string): void {
   }
 }
 
+// ───── v1.1 #25: adaptive recall budget — fact-count cache ──────────
+//
+// Per-workspace cap on the recall `maxResults` is tier-driven (see
+// `tieredCap` in ./search.ts). To decide the tier we need the count
+// of active facts in the workspace, which would be one extra SQL per
+// recall call. We amortize that with a 5-min LRU keyed on workspaceId.
+//
+// Tradeoff (intentional for v1.1): no invalidation on write — a
+// workspace crossing a tier boundary (999 → 1001 facts) keeps the old
+// tier until the cached entry expires. Worst case is 5 minutes of
+// "one tier too small" budget, which is benign vs. the cost of
+// wiring invalidation through every ingest path.
+//
+// Cap chosen at 10k entries: fact-count is per-workspace (NOT per-
+// query like `recallCache`), so even very large tenants stay well
+// under the cap, and we want the LRU to behave as a sliding window
+// of recently-active workspaces rather than evict hot ones.
+
+const FACT_COUNT_CACHE_MAX = 10_000;
+const FACT_COUNT_CACHE_TTL_MS = 5 * 60 * 1000;
+
+// lru-cache v11 requires `V extends {}`; wrap the count so the entry is
+// a non-nullish object (mirrors the `recallCache` workaround above).
+export const factCountCache = new LRUCache<string, { count: number }>({
+  max: FACT_COUNT_CACHE_MAX,
+  ttl: FACT_COUNT_CACHE_TTL_MS,
+});
+
+/**
+ * Drop the cached fact-count for a workspace. Not wired in v1.1 (see
+ * tradeoff above); exported so v1.2+ can call it from ingest paths
+ * if/when adaptive budgeting needs to react faster than 5 minutes.
+ */
+export function invalidateFactCountForWorkspace(workspaceId: string): void {
+  factCountCache.delete(workspaceId);
+}
+
+/**
+ * v1.1 #25: count of active facts in a workspace, cached for 5 min.
+ *
+ * Runs `SELECT count(*) FROM mnemo_fact WHERE workspace_id = $ws AND
+ * status = 'active'` on cache miss. MUST be invoked inside a workspace-
+ * scoped tx (Pattern A RLS gates the count on `app.workspace_id`).
+ *
+ * Failure mode: ANY error (RLS misconfig, transient connection) is
+ * swallowed and we return `Number.POSITIVE_INFINITY` so the caller
+ * falls back to the largest static cap (no tier downgrade caused by
+ * a flaky count). Recall must never be blocked by this auxiliary read.
+ *
+ * The cache stores misses as positive numbers only — the infinity
+ * fallback is never persisted, so a transient failure self-heals on
+ * the next call rather than freezing the workspace at the safe cap.
+ */
+export async function getCachedFactCount(workspaceId: string, tx: Tx): Promise<number> {
+  const cached = factCountCache.get(workspaceId);
+  if (cached) return cached.count;
+
+  try {
+    const rows = (await tx.execute(sql`
+      SELECT count(*)::int AS n
+      FROM mnemo_fact
+      WHERE workspace_id = ${workspaceId}
+        AND status = 'active'
+    `)) as unknown as Array<{ n: number }>;
+    const count = rows[0]?.n ?? 0;
+    factCountCache.set(workspaceId, { count });
+    return count;
+  } catch {
+    // See failure-mode doc above — positive infinity makes `tieredCap`
+    // collapse to the static-cap branch on the caller side. NOT cached
+    // (the LRU `set` is in the try block above) so transient errors
+    // self-heal on the next call.
+    return Number.POSITIVE_INFINITY;
+  }
+}
+
 // ───── v1.6 G1-4: L3 — `mnemo_query_cache` table wiring ────────────
 
 /**

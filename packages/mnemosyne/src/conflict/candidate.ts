@@ -17,6 +17,7 @@ import { sql } from "drizzle-orm";
 import type { Tx } from "../tx";
 import { createDecision, type MnemoDecision, type DecisionKind } from "../primitives/decision";
 import { createRelation, type MnemoRelation } from "../graph/relation";
+import { enqueueReview } from "../review/queue";
 
 export type ConflictCheckLevel = "none" | "fast" | "thorough";
 
@@ -33,6 +34,14 @@ export interface SaveDecisionInput {
   checkConflicts?: ConflictCheckLevel;
   /** Candidate FTS limit. Default 3. */
   candidateLimit?: number;
+  /**
+   * v1.1 #24 — when true, also enqueue a `mnemo_review_queue` row with
+   * reason='contradiction' if any conflict candidates are found. Mirrors
+   * the `enqueueOnNoJudge` option in `saveFactWithCandidates`. Typical
+   * usage: pass `true` in Mode A/B (no LLM judge) so a human can triage
+   * the pending relation edges from the Inspector UI.
+   */
+  enqueueOnNoJudge?: boolean;
   tx: Tx;
 }
 
@@ -47,6 +56,13 @@ export interface SaveDecisionResult {
      *  judgeRelation() with the actual verb. */
     judgmentId: string;
   }>;
+  /**
+   * v1.1 #24 — ID of the `mnemo_review_queue` row created when
+   * `enqueueOnNoJudge` was `true` and conflicts were found. Null
+   * when the option was not set, when no candidates were found, or
+   * when a queue row already existed (duplicate suppression).
+   */
+  enqueuedReviewId: string | null;
 }
 
 const FTS_CANDIDATE_LIMIT_DEFAULT = 3;
@@ -93,7 +109,7 @@ export async function saveDecisionWithCandidates(
 
   // 2. Short-circuit when caller opts out of conflict scanning.
   if (input.checkConflicts === "none") {
-    return { decision, judgmentRequired: false, candidates: [] };
+    return { decision, judgmentRequired: false, candidates: [], enqueuedReviewId: null };
   }
 
   // 3. Build FTS query from title + first 100 chars of body. Truncating
@@ -120,7 +136,7 @@ export async function saveDecisionWithCandidates(
   }>;
 
   if (rows.length === 0) {
-    return { decision, judgmentRequired: false, candidates: [] };
+    return { decision, judgmentRequired: false, candidates: [], enqueuedReviewId: null };
   }
 
   // 5. Insert one pending relation per candidate (new decision → candidate).
@@ -148,9 +164,28 @@ export async function saveDecisionWithCandidates(
     });
   }
 
+  // 6. v1.1 #24 — advisory queue wire. When the caller opted in
+  //    (`enqueueOnNoJudge: true`, typical for Mode A/B with no LLM judge)
+  //    AND we found at least one candidate, enqueue a review row so a
+  //    human can triage the pending edges from the Inspector UI.
+  //    The dedup inside `enqueueReview` makes this safe to call
+  //    repeatedly — if a row for this decision is already open it
+  //    returns the existing id with `inserted: false`.
+  let enqueuedReviewId: string | null = null;
+  if (input.enqueueOnNoJudge) {
+    const r = await enqueueReview({
+      workspaceId: input.workspaceId,
+      decisionId: decision.id,
+      reason: "contradiction",
+      tx: input.tx,
+    });
+    enqueuedReviewId = r.id;
+  }
+
   return {
     decision,
     judgmentRequired: true,
     candidates,
+    enqueuedReviewId,
   };
 }

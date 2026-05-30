@@ -46,7 +46,26 @@ export async function register(): Promise<void> {
   // literal at build time (ignoring the early-return guard above, which is
   // only a runtime check) and pulls in cluster-cache.ts → postgres →
   // perf_hooks, which doesn't exist in the edge runtime and fails the build.
-  await import(/* webpackIgnore: true */ "./instrumentation-node");
+  //
+  // In development webpack mode (`next dev` without --turbopack), the
+  // webpackIgnore hint causes webpack NOT to emit instrumentation-node.js to
+  // .next/server/, so the runtime import fails with MODULE_NOT_FOUND. We
+  // degrade gracefully in dev/test: log a warning and continue. In production
+  // (`next build` with standalone output), the output-file tracer picks up
+  // the file through the dependency graph and copies it correctly.
+  try {
+    await import(/* webpackIgnore: true */ "./instrumentation-node");
+  } catch (e: unknown) {
+    if (process.env["NODE_ENV"] === "production") throw e;
+    const msg = e instanceof Error ? e.message : String(e);
+    // Only suppress the expected MODULE_NOT_FOUND — re-throw anything else.
+    if (!msg.includes("Cannot find module") && !msg.includes("MODULE_NOT_FOUND")) throw e;
+    console.warn(
+      "[instrumentation] instrumentation-node skipped in dev (webpack did not emit it). " +
+        "Env validation, signal handlers and cluster-cache listener are inactive. " +
+        "This is expected — use `next build` to verify production boot."
+    );
+  }
 
   // ── Defense-in-depth layer 2 (audit P0, 2026-05-24): fail-closed if the
   // deployed DATABASE_URL points at a SUPERUSER / BYPASSRLS role. Layer 1
@@ -56,23 +75,37 @@ export async function register(): Promise<void> {
   //
   // webpackIgnore: db-role-check → @orchester/db → postgres → perf_hooks
   // (Node builtin absent from edge runtime). Same reasoning as above.
-  const { assertSafeDbRole } = await import(/* webpackIgnore: true */ "./lib/db-role-check");
-  if (process.env["NODE_ENV"] === "production") {
-    // In prod we WANT a thrown error to propagate — failed boot is the
-    // intended behaviour, signals to the orchestrator to mark the deploy
-    // unhealthy.
-    await assertSafeDbRole();
-  } else {
-    // Dev/test: a flaky check (e.g. pg not yet up during HMR boot) must
-    // not break the developer's start. assertSafeDbRole already
-    // downgrades to a warning in non-prod for the "unsafe role" path,
-    // so this try/catch only swallows transport/IO failures.
-    try {
+  //
+  // Same dev-mode degradation as instrumentation-node above: webpack does not
+  // emit db-role-check.js in dev, so the import fails with MODULE_NOT_FOUND.
+  // We catch and warn rather than crashing the dev server.
+  try {
+    const { assertSafeDbRole } = await import(/* webpackIgnore: true */ "./lib/db-role-check");
+    if (process.env["NODE_ENV"] === "production") {
+      // In prod we WANT a thrown error to propagate — failed boot is the
+      // intended behaviour, signals to the orchestrator to mark the deploy
+      // unhealthy.
       await assertSafeDbRole();
-    } catch (e) {
-      const { safeLogError } = await import("./lib/safe-log");
-      safeLogError("[instrumentation] db-role-check probe failed", e);
+    } else {
+      // Dev/test: a flaky check (e.g. pg not yet up during HMR boot) must
+      // not break the developer's start. assertSafeDbRole already
+      // downgrades to a warning in non-prod for the "unsafe role" path,
+      // so this try/catch only swallows transport/IO failures.
+      try {
+        await assertSafeDbRole();
+      } catch (e) {
+        const { safeLogError } = await import("./lib/safe-log");
+        safeLogError("[instrumentation] db-role-check probe failed", e);
+      }
     }
+  } catch (e: unknown) {
+    if (process.env["NODE_ENV"] === "production") throw e;
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!msg.includes("Cannot find module") && !msg.includes("MODULE_NOT_FOUND")) throw e;
+    console.warn(
+      "[instrumentation] db-role-check skipped in dev (webpack did not emit it). " +
+        "DB role check inactive. This is expected — use `next build` to verify production boot."
+    );
   }
 }
 

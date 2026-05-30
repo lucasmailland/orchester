@@ -33,6 +33,14 @@ export interface MnemoRelation {
   markedByKind: MarkerKind;
   markedByModel: string | null;
   markedByPromptVersion: string | null;
+  /**
+   * v1.1 #11 — edge provenance. NULL ⇒ LLM-derived (the default for
+   * the v1.0 corpus and any new edge written by the extractor / judge).
+   * 'heuristic' ⇒ synthesized programmatically by the system (alias
+   * merge, coreference, deterministic dedup). Free text — see
+   * migration 0043 for the rationale.
+   */
+  provenance: string | null;
   conversationId: string | null;
   supersededByRelationId: string | null;
   validFrom: Date;
@@ -56,13 +64,39 @@ export interface CreateRelationInput {
   markedByKind: MarkerKind;
   markedByModel?: string;
   markedByPromptVersion?: string;
+  /**
+   * v1.1 #11 — optional provenance tag. Omit (or pass `null`) for the
+   * default LLM-derived case; pass `'heuristic'` when the edge is
+   * synthesized by the system (alias merge, coreference, etc.).
+   * Optional so existing callers don't need to be updated.
+   */
+  provenance?: string | null;
   conversationId?: string | null;
+  /**
+   * v1.1 #12 — bitemporal validity interval for the edge itself.
+   * `validFrom` defaults to `now()` at the DB layer when omitted.
+   * If both are supplied, `validTo` MUST be >= `validFrom` —
+   * `createRelation` throws `Error('inverted validity interval')`
+   * otherwise so an impossible interval never reaches disk.
+   */
+  validFrom?: Date;
+  validTo?: Date | null;
   tx: Tx;
 }
 
 export async function createRelation(input: CreateRelationInput): Promise<MnemoRelation> {
   if (!isRelationVerb(input.relation)) {
     throw new Error(`invalid relation verb: ${input.relation}`);
+  }
+  // v1.1 #12 — reject an inverted interval before it reaches the DB.
+  // `valid_to < valid_from` would produce a row that is *never* valid,
+  // which is almost always a caller bug. We guard at the application
+  // layer (fail-fast) rather than relying on a DB CHECK so the error
+  // message is developer-friendly and the callsite is clear.
+  if (input.validTo != null && input.validFrom != null && input.validTo < input.validFrom) {
+    throw new Error(
+      `createRelation: inverted validity interval — validTo (${input.validTo.toISOString()}) is before validFrom (${input.validFrom.toISOString()})`
+    );
   }
   const id = `mrel_${createId()}`;
   const rows = await input.tx
@@ -83,7 +117,12 @@ export async function createRelation(input: CreateRelationInput): Promise<MnemoR
       markedByKind: input.markedByKind,
       markedByModel: input.markedByModel ?? null,
       markedByPromptVersion: input.markedByPromptVersion ?? null,
+      provenance: input.provenance ?? null,
       conversationId: input.conversationId ?? null,
+      // v1.1 #12 — pass caller-supplied interval; DB DEFAULT handles the
+      // omitted case (validFrom → now(), validTo → NULL = "still valid").
+      ...(input.validFrom != null ? { validFrom: input.validFrom } : {}),
+      ...(input.validTo != null ? { validTo: input.validTo } : {}),
     })
     .returning();
   return rows[0] as unknown as MnemoRelation;
