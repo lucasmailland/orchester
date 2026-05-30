@@ -33,6 +33,19 @@ export interface CompactRenderOptions {
   maxTokensApprox?: number;
   /** Output style. Default 'structured'. */
   format?: "structured" | "prose";
+  /**
+   * v1.1 #13 — virtual line numbering. When `true`, each line that
+   * corresponds to a fact with a non-null `drawerLine` is annotated with
+   * a `(#N)` marker after the subject. Callers use this for prompt-time
+   * citations ("as stated in fact #3 about Alice…").
+   *
+   *   Prose:      `[kind] subject (#3): statement`
+   *   Structured: `[kind] (#2,#5) k:v, k:v`  (when all kvs have a line)
+   *
+   * Default `false` — annotation is off to preserve backward-compatible
+   * output for callers that don't need citation markers.
+   */
+  showDrawerLine?: boolean;
 }
 
 interface KvPair {
@@ -199,17 +212,21 @@ export function renderFactsCompact(facts: MnemoFact[], opts: CompactRenderOption
   if (facts.length === 0) return "";
   const format = opts.format ?? "structured";
   const budget = opts.maxTokensApprox ?? 200;
+  const showDrawerLine = opts.showDrawerLine ?? false;
 
-  if (format === "prose") return renderProse(facts, budget);
-  return renderStructured(facts, budget);
+  if (format === "prose") return renderProse(facts, budget, showDrawerLine);
+  return renderStructured(facts, budget, showDrawerLine);
 }
 
-function renderProse(facts: MnemoFact[], budget: number): string {
+function renderProse(facts: MnemoFact[], budget: number, showDrawerLine?: boolean): string {
   const lines: string[] = [];
   let used = 0;
   let dropped = 0;
   for (const f of facts) {
-    const line = `[${f.kind}] ${f.subject}: ${f.statement}`;
+    // v1.1 #13 — append `(#N)` after subject when the fact has a drawer
+    // line and the caller opted into line-number annotations.
+    const lineMarker = showDrawerLine && f.drawerLine != null ? ` (#${f.drawerLine})` : "";
+    const line = `[${f.kind}] ${f.subject}${lineMarker}: ${f.statement}`;
     const cost = estTokens(line) + 1; // +1 for newline
     if (used + cost > budget && lines.length > 0) {
       dropped = facts.length - lines.length;
@@ -222,7 +239,7 @@ function renderProse(facts: MnemoFact[], budget: number): string {
   return lines.join("\n");
 }
 
-function renderStructured(facts: MnemoFact[], budget: number): string {
+function renderStructured(facts: MnemoFact[], budget: number, showDrawerLine?: boolean): string {
   // 1. Group by kind, preserving the input order within each group.
   const groups = new Map<FactKind, MnemoFact[]>();
   for (const f of facts) {
@@ -242,6 +259,9 @@ function renderStructured(facts: MnemoFact[], budget: number): string {
     const kvs: KvPair[] = [];
     const fallbacks: string[] = [];
     const seen = new Set<string>();
+    // v1.1 #13 — collect drawer line numbers for facts that produced kvs
+    // so we can emit a compact "#2,#5" prefix on the group line.
+    const kvLineNums: number[] = [];
 
     for (const f of kindFacts) {
       const pairs = extractForKind(kind, f);
@@ -252,13 +272,29 @@ function renderStructured(facts: MnemoFact[], budget: number): string {
           seen.add(sig);
           kvs.push(p);
         }
+        if (showDrawerLine && f.drawerLine != null) {
+          kvLineNums.push(f.drawerLine);
+        }
       } else {
-        fallbacks.push(`[${kind}] ${f.subject}: ${f.statement}`);
+        // v1.1 #13 — prose fallback for this fact: include (#N) if available.
+        const lineMarker = showDrawerLine && f.drawerLine != null ? ` (#${f.drawerLine})` : "";
+        fallbacks.push(`[${kind}] ${f.subject}${lineMarker}: ${f.statement}`);
       }
     }
 
     if (kvs.length > 0) {
-      const line = `[${kind}] ${kvs.map((p) => `${p.key}:${p.value}`).join(", ")}`;
+      // v1.1 #13 — prepend "(#N,...)" before the k:v pairs when caller
+      // opted into line-number annotations and at least one fact has a
+      // drawer line. Kept to the first 3 to avoid a prefix longer than
+      // the facts themselves.
+      const linePrefix =
+        showDrawerLine && kvLineNums.length > 0
+          ? `(${kvLineNums
+              .slice(0, 3)
+              .map((n) => `#${n}`)
+              .join(",")}) `
+          : "";
+      const line = `[${kind}] ${linePrefix}${kvs.map((p) => `${p.key}:${p.value}`).join(", ")}`;
       const cost = estTokens(line) + 1;
       if (used + cost > budget && lines.length > 0) {
         stopped = true;
@@ -304,9 +340,13 @@ function extractForKind(kind: FactKind, fact: MnemoFact): KvPair[] {
     }
     case "concern":
     case "relationship":
-    case "other": {
       // No specialised extractor — let it fall back to prose.
       return [];
+    case "other": {
+      // "other" facts often carry decision-like language ("decided to use
+      // X", "chose Y") — try the decision extractor before prose fallback.
+      const d = extractDecision(fact);
+      return d ? [d] : [];
     }
     default: {
       // Future-proofing: any new FactKind values fall back to prose.

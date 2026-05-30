@@ -134,6 +134,23 @@ export interface MnemoFact {
    * keep compiling.
    */
   lastStrengthUpdate?: Date | null;
+  /**
+   * v1.1 #13 — virtual line number within the entity's active-fact drawer.
+   * Computed as `ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY
+   * created_at)` over the facts that matched the recall query. Null when:
+   *   (a) the fact has no entity_id (unaffiliated), or
+   *   (b) the retrieve path doesn't project it (legacy callers).
+   *
+   * Stable within a single recall response; may differ across calls if
+   * the query filter includes a different subset of the entity's facts
+   * (e.g. different `asOf` / `memoryTypes` / FTS match). Use for
+   * prompt-time citation ("as stated in fact #3 about Alice") rather
+   * than cross-session persistent bookmarks.
+   *
+   * Optional on the type so legacy row-mappers keep compiling without
+   * a forced update.
+   */
+  drawerLine?: number | null;
 }
 
 // ─── v1.1 #10 — Hebbian / Ebbinghaus constants ───────────────────────────────

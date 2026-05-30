@@ -93,6 +93,18 @@ export {
 // new options are backward-compatible additions to `SearchMnemoInput`.
 export {
   searchMnemo,
+  // v1.1 #6 — co-location boost helpers (exported for host-side
+  // diagnostics and unit tests that want to verify the boost magnitude
+  // without spawning a full search pipeline).
+  applyCoLocationBoost,
+  CO_LOCATION_BOOST,
+  // v1.1 #26+#27 — BFS verb priority + containment verb weights.
+  // Exported so host UIs can display "why this neighbor ranked here."
+  VERB_EXPAND_PRIORITY,
+  // Scoring utility helpers (also used in apps/web/lib/brain/recall.ts).
+  isSingleTermQuery,
+  computeEntityDiversityCap,
+  tieredCap,
   type SearchMnemoInput,
   type RecallHit,
   type RecallReasons,
@@ -339,6 +351,12 @@ export {
   listEntities,
   listFactsForEntity,
   extractEntities,
+  // v1.1 #22 — Unresolved-mention queue.
+  queueUnresolvedMention,
+  resolveUnresolvedMention,
+  dismissUnresolvedMention,
+  listUnresolvedMentions,
+  getUnresolvedMention,
   type EntityKind,
   type MnemoEntity,
   type CreateEntityInput,
@@ -349,6 +367,13 @@ export {
   type EntityCandidate,
   type ExtractEntitiesInput,
   type EntityLlmCallFn,
+  type MnemoUnresolvedMention,
+  type UnresolvedMentionStatus,
+  type QueueUnresolvedMentionInput,
+  type ResolveUnresolvedMentionInput,
+  type DismissUnresolvedMentionInput,
+  type ListUnresolvedMentionsInput,
+  type GetUnresolvedMentionInput,
 } from "./entity";
 
 // A1 — Heuristic extraction pre-filter. Pure code, zero cost. Wired
@@ -362,6 +387,25 @@ export {
   type PrefilterMessage,
   type PrefilterResult,
 } from "./extraction/prefilter";
+
+// v1.1 #29 — LongMemEval benchmark harness (metrics + fixtures).
+// Imported by the benchmark spec and by host-side evaluation scripts.
+export {
+  evaluateQuestion,
+  computeCategoryMetrics,
+  aggregateResults,
+  formatBenchmarkReport,
+  BENCHMARK_QUESTIONS,
+  getFixture,
+  fixturesByCategory,
+  type GroundTruth,
+  type EvalHit,
+  type QuestionResult,
+  type BenchmarkResult,
+  type CategoryMetrics,
+  type BenchmarkQuestion,
+  type BenchmarkFact,
+} from "./benchmark";
 
 // v1.1 #1+2 — Pointer index + drawer-grep.
 // See packages/mnemosyne/src/index/pointer.ts for the architecture.

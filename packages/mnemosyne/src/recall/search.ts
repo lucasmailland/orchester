@@ -56,6 +56,11 @@
 // semantic with a 0.3 weight haircut, which is the desired behaviour
 // for a lexically-bare semantic match.
 //
+// v1.1 #6 — co-location boost (additive, optional):
+//   + 0.04 * co_location   (1 if entity has ≥2 hits in merged pool, else 0)
+// Applied before the single-term dampener so the reranker early-exit
+// sees boosted scores for entity-rich queries.
+//
 // Recency and `relevance` MUST share the same decay model so they live on
 // the same numeric scale when blended. Both use true half-life with H=30d.
 //
@@ -188,10 +193,18 @@ export interface SearchMnemoInput {
    * v1.4 — expand the top-K result set via 1-hop graph traversal over
    * `mnemo_relation`. When enabled, after the rerank+prune stage we
    * fetch facts connected to the top result via any of: `derived_from`,
-   * `supersedes`, `part_of`, `member_of`, `scoped`, `related`. Each
-   * neighbor's score is the parent's score × `expandDecay` (default 0.7).
-   * Neighbors are deduplicated against the top-K and the hard cap is
-   * re-applied. Hard cap on neighbors fetched: 10 per parent.
+   * `supersedes`, `part_of`, `member_of`, `contains`, `contained_by`
+   * (v1.1 #27), `scoped`, `related`. Each neighbor's score is the
+   * parent's score × effectiveDecay (see below). Neighbors are
+   * deduplicated against the top-K and the hard cap is re-applied.
+   * Hard cap on neighbors fetched: 10 per parent.
+   *
+   * v1.1 #26 — BFS verb-priority: effectiveDecay = expandDecay ×
+   * VERB_EXPAND_PRIORITY[verb] so that structurally strong edges
+   * (part_of=1.0, member_of=1.0, contains=0.95) yield neighbors at a
+   * higher inherited score than `related` (0.60). The overall ordering
+   * still respects provenance (#11): heuristic edges are capped at 0.5
+   * before the verb multiplier applies.
    *
    * Excluded verbs: `conflicts_with` (never expand into a contradiction),
    * `not_conflict` (low signal — explicit "not related" marker), and
@@ -257,6 +270,20 @@ export interface SearchMnemoInput {
    * Values < 1 are clamped to 1.
    */
   drawerLimit?: number;
+  /**
+   * v1.1 #6 — co-location boost: when ≥2 facts for the same entity
+   * appear in the merged first-stage pool, each receives a flat
+   * +CO_LOCATION_BOOST additive bonus before the single-term dampener
+   * and reranker. The bonus signals entity centrality — the query
+   * touches multiple facets of the same entity and those facts should
+   * be treated as a coherent group. Facts with entity_id=null are
+   * never boosted (unaffiliated facts).
+   *
+   * Default: `true` (enabled). Pass `false` to disable for
+   * cross-entity explorative queries where boosting one entity would
+   * bias the result set, or for diagnostics.
+   */
+  coLocationBoost?: boolean;
   /**
    * v1.4 — restrict recall to specific memory types. When unset, all
    * four types ('semantic' | 'episodic' | 'procedural' | 'working')
@@ -351,6 +378,11 @@ interface FactRow {
    *  it explicitly; making it optional lets older driver shims compile
    *  without failing (rowToFact defaults to 1.0). */
   memory_strength?: number;
+  /** v1.1 #13 — virtual drawer line number. ROW_NUMBER over the
+   *  entity_id partition in the query result. NULL for unaffiliated
+   *  facts. postgres-js returns bigints as strings, so the mapper casts
+   *  explicitly. Optional so older selects that omit it still compile. */
+  drawer_line?: string | number | null;
 }
 
 /** v1.1 — extends RecallHit with the parsed embedding for pruning. */
@@ -463,6 +495,10 @@ function rowToFact(r: FactRow): MnemoFact {
     // migration hasn't run yet. The SQL DEFAULT is also 1.0, so this is a
     // safe defensive fallback and not a semantic change for existing rows.
     memoryStrength: Number(r.memory_strength ?? 1.0),
+    // v1.1 #13 — virtual drawer line. postgres-js returns bigint columns
+    // as strings; Number() handles both string and number inputs. Null for
+    // unaffiliated facts or when the column is absent from the projection.
+    drawerLine: r.entity_id && r.drawer_line != null ? Number(r.drawer_line) : null,
   };
 }
 
@@ -564,7 +600,15 @@ async function runFirstStage(
           ts_rank_cd(text_lemmatized, plainto_tsquery('simple', ${lexicalQuery})) AS fts_score,
           exp(-LN(2.0) * EXTRACT(EPOCH FROM (now() - created_at)) / (30.0 * 86400.0)) AS recency,
           (ln(1.0 + hit_count) / ln(100.0)) AS frequency,
-          CASE WHEN pinned THEN 1.0 ELSE 0.0 END AS pin_bonus
+          CASE WHEN pinned THEN 1.0 ELSE 0.0 END AS pin_bonus,
+          -- v1.1 #13 — virtual drawer line: position of this fact within
+          -- its entity's active-fact drawer, ordered by insertion time.
+          -- ROW_NUMBER treats NULL entity_id as its own partition; the
+          -- mapper discards the number for NULL-entity rows.
+          CASE WHEN entity_id IS NOT NULL
+               THEN ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY created_at, id)
+               ELSE NULL
+          END AS drawer_line
         FROM mnemo_fact
         WHERE workspace_id = ${input.workspaceId}
           AND status = 'active'
@@ -599,7 +643,12 @@ async function runFirstStage(
           ts_rank_cd(text_lemmatized, plainto_tsquery('simple', ${lexicalQuery})) AS fts_score,
           exp(-LN(2.0) * EXTRACT(EPOCH FROM (now() - created_at)) / (30.0 * 86400.0)) AS recency,
           (ln(1.0 + hit_count) / ln(100.0)) AS frequency,
-          CASE WHEN pinned THEN 1.0 ELSE 0.0 END AS pin_bonus
+          CASE WHEN pinned THEN 1.0 ELSE 0.0 END AS pin_bonus,
+          -- v1.1 #13 — virtual drawer line (same formula as FTS branch above).
+          CASE WHEN entity_id IS NOT NULL
+               THEN ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY created_at, id)
+               ELSE NULL
+          END AS drawer_line
         FROM mnemo_fact
         WHERE workspace_id = ${input.workspaceId}
           AND status = 'active'
@@ -723,7 +772,10 @@ async function runDrawerGrep(
       ts_rank_cd(text_lemmatized, plainto_tsquery('simple', ${lexicalQuery})) AS fts_score,
       exp(-LN(2.0) * EXTRACT(EPOCH FROM (now() - created_at)) / (30.0 * 86400.0)) AS recency,
       (ln(1.0 + hit_count) / ln(100.0)) AS frequency,
-      CASE WHEN pinned THEN 1.0 ELSE 0.0 END AS pin_bonus
+      CASE WHEN pinned THEN 1.0 ELSE 0.0 END AS pin_bonus,
+      -- v1.1 #13 — drawer-grep facts always have entity_id (WHERE gate
+      -- ensures this), so the window partition is always non-null here.
+      ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY created_at, id) AS drawer_line
     FROM mnemo_fact
     WHERE workspace_id = ${input.workspaceId}
       AND status       = 'active'
@@ -870,7 +922,50 @@ const SINGLE_TERM_DAMPENER = 0.6;
  *  loosening to 0.85 fired the exit on borderline hits the reranker improves. */
 const EARLY_EXIT_THRESHOLD = 0.92;
 
+/** v1.1 #6 — additive score bonus applied to every fact belonging to an
+ *  entity that appears ≥2 times in the merged first-stage pool.
+ *  0.04 chosen as half the strength signal ceiling (0.05 × 1.0 at MAX
+ *  strength) — meaningful enough to reorder borderline ties, small enough
+ *  that a co-located entity never leapfrogs a clearly stronger unaffiliated
+ *  fact. */
+export const CO_LOCATION_BOOST = 0.04;
+
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * v1.1 #6 — co-location boost.
+ *
+ * Counts how many hits each entity contributes to `hits`. For every entity
+ * with ≥2 hits, adds CO_LOCATION_BOOST to each of its facts' scores.
+ *
+ * Design rationale:
+ *   • Applied to the merged first-stage pool (pre-dampener, pre-rerank)
+ *     so the boost feeds naturally into the reranker's input ordering.
+ *   • Additive rather than multiplicative so a co-located entity cannot
+ *     cause runaway score inflation on a very large pool — the absolute
+ *     ceiling stays CO_LOCATION_BOOST above the original score.
+ *   • Entity_id=null facts are NEVER boosted — unaffiliated facts have
+ *     no shared identity that would justify the group signal.
+ *   • The same entity can appear in the merged pool from both the full
+ *     first-stage and the drawer-grep; dedup is already handled by
+ *     mergeHitPools, so each fact is counted exactly once.
+ *
+ * Exported so unit tests can call it directly without standing up a DB.
+ */
+export function applyCoLocationBoost(hits: ScoredHit[]): ScoredHit[] {
+  // Count how many hits each entity contributes.
+  const counts = new Map<string, number>();
+  for (const h of hits) {
+    const eid = h.fact.entityId;
+    if (eid) counts.set(eid, (counts.get(eid) ?? 0) + 1);
+  }
+  // Apply the boost only to entities with ≥2 hits in this pool.
+  return hits.map((h) => {
+    const eid = h.fact.entityId;
+    if (!eid || (counts.get(eid) ?? 0) < 2) return h;
+    return { ...h, score: h.score + CO_LOCATION_BOOST };
+  });
+}
 
 /**
  * Run the full v1.1 pipeline inside a transaction: first-stage retrieval
@@ -934,6 +1029,15 @@ async function runSearchPipeline(
     }
   } else {
     firstStage = await runFirstStage(input, tx, firstStageK, prepared);
+  }
+
+  // v1.1 #6 — co-location boost: entities with ≥2 facts in the merged
+  // first-stage pool get +CO_LOCATION_BOOST on each hit's score. Applied
+  // here — BEFORE the single-term dampener — so the reranker early-exit
+  // sees the boosted scores. Skipped when disabled or the pool is trivial
+  // (< 2 hits: no entity can possibly be co-located).
+  if (input.coLocationBoost !== false && firstStage.length >= 2) {
+    firstStage = applyCoLocationBoost(firstStage);
   }
 
   // v1.1 — #4: dampen scores for single-term queries (`"auth"`, `"user"`)
@@ -1114,18 +1218,56 @@ function clamp01ish(n: number): number {
   return n;
 }
 
-/** v1.4 — verbs we DO expand into. Locked subset of the 9-verb
- *  vocabulary; the excluded set (`conflicts_with`, `not_conflict`,
- *  `compatible`) is documented on the `expandGraph` field of
- *  `SearchMnemoInput`. Kept private — the list IS the contract. */
+/** v1.4 — verbs we DO expand into. Locked subset of the vocabulary;
+ *  the excluded set (`conflicts_with`, `not_conflict`, `compatible`) is
+ *  documented on the `expandGraph` field of `SearchMnemoInput`.
+ *
+ *  v1.1 #27 — `contains` and `contained_by` added for hierarchical
+ *  containment edges (e.g. Project→Task, Org→Team). They expand at a
+ *  slightly lower priority than `part_of`/`member_of` because
+ *  containment edges are often coarser-grained. */
 const EXPAND_VERBS = [
   "derived_from",
   "supersedes",
   "part_of",
   "member_of",
+  "contains",
+  "contained_by",
   "scoped",
   "related",
 ] as const;
+
+/**
+ * v1.1 #26 — BFS verb-priority weights. Each verb type gets a multiplier
+ * in [0, 1] applied on top of the provenance-based decay so that
+ * structurally stronger edges (part_of, member_of) survive as closer
+ * neighbors than generic `related` edges.
+ *
+ *   finalDecay = provenanceDecay × verbPriority
+ *
+ * Verbs absent from this map default to 0.70 (conservative). The map is
+ * exported so callers can display priorities in diagnostics UIs without
+ * hardcoding the numbers.
+ *
+ * Priority rationale:
+ *   part_of / member_of     — structural membership: highest trust.
+ *   contains / contained_by — hierarchical containment: high trust but
+ *                             typically coarser-grained than membership.
+ *   supersedes              — temporal replacement: strong signal.
+ *   derived_from            — provenance chain: good signal.
+ *   scoped                  — context scoping: moderate.
+ *   related                 — generic catch-all: weakest (noisy).
+ */
+export const VERB_EXPAND_PRIORITY: Readonly<Record<string, number>> = {
+  part_of: 1.0,
+  member_of: 1.0,
+  contains: 0.95,
+  contained_by: 0.95,
+  supersedes: 0.9,
+  derived_from: 0.85,
+  scoped: 0.8,
+  related: 0.6,
+};
 
 /** Hard cap on neighbors fetched per parent to keep the second-stage
  *  query bounded on hub-like facts (a single fact with hundreds of
@@ -1143,16 +1285,28 @@ interface RelationEdgeRow {
 }
 
 /**
- * v1.1 #11 — per-edge decay. Heuristic-provenance edges are less
- * trustworthy than LLM-attested ones, so their neighbors compete from
- * a weaker score floor (cap at 0.5). LLM edges (provenance NULL) use
- * the caller's base decay unchanged.
+ * v1.1 #11 + #26 — per-edge decay combining provenance trust and verb
+ * priority:
  *
- * The caller-supplied `base` is treated as the LLM-edge decay; heuristic
- * edges use `min(base, 0.5)` so a stricter base (e.g. 0.3) still wins.
+ *   finalDecay = provenanceDecay × verbPriority
+ *
+ * Provenance (#11):
+ *   LLM-derived edges (provenance NULL): decay = base (caller's value).
+ *   Heuristic-provenance edges (provenance 'heuristic'): decay capped at
+ *   0.5 regardless of base — less trustworthy than an LLM-attested edge.
+ *
+ * Verb priority (#26):
+ *   `VERB_EXPAND_PRIORITY[verb]` multiplies the provenance decay so that
+ *   structurally strong verbs (part_of, member_of) yield neighbors at a
+ *   higher score than generic `related` edges. Unknown verbs default to
+ *   0.70 (conservative). The product is NOT additionally clamped — callers
+ *   that set a very large base combined with a high-priority verb can
+ *   intentionally get a near-1.0 decay; `clamp01ish` handles the input base.
  */
-function decayForEdge(base: number, provenance: string | null): number {
-  return provenance === "heuristic" ? Math.min(base, 0.5) : base;
+function decayForEdge(base: number, provenance: string | null, verb: string): number {
+  const provDecay = provenance === "heuristic" ? Math.min(base, 0.5) : base;
+  const verbPriority = VERB_EXPAND_PRIORITY[verb] ?? 0.7;
+  return provDecay * verbPriority;
 }
 
 /**
@@ -1244,7 +1398,14 @@ async function fetchOneHopNeighbors(
       0.0 AS fts_score,
       exp(-LN(2.0) * EXTRACT(EPOCH FROM (now() - created_at)) / (30.0 * 86400.0)) AS recency,
       (ln(1.0 + hit_count) / ln(100.0)) AS frequency,
-      CASE WHEN pinned THEN 1.0 ELSE 0.0 END AS pin_bonus
+      CASE WHEN pinned THEN 1.0 ELSE 0.0 END AS pin_bonus,
+      -- v1.1 #13 — drawer line for graph-expanded neighbors. Window
+      -- partitions are per entity across the hydrated neighbor set;
+      -- same NULL-guard as runFirstStage.
+      CASE WHEN entity_id IS NOT NULL
+           THEN ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY created_at, id)
+           ELSE NULL
+      END AS drawer_line
     FROM mnemo_fact
     WHERE workspace_id = ${workspaceId}
       AND status = 'active'
@@ -1264,14 +1425,15 @@ async function fetchOneHopNeighbors(
   // direct-hit and neighbor sets; we enforce it WITHIN the neighbor
   // set here.
   //
-  // v1.1 #11 — per-edge decay via `decayForEdge(decay, edge.provenance)`:
-  // heuristic-provenance edges cap at 0.5 regardless of the caller's
-  // base. TODO(v1.2): first-wins ignores provenance — a neighbor
-  // reachable from p1 via a heuristic edge AND p2 via an LLM edge
-  // currently keeps the p1 attribution (and the heuristic decay) just
-  // because p1 had the higher parent score. Ideally we'd prefer the
-  // LLM-attested edge for the same neighbor, but that's a larger
-  // change (the dedup needs to weigh edge quality vs parent score).
+  // v1.1 #11 + #26 — per-edge decay via decayForEdge(base, provenance, verb):
+  // heuristic-provenance edges cap at 0.5; structurally weaker verbs
+  // (related) further reduce the effective decay so BFS naturally
+  // reaches part_of/member_of/contains neighbors at higher scores.
+  // TODO(v1.2): first-wins ignores provenance — a neighbor reachable
+  // from p1 via a heuristic edge AND p2 via an LLM edge currently keeps
+  // the p1 attribution because p1 had the higher parent score. Ideally
+  // we'd prefer the LLM-attested edge for the same neighbor, but that
+  // requires weighting edge quality vs parent score in the dedup.
   const out: ScoredHit[] = [];
   const seenNeighbors = new Set<string>();
   for (const parent of parents) {
@@ -1282,7 +1444,7 @@ async function fetchOneHopNeighbors(
       const row = factById.get(edge.dst_id);
       if (!row) continue; // hydration dropped it (RLS / status mismatch).
       seenNeighbors.add(edge.dst_id);
-      const edgeDecay = decayForEdge(decay, edge.provenance);
+      const edgeDecay = decayForEdge(decay, edge.provenance, edge.verb);
       out.push({
         fact: rowToFact(row),
         score: parent.score * edgeDecay,

@@ -561,3 +561,53 @@ export const mnemoCitations = pgTable("mnemo_citation", {
   evidenceExcerpt: text("evidence_excerpt"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });
+
+// ─── v1.1 #22 — Unresolved-mention queue (migration 0047) ────────────────────
+//
+// CRM-style precision layer: mentions the extractor could not confidently
+// resolve to a known `mnemo_entity` row are parked here for human (or
+// background-cron) resolution. See migration 0047 for the full schema
+// rationale and RLS policy.
+
+export const mnemoUnresolvedMention = pgTable(
+  "mnemo_unresolved_mention",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    /** The raw entity mention string seen by the extractor. */
+    rawName: text("raw_name").notNull(),
+    /** Surrounding text for human / cron disambiguation. */
+    context: text("context"),
+    /** Fact the mention was extracted from (soft ref — no FK). */
+    sourceFactId: text("source_fact_id"),
+    /** Extractor certainty [0,1] that rawName is a genuine named entity. */
+    confidence: real("confidence").notNull().default(0.0),
+    /** Best-guess entity from the extractor (soft ref — no FK). */
+    suggestedEntityId: text("suggested_entity_id"),
+    /** Times this rawName has been encountered since last pending. */
+    mentionCount: integer("mention_count").notNull().default(1),
+    /** Lifecycle state: pending → resolved | dismissed. */
+    status: text("status", {
+      enum: ["pending", "resolved", "dismissed"],
+    })
+      .notNull()
+      .default("pending"),
+    /** Set on resolve — the entity this mention was linked to. */
+    resolvedEntityId: text("resolved_entity_id"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    // Pending mentions by workspace (primary query pattern).
+    index("idx_mnemo_unresolved_mention_pending").on(t.workspaceId, t.status, t.createdAt),
+    // Raw-name lookup — dedup enforced at application layer via
+    // INSERT … ON CONFLICT(workspace_id, raw_name) WHERE status='pending'.
+    index("idx_mnemo_unresolved_mention_raw_name").on(t.workspaceId, t.rawName, t.status),
+    // Resolution lookup.
+    index("idx_mnemo_unresolved_mention_resolved_entity").on(t.workspaceId, t.resolvedEntityId),
+  ]
+);

@@ -33,3 +33,19 @@ export {
   type ExtractEntitiesInput,
   type EntityLlmCallFn,
 } from "./extract";
+
+// v1.1 #22 — Unresolved-mention queue.
+export {
+  queueUnresolvedMention,
+  resolveUnresolvedMention,
+  dismissUnresolvedMention,
+  listUnresolvedMentions,
+  getUnresolvedMention,
+  type MnemoUnresolvedMention,
+  type UnresolvedMentionStatus,
+  type QueueUnresolvedMentionInput,
+  type ResolveUnresolvedMentionInput,
+  type DismissUnresolvedMentionInput,
+  type ListUnresolvedMentionsInput,
+  type GetUnresolvedMentionInput,
+} from "./mention-queue";
