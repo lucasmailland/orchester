@@ -35,10 +35,11 @@
 // no-op. Memory scores already live in [0, 1] (searchMnemo's hybrid
 // blend), so no normalization there.
 
-import { searchMnemo, type RecallHit, type SearchMnemoInput } from "./search";
+import { searchMnemo, type SearchMnemoInput } from "./search";
 import { noopRerank, type RerankFn } from "./rerank";
 import type { LlmCallFn } from "./query-prep";
 import type { Tx } from "../tx";
+import type { OnRecallMetricFn } from "./telemetry";
 
 export type UnifiedRecallSource = "memory" | "kb";
 
@@ -140,6 +141,13 @@ export interface RecallUnifiedInput {
   expandGraph?: boolean;
   /** Optional transaction. Forwarded to searchMnemo. */
   tx?: Tx;
+  /**
+   * v1.1 — per-stage telemetry callback. Forwarded verbatim to
+   * `searchMnemo` for the memory leg. KB latency is not measured by
+   * this callback — the KB provider lives in the host and is expected
+   * to instrument itself if needed. See `./telemetry.ts`.
+   */
+  onMetric?: OnRecallMetricFn;
 }
 
 const DEFAULT_MEMORY_WEIGHT = 0.6;
@@ -180,6 +188,7 @@ export async function recallUnified(input: RecallUnifiedInput): Promise<UnifiedR
     // when the host (agent-runtime) enables it.
     ...(input.expandGraph !== undefined ? { expandGraph: input.expandGraph } : {}),
     ...(input.tx !== undefined ? { tx: input.tx } : {}),
+    ...(input.onMetric !== undefined ? { onMetric: input.onMetric } : {}),
   };
 
   // ── Parallel fan-out ──────────────────────────────────────────────

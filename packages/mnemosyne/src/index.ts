@@ -110,6 +110,17 @@ export {
   type RecallReasons,
 } from "./recall/search";
 
+// v1.1 — Per-stage recall telemetry callback contract. Host wires
+// `SearchMnemoInput.onMetric` to its `recordMetric` infrastructure
+// (Sentry distributions, OTel, Prometheus push). Stages are
+// enumerable so dashboards can pre-declare panels — see
+// `RecallStage` for the locked set of strings.
+export {
+  type OnRecallMetricFn,
+  type RecallMetricEvent,
+  type RecallStage,
+} from "./recall/telemetry";
+
 // v1.1 query preparation: paraphrase + HyDE to fix the query-fact
 // embedding mismatch (questions vs. statements live in different
 // vector-space regions). Both transforms are LLM-backed and opt-in.

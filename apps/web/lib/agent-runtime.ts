@@ -23,6 +23,7 @@ import { assertWithinSpend } from "./cost-alerts";
 import { recordAiUsage } from "./ai/run";
 import { calculateChatCostUsd } from "./pricing";
 import { safeLogError } from "./safe-log";
+import { recordMetric } from "./observability";
 import { getAgentMemoryPolicy } from "./policy/agent-memory";
 import { getMnemoSettings } from "./settings/mnemo";
 import { makeKbChunkProvider } from "./recall-unified";
@@ -356,6 +357,16 @@ export async function buildRecallBlock(input: BuildRecallBlockInput): Promise<st
 
   // ── Compose unified-recall input. Every opt-in goes here; the policy
   // helper then narrows scope based on the agent's read_scopes.
+  //
+  // v1.1 — `onMetric` instruments every stage of the mnemosyne recall
+  // pipeline (pointer_lookup, first_stage, drawer_grep, rerank,
+  // prune, diversity, graph_expand, total). Forwarded to the shared
+  // `recordMetric` sink which routes to Sentry distributions when
+  // SENTRY_DSN is set, or structured-logs otherwise. Per-stage
+  // metrics use `mnemo.recall.<stage>.duration_ms` /
+  // `mnemo.recall.<stage>.count` / `mnemo.recall.<stage>.top_score`;
+  // dashboards key on these names. Tagged with `workspace_id` so
+  // multi-tenant grouping in the metric backend works out of the box.
   const baseInput: RecallUnifiedInput = {
     workspaceId: input.workspaceId,
     query: input.userTurn,
@@ -365,6 +376,28 @@ export async function buildRecallBlock(input: BuildRecallBlockInput): Promise<st
     enableContextualize: true,
     enableHyDE: hyde,
     expandGraph: graph,
+    onMetric: (event) => {
+      const tags: Record<string, string | number> = {
+        workspace_id: event.workspaceId,
+        stage: event.stage,
+      };
+      if (event.extra) {
+        for (const [k, v] of Object.entries(event.extra)) {
+          // recordMetric tags are flat string|number; coerce booleans
+          // to "true"/"false" so per-tag cardinality stays bounded.
+          tags[k] = typeof v === "boolean" ? String(v) : v;
+        }
+      }
+      if (event.durationMs !== undefined) {
+        recordMetric(`mnemo.recall.${event.stage}.duration_ms`, event.durationMs, tags);
+      }
+      if (event.count !== undefined) {
+        recordMetric(`mnemo.recall.${event.stage}.count`, event.count, tags);
+      }
+      if (event.topScore !== undefined) {
+        recordMetric(`mnemo.recall.${event.stage}.top_score`, event.topScore, tags);
+      }
+    },
     ...(rerankFn ? { rerank: rerankFn } : {}),
     ...(kbProvider ? { kbProvider } : {}),
     ...(input.actorId ? { actorId: input.actorId } : {}),

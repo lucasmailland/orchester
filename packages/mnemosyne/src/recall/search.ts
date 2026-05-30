@@ -86,6 +86,7 @@ import { MAX_MEMORY_STRENGTH } from "../primitives/fact";
 import type { FactKind, FactScope, FactStatus, MemoryType, MnemoFact } from "../primitives/fact";
 import { extractPointerTerms, lookupPointer } from "../index/pointer";
 import type { Attribution } from "../types";
+import { emitMetric, withTiming, type OnRecallMetricFn } from "./telemetry";
 
 export interface RecallReasons {
   semantic: number;
@@ -284,6 +285,30 @@ export interface SearchMnemoInput {
    * bias the result set, or for diagnostics.
    */
   coLocationBoost?: boolean;
+  /**
+   * v1.1 — Per-stage telemetry callback. Invoked synchronously after
+   * each pipeline stage with a `RecallMetricEvent`. The host wires this
+   * to its `recordMetric` infrastructure (Sentry distributions, OTel,
+   * Prometheus push, etc.). Pass `undefined` to disable telemetry
+   * entirely — zero overhead, no events emitted.
+   *
+   * Contract:
+   *   - The callback MUST NOT throw. Internal `withTiming` wraps every
+   *     invocation in try/catch as a defense, but a slow callback will
+   *     still slow the recall path; keep emitters cheap.
+   *   - Each stage emits exactly one event with `stage` set to a
+   *     stable string (see `RecallStage`); a final `stage: "total"`
+   *     event closes the call with the wall-clock and result count.
+   *
+   * Empirical use cases this unblocks:
+   *   - #5 (multi-term multiplicative) — needs score distribution data
+   *     across query shapes before we can pick a multiplier.
+   *   - #9 (signal-strength cutoff) — needs per-tenant top-score
+   *     calibration data; without it any threshold is arbitrary.
+   *   - Inspector UI v2 — visualizes the per-stage funnel using these
+   *     events as the data source.
+   */
+  onMetric?: OnRecallMetricFn;
   /**
    * v1.4 — restrict recall to specific memory types. When unset, all
    * four types ('semantic' | 'episodic' | 'procedural' | 'working')
@@ -977,6 +1002,12 @@ async function runSearchPipeline(
   prepared: PreparedQuery,
   requestedMax: number
 ): Promise<RecallHit[]> {
+  // v1.1 — telemetry. Captured once; passed through every stage
+  // wrapper. When `onMetric` is undefined, the wrappers no-op (zero
+  // overhead) so existing callers see byte-identical behaviour.
+  const onMetric = input.onMetric;
+  const pipelineT0 = performance.now();
+
   // v1.1 #25 — adapt the caller's requested cap down to the per-
   // tenant tier BEFORE first-stage / rerank / prune run, so the over-
   // fetch budgets below scale with the actual cap. The count read
@@ -1008,27 +1039,84 @@ async function runSearchPipeline(
     const queryTerms = extractPointerTerms(prepared.contextualized);
     if (queryTerms.length > 0) {
       const drawerLimit = Math.min(Math.max(input.drawerLimit ?? 5, 1), 20);
-      const pointerHits = await lookupPointer({
-        workspaceId: input.workspaceId,
-        queryTerms,
-        limit: drawerLimit,
-        tx,
-      });
+      const pointerHits = await withTiming(
+        onMetric,
+        "pointer_lookup",
+        input.workspaceId,
+        () =>
+          lookupPointer({
+            workspaceId: input.workspaceId,
+            queryTerms,
+            limit: drawerLimit,
+            tx,
+          }),
+        (hits) => ({ count: hits.length, extra: { query_terms: queryTerms.length } })
+      );
       if (pointerHits.length > 0) {
         const drawerEntityIds = pointerHits.map((h) => h.entityId);
         const [fullResults, drawerResults] = await Promise.all([
-          runFirstStage(input, tx, firstStageK, prepared),
-          runDrawerGrep(input, tx, firstStageK, prepared, drawerEntityIds),
+          withTiming(
+            onMetric,
+            "first_stage",
+            input.workspaceId,
+            () => runFirstStage(input, tx, firstStageK, prepared),
+            (hits) => ({
+              count: hits.length,
+              topScore: hits[0]?.score,
+              extra: { mode: input.embedFn ? "vector" : "fts", pointer_hit: true },
+            })
+          ),
+          withTiming(
+            onMetric,
+            "drawer_grep",
+            input.workspaceId,
+            () => runDrawerGrep(input, tx, firstStageK, prepared, drawerEntityIds),
+            (hits) => ({
+              count: hits.length,
+              topScore: hits[0]?.score,
+              extra: { drawers: drawerEntityIds.length },
+            })
+          ),
         ]);
         firstStage = mergeHitPools(fullResults, drawerResults);
       } else {
-        firstStage = await runFirstStage(input, tx, firstStageK, prepared);
+        firstStage = await withTiming(
+          onMetric,
+          "first_stage",
+          input.workspaceId,
+          () => runFirstStage(input, tx, firstStageK, prepared),
+          (hits) => ({
+            count: hits.length,
+            topScore: hits[0]?.score,
+            extra: { mode: input.embedFn ? "vector" : "fts", pointer_hit: false },
+          })
+        );
       }
     } else {
-      firstStage = await runFirstStage(input, tx, firstStageK, prepared);
+      firstStage = await withTiming(
+        onMetric,
+        "first_stage",
+        input.workspaceId,
+        () => runFirstStage(input, tx, firstStageK, prepared),
+        (hits) => ({
+          count: hits.length,
+          topScore: hits[0]?.score,
+          extra: { mode: input.embedFn ? "vector" : "fts", pointer_hit: false },
+        })
+      );
     }
   } else {
-    firstStage = await runFirstStage(input, tx, firstStageK, prepared);
+    firstStage = await withTiming(
+      onMetric,
+      "first_stage",
+      input.workspaceId,
+      () => runFirstStage(input, tx, firstStageK, prepared),
+      (hits) => ({
+        count: hits.length,
+        topScore: hits[0]?.score,
+        extra: { mode: input.embedFn ? "vector" : "fts", pointer_disabled: true },
+      })
+    );
   }
 
   // v1.1 #6 — co-location boost: entities with ≥2 facts in the merged
@@ -1069,13 +1157,36 @@ async function runSearchPipeline(
   // loosening to 0.85 fired the early-exit on borderline hits whose
   // ordering the reranker would have improved.
   const topScore = firstStage[0]?.score ?? 0;
-  const rerankFn = topScore >= EARLY_EXIT_THRESHOLD ? noopRerank : (input.rerank ?? noopRerank);
+  const earlyExit = topScore >= EARLY_EXIT_THRESHOLD;
+  const rerankFn = earlyExit ? noopRerank : (input.rerank ?? noopRerank);
   const rerankK = maxResults * 2;
-  const rerankIndices = await rerankFn({
-    query: prepared.contextualized,
-    documents: firstStage.map((h) => h.fact.statement),
-    topK: rerankK,
-  });
+  if (earlyExit) {
+    emitMetric(onMetric, {
+      stage: "rerank_early_exit",
+      workspaceId: input.workspaceId,
+      topScore,
+      extra: { threshold: EARLY_EXIT_THRESHOLD },
+    });
+  }
+  const rerankIndices = await withTiming(
+    onMetric,
+    "rerank",
+    input.workspaceId,
+    () =>
+      rerankFn({
+        query: prepared.contextualized,
+        documents: firstStage.map((h) => h.fact.statement),
+        topK: rerankK,
+      }),
+    (idxs) => ({
+      count: idxs.length,
+      extra: {
+        early_exit: earlyExit,
+        documents: firstStage.length,
+        custom_reranker: !earlyExit && !!input.rerank,
+      },
+    })
+  );
   const reranked: ScoredHit[] = [];
   const seen = new Set<number>();
   for (const i of rerankIndices) {
@@ -1098,6 +1209,13 @@ async function runSearchPipeline(
   // The final hard cap to `maxResults` is applied after diversity.
   const threshold = input.pruneRedundantThreshold ?? 0.88;
   const pruned = prunePostRecall(postRerank, threshold, rerankK);
+  emitMetric(onMetric, {
+    stage: "prune",
+    workspaceId: input.workspaceId,
+    count: pruned.length,
+    topScore: pruned[0]?.score,
+    extra: { dropped: postRerank.length - pruned.length, threshold },
+  });
 
   // v1.1 #8 — per-entity diversity cap. Prevents one entity from
   // flooding the budget when many of its facts scored highly (e.g. a
@@ -1119,6 +1237,12 @@ async function runSearchPipeline(
     const formulaCap = computeEntityDiversityCap(maxResults);
     const cap = typeof edcOption === "number" && edcOption > 0 ? edcOption : formulaCap;
     postDiversity = diversifyByEntity(pruned, cap);
+    emitMetric(onMetric, {
+      stage: "diversity",
+      workspaceId: input.workspaceId,
+      count: postDiversity.length,
+      extra: { cap, dropped: pruned.length - postDiversity.length },
+    });
   }
   // Hard-cap to maxResults after diversity so the graph-expansion stage
   // gets the correct parent set size regardless of entity filtering.
@@ -1133,7 +1257,17 @@ async function runSearchPipeline(
   let expanded: ScoredHit[] = postDiversity;
   if (input.expandGraph && postDiversity.length > 0) {
     const decay = clamp01ish(input.expandDecay ?? 0.7);
-    const neighbors = await fetchOneHopNeighbors(postDiversity, input.workspaceId, tx, decay);
+    const neighbors = await withTiming(
+      onMetric,
+      "graph_expand",
+      input.workspaceId,
+      () => fetchOneHopNeighbors(postDiversity, input.workspaceId, tx, decay),
+      (n) => ({
+        count: n.length,
+        topScore: n[0]?.score,
+        extra: { parents: postDiversity.length, decay },
+      })
+    );
     if (neighbors.length > 0) {
       // Dedup neighbors against the parents AND against each other —
       // the same fact may be reachable from two parents; keep the
@@ -1163,6 +1297,28 @@ async function runSearchPipeline(
       }
     }
   }
+
+  // v1.1 — emit `total` event with overall wall-clock + final count
+  // so dashboards can correlate per-stage events against the bigger
+  // picture. Always emitted last so it closes the per-call record.
+  emitMetric(onMetric, {
+    stage: "total",
+    workspaceId: input.workspaceId,
+    durationMs: performance.now() - pipelineT0,
+    count: expanded.length,
+    topScore: expanded[0]?.score,
+    extra: {
+      max_results: maxResults,
+      fact_count_tier:
+        factCount < 1000
+          ? "<1k"
+          : factCount < 10000
+            ? "<10k"
+            : factCount < 100000
+              ? "<100k"
+              : ">=100k",
+    },
+  });
 
   // Strip the internal `embedding` field — it's never part of the
   // public RecallHit contract (the rowToFact mapper already sets
