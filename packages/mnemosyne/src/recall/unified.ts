@@ -148,6 +148,13 @@ export interface RecallUnifiedInput {
    * to instrument itself if needed. See `./telemetry.ts`.
    */
   onMetric?: OnRecallMetricFn;
+  /**
+   * v1.1 — Inspector UI v2 debug flag. Forwarded verbatim to
+   * `searchMnemo.captureTrace`. NEVER enable on the agent-runtime
+   * hot path — adds ~2-5ms / ~1-2 KB per call and surfaces verbatim
+   * fact substrings.
+   */
+  captureTrace?: boolean;
 }
 
 const DEFAULT_MEMORY_WEIGHT = 0.6;
@@ -189,6 +196,7 @@ export async function recallUnified(input: RecallUnifiedInput): Promise<UnifiedR
     ...(input.expandGraph !== undefined ? { expandGraph: input.expandGraph } : {}),
     ...(input.tx !== undefined ? { tx: input.tx } : {}),
     ...(input.onMetric !== undefined ? { onMetric: input.onMetric } : {}),
+    ...(input.captureTrace !== undefined ? { captureTrace: input.captureTrace } : {}),
   };
 
   // ── Parallel fan-out ──────────────────────────────────────────────

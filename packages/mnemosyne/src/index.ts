@@ -116,8 +116,11 @@ export {
 // enumerable so dashboards can pre-declare panels — see
 // `RecallStage` for the locked set of strings.
 export {
+  previewStatement,
+  RECALL_SAMPLE_PREVIEW_MAX,
   type OnRecallMetricFn,
   type RecallMetricEvent,
+  type RecallSample,
   type RecallStage,
 } from "./recall/telemetry";
 

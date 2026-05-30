@@ -86,7 +86,13 @@ import { MAX_MEMORY_STRENGTH } from "../primitives/fact";
 import type { FactKind, FactScope, FactStatus, MemoryType, MnemoFact } from "../primitives/fact";
 import { extractPointerTerms, lookupPointer } from "../index/pointer";
 import type { Attribution } from "../types";
-import { emitMetric, withTiming, type OnRecallMetricFn } from "./telemetry";
+import {
+  emitMetric,
+  previewStatement,
+  withTiming,
+  type OnRecallMetricFn,
+  type RecallSample,
+} from "./telemetry";
 
 export interface RecallReasons {
   semantic: number;
@@ -309,6 +315,24 @@ export interface SearchMnemoInput {
    *     events as the data source.
    */
   onMetric?: OnRecallMetricFn;
+  /**
+   * v1.1 — Inspector UI v2 debug toggle. When `true`, the pipeline
+   * populates `RecallMetricEvent.samples` with up to 5 representative
+   * facts per stage (id, score, statement preview, optional drop
+   * reason). Used by the `/api/mnemo/recall-debug` endpoint to render
+   * the per-stage funnel.
+   *
+   * NEVER enable on the agent-runtime hot path:
+   *   - Sampling adds ~2-5ms per stage (statement materialization).
+   *   - Payload grows by ~1-2 KB per call.
+   *   - Sample previews include verbatim fact substrings — fine for
+   *     the workspace owner viewing the debug UI, NOT something to
+   *     forward to a metrics backend.
+   *
+   * Default: `false`. The Inspector UI explicitly sets it; everything
+   * else gets the unchanged production telemetry stream.
+   */
+  captureTrace?: boolean;
   /**
    * v1.4 — restrict recall to specific memory types. When unset, all
    * four types ('semantic' | 'episodic' | 'procedural' | 'working')
@@ -996,6 +1020,54 @@ export function applyCoLocationBoost(hits: ScoredHit[]): ScoredHit[] {
  * Run the full v1.1 pipeline inside a transaction: first-stage retrieval
  * → cross-encoder rerank → post-recall pruning → hard cap.
  */
+/**
+ * v1.1 — Inspector UI v2 debug helper. Materializes up to `limit`
+ * RecallSample entries from a stage's ScoredHit[]. Pure, no side
+ * effects, safe to call from within a metric emission block (the
+ * outer `emitMetric` wraps everything in try/catch).
+ *
+ * Only ever called when `input.captureTrace === true`.
+ */
+function sampleHits(hits: ScoredHit[], limit = 5, note?: string): RecallSample[] {
+  const out: RecallSample[] = [];
+  for (let i = 0; i < hits.length && i < limit; i++) {
+    const h = hits[i]!;
+    out.push({
+      factId: h.fact.id,
+      score: h.score,
+      preview: previewStatement(h.fact.statement),
+      ...(note ? { note } : {}),
+    });
+  }
+  return out;
+}
+
+/**
+ * v1.1 — Inspector UI v2 debug helper. Returns the set difference of
+ * `before` minus `after` (by fact id) as samples annotated with the
+ * supplied drop reason. Used for `prune` and `diversity` stages.
+ */
+function sampleDropped(
+  before: ScoredHit[],
+  after: ScoredHit[],
+  reason: string,
+  limit = 5
+): RecallSample[] {
+  const keptIds = new Set(after.map((h) => h.fact.id));
+  const dropped: RecallSample[] = [];
+  for (const h of before) {
+    if (dropped.length >= limit) break;
+    if (keptIds.has(h.fact.id)) continue;
+    dropped.push({
+      factId: h.fact.id,
+      score: h.score,
+      preview: previewStatement(h.fact.statement),
+      note: reason,
+    });
+  }
+  return dropped;
+}
+
 async function runSearchPipeline(
   input: SearchMnemoInput,
   tx: Tx,
@@ -1006,6 +1078,7 @@ async function runSearchPipeline(
   // wrapper. When `onMetric` is undefined, the wrappers no-op (zero
   // overhead) so existing callers see byte-identical behaviour.
   const onMetric = input.onMetric;
+  const trace = input.captureTrace === true;
   const pipelineT0 = performance.now();
 
   // v1.1 #25 — adapt the caller's requested cap down to the per-
@@ -1064,6 +1137,7 @@ async function runSearchPipeline(
               count: hits.length,
               topScore: hits[0]?.score,
               extra: { mode: input.embedFn ? "vector" : "fts", pointer_hit: true },
+              ...(trace ? { samples: sampleHits(hits) } : {}),
             })
           ),
           withTiming(
@@ -1075,6 +1149,7 @@ async function runSearchPipeline(
               count: hits.length,
               topScore: hits[0]?.score,
               extra: { drawers: drawerEntityIds.length },
+              ...(trace ? { samples: sampleHits(hits) } : {}),
             })
           ),
         ]);
@@ -1089,6 +1164,7 @@ async function runSearchPipeline(
             count: hits.length,
             topScore: hits[0]?.score,
             extra: { mode: input.embedFn ? "vector" : "fts", pointer_hit: false },
+            ...(trace ? { samples: sampleHits(hits) } : {}),
           })
         );
       }
@@ -1102,6 +1178,7 @@ async function runSearchPipeline(
           count: hits.length,
           topScore: hits[0]?.score,
           extra: { mode: input.embedFn ? "vector" : "fts", pointer_hit: false },
+          ...(trace ? { samples: sampleHits(hits) } : {}),
         })
       );
     }
@@ -1115,6 +1192,7 @@ async function runSearchPipeline(
         count: hits.length,
         topScore: hits[0]?.score,
         extra: { mode: input.embedFn ? "vector" : "fts", pointer_disabled: true },
+        ...(trace ? { samples: sampleHits(hits) } : {}),
       })
     );
   }
@@ -1215,6 +1293,9 @@ async function runSearchPipeline(
     count: pruned.length,
     topScore: pruned[0]?.score,
     extra: { dropped: postRerank.length - pruned.length, threshold },
+    ...(trace
+      ? { samples: sampleDropped(postRerank, pruned, `cosine > ${threshold} near-dup`) }
+      : {}),
   });
 
   // v1.1 #8 — per-entity diversity cap. Prevents one entity from
@@ -1242,6 +1323,9 @@ async function runSearchPipeline(
       workspaceId: input.workspaceId,
       count: postDiversity.length,
       extra: { cap, dropped: pruned.length - postDiversity.length },
+      ...(trace
+        ? { samples: sampleDropped(pruned, postDiversity, `entity cap=${cap} exhausted`) }
+        : {}),
     });
   }
   // Hard-cap to maxResults after diversity so the graph-expansion stage
@@ -1318,6 +1402,7 @@ async function runSearchPipeline(
               ? "<100k"
               : ">=100k",
     },
+    ...(trace ? { samples: sampleHits(expanded, expanded.length) } : {}),
   });
 
   // Strip the internal `embedding` field — it's never part of the

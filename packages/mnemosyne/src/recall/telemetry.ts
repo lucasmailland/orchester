@@ -72,6 +72,50 @@ export interface RecallMetricEvent {
    * Prometheus label conventions).
    */
   extra?: Record<string, string | number | boolean> | undefined;
+  /**
+   * v1.1 — opt-in per-stage samples. Populated ONLY when the caller
+   * sets `SearchMnemoInput.captureTrace = true`. Each sample carries
+   * enough data for an Inspector UI to render a funnel card without a
+   * follow-up fetch (fact id, score, statement preview, optional
+   * stage-specific tag).
+   *
+   * The host metrics sink (Sentry / OTel / Prometheus) MUST ignore
+   * this field — it's debug data, not a measurement. The Inspector
+   * UI's `/api/mnemo/recall-debug` endpoint reads it directly off the
+   * captured event stream.
+   */
+  samples?: RecallSample[] | undefined;
+}
+
+/**
+ * Per-fact debug sample captured for the Inspector UI funnel.
+ *
+ * Statement previews are truncated to 200 chars so the trace payload
+ * stays bounded (the cap below is enforced at population time). Full
+ * statements live in `mnemo_fact`; the Inspector UI follows the
+ * `factId` to fetch them when expanding a sample.
+ */
+export interface RecallSample {
+  /** mnemo_fact.id of the sampled hit. */
+  factId: string;
+  /** Score at the stage that emitted this sample. */
+  score: number;
+  /** First 200 chars of the fact statement. */
+  preview: string;
+  /** Optional reason / tag (e.g. "dropped: cosine 0.92 > 0.88"). */
+  note?: string;
+}
+
+/** Max chars per sample preview — keeps the trace payload bounded. */
+export const RECALL_SAMPLE_PREVIEW_MAX = 200;
+
+/**
+ * Truncate a fact statement for sampling. Pure helper so the trace
+ * payload size is deterministic. Adds a single ellipsis when cut.
+ */
+export function previewStatement(statement: string): string {
+  if (statement.length <= RECALL_SAMPLE_PREVIEW_MAX) return statement;
+  return statement.slice(0, RECALL_SAMPLE_PREVIEW_MAX - 1) + "…";
 }
 
 /** Callback shape — passed via `SearchMnemoInput.onMetric`. */

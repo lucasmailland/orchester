@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Download, BookOpen, BrainCircuit, AlertCircle, History } from "lucide-react";
+import { Download, BookOpen, BrainCircuit, AlertCircle, History, Zap } from "lucide-react";
 import { Button, Skeleton, Chip } from "@heroui/react";
 import { notify } from "@/lib/toast";
 import {
@@ -191,6 +191,19 @@ export function BrainInspectorClient() {
           {/* v1.6 G1-3: bitemporal time-travel — Inspector renders the
               memory snapshot at the chosen instant. */}
           <TimeTravelPicker value={asOf} onChange={onAsOfChange} />
+          {/* Inspector UI v2 — recall pipeline visualizer entry point.
+              Lands at /brain/recall-debug which captures and renders
+              per-stage events from /api/mnemo/recall-debug. */}
+          <Button
+            as={Link}
+            href={`/${locale}/${ws}/brain/recall-debug`}
+            variant="flat"
+            size="sm"
+            startContent={<Zap className="h-3.5 w-3.5" />}
+            className="bg-elevated text-body"
+          >
+            Debug recall
+          </Button>
           <Button
             as={Link}
             href={`/${locale}/${ws}/brain/review`}
