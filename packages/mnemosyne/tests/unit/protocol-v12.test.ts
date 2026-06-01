@@ -20,8 +20,12 @@ import {
 } from "../../src/protocol/v1";
 
 describe("protocol/v1 — v1.2 bump", () => {
-  it("MEMORY_PROTOCOL_VERSION is v1.2.0", () => {
-    expect(MEMORY_PROTOCOL_VERSION).toBe("v1.2.0");
+  it("MEMORY_PROTOCOL_VERSION is v1.3.0 (v2 — guidance-only bump)", () => {
+    // v1.3 keeps the protocol TEXT identical to v1.2 but bumps the
+    // tag to reflect the MEMORY_RECALL_GUIDANCE expansion (drawer-
+    // first + trust-ladder hints). Stored facts stamped 'v1.3'
+    // replay against the guidance that was active at extraction time.
+    expect(MEMORY_PROTOCOL_VERSION).toBe("v1.3.0");
   });
 
   it("V2 contains the entity awareness paragraph", () => {

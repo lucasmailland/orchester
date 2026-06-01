@@ -23,7 +23,17 @@
 // hold the v1.0.0 text for downstream replay/audit jobs that need to
 // reason about the pre-v1.1 vocabulary.
 
-export const MEMORY_PROTOCOL_VERSION = "v1.2.0" as const;
+/**
+ * Current protocol version tag stamped onto every newly-extracted
+ * fact. The PROTOCOL TEXT (`MEMORY_PROTOCOL_V2`) is unchanged from
+ * v1.2 — entity awareness + per-user privacy paragraphs are still
+ * the version-locked contract. v1.3 bumps for the `MEMORY_RECALL_GUIDANCE`
+ * expansion (drawer-first awareness + trust-ladder hint) which lives
+ * outside the version-locked protocol but is reflected in the tag so
+ * stored facts can be replayed against the exact guidance the agent
+ * saw at extraction time.
+ */
+export const MEMORY_PROTOCOL_VERSION = "v1.3.0" as const;
 
 /**
  * Mnemosyne v1.6 — Memory Protocol v1.2. Adds two short paragraphs

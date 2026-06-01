@@ -112,6 +112,13 @@ export {
   applySignalCutoff,
   countQueryTermOverlap,
   DEFAULT_MULTI_TERM_BOOST,
+  // v2 §4.3 — episode-coherence boost (mirror of #6 keyed on
+  // episode_id). Opt-in; safe to enable once backfill is at 100%.
+  applyEpisodeCoherenceBoost,
+  EPISODE_COHERENCE_BOOST,
+  // v2 (#16, #17) — opt-in dedup + quality interlock helpers.
+  applySourceScopedDedup,
+  applyQualityThreshold,
   type SearchMnemoInput,
   type RecallHit,
   type RecallReasons,
@@ -315,11 +322,19 @@ export {
   getEpisode,
   listEpisodes,
   linkFactToEpisode,
+  // v2 — synthetic episode id derivation. Used by the episode
+  // backfill cron + (eventually) the extraction hot path so every
+  // fact gets stamped with a deterministic episode_id.
+  syntheticEpisodeIdForMessageTurn,
+  syntheticEpisodeIdForDocument,
+  syntheticEpisodeIdForDay,
+  deriveSyntheticEpisodeId,
   type MemoryType,
   type MnemoEpisode,
   type CreateEpisodeInput,
   type ListEpisodesInput,
   type LinkFactToEpisodeInput,
+  type DeriveSyntheticEpisodeIdInput,
 } from "./episode";
 
 // Mnemosyne v1.4 — per-agent memory policy. The `AgentMemoryPolicy`

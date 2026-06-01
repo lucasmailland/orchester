@@ -9,8 +9,11 @@ describe("protocol/v1", () => {
   // v1.6: MEMORY_PROTOCOL_V1 is now an alias for MEMORY_PROTOCOL_V2
   // (the v1.2 string). MEMORY_PROTOCOL_VERSION is bumped to v1.2.0;
   // the v1.1 verbatim text lives under MEMORY_PROTOCOL_V1_1.
-  it("is bumped to v1.2.0 (Mnemosyne v1.6 — entity + per-user)", () => {
-    expect(MEMORY_PROTOCOL_VERSION).toBe("v1.2.0");
+  // v2: bumped to v1.3.0 to reflect the MEMORY_RECALL_GUIDANCE
+  // expansion (drawer-first + trust-ladder hints) — protocol text
+  // itself is unchanged from v1.2.
+  it("is bumped to v1.3.0 (v2 — drawer-first + trust-ladder guidance)", () => {
+    expect(MEMORY_PROTOCOL_VERSION).toBe("v1.3.0");
   });
 
   it("stays compact (~120 tokens / under ~1700 chars)", () => {

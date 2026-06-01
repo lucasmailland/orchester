@@ -379,6 +379,43 @@ export interface SearchMnemoInput {
    */
   signalCutoff?: number;
   /**
+   * v2 (§4.3) — episode-coherence boost. When ≥2 facts in the merged
+   * first-stage pool share the same `episode_id`, each receives
+   * `+EPISODE_COHERENCE_BOOST` additive. Same shape as #6
+   * co-location boost but keyed on episode instead of entity.
+   *
+   * Default `false` until migration 0049 (NOT-NULL flip on
+   * `episode_id`) lands — without coverage guarantees, the boost
+   * runs on a sparsely-populated column and the signal is noisy.
+   * Hosts that have already backfilled can flip this on per-call.
+   */
+  episodeCoherenceBoost?: boolean;
+  /**
+   * v2 (idea #16 from the audit) — source-scoped dedup. When set,
+   * the post-prune stage additionally drops a candidate when ANOTHER
+   * already-kept candidate has the same `metadata.source_ref` AND
+   * their cosine similarity exceeds this threshold. Niche — useful
+   * only for tenants with a very large KB where one source document
+   * frequently produces near-identical chunks.
+   *
+   * Default `undefined` (disabled). Sensible value if hand-tuning:
+   * 0.15 (very loose) for "drop only the obvious twins" or 0.5 for
+   * a more aggressive within-source collapse.
+   */
+  sourceScopedDedupThreshold?: number;
+  /**
+   * v2 (idea #17 from the audit) — quality threshold interlock.
+   * When set, drops candidates whose `fact.confidence` is below
+   * `qualityThreshold`. Distinct from `#9 signalCutoff` (which
+   * filters on score) — this filter operates on the STORED
+   * confidence at insert time, so it survives across queries.
+   *
+   * Default `undefined` (disabled). Sensible values: 0.5 (drop
+   * low-confidence extractions) to 0.7 (keep only confidently-
+   * stated facts). Applied after `signalCutoff`, before diversity.
+   */
+  qualityThreshold?: number;
+  /**
    * v1.4 — restrict recall to specific memory types. When unset, all
    * four types ('semantic' | 'episodic' | 'procedural' | 'working')
    * are searched (backward compatible with v1.3 callers). The most
@@ -1111,6 +1148,13 @@ const EARLY_EXIT_THRESHOLD = 0.92;
  *  fact. */
 export const CO_LOCATION_BOOST = 0.04;
 
+/** v2 (§4.3) — additive bonus per fact when ≥2 facts in the merged pool
+ *  share the same episode_id. Mirrors CO_LOCATION_BOOST in magnitude
+ *  (0.03 ≈ 75 % of the entity version) because episode coherence is a
+ *  slightly weaker signal than entity coherence — many episodes have
+ *  diverse facts, while a single entity's facts are tightly clustered. */
+export const EPISODE_COHERENCE_BOOST = 0.03;
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -1146,6 +1190,86 @@ export function applyCoLocationBoost(hits: ScoredHit[]): ScoredHit[] {
     if (!eid || (counts.get(eid) ?? 0) < 2) return h;
     return { ...h, score: h.score + CO_LOCATION_BOOST };
   });
+}
+
+/**
+ * v2 (§4.3) — episode-coherence boost. Mirror of `applyCoLocationBoost`
+ * but keyed on `fact.episodeId` (added by migration 0048). When ≥2 facts
+ * in `hits` share the same episode_id, each receives
+ * `+EPISODE_COHERENCE_BOOST` additive. Facts with `episodeId = null /
+ * undefined` (legacy rows pre-backfill) are never boosted.
+ *
+ * Default-off on the input flag (see `SearchMnemoInput.episodeCoherenceBoost`)
+ * because, until backfill coverage hits 100 %, the signal is noisy.
+ *
+ * Exported for unit tests + Inspector UI explainability.
+ */
+export function applyEpisodeCoherenceBoost(hits: ScoredHit[]): ScoredHit[] {
+  const counts = new Map<string, number>();
+  for (const h of hits) {
+    const epId = (h.fact as { episodeId?: string | null }).episodeId;
+    if (epId) counts.set(epId, (counts.get(epId) ?? 0) + 1);
+  }
+  return hits.map((h) => {
+    const epId = (h.fact as { episodeId?: string | null }).episodeId;
+    if (!epId || (counts.get(epId) ?? 0) < 2) return h;
+    return { ...h, score: h.score + EPISODE_COHERENCE_BOOST };
+  });
+}
+
+/**
+ * v2 (idea #16) — source-scoped near-dup dedup. Walks `hits` in
+ * input order; for each candidate with a `metadata.source_ref`,
+ * drops it when an already-kept hit has the SAME source_ref AND
+ * their embeddings cosine-exceed `threshold`. Hits without a
+ * source_ref are passed through untouched (treated as unaffiliated).
+ *
+ * Pure / exported for unit tests. Threshold is caller-supplied and
+ * NOT bounded — the caller picked it, and the function trusts it.
+ */
+export function applySourceScopedDedup(hits: ScoredHit[], threshold: number): ScoredHit[] {
+  if (!threshold || threshold <= 0 || hits.length === 0) return hits;
+  // Group already-kept hits by their source_ref so the inner loop
+  // only compares against same-source siblings (O(n × group-size)
+  // rather than O(n²) across the whole pool).
+  const kept: ScoredHit[] = [];
+  const bySource = new Map<string, ScoredHit[]>();
+  for (const candidate of hits) {
+    const sref = (candidate.fact.metadata as { source_ref?: string } | undefined)?.source_ref;
+    if (!sref || !candidate.embedding) {
+      kept.push(candidate);
+      continue;
+    }
+    const siblings = bySource.get(sref) ?? [];
+    let dropped = false;
+    for (const sib of siblings) {
+      if (!sib.embedding) continue;
+      const sim = cosineSim(candidate.embedding, sib.embedding);
+      if (sim > threshold) {
+        dropped = true;
+        break;
+      }
+    }
+    if (!dropped) {
+      kept.push(candidate);
+      siblings.push(candidate);
+      bySource.set(sref, siblings);
+    }
+  }
+  return kept;
+}
+
+/**
+ * v2 (idea #17) — quality threshold interlock. Drops candidates
+ * whose `fact.confidence` is below the threshold. Operates on the
+ * STORED confidence (set at extraction time), not on the recall
+ * score — so it's stable across queries against the same fact set.
+ *
+ * Pure / exported. Threshold is caller-supplied.
+ */
+export function applyQualityThreshold(hits: ScoredHit[], threshold: number): ScoredHit[] {
+  if (!threshold || threshold <= 0 || hits.length === 0) return hits;
+  return hits.filter((h) => Number(h.fact.confidence ?? 0) >= threshold);
 }
 
 /**
@@ -1355,6 +1479,13 @@ async function runSearchPipeline(
     firstStage = applyCoLocationBoost(firstStage);
   }
 
+  // v2 (§4.3) — episode-coherence boost. Opt-in via input flag;
+  // mirrors co-location's shape but keyed on episode_id. Skipped
+  // when the pool is too small to have any co-occurrence.
+  if (input.episodeCoherenceBoost === true && firstStage.length >= 2) {
+    firstStage = applyEpisodeCoherenceBoost(firstStage);
+  }
+
   // v1.1 — #4: dampen scores for single-term queries (`"auth"`, `"user"`)
   // by 0.6x. Generic single words match almost every fact in a workspace,
   // so the FTS/cosine signal is noisy — downgrading confidence here lets
@@ -1504,22 +1635,80 @@ async function runSearchPipeline(
   // Applied AFTER cosine-prune so near-duplicates don't consume entity
   // slots unnecessarily. The final hard cap to `maxResults` runs
   // immediately after so the expanded pool is still bounded correctly.
-  // v2 (#9) — diversity operates on `postCutoff` so the signal-cutoff
-  // drops fully propagate through the rest of the pipeline. When the
-  // cutoff is disabled, `postCutoff === pruned` (same reference).
-  let postDiversity: ScoredHit[] = postCutoff;
+  // v2 (#16) — opt-in source-scoped dedup. Drops within-source
+  // near-duplicates (same `metadata.source_ref`, cosine ≥ threshold).
+  // No-op when threshold is unset. Applied after the cosine prune so
+  // cross-source duplicates have already been collapsed; this pass
+  // catches the source-internal twins that survive the cross-source
+  // round.
+  const preSourceDedup = postCutoff;
+  const postSourceDedup = applySourceScopedDedup(postCutoff, input.sourceScopedDedupThreshold ?? 0);
+  if (input.sourceScopedDedupThreshold && preSourceDedup.length !== postSourceDedup.length) {
+    emitMetric(onMetric, {
+      stage: "prune",
+      workspaceId: input.workspaceId,
+      count: postSourceDedup.length,
+      extra: {
+        dropped: preSourceDedup.length - postSourceDedup.length,
+        kind: "source_scoped_dedup",
+        threshold: input.sourceScopedDedupThreshold,
+      },
+      ...(trace
+        ? {
+            samples: sampleDropped(
+              preSourceDedup,
+              postSourceDedup,
+              `same source_ref, cosine > ${input.sourceScopedDedupThreshold}`
+            ),
+          }
+        : {}),
+    });
+  }
+
+  // v2 (#17) — opt-in quality interlock. Drops candidates whose
+  // STORED confidence (at insert time) is below threshold. Distinct
+  // from `signalCutoff` (which operates on the runtime SCORE) — this
+  // is stable across queries against the same fact set.
+  const preQuality = postSourceDedup;
+  const postQuality = applyQualityThreshold(postSourceDedup, input.qualityThreshold ?? 0);
+  if (input.qualityThreshold && preQuality.length !== postQuality.length) {
+    emitMetric(onMetric, {
+      stage: "prune",
+      workspaceId: input.workspaceId,
+      count: postQuality.length,
+      extra: {
+        dropped: preQuality.length - postQuality.length,
+        kind: "quality_threshold",
+        threshold: input.qualityThreshold,
+      },
+      ...(trace
+        ? {
+            samples: sampleDropped(
+              preQuality,
+              postQuality,
+              `confidence < ${input.qualityThreshold}`
+            ),
+          }
+        : {}),
+    });
+  }
+
+  // v2 (#9) + (#16) + (#17) — diversity operates on the fully-filtered
+  // pool so all opt-in drops propagate through downstream stages.
+  // When all three are disabled, `postQuality === pruned` (same ref).
+  let postDiversity: ScoredHit[] = postQuality;
   const edcOption = input.entityDiversityCap;
   if (edcOption !== false) {
     const formulaCap = computeEntityDiversityCap(maxResults);
     const cap = typeof edcOption === "number" && edcOption > 0 ? edcOption : formulaCap;
-    postDiversity = diversifyByEntity(postCutoff, cap);
+    postDiversity = diversifyByEntity(postQuality, cap);
     emitMetric(onMetric, {
       stage: "diversity",
       workspaceId: input.workspaceId,
       count: postDiversity.length,
-      extra: { cap, dropped: postCutoff.length - postDiversity.length },
+      extra: { cap, dropped: postQuality.length - postDiversity.length },
       ...(trace
-        ? { samples: sampleDropped(postCutoff, postDiversity, `entity cap=${cap} exhausted`) }
+        ? { samples: sampleDropped(postQuality, postDiversity, `entity cap=${cap} exhausted`) }
         : {}),
     });
   }
