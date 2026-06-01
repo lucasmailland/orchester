@@ -18,3 +18,15 @@ export {
 } from "./store";
 
 export { listEpisodes, type ListEpisodesInput } from "./query";
+
+// v2 — synthetic episode id derivation (pure helpers). Used by the
+// extraction pipeline to stamp every fact with a stable episode
+// reference ahead of migration 0048 (which will promote the
+// metadata hint to a real FK column on `mnemo_fact`).
+export {
+  syntheticEpisodeIdForMessageTurn,
+  syntheticEpisodeIdForDocument,
+  syntheticEpisodeIdForDay,
+  deriveSyntheticEpisodeId,
+  type DeriveSyntheticEpisodeIdInput,
+} from "./synthetic";

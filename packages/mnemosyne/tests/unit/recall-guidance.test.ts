@@ -24,8 +24,13 @@ describe("MEMORY_RECALL_GUIDANCE — #28 anti-pattern guidance", () => {
     expect(MEMORY_RECALL_GUIDANCE).not.toContain("mnemo_get_fact");
   });
 
-  it("stays under ~80 tokens (lenient whitespace-split sanity check)", () => {
+  it("stays under ~150 tokens (lenient whitespace-split sanity check)", () => {
+    // v2 — bumped from 80 → 150 after adding drawer-first + trust
+    // ladder guidance bullets (entity-named queries route through
+    // drawers; expandedFromId neighbours weighted by edge trust).
+    // The two new bullets push us ~120-140 words; 150 leaves
+    // headroom for one more iteration without immediate re-bump.
     const wordCount = MEMORY_RECALL_GUIDANCE.split(/\s+/).filter(Boolean).length;
-    expect(wordCount).toBeLessThan(80);
+    expect(wordCount).toBeLessThan(150);
   });
 });

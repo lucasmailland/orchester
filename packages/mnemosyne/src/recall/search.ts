@@ -82,6 +82,7 @@ import { recallCache, recallCacheKey, getL3Cache, setL3Cache, getCachedFactCount
 import { prepareQuery, type LlmCallFn, type PreparedQuery } from "./query-prep";
 import { makeLocalLexicalRerank, noopRerank, type RerankFn } from "./rerank";
 import { trustDecay } from "./trust-ladder";
+import { drawerGrepCapForFactCount, firstStageCapForFactCount } from "./stage-caps";
 
 // v2 — local lexical reranker is the new default. Built once per
 // process (the closure captures no state; pure). Used when the caller
@@ -1096,10 +1097,27 @@ async function runSearchPipeline(
   const factCount = await getCachedFactCount(input.workspaceId, tx);
   const maxResults = tieredCap(requestedMax, factCount);
 
-  // Over-fetch so the rerank+prune stages have headroom (5x the final
-  // cap, floor 15 — empirically the elbow where deeper search stops
-  // adding precision for our `mnemo_fact` cardinality).
-  const firstStageK = Math.max(15, maxResults * 5);
+  // v2 — per-stage over-fetch budgets tiered on workspace fact count
+  // (see `./stage-caps.ts`). The tier numbers come from spec §7.2;
+  // they replace the v1.1 single `max(15, maxResults * 5)` with two
+  // distinct caps so drawer-grep (high-precision, cheap) can stay
+  // tight while first-stage (recall floor, expensive) gets the
+  // headroom it needs.
+  //
+  // The `rerank * 2` floor preserves the downstream rerank pool — if
+  // a caller asks for `maxResults: 20` on a small workspace, the
+  // tier cap of 10 would starve the rerank stage. The max() keeps
+  // both invariants happy: at least 2× the final cap (for rerank
+  // budget) and at least the tier baseline (for recall depth).
+  //
+  // Back-compat: for the default `maxResults: 3` on a <1k workspace,
+  // the new caps are first_stage=10 (was 15), drawer_grep=6 (was 15).
+  // Both are well above the rerank floor (3 × 2 = 6); the tighter
+  // first_stage cap reduces IO without affecting precision because
+  // the v1.1 `*5` was already over-budget for small workspaces.
+  const rerankHeadroom = maxResults * 2;
+  const firstStageK = Math.max(rerankHeadroom, firstStageCapForFactCount(factCount));
+  const drawerGrepK = Math.max(rerankHeadroom, drawerGrepCapForFactCount(factCount));
 
   // v1.1 #1+2 — pointer index + drawer-grep tier.
   // Tokenize the query, look up the pointer index to find the most
@@ -1150,7 +1168,7 @@ async function runSearchPipeline(
             onMetric,
             "drawer_grep",
             input.workspaceId,
-            () => runDrawerGrep(input, tx, firstStageK, prepared, drawerEntityIds),
+            () => runDrawerGrep(input, tx, drawerGrepK, prepared, drawerEntityIds),
             (hits) => ({
               count: hits.length,
               topScore: hits[0]?.score,

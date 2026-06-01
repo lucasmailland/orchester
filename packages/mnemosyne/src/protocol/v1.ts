@@ -108,12 +108,19 @@ Before saying "done", call mnemosyne_save_episode_summary with:
  * runtime. Lives outside the version-locked protocol so we can iterate
  * on it without invalidating stored extraction metadata.
  *
- * Target: ~60 tokens. Augments — never replaces — the protocol tool list.
+ * v2 — extended with two new bullets so agents understand the
+ * post-v1.1 pipeline shape (drawer-first routing + trust ladder
+ * inheritance). These augment, never replace, the protocol tool list
+ * — they're hints, not contractual behavior.
+ *
+ * Target: ~100 tokens. Augments — never replaces — the protocol tool list.
  */
 export const MEMORY_RECALL_GUIDANCE = `Memory tool usage:
 - Prefer one mnemosyne_recall with a broad natural-language query over multiple narrow recalls. The pipeline does hybrid retrieval + rerank — let it work.
 - After a recall, use what came back. Don't issue follow-up recalls for sub-questions a fact in the result set already answers.
-- memory_get returns a whole scope bag in one call. Don't fetch the same scope twice in a turn.` as const;
+- memory_get returns a whole scope bag in one call. Don't fetch the same scope twice in a turn.
+- When asking about a specific entity (person, project, organization), include the entity's name in the query verbatim. The pipeline routes through entity drawers first — entity-named queries get tighter, more relevant matches.
+- Some returned facts may carry an "expandedFromId" — those are 1-hop graph neighbors of a direct hit, weighted by edge trust. Treat them as supporting context, not as independently-confirmed facts unless their statement is self-contained.` as const;
 
 /**
  * Mnemosyne v1.6 — explicit v1.1 string, preserved separately for
