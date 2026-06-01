@@ -80,7 +80,13 @@ import { sql } from "drizzle-orm";
 import { embedMnemo, type EmbedFn, type EmbeddingProvider } from "./embed";
 import { recallCache, recallCacheKey, getL3Cache, setL3Cache, getCachedFactCount } from "./cache";
 import { prepareQuery, type LlmCallFn, type PreparedQuery } from "./query-prep";
-import { noopRerank, type RerankFn } from "./rerank";
+import { makeLocalLexicalRerank, noopRerank, type RerankFn } from "./rerank";
+import { trustDecay } from "./trust-ladder";
+
+// v2 — local lexical reranker is the new default. Built once per
+// process (the closure captures no state; pure). Used when the caller
+// doesn't supply `rerank` AND the #7 early-exit doesn't fire.
+const defaultRerank: RerankFn = makeLocalLexicalRerank();
 import { withMnemoTx, type Tx } from "../tx";
 import { MAX_MEMORY_STRENGTH } from "../primitives/fact";
 import type { FactKind, FactScope, FactStatus, MemoryType, MnemoFact } from "../primitives/fact";
@@ -1236,7 +1242,14 @@ async function runSearchPipeline(
   // ordering the reranker would have improved.
   const topScore = firstStage[0]?.score ?? 0;
   const earlyExit = topScore >= EARLY_EXIT_THRESHOLD;
-  const rerankFn = earlyExit ? noopRerank : (input.rerank ?? noopRerank);
+  // v2 — rerank-as-default. `noopRerank` is now the explicit opt-out
+  // (set `rerank: noopRerank` to disable reordering entirely). When
+  // the caller doesn't supply a reranker, the local lexical scorer
+  // fires; it's pure-TS, deterministic, and strictly better than
+  // identity for short fact statements. Early-exit still wins so a
+  // very-confident top hit short-circuits both the local AND any
+  // host-supplied Cohere call. See `defaultRerank` above.
+  const rerankFn = earlyExit ? noopRerank : (input.rerank ?? defaultRerank);
   const rerankK = maxResults * 2;
   if (earlyExit) {
     emitMetric(onMetric, {
@@ -1526,26 +1539,40 @@ interface RelationEdgeRow {
 }
 
 /**
- * v1.1 #11 + #26 — per-edge decay combining provenance trust and verb
- * priority:
+ * v1.1 #11 + #26 + v2 trust ladder — per-edge decay combining
+ * provenance trust and verb priority:
  *
- *   finalDecay = provenanceDecay × verbPriority
+ *   finalDecay = min(base, trustLadderCap[rung]) × verbPriority
  *
- * Provenance (#11):
- *   LLM-derived edges (provenance NULL): decay = base (caller's value).
- *   Heuristic-provenance edges (provenance 'heuristic'): decay capped at
- *   0.5 regardless of base — less trustworthy than an LLM-attested edge.
+ * Trust ladder (v2 — extends #11):
+ *   verified   → cap 1.00  (human-confirmed via review queue)
+ *   llm        → cap 0.90  (LLM-extracted; the v1.1 default for NULL)
+ *   heuristic  → cap 0.70  (alias-merge / coref / dedup synthesis)
+ *   pending    → cap 0.50  (blocked on unresolved mention)
+ *   unverified → cap 0.30  (external integration without trust signal)
+ *
+ * The ladder cap is `min(base, cap)` rather than a flat replacement so
+ * a caller that explicitly tightens the base (e.g. `expandDecay: 0.4`)
+ * still gets their tighter value applied — the ladder is a CEILING on
+ * trust, not a floor.
  *
  * Verb priority (#26):
- *   `VERB_EXPAND_PRIORITY[verb]` multiplies the provenance decay so that
- *   structurally strong verbs (part_of, member_of) yield neighbors at a
- *   higher score than generic `related` edges. Unknown verbs default to
- *   0.70 (conservative). The product is NOT additionally clamped — callers
- *   that set a very large base combined with a high-priority verb can
- *   intentionally get a near-1.0 decay; `clamp01ish` handles the input base.
+ *   `VERB_EXPAND_PRIORITY[verb]` multiplies the provenance-capped decay
+ *   so structurally strong verbs (part_of, member_of) yield neighbours
+ *   at a higher score than generic `related` edges. Unknown verbs
+ *   default to 0.70 (conservative).
+ *
+ * Backward compatibility:
+ *   - NULL provenance still maps to "llm" rung (cap 0.90) — was 0.70
+ *     in v1.1 only when base > 0.70, which never happens in default
+ *     usage. For the default `expandDecay = 0.7`, the v1.1 NULL path
+ *     and the v2 "llm" path produce the same number.
+ *   - "heuristic" still caps at ≤ 0.7 (loosened from 0.5; the new cap
+ *     is conservative — see calibration notes in the v2 spec).
  */
 function decayForEdge(base: number, provenance: string | null, verb: string): number {
-  const provDecay = provenance === "heuristic" ? Math.min(base, 0.5) : base;
+  const ladderCap = trustDecay(provenance);
+  const provDecay = Math.min(base, ladderCap);
   const verbPriority = VERB_EXPAND_PRIORITY[verb] ?? 0.7;
   return provDecay * verbPriority;
 }

@@ -138,3 +138,116 @@ export function makeCohereRerank(apiKey: string, opts: CohereRerankOptions = {})
     }
   };
 }
+
+// ── v2 — Local lexical reranker (zero-dep, default rerank) ────────────────────
+//
+// Pure-TS BM25-ish lexical scorer. Used as the **default** reranker
+// in v2 (`searchMnemo` falls back to this when no `rerank` is supplied
+// AND no early-exit fires). Migrated from `apps/web/lib/agent-runtime.ts`
+// where it was previously gated behind `!process.env.COHERE_API_KEY`.
+//
+// Properties:
+//   - Pure / deterministic — no network, no provider calls, < 1ms for
+//     typical fact counts (~15-25 docs over-fetched per pipeline call).
+//   - Strictly better than identity for short fact statements — keyword
+//     overlap surfaces strong lexical matches above weaker ones.
+//   - Strictly worse than Cohere — the local scorer can't capture
+//     semantic similarity. Hosts with a Cohere key should still wire
+//     `makeCohereRerank` explicitly.
+//
+// Why default-on:
+//   - v1.x had `noopRerank` as the implicit default. Every caller that
+//     didn't explicitly wire a reranker (Inspector API, MCP tool,
+//     /api/mnemo/facts) got worse ordering than the agent-runtime
+//     path. The local lexical scorer eliminates the disparity at
+//     zero risk and zero cost.
+
+const LOCAL_LEXICAL_STOPWORDS: ReadonlySet<string> = new Set([
+  "a",
+  "an",
+  "the",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "of",
+  "to",
+  "in",
+  "on",
+  "at",
+  "for",
+  "with",
+  "as",
+  "by",
+  "and",
+  "or",
+  "but",
+  "not",
+  "this",
+  "that",
+  "these",
+  "those",
+  "it",
+  "its",
+  "they",
+  "them",
+  "i",
+  "you",
+  "we",
+  "he",
+  "she",
+  "his",
+  "her",
+  "their",
+  "do",
+  "does",
+  "did",
+  "have",
+  "has",
+  "had",
+  "what",
+  "when",
+  "where",
+  "why",
+  "how",
+]);
+
+function localTokenize(s: string): string[] {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]+/g, " ")
+    .split(/\s+/)
+    .filter((t) => t.length > 1 && !LOCAL_LEXICAL_STOPWORDS.has(t));
+}
+
+/**
+ * Build a zero-dependency lexical reranker. Returns a `RerankFn` that
+ * scores documents by stopword-filtered keyword overlap with the query,
+ * length-normalized to discourage long-statement bias.
+ */
+export function makeLocalLexicalRerank(): RerankFn {
+  return async ({ query, documents, topK }) => {
+    if (documents.length === 0 || topK <= 0) return [];
+    const qTokens = localTokenize(query);
+    if (qTokens.length === 0) {
+      // Degenerate query — return input order capped to topK.
+      return Array.from({ length: Math.min(documents.length, topK) }, (_, i) => i);
+    }
+    const qSet = new Set(qTokens);
+    const scored = documents.map((d, i) => {
+      const tokens = localTokenize(d);
+      if (tokens.length === 0) return { i, s: 0 };
+      let hits = 0;
+      for (const t of tokens) if (qSet.has(t)) hits++;
+      // Normalize by sqrt of length — long facts shouldn't dominate
+      // just because they have more words.
+      const s = hits / Math.sqrt(tokens.length);
+      return { i, s };
+    });
+    scored.sort((a, b) => b.s - a.s);
+    return scored.slice(0, topK).map((x) => x.i);
+  };
+}

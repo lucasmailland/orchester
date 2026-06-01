@@ -99,102 +99,16 @@ function interpolate(template: string, vars: Record<string, string>): string {
 
 /* ───────────────── Mnemosyne v1.6 — local lexical reranker ───────────────── */
 
-/**
- * Build a lightweight local reranker. Used when the v1.6 defaults flip
- * rerank ON but the workspace has no `COHERE_API_KEY` configured —
- * something is better than nothing, and pure-TS lexical overlap
- * already beats identity rerank for short fact statements.
- *
- * Scoring: BM25-ish term overlap on the lowercased, stopword-stripped
- * tokens of (query, document). Each document gets a score; we sort
- * desc and return up to `topK` indices.
- *
- * Pure / deterministic — runs in the request hot path and adds <1ms
- * for typical fact counts (the package layer over-fetches to 5x cap,
- * so we score ~15-25 docs per turn).
- */
-function makeLocalLexicalRerank(): RerankFn {
-  const STOP = new Set([
-    "a",
-    "an",
-    "the",
-    "is",
-    "are",
-    "was",
-    "were",
-    "be",
-    "been",
-    "being",
-    "of",
-    "to",
-    "in",
-    "on",
-    "at",
-    "for",
-    "with",
-    "as",
-    "by",
-    "and",
-    "or",
-    "but",
-    "not",
-    "this",
-    "that",
-    "these",
-    "those",
-    "it",
-    "its",
-    "they",
-    "them",
-    "i",
-    "you",
-    "we",
-    "he",
-    "she",
-    "his",
-    "her",
-    "their",
-    "do",
-    "does",
-    "did",
-    "have",
-    "has",
-    "had",
-    "what",
-    "when",
-    "where",
-    "why",
-    "how",
-  ]);
-  function tokenize(s: string): string[] {
-    return s
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]+/g, " ")
-      .split(/\s+/)
-      .filter((t) => t.length > 1 && !STOP.has(t));
-  }
-  return async ({ query, documents, topK }) => {
-    if (documents.length === 0 || topK <= 0) return [];
-    const qTokens = tokenize(query);
-    if (qTokens.length === 0) {
-      // Degenerate query — return input order capped to topK.
-      return Array.from({ length: Math.min(documents.length, topK) }, (_, i) => i);
-    }
-    const qSet = new Set(qTokens);
-    const scored = documents.map((d, i) => {
-      const tokens = tokenize(d);
-      if (tokens.length === 0) return { i, s: 0 };
-      let hits = 0;
-      for (const t of tokens) if (qSet.has(t)) hits++;
-      // Normalize by sqrt of length — long facts shouldn't dominate
-      // just because they have more words.
-      const s = hits / Math.sqrt(tokens.length);
-      return { i, s };
-    });
-    scored.sort((a, b) => b.s - a.s);
-    return scored.slice(0, topK).map((x) => x.i);
-  };
-}
+// v2 — `makeLocalLexicalRerank` now lives in `@orchester/mnemosyne` as
+// `defaultRerank` and is wired automatically by `searchMnemo` when the
+// caller doesn't supply a reranker. The host-local copy was deleted in
+// favor of the package version (byte-identical migration). We still
+// import it explicitly below to keep the "Cohere when keyed, local
+// otherwise" branch in this file unambiguous — if a future refactor
+// lets us forward UNDEFINED to the package and rely on the default,
+// drop this import and the `else { rerankFn = makeLocalLexicalRerank() }`
+// branch in the same pass.
+import { makeLocalLexicalRerank } from "@orchester/mnemosyne";
 
 /* ───────────────── Mnemosyne v1.4 — unified recall wiring ───────────────── */
 

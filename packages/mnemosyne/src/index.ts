@@ -124,6 +124,29 @@ export {
   type RecallStage,
 } from "./recall/telemetry";
 
+// v2 — trust ladder for `mnemo_relation.provenance`. Extends v1.1 #11
+// without a schema migration (the column was always free text).
+// Surfaced for host UI / Inspector / admin tools that want to
+// classify edge trust at the boundary.
+export {
+  classifyTrustRung,
+  trustDecay,
+  TRUST_LADDER_DECAY,
+  type TrustLadderRung,
+} from "./recall/trust-ladder";
+
+// v2 — per-stage adaptive cap proposal (spec §7). Pure-function
+// library; NOT wired into `runSearchPipeline` yet — calibration is
+// gated on 4 weeks of v1.1 telemetry. Surfaced so dashboards and
+// tests can reason about the proposed numbers.
+export {
+  STAGE_CAP_BY_TIER,
+  factCountTier,
+  drawerGrepCapForFactCount,
+  firstStageCapForFactCount,
+} from "./recall/stage-caps";
+export type { TieredFactCountBucket } from "./recall/cap-tiers";
+
 // v1.1 query preparation: paraphrase + HyDE to fix the query-fact
 // embedding mismatch (questions vs. statements live in different
 // vector-space regions). Both transforms are LLM-backed and opt-in.
@@ -140,6 +163,7 @@ export {
 export {
   noopRerank,
   makeCohereRerank,
+  makeLocalLexicalRerank,
   type RerankFn,
   type RerankInput,
   type CohereRerankOptions,

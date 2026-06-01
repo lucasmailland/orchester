@@ -43,6 +43,7 @@ let wsA: WsFixture;
 let withMnemoTx: typeof import("../../src/tx").withMnemoTx;
 let createFact: typeof import("../../src/primitives/fact").createFact;
 let searchMnemo: typeof import("../../src/recall/search").searchMnemo;
+let noopRerank: typeof import("../../src/recall/rerank").noopRerank;
 
 const TEST_DIM = 1536;
 
@@ -90,6 +91,7 @@ beforeAll(async () => {
   ({ withMnemoTx } = await import("../../src/tx"));
   ({ createFact } = await import("../../src/primitives/fact"));
   ({ searchMnemo } = await import("../../src/recall/search"));
+  ({ noopRerank } = await import("../../src/recall/rerank"));
 });
 
 afterAll(() => teardownTestWorkspaces());
@@ -187,6 +189,12 @@ describe("recall/search — v1.1 #3 BM25+vector fusion (vector branch)", () => {
       // compare their ranks directly. With the default 3 we'd still
       // see them, but explicit-5 makes the intent obvious.
       maxResults: 5,
+      // v2 — pin noopRerank explicitly. The default flipped to a local
+      // lexical reranker which can reorder the both-match/lex/sem
+      // triple; this test pins the BM25+vector fusion ordering, which
+      // is the layer below the rerank. Without this pin we'd be
+      // testing whatever the package's default reranker happens to do.
+      rerank: noopRerank,
     });
 
     // All three seeded facts must surface — the vector branch does NOT

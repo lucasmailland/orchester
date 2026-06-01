@@ -44,6 +44,7 @@ let wsA: WsFixture;
 let withMnemoTx: typeof import("../../src/tx").withMnemoTx;
 let createFact: typeof import("../../src/primitives/fact").createFact;
 let searchMnemo: typeof import("../../src/recall/search").searchMnemo;
+let noopRerank: typeof import("../../src/recall/rerank").noopRerank;
 
 const TEST_DIM = 1536;
 
@@ -175,6 +176,7 @@ beforeAll(async () => {
   ({ withMnemoTx } = await import("../../src/tx"));
   ({ createFact } = await import("../../src/primitives/fact"));
   ({ searchMnemo } = await import("../../src/recall/search"));
+  ({ noopRerank } = await import("../../src/recall/rerank"));
 
   // Seed all 50 facts with topic-tagged embeddings. The seeding runs
   // INSIDE the workspace tx so the inserts respect RLS+FORCE.
@@ -218,10 +220,13 @@ describe("recall/search — halfvec quantization quality (migration 0042)", () =
         embeddingProvider: "openai",
         embeddingModel: "text-embedding-3-small",
         embedFn,
-        // Defaults: rerank=noop, prune=off (the test asserts pre-rerank
-        // recall — adding noise from a rerank step would obscure what
-        // halfvec actually does).
+        // The test asserts pre-rerank recall — adding noise from a
+        // rerank step would obscure what halfvec actually does. v2
+        // flipped the package default from noop → local lexical, so
+        // we now pin noopRerank explicitly to preserve the original
+        // measurement.
         maxResults: 3,
+        rerank: noopRerank,
       });
 
       expect(hits.length).toBeGreaterThan(0);
