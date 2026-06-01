@@ -4,7 +4,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Download, BookOpen, BrainCircuit, AlertCircle, History, Zap } from "lucide-react";
+import {
+  Download,
+  BookOpen,
+  BrainCircuit,
+  AlertCircle,
+  History,
+  Zap,
+  Clock,
+  Undo2,
+  GitCompare,
+} from "lucide-react";
 import { Button, Skeleton, Chip } from "@heroui/react";
 import { notify } from "@/lib/toast";
 import {
@@ -194,6 +204,38 @@ export function BrainInspectorClient() {
           {/* Inspector UI v2 — recall pipeline visualizer entry point.
               Lands at /brain/recall-debug which captures and renders
               per-stage events from /api/mnemo/recall-debug. */}
+          {/* v2 — Timeline / Undo / Diff were shipped pages but never
+              surfaced from the toolbar. Discoverable now. */}
+          <Button
+            as={Link}
+            href={`/${locale}/${ws}/brain/timeline`}
+            variant="flat"
+            size="sm"
+            startContent={<Clock className="h-3.5 w-3.5" />}
+            className="bg-elevated text-body"
+          >
+            Timeline
+          </Button>
+          <Button
+            as={Link}
+            href={`/${locale}/${ws}/brain/undo`}
+            variant="flat"
+            size="sm"
+            startContent={<Undo2 className="h-3.5 w-3.5" />}
+            className="bg-elevated text-body"
+          >
+            Undo
+          </Button>
+          <Button
+            as={Link}
+            href={`/${locale}/${ws}/brain/diff`}
+            variant="flat"
+            size="sm"
+            startContent={<GitCompare className="h-3.5 w-3.5" />}
+            className="bg-elevated text-body"
+          >
+            Diff
+          </Button>
           <Button
             as={Link}
             href={`/${locale}/${ws}/brain/recall-debug`}
