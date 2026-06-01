@@ -105,6 +105,13 @@ export {
   isSingleTermQuery,
   computeEntityDiversityCap,
   tieredCap,
+  // v2 (#5) + (#9) — opt-in helpers. Exported for host-side
+  // diagnostics and unit tests; the flags on `SearchMnemoInput`
+  // wire them into the pipeline.
+  applyMultiTermBoost,
+  applySignalCutoff,
+  countQueryTermOverlap,
+  DEFAULT_MULTI_TERM_BOOST,
   type SearchMnemoInput,
   type RecallHit,
   type RecallReasons,

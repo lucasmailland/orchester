@@ -140,6 +140,17 @@ export const mnemoFacts = pgTable("mnemo_fact", {
     withTimezone: true,
     mode: "date",
   }),
+  // Mnemosyne v2 — "Episodes first-class" (migration 0048).
+  //
+  // FK to the episode that this fact belongs to. NULLABLE in v2.0 so
+  // the migration is non-blocking on large tenants; v2.1 will land
+  // the NOT-NULL flip after the host backfill job (using
+  // `deriveSyntheticEpisodeId`) covers every row. Synthetic episodes
+  // are created automatically for facts that lack a real-world
+  // counterpart (chat turns, document chunks, direct API writes).
+  episodeId: text("episode_id").references(() => mnemoEpisode.id, {
+    onDelete: "set null",
+  }),
 });
 
 // Mnemosyne v1.6 — the entity primitive (migration 0039). The 4th
@@ -501,6 +512,12 @@ export const mnemoEpisode = pgTable("mnemo_episode", {
   metadata: jsonb("metadata").notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  // Mnemosyne v2 — "Episodes first-class" (migration 0048). True for
+  // episodes auto-created by the extraction pipeline (one per
+  // message turn / document / day). The Inspector UI's default
+  // "real episodes" listing filters them out via the partial index
+  // `idx_mnemo_episode_real`.
+  isSynthetic: boolean("is_synthetic").notNull().default(false),
 });
 
 // Mnemosyne v1.1 #1+2 — Pointer index (migration 0046).

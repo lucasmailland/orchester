@@ -29,6 +29,13 @@ export interface ListEpisodesInput {
   /** Hard cap on returned rows. Default 50, max 200 (matches the
    *  facts route's pagination ceiling). */
   limit?: number;
+  /**
+   * v2 — when `true`, include episodes auto-created by the extraction
+   * pipeline (one per message turn / document / day). Default `false`
+   * so the Inspector UI's timeline view stays clean; admin-style
+   * tools can opt in to see the full picture.
+   */
+  includeSynthetic?: boolean;
   tx: Tx;
 }
 
@@ -58,15 +65,20 @@ export async function listEpisodes(input: ListEpisodesInput): Promise<MnemoEpiso
   // them as timestamps regardless of the driver version in use.
   const fromIso = from.toISOString();
   const toIso = to.toISOString();
+  // v2 — `is_synthetic` filter. Default `false` so the timeline UI
+  // hides synthetic episodes (one-per-message-turn, etc.) by default.
+  // Callers wanting the full picture pass `includeSynthetic: true`.
+  const includeSynthetic = input.includeSynthetic === true;
   const rows = (await tx.execute(sql`
     SELECT
       id, workspace_id, title, narrative, occurred_at, duration_minutes,
       participants, topics, linked_fact_ids, source_conversation_id,
-      metadata, created_at, updated_at
+      metadata, created_at, updated_at, is_synthetic
     FROM mnemo_episode
     WHERE workspace_id = ${workspaceId}
       AND occurred_at >= ${fromIso}::timestamptz
       AND occurred_at <= ${toIso}::timestamptz
+      ${includeSynthetic ? sql`` : sql`AND is_synthetic = false`}
       ${topic ? sql`AND ${topic} = ANY(topics)` : sql``}
     ORDER BY occurred_at DESC
     LIMIT ${limit}
@@ -84,6 +96,7 @@ export async function listEpisodes(input: ListEpisodesInput): Promise<MnemoEpiso
     metadata: Record<string, unknown> | null;
     created_at: Date | string;
     updated_at: Date | string;
+    is_synthetic: boolean | null;
   }>;
 
   return rows.map((r) => ({
@@ -100,5 +113,6 @@ export async function listEpisodes(input: ListEpisodesInput): Promise<MnemoEpiso
     metadata: r.metadata ?? {},
     createdAt: r.created_at instanceof Date ? r.created_at : new Date(r.created_at),
     updatedAt: r.updated_at instanceof Date ? r.updated_at : new Date(r.updated_at),
+    isSynthetic: Boolean(r.is_synthetic),
   }));
 }

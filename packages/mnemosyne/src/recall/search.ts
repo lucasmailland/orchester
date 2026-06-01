@@ -341,6 +341,44 @@ export interface SearchMnemoInput {
    */
   captureTrace?: boolean;
   /**
+   * v2 (idea #5 from the v1.1 audit) — multi-term multiplicative
+   * boost. When enabled, each candidate's score is multiplied by
+   * `(1 + perTermBoost × min(overlap, maxOverlap))` where `overlap`
+   * is the count of distinct query content-words appearing in the
+   * fact's statement. The intent: queries with multiple terms reward
+   * facts that match more of them than facts that only match one.
+   *
+   * Shape:
+   *   - `false` (default) → no boost.
+   *   - `true`            → boost with default per-term coefficient 0.05.
+   *   - `number` in (0, 0.5] → custom per-term coefficient.
+   *
+   * Why opt-in: the original audit deferred this idea pending
+   * empirical validation of the additive scoring it modifies. With
+   * the v1.1 telemetry now flowing (`mnemo.recall.*`), a future
+   * calibration pass can pick the right default. Until then, the
+   * flag exists so hosts that want to experiment can do so without
+   * waiting on the recall package to flip a default.
+   */
+  multiTermBoost?: boolean | number;
+  /**
+   * v2 (idea #9 from the v1.1 audit) — signal-strength cutoff.
+   * When set, drops any candidate whose final score is below
+   * `topScore × signalCutoff`. The intent: if the top hit is very
+   * strong (e.g. 0.92), low-confidence tail hits (< 0.46 at
+   * signalCutoff=0.5) are noise; surfacing them dilutes the
+   * downstream agent's context.
+   *
+   * Shape: number in (0, 0.95]. Pass undefined or 0 to disable
+   * (default). Calibration is gated on telemetry — a sensible
+   * starting point is 0.5 if hand-tuning.
+   *
+   * Applied AFTER `prune` and BEFORE `diversity` so near-duplicates
+   * don't occupy slots that would otherwise get cut, but the
+   * diversity cap still operates on the strongest pool.
+   */
+  signalCutoff?: number;
+  /**
    * v1.4 — restrict recall to specific memory types. When unset, all
    * four types ('semantic' | 'episodic' | 'procedural' | 'working')
    * are searched (backward compatible with v1.3 callers). The most
@@ -971,6 +1009,93 @@ export function tieredCap(requested: number, factCount: number): number {
  *  still letting a truly strong single-term match survive the prune threshold. */
 const SINGLE_TERM_DAMPENER = 0.6;
 
+/** v2 (#5) — default per-term boost coefficient when `multiTermBoost: true`.
+ *  Scaled small so it can't override a structural signal (recency, pin) but
+ *  is meaningful enough to break ties between equally-confident candidates. */
+export const DEFAULT_MULTI_TERM_BOOST = 0.05;
+
+/** v2 (#5) — cap on the overlap count used in the multiplicative boost.
+ *  Without a cap, a long fact statement that mentions every query word
+ *  would dominate; capping at 5 keeps the boost in [1.0, 1.25]. */
+const MULTI_TERM_OVERLAP_CAP = 5;
+
+/**
+ * v2 (#5) — count of distinct query content-words present in `statement`.
+ * Tokenization mirrors `isSingleTermQuery`: lowercase, words > 2 chars.
+ * Pure / exported for unit tests + Inspector UI explainability.
+ */
+export function countQueryTermOverlap(query: string, statement: string): number {
+  const qTokens = new Set(
+    query
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w.length > 2)
+  );
+  if (qTokens.size === 0) return 0;
+  const sTokens = new Set(
+    statement
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]+/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 2)
+  );
+  let overlap = 0;
+  for (const t of qTokens) if (sTokens.has(t)) overlap++;
+  return overlap;
+}
+
+/**
+ * v2 (#5) — apply the multi-term multiplicative boost in place. Returns
+ * the same array reference for chain ergonomics.
+ *
+ * Skipped when `flag === false` OR `flag === 0` OR the query has fewer
+ * than 2 content terms (the single-term path already runs the dampener;
+ * boosting it would partially cancel that). The function ALWAYS returns
+ * a usable array so callers don't have to branch on the flag shape.
+ *
+ * Multiplier per hit: `1 + perTerm × min(overlap, MULTI_TERM_OVERLAP_CAP)`.
+ */
+export function applyMultiTermBoost(
+  hits: ScoredHit[],
+  query: string,
+  flag: boolean | number | undefined
+): ScoredHit[] {
+  if (flag === false || flag === undefined || flag === 0) return hits;
+  const perTerm =
+    typeof flag === "number" ? Math.min(0.5, Math.max(0, flag)) : DEFAULT_MULTI_TERM_BOOST;
+  // Skip on single-term queries — #4's dampener owns that signal.
+  const queryContentWords = query
+    .trim()
+    .split(/\s+/)
+    .filter((w) => w.length > 2);
+  if (queryContentWords.length < 2) return hits;
+  for (const h of hits) {
+    const overlap = Math.min(
+      MULTI_TERM_OVERLAP_CAP,
+      countQueryTermOverlap(query, h.fact.statement)
+    );
+    if (overlap > 0) h.score *= 1 + perTerm * overlap;
+  }
+  return hits;
+}
+
+/**
+ * v2 (#9) — signal-strength cutoff. Drops candidates below
+ * `topScore × cutoff`. Returns the filtered array (never mutates
+ * input). Skipped when `cutoff` is undefined, ≤ 0, or the pool is
+ * empty. Bounded at 0.95 so the cutoff can't accidentally drop every
+ * candidate.
+ *
+ * Pure / exported for unit tests.
+ */
+export function applySignalCutoff(hits: ScoredHit[], cutoff: number | undefined): ScoredHit[] {
+  if (!cutoff || cutoff <= 0 || hits.length === 0) return hits;
+  const safeCutoff = Math.min(0.95, cutoff);
+  const top = hits[0]!.score;
+  const threshold = top * safeCutoff;
+  return hits.filter((h) => h.score >= threshold);
+}
+
 /** v1.1 #7 — minimum first-stage top score that bypasses the cross-encoder
  *  reranker. When the post-dampener top hit is >= this threshold the reranker
  *  is unlikely to reorder it, so we skip the latency (Cohere round-trip).
@@ -1242,6 +1367,12 @@ async function runSearchPipeline(
     for (const h of firstStage) h.score *= SINGLE_TERM_DAMPENER;
   }
 
+  // v2 (#5) — opt-in multi-term multiplicative boost. No-op on
+  // single-term queries (the dampener owns that case) and when the
+  // flag is unset / false / 0. Default off pending v1.1 telemetry
+  // calibration; see `SearchMnemoInput.multiTermBoost` jsdoc.
+  applyMultiTermBoost(firstStage, input.query, input.multiTermBoost);
+
   // Hybrid-score sort so the reranker sees the strongest candidates first.
   firstStage.sort((a, b) => b.score - a.score);
 
@@ -1329,6 +1460,36 @@ async function runSearchPipeline(
       : {}),
   });
 
+  // v2 (#9) — opt-in signal-strength cutoff. Drops the tail when
+  // the top hit is dramatically stronger than the rest, so the
+  // diversity cap operates on a higher-confidence pool. No-op when
+  // `signalCutoff` is unset. Re-uses the prune emit slot's sample
+  // helper for consistency with the rest of the pipeline.
+  const preCutoff = pruned;
+  const postCutoff = applySignalCutoff(pruned, input.signalCutoff);
+  if (input.signalCutoff && preCutoff.length !== postCutoff.length) {
+    emitMetric(onMetric, {
+      stage: "prune",
+      workspaceId: input.workspaceId,
+      count: postCutoff.length,
+      topScore: postCutoff[0]?.score,
+      extra: {
+        dropped: preCutoff.length - postCutoff.length,
+        signal_cutoff: input.signalCutoff,
+        kind: "signal_cutoff",
+      },
+      ...(trace
+        ? {
+            samples: sampleDropped(
+              preCutoff,
+              postCutoff,
+              `score < topScore × ${input.signalCutoff}`
+            ),
+          }
+        : {}),
+    });
+  }
+
   // v1.1 #8 — per-entity diversity cap. Prevents one entity from
   // flooding the budget when many of its facts scored highly (e.g. a
   // workspace with hundreds of facts about one topic).
@@ -1343,19 +1504,22 @@ async function runSearchPipeline(
   // Applied AFTER cosine-prune so near-duplicates don't consume entity
   // slots unnecessarily. The final hard cap to `maxResults` runs
   // immediately after so the expanded pool is still bounded correctly.
-  let postDiversity: ScoredHit[] = pruned;
+  // v2 (#9) — diversity operates on `postCutoff` so the signal-cutoff
+  // drops fully propagate through the rest of the pipeline. When the
+  // cutoff is disabled, `postCutoff === pruned` (same reference).
+  let postDiversity: ScoredHit[] = postCutoff;
   const edcOption = input.entityDiversityCap;
   if (edcOption !== false) {
     const formulaCap = computeEntityDiversityCap(maxResults);
     const cap = typeof edcOption === "number" && edcOption > 0 ? edcOption : formulaCap;
-    postDiversity = diversifyByEntity(pruned, cap);
+    postDiversity = diversifyByEntity(postCutoff, cap);
     emitMetric(onMetric, {
       stage: "diversity",
       workspaceId: input.workspaceId,
       count: postDiversity.length,
-      extra: { cap, dropped: pruned.length - postDiversity.length },
+      extra: { cap, dropped: postCutoff.length - postDiversity.length },
       ...(trace
-        ? { samples: sampleDropped(pruned, postDiversity, `entity cap=${cap} exhausted`) }
+        ? { samples: sampleDropped(postCutoff, postDiversity, `entity cap=${cap} exhausted`) }
         : {}),
     });
   }

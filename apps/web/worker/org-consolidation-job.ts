@@ -2,19 +2,26 @@
 //
 // Mnemosyne v2 — Org-level (cross-workspace) consolidation cron.
 //
-// **STATUS: SCAFFOLD ONLY — DISABLED BY DEFAULT.**
+// **STATUS: SCAFFOLD ONLY — DISABLED BY DEFAULT + ARCHITECTURALLY BLOCKED.**
 //
-// This file lands the orchestration shell + audit/billing wiring +
-// feature-flag gate so the cron is reviewable in isolation. The
-// actual cross-workspace data path is GATED on:
+// As of 2026-05-30 the codebase has NO `org` table — only `workspace`.
+// The cross-workspace consolidation design (see
+// docs/specs/2026-05-30-cross-workspace-consolidation-design.md §0)
+// assumes an org boundary that doesn't exist. Until a product
+// decision lands on the tenancy primitive, this file is a placeholder
+// that intentionally does nothing.
 //
-//   1. Migration 0050 (`mnemo_org_fact_view` + `app_org_user` role +
-//      RLS policy) — pending legal/security signoff per
-//      docs/specs/2026-05-30-cross-workspace-consolidation-design.md
-//      §6 (privacy + GDPR).
-//   2. The `mnemo.cross_workspace_consolidation` feature flag set to
-//      `true` for the org. Default off; safe rollout requires per-org
-//      opt-in until the feature graduates.
+// This file lands the orchestration shell + feature-flag gate so the
+// wire is reviewable independent of the (still-pending) data-path
+// implementation. The actual cross-workspace data path is GATED on:
+//
+//   1. An `org` primitive (table + workspace.org_id FK + Drizzle
+//      schema). Currently MISSING — see the design doc §0.
+//   2. Migration 0050 (`mnemo_org_fact_view` + `app_org_user` role +
+//      RLS policy) — depends on (1).
+//   3. Legal/security signoff per the design doc §6 (privacy + GDPR).
+//   4. The `MNEMO_ENABLE_CROSS_WORKSPACE_CONSOLIDATION=true` env var.
+//      Default off; safe rollout requires explicit deploy-time opt-in.
 //
 // When BOTH gates are open, the job:
 //   a. Fans out per-org via `withCrossTenantAdmin` (mirror of the

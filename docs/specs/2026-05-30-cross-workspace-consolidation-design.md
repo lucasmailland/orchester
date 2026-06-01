@@ -1,9 +1,40 @@
 # Cross-Workspace Consolidation — Design
 
-**Status:** Design — explores the problem space, picks a concrete shape, calls out the parts that need legal / security review before any code lands.
-**Author:** Initial draft 2026-05-30.
+**Status:** Design + pure algorithm SHIPPED (commit `deb455b`) + worker scaffold SHIPPED disabled-by-default (commit `6a49ff3`). **Migration 0050 BLOCKED on a tenant-primitive prerequisite — see §0.**
+**Author:** Initial draft 2026-05-30; updated 2026-05-30 with architectural block.
 **Predecessor:** [Consolidation v1.4](../../packages/mnemosyne/src/consolidation/) (single-workspace REM-style, shipped).
 **Related:** [Mnemosyne v2 design](./2026-05-30-mnemosyne-v2-design.md) §11 (deferred from v2 spec into this one).
+
+---
+
+## 0. ARCHITECTURAL BLOCK — read first
+
+This design assumes an `org` table exists in the codebase, with `workspace.org_id` as the grouping primitive. **It does not.**
+
+Confirmed by `grep -rn "organization\|orgs = pgTable\|workspace.*group" packages/db/src/schema/*.ts` on 2026-05-30: the only tenancy primitive is `workspace` (PK `text`, no parent FK). The closest workspace-adjacent table is `workspace_member` (user ↔ workspace).
+
+Concrete consequences:
+
+- **Migration 0050 cannot be written.** `mnemo_org_fact_view.org_id` would FK to a non-existent table.
+- **The `app_org_user` RLS role cannot be scoped.** The policy `WHERE org_id = current_setting('app.org_id')` has no source of truth to validate `org_id` against.
+- **The cron's "for each org" outer loop has nothing to iterate.**
+
+What IS shipped and stable, ready for the day the prerequisite lands:
+
+- `clusterCrossWorkspace()` — the pure algorithm (commit `deb455b`). 22 unit tests. Takes embeddings + minimal metadata, returns clusters. Zero dependency on any org primitive — it accepts a flat array of `CrossWorkspaceFactInput` and the caller decides which workspaces to feed it.
+- `apps/web/worker/org-consolidation-job.ts` — the cron scaffold (commit `6a49ff3`). Gated by the `MNEMO_ENABLE_CROSS_WORKSPACE_CONSOLIDATION` env var which defaults to `false` and currently has no functional body (logs and returns).
+
+### What needs to happen first
+
+A product / tenancy decision: either
+
+1. Introduce an `org` primitive (`org` table + `workspace.org_id` column + migration). Then this design proceeds verbatim — replace "org" with the real column names and ship migration 0050.
+2. Pick a different boundary (e.g. `workspace.owner_user_id` grouping). Then this design needs a §0.1 amendment naming the alternate boundary and re-validating the privacy / GDPR sections.
+3. Abandon cross-workspace consolidation. Then `clusterCrossWorkspace()` + the scaffold become dead code; safe to delete in a v2.x cleanup.
+
+Until one of those three lands, this design is **frozen** — the shipped algorithm + scaffold are useful as a "ready when you are" capability, but the surface they're wired to (migration 0050, admin UI, etc.) is out of scope until the architectural block is resolved.
+
+---
 
 ---
 

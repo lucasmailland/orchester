@@ -35,6 +35,12 @@ export interface MnemoEpisode {
   metadata: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
+  /**
+   * v2 — true for episodes auto-created by the extraction pipeline
+   * (one per message turn / document / day). Inspector UI defaults
+   * to hiding synthetic episodes; recall scoring still uses them.
+   */
+  isSynthetic: boolean;
 }
 
 export interface CreateEpisodeInput {
@@ -48,6 +54,14 @@ export interface CreateEpisodeInput {
   linkedFactIds?: string[];
   sourceConversationId?: string;
   metadata?: Record<string, unknown>;
+  /**
+   * v2 — set to `true` when the extraction pipeline auto-creates an
+   * episode for a fact (one per message turn / document / day). Real
+   * user-created episodes (meetings, milestones) leave it false.
+   * Defaults to false to preserve v1.4-v1.6 behaviour for existing
+   * callers.
+   */
+  isSynthetic?: boolean;
   tx: Tx;
 }
 
@@ -100,6 +114,14 @@ function rowToEpisode(
     metadata: r.metadata ?? {},
     createdAt: created instanceof Date ? created : new Date(created),
     updatedAt: updated instanceof Date ? updated : new Date(updated),
+    // v2 — migration 0048. Default `false` for the legacy rows that
+    // predate the column (the SQL DEFAULT covers it server-side; the
+    // `?? false` covers test fixtures that don't include the field).
+    isSynthetic: Boolean(
+      (r as { is_synthetic?: boolean; isSynthetic?: boolean }).is_synthetic ??
+      (r as { isSynthetic?: boolean }).isSynthetic ??
+      false
+    ),
   };
 }
 
@@ -131,6 +153,7 @@ export async function createEpisode(input: CreateEpisodeInput): Promise<MnemoEpi
       linkedFactIds: input.linkedFactIds ?? [],
       sourceConversationId: input.sourceConversationId ?? null,
       metadata: input.metadata ?? {},
+      isSynthetic: input.isSynthetic ?? false,
     })
     .returning();
   const row = rows[0];
