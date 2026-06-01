@@ -358,6 +358,14 @@ export {
   type FindConsolidationClustersInput,
   type ConsolidateClusterInput,
   type ConsolidateClusterOutput,
+  // v2 — cross-workspace consolidation (pure algorithm; no DB/cron yet).
+  // Cron + migration gated on legal+security signoff per the design doc
+  // at docs/specs/2026-05-30-cross-workspace-consolidation-design.md.
+  clusterCrossWorkspace,
+  meanPairwiseSimilarity,
+  type CrossWorkspaceFactInput,
+  type CrossWorkspaceCluster,
+  type ClusterCrossWorkspaceInput,
 } from "./consolidation";
 
 // Mnemosyne v1.6 "True 10/10" — additive type exports.

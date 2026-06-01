@@ -38,3 +38,15 @@ export {
   type ConsolidateClusterInput,
   type ConsolidateClusterOutput,
 } from "./summarize";
+
+// v2 — cross-workspace consolidation. Pure algorithm; no DB / cron /
+// LLM. Surfaced for tests and for the (gated) cron that will land
+// after legal+security signoff on the design doc.
+export {
+  clusterCrossWorkspace,
+  meanPairwiseSimilarity,
+  cosineSimilarity,
+  type CrossWorkspaceFactInput,
+  type CrossWorkspaceCluster,
+  type ClusterCrossWorkspaceInput,
+} from "./cross-workspace";
