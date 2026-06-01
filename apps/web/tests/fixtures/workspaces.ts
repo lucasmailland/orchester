@@ -48,13 +48,23 @@ async function createWorkspace(db: PostgresJsDatabase, slug: string): Promise<Ws
       emailVerified: true,
     });
 
+    // v2 — personal org per workspace (migration 0049). Mirror prod
+    // semantics in the fixture so RLS / FK relationships test honestly.
+    const orgId = `org_${wsId}`;
+    const wsName = faker.company.name();
+    await tx.insert(schema.orgs).values({
+      id: orgId,
+      name: wsName,
+      ownerUserId: ownerId,
+    });
     await tx.insert(schema.workspaces).values({
       id: wsId,
       slug,
-      name: faker.company.name(),
+      name: wsName,
       timezone: "UTC",
       status: "active",
       ownerUserId: ownerId,
+      orgId,
     });
 
     await tx.insert(schema.workspaceMembers).values({
@@ -133,6 +143,14 @@ export async function insertAdHocWorkspace(
       name: args.name ?? args.slug,
       emailVerified: true,
     });
+    // v2 — every workspace has an org. Test fixture mirrors prod
+    // semantics: personal org per workspace (migration 0049).
+    const orgId = `org_${args.wsId}`;
+    await tx.insert(schema.orgs).values({
+      id: orgId,
+      name: args.name ?? args.slug,
+      ownerUserId: args.ownerId,
+    });
     await tx.insert(schema.workspaces).values({
       id: args.wsId,
       slug: args.slug,
@@ -140,6 +158,7 @@ export async function insertAdHocWorkspace(
       timezone: "UTC",
       status: args.status ?? "active",
       ownerUserId: args.ownerId,
+      orgId,
     });
     await tx.insert(schema.workspaceMembers).values({
       id: createId(),

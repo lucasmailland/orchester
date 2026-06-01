@@ -18,6 +18,7 @@ import {
   customType,
 } from "drizzle-orm/pg-core";
 import { workspaces } from "./workspaces";
+import { orgs } from "./orgs";
 import { agents, conversations } from "./core";
 import { users } from "./auth";
 
@@ -140,17 +141,16 @@ export const mnemoFacts = pgTable("mnemo_fact", {
     withTimezone: true,
     mode: "date",
   }),
-  // Mnemosyne v2 — "Episodes first-class" (migration 0048).
+  // Mnemosyne v2 — "Episodes first-class" (migrations 0048 + 0051).
   //
-  // FK to the episode that this fact belongs to. NULLABLE in v2.0 so
-  // the migration is non-blocking on large tenants; v2.1 will land
-  // the NOT-NULL flip after the host backfill job (using
-  // `deriveSyntheticEpisodeId`) covers every row. Synthetic episodes
-  // are created automatically for facts that lack a real-world
-  // counterpart (chat turns, document chunks, direct API writes).
-  episodeId: text("episode_id").references(() => mnemoEpisode.id, {
-    onDelete: "set null",
-  }),
+  // FK to the episode that this fact belongs to. NOT NULL since
+  // migration 0051 ran a SQL-level backfill of every legacy row with
+  // a placeholder synthetic episode and flipped the constraint.
+  // New writes set this explicitly via `deriveSyntheticEpisodeId` in
+  // the extraction pipeline.
+  episodeId: text("episode_id")
+    .notNull()
+    .references(() => mnemoEpisode.id, { onDelete: "set null" }),
 });
 
 // Mnemosyne v1.6 — the entity primitive (migration 0039). The 4th
@@ -626,5 +626,39 @@ export const mnemoUnresolvedMention = pgTable(
     index("idx_mnemo_unresolved_mention_raw_name").on(t.workspaceId, t.rawName, t.status),
     // Resolution lookup.
     index("idx_mnemo_unresolved_mention_resolved_entity").on(t.workspaceId, t.resolvedEntityId),
+  ]
+);
+
+// Mnemosyne v2 — Cross-workspace consolidation surface (migration 0050).
+// Populated by `apps/web/worker/org-consolidation-job.ts` running as
+// service-role; read by the (future) org-admin UI under the
+// `app_org_user` role with the `app.org_id` GUC set.
+//
+// Per-workspace `app_user` reads are NEVER granted on this table —
+// the role lattice keeps cross-workspace data out of the agent-runtime
+// hot path. See docs/specs/2026-05-30-cross-workspace-consolidation-design.md.
+export const mnemoOrgFactView = pgTable(
+  "mnemo_org_fact_view",
+  {
+    id: text("id").primaryKey(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => orgs.id, { onDelete: "cascade" }),
+    sourceFactIds: text("source_fact_ids").array().notNull(),
+    sourceWorkspaceIds: text("source_workspace_ids").array().notNull(),
+    statementSummary: text("statement_summary").notNull(),
+    clusterSimilarity: real("cluster_similarity").notNull(),
+    subject: text("subject").notNull(),
+    kind: text("kind").notNull(),
+    source: text("source").notNull().default("org_consolidation"),
+    /** True when a source workspace is deleted; the cron re-clusters and
+     *  drops rows whose cluster falls below the size threshold. */
+    stale: boolean("stale").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_mnemo_org_fact_view_org").on(t.orgId, t.createdAt),
+    index("idx_mnemo_org_fact_view_subject_kind").on(t.orgId, t.subject, t.kind),
   ]
 );

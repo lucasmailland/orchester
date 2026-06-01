@@ -18,6 +18,15 @@ export async function createWorkspaceAction(input: CreateWorkspaceInput) {
 
   const db = getDb();
   const workspaceId = createId();
+  // v2 — every workspace has an org. Default: personal org keyed
+  // 1:1 with the workspace id (migration 0049).
+  const orgId = `org_${workspaceId}`;
+
+  await db.insert(schema.orgs).values({
+    id: orgId,
+    name: input.name,
+    ownerUserId: session.user.id,
+  });
 
   await db.insert(schema.workspaces).values({
     id: workspaceId,
@@ -28,6 +37,7 @@ export async function createWorkspaceAction(input: CreateWorkspaceInput) {
     // landed before that constraint existed and silently relied on
     // backfill; new rows MUST set it here.
     ownerUserId: session.user.id,
+    orgId,
   });
 
   await db.insert(schema.workspaceMembers).values({

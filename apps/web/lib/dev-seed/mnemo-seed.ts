@@ -131,6 +131,15 @@ export async function seedMnemoFacts(opts: SeedMnemoOptions): Promise<SeedMnemoR
   let inserted = 0;
 
   await withMnemoTx(opts.workspaceId, async (tx) => {
+    // v2 — every fact needs an episode_id (migration 0051 NOT NULL).
+    // Seed inserts a single placeholder synthetic episode and reuses
+    // it for all rows — keeps the seed dataset coherent.
+    const seedEpisodeId = `mepi_seed_${opts.workspaceId}`;
+    await tx.execute(sql`
+      INSERT INTO mnemo_episode (id, workspace_id, title, narrative, occurred_at, is_synthetic)
+      VALUES (${seedEpisodeId}, ${opts.workspaceId}, 'dev-seed', '', now(), true)
+      ON CONFLICT (id) DO NOTHING
+    `);
     for (let i = 0; i < count; i++) {
       const kind = pick(KINDS, i);
       const memoryType = pick(MEMORY_TYPES, i + 2);
@@ -152,7 +161,7 @@ export async function seedMnemoFacts(opts: SeedMnemoOptions): Promise<SeedMnemoR
           id, workspace_id, agent_id, scope, scope_ref, kind, subject,
           statement, confidence, pinned, relevance, hit_count,
           last_recalled_at, source_message_ids, linked_memory_ids,
-          metadata, status, memory_type, attribution
+          metadata, status, memory_type, attribution, episode_id
         )
         VALUES (
           ${factId},
@@ -173,7 +182,8 @@ export async function seedMnemoFacts(opts: SeedMnemoOptions): Promise<SeedMnemoR
           ${JSON.stringify({ seed: true, batch: i })}::jsonb,
           'active',
           ${memoryType},
-          ${attribution}
+          ${attribution},
+          ${seedEpisodeId}
         )
       `);
 

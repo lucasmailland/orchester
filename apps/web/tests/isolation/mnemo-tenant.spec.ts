@@ -83,19 +83,33 @@ async function seedOne(
   const id = createId();
   const sql = f.sql;
   switch (table) {
-    case "mnemo_fact":
+    case "mnemo_fact": {
+      // v2 — migration 0051 made mnemo_fact.episode_id NOT NULL. The
+      // isolation test bypasses createFact (it's testing RLS, not the
+      // application path), so we synthesise a placeholder synthetic
+      // episode inline. Idempotent via ON CONFLICT.
+      const epiId = `mepi_iso_${wsId}`;
+      await sql.unsafe(
+        `INSERT INTO mnemo_episode
+           (id, workspace_id, title, narrative, occurred_at, is_synthetic)
+         VALUES ($1, $2, 'iso-test', '', now(), true)
+         ON CONFLICT (id) DO NOTHING`,
+        [epiId, wsId]
+      );
       await sql.unsafe(
         `INSERT INTO mnemo_fact
-           (id, workspace_id, scope, kind, subject, statement, actor_id)
-         VALUES ($1, $2, 'global', 'preference', $3, 'iso statement', $4)`,
+           (id, workspace_id, scope, kind, subject, statement, actor_id, episode_id)
+         VALUES ($1, $2, 'global', 'preference', $3, 'iso statement', $4, $5)`,
         [
           id,
           wsId,
           `iso-mnemo-fact-${id.slice(-6)}`,
           opts?.actorId === undefined ? null : opts.actorId,
+          epiId,
         ]
       );
       return id;
+    }
     case "mnemo_extraction_job": {
       // Needs a conversation FK in the same workspace. Synthesise one
       // under cron_admin so RLS doesn't bite.
@@ -178,13 +192,17 @@ describe("Mnemosyne cross-tenant WRITE isolation", () => {
     // wsA's app_user context targeting wsB's workspace_id.
     const insert = async (tx: { unsafe: typeof f.sql.unsafe }) => {
       switch (table) {
-        case "mnemo_fact":
+        case "mnemo_fact": {
+          // v2 — episode_id is NOT NULL (migration 0051). Stamp with
+          // a placeholder so the INSERT failure is RLS-induced, not
+          // FK-constraint-induced.
           return tx.unsafe(
             `INSERT INTO mnemo_fact
-               (id, workspace_id, scope, kind, subject, statement)
-             VALUES ($1, $2, 'global', 'preference', $3, 'inj statement')`,
-            [injectId, f.wsB.id, `inj-fact-${injectId.slice(-6)}`]
+               (id, workspace_id, scope, kind, subject, statement, episode_id)
+             VALUES ($1, $2, 'global', 'preference', $3, 'inj statement', $4)`,
+            [injectId, f.wsB.id, `inj-fact-${injectId.slice(-6)}`, `mepi_iso_${f.wsB.id}`]
           );
+        }
         case "mnemo_extraction_job": {
           // For the INSERT-rejection test we don't actually need a
           // valid conversation_id — RLS short-circuits before the FK

@@ -1,5 +1,6 @@
 import { pgTable, text, timestamp, pgEnum, boolean, uniqueIndex } from "drizzle-orm/pg-core";
 import { users } from "./auth";
+import { orgs } from "./orgs";
 
 export const workspaceMemberRoleEnum = pgEnum("workspace_member_role", [
   "owner",
@@ -33,6 +34,16 @@ export const workspaces = pgTable("workspace", {
    * Enforced NOT NULL via check constraint workspace_owner_must_be_member.
    */
   ownerUserId: text("owner_user_id").references(() => users.id),
+  /**
+   * v2 — Tenancy parent (migration 0049). 1:1 personal-org by default
+   * (every existing workspace was backfilled to `org_<workspaceId>`);
+   * future product flows may MERGE multiple workspaces under a
+   * shared org for cross-workspace consolidation / enterprise SSO.
+   * NOT NULL — every workspace has exactly one org.
+   */
+  orgId: text("org_id")
+    .notNull()
+    .references(() => orgs.id, { onDelete: "restrict" }),
 });
 
 export const workspaceMembers = pgTable("workspace_member", {

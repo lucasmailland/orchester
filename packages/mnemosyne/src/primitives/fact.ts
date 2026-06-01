@@ -14,6 +14,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { schema } from "@orchester/db";
 import { redactPIIWithCategories } from "../pii/redact";
+import { deriveSyntheticEpisodeId } from "../episode/synthetic";
 import { embedMnemo, type EmbedFn, type EmbeddingProvider } from "../recall/embed";
 import { upsertPointerTerms } from "../index/pointer";
 import type { Tx } from "../tx";
@@ -297,6 +298,15 @@ export interface CreateFactInput {
    * embedding path unchanged for legacy callers and the PII pipeline.
    */
   skipEmbed?: boolean;
+  /**
+   * v2 — explicit episode_id. When omitted, the caller's
+   * `sourceMessageIds[0]` (if present) or the current UTC day
+   * (otherwise) is used to derive a deterministic synthetic
+   * episode id via `deriveSyntheticEpisodeId`. Pass an explicit
+   * value when the fact belongs to a user-created episode
+   * (meeting, milestone, etc.).
+   */
+  episodeId?: string;
   tx: Tx;
 }
 
@@ -353,10 +363,41 @@ export async function createFact(input: CreateFactInput): Promise<MnemoFact> {
     embedding = vec ?? null;
   }
 
+  // v2 — derive + ensure the synthetic episode FK target.
+  // Precedence: explicit input.episodeId > derived-from-message > derived-from-day(now).
+  // The fact insert below requires episode_id (NOT NULL per migration
+  // 0051), so we MUST have a row to point to.
+  const messageUuid = input.sourceMessageIds?.[0];
+  const episodeId =
+    input.episodeId ??
+    deriveSyntheticEpisodeId({
+      workspaceId: input.workspaceId,
+      ...(messageUuid ? { messageUuid } : { day: new Date() }),
+    });
+
+  // Upsert the synthetic episode (idempotent). When the caller passed
+  // an explicit episodeId pointing at a real user-created episode,
+  // this INSERT short-circuits via ON CONFLICT.
+  await input.tx.execute(sql`
+    INSERT INTO mnemo_episode (
+      id, workspace_id, title, narrative, occurred_at,
+      participants, topics, linked_fact_ids,
+      metadata, is_synthetic
+    ) VALUES (
+      ${episodeId}, ${input.workspaceId},
+      ${"(synthetic)"}, ${"Auto-created by createFact for v2 episode_id invariant."},
+      now(),
+      ARRAY[]::text[], ARRAY[]::text[], ARRAY[]::text[],
+      '{}'::jsonb, true
+    )
+    ON CONFLICT (id) DO NOTHING
+  `);
+
   const rows = await input.tx
     .insert(schema.mnemoFacts)
     .values({
       id,
+      episodeId,
       workspaceId: input.workspaceId,
       agentId: input.agentId ?? null,
       scope: input.scope,

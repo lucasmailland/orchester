@@ -74,6 +74,15 @@ export async function POST(req: NextRequest) {
       // to pass FORCE RLS on tables that key on `current_workspace_id()`.
       await tx.execute(sql`SELECT set_config('app.workspace_id', ${wsId}, true)`);
       await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
+      // v2 — personal org per workspace (migration 0049 default).
+      // Future product flows may MERGE workspaces into a shared org;
+      // here we always start with a 1:1 personal org keyed `org_<wsId>`.
+      const orgId = `org_${wsId}`;
+      await tx.insert(schema.orgs).values({
+        id: orgId,
+        name: parsed.data.name,
+        ownerUserId: ctx.user.id,
+      });
       await tx.insert(schema.workspaces).values({
         id: wsId,
         name: parsed.data.name,
@@ -81,6 +90,7 @@ export async function POST(req: NextRequest) {
         timezone: parsed.data.timezone,
         status: "active",
         ownerUserId: ctx.user.id,
+        orgId,
       });
       await tx.insert(schema.workspaceMembers).values({
         id: createId(),
