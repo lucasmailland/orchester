@@ -249,6 +249,16 @@ export const JOB_MNEMO_CONSOLIDATION = "mnemo.consolidation";
 // (`shouldExtractBackfill`). Conversations with existing successful
 // extractions are skipped. See `apps/web/worker/mnemo-sweeper-job.ts`.
 export const JOB_MNEMO_SWEEPER = "mnemo.sweeper.backfill";
+// v2 — Episode-id backfill (migration 0048+0051). Stamps every
+// mnemo_fact.episode_id NULL row with a deterministic synthetic
+// episode id. Daily 04:15 UTC so it runs OUTSIDE the consolidation
+// window. See apps/web/worker/episode-backfill-job.ts.
+export const JOB_MNEMO_EPISODE_BACKFILL = "mnemo.episode.backfill";
+// v2 — Cross-workspace org-level consolidation. Weekly Sunday 02:30
+// UTC (after per-workspace consolidation at 02:00, before the
+// janitor at 03:00). Gated by MNEMO_ENABLE_CROSS_WORKSPACE_CONSOLIDATION
+// env var. See apps/web/worker/org-consolidation-job.ts.
+export const JOB_MNEMO_ORG_CONSOLIDATION = "mnemo.consolidation.org";
 export const JOB_KB_REINDEX = "kb:reindex";
 export const JOB_WEBHOOK_DELIVER = "webhook:deliver";
 export const JOB_USAGE_AGGREGATE = "usage:aggregate";
@@ -286,6 +296,8 @@ export const ALL_QUEUES: readonly string[] = [
   JOB_MNEMO_AUTO_PIN,
   JOB_MNEMO_CONSOLIDATION,
   JOB_MNEMO_SWEEPER,
+  JOB_MNEMO_EPISODE_BACKFILL,
+  JOB_MNEMO_ORG_CONSOLIDATION,
   JOB_KB_REINDEX,
   JOB_WEBHOOK_DELIVER,
   JOB_USAGE_AGGREGATE,

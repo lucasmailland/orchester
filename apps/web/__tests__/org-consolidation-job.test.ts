@@ -1,19 +1,21 @@
 // apps/web/__tests__/org-consolidation-job.test.ts
 //
-// v2 — Cross-workspace consolidation cron scaffold. Validates the
-// kill-switch contract: the job is OFF by default and ONLY runs when
-// the explicit `MNEMO_ENABLE_CROSS_WORKSPACE_CONSOLIDATION=true` env
-// var is set. This guards against an accidental flip in deploy
-// config from running cross-workspace data paths before migration
-// 0050 + legal/security signoff are in place.
+// v2 — Cross-workspace consolidation cron. Pins the KILL-SWITCH
+// contract: the job NEVER runs the cross-workspace data path when
+// `MNEMO_ENABLE_CROSS_WORKSPACE_CONSOLIDATION` is not literally
+// "true". This is the only line of defense between an accidental
+// deploy-config flip and cross-org data leakage; it must be
+// regression-proof.
+//
+// The "enabled" path is not unit-tested here because it requires
+// a real DB (migrations 0049 + 0050 applied, org rows, fact rows).
+// Integration coverage lives in apps/web/tests/integration when
+// the testcontainer fixture for the cron lands.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-// Pin the observability layer so we can assert log emissions without
-// hitting Sentry or stdout noise in test output.
 vi.mock("@/lib/observability", () => ({
   logWithContext: vi.fn(),
-  // Required exports — empty stubs are fine.
   captureException: vi.fn(),
   recordMetric: vi.fn(),
   newCorrelationId: vi.fn(() => "test"),
@@ -39,11 +41,13 @@ describe("runOrgConsolidation — kill switch", () => {
   it("returns disabled when the env var is unset (default)", async () => {
     const { runOrgConsolidation } = await import("../worker/org-consolidation-job");
     const result = await runOrgConsolidation();
-    expect(result).toEqual({
-      status: "disabled",
-      orgsProcessed: 0,
-      reason: "kill_switch_off",
-    });
+    expect(result.status).toBe("disabled");
+    expect(result.reason).toBe("kill_switch_off");
+    expect(result.orgsScanned).toBe(0);
+    expect(result.orgsProcessed).toBe(0);
+    expect(result.clustersFound).toBe(0);
+    expect(result.rowsInserted).toBe(0);
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
   });
 
   it("returns disabled when the env var is anything other than the literal 'true'", async () => {
@@ -53,19 +57,10 @@ describe("runOrgConsolidation — kill switch", () => {
       const result = await runOrgConsolidation();
       expect(result.status).toBe("disabled");
       expect(result.reason).toBe("kill_switch_off");
+      // None of the data-path counters should ever be touched.
+      expect(result.orgsScanned).toBe(0);
+      expect(result.orgsProcessed).toBe(0);
+      expect(result.rowsInserted).toBe(0);
     }
-  });
-
-  it("falls through to the placeholder body when env var is the literal 'true'", async () => {
-    process.env[ENV_KEY] = "true";
-    const { runOrgConsolidation } = await import("../worker/org-consolidation-job");
-    const result = await runOrgConsolidation();
-    // Today the placeholder body returns ran/0/pending-migration. When
-    // migration 0050 lands, the implementation will fill the body and
-    // this assertion gets updated to expect orgsProcessed > 0 in the
-    // happy path.
-    expect(result.status).toBe("ran");
-    expect(result.orgsProcessed).toBe(0);
-    expect(result.reason).toBe("scaffold_only_pending_migration_0050");
   });
 });

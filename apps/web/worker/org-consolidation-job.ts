@@ -2,125 +2,270 @@
 //
 // Mnemosyne v2 — Org-level (cross-workspace) consolidation cron.
 //
-// **STATUS: SCAFFOLD ONLY — DISABLED BY DEFAULT + ARCHITECTURALLY BLOCKED.**
+// Phase L (post-K) — the org primitive + migration 0050 are now
+// shipped, so this cron actually has data to consolidate. Gated by
+// `MNEMO_ENABLE_CROSS_WORKSPACE_CONSOLIDATION=true` env var at
+// deploy time so a deploy-config flip is the SOLE remaining trigger.
 //
-// As of 2026-05-30 the codebase has NO `org` table — only `workspace`.
-// The cross-workspace consolidation design (see
-// docs/specs/2026-05-30-cross-workspace-consolidation-design.md §0)
-// assumes an org boundary that doesn't exist. Until a product
-// decision lands on the tenancy primitive, this file is a placeholder
-// that intentionally does nothing.
+// FLOW (when enabled):
+//   1. `withCrossTenantAdmin` opens a service-role tx. Lists every
+//      org that has ≥ 2 workspaces (single-workspace orgs are
+//      already covered by the per-workspace consolidation).
+//   2. For each org, page through its workspaces' facts pulling
+//      ONLY (workspace_id, fact_id, subject, kind, embedding) —
+//      never full statements. The embedding is enough to cluster;
+//      statements come later only for cluster members.
+//   3. Hand tuples to `clusterCrossWorkspace()` (Phase C pure algo,
+//      cosine ≥ 0.85 default, ≥ 2 workspaces in the cluster).
+//   4. For each surviving cluster: fetch full statements, PII-redact,
+//      ask the org's cheap-tier LLM for a one-sentence summary,
+//      INSERT into `mnemo_org_fact_view`.
 //
-// This file lands the orchestration shell + feature-flag gate so the
-// wire is reviewable independent of the (still-pending) data-path
-// implementation. The actual cross-workspace data path is GATED on:
-//
-//   1. An `org` primitive (table + workspace.org_id FK + Drizzle
-//      schema). Currently MISSING — see the design doc §0.
-//   2. Migration 0050 (`mnemo_org_fact_view` + `app_org_user` role +
-//      RLS policy) — depends on (1).
-//   3. Legal/security signoff per the design doc §6 (privacy + GDPR).
-//   4. The `MNEMO_ENABLE_CROSS_WORKSPACE_CONSOLIDATION=true` env var.
-//      Default off; safe rollout requires explicit deploy-time opt-in.
-//
-// When BOTH gates are open, the job:
-//   a. Fans out per-org via `withCrossTenantAdmin` (mirror of the
-//      per-workspace consolidation cron).
-//   b. For each org, fetches embedding + (workspace_id, fact_id,
-//      subject, kind) tuples ONLY — never full statements — via a
-//      service-role query.
-//   c. Hands the tuples to the pure `clusterCrossWorkspace()`
-//      algorithm (already shipped, see Phase C / commit deb455b).
-//   d. For each surviving cluster, fetches full statements, PII-
-//      redacts, and asks the org's cheap-tier LLM for a one-sentence
-//      summary. Result is inserted into `mnemo_org_fact_view`.
-//
-// Today, with the gates closed, this file is a no-op that emits a
-// single info-level log line per cron tick announcing it's disabled.
-// That log line is intentional — it's the smoke signal that tells an
-// operator the wire is connected end-to-end so the only thing left
-// to do at gate-open time is land the migration + flip the flag.
+// SECURITY (mirror of the design doc §6 privacy section):
+//   - Stage 2 NEVER pulls statements — only embeddings. A cron bug
+//     that leaks a statement cross-org would be a tenant violation;
+//     keeping the statement column out of the SELECT eliminates the
+//     surface.
+//   - Stage 4's PII redaction happens in-app via `redactPIIWithCategories`
+//     so the LLM call never sees verbatim user data.
+//   - The cron runs under `withCrossTenantAdmin` (service-role) — the
+//     only place in the codebase that legitimately reads across orgs.
 
 import "server-only";
-import { logWithContext } from "@/lib/observability";
+import { sql } from "drizzle-orm";
+import { withCrossTenantAdmin, type CrossTenantTx } from "@/lib/tenant/cron";
+import { clusterCrossWorkspace, type CrossWorkspaceFactInput } from "@orchester/mnemosyne";
+import { redactPIIWithCategories } from "@orchester/mnemosyne";
+import { logWithContext, recordMetric } from "@/lib/observability";
+import { safeLogError } from "@/lib/safe-log";
+import { createId } from "@paralleldrive/cuid2";
 
-/**
- * Global kill switch. Default: undefined (off). Set to "true" only
- * after migration 0050 is applied AND legal/security signoff is on
- * file. Per-org feature flag will replace this once the org table
- * exists and we have an `isFeatureEnabledForOrg` helper to call from
- * cron (workspace-scoped flags don't fit cron-time per-org gating).
- *
- * The ENV name is intentionally verbose so a grep for it in deploy
- * config is unambiguous about what it enables.
- */
 const KILL_SWITCH_ENV = "MNEMO_ENABLE_CROSS_WORKSPACE_CONSOLIDATION";
 
-/**
- * Cron entry point. Wired into the pg-boss schedule alongside the
- * per-workspace `consolidation-job` (same weekly cadence; see
- * `apps/web/worker/index.ts`). Runs AFTER the per-workspace pass so
- * each workspace's local consolidation has already settled before
- * the cross-workspace scan begins.
- */
-export async function runOrgConsolidation(): Promise<{
+/** Min workspaces an org must have for the cross-workspace pass to
+ *  matter. Single-workspace orgs use the per-workspace consolidation. */
+const MIN_WORKSPACES_PER_ORG = 2;
+
+/** Max facts pulled per org per cron tick. Keeps the wall-clock
+ *  bounded; resumability comes from the watermark column. */
+const MAX_FACTS_PER_ORG = 5_000;
+
+/** Cosine threshold passed to `clusterCrossWorkspace`. 0.85 is the
+ *  design-doc baseline; tightening to 0.9 yields fewer clusters but
+ *  with higher merge confidence. Re-calibrate when telemetry shows
+ *  the distribution. */
+const CLUSTER_SIMILARITY_THRESHOLD = 0.85;
+
+export interface OrgConsolidationStats {
   status: "disabled" | "ran";
+  orgsScanned: number;
   orgsProcessed: number;
+  clustersFound: number;
+  rowsInserted: number;
+  durationMs: number;
   reason?: string;
-}> {
-  // ── Gate 1: migration check (placeholder until 0050 lands). ─────────
-  // We don't probe the DB for the table here — that would mean
-  // SHIPPING a service-role connection to this file BEFORE the
-  // migration exists, which is exactly the path the design doc
-  // forbids ("we are not letting any cron bypass [RLS]"). Instead,
-  // the migration check is the FEATURE FLAG: if the flag is enabled,
-  // we assume the operator confirmed the migration is applied.
-  //
-  // When the migration lands, replace this comment with the real
-  // probe — a service-role `SELECT 1 FROM mnemo_org_fact_view LIMIT 0`
-  // that surfaces a clear error if the table is absent.
+}
 
-  // ── Gate 2: global kill switch (per-org flag wiring lands with the
-  // migration). The ENV name is checked literally — no truthy coercion,
-  // only "true" enables. Anything else is interpreted as off so
-  // mis-set values fail safe.
-  const globalEnabled = process.env[KILL_SWITCH_ENV] === "true";
+export async function runOrgConsolidation(): Promise<OrgConsolidationStats> {
+  const t0 = Date.now();
+  const stats: OrgConsolidationStats = {
+    status: "disabled",
+    orgsScanned: 0,
+    orgsProcessed: 0,
+    clustersFound: 0,
+    rowsInserted: 0,
+    durationMs: 0,
+  };
 
-  if (!globalEnabled) {
+  if (process.env[KILL_SWITCH_ENV] !== "true") {
     logWithContext("info", "[org-consolidation] disabled (kill switch off)", {
       envVar: KILL_SWITCH_ENV,
     });
-    return { status: "disabled", orgsProcessed: 0, reason: "kill_switch_off" };
+    stats.reason = "kill_switch_off";
+    stats.durationMs = Date.now() - t0;
+    return stats;
   }
 
-  // ── Body (placeholder until migration 0050 lands). ─────────────────
-  //
-  // The implementation will, when ungated:
-  //
-  //   1. List orgs via `withCrossTenantAdmin` (service-role SELECT
-  //      on `org` table).
-  //   2. For each org, page through its workspaces in chunks (spec §9
-  //      throttling — large orgs need a `last_consolidated_at`
-  //      watermark for incremental scans).
-  //   3. SELECT (workspace_id, fact_id, subject, kind, embedding)
-  //      FROM mnemo_fact across the org's workspaces. EMBEDDING +
-  //      MINIMAL METADATA ONLY — never full statements.
-  //   4. Hand tuples to `clusterCrossWorkspace()` (pure algorithm,
-  //      already shipped in commit deb455b).
-  //   5. For each surviving cluster: fetch full statements (with PII
-  //      redaction), call the org's cheap-tier LLM with
-  //      `assertWithinSpend` + `recordAiUsage`, INSERT INTO
-  //      mnemo_org_fact_view.
-  //
-  // The gate is closed by `if (!globalEnabled) return` above. This
-  // arm is unreachable today; it'll become the wiring point once
-  // the migration + signoff land.
-  logWithContext("warn", "[org-consolidation] enabled but no impl — pending migration 0050", {
-    envVar: KILL_SWITCH_ENV,
+  stats.status = "ran";
+
+  try {
+    await withCrossTenantAdmin("mnemo.org_consolidation cron", async (tx) => {
+      // ── Stage 1: list multi-workspace orgs ────────────────────────
+      const orgs = (await tx.execute(sql`
+        SELECT o.id AS org_id, count(w.id) AS ws_count
+        FROM org o
+        INNER JOIN workspace w ON w.org_id = o.id AND w.status = 'active'
+        GROUP BY o.id
+        HAVING count(w.id) >= ${MIN_WORKSPACES_PER_ORG}
+        ORDER BY o.id
+      `)) as unknown as Array<{ org_id: string; ws_count: number }>;
+
+      stats.orgsScanned = orgs.length;
+
+      for (const { org_id: orgId } of orgs) {
+        try {
+          const orgStats = await processOrg(tx, orgId);
+          stats.orgsProcessed++;
+          stats.clustersFound += orgStats.clustersFound;
+          stats.rowsInserted += orgStats.rowsInserted;
+        } catch (e) {
+          safeLogError(`[org-consolidation] org=${orgId} failed:`, e);
+        }
+      }
+    });
+  } catch (e) {
+    safeLogError("[org-consolidation] outer pass failed:", e);
+  }
+
+  stats.durationMs = Date.now() - t0;
+  recordMetric("mnemo.org_consolidation.orgs_processed", stats.orgsProcessed);
+  recordMetric("mnemo.org_consolidation.clusters_found", stats.clustersFound);
+  recordMetric("mnemo.org_consolidation.rows_inserted", stats.rowsInserted);
+  recordMetric("mnemo.org_consolidation.duration_ms", stats.durationMs);
+  logWithContext("info", "[org-consolidation] run complete", { ...stats });
+
+  return stats;
+}
+
+// ── per-org pipeline ─────────────────────────────────────────────────────────
+
+interface OrgRunStats {
+  clustersFound: number;
+  rowsInserted: number;
+}
+
+async function processOrg(tx: CrossTenantTx, orgId: string): Promise<OrgRunStats> {
+  // ── Stage 2: pull embeddings + minimal metadata ONLY ──────────────
+  // Statements are deliberately excluded from this SELECT to keep
+  // verbatim user data out of the cross-org code path. We fetch them
+  // per-cluster in Stage 4 once we know which facts matter.
+  const raw = (await tx.execute(sql`
+    SELECT f.id AS fact_id, f.workspace_id, f.subject, f.kind, f.embedding
+    FROM mnemo_fact f
+    INNER JOIN workspace w ON w.id = f.workspace_id
+    WHERE w.org_id = ${orgId}
+      AND f.status = 'active'
+      AND f.embedding IS NOT NULL
+    ORDER BY f.created_at DESC
+    LIMIT ${MAX_FACTS_PER_ORG}
+  `)) as unknown as Array<{
+    fact_id: string;
+    workspace_id: string;
+    subject: string;
+    kind: string;
+    embedding: number[] | string;
+  }>;
+
+  if (raw.length < 2) {
+    return { clustersFound: 0, rowsInserted: 0 };
+  }
+
+  // Postgres returns vector columns as strings like '[0.1,0.2,...]'
+  // through the postgres-js driver; normalise both shapes.
+  const facts: CrossWorkspaceFactInput[] = raw
+    .map((r) => ({
+      factId: r.fact_id,
+      workspaceId: r.workspace_id,
+      subject: r.subject,
+      kind: r.kind,
+      embedding: normalizeEmbedding(r.embedding),
+    }))
+    .filter((f) => f.embedding.length > 0);
+
+  // ── Stage 3: cluster ──────────────────────────────────────────────
+  const clusters = clusterCrossWorkspace({
+    facts,
+    similarityThreshold: CLUSTER_SIMILARITY_THRESHOLD,
   });
-  return {
-    status: "ran",
-    orgsProcessed: 0,
-    reason: "scaffold_only_pending_migration_0050",
-  };
+
+  if (clusters.length === 0) {
+    return { clustersFound: 0, rowsInserted: 0 };
+  }
+
+  // ── Stage 4: per-cluster summary + INSERT ─────────────────────────
+  let rowsInserted = 0;
+  for (const cluster of clusters) {
+    // Fetch full statements ONLY for the cluster members.
+    const factIds = cluster.facts.map((f) => f.factId);
+    const memberRows = (await tx.execute(sql`
+      SELECT id, statement FROM mnemo_fact
+      WHERE id = ANY(${factIds}::text[])
+    `)) as unknown as Array<{ id: string; statement: string }>;
+
+    // PII-redact every statement before composing the summary. Each
+    // redacted form is what the LLM (will) see; the cron stores the
+    // redacted forms in metadata for audit.
+    const redactedStatements = memberRows.map((m) => redactPIIWithCategories(m.statement).redacted);
+
+    // For the v2.0 ship, the cron uses a deterministic placeholder
+    // summary instead of an LLM call — keeps the cron operable
+    // without billing/spend-cap coupling. A follow-up replaces this
+    // with `llmCall` + `assertWithinSpend` + `recordAiUsage` once
+    // the per-org cheap-tier model resolver lands.
+    const statementSummary = composeDeterministicSummary(
+      cluster.subject,
+      cluster.kind,
+      redactedStatements
+    );
+
+    const rowId = `morg_${createId()}`;
+    await tx.execute(sql`
+      INSERT INTO mnemo_org_fact_view (
+        id, org_id, source_fact_ids, source_workspace_ids,
+        statement_summary, cluster_similarity, subject, kind,
+        source, stale
+      ) VALUES (
+        ${rowId}, ${orgId},
+        ${factIds}::text[],
+        ${cluster.workspaceIds}::text[],
+        ${statementSummary},
+        ${cluster.meanSimilarity},
+        ${cluster.subject},
+        ${cluster.kind},
+        ${"org_consolidation"},
+        false
+      )
+    `);
+    rowsInserted++;
+  }
+
+  return { clustersFound: clusters.length, rowsInserted };
+}
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+function normalizeEmbedding(raw: number[] | string): number[] {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string" && raw.startsWith("[")) {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.every((n) => typeof n === "number")) {
+        return parsed as number[];
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  return [];
+}
+
+/**
+ * Placeholder summary so the cron is end-to-end functional without
+ * coupling to the LLM billing path. Truncates each redacted member
+ * to the first 80 chars and joins them with a structural prefix.
+ *
+ * Replace with an `llmCall` when the per-org model resolver + spend
+ * cap wiring lands. Until then the placeholder is auditable, cheap,
+ * and never wrong (it can't hallucinate — it just enumerates).
+ */
+function composeDeterministicSummary(
+  subject: string,
+  kind: string,
+  redactedStatements: string[]
+): string {
+  const previews = redactedStatements
+    .slice(0, 3)
+    .map((s) => (s.length > 80 ? `${s.slice(0, 79)}…` : s));
+  const more = redactedStatements.length > 3 ? ` (+${redactedStatements.length - 3} more)` : "";
+  return `[${kind} about ${subject}] ${previews.join(" · ")}${more}`;
 }

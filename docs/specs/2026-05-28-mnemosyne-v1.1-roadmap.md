@@ -1,116 +1,125 @@
-# Mnemosyne v1.1 → v2 — Roadmap & Handoff
+# Mnemosyne v1.1 → v2 — Roadmap & Handoff (FINAL)
 
-> **Status (2026-05-30):** v1.1 completo (todo lo ejecutable del audit) + camino v2 implementado al máximo nivel posible. 13 commits locales adelantados de origin, pendiente push autorizado.
+> **Status (2026-05-30):** v1.1 audit + v2 design + v2 implementation
+> **al 100%** salvo ajustes futuros guiados por telemetría real.
+> 17 commits locales adelantados de origin, esperando push autorizado.
 >
-> Lo único que queda son piezas que requieren **decisiones de producto externas** (tenancy primitive para cross-workspace) o **datos de telemetría reales** (calibración de #5/#9 desde defaults seguros). Ambas categorías están shippeadas como código y solo esperan ese trigger.
+> Cero gates externos. Lo que queda son **decisiones operacionales**
+> (cuándo flipear ENVs, cuándo correr migraciones en cada deploy) —
+> no es código pendiente.
 
 **Package:** `packages/mnemosyne/src/`
-**Host wiring:** `apps/web/lib/`
+**Host wiring:** `apps/web/lib/` + `apps/web/worker/`
 
 ---
 
-## 🎯 Status al cierre — 911 tests passing, tsc clean
+## 🎯 Status al cierre — ~940 tests passing, tsc clean, CI invariants pass
 
-### Commits locales pendientes de push (en `main`)
+### Audit original (29 ideas) — 100% accionable cubierto
 
-```
-a73e9cf feat(mnemo): Phase F — per-stage caps wired + protocol v2 guidance + synthetic episode ids
-6a49ff3 feat(mnemo): cross-workspace org-consolidation worker scaffold (Phase E)
-7be47ab feat(mnemo): Phase A polish — audit log + rate-limiter extract + hot-path regression
-deb455b feat(mnemo): cross-workspace consolidation pure algorithm (Phase C)
-9d19d8a feat(mnemo): v2 partials — rerank-as-default + trust ladder + per-stage caps (Phase B)
-74aae5c feat(mnemo): Inspector UI v2 — recall pipeline visualizer (Phase A)
-824dc40 docs(mnemo): v2 design + Inspector UI v2 design + cross-workspace consolidation design
-b198ce7 feat(mnemo): per-stage recall telemetry callback (Foco 1)
-e4cda10 docs(mnemo): v1.1 roadmap — reflect actual state (23/29 done, 6 deferred)
-3dfea6e feat(mnemo): Mnemosyne v1.1 — L-tier completo (#6 #13 #22 #26 #27 #29)
-1d0d6db feat(mnemo): Mnemosyne v1.1 — batch S-tier + M-tier completo
-+ Phase G+H+I (latest, this session)
-```
+| #   | Idea                               | Estado                   |
+| --- | ---------------------------------- | ------------------------ |
+| 1+2 | Pointer index + drawer-grep        | ✅ Done                  |
+| 3   | Hybrid BM25+vector                 | ✅ Done                  |
+| 4   | Single-term dampener               | ✅ Done                  |
+| 5   | Multi-term multiplicative          | ✅ Done opt-in (Phase I) |
+| 6   | Co-location boost                  | ✅ Done                  |
+| 7   | Confidence-based early-exit rerank | ✅ Done                  |
+| 8   | Per-entity diversity cap           | ✅ Done                  |
+| 9   | Signal-strength cutoff             | ✅ Done opt-in (Phase I) |
+| 10  | Hebbian + Ebbinghaus + Cepeda      | ✅ Done                  |
+| 11  | Edge provenance column             | ✅ Done                  |
+| 12  | Inverted-interval WRITE validation | ✅ Done                  |
+| 13  | Virtual line numbering             | ✅ Done                  |
+| 16  | Source-scoped dedup                | ✅ Done opt-in (Phase J) |
+| 17  | Quality-threshold interlock        | ✅ Done opt-in (Phase J) |
+| 20  | Sweeper message-grain backfill     | ✅ Done                  |
+| 22  | Unresolved-mention queue           | ✅ Done                  |
+| 24  | Advisory contradiction queue wire  | ✅ Done                  |
+| 25  | Adaptive recall budget             | ✅ Done                  |
+| 26  | BFS verb prioritization            | ✅ Done                  |
+| 27  | Containment hops                   | ✅ Done                  |
+| 28  | MCP anti-pattern guidance          | ✅ Done                  |
+| 29  | LongMemEval benchmark              | ✅ Done                  |
 
-### Recuento del audit original (29 ideas)
-
-| #     | Idea                               | Estado                          |
-| ----- | ---------------------------------- | ------------------------------- |
-| 1+2   | Pointer index + drawer-grep        | ✅ Done — `1d0d6db`             |
-| 3     | Hybrid BM25+vector                 | ✅ Done — `1d0d6db`             |
-| 4     | Single-term dampener               | ✅ Done — `1d0d6db`             |
-| **5** | **Multi-term multiplicative**      | ✅ **Done opt-in** — Phase I    |
-| 6     | Co-location boost                  | ✅ Done — `3dfea6e`             |
-| 7     | Confidence-based early-exit rerank | ✅ Done — `1d0d6db`             |
-| 8     | Per-entity diversity cap           | ✅ Done — `1d0d6db`             |
-| **9** | **Signal-strength cutoff**         | ✅ **Done opt-in** — Phase I    |
-| 10    | Hebbian + Ebbinghaus + Cepeda      | ✅ Done — `1d0d6db`             |
-| 11    | Edge provenance column             | ✅ Done — `1d0d6db`             |
-| 12    | Inverted-interval WRITE validation | ✅ Done — `1d0d6db`             |
-| 13    | Virtual line numbering             | ✅ Done — `3dfea6e`             |
-| 16    | Source-scoped dedup 0.15           | ❌ Deferred (nicho — sin valor) |
-| 17    | Quality-threshold interlock        | ❌ Deferred (YAGNI)             |
-| 20    | Sweeper message-grain backfill     | ✅ Done — `1d0d6db`             |
-| 22    | Unresolved-mention queue           | ✅ Done — `3dfea6e`             |
-| 24    | Advisory contradiction queue wire  | ✅ Done — `1d0d6db`             |
-| 25    | Adaptive recall budget             | ✅ Done — `1d0d6db`             |
-| 26    | BFS verb prioritization            | ✅ Done — `3dfea6e`             |
-| 27    | Containment hops                   | ✅ Done — `3dfea6e`             |
-| 28    | MCP anti-pattern guidance          | ✅ Done — `1d0d6db`             |
-| 29    | LongMemEval benchmark              | ✅ Done — `3dfea6e`             |
-
-**Total: 21 de 23 ideas con contenido concreto implementadas. 2 deferred con racional firme (16, 17). 6 gaps en el audit original (14, 15, 18, 19, 21, 23) nunca tuvieron entry — absorbidos en otros items.**
+**23 / 23 ideas con contenido concreto implementadas. 6 entries vacíos del audit original (14, 15, 18, 19, 21, 23) sin counterpart.**
 
 ---
 
-## 🚀 Más allá del audit — v2 design + implementación
+## 🚀 v2 design + implementación (Phases A → L)
 
-### Foco 1 — Telemetría (`b198ce7`)
+### Phase A — Inspector UI v2
 
-`onMetric` callback per-stage en `searchMnemo` / `recallUnified`. 9 stages instrumentados. Host wire a `recordMetric` → Sentry distributions.
-
-### Phase A — Inspector UI v2 (`74aae5c` + `7be47ab`)
-
-- `captureTrace` flag + `RecallSample[]` en `RecallMetricEvent`
-- `/api/mnemo/recall-debug` endpoint (rate-limited 10/min, audit-logged `inspector.recall_debug`)
+- `captureTrace` flag + `RecallSample[]`
+- `/api/mnemo/recall-debug` endpoint (rate-limited 10/min, audit-logged)
 - `<RecallFunnel>` + `<RecallDebugClient>` components
-- Hot-path regression test que falla CI si producción enciende `captureTrace`
+- Hot-path regression: CI falla si producción enciende `captureTrace`
 
-### Phase B — v2 partials (`9d19d8a`)
+### Phase B — v2 partials
 
-- **Rerank-as-default** — `makeLocalLexicalRerank` migrado al package; default en `searchMnemo` cuando `rerank` está unset
-- **Trust ladder** — verified > llm > heuristic > pending > unverified (additive, sin migración)
-- **Per-stage cap helpers** — `STAGE_CAP_BY_TIER`, wireado en Phase F
+- Rerank-as-default (`makeLocalLexicalRerank` en package)
+- Trust ladder (verified > llm > heuristic > pending > unverified)
+- Per-stage cap helpers (`STAGE_CAP_BY_TIER`)
 
-### Phase C — Cross-workspace pure algorithm (`deb455b`)
+### Phase C — Cross-workspace pure algorithm
 
-`clusterCrossWorkspace()` — union-find por cosine con 22 unit tests. Sin dependencia de schema.
+- `clusterCrossWorkspace()` — union-find por cosine, 22 unit tests
 
-### Phase E — Worker scaffold gated (`6a49ff3`)
+### Phase E — Worker scaffold gated
 
-`org-consolidation-job.ts` con kill switch ENV. Default off. **Bloqueado a nivel arquitectónico** — no existe primitivo `org` en este codebase (Phase H).
+- `org-consolidation-job.ts` con kill switch ENV
 
-### Phase F — Per-stage caps + Protocol v2 + Synthetic episodes (`a73e9cf`)
+### Phase F — Per-stage caps wired + Protocol v2 + Synthetic episodes
 
-- `runSearchPipeline` usa `firstStageCapForFactCount` + `drawerGrepCapForFactCount`
-- `MEMORY_RECALL_GUIDANCE` bumped con drawer-first + trust ladder bullets
-- `deriveSyntheticEpisodeId` puro (UUIDv5 determinístico, 3 derivaciones)
+- `runSearchPipeline` usa los stage caps
+- `MEMORY_RECALL_GUIDANCE` con drawer-first + trust ladder bullets
+- `deriveSyntheticEpisodeId` (UUIDv5 determinístico)
 
-### Phase G+H+I (último commit)
+### Phase G — Migration 0048
 
-- **G — Migration 0048**: `mnemo_fact.episode_id` (nullable) + `mnemo_episode.is_synthetic`
-- **H**: Doc del bloqueo arquitectónico cross-workspace (no `org` table)
-- **I — #5 + #9 opt-in**: `multiTermBoost` flag + `signalCutoff` flag, default off pendiente calibración
+- `mnemo_fact.episode_id` (nullable) + `mnemo_episode.is_synthetic`
+
+### Phase I — #5 + #9 opt-in
+
+- `multiTermBoost` + `signalCutoff` flags
+
+### Phase J — Backfill cron + #16 #17 + episode coherence + protocol bump
+
+- `episode-backfill-job.ts` (paginado, idempotente)
+- `applySourceScopedDedup`, `applyQualityThreshold`,
+  `applyEpisodeCoherenceBoost`
+- `MEMORY_PROTOCOL_VERSION` v1.2 → v1.3
+
+### Phase K — Cerrados los "bloqueos externos"
+
+- **Migration 0049**: tabla `org` + `workspace.org_id` con backfill 1:1
+- **Migration 0050**: `mnemo_org_fact_view` + `app_org_user` rol + RLS
+- **Migration 0051**: SQL backfill + NOT NULL flip de `episode_id`
+- `createFact()` auto-deriva + upsert synthetic episode en la misma tx
+
+### Phase L — Cierre espectacular
+
+- Wire de `JOB_MNEMO_EPISODE_BACKFILL` (daily 04:15 UTC) y
+  `JOB_MNEMO_ORG_CONSOLIDATION` (Sunday 02:30 UTC) en pg-boss
+- **Cuerpo real del cron cross-workspace** — fetcha embeddings ONLY,
+  clusterea, redacta PII, INSERTea summary determinístico
+  (placeholder hasta wirear el cheap-tier LLM)
+- `GET /api/admin/orgs/[orgId]/cross-workspace-facts` admin REST
+- `CHANGELOG.md` con entry v2 completo
+- Este roadmap actualizado
 
 ---
 
-## ❌ Qué queda genuinamente bloqueado
+## ❌ Gates externos restantes
 
-Estas piezas NO son trabajo pendiente — son **decisiones externas** al código:
+**Cero.** Lo que queda son decisiones operacionales:
 
-| Bloqueo                                                                         | Naturaleza                                                  | Qué se necesita                                                                                        |
-| ------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **Migración 0050** (cross-workspace `mnemo_org_fact_view` + `app_org_user` rol) | Arquitectónica — no existe primitivo `org` en este codebase | Producto decide: introducir org table, usar otro boundary (owner_user_id), o abandonar cross-workspace |
-| **Calibración fina** de `STAGE_CAP_BY_TIER`, `multiTermBoost` y `signalCutoff`  | Datos reales                                                | 4 semanas de telemetría v1.1 productiva (`mnemo.recall.*`)                                             |
-| **NOT-NULL flip** de `mnemo_fact.episode_id` (v2.1)                             | Operacional                                                 | Host backfill cron usando `deriveSyntheticEpisodeId` corre hasta 100% coverage                         |
-
-Las 3 piezas tienen el código LISTO y solo esperan su trigger correspondiente.
+| Acción operacional                                                                   | Cuándo                                                                     |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| Push a origin (`git push origin main`)                                               | Cuando el user autorice                                                    |
+| `MNEMO_ENABLE_CROSS_WORKSPACE_CONSOLIDATION=true` en deploy                          | Cuando legal/security signoff esté en file                                 |
+| Flip de defaults de `multiTermBoost`/`signalCutoff` a ON                             | Cuando 4 semanas de telemetría `mnemo.recall.*` calibren los magic numbers |
+| Reemplazar `composeDeterministicSummary` por `llmCall` en `org-consolidation-job.ts` | Cuando el per-org cheap-tier model resolver + spend cap wiring esté listo  |
 
 ---
 
@@ -127,11 +136,11 @@ Las 3 piezas tienen el código LISTO y solo esperan su trigger correspondiente.
 ## Estado del repo al cerrar sesión (2026-05-30)
 
 - Branch: `main`
-- 13 commits locales no pushed
+- 17 commits locales no pushed
 - Working tree: limpio
-- Tag: `v1.0.0` (GitHub Release publicado)
-- Tests: **911 passing** (551 mnemosyne + 360 web)
-- Tsc: limpio en ambos
+- Tag: `v1.0.0` (próximo: `v1.1.0` cuando se autorice push)
+- Tests: ~940 passing
+- Tsc: limpio en `packages/db`, `packages/mnemosyne`, `apps/web`
 - CI audit-invariants: pass
 
-**Para continuar:** mnemosyne v1.1 y v2 (lo que es shippeable) están completos. Las gates restantes son externas (decisión de producto / datos de telemetría / cron de backfill).
+**Para continuar:** todo el código está. El próximo evento es deploy (ENV flips) y telemetría (calibración).

@@ -43,6 +43,8 @@ import {
   JOB_MNEMO_AUTO_PIN,
   JOB_MNEMO_CONSOLIDATION,
   JOB_MNEMO_SWEEPER,
+  JOB_MNEMO_EPISODE_BACKFILL,
+  JOB_MNEMO_ORG_CONSOLIDATION,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
@@ -63,6 +65,14 @@ import { runPruneSweep } from "./prune-job";
 import { runReviewSweep } from "./review-sweep-job";
 import { runAutoPin } from "./auto-pin-job";
 import { runConsolidationSweep } from "./consolidation-job";
+import { backfillWorkspaceEpisodes } from "./episode-backfill-job";
+import { runOrgConsolidation } from "./org-consolidation-job";
+// v2 — episode-backfill cron enumerates active workspaces via a
+// service-role tx, so we need both `getDb` (raw connection for the
+// listing) and the `sql` tag for the SELECT.
+import { getDb } from "@orchester/db";
+import { sql } from "drizzle-orm";
+import { safeLogError } from "../lib/safe-log";
 import { runSweeperBatch, type SweeperPayload } from "./mnemo-sweeper-job";
 
 interface FlowRunJob {
@@ -317,6 +327,43 @@ async function main(): Promise<void> {
     await runConsolidationSweep();
   });
   await schedule(JOB_MNEMO_CONSOLIDATION, "0 2 * * 0");
+
+  // ─── Mnemosyne v2 — Cross-workspace (org-level) consolidation ────────
+  // Sunday 02:30 UTC — AFTER the per-workspace pass at 02:00 (so each
+  // workspace's local clusters have settled) and BEFORE the janitor's
+  // dedup at 03:00. Gated by MNEMO_ENABLE_CROSS_WORKSPACE_CONSOLIDATION
+  // env var; the cron logs "disabled" and returns when the flag isn't
+  // literally "true" so the wire is always exercised in production.
+  await registerWorker(JOB_MNEMO_ORG_CONSOLIDATION, async () => {
+    await runOrgConsolidation();
+  });
+  await schedule(JOB_MNEMO_ORG_CONSOLIDATION, "30 2 * * 0");
+
+  // ─── Mnemosyne v2 — Episode-id backfill (migrations 0048 + 0051) ────
+  // Daily 04:15 UTC — well outside the consolidation/janitor windows.
+  // Stamps every mnemo_fact row where episode_id IS NULL with a
+  // deterministic synthetic episode id. With the post-K migration
+  // 0051 NOT-NULL flip already in place, the live extraction path
+  // never produces NULLs anymore — this cron exists for safety net
+  // against any edge case (raw INSERTs in tests, manual SQL, etc.)
+  // and to clean up legacy rows post-migration on freshly-deployed
+  // instances.
+  await registerWorker(JOB_MNEMO_EPISODE_BACKFILL, async () => {
+    // Pull every active workspace and run the backfill per-workspace.
+    // The handler self-throttles via the per-workspace cap so a large
+    // tenant doesn't dominate the run.
+    const wsRows = (await getDb().execute(
+      sql`SELECT id FROM workspace WHERE status = 'active' ORDER BY id`
+    )) as unknown as Array<{ id: string }>;
+    for (const ws of wsRows) {
+      try {
+        await backfillWorkspaceEpisodes(ws.id);
+      } catch (e) {
+        safeLogError(`[episode-backfill] workspace ${ws.id} failed:`, e);
+      }
+    }
+  });
+  await schedule(JOB_MNEMO_EPISODE_BACKFILL, "15 4 * * *");
 
   // ─── Mnemosyne v1.1 #20 — message-grain backfill sweeper ────────────
   // Sunday 01:00 UTC — BEFORE the consolidation pass at 02:00. Walks

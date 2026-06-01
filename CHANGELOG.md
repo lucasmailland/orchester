@@ -8,6 +8,64 @@ Releases are produced by [release-please](https://github.com/googleapis/release-
 
 ## [Unreleased]
 
+### Mnemosyne v2 (Phases A → L)
+
+Cognitive memory architecture maturation — every executable item from the
+2026-05-28 audit of 29 ideas is now shipped (21 with concrete content +
+2 deferred with firm rationale + 6 audit gaps with no original entry).
+On top of the audit, the v2 design + implementation lands.
+
+**Audit deliverables (commits `1d0d6db`, `3dfea6e`):**
+
+- #3 hybrid BM25+vector, #4 single-term dampener, #6 co-location boost,
+  #7 confidence early-exit rerank, #8 per-entity diversity cap, #10
+  Hebbian/Ebbinghaus/Cepeda, #11 edge provenance, #12 inverted-interval
+  WRITE validation, #13 virtual line numbering, #20 sweeper backfill,
+  #22 unresolved-mention queue, #24 advisory contradiction wire,
+  #25 adaptive recall budget, #26 BFS verb priority, #27 containment
+  hops, #28 MCP anti-pattern guidance, #29 LongMemEval benchmark,
+  #1+#2 pointer index + drawer-grep.
+
+**v2 design + implementation (Phases A → L):**
+
+- **Telemetría** — per-stage `onMetric` callback in `searchMnemo` /
+  `recallUnified`; 11 stages instrumented; host wires `recordMetric`
+  → Sentry distributions.
+- **Inspector UI v2** — `captureTrace` flag + `RecallSample[]`,
+  `/api/mnemo/recall-debug` endpoint (rate-limited, audit-logged),
+  `<RecallFunnel>` + `<RecallDebugClient>` components, hot-path
+  regression test that fails CI if production turns `captureTrace` on.
+- **v2 partials** — `makeLocalLexicalRerank` is now the package
+  default; trust ladder (verified > llm > heuristic > pending >
+  unverified); per-stage cap helpers tiered on workspace fact count
+  (wired into `runSearchPipeline`).
+- **Cross-workspace consolidation** — pure clustering algorithm
+  (`clusterCrossWorkspace`, 22 unit tests); migrations 0049 (`org`
+  tenancy primitive) + 0050 (`mnemo_org_fact_view` + `app_org_user`
+  role + RLS) ship the data path end-to-end; weekly Sunday 02:30 UTC
+  cron schedule wired into pg-boss, gated by
+  `MNEMO_ENABLE_CROSS_WORKSPACE_CONSOLIDATION` env.
+- **Episodes first-class** — migrations 0048 (nullable `episode_id`)
+  - 0051 (SQL-level backfill + NOT NULL flip); `createFact()`
+    auto-derives and upserts the synthetic episode in the same tx;
+    daily 04:15 UTC backfill cron as a safety net.
+- **Opt-in scoring helpers** — #5 multi-term multiplicative
+  (`multiTermBoost`), #9 signal-strength cutoff (`signalCutoff`),
+  #16 source-scoped dedup (`sourceScopedDedupThreshold`), #17 quality
+  interlock (`qualityThreshold`), episode-coherence boost
+  (`episodeCoherenceBoost`). All default off; flip when telemetry
+  calibration arrives.
+- **Memory Protocol** bumped to `v1.3.0` to reflect the
+  `MEMORY_RECALL_GUIDANCE` expansion (drawer-first awareness +
+  trust-ladder hints).
+- **Admin REST** — `GET /api/admin/orgs/[orgId]/cross-workspace-facts`
+  for read-side admin access to org-level summaries.
+
+### Tests + invariants
+
+928+ tests passing (mnemosyne + apps/web). tsc clean across `packages/db`,
+`packages/mnemosyne`, `apps/web`. CI audit-invariants pass.
+
 ## [1.0.0] — 2026-05-28
 
 > First stable release. Multi-tenant correctness hardened end-to-end,
