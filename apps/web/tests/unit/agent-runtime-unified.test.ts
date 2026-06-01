@@ -33,6 +33,7 @@ vi.mock("@orchester/mnemosyne", () => ({
   shouldTriggerRecall: mocks.shouldTriggerRecallMock,
   noopRerank: vi.fn(),
   makeCohereRerank: vi.fn(),
+  makeLocalLexicalRerank: vi.fn(() => vi.fn(async () => [])),
   parseAgentMemoryPolicy: vi.fn((x: unknown) => x),
 }));
 

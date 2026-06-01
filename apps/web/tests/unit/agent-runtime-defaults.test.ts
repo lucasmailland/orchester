@@ -28,22 +28,33 @@ const mocks = vi.hoisted(() => ({
   getMnemoSettingsMock: vi.fn(),
 }));
 
-vi.mock("@orchester/mnemosyne", () => ({
-  MEMORY_PROTOCOL_V1: "PROTOCOL_FIXTURE",
-  MEMORY_RECALL_GUIDANCE: "RECALL_GUIDANCE_FIXTURE",
-  DEFAULT_AGENT_MEMORY_POLICY: {
-    write_scope_default: "workspace",
-    read_scopes: ["workspace", "agent"],
-    sensitive_categories: [],
-  },
-  applyPolicyToRecall: mocks.applyPolicyToRecallMock,
-  recallUnified: mocks.recallUnifiedMock,
-  renderFactsCompact: mocks.renderFactsCompactMock,
-  getOrComputeSummary: mocks.getOrComputeSummaryMock,
-  shouldTriggerRecall: mocks.shouldTriggerRecallMock,
-  makeCohereRerank: mocks.makeCohereRerankMock,
-  parseAgentMemoryPolicy: vi.fn((x: unknown) => x),
-}));
+// Use a partial mock so the REAL `makeLocalLexicalRerank` flows
+// through — this test asserts the actual lexical-overlap ordering
+// works end-to-end ("user prefers espresso" must rank above the
+// no-overlap distractors). Other package exports stay mocked.
+vi.mock("@orchester/mnemosyne", async () => {
+  const actual =
+    await vi.importActual<typeof import("@orchester/mnemosyne")>("@orchester/mnemosyne");
+  return {
+    MEMORY_PROTOCOL_V1: "PROTOCOL_FIXTURE",
+    MEMORY_RECALL_GUIDANCE: "RECALL_GUIDANCE_FIXTURE",
+    DEFAULT_AGENT_MEMORY_POLICY: {
+      write_scope_default: "workspace",
+      read_scopes: ["workspace", "agent"],
+      sensitive_categories: [],
+    },
+    applyPolicyToRecall: mocks.applyPolicyToRecallMock,
+    recallUnified: mocks.recallUnifiedMock,
+    renderFactsCompact: mocks.renderFactsCompactMock,
+    getOrComputeSummary: mocks.getOrComputeSummaryMock,
+    shouldTriggerRecall: mocks.shouldTriggerRecallMock,
+    makeCohereRerank: mocks.makeCohereRerankMock,
+    // v2 — pass through the real impl so the "falls back to local
+    // lexical reranker" test exercises the actual scoring.
+    makeLocalLexicalRerank: actual.makeLocalLexicalRerank,
+    parseAgentMemoryPolicy: vi.fn((x: unknown) => x),
+  };
+});
 
 vi.mock("@/lib/policy/agent-memory", () => ({
   getAgentMemoryPolicy: vi.fn(async () => ({

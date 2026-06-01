@@ -44,6 +44,8 @@ import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { makeKbChunkProvider } from "@/lib/recall-unified";
 import { safeLogError } from "@/lib/safe-log";
+import { appendAudit } from "@/lib/audit/log";
+import { makeInMemoryRateLimiter } from "@/lib/rate-limit/in-memory-bucket";
 
 export const dynamic = "force-dynamic";
 
@@ -70,28 +72,16 @@ const bodySchema = z.object({
 // against a coordinated DoS). For production-grade rate limiting we
 // would reuse `lib/rate-limit/pg-token-bucket.ts` once that lands.
 
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_CALLS = 10;
-const rateLimitState = new Map<string, number[]>();
-
-function checkRateLimit(userId: string): { allowed: boolean; retryAfterMs: number } {
-  const now = Date.now();
-  const cutoff = now - RATE_LIMIT_WINDOW_MS;
-  const history = (rateLimitState.get(userId) ?? []).filter((t) => t > cutoff);
-  if (history.length >= RATE_LIMIT_CALLS) {
-    const oldest = history[0]!;
-    return { allowed: false, retryAfterMs: oldest + RATE_LIMIT_WINDOW_MS - now };
-  }
-  history.push(now);
-  rateLimitState.set(userId, history);
-  return { allowed: true, retryAfterMs: 0 };
-}
+const recallDebugRateLimit = makeInMemoryRateLimiter({
+  windowMs: 60_000,
+  maxCalls: 10,
+});
 
 export async function POST(req: Request) {
   const ctx = await requireAuth({ minRole: "viewer" });
   if (!isAuthContext(ctx)) return ctx;
 
-  const rl = checkRateLimit(ctx.user.id);
+  const rl = recallDebugRateLimit.tryAcquire(ctx.user.id);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "rate_limited", retryAfterMs: rl.retryAfterMs },
@@ -113,6 +103,43 @@ export async function POST(req: Request) {
   const captureOnMetric = (event: RecallMetricEvent): void => {
     events.push(event);
   };
+
+  // ── Audit log emission. Spec'd in the Inspector UI v2 design doc
+  // §3.3 ("auditable: emit an `inspector.recall_debug` audit event
+  // per call"). We emit BEFORE the recall call so a thrown stage
+  // still records the attempt — abuse from a compromised account
+  // must be visible whether the recall succeeded or not.
+  //
+  // `appendAudit` is fire-and-forget (the wrapper swallows DB
+  // failures and logs them via safeLogError); recall must NEVER be
+  // blocked on the audit write.
+  // Sniff IP + UA from the proxy headers so the audit row records the
+  // CALLER, not the load balancer. `x-forwarded-for` may contain a
+  // comma-joined chain — take the leftmost (the original client) per
+  // the standard contract.
+  const xff = req.headers.get("x-forwarded-for");
+  const actorIp = xff ? (xff.split(",")[0]?.trim() ?? null) : null;
+  const actorUserAgent = req.headers.get("user-agent");
+  appendAudit(ctx.workspace.id, {
+    action: "inspector.recall_debug",
+    actorUserId: ctx.user.id,
+    actorKind: "user",
+    actorIp,
+    actorUserAgent,
+    targetType: "workspace",
+    targetId: ctx.workspace.id,
+    meta: {
+      // Length only — the raw query is workspace-owner-visible data
+      // and we don't want to bloat the audit chain with verbatim
+      // user-input strings.
+      queryChars: body.query.length,
+      topK: body.topK ?? 5,
+      kbId: body.kbId ?? null,
+      enableHyDE: body.options?.enableHyDE ?? true,
+      enableContextualize: body.options?.enableContextualize ?? true,
+      expandGraph: body.options?.expandGraph ?? true,
+    },
+  });
 
   let items: Awaited<ReturnType<typeof recallUnified>> = [];
   try {

@@ -45,6 +45,9 @@ vi.mock("@orchester/mnemosyne", () => ({
   shouldTriggerRecall: shouldTriggerRecallMock,
   makeCohereRerank: makeCohereRerankMock,
   noopRerank: noopRerankMock,
+  // v2 — package now ships the local lexical reranker. Mock surfaces
+  // a no-op factory so agent-runtime's fallback path doesn't crash.
+  makeLocalLexicalRerank: vi.fn(() => vi.fn(async () => [])),
   parseAgentMemoryPolicy: vi.fn((x) => x),
 }));
 
