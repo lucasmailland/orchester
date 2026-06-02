@@ -58,6 +58,7 @@ export {
   type PoisoningScanResult,
   type PoisoningCategory,
 } from "./poisoning";
+export { PoisoningRejectedError } from "./poisoning";
 
 // Candidate-on-write for facts (v1.1 §7). Surfaces potential
 // contradictions when a new fact is saved so the caller can run LLM

@@ -29,7 +29,12 @@ export type AuditAction =
   // admin can detect script-driven harvesting of fact-statement
   // previews via the captureTrace payload. See
   // apps/web/app/api/mnemo/recall-debug/route.ts.
-  | "inspector.recall_debug";
+  | "inspector.recall_debug"
+  // Mnemo v2.1 — context-poisoning ingest gate (AGT borrow).
+  // meta payload: { findings: PoisoningFinding[], bytes: number, enforce: bool }
+  | "mnemo.fact.rejected_poisoning"
+  // Shadow-mode hit: would have rejected but enforcement disabled.
+  | "mnemo.fact.poisoning_shadow_hit";
 
 export type ActorKind = "user" | "system" | "api_key";
 

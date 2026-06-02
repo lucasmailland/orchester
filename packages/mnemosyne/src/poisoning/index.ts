@@ -8,3 +8,4 @@ export {
   type PoisoningScanResult,
 } from "./detect";
 export { POISONING_PATTERNS, POISONING_SEVERITY, type PoisoningCategory } from "./patterns";
+export { PoisoningRejectedError } from "./error";
