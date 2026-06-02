@@ -45,6 +45,20 @@ export { detectPII, type PIIDetectionResult } from "./pii/detect";
 export { redactPII, redactPIIWithCategories, type RedactPIIResult } from "./pii/redact";
 export { PII_PATTERNS, PII_SEVERITY, type PIICategory } from "./pii/patterns";
 
+// Context-poisoning detector — pre-embedding ingest gate.
+export {
+  scanForPoisoning,
+  MAX_FACT_BYTES,
+  MIN_POISON_SEVERITY,
+  ENTROPY_THRESHOLD,
+  ENTROPY_MIN_LENGTH,
+  POISONING_PATTERNS,
+  POISONING_SEVERITY,
+  type PoisoningFinding,
+  type PoisoningScanResult,
+  type PoisoningCategory,
+} from "./poisoning";
+
 // Candidate-on-write for facts (v1.1 §7). Surfaces potential
 // contradictions when a new fact is saved so the caller can run LLM
 // judgment (Mode C) or queue for human review (Mode A/B).
