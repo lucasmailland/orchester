@@ -55,6 +55,14 @@ interface AuditRow {
 }
 
 export async function GET(_req: Request, context: { params: Promise<{ traceId: string }> }) {
+  // Kill-switch: MNEMO_DECISION_BOM=false disables the endpoint entirely.
+  // Omit or set to "true" to enable (default ON — consistent with the
+  // other AGT-borrow flags). Returns graceful-degrade shape so the UI
+  // shows "BOM unavailable" rather than an error toast.
+  if (process.env["MNEMO_DECISION_BOM"] === "false") {
+    return NextResponse.json({ available: false, reason: "feature_disabled" });
+  }
+
   const ctx = await requireAuth({ minRole: "viewer" });
   if (!isAuthContext(ctx)) return ctx;
 
