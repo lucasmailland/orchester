@@ -39,6 +39,7 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { createId } from "@paralleldrive/cuid2";
 import { recallUnified, withMnemoTx, type RecallMetricEvent } from "@orchester/mnemosyne";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
@@ -95,6 +96,11 @@ export async function POST(req: Request) {
 
   const kbProvider = body.kbId ? makeKbChunkProvider(body.kbId) : null;
 
+  // Mnemo v2.1 — stable id for Decision BOM correlation. Surfaced on
+  // the response AND stashed in audit meta so /api/mnemo/decisions
+  // can join trace + audit window without ambiguity.
+  const traceId = `trace_${createId()}`;
+
   // ── Capture every per-stage event into a flat array. The pipeline
   // emits events synchronously, so the array is fully populated by
   // the time `recallUnified` resolves. We attach this BEFORE the
@@ -138,6 +144,7 @@ export async function POST(req: Request) {
       enableHyDE: body.options?.enableHyDE ?? true,
       enableContextualize: body.options?.enableContextualize ?? true,
       expandGraph: body.options?.expandGraph ?? true,
+      traceId,
     },
   });
 
@@ -169,6 +176,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         ok: false,
+        traceId,
         error: e instanceof Error ? e.message : "recall failed",
         trace: { events },
       },
@@ -178,6 +186,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     ok: true,
+    traceId,
     items,
     trace: { events },
   });
