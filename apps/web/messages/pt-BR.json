@@ -449,7 +449,9 @@
     "invalidCredentials": "E-mail ou senha inválidos",
     "emailTaken": "Já existe uma conta com este e-mail",
     "googleSignIn": "Continuar com Google",
-    "orContinueWith": "ou continue com"
+    "orContinueWith": "ou continue com",
+    "tagline": "Times de agentes IA para sua empresa",
+    "liveNetwork": "Rede de Agentes ao Vivo"
   },
   "pages": {
     "dashboard": {

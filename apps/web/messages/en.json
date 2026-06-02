@@ -449,7 +449,9 @@
     "invalidCredentials": "Invalid email or password",
     "emailTaken": "An account with this email already exists",
     "googleSignIn": "Continue with Google",
-    "orContinueWith": "or continue with"
+    "orContinueWith": "or continue with",
+    "tagline": "AI agent teams for your enterprise",
+    "liveNetwork": "Live Agent Network"
   },
   "pages": {
     "dashboard": {

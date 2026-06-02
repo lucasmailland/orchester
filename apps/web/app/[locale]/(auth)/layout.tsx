@@ -2,6 +2,7 @@ import { NeuralBackground } from "@/components/auth/NeuralBackground";
 import { AgentOrgChart } from "@/components/auth/AgentOrgChart";
 import { Syne, JetBrains_Mono } from "next/font/google";
 import { cn } from "@/lib/utils";
+import { getTranslations } from "next-intl/server";
 
 const syne = Syne({ subsets: ["latin"], variable: "--font-syne", display: "swap" });
 const mono = JetBrains_Mono({
@@ -11,7 +12,8 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+export default async function AuthLayout({ children }: { children: React.ReactNode }) {
+  const t = await getTranslations("auth");
   return (
     <div className={cn("flex min-h-screen bg-[#09090B]", syne.variable, mono.variable)}>
       {/* Left: form area */}
@@ -54,9 +56,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             >
               Orchester
             </h2>
-            <p className="mx-auto mt-2 max-w-[200px] text-sm text-zinc-600">
-              AI agent teams for your enterprise
-            </p>
+            <p className="mx-auto mt-2 max-w-[200px] text-sm text-zinc-600">{t("tagline")}</p>
           </div>
 
           {/* Live label */}
@@ -66,7 +66,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           >
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50" />
             <span className="text-[10px] uppercase tracking-widest text-zinc-600">
-              Live Agent Network
+              {t("liveNetwork")}
             </span>
           </div>
 

@@ -449,7 +449,9 @@
     "invalidCredentials": "Email o contraseña incorrectos",
     "emailTaken": "Ya existe una cuenta con este email",
     "googleSignIn": "Continuar con Google",
-    "orContinueWith": "o continúa con"
+    "orContinueWith": "o continúa con",
+    "tagline": "Equipos de agentes IA para tu empresa",
+    "liveNetwork": "Red de Agentes en Vivo"
   },
   "pages": {
     "dashboard": {
