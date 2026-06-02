@@ -502,3 +502,18 @@ export {
   type PointerHit,
   type RebuildPointerInput,
 } from "./index/pointer";
+
+// Decision BOM — explainable recall record (AGT borrow).
+export {
+  composeBOM,
+  completenessScore,
+  REQUIRED_BOM_FIELDS,
+  type DecisionBOM,
+  type ComposeBOMInput,
+  type BOMAuditSlice,
+  type BOMTraceSlice,
+  type BOMPolicySlice,
+  type BOMTrustSlice,
+  type BOMIdentitySlice,
+  type BOMOutcomeSlice,
+} from "./bom";
