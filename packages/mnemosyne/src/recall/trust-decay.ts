@@ -24,3 +24,45 @@ export function effectiveTrust(input: EffectiveTrustInput): number {
   const decay = Math.pow(0.5, elapsedMs / halfLifeMs);
   return memoryStrength * decay;
 }
+
+/** Generic hit shape required by `runRerank`. The recall pipeline's
+ *  full `UnifiedRecallHit` is a superset; this minimal interface keeps
+ *  the helper testable without coupling to schema types. */
+export interface RerankableHit {
+  factId: string;
+  score: number;
+  statement: string;
+  memoryStrength?: number;
+  lastRecalledAt?: Date | null;
+}
+
+export interface RunRerankInput<H extends RerankableHit> {
+  hits: H[];
+  applyTrustDecay: boolean;
+  /** Inject `now` for deterministic tests — defaults to `new Date()`. */
+  now?: Date;
+}
+
+/** Pure score-transform + stable sort. When `applyTrustDecay` is true,
+ *  each hit's score is multiplied by `effectiveTrust(memoryStrength,
+ *  lastRecalledAt, now)`. With `false`, this is a stable score-desc
+ *  resort (no transformation). Returns a new array; input unchanged. */
+export function runRerank<H extends RerankableHit>(input: RunRerankInput<H>): H[] {
+  const now = input.now ?? new Date();
+  const adjusted = input.hits.map((h) => {
+    if (!input.applyTrustDecay) return h;
+    const strength = h.memoryStrength ?? 1.0;
+    const factor = effectiveTrust({
+      memoryStrength: strength,
+      lastRecalledAt: h.lastRecalledAt ?? null,
+      now,
+    });
+    return { ...h, score: h.score * factor };
+  });
+  // Stable descending sort: keep insertion order on ties so the
+  // unrelated `applyTrustDecay=false` path is a pure passthrough.
+  return adjusted
+    .map((h, idx) => ({ h, idx }))
+    .sort((a, b) => b.h.score - a.h.score || a.idx - b.idx)
+    .map((x) => x.h);
+}

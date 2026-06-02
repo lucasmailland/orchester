@@ -82,7 +82,16 @@ import { recallCache, recallCacheKey, getL3Cache, setL3Cache, getCachedFactCount
 import { prepareQuery, type LlmCallFn, type PreparedQuery } from "./query-prep";
 import { makeLocalLexicalRerank, noopRerank, type RerankFn } from "./rerank";
 import { trustDecay } from "./trust-ladder";
+import { runRerank } from "./trust-decay";
 import { drawerGrepCapForFactCount, firstStageCapForFactCount } from "./stage-caps";
+
+// v2.1 — opt-in trust decay multiplier (AGT borrow). Gated OFF by
+// default so existing behaviour is unchanged unless ops sets
+// `MNEMO_TRUST_DECAY=true`. Applied between cross-encoder rerank and
+// the cosine-prune stage so stale facts lose ranking weight while the
+// downstream cap+diversity logic still sees the score-desc order it
+// expects.
+const APPLY_TRUST_DECAY = process.env["MNEMO_TRUST_DECAY"] === "true";
 
 // v2 — local lexical reranker is the new default. Built once per
 // process (the closure captures no state; pure). Used when the caller
@@ -1568,7 +1577,28 @@ async function runSearchPipeline(
   }
   // Defensive: misbehaving custom RerankFn that returns nothing → fall
   // back to the hybrid-scored order. (noopRerank can't hit this path.)
-  const postRerank = reranked.length > 0 ? reranked : firstStage.slice(0, rerankK);
+  const rerankedPool = reranked.length > 0 ? reranked : firstStage.slice(0, rerankK);
+
+  // v2.1 — opt-in trust decay (MNEMO_TRUST_DECAY=true). Re-weights
+  // post-rerank hits by `effectiveTrust(memory_strength, last_recalled_at)`
+  // and re-sorts stable-desc. Default OFF: passthrough preserves the
+  // existing post-rerank order exactly.
+  const postRerank: ScoredHit[] = APPLY_TRUST_DECAY
+    ? (() => {
+        const reordered = runRerank({
+          hits: rerankedPool.map((h, idx) => ({
+            factId: h.fact.id,
+            score: h.score,
+            statement: h.fact.statement,
+            memoryStrength: h.fact.memoryStrength ?? 1.0,
+            lastRecalledAt: h.fact.lastRecalledAt ?? null,
+            _idx: idx,
+          })),
+          applyTrustDecay: true,
+        });
+        return reordered.map((r) => rerankedPool[r._idx]!);
+      })()
+    : rerankedPool;
 
   // Post-recall pruning: drop facts that are near-duplicates of an
   // already-kept fact (cosine > threshold). Mode A facts pass through

@@ -202,7 +202,10 @@ export {
 export {
   effectiveTrust,
   DECAY_HALF_LIFE_DAYS,
+  runRerank,
   type EffectiveTrustInput,
+  type RerankableHit,
+  type RunRerankInput,
 } from "./recall/trust-decay";
 
 // v1.1 compact rendering — groups facts by kind and condenses
