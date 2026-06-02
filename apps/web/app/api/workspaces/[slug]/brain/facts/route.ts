@@ -9,6 +9,7 @@ import { resolveBySlug } from "@/lib/tenant/resolve";
 import { isAccessible } from "@/lib/tenant/lifecycle";
 import { assertCan } from "@/lib/rbac";
 import { getDb } from "@orchester/db";
+import { PoisoningRejectedError } from "@orchester/mnemosyne";
 import { createFact, listFacts, withBrainTx } from "@/lib/brain";
 import { appendAudit } from "@/lib/audit/log";
 
@@ -115,29 +116,57 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   void getDb;
   void sql;
 
-  const fact = await withBrainTx(ws.id, async (tx) =>
-    createFact({
-      workspaceId: ws.id,
-      ...(parsed.data.agentId ? { agentId: parsed.data.agentId } : {}),
-      scope: parsed.data.scope,
-      ...(parsed.data.scopeRef ? { scopeRef: parsed.data.scopeRef } : {}),
-      kind: parsed.data.kind,
-      subject: parsed.data.subject,
-      statement: parsed.data.statement,
-      confidence: parsed.data.confidence,
-      pinned: parsed.data.pinned,
-      tx,
-    })
-  );
+  try {
+    const fact = await withBrainTx(ws.id, async (tx) =>
+      createFact({
+        workspaceId: ws.id,
+        ...(parsed.data.agentId ? { agentId: parsed.data.agentId } : {}),
+        scope: parsed.data.scope,
+        ...(parsed.data.scopeRef ? { scopeRef: parsed.data.scopeRef } : {}),
+        kind: parsed.data.kind,
+        subject: parsed.data.subject,
+        statement: parsed.data.statement,
+        confidence: parsed.data.confidence,
+        pinned: parsed.data.pinned,
+        tx,
+      })
+    );
 
-  appendAudit(ws.id, {
-    action: "brain.fact.create",
-    actorUserId: ctx.user.id,
-    actorKind: "user",
-    targetType: "brain_fact",
-    targetId: fact.id,
-    meta: { subject: fact.subject, kind: fact.kind, scope: fact.scope },
-  });
+    appendAudit(ws.id, {
+      action: "brain.fact.create",
+      actorUserId: ctx.user.id,
+      actorKind: "user",
+      targetType: "brain_fact",
+      targetId: fact.id,
+      meta: { subject: fact.subject, kind: fact.kind, scope: fact.scope },
+    });
 
-  return NextResponse.json({ fact: { ...fact, embedding: undefined } }, { status: 201 });
+    return NextResponse.json({ fact: { ...fact, embedding: undefined } }, { status: 201 });
+  } catch (e) {
+    if (e instanceof PoisoningRejectedError) {
+      const enforce = process.env["MNEMO_REJECT_POISONING"] !== "false";
+      appendAudit(ws.id, {
+        action: enforce ? "mnemo.fact.rejected_poisoning" : "mnemo.fact.poisoning_shadow_hit",
+        actorUserId: ctx.user.id,
+        actorKind: "user",
+        targetType: "mnemo_fact",
+        targetId: "(rejected)",
+        meta: {
+          findings: e.scan.findings,
+          bytes: e.scan.bytes,
+          enforce,
+        },
+      });
+      return NextResponse.json(
+        {
+          error: "poisoning_rejected",
+          enforce,
+          findings: e.scan.findings,
+          bytes: e.scan.bytes,
+        },
+        { status: 422 }
+      );
+    }
+    throw e;
+  }
 }
