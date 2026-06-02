@@ -14,6 +14,8 @@ import { createId } from "@paralleldrive/cuid2";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { schema } from "@orchester/db";
 import { redactPIIWithCategories } from "../pii/redact";
+import { scanForPoisoning } from "../poisoning/detect";
+import { PoisoningRejectedError } from "../poisoning/error";
 import { deriveSyntheticEpisodeId } from "../episode/synthetic";
 import { embedMnemo, type EmbedFn, type EmbeddingProvider } from "../recall/embed";
 import { upsertPointerTerms } from "../index/pointer";
@@ -312,6 +314,15 @@ export interface CreateFactInput {
 
 export async function createFact(input: CreateFactInput): Promise<MnemoFact> {
   const id = `mfact_${createId()}`;
+
+  // ── Context-poisoning gate (v2.1, AGT borrow) ──────────────────────
+  // Runs BEFORE PII redaction — a delimiter-injection payload that
+  // gets PII-redacted is still a delimiter injection. Throws so the
+  // host route can map to a 422 with structured findings.
+  const poisonScan = scanForPoisoning(input.statement);
+  if (!poisonScan.ok) {
+    throw new PoisoningRejectedError(poisonScan);
+  }
 
   // ── PII redaction (Phase 5.1) ─────────────────────────────────────────
   // Facts often contain legitimate identifiers (emails, URLs, phone
