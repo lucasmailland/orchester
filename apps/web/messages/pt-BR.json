@@ -1630,5 +1630,99 @@
         "enqueueError": "Não foi possível enfileirar: {message}"
       }
     }
+  },
+  "marketing": {
+    "nav": {
+      "docs": "Docs",
+      "pricing": "Preços",
+      "changelog": "Novidades",
+      "getStarted": "Começar",
+      "signIn": "Entrar"
+    },
+    "hero": {
+      "badge": "Open-source · Auto-hospedável · Multi-tenant",
+      "headline1": "Construa times de agentes IA",
+      "headline2": "que realmente funcionam.",
+      "subheadline": "A plataforma open-source para orquestrar agentes IA em fluxos poderosos. Multi-tenant desde o primeiro dia, 80+ provedores de IA, auto-hospedável no Postgres.",
+      "ctaPrimary": "Começar grátis",
+      "ctaGithub": "Star no GitHub"
+    },
+    "stats": {
+      "providers": "provedores de IA",
+      "locales": "idiomas",
+      "openSource": "open source",
+      "selfHostable": "auto-hospedável"
+    },
+    "features": {
+      "title": "Tudo que você precisa.",
+      "subtitle": "Nada que não.",
+      "multiTenant": {
+        "title": "Multi-tenant por padrão",
+        "desc": "Isolamento de workspace desde o primeiro dia. Cada time tem seus dados, agentes e permissões — sem configuração extra."
+      },
+      "providers": {
+        "title": "80+ provedores de IA",
+        "desc": "Anthropic, OpenAI, Gemini, Mistral, Llama e mais. Troque modelos sem reescrever uma linha do código dos seus agentes."
+      },
+      "flows": {
+        "title": "Construtor visual de fluxos",
+        "desc": "Orquestração drag-and-drop com ramificações, loops e rastreamento de execução em tempo real no canvas."
+      },
+      "brain": {
+        "title": "Memória persistente (Brain)",
+        "desc": "Agentes lembram entre conversas com busca semântica vetorial, decay scoring, versionamento de fatos e exportação GDPR."
+      },
+      "selfHost": {
+        "title": "Auto-hospedável",
+        "desc": "Um docker compose up. Roda no seu próprio Postgres e Redis. Controle total, sem vendor lock-in."
+      },
+      "enterprise": {
+        "title": "Pronto para enterprise",
+        "desc": "RBAC, log de auditoria completo, exportação GDPR, CSP nonces, rate limiting por workspace e SSO — incluídos de fábrica."
+      }
+    },
+    "howItWorks": {
+      "title": "Comece em 3 passos.",
+      "step1": {
+        "label": "Implante",
+        "title": "Setup em um comando",
+        "desc": "Clone o repo, configure o .env e rode docker compose up. Postgres + Redis são as únicas dependências de infraestrutura."
+      },
+      "step2": {
+        "label": "Construa",
+        "title": "Crie seu primeiro agente",
+        "desc": "Defina persona, modelo, estratégia de memória e ferramentas pela UI ou API. Conecte a um canal ou fluxo em minutos."
+      },
+      "step3": {
+        "label": "Escale",
+        "title": "Orquestre em escala",
+        "desc": "Encadeie agentes em fluxos visuais, adicione membros do time com RBAC e monitore cada decisão de LLM em tempo real."
+      }
+    },
+    "integrations": {
+      "title": "Funciona com qualquer provedor de IA.",
+      "subtitle": "Não se prenda. Troque ou misture modelos sem alterar o código dos seus agentes."
+    },
+    "cta": {
+      "title": "Construído em público.",
+      "subtitle": "Dê uma estrela, faça um fork, quebre. O Orchester é open-source e assim vai continuar.",
+      "primaryButton": "Star no GitHub",
+      "secondaryButton": "Auto-hospedar em 5 minutos",
+      "selfHostCommand": "docker compose up -d"
+    },
+    "footer": {
+      "tagline": "Plataforma open-source de agentes IA.",
+      "product": "Produto",
+      "company": "Empresa",
+      "legal": "Legal",
+      "links": {
+        "docs": "Docs",
+        "pricing": "Preços",
+        "changelog": "Novidades",
+        "github": "GitHub",
+        "privacy": "Privacidade",
+        "terms": "Termos"
+      }
+    }
   }
 }

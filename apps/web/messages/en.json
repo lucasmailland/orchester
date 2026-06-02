@@ -1630,5 +1630,99 @@
         "enqueueError": "Couldn't enqueue: {message}"
       }
     }
+  },
+  "marketing": {
+    "nav": {
+      "docs": "Docs",
+      "pricing": "Pricing",
+      "changelog": "Changelog",
+      "getStarted": "Get started",
+      "signIn": "Sign in"
+    },
+    "hero": {
+      "badge": "Open-source · Self-hostable · Multi-tenant",
+      "headline1": "Build AI agent teams",
+      "headline2": "that actually work.",
+      "subheadline": "The open-source platform for orchestrating AI agents into powerful workflows. Multi-tenant from day one, 80+ AI providers, self-hostable on Postgres.",
+      "ctaPrimary": "Start building free",
+      "ctaGithub": "Star on GitHub"
+    },
+    "stats": {
+      "providers": "AI providers",
+      "locales": "languages",
+      "openSource": "open source",
+      "selfHostable": "self-hostable"
+    },
+    "features": {
+      "title": "Everything you need.",
+      "subtitle": "Nothing you don't.",
+      "multiTenant": {
+        "title": "Multi-tenant by default",
+        "desc": "Workspace isolation baked in from day one. Each team gets their own data, agents, and permissions — zero config."
+      },
+      "providers": {
+        "title": "80+ AI providers",
+        "desc": "Anthropic, OpenAI, Gemini, Mistral, Llama and more. Switch models without rewriting a single line of agent code."
+      },
+      "flows": {
+        "title": "Visual flow builder",
+        "desc": "Drag-and-drop workflow orchestration with branching, loops, and real-time execution tracing in the canvas."
+      },
+      "brain": {
+        "title": "Persistent memory (Brain)",
+        "desc": "Agents remember across conversations via semantic vector search, decay scoring, fact versioning, and GDPR-safe export."
+      },
+      "selfHost": {
+        "title": "Self-hostable",
+        "desc": "One docker compose up. Runs on your own Postgres and Redis. Full control, zero vendor lock-in."
+      },
+      "enterprise": {
+        "title": "Enterprise ready",
+        "desc": "RBAC, full audit log, GDPR export, CSP nonces, per-workspace rate limiting, and SSO — all included out of the box."
+      }
+    },
+    "howItWorks": {
+      "title": "Up and running in 3 steps.",
+      "step1": {
+        "label": "Deploy",
+        "title": "One-command setup",
+        "desc": "Clone the repo, configure your .env, and run docker compose up. Postgres + Redis are the only infrastructure dependencies."
+      },
+      "step2": {
+        "label": "Build",
+        "title": "Create your first agent",
+        "desc": "Define persona, model, memory strategy, and tools through the UI or API. Connect it to a channel or flow in minutes."
+      },
+      "step3": {
+        "label": "Scale",
+        "title": "Orchestrate at scale",
+        "desc": "Chain agents into visual flows, add teammates as members with RBAC, and monitor every LLM decision in real time."
+      }
+    },
+    "integrations": {
+      "title": "Works with every AI provider.",
+      "subtitle": "Don't get locked in. Switch or mix models without changing your agent code."
+    },
+    "cta": {
+      "title": "Built in the open.",
+      "subtitle": "Star us, fork us, break us. Orchester is open-source and will stay that way.",
+      "primaryButton": "Star on GitHub",
+      "secondaryButton": "Self-host in 5 minutes",
+      "selfHostCommand": "docker compose up -d"
+    },
+    "footer": {
+      "tagline": "Open-source AI agent platform.",
+      "product": "Product",
+      "company": "Company",
+      "legal": "Legal",
+      "links": {
+        "docs": "Docs",
+        "pricing": "Pricing",
+        "changelog": "Changelog",
+        "github": "GitHub",
+        "privacy": "Privacy",
+        "terms": "Terms"
+      }
+    }
   }
 }
