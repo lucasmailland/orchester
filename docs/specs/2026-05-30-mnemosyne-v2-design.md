@@ -345,6 +345,32 @@ hash-chained audit event (`mnemo.fact.rejected_poisoning` by default,
 Shadow mode lets ops watch real traffic before flipping enforcement on.
 
 Catalogue intentionally narrower than AGT's full ContextPoisoningDetector
-— AGT's runtime-time categories (unicode_attack, multilang_bypass) are
-legitimate fact _content_ at ingest time. Per verification-before-completion,
+— AGT's runtime-time categories (unicode*attack, multilang_bypass) are
+legitimate fact \_content* at ingest time. Per verification-before-completion,
 add categories only after a real reject demonstrates need.
+
+---
+
+## §12 — Trust Decay (v2.1, AGT borrow)
+
+Opt-in rerank multiplier — with `MNEMO_TRUST_DECAY=true`, each
+candidate's score is multiplied by `effectiveTrust(memoryStrength,
+lastRecalledAt, now)` before the final sort. Exponential decay,
+14-day half-life:
+
+| Days since recall | Multiplier |
+| ----------------- | ---------- |
+| 0                 | 1.00       |
+| 7                 | 0.71       |
+| 14                | 0.50       |
+| 30                | 0.23       |
+| 90                | 0.012      |
+
+Facts that have never been recalled (`last_recalled_at IS NULL`) are
+treated as freshly recalled — the multiplier is just `memoryStrength`.
+Matches AGT's TrustManager idiom: new entities start at initial score;
+decay only applies to observed activity gaps.
+
+Pinned facts and facts with `memoryStrength = 1.0` (default) feel the
+decay. The rerank pre-cutoff (existing) applies FIRST, so a decayed
+fact below the cutoff never reaches the final cap.
