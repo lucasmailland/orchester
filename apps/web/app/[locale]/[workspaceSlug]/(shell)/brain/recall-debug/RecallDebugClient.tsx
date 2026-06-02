@@ -21,9 +21,10 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Button, Input, Switch, Skeleton, Chip } from "@heroui/react";
-import { Play, RotateCcw, ArrowLeft, Zap } from "lucide-react";
+import { Play, RotateCcw, ArrowLeft, Zap, FileJson } from "lucide-react";
 import { useRecallDebug, type RecallDebugInput } from "@/lib/hooks/use-recall-debug";
 import { RecallFunnel } from "@/components/brain/RecallFunnel";
+import { notify } from "@/lib/toast";
 
 const DEFAULT_OPTIONS: NonNullable<RecallDebugInput["options"]> = {
   enableHyDE: true,
@@ -47,6 +48,44 @@ export function RecallDebugClient() {
   const onRun = async (): Promise<void> => {
     if (!canRun) return;
     await run({ query: query.trim(), topK, options });
+  };
+
+  // v2.1 — Decision BOM download. traceId comes from the last
+  // recall-debug response (route stashes it on the audit row too, so
+  // the endpoint can rebuild the full record).
+  const downloadBOM = async (): Promise<void> => {
+    const traceId = result?.traceId;
+    if (!traceId) {
+      notify.error("Run a recall debug first to generate a traceId.");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/mnemo/decisions/${traceId}`, {
+        headers: { accept: "application/json" },
+      });
+      if (!res.ok) throw new Error(`status=${res.status}`);
+      const body = (await res.json()) as {
+        available: boolean;
+        bom?: unknown;
+        completeness?: number;
+        reason?: string;
+      };
+      if (!body.available) {
+        notify.error(`BOM unavailable: ${body.reason ?? "unknown"}`);
+        return;
+      }
+      const blob = new Blob([JSON.stringify(body.bom, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `decision-bom-${traceId}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      notify.error("Failed to fetch Decision BOM");
+    }
   };
 
   // Surface basic stats above the funnel so users don't have to scan
@@ -120,6 +159,19 @@ export function RecallDebugClient() {
               Clear
             </Button>
           ) : null}
+          <Button
+            variant="flat"
+            startContent={<FileJson className="h-4 w-4" />}
+            onPress={downloadBOM}
+            isDisabled={!result?.traceId || isLoading}
+            title={
+              result?.traceId
+                ? "Download Decision BOM for the last debug run"
+                : "Run a recall debug first"
+            }
+          >
+            Export BOM
+          </Button>
           {summary ? (
             <span className="text-default-500 ml-auto flex items-center gap-3 text-xs">
               <span>

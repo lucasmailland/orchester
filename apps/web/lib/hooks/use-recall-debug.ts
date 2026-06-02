@@ -30,6 +30,9 @@ export interface RecallDebugResult {
   errorMessage?: string;
   /** Round-trip latency from click → response, in ms. */
   clientLatencyMs: number;
+  /** v2.1 — cuid2 traceId stashed on the audit row so callers can
+   *  fetch a Decision BOM via /api/mnemo/decisions/{traceId}. */
+  traceId?: string;
 }
 
 export interface UseRecallDebug {
@@ -64,6 +67,7 @@ export function useRecallDebug(): UseRecallDebug {
         items?: UnifiedRecallHit[];
         trace?: { events: RecallMetricEvent[] };
         error?: string;
+        traceId?: string;
       };
 
       const t1 =
@@ -77,6 +81,7 @@ export function useRecallDebug(): UseRecallDebug {
         events: json.trace?.events ?? [],
         clientLatencyMs: t1 - t0,
         ...(json.error ? { errorMessage: json.error } : {}),
+        ...(json.traceId ? { traceId: json.traceId } : {}),
       };
       setResult(next);
       return next;
