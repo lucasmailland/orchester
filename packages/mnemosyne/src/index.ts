@@ -198,6 +198,13 @@ export {
   type CohereRerankOptions,
 } from "./recall/rerank";
 
+// v2.1 — opt-in trust decay multiplier for rerank (AGT borrow).
+export {
+  effectiveTrust,
+  DECAY_HALF_LIFE_DAYS,
+  type EffectiveTrustInput,
+} from "./recall/trust-decay";
+
 // v1.1 compact rendering — groups facts by kind and condenses
 // statements into k:v notation for prompt-budget-aware injection.
 export { renderFactsCompact, type CompactRenderOptions } from "./recall/render";
