@@ -322,3 +322,29 @@ Each phase ships independently. v2.0 is the only true breaking change (drawer-fi
 - v1.6 final audit: [docs/specs/audits/2026-05-26-mnemosyne-v1.6-final-audit.md](./audits/2026-05-26-mnemosyne-v1.6-final-audit.md)
 - LongMemEval paper: [Wu et al., EMNLP 2024](https://arxiv.org/abs/2410.10813)
 - mempalace/codegraph: drawer-first retrieval reference impl (96.6% R@5)
+
+---
+
+## §11 — Context-Poisoning Gate (v2.1, AGT borrow)
+
+The fact ingest path (`createFact`) runs `scanForPoisoning` BEFORE PII
+redaction. Six categories blocked by default at severity ≥ 0.6:
+
+| Category               | Severity | Detection                                                                                 |
+| ---------------------- | -------- | ----------------------------------------------------------------------------------------- |
+| `delimiter_injection`  | 0.95     | LLM chat-template markers (`<\|im_start\|>`, `[INST]`, `<<SYS>>`, fenced `system` blocks) |
+| `instruction_override` | 0.85     | Imperative resets (`ignore previous`, `disregard the above`)                              |
+| `system_prompt_exfil`  | 0.9      | Reveal/dump verbs on `system\|initial\|hidden prompt`                                     |
+| `role_escape`          | 0.7      | Role-assumption openers (`act as`, `you are now`)                                         |
+| `high_entropy_blob`    | 0.6      | Shannon entropy ≥ 5.4 on strings ≥ 64 chars                                               |
+| `oversize_payload`     | 0.5      | Byte length > 100 000                                                                     |
+
+The gate throws `PoisoningRejectedError`. Host route maps to 422 +
+hash-chained audit event (`mnemo.fact.rejected_poisoning` by default,
+`mnemo.fact.poisoning_shadow_hit` when `MNEMO_REJECT_POISONING=false`).
+Shadow mode lets ops watch real traffic before flipping enforcement on.
+
+Catalogue intentionally narrower than AGT's full ContextPoisoningDetector
+— AGT's runtime-time categories (unicode_attack, multilang_bypass) are
+legitimate fact _content_ at ingest time. Per verification-before-completion,
+add categories only after a real reject demonstrates need.
