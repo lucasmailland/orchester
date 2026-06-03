@@ -51,7 +51,7 @@ export async function StatsBar() {
   return (
     <div className="border-y border-zinc-800/60 bg-zinc-900/20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap items-center justify-center gap-6 py-4 sm:gap-10">
+        <div className="flex flex-wrap items-center justify-center gap-6 py-10 sm:gap-10">
           {items.map(({ icon: Icon, value, suffix, decimals, label }) => (
             <div key={label} className="flex items-center gap-2 text-zinc-500">
               <Icon size={13} className="shrink-0 text-zinc-700" />

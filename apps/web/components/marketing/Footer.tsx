@@ -52,14 +52,14 @@ export function Footer() {
               </div>
               <span className="font-display text-sm font-semibold text-zinc-200">Orchester</span>
             </div>
-            <p className="mt-3 max-w-[200px] text-xs leading-relaxed text-zinc-600">
+            <p className="mt-3 max-w-[200px] text-xs leading-relaxed text-zinc-500">
               {t("tagline")}
             </p>
             <a
               href="https://github.com/lucasmailland/orchester"
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-4 inline-flex items-center gap-1.5 text-xs text-zinc-600 transition-colors hover:text-zinc-400"
+              className="mt-4 inline-flex items-center gap-1.5 text-xs text-zinc-500 transition-colors hover:text-zinc-400"
             >
               <GithubIcon size={12} />
               GitHub
@@ -80,14 +80,14 @@ export function Footer() {
                         href={link.href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-zinc-600 transition-colors hover:text-zinc-300"
+                        className="text-sm text-zinc-500 transition-colors hover:text-zinc-300"
                       >
                         {link.label}
                       </a>
                     ) : (
                       <Link
                         href={link.href}
-                        className="text-sm text-zinc-600 transition-colors hover:text-zinc-300"
+                        className="text-sm text-zinc-500 transition-colors hover:text-zinc-300"
                       >
                         {link.label}
                       </Link>
@@ -100,10 +100,10 @@ export function Footer() {
         </div>
 
         <div className="mt-10 flex flex-col items-center justify-between gap-2 border-t border-zinc-800/60 pt-6 sm:flex-row">
-          <p className="text-xs text-zinc-700">
+          <p className="text-xs text-zinc-500">
             © {new Date().getFullYear()} Orchester. Apache-2.0.
           </p>
-          <p className="text-xs text-zinc-700">Made with ♥ in Buenos Aires</p>
+          <p className="text-xs text-zinc-500">Made with ♥ in Buenos Aires</p>
         </div>
       </div>
     </footer>

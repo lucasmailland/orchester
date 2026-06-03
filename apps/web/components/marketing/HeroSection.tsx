@@ -214,7 +214,7 @@ export function HeroSection() {
       <FloatingOrb1 />
       <FloatingOrb2 />
 
-      <div className="relative z-10 mx-auto max-w-5xl text-center">
+      <div className="relative z-10 mx-auto max-w-6xl text-center">
         {/* Badge */}
         <motion.div
           initial={{ opacity: 0, y: -12 }}
@@ -303,11 +303,8 @@ export function HeroSection() {
             className="mb-6 flex items-center gap-2"
             style={{ fontFamily: "var(--font-auth-mono), monospace" }}
           >
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            </span>
-            <span className="text-[10px] uppercase tracking-widest text-zinc-600">
+            <span className="inline-flex h-1 w-1 shrink-0 rounded-full bg-violet-400/70" />
+            <span className="text-[11px] uppercase tracking-widest text-zinc-500">
               {t("liveNetwork")}
             </span>
           </div>

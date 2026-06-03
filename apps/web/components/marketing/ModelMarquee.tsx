@@ -221,7 +221,7 @@ export function ModelMarquee() {
   const t = useTranslations("marketing.modelMarquee");
 
   return (
-    <section className="border-y border-zinc-800/40 bg-zinc-900/20 py-10">
+    <section className="border-y border-zinc-800/40 bg-zinc-900/20 py-16">
       <p className="mb-6 text-center text-xs uppercase tracking-[0.2em] text-zinc-500">
         {t("title")}
       </p>
