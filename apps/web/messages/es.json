@@ -1999,7 +1999,11 @@
       "next": "Siguiente",
       "previous": "Anterior",
       "finish": "Finalizar",
-      "stepCounter": "{current} de {total}"
+      "stepCounter": "{current} de {total}",
+      "runtime": {
+        "missingStepsWarning": "Algunos pasos no se pudieron cargar. El recorrido los omitirá.",
+        "skippedStepNote": "Este paso aún no está en la página actual."
+      }
     },
     "tours": {
       "memoryOps": {
@@ -2042,6 +2046,7 @@
       "reversibilityArchive": "Archivado durante 30 días, restaurable desde la vista del archivo.",
       "reversibilityDestructive": "Destructiva. Los hechos archivados se eliminan de forma permanente y no se pueden recuperar.",
       "estimateUnavailable": "—",
+      "noEstimateAvailable": "No tenemos una estimación precisa para esta tarea. Generalmente termina en menos de un minuto.",
       "successToastTitle": "{name} se está ejecutando",
       "successToastBody": "Te avisaremos aquí cuando termine. {time, select, unknown {} other {Tiempo estimado: {time}.}}",
       "errorToastTitle": "No pudimos iniciar \"{name}\"",
@@ -2375,6 +2380,11 @@
     "onboarding": {
       "skip": "Omitir",
       "back": "Atrás",
+      "common": {
+        "sessionExpiredTitle": "Tu sesión expiró",
+        "sessionExpiredBody": "Vuelve a iniciar sesión para seguir configurando tu primer agente. Tu progreso está guardado.",
+        "signInAgain": "Iniciar sesión de nuevo"
+      },
       "stepper": {
         "welcome": "Bienvenida",
         "provider": "Proveedor",

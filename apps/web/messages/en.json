@@ -1999,7 +1999,11 @@
       "next": "Next",
       "previous": "Previous",
       "finish": "Finish",
-      "stepCounter": "{current} of {total}"
+      "stepCounter": "{current} of {total}",
+      "runtime": {
+        "missingStepsWarning": "Some steps could not load. The tour will skip them.",
+        "skippedStepNote": "This step is not on the current page yet."
+      }
     },
     "tours": {
       "memoryOps": {
@@ -2042,6 +2046,7 @@
       "reversibilityArchive": "Archived for 30 days, restorable from the archive view.",
       "reversibilityDestructive": "Destructive. Archived facts are permanently removed and cannot be recovered.",
       "estimateUnavailable": "—",
+      "noEstimateAvailable": "We don't have a precise estimate for this task. It usually completes within a minute.",
       "successToastTitle": "{name} is running",
       "successToastBody": "We'll notify you here when it finishes. {time, select, unknown {} other {Estimated time: {time}.}}",
       "errorToastTitle": "We could not start {name}",
@@ -2375,6 +2380,11 @@
     "onboarding": {
       "skip": "Skip",
       "back": "Back",
+      "common": {
+        "sessionExpiredTitle": "Your session expired",
+        "sessionExpiredBody": "Sign in again to continue setting up your first agent. Your progress is saved.",
+        "signInAgain": "Sign in again"
+      },
       "stepper": {
         "welcome": "Welcome",
         "provider": "Provider",

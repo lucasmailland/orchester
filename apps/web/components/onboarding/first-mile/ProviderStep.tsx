@@ -5,8 +5,11 @@ import { useTranslations } from "next-intl";
 import { Button, Input } from "@heroui/react";
 import { ArrowRight, Lock } from "lucide-react";
 import { notify } from "@/lib/toast";
+import { writeState } from "./types";
+import { SessionExpiredAlert } from "./SessionExpiredAlert";
 
 interface Props {
+  locale: string;
   onConnected: () => void;
 }
 
@@ -18,11 +21,12 @@ type ProviderId = "openai" | "anthropic";
  * Slimmer variant of `AIProvidersSection` pre-filtered to OpenAI + Anthropic.
  * Hits the existing `POST /api/providers` route; on success we advance.
  */
-export function ProviderStep({ onConnected }: Props) {
+export function ProviderStep({ locale, onConnected }: Props) {
   const t = useTranslations("compass.onboarding.provider");
   const [selected, setSelected] = useState<ProviderId>("anthropic");
   const [apiKey, setApiKey] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   const providers: Array<{ id: ProviderId; name: string; placeholder: string }> = [
     { id: "anthropic", name: "Anthropic", placeholder: "sk-ant-..." },
@@ -41,6 +45,14 @@ export function ProviderStep({ onConnected }: Props) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ provider: selected, apiKey: apiKey.trim() }),
       });
+      if (res.status === 401) {
+        // Session expired — render an inline alert so the user can re-auth
+        // and resume on this same step. The provider key is never persisted
+        // (it's a secret in transit) so they re-paste after re-login.
+        writeState({ step: 1 });
+        setSessionExpired(true);
+        return;
+      }
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         // Error message follows Compass Voice: what - why - what to do
@@ -63,6 +75,8 @@ export function ProviderStep({ onConnected }: Props) {
         </h1>
         <p className="text-sm leading-relaxed text-text-muted">{t("subhead")}</p>
       </header>
+
+      {sessionExpired && <SessionExpiredAlert locale={locale} returnTo={`/${locale}/onboarding`} />}
 
       <form id="onboarding-form" onSubmit={handleSubmit} className="space-y-4">
         <div role="radiogroup" aria-label={t("providerLabel")} className="grid grid-cols-2 gap-2">

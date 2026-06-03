@@ -13,10 +13,14 @@
  * The endpoints already enforce admin role server-side; we mirror
  * that in the UI by disabling the actions for non-admins.
  *
- * Outcome numbers (records analyzed, changes applied) are NOT
- * fabricated: the current /api/mnemo/admin/run-* routes return
- * `{ enqueued: true, jobId }` with no per-task outcome shape, so we
- * render an em-dash for any field the backend doesn't provide.
+ * Impact previews show only honest data; if we don't know an estimate,
+ * we don't fake it with em-dashes. The /api/mnemo/admin/run-* routes
+ * return `{ enqueued: true, jobId }` with no per-task outcome shape and
+ * no preview/dry-run mode, so "records analyzed" is omitted entirely
+ * from the confirm dialog rather than rendered as a confident-looking
+ * placeholder. Cost and time estimates were hand-rolled constants with
+ * no backend grounding, so they are omitted too. What remains —
+ * workspace scope and reversibility — is intrinsic and verifiable.
  */
 
 import { useEffect, useState, type ReactNode } from "react";
@@ -317,7 +321,7 @@ export function MemoryOpsClient({ workspace, isAdmin }: Props): ReactNode {
               })
             : ""
         }
-        description={confirmTask ? t("confirmDialogDescription") : undefined}
+        description={confirmTask ? buildConfirmDescription(confirmTask, t) : undefined}
         action={confirmTask ? t(`tasks.${confirmTask.key}.confirmLabel`) : ""}
         cancelLabel={tCommon("cancel")}
         tone={confirmTask?.tone ?? "neutral"}
@@ -335,32 +339,7 @@ export function MemoryOpsClient({ workspace, isAdmin }: Props): ReactNode {
           const name = t(`tasks.${confirmTask.key}.name`);
           notify.success(tCommon("autoConfirmedToast", { action: name }));
         }}
-        impact={
-          confirmTask
-            ? [
-                {
-                  label: t("impactScopeLabel"),
-                  value: workspace.name,
-                },
-                {
-                  label: t("impactRecordsLabel"),
-                  value: t("estimateUnavailable"),
-                },
-                {
-                  label: t("impactCostLabel"),
-                  value: confirmTask.estimatedCost,
-                },
-                {
-                  label: t("impactTimeLabel"),
-                  value: confirmTask.estimatedTime,
-                },
-                {
-                  label: t("impactReversibilityLabel"),
-                  value: t(confirmTask.reversibilityKey),
-                },
-              ]
-            : []
-        }
+        impact={confirmTask ? buildHonestImpact(confirmTask, workspace.name, t) : []}
         onConfirm={() => {
           if (confirmTask) return runTask(confirmTask);
         }}
@@ -561,6 +540,38 @@ function wrapTermsInline(text: string): ReactNode[] {
 }
 
 // ---- helpers ---------------------------------------------------------------
+
+/**
+ * Build the confirm dialog's impact preview using only rows we can
+ * back with real data. Right now that's `Scope` (the workspace the
+ * action runs against) and `Reversibility` (an intrinsic property of
+ * the task). `Records analyzed`, `Estimated cost` and `Estimated time`
+ * are deliberately omitted: the run-* endpoints don't expose preview
+ * counts, and the prior cost/time strings were hand-rolled guesses. If
+ * a future endpoint surfaces real counts, push the row here.
+ */
+function buildHonestImpact(
+  task: TaskDef,
+  workspaceName: string,
+  t: (key: string) => string
+): ReadonlyArray<{ label: string; value: string }> {
+  const rows: Array<{ label: string; value: string }> = [
+    { label: t("impactScopeLabel"), value: workspaceName },
+    { label: t("impactReversibilityLabel"), value: t(task.reversibilityKey) },
+  ];
+  return rows.filter((row) => row.value && row.value !== "—");
+}
+
+/**
+ * Append the "no precise estimate" disclaimer to the dialog description
+ * when the impact preview can't carry numeric estimates. Today that's
+ * every task, since no endpoint reports counts ahead of time. Kept as a
+ * branch so a future endpoint that does report counts can drop the
+ * disclaimer for its task.
+ */
+function buildConfirmDescription(_task: TaskDef, t: (key: string) => string): string {
+  return `${t("confirmDialogDescription")} ${t("noEstimateAvailable")}`;
+}
 
 /**
  * Defensive read of the `snapshot_at` / `capturedAt` field. The shape

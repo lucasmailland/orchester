@@ -15,6 +15,15 @@
  * definition sourced from `lib/compass/terms.ts`. Visually, a dotted underline
  * signals "there is more here" without screaming for attention.
  *
+ * Hover storm prevention
+ * ----------------------
+ * Open/close intent is funneled through the singleton controller in
+ * `lib/compass/term-def-controller.ts`. Every TermDef on the page shares a
+ * single active id, so sweeping across multiple terms can never flash multiple
+ * popovers — the active one swaps instantly, the rest stay closed. Hover-in is
+ * debounced ~120ms, hover-out ~100ms, keyboard / tap force an immediate locked
+ * open until the user explicitly dismisses.
+ *
  * When to use this
  * ----------------
  *   - Inline jargon inside body copy, headers, table cells.
@@ -31,18 +40,36 @@
  * -------------
  *   - The trigger is a real `<button>` so keyboard users get it for free.
  *   - `aria-describedby` points to the popover, announced by screen readers.
- *   - `Esc` closes; `Tab` cycles through the popover (HeroUI handles focus trap).
- *   - The dotted underline is paired with `aria-label` so the affordance is
- *     conveyed without relying on the visual cue alone.
+ *   - `role="tooltip"` on the popover content.
+ *   - Enter / Space lock the popover open until Esc or outside click.
+ *   - Esc closes regardless.
+ *   - On touch devices (no hover), tap toggles — no flaky hover behavior.
  */
 
 import { Popover, PopoverContent, PopoverTrigger } from "@heroui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ExternalLink } from "lucide-react";
 import { useLocale } from "next-intl";
-import { useId, useState, type JSX, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type JSX,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 
 import { COMPASS_TERMS, type CompassLocale, type CompassTermKey } from "@/lib/compass/terms";
+import {
+  cancelPending,
+  forceClose,
+  forceOpen,
+  requestClose,
+  requestOpen,
+  subscribe,
+} from "@/lib/compass/term-def-controller";
 import { APPLE_EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +80,18 @@ export interface TermDefProps {
   children: ReactNode;
   /** Extra classes on the trigger. Use sparingly — defaults already match body copy. */
   className?: string;
+  /**
+   * Debounce before opening on hover/focus. Defaults to 120ms — enough to ignore
+   * a mouse just passing over the term, short enough to feel responsive when
+   * the user actually pauses.
+   */
+  openDelayMs?: number;
+  /**
+   * Debounce before closing on hover-out/blur. Defaults to 100ms — long enough
+   * to forgive the gap between trigger and popover, short enough to dismiss
+   * promptly when the user moves on.
+   */
+  closeDelayMs?: number;
 }
 
 const SUPPORTED_LOCALES: readonly CompassLocale[] = ["en", "es", "pt-BR"];
@@ -61,36 +100,155 @@ function resolveLocale(raw: string): CompassLocale {
   return (SUPPORTED_LOCALES as readonly string[]).includes(raw) ? (raw as CompassLocale) : "en";
 }
 
-export function TermDef({ term, children, className }: TermDefProps): JSX.Element {
+/** Detect touch-only devices once on mount, no SSR access. */
+function useIsTouchOnly(): boolean {
+  const [isTouch, setIsTouch] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(hover: none)");
+    setIsTouch(mq.matches);
+    const onChange = (e: MediaQueryListEvent): void => setIsTouch(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return isTouch;
+}
+
+export function TermDef({
+  term,
+  children,
+  className,
+  openDelayMs = 120,
+  closeDelayMs = 100,
+}: TermDefProps): JSX.Element {
   const definition = COMPASS_TERMS[term];
   const rawLocale = useLocale();
   const locale = resolveLocale(rawLocale);
   const popoverId = useId();
+  const controllerId = useId();
   const [isOpen, setIsOpen] = useState(false);
+  const isTouchOnly = useIsTouchOnly();
+
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
 
   const shortText = definition.short[locale];
   const longText = definition.long?.[locale];
   const href = definition.href;
+
+  // Subscribe to controller activation — single source of truth.
+  useEffect(() => {
+    const unsubscribe = subscribe(controllerId, (active) => setIsOpen(active));
+    return () => {
+      // Make sure we don't leave a dangling close timer for this id.
+      cancelPending(controllerId);
+      unsubscribe();
+    };
+  }, [controllerId]);
+
+  const open = useCallback(() => setIsOpen(true), []);
+  const close = useCallback(() => setIsOpen(false), []);
+
+  const handleMouseEnter = useCallback((): void => {
+    if (isTouchOnly) return;
+    requestOpen(controllerId, open, openDelayMs);
+  }, [controllerId, isTouchOnly, open, openDelayMs]);
+
+  const handleMouseLeave = useCallback((): void => {
+    if (isTouchOnly) return;
+    requestClose(controllerId, close, closeDelayMs);
+  }, [closeDelayMs, close, controllerId, isTouchOnly]);
+
+  const handleFocus = useCallback((): void => {
+    requestOpen(controllerId, open, openDelayMs);
+  }, [controllerId, open, openDelayMs]);
+
+  const handleBlur = useCallback((): void => {
+    requestClose(controllerId, close, closeDelayMs);
+  }, [closeDelayMs, close, controllerId]);
+
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLButtonElement>): void => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        forceOpen(controllerId, open, { lock: true });
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        forceClose(controllerId, close);
+      }
+    },
+    [close, controllerId, open]
+  );
+
+  const handleClick = useCallback((): void => {
+    // On touch, tap toggles. On pointer, click locks open (keyboard-equivalent).
+    if (isOpen) {
+      forceClose(controllerId, close);
+    } else {
+      forceOpen(controllerId, open, { lock: true });
+    }
+  }, [close, controllerId, isOpen, open]);
+
+  // Outside-click dismissal — only listen while open, only listen once mounted.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (typeof document === "undefined") return;
+
+    const onPointerDown = (event: MouseEvent | TouchEvent): void => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (popoverRef.current?.contains(target)) return;
+      if (triggerRef.current?.contains(target)) return;
+      forceClose(controllerId, close);
+    };
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+    };
+  }, [close, controllerId, isOpen]);
+
+  // Keep the popover open while the cursor is over it (it lives outside the
+  // trigger, so we need to cancel pending close on enter).
+  const handlePopoverMouseEnter = useCallback((): void => {
+    if (isTouchOnly) return;
+    cancelPending(controllerId);
+  }, [controllerId, isTouchOnly]);
+
+  const handlePopoverMouseLeave = useCallback((): void => {
+    if (isTouchOnly) return;
+    requestClose(controllerId, close, closeDelayMs);
+  }, [closeDelayMs, close, controllerId, isTouchOnly]);
 
   return (
     <Popover
       placement="top"
       showArrow
       isOpen={isOpen}
-      onOpenChange={setIsOpen}
+      // Controlled by the singleton — never let HeroUI toggle behind our back.
+      onOpenChange={(next) => {
+        if (!next) forceClose(controllerId, close);
+      }}
       classNames={{
         content: "p-0 border-0 bg-transparent shadow-none",
       }}
     >
       <PopoverTrigger>
         <button
+          ref={triggerRef}
           type="button"
           aria-describedby={isOpen ? popoverId : undefined}
           aria-expanded={isOpen}
-          onMouseEnter={() => setIsOpen(true)}
-          onMouseLeave={() => setIsOpen(false)}
-          onFocus={() => setIsOpen(true)}
-          onBlur={() => setIsOpen(false)}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          onClick={handleClick}
           className={cn(
             "inline cursor-help bg-transparent p-0 text-left font-inherit",
             "underline decoration-dotted decoration-muted/60 underline-offset-[3px]",
@@ -107,8 +265,11 @@ export function TermDef({ term, children, className }: TermDefProps): JSX.Elemen
         <AnimatePresence>
           {isOpen ? (
             <motion.div
+              ref={popoverRef}
               id={popoverId}
               role="tooltip"
+              onMouseEnter={handlePopoverMouseEnter}
+              onMouseLeave={handlePopoverMouseLeave}
               initial={{ opacity: 0, y: 4, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 4, scale: 0.98 }}

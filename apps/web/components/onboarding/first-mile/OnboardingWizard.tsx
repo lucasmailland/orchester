@@ -216,16 +216,16 @@ export function OnboardingWizard({ locale, initialStep, workspaceSlug }: Props) 
           />
         );
       case 1:
-        return <ProviderStep onConnected={handleProviderConnected} />;
+        return <ProviderStep locale={locale} onConnected={handleProviderConnected} />;
       case 2:
-        return <AgentStep onCreated={handleAgentCreated} />;
+        return <AgentStep locale={locale} onCreated={handleAgentCreated} />;
       case 3:
         return agent ? (
           <TalkStep agent={agent} onFirstReply={handleFirstReply} onContinue={handleTalkContinue} />
         ) : (
           // Edge: refresh landed at step 3 but agent state is gone.
           // Send user back to step 2 to rebuild it.
-          <AgentStep onCreated={handleAgentCreated} />
+          <AgentStep locale={locale} onCreated={handleAgentCreated} />
         );
       case 4:
         return (

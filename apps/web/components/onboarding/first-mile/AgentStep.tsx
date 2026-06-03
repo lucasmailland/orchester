@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button, Input, Textarea } from "@heroui/react";
 import { ArrowRight } from "lucide-react";
 import { notify } from "@/lib/toast";
+import { readState, writeState } from "./types";
+import { SessionExpiredAlert } from "./SessionExpiredAlert";
 
 interface Props {
+  locale: string;
   onCreated: (agent: { id: string; name: string; model: string; systemPrompt: string }) => void;
 }
 
@@ -73,13 +76,30 @@ const MODELS = [
  * receives `{ id, name, model, systemPrompt }` so step 4 can wire up the
  * test-chat panel without re-fetching.
  */
-export function AgentStep({ onCreated }: Props) {
+export function AgentStep({ locale, onCreated }: Props) {
   const t = useTranslations("compass.onboarding.agent");
   const [selectedTpl, setSelectedTpl] = useState<TemplateId>("tier1");
   const [model, setModel] = useState(MODELS[0]!.id);
   const [name, setName] = useState(TEMPLATES[0]!.defaultName);
   const [role, setRole] = useState(TEMPLATES[0]!.defaultRole);
   const [submitting, setSubmitting] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  // Hydrate any previously-typed values so a re-login round trip is lossless.
+  useEffect(() => {
+    const s = readState();
+    if (s.agentDraft) {
+      if (s.agentDraft.selectedTpl) setSelectedTpl(s.agentDraft.selectedTpl);
+      if (s.agentDraft.model) setModel(s.agentDraft.model);
+      if (typeof s.agentDraft.name === "string") setName(s.agentDraft.name);
+      if (typeof s.agentDraft.role === "string") setRole(s.agentDraft.role);
+    }
+  }, []);
+
+  // Persist the in-progress form on every change.
+  useEffect(() => {
+    writeState({ agentDraft: { selectedTpl, model, name, role } });
+  }, [selectedTpl, model, name, role]);
 
   function applyTemplate(id: TemplateId) {
     const tpl = TEMPLATES.find((x) => x.id === id);
@@ -112,6 +132,14 @@ export function AgentStep({ onCreated }: Props) {
           status: "active",
         }),
       });
+      if (res.status === 401) {
+        // Session expired — render an inline alert and stop. Wizard state
+        // is already persisted (agentDraft + step) so the user resumes here
+        // after re-login. Do NOT show a toast — the alert is the affordance.
+        writeState({ step: 2, agentDraft: { selectedTpl, model, name, role } });
+        setSessionExpired(true);
+        return;
+      }
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         notify.error(data.error ?? t("errorFallback"));
@@ -139,6 +167,8 @@ export function AgentStep({ onCreated }: Props) {
         </h1>
         <p className="text-sm leading-relaxed text-text-muted">{t("subhead")}</p>
       </header>
+
+      {sessionExpired && <SessionExpiredAlert locale={locale} returnTo={`/${locale}/onboarding`} />}
 
       <form id="onboarding-form" onSubmit={handleSubmit} className="space-y-4">
         <fieldset>

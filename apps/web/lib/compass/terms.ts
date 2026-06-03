@@ -78,36 +78,37 @@ export const COMPASS_TERMS: Record<CompassTermKey, TermDefinition> = {
       en: "Shows you what your agents have actually learned, so you can audit it before deploying changes that depend on persisted context. The Brain page lists every stored fact, when it was learned, and lets you keep or remove items one by one.",
       es: "Te muestra lo que tus agentes realmente aprendieron, para que puedas auditarlo antes de publicar cambios que dependan del contexto guardado. La página Brain lista cada hecho almacenado, cuándo se aprendió, y te permite conservar o eliminar elementos uno a uno.",
       "pt-BR":
-        "Mostra o que seus agentes de fato aprenderam, para que voce possa auditar antes de publicar mudanças que dependem do contexto salvo. A página Brain lista cada fato armazenado, quando foi aprendido, e permite manter ou remover itens um a um.",
+        "Mostra o que seus agentes de fato aprenderam, para que você possa auditar antes de publicar mudanças que dependem do contexto salvo. A página Brain lista cada fato armazenado, quando foi aprendido, e permite manter ou remover itens um a um.",
     },
   },
 
   embedding: {
     short: {
-      en: "The numeric representation of a text that lets agents find similar information, not only identical matches.",
-      es: "La representación numérica de un texto que permite a los agentes encontrar información parecida, no solo coincidencias exactas.",
+      en: "Lets agents recognize the same question phrased differently, instead of demanding exact wording. Each text becomes a list of numbers; similar meanings end up near each other.",
+      es: "Permite que los agentes reconozcan la misma pregunta formulada de otra manera, en vez de exigir las palabras exactas. Cada texto se convierte en una lista de números; los significados parecidos quedan cerca entre sí.",
       "pt-BR":
-        "A representação numérica de um texto que permite aos agentes encontrar informações parecidas, não apenas correspondências exatas.",
+        "Permite que os agentes reconheçam a mesma pergunta feita de outro jeito, em vez de exigir as palavras exatas. Cada texto vira uma lista de números; significados parecidos ficam próximos entre si.",
     },
     long: {
-      en: "An embedding turns a sentence into a list of numbers that captures its meaning. Two sentences with similar meaning produce similar numbers, so the agent can recall information even when the user phrases the question differently.",
-      es: "Un embedding convierte una oración en una lista de números que captura su significado. Dos oraciones con significado parecido producen números parecidos, por lo que el agente puede recordar información aunque la pregunta esté redactada de otra forma.",
+      en: "Lets agents recognize the same question phrased differently, instead of demanding exact wording. We convert each text into a list of numbers that captures its meaning, so two sentences that say the same thing end up close to each other and the agent can pull the right memory even when the user rewords the question.",
+      es: "Permite que los agentes reconozcan la misma pregunta formulada de otra manera, en vez de exigir las palabras exactas. Convertimos cada texto en una lista de números que captura su significado, así dos oraciones que dicen lo mismo quedan cerca entre sí y el agente puede traer el recuerdo correcto aunque el usuario reformule la pregunta.",
       "pt-BR":
-        "Um embedding transforma uma frase em uma lista de números que captura o significado dela. Duas frases com significado parecido produzem números parecidos, então o agente consegue recordar a informação mesmo quando a pergunta é feita de outro jeito.",
+        "Permite que os agentes reconheçam a mesma pergunta feita de outro jeito, em vez de exigir as palavras exatas. Convertemos cada texto em uma lista de números que captura o significado, então duas frases que dizem a mesma coisa ficam próximas entre si e o agente consegue trazer a memória certa mesmo quando o usuário reformula a pergunta.",
     },
   },
 
   cosine: {
     short: {
-      en: "A score from 0 to 1 that measures how close two texts are in meaning.",
-      es: "Una puntuación entre 0 y 1 que mide qué tan cercanos son dos textos en significado.",
-      "pt-BR": "Uma pontuação de 0 a 1 que mede o quanto dois textos são próximos em significado.",
+      en: "How we decide that two memories are saying the same thing. Returns a score from 0 to 1 comparing the meaning of two texts.",
+      es: "Así decidimos que dos recuerdos dicen lo mismo. Devuelve una puntuación de 0 a 1 que compara el significado de dos textos.",
+      "pt-BR":
+        "É como decidimos que duas memórias estão dizendo a mesma coisa. Devolve uma pontuação de 0 a 1 que compara o significado de dois textos.",
     },
     long: {
-      en: "Cosine similarity compares two embeddings and returns a value close to 1 when they mean the same thing, and close to 0 when they are unrelated. We use it to decide when two facts are duplicates of each other.",
-      es: "La similitud coseno compara dos embeddings y devuelve un valor cercano a 1 cuando significan lo mismo, y cercano a 0 cuando no tienen relación. La usamos para decidir cuándo dos hechos son duplicados.",
+      en: "How we decide that two memories are saying the same thing, so your agents don't store duplicates or repeat themselves. The score compares two embeddings and returns a value close to 1 when they mean the same thing and close to 0 when they are unrelated.",
+      es: "Así decidimos que dos recuerdos dicen lo mismo, para que tus agentes no guarden duplicados ni se repitan. La puntuación compara dos embeddings y devuelve un valor cercano a 1 cuando significan lo mismo y cercano a 0 cuando no tienen relación.",
       "pt-BR":
-        "A similaridade de cosseno compara dois embeddings e retorna um valor próximo de 1 quando eles significam a mesma coisa e próximo de 0 quando não têm relação. Usamos isso para decidir quando dois fatos são duplicados.",
+        "É como decidimos que duas memórias estão dizendo a mesma coisa, para que seus agentes não guardem duplicados nem se repitam. A pontuação compara dois embeddings e devolve um valor próximo de 1 quando significam a mesma coisa e próximo de 0 quando não têm relação.",
     },
   },
 
@@ -173,16 +174,16 @@ export const COMPASS_TERMS: Record<CompassTermKey, TermDefinition> = {
 
   pgvector: {
     short: {
-      en: "The Postgres extension we use to store embeddings and search by meaning.",
-      es: "La extensión de Postgres que usamos para guardar embeddings y buscar por significado.",
+      en: "Keeps your memory and your business data in the same database, instead of behind a second search engine to maintain. It's the Postgres extension that handles search-by-meaning natively.",
+      es: "Mantiene tu memoria y tus datos de negocio en la misma base, en vez de detrás de un segundo motor de búsqueda que también tendrías que mantener. Es la extensión de Postgres que resuelve la búsqueda por significado de forma nativa.",
       "pt-BR":
-        "A extensão do Postgres que usamos para armazenar embeddings e buscar por significado.",
+        "Mantém sua memória e seus dados de negócio no mesmo banco, em vez de atrás de um segundo motor de busca que você também teria que manter. É a extensão do Postgres que resolve a busca por significado de forma nativa.",
     },
     long: {
-      en: 'pgvector adds a new column type to Postgres for storing the numeric representation of texts. It lets the database answer questions like "which facts are closest in meaning to this one" directly, without a separate search engine.',
-      es: 'pgvector agrega a Postgres un nuevo tipo de columna para guardar la representación numérica de los textos. Permite que la base de datos responda preguntas como "qué hechos son más cercanos en significado a este" directamente, sin un motor de búsqueda aparte.',
+      en: 'Keeps your memory and your business data in the same database, instead of behind a second search engine to maintain. pgvector adds a column type to Postgres for storing the numeric meaning of texts, so the same database can answer "which facts are closest in meaning to this one" directly.',
+      es: 'Mantiene tu memoria y tus datos de negocio en la misma base, en vez de detrás de un segundo motor de búsqueda que también tendrías que mantener. pgvector agrega a Postgres un tipo de columna para guardar el significado numérico de los textos, así la misma base responde "qué hechos son los más cercanos en significado a este" de forma directa.',
       "pt-BR":
-        'O pgvector adiciona ao Postgres um novo tipo de coluna para guardar a representação numérica dos textos. Ele permite que o banco responda perguntas como "quais fatos têm significado mais próximo deste" diretamente, sem um motor de busca separado.',
+        'Mantém sua memória e seus dados de negócio no mesmo banco, em vez de atrás de um segundo motor de busca que você também teria que manter. O pgvector adiciona ao Postgres um tipo de coluna para guardar o significado numérico dos textos, então o mesmo banco responde "quais fatos têm significado mais próximo deste" de forma direta.',
     },
   },
 
@@ -197,7 +198,7 @@ export const COMPASS_TERMS: Record<CompassTermKey, TermDefinition> = {
       en: "Lets agents answer with what they already know about this user, instead of asking again. On each incoming message we score every stored fact for relevance, pull the top matches into the prompt, and log which ones were used so you can see what your agents lean on.",
       es: "Permite que los agentes respondan con lo que ya saben de este usuario, en vez de volver a preguntar. Con cada mensaje entrante calificamos la relevancia de cada hecho guardado, llevamos los mejores al prompt y registramos cuáles se usaron, para que veas en qué se apoyan tus agentes.",
       "pt-BR":
-        "Permite que os agentes respondam com o que já sabem sobre este usuário, em vez de perguntar de novo. A cada mensagem recebida pontuamos a relevância de cada fato salvo, levamos os melhores para o prompt e registramos quais foram usados, para que voce veja no que seus agentes se apoiam.",
+        "Permite que os agentes respondam com o que já sabem sobre este usuário, em vez de perguntar de novo. A cada mensagem recebida pontuamos a relevância de cada fato salvo, levamos os melhores para o prompt e registramos quais foram usados, para que você veja no que seus agentes se apoiam.",
     },
   },
 
@@ -218,16 +219,16 @@ export const COMPASS_TERMS: Record<CompassTermKey, TermDefinition> = {
 
   chunk: {
     short: {
-      en: "A short piece of a longer document that the agent can read on its own.",
-      es: "Un fragmento corto de un documento más largo que el agente puede leer de forma independiente.",
+      en: "Why an uploaded document returns the right paragraph instead of the whole file. We split each document into pieces small enough to search precisely.",
+      es: "Por qué un documento subido devuelve el párrafo correcto y no el archivo entero. Dividimos cada documento en piezas lo bastante pequeñas como para buscar con precisión.",
       "pt-BR":
-        "Um trecho curto de um documento maior que o agente consegue ler de forma independente.",
+        "Por que um documento enviado devolve o parágrafo certo em vez do arquivo inteiro. Dividimos cada documento em pedaços pequenos o suficiente para buscar com precisão.",
     },
     long: {
-      en: "When you upload a document, we split it into smaller pieces called chunks. The agent searches across chunks so it can find the right paragraph without re-reading the whole file every time.",
-      es: "Cuando subes un documento, lo dividimos en fragmentos más pequeños llamados chunks. El agente busca entre esos fragmentos para encontrar el párrafo correcto sin tener que releer el archivo completo cada vez.",
+      en: "Why an uploaded document returns the right paragraph instead of the whole file. We split each document into smaller pieces called chunks, and the agent searches across them; pieces too small lose context, pieces too large hide the part that matters.",
+      es: "Por qué un documento subido devuelve el párrafo correcto y no el archivo entero. Dividimos cada documento en piezas más pequeñas llamadas chunks, y el agente busca entre ellas; las piezas demasiado chicas pierden contexto, y las demasiado grandes esconden la parte que importa.",
       "pt-BR":
-        "Quando você envia um documento, nós o dividimos em pedaços menores chamados chunks. O agente busca entre esses pedaços para encontrar o parágrafo certo sem precisar reler o arquivo inteiro toda vez.",
+        "Por que um documento enviado devolve o parágrafo certo em vez do arquivo inteiro. Dividimos cada documento em pedaços menores chamados chunks, e o agente busca entre eles; pedaços pequenos demais perdem contexto, e grandes demais escondem a parte que importa.",
     },
   },
 

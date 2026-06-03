@@ -6,11 +6,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion } from "framer-motion";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Lock, ArrowRight } from "lucide-react";
 import { signIn } from "@/lib/auth-client";
 import { notify } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { safeReturnPath } from "@/lib/safe-return";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -25,17 +26,33 @@ interface LoginFormProps {
 
 const GoogleIcon = () => (
   <svg width="15" height="15" viewBox="0 0 18 18" fill="none">
-    <path d="M17.64 9.2a9.06 9.06 0 0 0-.14-1.6H9v3.02h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92C16.54 14 17.64 11.8 17.64 9.2z" fill="#4285F4"/>
-    <path d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26a5.4 5.4 0 0 1-3.04.85 5.37 5.37 0 0 1-5.06-3.71H.93v2.33A9 9 0 0 0 9 18z" fill="#34A853"/>
-    <path d="M3.94 10.71A5.41 5.41 0 0 1 3.66 9c0-.59.1-1.17.28-1.71V4.96H.93A9 9 0 0 0 0 9c0 1.45.35 2.82.93 4.04l3.01-2.33z" fill="#FBBC05"/>
-    <path d="M9 3.58a4.87 4.87 0 0 1 3.44 1.35l2.58-2.58A8.66 8.66 0 0 0 9 0a9 9 0 0 0-8.07 4.96l3.01 2.33A5.37 5.37 0 0 1 9 3.58z" fill="#EA4335"/>
+    <path
+      d="M17.64 9.2a9.06 9.06 0 0 0-.14-1.6H9v3.02h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92C16.54 14 17.64 11.8 17.64 9.2z"
+      fill="#4285F4"
+    />
+    <path
+      d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26a5.4 5.4 0 0 1-3.04.85 5.37 5.37 0 0 1-5.06-3.71H.93v2.33A9 9 0 0 0 9 18z"
+      fill="#34A853"
+    />
+    <path
+      d="M3.94 10.71A5.41 5.41 0 0 1 3.66 9c0-.59.1-1.17.28-1.71V4.96H.93A9 9 0 0 0 0 9c0 1.45.35 2.82.93 4.04l3.01-2.33z"
+      fill="#FBBC05"
+    />
+    <path
+      d="M9 3.58a4.87 4.87 0 0 1 3.44 1.35l2.58-2.58A8.66 8.66 0 0 0 9 0a9 9 0 0 0-8.07 4.96l3.01 2.33A5.37 5.37 0 0 1 9 3.58z"
+      fill="#EA4335"
+    />
   </svg>
 );
 
 const Spinner = () => (
   <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    <path
+      className="opacity-75"
+      fill="currentColor"
+      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+    />
   </svg>
 );
 
@@ -55,8 +72,13 @@ const inputErrorClass = cn(
 export function LoginForm({ locale }: LoginFormProps) {
   const t = useTranslations("auth");
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  // Validated `?return=` path — null if missing, malformed, or unsafe.
+  // Falls back to `/${locale}` so we never honor an open redirect.
+  const safeReturn = safeReturnPath(searchParams?.get("return")) ?? `/${locale}`;
 
   const {
     register,
@@ -69,7 +91,7 @@ export function LoginForm({ locale }: LoginFormProps) {
     const { error } = await signIn.email({
       email: values.email,
       password: values.password,
-      callbackURL: `/${locale}`,
+      callbackURL: safeReturn,
     });
 
     if (error) {
@@ -78,14 +100,14 @@ export function LoginForm({ locale }: LoginFormProps) {
       return;
     }
 
-    router.push(`/${locale}`);
+    router.push(safeReturn);
   }
 
   async function handleGoogleSignIn() {
     setIsGoogleLoading(true);
     await signIn.social({
       provider: "google",
-      callbackURL: `/${locale}`,
+      callbackURL: safeReturn,
     });
   }
 
@@ -148,9 +170,7 @@ export function LoginForm({ locale }: LoginFormProps) {
               className={errors.email ? inputErrorClass : inputClass}
             />
           </div>
-          {errors.email && (
-            <p className="text-xs text-red-400">{errors.email.message}</p>
-          )}
+          {errors.email && <p className="text-xs text-red-400">{errors.email.message}</p>}
         </div>
 
         {/* Password */}
@@ -174,9 +194,7 @@ export function LoginForm({ locale }: LoginFormProps) {
               className={errors.password ? inputErrorClass : inputClass}
             />
           </div>
-          {errors.password && (
-            <p className="text-xs text-red-400">{errors.password.message}</p>
-          )}
+          {errors.password && <p className="text-xs text-red-400">{errors.password.message}</p>}
         </div>
 
         {/* Submit */}

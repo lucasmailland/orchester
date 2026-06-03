@@ -9,6 +9,21 @@ export type StepIndex = 0 | 1 | 2 | 3 | 4;
 
 export type Role = "customer-support" | "internal-automation" | "exploring";
 
+export type AgentTemplateId = "tier1" | "helpdesk" | "sales-coach" | "blank";
+
+/**
+ * In-progress form values for the Agent step.
+ *
+ * Persisted on every change so a re-login round trip (triggered by a 401
+ * on POST /api/agents) doesn't lose what the user typed.
+ */
+export interface AgentDraft {
+  selectedTpl: AgentTemplateId;
+  model: string;
+  name: string;
+  role: string;
+}
+
 export interface PersistedState {
   step: StepIndex;
   role: Role | null;
@@ -16,6 +31,7 @@ export interface PersistedState {
   agentId: string | null;
   providerConnected: boolean;
   conversationStarted: boolean;
+  agentDraft: AgentDraft | null;
 }
 
 export const STORAGE_KEYS = {
