@@ -161,7 +161,6 @@ function FlowMockup() {
         {/* Edges */}
         {edges.map(([x1, y1, x2, y2], i) => {
           const mx = (x1 + x2) / 2;
-          const my = (y1 + y2) / 2;
           return (
             <path
               key={i}
