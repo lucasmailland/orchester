@@ -239,6 +239,13 @@ const ROW_WORKSPACE_Y = 0;
 const ROW_TEAM_Y = 150;
 const ROW_AGENT_Y = 300;
 const ROW_FLOW_Y = 480;
+// Maximum width a single row of teams may occupy before we wrap to the next
+// row. ~3 wide-screen viewports — beyond this the chart sprawls right off
+// the canvas. Wrapping keeps the org tree readable even with 10+ teams.
+const MAX_ROW_WIDTH = 2400;
+// Vertical distance from one team row's flow strip to the next team row.
+// = TEAM (150) + AGENT (300) + FLOW (480) + buffer for next row's TEAM
+const ROW_BAND_HEIGHT = 540;
 
 function layoutNodes(rawNodes: OrgNode[], rawEdges: OrgEdge[]): Node[] {
   const ws = rawNodes.find((n) => n.type === "workspace");
@@ -258,14 +265,28 @@ function layoutNodes(rawNodes: OrgNode[], rawEdges: OrgEdge[]): Node[] {
   // (They still exist in the DB; user just won't see empty squads in the org chart.)
   const teams = allTeams.filter((t) => (agentsByTeam.get(t.id)?.length ?? 0) > 0);
 
-  const teamAgentCounts = teams.map((t) => agentsByTeam.get(t.id)!.length);
-  const totalAgentCols = teamAgentCounts.reduce((a, b) => a + b, 0);
-  const totalWidth =
-    totalAgentCols * COL_WIDTH_AGENT + Math.max(0, teams.length - 1) * COL_GAP_TEAM;
-  const startX = -totalWidth / 2;
+  // ── Pack teams into rows of bounded width ─────────────────────────────
+  // Each row aims to stay under MAX_ROW_WIDTH so the chart fits the canvas
+  // instead of sprawling horizontally. A team that's bigger than the cap
+  // gets its own row (it would otherwise force a single overflowing row).
+  type TeamRow = { teams: typeof teams; width: number };
+  const rows: TeamRow[] = [];
+  for (const team of teams) {
+    const cnt = agentsByTeam.get(team.id)!.length;
+    const teamWidth = cnt * COL_WIDTH_AGENT;
+    const last = rows[rows.length - 1];
+    const withGap = (last?.width ?? 0) + (last ? COL_GAP_TEAM : 0) + teamWidth;
+    if (last && withGap <= MAX_ROW_WIDTH) {
+      last.teams.push(team);
+      last.width = withGap;
+    } else {
+      rows.push({ teams: [team], width: teamWidth });
+    }
+  }
 
   const out: Node[] = [];
   const agentX = new Map<string, number>();
+  const agentY = new Map<string, number>();
 
   if (ws) {
     out.push({
@@ -277,47 +298,58 @@ function layoutNodes(rawNodes: OrgNode[], rawEdges: OrgEdge[]): Node[] {
     });
   }
 
-  let cursor = startX;
-  for (let i = 0; i < teams.length; i++) {
-    const team = teams[i]!;
-    const cnt = teamAgentCounts[i]!;
-    const teamWidth = cnt * COL_WIDTH_AGENT;
-    const teamCenterX = cursor + teamWidth / 2;
-    out.push({
-      id: team.id,
-      type: "team",
-      data: { label: team.label, meta: team.meta },
-      position: { x: teamCenterX - 100, y: ROW_TEAM_Y },
-    });
+  for (let r = 0; r < rows.length; r++) {
+    const row = rows[r]!;
+    const yOffset = r * ROW_BAND_HEIGHT;
+    // Each row is centered so all rows share the same vertical axis.
+    let cursor = -row.width / 2;
+    for (const team of row.teams) {
+      const cnt = agentsByTeam.get(team.id)!.length;
+      const teamWidth = cnt * COL_WIDTH_AGENT;
+      const teamCenterX = cursor + teamWidth / 2;
+      out.push({
+        id: team.id,
+        type: "team",
+        data: { label: team.label, meta: team.meta },
+        position: { x: teamCenterX - 100, y: ROW_TEAM_Y + yOffset },
+      });
 
-    const agentsForTeam = agentsByTeam.get(team.id) ?? [];
-    for (let j = 0; j < agentsForTeam.length; j++) {
-      const aId = agentsForTeam[j]!;
-      const x = cursor + j * COL_WIDTH_AGENT + (COL_WIDTH_AGENT - 220) / 2;
-      agentX.set(aId, x);
-      const a = agents.find((n) => n.id === aId);
-      if (a) {
-        out.push({
-          id: a.id,
-          type: "agent",
-          data: { label: a.label, meta: a.meta },
-          position: { x, y: ROW_AGENT_Y },
-        });
+      const agentsForTeam = agentsByTeam.get(team.id) ?? [];
+      for (let j = 0; j < agentsForTeam.length; j++) {
+        const aId = agentsForTeam[j]!;
+        const x = cursor + j * COL_WIDTH_AGENT + (COL_WIDTH_AGENT - 220) / 2;
+        const y = ROW_AGENT_Y + yOffset;
+        agentX.set(aId, x);
+        agentY.set(aId, y);
+        const a = agents.find((n) => n.id === aId);
+        if (a) {
+          out.push({
+            id: a.id,
+            type: "agent",
+            data: { label: a.label, meta: a.meta },
+            position: { x, y },
+          });
+        }
       }
+      cursor += teamWidth + COL_GAP_TEAM;
     }
-    cursor += teamWidth + COL_GAP_TEAM;
   }
 
-  // Orphan agents (no team) get their own column at the end
-  for (const a of agents) {
-    if (!agentX.has(a.id)) {
+  // Orphan agents (no team) go to a trailing row of their own.
+  const orphans = agents.filter((a) => !agentX.has(a.id));
+  if (orphans.length > 0) {
+    const yOffset = rows.length * ROW_BAND_HEIGHT;
+    let cursor = -(orphans.length * COL_WIDTH_AGENT) / 2;
+    for (const a of orphans) {
       const x = cursor + (COL_WIDTH_AGENT - 220) / 2;
+      const y = ROW_AGENT_Y + yOffset;
       agentX.set(a.id, x);
+      agentY.set(a.id, y);
       out.push({
         id: a.id,
         type: "agent",
         data: { label: a.label, meta: a.meta },
-        position: { x, y: ROW_AGENT_Y },
+        position: { x, y },
       });
       cursor += COL_WIDTH_AGENT;
     }
@@ -326,14 +358,27 @@ function layoutNodes(rawNodes: OrgNode[], rawEdges: OrgEdge[]): Node[] {
   for (const f of flows) {
     const linked = rawEdges
       .filter((e) => e.kind === "flow-agent" && e.source === f.id)
-      .map((e) => agentX.get(e.target))
-      .filter((v): v is number => v != null);
-    const cx = linked.length > 0 ? linked.reduce((a, b) => a + b, 0) / linked.length : 0;
+      .map((e) => ({ x: agentX.get(e.target), y: agentY.get(e.target) }))
+      .filter((p): p is { x: number; y: number } => p.x != null && p.y != null);
+    if (linked.length === 0) {
+      out.push({
+        id: f.id,
+        type: "flow",
+        data: { label: f.label, meta: f.meta },
+        position: { x: 0, y: ROW_FLOW_Y },
+      });
+      continue;
+    }
+    const avgX = linked.reduce((a, b) => a + b.x, 0) / linked.length;
+    // Place the flow under the row where most of its agents live, so cross-row
+    // flows don't drag a single line across the whole canvas.
+    const avgY = linked.reduce((a, b) => a + b.y, 0) / linked.length;
+    const rowIdx = Math.round((avgY - ROW_AGENT_Y) / ROW_BAND_HEIGHT);
     out.push({
       id: f.id,
       type: "flow",
       data: { label: f.label, meta: f.meta },
-      position: { x: cx, y: ROW_FLOW_Y },
+      position: { x: avgX, y: ROW_FLOW_Y + rowIdx * ROW_BAND_HEIGHT },
     });
   }
 
