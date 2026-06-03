@@ -2,70 +2,171 @@
 
 import { useTranslations } from "next-intl";
 import { motion } from "framer-motion";
-import { MessageCircle, Send, Hash, Mail, Globe, Webhook, Zap, Bot } from "lucide-react";
+import {
+  MessageCircle,
+  Send,
+  Hash,
+  Mail,
+  Globe,
+  Webhook,
+  Zap,
+  Bot,
+  MoreHorizontal,
+  type LucideIcon,
+} from "lucide-react";
 
-const CHANNELS = [
+type Channel = {
+  key: "whatsapp" | "telegram" | "slack" | "email" | "web" | "webhook" | "api" | "more";
+  Icon: LucideIcon;
+  color: string;
+  bg: string;
+  glow: string;
+  stat?: string;
+};
+
+// Order matches a 3x3 grid: row1 row2 row3 left-to-right, with the center cell being the AGENT
+const CELLS: (Channel | "agent")[] = [
   {
     key: "whatsapp",
     Icon: MessageCircle,
     color: "text-emerald-400",
-    bg: "bg-emerald-500/10 border-emerald-500/30",
-    glow: "shadow-emerald-500/30",
+    bg: "from-emerald-500/15 to-transparent border-emerald-500/30",
+    glow: "shadow-emerald-500/20",
+    stat: "847 convs",
   },
   {
     key: "telegram",
     Icon: Send,
     color: "text-sky-400",
-    bg: "bg-sky-500/10 border-sky-500/30",
-    glow: "shadow-sky-500/30",
+    bg: "from-sky-500/15 to-transparent border-sky-500/30",
+    glow: "shadow-sky-500/20",
+    stat: "1.2k msgs",
   },
   {
     key: "slack",
     Icon: Hash,
     color: "text-fuchsia-400",
-    bg: "bg-fuchsia-500/10 border-fuchsia-500/30",
-    glow: "shadow-fuchsia-500/30",
+    bg: "from-fuchsia-500/15 to-transparent border-fuchsia-500/30",
+    glow: "shadow-fuchsia-500/20",
+    stat: "312 convs",
   },
   {
     key: "email",
     Icon: Mail,
     color: "text-amber-400",
-    bg: "bg-amber-500/10 border-amber-500/30",
-    glow: "shadow-amber-500/30",
+    bg: "from-amber-500/15 to-transparent border-amber-500/30",
+    glow: "shadow-amber-500/20",
+    stat: "94 threads",
   },
+  "agent",
   {
     key: "web",
     Icon: Globe,
     color: "text-cyan-400",
-    bg: "bg-cyan-500/10 border-cyan-500/30",
-    glow: "shadow-cyan-500/30",
+    bg: "from-cyan-500/15 to-transparent border-cyan-500/30",
+    glow: "shadow-cyan-500/20",
+    stat: "2.4k visits",
   },
   {
     key: "webhook",
     Icon: Webhook,
     color: "text-indigo-400",
-    bg: "bg-indigo-500/10 border-indigo-500/30",
-    glow: "shadow-indigo-500/30",
+    bg: "from-indigo-500/15 to-transparent border-indigo-500/30",
+    glow: "shadow-indigo-500/20",
+    stat: "5.6k events",
   },
   {
     key: "api",
     Icon: Zap,
     color: "text-yellow-400",
-    bg: "bg-yellow-500/10 border-yellow-500/30",
-    glow: "shadow-yellow-500/30",
+    bg: "from-yellow-500/15 to-transparent border-yellow-500/30",
+    glow: "shadow-yellow-500/20",
+    stat: "12.4k req/d",
   },
-] as const;
+  {
+    key: "more",
+    Icon: MoreHorizontal,
+    color: "text-zinc-400",
+    bg: "from-zinc-700/30 to-transparent border-zinc-700/50",
+    glow: "shadow-zinc-700/20",
+    stat: "+ custom",
+  },
+];
+
+function ChannelCard({
+  channel,
+  t,
+  delay,
+}: {
+  channel: Channel;
+  t: (k: string) => string;
+  delay: number;
+}) {
+  const { key, Icon, color, bg, glow, stat } = channel;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16, scale: 0.95 }}
+      whileInView={{ opacity: 1, y: 0, scale: 1 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ delay, duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
+      whileHover={{ scale: 1.03, transition: { duration: 0.2 } }}
+      className={`group relative flex flex-col items-center justify-center gap-3 rounded-2xl border bg-gradient-to-br ${bg} p-5 shadow-lg ${glow} backdrop-blur-sm cursor-default min-h-[150px]`}
+    >
+      <div
+        className={`flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-900/60 ${color} transition-transform duration-300 group-hover:scale-110`}
+      >
+        <Icon size={22} />
+      </div>
+      <div className="text-center">
+        <p className={`font-display text-sm font-semibold ${color}`}>
+          {key === "more" ? "+ more" : t(`labels.${key}`)}
+        </p>
+        {stat && <p className="mt-0.5 font-mono text-[10px] text-zinc-500">{stat}</p>}
+      </div>
+    </motion.div>
+  );
+}
+
+function AgentCard({ delay }: { delay: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.85 }}
+      whileInView={{ opacity: 1, scale: 1 }}
+      viewport={{ once: true }}
+      transition={{ delay, duration: 0.55, ease: [0.22, 0.61, 0.36, 1] }}
+      className="relative flex flex-col items-center justify-center gap-3 rounded-2xl border border-violet-500/50 bg-gradient-to-br from-violet-600 to-indigo-600 p-5 shadow-2xl shadow-violet-500/40 min-h-[150px]"
+    >
+      <div className="absolute -inset-3 -z-10 rounded-3xl bg-violet-500/30 blur-2xl" />
+      <div className="absolute -inset-1 -z-10 rounded-2xl bg-gradient-to-br from-violet-500/40 to-indigo-500/40 blur-md" />
+      <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-zinc-900/40 backdrop-blur-sm">
+        <Bot size={28} className="text-white" />
+      </div>
+      <div className="text-center">
+        <p className="font-display text-base font-bold text-white">Agent</p>
+        <p className="mt-0.5 font-mono text-[10px] text-violet-200/80">claude-opus-4</p>
+      </div>
+      {/* status pill */}
+      <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-zinc-900/60 px-1.5 py-0.5 backdrop-blur-sm">
+        <span className="relative flex h-1.5 w-1.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        </span>
+        <span className="text-[9px] font-medium uppercase tracking-wider text-emerald-200">
+          live
+        </span>
+      </div>
+    </motion.div>
+  );
+}
 
 export function ChannelsSection() {
   const t = useTranslations("marketing.channels");
-  const RADIUS = 240;
-  const angleStep = (2 * Math.PI) / CHANNELS.length;
-
   return (
     <section className="relative overflow-hidden py-24">
-      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500/5 blur-[120px]" />
+      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500/8 blur-[140px]" />
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -82,128 +183,18 @@ export function ChannelsSection() {
           <p className="mx-auto mt-3 max-w-xl text-base text-zinc-500">{t("subtitle")}</p>
         </motion.div>
 
-        {/* Orbit container */}
-        <div className="relative mx-auto h-[640px] w-full max-w-[640px]">
-          {/* SVG connection lines */}
-          <svg
-            className="pointer-events-none absolute inset-0 h-full w-full"
-            viewBox="0 0 640 640"
-            fill="none"
-          >
-            {CHANNELS.map((_, i) => {
-              const angle = i * angleStep - Math.PI / 2;
-              const x = 320 + RADIUS * Math.cos(angle);
-              const y = 320 + RADIUS * Math.sin(angle);
-              return (
-                <motion.line
-                  key={i}
-                  x1={320}
-                  y1={320}
-                  x2={x}
-                  y2={y}
-                  stroke="url(#orbitGradient)"
-                  strokeWidth={1}
-                  strokeDasharray="4 6"
-                  initial={{ pathLength: 0, opacity: 0 }}
-                  whileInView={{ pathLength: 1, opacity: 0.4 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.3 + i * 0.07, duration: 0.7 }}
-                />
-              );
-            })}
-            {/* Animated message beams — dots traveling from agent center to each channel */}
-            {CHANNELS.map((_, i) => {
-              const angle = i * angleStep - Math.PI / 2;
-              const endX = 320 + RADIUS * Math.cos(angle);
-              const endY = 320 + RADIUS * Math.sin(angle);
-              return (
-                <motion.circle
-                  key={`beam-${i}`}
-                  r={3.5}
-                  fill="#c4b5fd"
-                  filter="url(#orbitGlow)"
-                  initial={{ cx: 320, cy: 320, opacity: 0 }}
-                  animate={{
-                    cx: [320, endX],
-                    cy: [320, endY],
-                    opacity: [0, 1, 1, 0],
-                  }}
-                  transition={{
-                    duration: 1.6,
-                    repeat: Infinity,
-                    repeatDelay: 1.8,
-                    delay: 1 + i * 0.3,
-                    ease: "easeOut",
-                    times: [0, 0.15, 0.85, 1],
-                  }}
-                />
-              );
-            })}
-            <defs>
-              <linearGradient id="orbitGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#a78bfa" />
-                <stop offset="100%" stopColor="#22d3ee" />
-              </linearGradient>
-              <filter id="orbitGlow" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur stdDeviation="3" result="blur" />
-                <feMerge>
-                  <feMergeNode in="blur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-            </defs>
-          </svg>
-
-          {/* Center: agent */}
-          <motion.div
-            initial={{ scale: 0, opacity: 0 }}
-            whileInView={{ scale: 1, opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, ease: [0.22, 0.61, 0.36, 1] }}
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-          >
-            <div className="relative">
-              <div className="absolute -inset-6 animate-pulse rounded-full bg-violet-500/20 blur-2xl" />
-              <div className="relative flex h-24 w-24 items-center justify-center rounded-2xl border border-violet-500/40 bg-gradient-to-br from-violet-600 to-indigo-600 shadow-2xl shadow-violet-500/40">
-                <Bot size={36} className="text-white" />
-              </div>
-              <p className="mt-3 text-center font-display text-sm font-semibold text-zinc-200">
-                Agent
-              </p>
-            </div>
-          </motion.div>
-
-          {/* Orbiting channels */}
-          {CHANNELS.map((ch, i) => {
-            const angle = i * angleStep - Math.PI / 2;
-            const x = RADIUS * Math.cos(angle);
-            const y = RADIUS * Math.sin(angle);
+        {/* 3x3 Grid */}
+        <div className="mx-auto grid max-w-3xl grid-cols-3 gap-3">
+          {CELLS.map((cell, i) => {
+            const delay = 0.05 * i;
+            if (cell === "agent") return <AgentCard key="agent" delay={delay} />;
             return (
-              <motion.div
-                key={ch.key}
-                initial={{ opacity: 0, scale: 0.4 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: 0.4 + i * 0.08, duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
-                className="absolute left-1/2 top-1/2"
-                style={{ x: x - 36, y: y - 36 }}
-              >
-                <motion.div
-                  animate={{ y: [0, -8, 0] }}
-                  transition={{
-                    duration: 3 + i * 0.3,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                    delay: i * 0.2,
-                  }}
-                  className={`group flex h-[72px] w-[72px] flex-col items-center justify-center gap-1 rounded-2xl border ${ch.bg} shadow-lg ${ch.glow} backdrop-blur-sm transition-all hover:scale-110`}
-                >
-                  <ch.Icon size={22} className={ch.color} />
-                  <span className="text-[9px] font-medium uppercase tracking-wide text-zinc-400">
-                    {t(`labels.${ch.key}`)}
-                  </span>
-                </motion.div>
-              </motion.div>
+              <ChannelCard
+                key={cell.key}
+                channel={cell}
+                t={t as (k: string) => string}
+                delay={delay}
+              />
             );
           })}
         </div>
@@ -214,7 +205,7 @@ export function ChannelsSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ delay: 0.6, duration: 0.5 }}
-          className="mt-8 flex flex-wrap items-center justify-center gap-6 sm:gap-12"
+          className="mt-10 flex flex-wrap items-center justify-center gap-6 sm:gap-12"
         >
           <div className="text-center">
             <div className="font-display text-3xl font-bold text-white">7</div>
