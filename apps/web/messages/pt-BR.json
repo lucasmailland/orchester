@@ -1681,6 +1681,23 @@
         "desc": "SSO/SAML, 2FA, RBAC, log de auditoria completo, exportação GDPR, CSP nonces, criptografia at-rest, webhooks assinados (HMAC)."
       }
     },
+    "channels": {
+      "title": "Uma conversa.",
+      "titleAccent": "Todos os canais.",
+      "subtitle": "Conecte seu agente uma vez. Web, mobile, mensageria, email, código — o Orchester cuida do estado.",
+      "labels": {
+        "whatsapp": "WhatsApp",
+        "telegram": "Telegram",
+        "slack": "Slack",
+        "email": "Email",
+        "web": "Widget",
+        "webhook": "Webhook",
+        "api": "API"
+      },
+      "statChannels": "canais",
+      "statContext": "contexto unificado",
+      "statSync": "linhas de sincronia"
+    },
     "howItWorks": {
       "title": "Comece em 3 passos.",
       "step1": {

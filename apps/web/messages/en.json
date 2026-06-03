@@ -1681,6 +1681,23 @@
         "desc": "SSO/SAML, 2FA, RBAC, full audit log, GDPR export, CSP nonces, at-rest encryption, signed webhooks (HMAC)."
       }
     },
+    "channels": {
+      "title": "One conversation.",
+      "titleAccent": "Every channel.",
+      "subtitle": "Connect your agent once. Web, mobile, messaging, email, code — Orchester handles the state.",
+      "labels": {
+        "whatsapp": "WhatsApp",
+        "telegram": "Telegram",
+        "slack": "Slack",
+        "email": "Email",
+        "web": "Widget",
+        "webhook": "Webhook",
+        "api": "API"
+      },
+      "statChannels": "channels",
+      "statContext": "shared context",
+      "statSync": "lines of sync code"
+    },
     "howItWorks": {
       "title": "Up and running in 3 steps.",
       "step1": {
