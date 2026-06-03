@@ -4,7 +4,9 @@ import { auth } from "@/lib/auth";
 import { HeroSection } from "@/components/marketing/HeroSection";
 import { StatsBar } from "@/components/marketing/StatsBar";
 import { FeaturesGrid } from "@/components/marketing/FeaturesGrid";
+import { ChannelsSection } from "@/components/marketing/ChannelsSection";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
+import { TechStackSection } from "@/components/marketing/TechStackSection";
 import { IntegrationsGrid } from "@/components/marketing/IntegrationsGrid";
 import { OpenSourceCTA } from "@/components/marketing/OpenSourceCTA";
 
@@ -25,7 +27,9 @@ export default async function LandingPage({ params }: Props) {
       <HeroSection />
       <StatsBar />
       <FeaturesGrid />
+      <ChannelsSection />
       <HowItWorks />
+      <TechStackSection />
       <IntegrationsGrid />
       <OpenSourceCTA />
     </>
