@@ -82,13 +82,13 @@ export function HowItWorks() {
 
   return (
     <section className="py-24">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <motion.h2
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-          className="mb-16 text-center font-display text-3xl font-bold tracking-tight text-white sm:text-4xl"
+          transition={{ duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
+          className="mb-16 text-center font-display text-3xl font-bold leading-[1.1] text-white sm:text-4xl"
         >
           {t("title")}
         </motion.h2>
@@ -117,10 +117,10 @@ export function HowItWorks() {
             return (
               <motion.div
                 key={key}
-                initial={{ opacity: 0, x: isEven ? -24 : 24 }}
-                whileInView={{ opacity: 1, x: 0 }}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-80px" }}
-                transition={{ duration: 0.65, ease: [0.22, 0.61, 0.36, 1] }}
+                transition={{ duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
                 className={cn(
                   "flex flex-col gap-8 md:flex-row md:items-center",
                   !isEven && "md:flex-row-reverse"
@@ -132,7 +132,7 @@ export function HowItWorks() {
                     {label}
                   </span>
                   <h3 className="font-display text-xl font-semibold text-zinc-100">{title}</h3>
-                  <p className="text-sm leading-relaxed text-zinc-500">{desc}</p>
+                  <p className="text-base leading-relaxed text-zinc-400">{desc}</p>
                   <span className="block font-display text-6xl font-bold text-zinc-800/60">
                     {number}
                   </span>
@@ -140,12 +140,12 @@ export function HowItWorks() {
 
                 {/* Code side */}
                 <div className="flex-1">
-                  <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-[#0A0A0C] shadow-xl shadow-black/30">
+                  <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-[#0A0A0C] shadow-2xl shadow-black/30">
                     <div className="flex items-center gap-2 border-b border-zinc-800 px-4 py-3">
                       <div className="flex gap-1.5">
-                        <div className="h-2.5 w-2.5 rounded-full bg-red-500/40" />
-                        <div className="h-2.5 w-2.5 rounded-full bg-amber-500/40" />
-                        <div className="h-2.5 w-2.5 rounded-full bg-emerald-500/40" />
+                        <div className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
+                        <div className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
+                        <div className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
                       </div>
                       <div className="ml-2 h-4 flex-1 rounded-sm bg-zinc-800/50" />
                     </div>

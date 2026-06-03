@@ -18,18 +18,15 @@ export function OpenSourceCTA() {
 
   return (
     <section className="relative overflow-hidden py-24">
-      {/* Ambient glow */}
-      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[700px] w-[700px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500/4 blur-[160px]" />
-
       <div className="relative mx-auto max-w-4xl px-4 text-center sm:px-6">
         <motion.div
-          initial={{ opacity: 0, y: 28 }}
+          initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.65, ease: [0.22, 0.61, 0.36, 1] }}
+          transition={{ duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
           className="rounded-3xl border border-zinc-800 bg-zinc-900/40 p-10 backdrop-blur-sm sm:p-14"
         >
-          <h2 className="mb-4 font-display text-4xl font-bold tracking-tight text-white sm:text-5xl">
+          <h2 className="mb-4 font-display text-4xl font-bold leading-[1.1] text-white sm:text-5xl">
             {t("title")}
           </h2>
           <p className="mx-auto mb-10 max-w-xl text-base leading-relaxed text-zinc-400">
@@ -44,9 +41,9 @@ export function OpenSourceCTA() {
               rel="noopener noreferrer"
               className={cn(
                 "group flex items-center gap-2 rounded-xl px-7 py-3.5 text-sm font-semibold text-white",
-                "bg-gradient-to-r from-violet-600 to-indigo-600",
-                "shadow-xl shadow-violet-500/25 transition-all duration-200",
-                "hover:scale-[1.02] hover:from-violet-500 hover:to-indigo-500 hover:shadow-violet-500/40"
+                "bg-violet-600 transition-all duration-200",
+                "shadow-2xl shadow-black/30",
+                "hover:bg-violet-500 hover:scale-[1.02]"
               )}
             >
               <GithubSVG />

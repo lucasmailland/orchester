@@ -20,11 +20,13 @@ export function FaqSection() {
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
+          transition={{ duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
           className="mb-12 text-center"
         >
-          <p className="mb-3 text-xs uppercase tracking-[0.2em] text-zinc-500">{t("eyebrow")}</p>
-          <h2 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          <p className="mb-3 text-[11px] uppercase tracking-[0.2em] text-zinc-500">
+            {t("eyebrow")}
+          </p>
+          <h2 className="font-display text-3xl font-bold leading-[1.1] text-white sm:text-4xl">
             {t("title")}
           </h2>
         </motion.div>
@@ -38,7 +40,7 @@ export function FaqSection() {
                 initial={{ opacity: 0, y: 12 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-40px" }}
-                transition={{ delay: i * 0.05, duration: 0.4 }}
+                transition={{ delay: i * 0.05, duration: 0.4, ease: [0.22, 0.61, 0.36, 1] }}
                 className={cn(
                   "overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-900/30 transition-colors",
                   isOpen ? "bg-zinc-900/60" : "hover:bg-zinc-900/50"
@@ -70,7 +72,7 @@ export function FaqSection() {
                       transition={{ duration: 0.3, ease: [0.22, 0.61, 0.36, 1] }}
                       className="overflow-hidden"
                     >
-                      <div className="px-5 pb-5 text-sm leading-relaxed text-zinc-400">
+                      <div className="px-5 pb-5 text-base leading-relaxed text-zinc-400">
                         {t(`q.${key}.answer`)}
                       </div>
                     </motion.div>
