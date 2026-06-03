@@ -70,7 +70,7 @@ export function IntegrationsGrid() {
   const t = useTranslations("marketing.integrations");
 
   return (
-    <section className="py-24">
+    <section className="bg-zinc-950/30 py-24">
       <div className="mx-auto max-w-7xl px-4 text-center sm:px-6 lg:px-8">
         <motion.h2
           initial={{ opacity: 0, y: 16 }}

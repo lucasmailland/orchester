@@ -295,7 +295,7 @@ function ByokMockup() {
           key={p.abbr}
           className={cn("flex items-center gap-1.5 rounded-lg border px-1.5 py-1", p.color)}
         >
-          <span className="font-mono text-[9px] font-bold">{p.abbr}</span>
+          <span className="font-mono text-[10px] font-bold">{p.abbr}</span>
           <span className="truncate text-[10px] text-zinc-400">{p.name}</span>
         </div>
       ))}
@@ -352,7 +352,7 @@ export function FeaturesGrid() {
         </motion.div>
 
         {/* Bento grid */}
-        <div className="grid auto-rows-[320px] grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid auto-rows-[minmax(300px,auto)] grid-cols-1 gap-4 md:grid-cols-3">
           {FEATURES.map(({ key, icon: Icon, accent, hoverBg, iconBg, colSpan }, i) => {
             const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
               const rect = e.currentTarget.getBoundingClientRect();

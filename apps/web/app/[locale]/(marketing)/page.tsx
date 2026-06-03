@@ -9,7 +9,9 @@ import { ProductShowcase } from "@/components/marketing/ProductShowcase";
 import { ChannelsSection } from "@/components/marketing/ChannelsSection";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
 import { TechStackSection } from "@/components/marketing/TechStackSection";
+import { TestimonialsSection } from "@/components/marketing/TestimonialsSection";
 import { IntegrationsGrid } from "@/components/marketing/IntegrationsGrid";
+import { FaqSection } from "@/components/marketing/FaqSection";
 import { OpenSourceCTA } from "@/components/marketing/OpenSourceCTA";
 
 interface Props {
@@ -34,7 +36,9 @@ export default async function LandingPage({ params }: Props) {
       <ChannelsSection />
       <HowItWorks />
       <TechStackSection />
+      <TestimonialsSection />
       <IntegrationsGrid />
+      <FaqSection />
       <OpenSourceCTA />
     </>
   );

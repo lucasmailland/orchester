@@ -95,12 +95,12 @@ function BrainMockup() {
       {BRAIN_FACTS.map((fact, i) => (
         <div key={i} className="flex items-start gap-2 rounded-lg bg-zinc-800/50 px-2.5 py-2">
           {/* Avatar circle */}
-          <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-500/20 text-[9px] font-bold text-violet-300">
+          <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-500/20 text-[10px] font-bold text-violet-300">
             {i + 1}
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[11px] text-zinc-300">{fact.text}</p>
-            <p className="mt-0.5 text-[9px] text-zinc-600">decay: -2%/d · {fact.source}</p>
+            <p className="mt-0.5 text-[10px] text-zinc-600">decay: -2%/d · {fact.source}</p>
             {/* Memory strength bar */}
             <div className="mt-1 flex items-center gap-1.5">
               <div className="h-1 flex-1 overflow-hidden rounded-full bg-zinc-700">
@@ -109,7 +109,7 @@ function BrainMockup() {
                   style={{ width: `${fact.strength}%` }}
                 />
               </div>
-              <span className="shrink-0 text-[9px] text-zinc-500">{fact.strength}%</span>
+              <span className="shrink-0 text-[10px] text-zinc-500">{fact.strength}%</span>
             </div>
           </div>
         </div>
@@ -293,7 +293,7 @@ function OrgMockup() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
             </span>
-            <span className="text-[9px] font-semibold text-violet-100">Orchestrator</span>
+            <span className="text-[10px] font-semibold text-violet-100">Orchestrator</span>
             <span className="rounded bg-zinc-900/40 px-1 font-mono text-[8px] text-violet-200">
               opus-4
             </span>
@@ -329,7 +329,7 @@ function OrgMockup() {
         ))}
       </div>
 
-      <div className="flex items-center justify-between border-t border-zinc-800/50 pt-1.5 text-[9px] text-zinc-600">
+      <div className="flex items-center justify-between border-t border-zinc-800/50 pt-1.5 text-[10px] text-zinc-600">
         <span>12 agents</span>
         <span>3 tiers</span>
         <span>247 convs</span>
@@ -389,13 +389,13 @@ function ConvsMockup() {
               <div className="mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-[7px] font-bold text-zinc-300">
                 {user.letter}
               </div>
-              <p className="truncate rounded-md bg-zinc-800/60 px-1.5 py-0.5 text-[9px] text-zinc-300">
+              <p className="truncate rounded-md bg-zinc-800/60 px-1.5 py-0.5 text-[10px] text-zinc-300">
                 {user.msg}
               </p>
             </div>
             {/* Agent bubble */}
             <div className="flex items-start justify-end gap-1.5">
-              <p className="truncate rounded-md border border-violet-500/30 bg-gradient-to-br from-violet-500/20 to-indigo-500/15 px-1.5 py-0.5 text-[9px] text-zinc-200">
+              <p className="truncate rounded-md border border-violet-500/30 bg-gradient-to-br from-violet-500/20 to-indigo-500/15 px-1.5 py-0.5 text-[10px] text-zinc-200">
                 {agent.msg}
               </p>
               <div className="mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-violet-500">
@@ -443,7 +443,7 @@ function CostMockup() {
             style={{ width: "24.8%" }}
           />
         </div>
-        <p className="mt-0.5 text-[9px] text-zinc-600">24.8% used this billing period</p>
+        <p className="mt-0.5 text-[10px] text-zinc-600">24.8% used this billing period</p>
       </div>
 
       {/* Sparkline */}
@@ -533,13 +533,15 @@ function KnowledgeMockup() {
 
       {/* Stats footer */}
       <div className="flex items-center justify-end gap-1">
-        <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] text-zinc-500">
+        <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500">
           1,247 chunks
         </span>
-        <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] text-zinc-500">
+        <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500">
           768d embeddings
         </span>
-        <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] text-zinc-500">pgvector</span>
+        <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500">
+          pgvector
+        </span>
       </div>
     </div>
   );
@@ -551,7 +553,7 @@ export function ProductShowcase() {
   const t = useTranslations("marketing.productShowcase");
 
   return (
-    <section className="py-24">
+    <section className="bg-zinc-950/30 py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Section header */}
         <motion.div

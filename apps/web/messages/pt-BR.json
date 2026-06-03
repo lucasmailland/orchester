@@ -1807,6 +1807,57 @@
         "title": "Base de conhecimento",
         "subtitle": "Postgres + pgvector — PDFs, URLs, CSV, markdown"
       }
+    },
+    "testimonials": {
+      "eyebrow": "Construído em público · amado pelos makers",
+      "title": "Das pessoas que estão construindo agentes hoje",
+      "quotes": {
+        "ana": {
+          "name": "Ana García",
+          "role": "AI Product Lead · Startup",
+          "body": "O Orchester nos permitiu orquestrar cinco agentes distintos sem escrever infraestrutura. Em uma tarde tínhamos o primeiro fluxo em produção."
+        },
+        "marcus": {
+          "name": "Marcus Chen",
+          "role": "Staff Engineer · Scale-up",
+          "body": "A camada de model-routing sozinha nos economizou semanas de plumbing. Descrevemos a intenção e o Orchester escolhe o provedor certo no custo certo."
+        },
+        "rafael": {
+          "name": "Rafael Souza",
+          "role": "Fundador · Indie hacker",
+          "body": "Lancei meu primeiro agente autônomo em menos de um dia. A DX é absurdamente boa para quem trabalha sozinho."
+        }
+      }
+    },
+    "faq": {
+      "eyebrow": "Perguntas que os devs fazem",
+      "title": "Perguntas frequentes",
+      "q": {
+        "free": {
+          "question": "O Orchester é mesmo grátis?",
+          "answer": "Sim — licença Apache-2.0. Auto-hospede quanto quiser, sem taxa por seat, sem teto de uso. Plano cloud opcional se você não quiser operar."
+        },
+        "selfhost": {
+          "question": "Como faço o self-host?",
+          "answer": "Um `docker compose up`. Postgres (com pgvector) e Redis são as únicas deps. O setup completo no docs leva menos de 10 minutos."
+        },
+        "models": {
+          "question": "Que modelos de IA funcionam?",
+          "answer": "80+ provedores via BYOK: Anthropic, OpenAI, Google, Mistral, Llama, Cohere, Azure, Bedrock, vLLM, Ollama (local) e mais. Troque sem mexer no código do agente."
+        },
+        "multitenant": {
+          "question": "Posso rodar múltiplos workspaces?",
+          "answer": "Sim — multi-tenant desde o primeiro dia. Isolamento de workspace via Postgres RLS, chaves separadas, orçamentos separados, audit logs separados."
+        },
+        "production": {
+          "question": "Está pronto para produção?",
+          "answer": "Sim. RBAC, audit log, exportação GDPR, webhooks assinados (HMAC), rate limiting por workspace, OpenTelemetry, workers duráveis com retry. Usado por times em produção hoje."
+        },
+        "cloud": {
+          "question": "E a versão cloud?",
+          "answer": "Mesmo código, hospedado por nós. Útil se você não quiser operar Postgres/Redis. Preço em /pricing — totalmente opcional, o self-host fica grátis para sempre."
+        }
+      }
     }
   }
 }
