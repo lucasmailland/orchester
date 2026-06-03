@@ -1698,6 +1698,34 @@
       "statContext": "shared context",
       "statSync": "lines of sync code"
     },
+    "techStack": {
+      "title1": "Your model.",
+      "title2": "Your cloud.",
+      "title3": "Your data.",
+      "subtitle": "Bring-your-own-key. Self-host with one command. Or use our cloud — your call.",
+      "proofs": {
+        "pgvector": {
+          "title": "pgvector for RAG",
+          "desc": "Postgres with native vector search. No separate vector DB to operate."
+        },
+        "workers": {
+          "title": "Durable workers",
+          "desc": "pg-boss queue with exponential retry and idempotency keys built in."
+        },
+        "webhooks": {
+          "title": "Signed webhooks",
+          "desc": "HMAC-SHA256 signatures, automatic retries, replay protection."
+        },
+        "otel": {
+          "title": "OpenTelemetry",
+          "desc": "Distributed tracing, structured logs, Prometheus-compatible metrics."
+        },
+        "rls": {
+          "title": "Row-level isolation",
+          "desc": "Postgres RLS guarantees tenant data never leaks across workspaces."
+        }
+      }
+    },
     "howItWorks": {
       "title": "Up and running in 3 steps.",
       "step1": {

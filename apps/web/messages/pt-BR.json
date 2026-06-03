@@ -1698,6 +1698,34 @@
       "statContext": "contexto unificado",
       "statSync": "linhas de sincronia"
     },
+    "techStack": {
+      "title1": "Seu modelo.",
+      "title2": "Sua cloud.",
+      "title3": "Seus dados.",
+      "subtitle": "Bring-your-own-key. Auto-hospede com um comando. Ou use nossa cloud — você escolhe.",
+      "proofs": {
+        "pgvector": {
+          "title": "pgvector para RAG",
+          "desc": "Postgres com busca vetorial nativa. Sem banco vetorial separado."
+        },
+        "workers": {
+          "title": "Workers duráveis",
+          "desc": "Fila pg-boss com retry exponencial e idempotency keys de fábrica."
+        },
+        "webhooks": {
+          "title": "Webhooks assinados",
+          "desc": "Assinaturas HMAC-SHA256, retries automáticos, proteção contra replay."
+        },
+        "otel": {
+          "title": "OpenTelemetry",
+          "desc": "Tracing distribuído, logs estruturados, métricas Prometheus."
+        },
+        "rls": {
+          "title": "Isolamento row-level",
+          "desc": "Postgres RLS garante que os dados de um tenant nunca atravessam workspaces."
+        }
+      }
+    },
     "howItWorks": {
       "title": "Comece em 3 passos.",
       "step1": {
