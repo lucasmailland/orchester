@@ -34,6 +34,7 @@ import { TemplatePicker } from "@/components/compass/TemplatePicker";
 import { TermDef } from "@/components/compass/TermDef";
 import { TourSpot } from "@/components/compass/TourSpot";
 import type { CompassTemplate, FlowTemplatePayload } from "@/lib/compass/templates";
+import { useTemplateCreateFlow } from "@/lib/compass/use-template-create-flow";
 
 // Prefill captured from a TemplatePicker selection. Name + description seed
 // the inline create card; the graph (nodes/edges/variables) is sent verbatim
@@ -62,15 +63,10 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
   const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "es";
   const workspaceSlug = params?.workspaceSlug ?? "";
-  // 3-state machine, mirrored from the Agent create flow:
-  //   "hidden" — no overlay; the user hasn't pressed New Flow yet.
-  //   "picker" — TemplatePicker visible; user is choosing a starting point.
-  //   "form"   — inline name card visible, optionally pre-filled by a template.
-  //
-  // The "Blank" template short-circuits picker → form with no prefill so the
-  // historical "open straight to name input" UX still works for users who
-  // don't want a template.
-  const [createStep, setCreateStep] = useState<"hidden" | "picker" | "form">("hidden");
+  // Shared 3-state machine via the Compass hook (see use-template-create-flow.ts).
+  // Blank short-circuits picker → form with no prefill so the historical
+  // "open straight to name input" UX still works.
+  const createFlow = useTemplateCreateFlow<FlowTemplatePayload>("flow");
   const [prefill, setPrefill] = useState<FlowCreatePrefill | undefined>(undefined);
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -78,7 +74,7 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
   function handleStartCreate() {
     setPrefill(undefined);
     setName("");
-    setCreateStep("picker");
+    createFlow.openPicker();
   }
 
   function handlePickTemplate(template: CompassTemplate<FlowTemplatePayload>) {
@@ -87,24 +83,25 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
       // through to its "empty canvas + guided state" path.
       setPrefill(undefined);
       setName("");
-    } else {
-      const next: FlowCreatePrefill = { name: template.payload.name };
-      if (template.payload.description !== undefined) {
-        next.description = template.payload.description;
-      }
-      if (template.payload.nodes !== undefined) next.nodes = template.payload.nodes;
-      if (template.payload.edges !== undefined) next.edges = template.payload.edges;
-      if (template.payload.variables !== undefined) {
-        next.variables = template.payload.variables;
-      }
-      setPrefill(next);
-      setName(next.name);
+      createFlow.openBlankForm();
+      return;
     }
-    setCreateStep("form");
+    const next: FlowCreatePrefill = { name: template.payload.name };
+    if (template.payload.description !== undefined) {
+      next.description = template.payload.description;
+    }
+    if (template.payload.nodes !== undefined) next.nodes = template.payload.nodes;
+    if (template.payload.edges !== undefined) next.edges = template.payload.edges;
+    if (template.payload.variables !== undefined) {
+      next.variables = template.payload.variables;
+    }
+    setPrefill(next);
+    setName(next.name);
+    createFlow.selectTemplate(template);
   }
 
   function handleCloseCreateFlow() {
-    setCreateStep("hidden");
+    createFlow.closeAll();
     setPrefill(undefined);
     setName("");
   }
@@ -186,7 +183,7 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
         />
       </TourSpot>
 
-      {flows.length === 0 && createStep === "hidden" ? (
+      {flows.length === 0 && createFlow.phase === "hidden" ? (
         <Callout variant="tip" title={t("firstFlowTipTitle")}>
           {t("firstFlowTip")}
         </Callout>
@@ -195,12 +192,12 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
       {/* Step 1: pick a template (or Blank). */}
       <TemplatePicker
         kind="flow"
-        isOpen={createStep === "picker"}
-        onClose={() => setCreateStep("hidden")}
+        isOpen={createFlow.phase === "picker"}
+        onClose={createFlow.closeAll}
         onSelect={handlePickTemplate}
       />
 
-      {createStep === "form" ? (
+      {createFlow.phase === "form" ? (
         <div className="rounded-2xl border border-violet-500/30 bg-card p-4">
           <label htmlFor="flows-name-input" className="block text-sm font-semibold text-strong">
             {t("createTitle")}
@@ -235,7 +232,7 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
         </div>
       ) : null}
 
-      {flows.length === 0 && createStep === "hidden" ? (
+      {flows.length === 0 && createFlow.phase === "hidden" ? (
         <EmptyStateForFlows newFlowLabel={t("newFlow")} onCreate={handleStartCreate} />
       ) : (
         <TourSpot

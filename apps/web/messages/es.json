@@ -946,7 +946,7 @@
       "duration": "seg",
       "empty": "Aún no hay conversaciones.",
       "emptyTitle": "Sin conversaciones",
-      "emptyDescription": "Cuando un agente reciba mensajes, vas a verlos acá.",
+      "emptyDescription": "Cuando un agente reciba mensajes, los verás aquí.",
       "emptyCta": "Configurar canal",
       "search": "Buscar conversaciones",
       "searchPlaceholder": "Buscar nombre, email o resumen…",
@@ -1345,7 +1345,7 @@
         "sessionsTitle": "Sesiones activas",
         "sessionsDescription": "Devices conectados a tu cuenta. Cerralos remotamente si sospechás compromise.",
         "auditTitle": "Audit log",
-        "auditDescription": "Cada mutación crítica del workspace queda registrada acá. Read-only.",
+        "auditDescription": "Cada mutación crítica del workspace queda registrada aquí. Read-only.",
         "developersTitle": "Desarrolladores",
         "developersDescription": "API keys, webhooks salientes, y referencia de la API pública."
       },
@@ -1985,6 +1985,7 @@
       "label": "Barra de comandos de Compass",
       "placeholder": "Busca agentes, flujos, docs…",
       "empty": "Sin resultados. Prueba con otro término.",
+      "overflow": "Mostrando {shown} de {total} — afina tu búsqueda.",
       "footer": "↑↓ navega · ↵ abre · ⌘K cierra",
       "hint": {
         "navigate": "↑↓ ↵"
@@ -2087,7 +2088,7 @@
         },
         "step4": {
           "title": "Ajusta quién responde",
-          "body": "Un canal vale lo que el agente detrás. Abre Agents para ajustar la persona, las herramientas y las bases de conocimiento que sirven a las conversaciones que llegan aquí."
+          "body": "Cada canal está vinculado a un agente. El canal define quién puede escribirle; el agente define cómo responder. Elige el agente en los ajustes del canal."
         }
       },
       "flows": {
@@ -2575,7 +2576,6 @@
           "channel": "Elige el tipo de canal. En el paso siguiente cargas credenciales y asignas un agente."
         },
         "close": "Cerrar",
-        "allTemplates": "Todas las plantillas",
         "footerHint": "Las plantillas son puntos de partida — puedes cambiar todo después."
       },
       "agent": {
@@ -2820,12 +2820,13 @@
       "takeTour": "Hacer el tour",
       "continueCta": "Abrir el asistente",
       "commandBarHint": "Tip: presiona ⌘K / Ctrl-K para buscar cualquier cosa",
-      "humanCta": "Preguntar a la comunidad",
+      "humanCta": "Pregunta a la comunidad",
+      "askCommunityBody": "Orchester es de código abierto. Encuentra a los mantenedores y a otros operadores en GitHub Discussions. Solemos responder en un día.",
       "sections": {
         "onThisPage": "En esta página",
         "continueOnboarding": "Continúa tu introducción",
         "whatsNew": "Novedades",
-        "talkToHuman": "Habla con una persona"
+        "askCommunity": "Pregunta a la comunidad"
       },
       "perPage": {
         "default": {
@@ -2838,11 +2839,11 @@
         },
         "memory": {
           "title": "Mantenimiento de la memoria",
-          "body": "Esta página ejecuta las tareas de Mnemosyne que mantienen la memoria precisa: dedup, prune, consolidar. Las tareas destructivas piden confirmación antes de tocar datos."
+          "body": "Abre la página de mantenimiento de la memoria para inspeccionarla o reconstruirla. Verás alcance y reversibilidad antes de cada acción."
         },
         "flows": {
           "title": "Sobre los Flows",
-          "body": "Los Flows son los programas visuales que tus agentes ejecutan de principio a fin. Ramas, tools y pasos humanos viven acá para que la lógica quede inspeccionable."
+          "body": "Los Flows son los programas visuales que tus agentes ejecutan de principio a fin. Ramas, tools y pasos humanos viven aquí para que la lógica quede inspeccionable."
         },
         "channels": {
           "title": "Sobre los Canales",
@@ -2862,6 +2863,7 @@
         }
       },
       "whatsNew": {
+        "empty": "Las notas de cada versión van a aparecer acá cuando salga la próxima.",
         "items": {
           "helpDrawer": {
             "title": "Llegó el panel de ayuda",
@@ -2873,7 +2875,7 @@
           },
           "flowTemplates": {
             "title": "Plantillas de Flows",
-            "body": "Arranca un flow desde una plantilla en lugar de un lienzo vacío. Las plantillas copian nodos, conexiones y variables."
+            "body": "Comienza desde una plantilla para adaptar lógica predefinida en vez de construir el grafo desde cero."
           }
         }
       }

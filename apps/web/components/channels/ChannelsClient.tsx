@@ -28,6 +28,7 @@ import { NextStep, NextStepGroup } from "@/components/compass/NextStep";
 import { TemplatePicker } from "@/components/compass/TemplatePicker";
 import { TourSpot } from "@/components/compass/TourSpot";
 import type { ChannelTemplatePayload, CompassTemplate } from "@/lib/compass/templates";
+import { useTemplateCreateFlow } from "@/lib/compass/use-template-create-flow";
 
 type ChannelType = "widget" | "telegram" | "slack" | "whatsapp" | "email" | "api" | "web";
 
@@ -75,25 +76,42 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
   const params = useParams<{ workspaceSlug: string }>();
   const workspaceSlug = params?.workspaceSlug ?? "";
 
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [creating, setCreating] = useState<ChannelType | null>(null);
+  // Shared 3-state machine via the Compass hook. Channels carry extra state
+  // (`creatingType`) because the channel-type grid below also opens the form
+  // directly — picking a type bypasses the picker but still lands in the
+  // "form" phase. The template encodes `type`, so picking from the
+  // TemplatePicker carries it along; the grid sets it manually.
+  const createFlow = useTemplateCreateFlow<ChannelTemplatePayload>("channel");
+  const [creatingType, setCreatingType] = useState<ChannelType | null>(null);
   const [name, setName] = useState("");
   const [agentId, setAgentId] = useState<string>(agents[0]?.id ?? "");
   const [templateConfig, setTemplateConfig] = useState<Record<string, unknown>>({});
   const [pendingDelete, setPendingDelete] = useState<Channel | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Two-step state machine for "+ New Channel":
-  //   idle → pickerOpen (TemplatePicker shows the channel-type catalog)
-  //   pickerOpen → creating=<type> (inline form, pre-filled name + agent + config)
-  // The template encodes `type`, so picking "whatsapp" skips the redundant
-  // type-picker grid that used to live below — the picker IS the type picker.
   function handleTemplatePick(template: CompassTemplate<ChannelTemplatePayload>) {
     const p = template.payload;
     setName(p.name ?? "");
     setTemplateConfig(p.config ?? {});
     if (p.agentId) setAgentId(p.agentId);
-    setCreating(p.type as ChannelType);
+    setCreatingType(p.type as ChannelType);
+    if (template.blank) {
+      createFlow.openBlankForm();
+    } else {
+      createFlow.selectTemplate(template);
+    }
+  }
+
+  function openFormForType(typeKey: ChannelType) {
+    setCreatingType(typeKey);
+    createFlow.openBlankForm();
+  }
+
+  function closeForm() {
+    createFlow.closeAll();
+    setCreatingType(null);
+    setName("");
+    setTemplateConfig({});
   }
 
   function typeMeta(typeKey: ChannelType) {
@@ -105,7 +123,8 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
     };
   }
 
-  async function create(type: ChannelType) {
+  async function create(type: ChannelType | null) {
+    if (!type) return;
     if (!name.trim()) return toast.error(t("nameRequired"));
     if (!agentId) return toast.error(t("agentRequired"));
     const r = await fetch("/api/channels", {
@@ -120,9 +139,7 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
     });
     if (r.ok) {
       toast.success(t("channelCreated"));
-      setCreating(null);
-      setName("");
-      setTemplateConfig({});
+      closeForm();
       router.refresh();
     } else {
       toast.error(t("createError"));
@@ -184,7 +201,7 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
             <Button
               size="sm"
               radius="md"
-              onPress={() => setPickerOpen(true)}
+              onPress={createFlow.openPicker}
               className="bg-gradient-to-r from-violet-600 to-blue-600 font-medium text-white shadow-lg shadow-violet-500/20"
               startContent={<Plus className="h-4 w-4" aria-hidden="true" />}
             >
@@ -247,7 +264,7 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
                     <button
                       type="button"
                       disabled={!meta.supported}
-                      onClick={() => setCreating(typeKey)}
+                      onClick={() => openFormForType(typeKey)}
                       className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-line bg-elevated py-2 text-xs text-body hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <Plus className="h-3.5 w-3.5" /> {t("connect", { label: meta.label })}
@@ -259,10 +276,10 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
         </section>
       </TourSpot>
 
-      {creating && (
+      {createFlow.phase === "form" && creatingType && (
         <div className="space-y-2 rounded-2xl border border-violet-500/30 bg-card p-4">
           <div className="text-sm font-medium text-strong">
-            {t("newChannel", { label: typeMeta(creating).label })}
+            {t("newChannel", { label: typeMeta(creatingType).label })}
           </div>
           <input
             value={name}
@@ -285,18 +302,14 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => create(creating)}
+              onClick={() => create(creatingType)}
               className="rounded-lg bg-violet-500 px-3 py-1.5 text-xs text-white hover:bg-violet-400"
             >
               {t("create")}
             </button>
             <button
               type="button"
-              onClick={() => {
-                setCreating(null);
-                setName("");
-                setTemplateConfig({});
-              }}
+              onClick={closeForm}
               className="text-xs text-muted hover:text-body"
             >
               {t("cancel")}
@@ -363,8 +376,8 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
 
       <TemplatePicker
         kind="channel"
-        isOpen={pickerOpen}
-        onClose={() => setPickerOpen(false)}
+        isOpen={createFlow.phase === "picker"}
+        onClose={createFlow.closeAll}
         onSelect={handleTemplatePick}
       />
 

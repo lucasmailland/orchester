@@ -15,6 +15,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import { useTranslations } from "next-intl";
+import useSWR from "swr";
 import {
   Bot,
   BookOpen,
@@ -79,17 +80,57 @@ export type CommandResult =
       hint?: string;
     };
 
-interface ResourceCache {
-  agents: Array<{ id: string; name: string }>;
-  flows: Array<{ id: string; name: string }>;
-  kbs: Array<{ id: string; name: string }>;
-  conversations: Array<{ id: string; title: string }>;
+// ───────────────────────────────────────────────────── Fetchers
+
+/**
+ * Abortable JSON fetcher for SWR. On HTTP error or network failure we resolve
+ * to an empty array so the CommandBar degrades gracefully instead of throwing.
+ * SWR passes its own AbortSignal in `arg.signal`, which lets a re-rendered or
+ * unmounted bar cancel in-flight requests instead of just dropping their
+ * results.
+ */
+async function fetchJson(url: string, init?: RequestInit): Promise<unknown> {
+  try {
+    const r = await fetch(url, { credentials: "same-origin", ...init });
+    if (!r.ok) return [];
+    return (await r.json()) as unknown;
+  } catch {
+    return [];
+  }
 }
+
+function pickList<T>(raw: unknown, map: (row: Record<string, unknown>) => T): T[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((r): r is Record<string, unknown> => typeof r === "object" && r !== null)
+    .map(map);
+}
+
+function pickRowsList<T>(raw: unknown, map: (row: Record<string, unknown>) => T): T[] {
+  const rows =
+    raw && typeof raw === "object" && Array.isArray((raw as { rows?: unknown[] }).rows)
+      ? (raw as { rows: unknown[] }).rows
+      : [];
+  return rows
+    .filter((r): r is Record<string, unknown> => typeof r === "object" && r !== null)
+    .map(map);
+}
+
+/** SWR config shared by every resource hook — 5 min dedupe, no refocus chatter. */
+const SWR_CFG = {
+  dedupingInterval: 300_000,
+  revalidateOnFocus: false,
+  revalidateIfStale: false,
+} as const;
 
 // ───────────────────────────────────────────────────── Constants
 
 const RECENTS_KEY = "compass.commandBar.recent";
 const RECENTS_MAX = 5;
+/** Defensive per-section cap. Above this, render the first N and surface an
+ *  overflow notice so users know to narrow their query. Real workspaces won't
+ *  hit this — virtualization is a Sprint-7 concern if it ever surfaces. */
+const SECTION_SOFT_CAP = 200;
 
 const QUICK_ACTIONS: ReadonlyArray<{ id: QuickActionId; labelKey: string; Icon: LucideIcon }> = [
   { id: "createAgent", labelKey: "quickActions.createAgent", Icon: Plus },
@@ -213,15 +254,37 @@ export function CommandBar({ open: controlledOpen, onOpenChange }: CommandBarPro
   );
 
   const [query, setQuery] = useState("");
-  const [resources, setResources] = useState<ResourceCache>({
-    agents: [],
-    flows: [],
-    kbs: [],
-    conversations: [],
-  });
   const [recents, setRecents] = useState<RecentEntry[]>([]);
   const [activeDoc, setActiveDoc] = useState<CompassTermKey | null>(null);
   const listboxId = useId();
+
+  // ── SWR-backed resource fetches ──
+  // Each hook fires only while the bar is open. SWR dedupes within
+  // SWR_CFG.dedupingInterval (5 min) — rapid open/close no longer stampedes
+  // the API. SWR also wires AbortSignal into its fetcher under the hood, so
+  // an unmounted bar cancels its own in-flight requests.
+  const agentsKey = open ? "/api/agents" : null;
+  const flowsKey = open ? "/api/flows" : null;
+  const kbsKey = open ? "/api/knowledge-bases" : null;
+  const convKey = open ? "/api/conversations?limit=50" : null;
+
+  const { data: agentsRaw } = useSWR(agentsKey, fetchJson, SWR_CFG);
+  const { data: flowsRaw } = useSWR(flowsKey, fetchJson, SWR_CFG);
+  const { data: kbsRaw } = useSWR(kbsKey, fetchJson, SWR_CFG);
+  const { data: convRaw } = useSWR(convKey, fetchJson, SWR_CFG);
+
+  const resources = useMemo(
+    () => ({
+      agents: pickList(agentsRaw, (a) => ({ id: String(a.id), name: String(a.name ?? "") })),
+      flows: pickList(flowsRaw, (f) => ({ id: String(f.id), name: String(f.name ?? "") })),
+      kbs: pickList(kbsRaw, (k) => ({ id: String(k.id), name: String(k.name ?? "") })),
+      conversations: pickRowsList(convRaw, (c) => ({
+        id: String(c.id),
+        title: String(c.summary ?? c.customerName ?? c.customerEmail ?? c.id),
+      })),
+    }),
+    [agentsRaw, flowsRaw, kbsRaw, convRaw]
+  );
 
   // ── Cmd-K / Ctrl-K + Esc handler (8 lines as specified) ──
   useEffect(() => {
@@ -237,53 +300,28 @@ export function CommandBar({ open: controlledOpen, onOpenChange }: CommandBarPro
     return () => document.removeEventListener("keydown", onKey);
   }, [open, setOpen]);
 
-  // ── Lazy fetch on open ──
+  // ── Refresh recents whenever the bar opens ──
   useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    setRecents(readRecents());
-
-    const safeJson = async <T,>(url: string, pick: (raw: unknown) => T): Promise<T> => {
-      try {
-        const r = await fetch(url, { credentials: "same-origin" });
-        if (!r.ok) return pick([]);
-        return pick(await r.json());
-      } catch {
-        return pick([]);
-      }
-    };
-
-    Promise.all([
-      safeJson<Array<{ id: string; name: string }>>("/api/agents", (raw) =>
-        Array.isArray(raw) ? raw.map((a) => ({ id: String(a.id), name: String(a.name ?? "") })) : []
-      ),
-      safeJson<Array<{ id: string; name: string }>>("/api/flows", (raw) =>
-        Array.isArray(raw) ? raw.map((f) => ({ id: String(f.id), name: String(f.name ?? "") })) : []
-      ),
-      safeJson<Array<{ id: string; name: string }>>("/api/knowledge-bases", (raw) =>
-        Array.isArray(raw) ? raw.map((k) => ({ id: String(k.id), name: String(k.name ?? "") })) : []
-      ),
-      safeJson<Array<{ id: string; title: string }>>("/api/conversations?limit=50", (raw) => {
-        const rows =
-          raw && typeof raw === "object" && Array.isArray((raw as { rows?: unknown[] }).rows)
-            ? (raw as { rows: Array<Record<string, unknown>> }).rows
-            : [];
-        return rows.map((c) => ({
-          id: String(c.id),
-          title: String(c.summary ?? c.customerName ?? c.customerEmail ?? c.id),
-        }));
-      }),
-    ]).then(([agents, flows, kbs, conversations]) => {
-      if (cancelled) return;
-      setResources({ agents, flows, kbs, conversations });
-    });
-
-    return () => {
-      cancelled = true;
-    };
+    if (open) setRecents(readRecents());
   }, [open]);
 
   // ── Build all candidate results (cmdk does the filtering/scoring) ──
+  // Within each section we pre-sort by closest-prefix-match against the live
+  // query, then alphabetical — so an exact-name lookup surfaces first instead
+  // of getting buried at rank 9+ (the old `.slice(0, 8)` bug).
+  const sortByRelevance = useCallback(<R extends { title: string }>(items: R[], q: string): R[] => {
+    if (!q) return [...items].sort((a, b) => a.title.localeCompare(b.title));
+    const needle = q.toLowerCase();
+    return [...items].sort((a, b) => {
+      const at = a.title.toLowerCase();
+      const bt = b.title.toLowerCase();
+      const aStarts = at.startsWith(needle);
+      const bStarts = bt.startsWith(needle);
+      if (aStarts !== bStarts) return aStarts ? -1 : 1;
+      return at.localeCompare(bt);
+    });
+  }, []);
+
   const results = useMemo(() => {
     const actions: CommandResult[] = QUICK_ACTIONS.map((a) => ({
       kind: "action" as const,
@@ -326,8 +364,16 @@ export function CommandBar({ open: controlledOpen, onOpenChange }: CommandBarPro
       title: t(tr.labelKey),
     }));
 
-    return { actions, agents, flows, kbs, conversations, docs, tours };
-  }, [resources, t, locale]);
+    return {
+      actions,
+      agents: sortByRelevance(agents, query),
+      flows: sortByRelevance(flows, query),
+      kbs: sortByRelevance(kbs, query),
+      conversations: sortByRelevance(conversations, query),
+      docs,
+      tours,
+    };
+  }, [resources, t, locale, query, sortByRelevance]);
 
   // ── Selection ──
   const navigate = useCallback(
@@ -485,7 +531,7 @@ export function CommandBar({ open: controlledOpen, onOpenChange }: CommandBarPro
 
             {results.agents.length > 0 && (
               <Group heading={t("sections.agents")}>
-                {results.agents.slice(0, 8).map((r) => (
+                {results.agents.slice(0, SECTION_SOFT_CAP).map((r) => (
                   <ResultRow
                     key={resultKey(r)}
                     result={r}
@@ -494,12 +540,20 @@ export function CommandBar({ open: controlledOpen, onOpenChange }: CommandBarPro
                     onSelect={() => select(r)}
                   />
                 ))}
+                <OverflowNotice
+                  shown={Math.min(results.agents.length, SECTION_SOFT_CAP)}
+                  total={results.agents.length}
+                  label={t("overflow", {
+                    shown: Math.min(results.agents.length, SECTION_SOFT_CAP),
+                    total: results.agents.length,
+                  })}
+                />
               </Group>
             )}
 
             {results.flows.length > 0 && (
               <Group heading={t("sections.flows")}>
-                {results.flows.slice(0, 8).map((r) => (
+                {results.flows.slice(0, SECTION_SOFT_CAP).map((r) => (
                   <ResultRow
                     key={resultKey(r)}
                     result={r}
@@ -508,12 +562,20 @@ export function CommandBar({ open: controlledOpen, onOpenChange }: CommandBarPro
                     onSelect={() => select(r)}
                   />
                 ))}
+                <OverflowNotice
+                  shown={Math.min(results.flows.length, SECTION_SOFT_CAP)}
+                  total={results.flows.length}
+                  label={t("overflow", {
+                    shown: Math.min(results.flows.length, SECTION_SOFT_CAP),
+                    total: results.flows.length,
+                  })}
+                />
               </Group>
             )}
 
             {results.kbs.length > 0 && (
               <Group heading={t("sections.knowledge")}>
-                {results.kbs.slice(0, 8).map((r) => (
+                {results.kbs.slice(0, SECTION_SOFT_CAP).map((r) => (
                   <ResultRow
                     key={resultKey(r)}
                     result={r}
@@ -522,12 +584,20 @@ export function CommandBar({ open: controlledOpen, onOpenChange }: CommandBarPro
                     onSelect={() => select(r)}
                   />
                 ))}
+                <OverflowNotice
+                  shown={Math.min(results.kbs.length, SECTION_SOFT_CAP)}
+                  total={results.kbs.length}
+                  label={t("overflow", {
+                    shown: Math.min(results.kbs.length, SECTION_SOFT_CAP),
+                    total: results.kbs.length,
+                  })}
+                />
               </Group>
             )}
 
             {results.conversations.length > 0 && (
               <Group heading={t("sections.conversations")}>
-                {results.conversations.slice(0, 8).map((r) => (
+                {results.conversations.slice(0, SECTION_SOFT_CAP).map((r) => (
                   <ResultRow
                     key={resultKey(r)}
                     result={r}
@@ -536,6 +606,14 @@ export function CommandBar({ open: controlledOpen, onOpenChange }: CommandBarPro
                     onSelect={() => select(r)}
                   />
                 ))}
+                <OverflowNotice
+                  shown={Math.min(results.conversations.length, SECTION_SOFT_CAP)}
+                  total={results.conversations.length}
+                  label={t("overflow", {
+                    shown: Math.min(results.conversations.length, SECTION_SOFT_CAP),
+                    total: results.conversations.length,
+                  })}
+                />
               </Group>
             )}
 
@@ -588,6 +666,20 @@ export function CommandBar({ open: controlledOpen, onOpenChange }: CommandBarPro
 }
 
 // ───────────────────────────────────────────────────── Subcomponents
+
+/**
+ * Renders a "Showing N of M" line at the bottom of a section, ONLY when the
+ * total exceeds the defensive soft cap. Silent in the common case. Not a
+ * cmdk Item — it's purely informational and shouldn't be navigable.
+ */
+function OverflowNotice({ shown, total, label }: { shown: number; total: number; label: string }) {
+  if (total <= shown) return null;
+  return (
+    <div role="note" className="px-3 pb-2 pt-1 text-[10px] uppercase tracking-wider text-faint">
+      {label}
+    </div>
+  );
+}
 
 function Group({ heading, children }: { heading: string; children: React.ReactNode }) {
   return (

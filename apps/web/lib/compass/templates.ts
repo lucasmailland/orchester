@@ -24,6 +24,39 @@ export type ChannelType = "widget" | "web" | "telegram" | "slack" | "whatsapp" |
 export type TemplateKind = "agent" | "flow" | "knowledge" | "channel";
 
 /**
+ * Type-safe registry of icon names accepted by the TemplatePicker.
+ *
+ * This union is the single source of truth for "which lucide icons can a
+ * template reference?". TemplatePicker's ICON_BY_NAME map is typed as
+ * `Record<CompassIconName, LucideIcon>`, so:
+ *   - Adding an icon here forces the picker to register a matching import
+ *     (compile error otherwise).
+ *   - Typing `iconName: "Hedphones"` in a template fails at the template
+ *     definition, not silently at render with a fallback.
+ *
+ * Keep this list alphabetized; mirror it in the picker's import block.
+ */
+export type CompassIconName =
+  | "BookOpen"
+  | "Code2"
+  | "Compass"
+  | "Globe"
+  | "GitPullRequest"
+  | "Hash"
+  | "Headphones"
+  | "Inbox"
+  | "LifeBuoy"
+  | "Mail"
+  | "Megaphone"
+  | "MessageCircle"
+  | "Newspaper"
+  | "ScrollText"
+  | "Sparkles"
+  | "Target"
+  | "Trophy"
+  | "Webhook";
+
+/**
  * A starting template for one of the four creation flows. The `payload`
  * is the object the create-form modal pre-fills + posts to the API.
  *
@@ -40,7 +73,7 @@ export interface CompassTemplate<TPayload = unknown> {
   /** i18n key under compass.templates.<kind>.<id>.description */
   descriptionKey: string;
   /** lucide-react icon name, resolved by TemplatePicker's icon map. */
-  iconName: string;
+  iconName: CompassIconName;
   /** Optional i18n key resolving to an array of tag strings. */
   tagsKey?: string;
   /**

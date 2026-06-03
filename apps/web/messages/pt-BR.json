@@ -1985,6 +1985,7 @@
       "label": "Barra de comandos do Compass",
       "placeholder": "Busque agentes, fluxos, docs…",
       "empty": "Sem resultados. Tente outro termo.",
+      "overflow": "Mostrando {shown} de {total} — refine sua busca.",
       "footer": "↑↓ navega · ↵ abre · ⌘K fecha",
       "hint": {
         "navigate": "↑↓ ↵"
@@ -2087,7 +2088,7 @@
         },
         "step4": {
           "title": "Ajuste quem responde",
-          "body": "Um canal vale o que o agente por trás dele. Abra Agents para ajustar a persona, as ferramentas e as bases de conhecimento que servem as conversas que chegam aqui."
+          "body": "Cada canal está vinculado a um agente. O canal define quem pode escrever; o agente define como responder. Escolha o agente nas configurações do canal."
         }
       },
       "flows": {
@@ -2575,7 +2576,6 @@
           "channel": "Escolha o tipo de canal. No próximo passo você adiciona credenciais e atribui um agente."
         },
         "close": "Fechar",
-        "allTemplates": "Todos os templates",
         "footerHint": "Templates são pontos de partida — você pode mudar tudo depois."
       },
       "agent": {
@@ -2820,12 +2820,13 @@
       "takeTour": "Fazer o tour",
       "continueCta": "Abrir o assistente",
       "commandBarHint": "Dica: pressione ⌘K / Ctrl-K para buscar qualquer coisa",
-      "humanCta": "Perguntar à comunidade",
+      "humanCta": "Pergunte à comunidade",
+      "askCommunityBody": "Orchester é código aberto. Encontre os mantenedores e outros operadores no GitHub Discussions. Costumamos responder em até um dia.",
       "sections": {
         "onThisPage": "Nesta página",
         "continueOnboarding": "Continue sua introdução",
         "whatsNew": "Novidades",
-        "talkToHuman": "Fale com uma pessoa"
+        "askCommunity": "Pergunte à comunidade"
       },
       "perPage": {
         "default": {
@@ -2838,7 +2839,7 @@
         },
         "memory": {
           "title": "Manutenção da memória",
-          "body": "Esta página executa as tarefas do Mnemosyne que mantêm a memória precisa: dedup, prune, consolidar. Tarefas destrutivas pedem confirmação antes de tocar nos dados."
+          "body": "Abra a página de manutenção da memória para inspecionar ou reconstruir a camada de memória. Você verá escopo e reversibilidade antes de cada ação."
         },
         "flows": {
           "title": "Sobre os Flows",
@@ -2862,6 +2863,7 @@
         }
       },
       "whatsNew": {
+        "empty": "As notas de cada versão vão aparecer aqui quando sair a próxima.",
         "items": {
           "helpDrawer": {
             "title": "Chegou o painel de ajuda",
@@ -2873,7 +2875,7 @@
           },
           "flowTemplates": {
             "title": "Templates de Flows",
-            "body": "Comece um flow a partir de um template em vez de um canvas vazio. Templates copiam nós, conexões e variáveis."
+            "body": "Comece a partir de um modelo para adaptar a lógica prévia em vez de construir o grafo do zero."
           }
         }
       }

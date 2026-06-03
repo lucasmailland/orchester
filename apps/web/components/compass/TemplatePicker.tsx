@@ -57,17 +57,24 @@ import {
 
 import {
   getTemplatesFor,
+  type CompassIconName,
   type CompassTemplate,
   type TemplateKind,
   type TemplatePayloadFor,
 } from "@/lib/compass/templates";
 
 // -------------------------------------------------------------------------
-// Icon resolution — centralized so the registry can stay stringly-typed.
-// Adding a new template icon means: import it here, add one line.
+// Icon resolution — typed against the CompassIconName union exported from
+// templates.ts. TypeScript enforces:
+//   - every CompassIconName has a registered import (exhaustiveness),
+//   - every template's iconName resolves at compile time (no fallback),
+//   - a typo in iconName fails at the template definition site.
+// Adding a new template icon means: extend CompassIconName in templates.ts,
+// import the lucide icon here, add one line to the map. TS will refuse to
+// build until both sides agree.
 // -------------------------------------------------------------------------
 
-const ICON_BY_NAME: Record<string, LucideIcon> = {
+const ICON_BY_NAME: Record<CompassIconName, LucideIcon> = {
   BookOpen,
   Code2,
   Compass,
@@ -88,8 +95,9 @@ const ICON_BY_NAME: Record<string, LucideIcon> = {
   Webhook,
 };
 
-function resolveIcon(name: string): LucideIcon {
-  return ICON_BY_NAME[name] ?? Sparkles;
+function resolveIcon(name: CompassIconName): LucideIcon {
+  // The type guarantees this lookup is total — no `?? Sparkles` fallback.
+  return ICON_BY_NAME[name];
 }
 
 // -------------------------------------------------------------------------
@@ -221,12 +229,8 @@ export function TemplatePicker<K extends TemplateKind>({
           </ul>
         </div>
 
-        <footer className="flex items-center justify-between border-t border-line px-6 py-3 text-xs text-muted">
-          <span>{tShell("footerHint")}</span>
-          {/* Placeholder for the future template browser. */}
-          <a href="#" className="text-strong underline-offset-2 hover:underline">
-            {tShell("allTemplates")}
-          </a>
+        <footer className="border-t border-line px-6 py-3 text-center text-xs text-muted">
+          {tShell("footerHint")}
         </footer>
       </div>
     </div>

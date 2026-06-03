@@ -12,6 +12,7 @@ import { staggerContainer, staggerItem } from "@/lib/motion";
 import { AgentFormModal, type AgentFormPrefill } from "./AgentFormModal";
 import { TemplatePicker } from "@/components/compass/TemplatePicker";
 import type { AgentTemplatePayload, CompassTemplate } from "@/lib/compass/templates";
+import { useTemplateCreateFlow } from "@/lib/compass/use-template-create-flow";
 import { NoProviderBanner } from "@/components/common/NoProviderBanner";
 import { PageHero } from "@/components/compass/PageHero";
 import { TermDef } from "@/components/compass/TermDef";
@@ -96,15 +97,11 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
   const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "es";
   const ws = params?.workspaceSlug ?? "";
-  // 3-state machine for the "New Agent" flow:
-  //   "hidden" — no overlay; the user hasn't pressed New Agent yet.
-  //   "picker" — TemplatePicker visible; user is choosing a starting point.
-  //   "form"   — AgentFormModal visible, optionally pre-filled by a template.
-  //
-  // The "Blank" template short-circuits picker → form so the historical
-  // "open straight to empty form" UX still works for users who don't want
-  // a template. Edit mode is independent and uses `editingAgent`.
-  const [createStep, setCreateStep] = useState<"hidden" | "picker" | "form">("hidden");
+  // 3-state machine for the "New Agent" flow lives in a shared hook so all
+  // four "+ New X" surfaces stay in lockstep. The "Blank" template
+  // short-circuits picker → form with no prefill (historical UX). Edit
+  // mode is independent and uses `editingAgent`.
+  const createFlow = useTemplateCreateFlow<AgentTemplatePayload>("agent");
   const [createPrefill, setCreatePrefill] = useState<AgentFormPrefill | undefined>(undefined);
   const [editingAgent, setEditingAgent] = useState<AgentItem | null>(null);
   const [filter, setFilter] = useState<FilterStatus>("all");
@@ -147,7 +144,7 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
 
   function handleStartCreate() {
     setCreatePrefill(undefined);
-    setCreateStep("picker");
+    createFlow.openPicker();
   }
 
   function handlePickTemplate(template: CompassTemplate<AgentTemplatePayload>) {
@@ -156,26 +153,27 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
     // form with the template's payload; the user can still edit anything.
     if (template.blank) {
       setCreatePrefill(undefined);
-    } else {
-      const next: AgentFormPrefill = {
-        name: template.payload.name,
-        role: template.payload.role,
-        systemPrompt: template.payload.systemPrompt,
-      };
-      if (template.payload.model) next.model = template.payload.model;
-      if (template.payload.status) {
-        // Templates use the registry enum (draft|active|paused). The form
-        // surfaces draft|active|inactive — `paused` falls back to `draft`
-        // since the user can switch it after creation.
-        next.status = template.payload.status === "paused" ? "draft" : template.payload.status;
-      }
-      setCreatePrefill(next);
+      createFlow.openBlankForm();
+      return;
     }
-    setCreateStep("form");
+    const next: AgentFormPrefill = {
+      name: template.payload.name,
+      role: template.payload.role,
+      systemPrompt: template.payload.systemPrompt,
+    };
+    if (template.payload.model) next.model = template.payload.model;
+    if (template.payload.status) {
+      // Templates use the registry enum (draft|active|paused). The form
+      // surfaces draft|active|inactive — `paused` falls back to `draft`
+      // since the user can switch it after creation.
+      next.status = template.payload.status === "paused" ? "draft" : template.payload.status;
+    }
+    setCreatePrefill(next);
+    createFlow.selectTemplate(template);
   }
 
   function handleCloseCreateFlow() {
-    setCreateStep("hidden");
+    createFlow.closeAll();
     setCreatePrefill(undefined);
     router.refresh();
   }
@@ -525,13 +523,13 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
       {/* Step 1: pick a template (or Blank). */}
       <TemplatePicker
         kind="agent"
-        isOpen={createStep === "picker"}
-        onClose={() => setCreateStep("hidden")}
+        isOpen={createFlow.phase === "picker"}
+        onClose={createFlow.closeAll}
         onSelect={handlePickTemplate}
       />
       {/* Step 2: edit and save. Pre-filled when a non-blank template was picked. */}
       <AgentFormModal
-        open={createStep === "form"}
+        open={createFlow.phase === "form"}
         onClose={handleCloseCreateFlow}
         teamId={teams[0]?.id ?? ""}
         teams={teams}

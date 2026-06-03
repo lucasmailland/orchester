@@ -8,7 +8,7 @@
  *   2. On this page — pathname-aware context card.
  *   3. Continue your onboarding — only when localStorage step < 4.
  *   4. What's new — short hardcoded changelog (placeholder).
- *   5. Talk to a human — community link.
+ *   5. Ask the community — GitHub Discussions link.
  *
  * Accessibility: portal-rendered `role="dialog"` with `aria-modal="true"`.
  * Focus is trapped inside the panel while open and returned to the
@@ -97,31 +97,19 @@ function matchPerPage(pathname: string | null): PerPageMatch {
 /** localStorage key for the onboarding state. */
 const ONBOARDING_KEY = "compass.onboarding.state";
 
-/** Hardcoded changelog placeholder until CHANGELOG.md ingestion lands. */
-interface WhatsNewItem {
-  date: string;
-  titleKey: string;
-  bodyKey: string;
+/**
+ * Shape returned by `GET /api/compass/whats-new`. Mirrors the
+ * `WhatsNewEntry` exported from `lib/compass/whats-new.ts`, duplicated
+ * here so this client component doesn't pull a `server-only` module.
+ */
+interface WhatsNewEntry {
+  version: string;
+  date: string | null;
+  bullets: string[];
+  url?: string;
 }
-const WHATS_NEW: ReadonlyArray<WhatsNewItem> = [
-  {
-    date: "2026-06",
-    titleKey: "whatsNew.items.helpDrawer.title",
-    bodyKey: "whatsNew.items.helpDrawer.body",
-  },
-  {
-    date: "2026-05",
-    titleKey: "whatsNew.items.brainHealth.title",
-    bodyKey: "whatsNew.items.brainHealth.body",
-  },
-  {
-    date: "2026-05",
-    titleKey: "whatsNew.items.flowTemplates.title",
-    bodyKey: "whatsNew.items.flowTemplates.body",
-  },
-];
 
-/** GitHub Discussions surface — single source of truth for the "Talk to a human" CTA. */
+/** GitHub Discussions surface — single source of truth for the "Ask the community" CTA. */
 const COMMUNITY_URL = "https://github.com/lucasmailland/orchester/discussions";
 
 /** Read the onboarding state from localStorage. Returns null on SSR or parse error. */
@@ -175,6 +163,8 @@ export function HelpDrawer({ open, onClose }: HelpDrawerProps): JSX.Element | nu
   const [mounted, setMounted] = useState(false);
   const [query, setQuery] = useState("");
   const [onboardingStep, setOnboardingStep] = useState<number | null>(null);
+  // `null` = not yet fetched; `[]` = fetched, no entries (empty state).
+  const [whatsNew, setWhatsNew] = useState<WhatsNewEntry[] | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
@@ -188,6 +178,37 @@ export function HelpDrawer({ open, onClose }: HelpDrawerProps): JSX.Element | nu
   useEffect(() => {
     if (open) setOnboardingStep(readOnboardingStep());
   }, [open]);
+
+  // Lazy-fetch the changelog on first open. Cached for the lifetime of
+  // the component — the CHANGELOG only changes on release-please merges
+  // and the API is cached server-side for 60s anyway. Any failure (5xx,
+  // network) resolves to `[]` so the section renders its empty state.
+  useEffect(() => {
+    if (!open || whatsNew !== null) return;
+    let cancelled = false;
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const r = await fetch("/api/compass/whats-new", {
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+        if (!r.ok) {
+          if (!cancelled) setWhatsNew([]);
+          return;
+        }
+        const raw = (await r.json()) as unknown;
+        if (cancelled) return;
+        setWhatsNew(Array.isArray(raw) ? (raw as WhatsNewEntry[]) : []);
+      } catch {
+        if (!cancelled) setWhatsNew([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [open, whatsNew]);
 
   // Capture the element that opened the drawer so we can restore focus.
   useEffect(() => {
@@ -431,27 +452,61 @@ export function HelpDrawer({ open, onClose }: HelpDrawerProps): JSX.Element | nu
             >
               {t("sections.whatsNew")}
             </h3>
-            <ul className="mt-3 space-y-3">
-              {WHATS_NEW.slice(0, 3).map((item) => (
-                <li key={item.titleKey} className="flex flex-col gap-0.5">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-faint">
-                    {item.date}
-                  </span>
-                  <span className="text-sm font-medium text-strong">{t(item.titleKey)}</span>
-                  <span className="text-xs leading-relaxed text-muted">{t(item.bodyKey)}</span>
-                </li>
-              ))}
-            </ul>
+            {whatsNew && whatsNew.length > 0 ? (
+              <ul className="mt-3 space-y-3">
+                {whatsNew.slice(0, 3).map((entry) => {
+                  // First 2 bullets verbatim — enough to skim, not enough to overwhelm.
+                  const bullets = entry.bullets.slice(0, 2);
+                  return (
+                    <li key={entry.version} className="flex flex-col gap-0.5">
+                      <span className="flex items-center gap-2">
+                        <span className="rounded border border-line bg-elevated px-1.5 py-0.5 font-mono text-[10px] text-strong">
+                          {entry.version}
+                        </span>
+                        {entry.date ? (
+                          <span className="text-[10px] font-medium uppercase tracking-wider text-faint">
+                            {entry.date}
+                          </span>
+                        ) : null}
+                      </span>
+                      {bullets.length > 0 ? (
+                        <ul className="mt-1 space-y-0.5">
+                          {bullets.map((b, i) => (
+                            <li key={i} className="text-xs leading-relaxed text-muted">
+                              {b}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : whatsNew === null ? (
+              // First-open spinner-substitute: thin skeleton lines keep the
+              // section's height stable while the fetch resolves.
+              <ul className="mt-3 space-y-3" aria-hidden="true">
+                {[0, 1, 2].map((i) => (
+                  <li key={i} className="flex flex-col gap-1">
+                    <span className="h-3 w-16 rounded bg-elevated" />
+                    <span className="h-3 w-4/5 rounded bg-elevated/60" />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-xs leading-relaxed text-muted">{t("whatsNew.empty")}</p>
+            )}
           </section>
 
-          {/* Talk to a human */}
-          <section className="px-5 py-4" aria-labelledby="help-human-h">
+          {/* Ask the community */}
+          <section className="px-5 py-4" aria-labelledby="help-community-h">
             <h3
-              id="help-human-h"
+              id="help-community-h"
               className="text-[10px] font-semibold uppercase tracking-wider text-muted"
             >
-              {t("sections.talkToHuman")}
+              {t("sections.askCommunity")}
             </h3>
+            <p className="mt-2 text-xs leading-relaxed text-muted">{t("askCommunityBody")}</p>
             <a
               href={COMMUNITY_URL}
               target="_blank"

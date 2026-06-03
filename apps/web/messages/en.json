@@ -1985,6 +1985,7 @@
       "label": "Compass command bar",
       "placeholder": "Search agents, flows, docs…",
       "empty": "No results. Try another term.",
+      "overflow": "Showing {shown} of {total} — narrow your search.",
       "footer": "↑↓ navigate · ↵ open · ⌘K close",
       "hint": {
         "navigate": "↑↓ ↵"
@@ -2087,7 +2088,7 @@
         },
         "step4": {
           "title": "Tune who answers",
-          "body": "A channel is only as good as the agent behind it. Open Agents to adjust the persona, tools and knowledge bases that serve the conversations arriving here."
+          "body": "Each channel is bound to one agent. The channel decides who can talk to it; the agent decides how to respond. Pick the agent in the channel's settings."
         }
       },
       "flows": {
@@ -2575,7 +2576,6 @@
           "channel": "Pick a channel type. You'll add credentials and assign an agent in the next step."
         },
         "close": "Close",
-        "allTemplates": "All templates",
         "footerHint": "Templates are starting points — you can change anything afterwards."
       },
       "agent": {
@@ -2821,11 +2821,12 @@
       "continueCta": "Open the wizard",
       "commandBarHint": "Tip: press ⌘K / Ctrl-K to search anything",
       "humanCta": "Ask the community",
+      "askCommunityBody": "Orchester is open source. Reach maintainers and other operators on GitHub Discussions. We usually respond within a day.",
       "sections": {
         "onThisPage": "On this page",
         "continueOnboarding": "Continue your onboarding",
         "whatsNew": "What's new",
-        "talkToHuman": "Talk to a human"
+        "askCommunity": "Ask the community"
       },
       "perPage": {
         "default": {
@@ -2838,7 +2839,7 @@
         },
         "memory": {
           "title": "Memory housekeeping",
-          "body": "This page runs the Mnemosyne tasks that keep memory accurate: dedup, prune, consolidate. Destructive tasks confirm before they touch data."
+          "body": "Open the memory housekeeping page to inspect or rebuild the memory layer. You will see scope and reversibility before each action."
         },
         "flows": {
           "title": "About Flows",
@@ -2862,6 +2863,7 @@
         }
       },
       "whatsNew": {
+        "empty": "Release notes will land here when the next version ships.",
         "items": {
           "helpDrawer": {
             "title": "Help drawer arrives",
@@ -2873,7 +2875,7 @@
           },
           "flowTemplates": {
             "title": "Flow templates",
-            "body": "Start a flow from a template instead of a blank canvas. Templates copy nodes, edges, and variables."
+            "body": "Start from a template so you can adapt prewired logic instead of building flow graphs from scratch."
           }
         }
       }

@@ -38,6 +38,7 @@ import { TemplatePicker } from "@/components/compass/TemplatePicker";
 import { TermDef } from "@/components/compass/TermDef";
 import { TourSpot } from "@/components/compass/TourSpot";
 import type { CompassTemplate, KnowledgeTemplatePayload } from "@/lib/compass/templates";
+import { useTemplateCreateFlow } from "@/lib/compass/use-template-create-flow";
 
 interface KB {
   id: string;
@@ -54,8 +55,10 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
   const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "es";
   const ws = params?.workspaceSlug ?? "";
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
+  // Shared 3-state machine via the Compass hook. Knowledge has no separate
+  // "Blank" template card (every card has a payload), so picker → form is
+  // always via `selectTemplate`. Form-field state lives below.
+  const createFlow = useTemplateCreateFlow<KnowledgeTemplatePayload>("knowledge");
   const [submitting, setSubmitting] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -63,14 +66,6 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
   const [chunkSize, setChunkSize] = useState<number>(800);
   const [chunkOverlap, setChunkOverlap] = useState<number>(100);
   const [embeddingModel, setEmbeddingModel] = useState<string>("text-embedding-3-small");
-
-  // Two-step state machine for "+ New KB":
-  //   idle → pickerOpen (TemplatePicker)
-  //   pickerOpen → creating (inline form, pre-filled from payload)
-  //   blank template skips picker pre-fill but still opens the form.
-  function openPicker() {
-    setPickerOpen(true);
-  }
 
   function handleTemplatePick(template: CompassTemplate<KnowledgeTemplatePayload>) {
     const p = template.payload;
@@ -83,7 +78,20 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
     );
     setChunkSize(p.chunkSize ?? 800);
     setChunkOverlap(p.chunkOverlap ?? 100);
-    setCreating(true);
+    if (template.blank) {
+      createFlow.openBlankForm();
+    } else {
+      createFlow.selectTemplate(template);
+    }
+  }
+
+  function resetForm() {
+    setName("");
+    setDescription("");
+    setChunkSize(800);
+    setChunkOverlap(100);
+    setEmbeddingModel("text-embedding-3-small");
+    setProvider("openai");
   }
 
   async function create() {
@@ -137,7 +145,7 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
       <Button
         size="sm"
         radius="md"
-        onPress={openPicker}
+        onPress={createFlow.openPicker}
         className="bg-gradient-to-r from-violet-600 to-blue-600 font-medium text-white shadow-lg shadow-violet-500/20"
         startContent={<Plus className="h-4 w-4" aria-hidden="true" />}
       >
@@ -166,13 +174,13 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
         />
       </TourSpot>
 
-      {kbs.length === 0 && !creating ? (
+      {kbs.length === 0 && createFlow.phase === "hidden" ? (
         <Callout variant="tip" title={t("firstBaseTipTitle")}>
           {t("firstBaseTipBody")}
         </Callout>
       ) : null}
 
-      {creating ? (
+      {createFlow.phase === "form" ? (
         <div className="rounded-2xl border border-violet-500/30 bg-card p-4">
           <label htmlFor="kb-name-input" className="block text-sm font-semibold text-strong">
             {t("createTitle")}
@@ -187,7 +195,10 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
             autoFocus
             onKeyDown={(e) => {
               if (e.key === "Enter") create();
-              if (e.key === "Escape") setCreating(false);
+              if (e.key === "Escape") {
+                createFlow.closeAll();
+                resetForm();
+              }
             }}
           />
           <input
@@ -225,13 +236,8 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
               size="sm"
               variant="light"
               onPress={() => {
-                setCreating(false);
-                setName("");
-                setDescription("");
-                setChunkSize(800);
-                setChunkOverlap(100);
-                setEmbeddingModel("text-embedding-3-small");
-                setProvider("openai");
+                createFlow.closeAll();
+                resetForm();
               }}
             >
               {t("cancel")}
@@ -240,8 +246,8 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
         </div>
       ) : null}
 
-      {kbs.length === 0 && !creating ? (
-        <EmptyStateForKnowledgeBases newBaseLabel={t("newBase")} onCreate={openPicker} />
+      {kbs.length === 0 && createFlow.phase === "hidden" ? (
+        <EmptyStateForKnowledgeBases newBaseLabel={t("newBase")} onCreate={createFlow.openPicker} />
       ) : (
         <TourSpot
           tourId="knowledgeBases"
@@ -307,8 +313,8 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
 
       <TemplatePicker
         kind="knowledge"
-        isOpen={pickerOpen}
-        onClose={() => setPickerOpen(false)}
+        isOpen={createFlow.phase === "picker"}
+        onClose={createFlow.closeAll}
         onSelect={handleTemplatePick}
       />
     </div>
