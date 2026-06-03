@@ -1877,6 +1877,14 @@
           "title": "Sin rastro",
           "desc": "Sin audit trail. Cuando algo sale mal, no sabés qué paso ni por qué."
         }
+      },
+      "compare": {
+        "before": "Antes",
+        "after": "Después",
+        "singleTitle": "Un agente. Doce trabajos.",
+        "singleSub": "Context overflow. Drift. Alucinaciones.",
+        "teamTitle": "Un equipo. Un trabajo cada uno.",
+        "teamSub": "Enrutado. Paralelo. Trazable."
       }
     },
     "patterns": {

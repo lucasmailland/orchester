@@ -1877,6 +1877,14 @@
           "title": "Untraceable",
           "desc": "No audit trail. When something goes wrong, you can't tell which step or why."
         }
+      },
+      "compare": {
+        "before": "Before",
+        "after": "After",
+        "singleTitle": "One agent. Twelve jobs.",
+        "singleSub": "Context overflow. Drift. Hallucination.",
+        "teamTitle": "A team. One job each.",
+        "teamSub": "Routed. Parallel. Traceable."
       }
     },
     "patterns": {
