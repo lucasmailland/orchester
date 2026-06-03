@@ -13,6 +13,14 @@ const createFlowSchema = z.object({
   name: z.string().trim().min(1, "name required"),
   description: z.string().nullable().optional(),
   templateId: z.string().optional(),
+  // Inline graph seed used by the Compass TemplatePicker. The server-side
+  // `flowTemplates` table is the canonical source when `templateId` is set;
+  // these fields let the client seed a brand-new flow from the static
+  // client registry without round-tripping a DB row. Ignored if a
+  // `templateId` resolves successfully (DB wins over client payload).
+  nodes: z.array(z.unknown()).optional(),
+  edges: z.array(z.unknown()).optional(),
+  variables: z.record(z.string(), z.unknown()).optional(),
 });
 
 export async function GET() {
@@ -39,13 +47,22 @@ export async function POST(req: Request) {
   }
   const parsed = await parseBody(req, createFlowSchema);
   if (!parsed.ok) return parsed.response;
-  const { name, description, templateId } = parsed.data;
+  const {
+    name,
+    description,
+    templateId,
+    nodes: seedNodes,
+    edges: seedEdges,
+    variables: seedVars,
+  } = parsed.data;
   const db = getDb();
 
-  // Optional: load template
-  let initialNodes: unknown[] = [];
-  let initialEdges: unknown[] = [];
-  let initialVars: Record<string, unknown> = {};
+  // Optional: load template. Server-stored templates win over inline seed,
+  // so a saved organisational template can never be silently overridden by
+  // a stale client payload.
+  let initialNodes: unknown[] = seedNodes ?? [];
+  let initialEdges: unknown[] = seedEdges ?? [];
+  let initialVars: Record<string, unknown> = seedVars ?? {};
   if (templateId) {
     const tpls = await db
       .select()

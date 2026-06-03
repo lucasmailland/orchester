@@ -2,10 +2,11 @@ import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { Topbar } from "@/components/shell/Topbar";
-import { CommandPalette } from "@/components/shell/CommandPalette";
+import { CommandBarRoot } from "@/components/compass/CommandBarRoot";
 import { SuspendedBanner } from "@/components/workspace/SuspendedBanner";
 import { GdprExportProgress } from "@/components/workspace/GdprExportProgress";
 import { TourProvider } from "@/components/compass/TourProvider";
+import { HelpRoot } from "@/components/compass/HelpRoot";
 import { getCurrentSession, getCurrentWorkspaceBySlug } from "@/lib/workspace";
 
 /**
@@ -87,7 +88,12 @@ export default async function ShellLayout({
           <div className="relative z-10 p-6">{children}</div>
         </main>
       </div>
-      <CommandPalette />
+      {/* Compass Command Bar — Cmd-K (macOS) / Ctrl-K (rest) global
+          search across agents, flows, conversations, KBs, docs
+          (Compass terms), tours, and quick actions. Replaces the old
+          CommandPalette; owns its open state and the keyboard
+          shortcut. The marketing route group does NOT mount this. */}
+      <CommandBarRoot />
       {/* Global GDPR export progress toast — survives in-app
           navigation because it's mounted at the shell layout, not at
           the route level. State lives in localStorage keyed on the
@@ -99,6 +105,11 @@ export default async function ShellLayout({
           the current page. Lives at the shell so it survives in-app
           navigation; renders nothing until a tour is active. */}
       <TourProvider />
+      {/* Compass Help — floating "?" button + slide-in drawer with
+          search, on-this-page context, onboarding continuation,
+          what's new, and a link to community support. Mounted at
+          shell level so it's available on every authenticated page. */}
+      <HelpRoot />
     </div>
   );
 }

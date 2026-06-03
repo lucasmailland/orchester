@@ -1001,6 +1001,7 @@
       "beta": "Beta",
       "connect": "Conectar {label}",
       "newChannel": "Nuevo canal · {label}",
+      "newChannelShort": "Nuevo canal",
       "connectedHeading": "Canales conectados",
       "pause": "Pausar",
       "activate": "Activar",
@@ -1980,6 +1981,53 @@
     }
   },
   "compass": {
+    "commandBar": {
+      "label": "Barra de comandos de Compass",
+      "placeholder": "Busca agentes, flujos, docs…",
+      "empty": "Sin resultados. Prueba con otro término.",
+      "footer": "↑↓ navega · ↵ abre · ⌘K cierra",
+      "hint": {
+        "navigate": "↑↓ ↵"
+      },
+      "sections": {
+        "recents": "Recientes",
+        "actions": "Acciones rápidas",
+        "agents": "Agentes",
+        "flows": "Flujos",
+        "knowledge": "Conocimiento",
+        "conversations": "Conversaciones",
+        "docs": "Documentación",
+        "tours": "Tours"
+      },
+      "type": {
+        "resource": "Abrir",
+        "action": "Acción",
+        "agent": "Agente",
+        "flow": "Flujo",
+        "kb": "KB",
+        "conversation": "Conversación",
+        "doc": "Doc",
+        "tour": "Tour"
+      },
+      "quickActions": {
+        "createAgent": "Crear un agente",
+        "createFlow": "Crear un flujo",
+        "runMemoryHousekeeping": "Ejecutar mantenimiento de memoria",
+        "openOnboarding": "Abrir asistente de onboarding",
+        "toggleTheme": "Cambiar tema",
+        "openBrain": "Abrir inspector de Brain"
+      },
+      "tours": {
+        "memoryOps": "Hacer tour: Operaciones de memoria",
+        "brainInspector": "Hacer tour: Inspector de Brain",
+        "flows": "Hacer tour: Flujos",
+        "knowledgeBases": "Hacer tour: Bases de conocimiento"
+      },
+      "doc": {
+        "close": "Cerrar definición",
+        "learnMore": "Leer doc completa"
+      }
+    },
     "common": {
       "close": "Cerrar",
       "cancel": "Cancelar",
@@ -2022,6 +2070,140 @@
         "step4": {
           "title": "Ejecuta una tarea ahora",
           "body": "Pulsa Ejecutar ahora para iniciar una tarea de inmediato. Verás una vista previa del impacto —alcance, costo estimado, tiempo, reversibilidad— antes de que ocurra cualquier cambio."
+        }
+      },
+      "channels": {
+        "step1": {
+          "title": "Donde entran las conversaciones",
+          "body": "Los canales son las bandejas en las que escuchan tus agentes: widget, Telegram, email y más. Conecta uno y el agente asignado empieza a responder desde esa superficie."
+        },
+        "step2": {
+          "title": "Elige un canal para conectar",
+          "body": "Cada tarjeta es un tipo de canal. Elige uno para abrir el formulario: ponle nombre, asigna un agente y pega credenciales si el tipo lo requiere. Los tipos beta están marcados para no generar falsas expectativas."
+        },
+        "step3": {
+          "title": "Administra lo que está activo",
+          "body": "Los canales conectados muestran su agente, estado y URL del webhook o snippet de embed. Reasigna el agente, rota credenciales o pausa el tráfico sin borrar el historial del canal."
+        },
+        "step4": {
+          "title": "Ajusta quién responde",
+          "body": "Un canal vale lo que el agente detrás. Abre Agents para ajustar la persona, las herramientas y las bases de conocimiento que sirven a las conversaciones que llegan aquí."
+        }
+      },
+      "flows": {
+        "step1": {
+          "title": "Aquí vive la orquestación visual",
+          "body": "Los flows son los programas visuales que ejecutan tus agentes: ramas, herramientas y pasos humanos conectados en un canvas. Esta página lista todos los flows del workspace para que puedas auditar qué está activo."
+        },
+        "step2": {
+          "title": "Crea un nuevo flow",
+          "body": "Usa este botón para crear un flow desde cero o desde una plantilla. Eliges el punto de partida ahora y diseñas el canvas después; nada se ejecuta hasta que lo guardes y conectes un disparador."
+        },
+        "step3": {
+          "title": "Cada tarjeta es un flow activo",
+          "body": "El conteo de nodos y el estado te muestran la salud de un vistazo. Haz clic en una tarjeta para abrir el canvas y editar, versionar o ejecutar. Usa esta vista para detectar flows huérfanos antes de que lleguen a producción."
+        },
+        "step4": {
+          "title": "Conecta un flow al mundo",
+          "body": "Un flow solo se ejecuta cuando algo lo dispara. Conecta un canal para mandar conversaciones reales a esta orquestación, o agrega una knowledge base para que el flow pueda citar fuentes."
+        }
+      },
+      "mnemosyne-admin": {
+        "step1": {
+          "title": "Centro de control de Mnemosyne",
+          "body": "Esta es la superficie de administración de Mnemosyne, el sistema que mantiene sana la memoria de largo plazo. Cada acción aquí queda acotada al workspace y reservada a administradores para que puedas auditarla después."
+        },
+        "step2": {
+          "title": "Tareas de mantenimiento",
+          "body": "Cada tarjeta es un trabajo de mantenimiento: deduplicar, podar, consolidar. Ejecútalos cuando sospeches drift o confía en su horario. Los destructivos siempre piden confirmación."
+        },
+        "step3": {
+          "title": "A dónde ir después",
+          "body": "Tras ejecutar una tarea, salta al inspector de Brain para verificar el impacto sobre los hechos reales, o abre Configuración para ajustar qué trabajos corren automáticamente."
+        },
+        "step4": {
+          "title": "Controles de calidad de recall",
+          "body": "Activa o desactiva las etapas de recuperación que usan tus agentes (HyDE, rerank, expansión de grafo) o fija un modelo de embeddings premium. Los cambios aplican en la próxima consulta, no de forma retroactiva."
+        }
+      },
+      "brainInspector": {
+        "step1": {
+          "title": "Tu memoria, a la vista",
+          "body": "Este es el Brain: cada hecho que tus agentes aprendieron en conversaciones. El encabezado te deja viajar en el tiempo, exportar o abrir la cola de revisión cuando algo no cierra."
+        },
+        "step2": {
+          "title": "Signos vitales de un vistazo",
+          "body": "Conteos, cobertura de embeddings y tendencias para detectar drift antes de que se vuelva ruido. Revisa este panel los lunes o después de un fin de semana cargado de conversaciones."
+        },
+        "step3": {
+          "title": "Encuentra cualquier hecho, rápido",
+          "body": "Filtra por estado, alcance, fuente o recencia. Combina filtros para auditar un dominio ruidoso o para encontrar candidatos a fijar antes de que envejezcan."
+        },
+        "step4": {
+          "title": "Cura fila por fila",
+          "body": "Cada fila es un hecho. Fija los que valen para que los agentes siempre los vean, olvida el ruido o abre citas para ver exactamente qué mensaje lo enseñó."
+        },
+        "step5": {
+          "title": "Qué hacer después",
+          "body": "Cuando un hecho necesita una segunda mirada, mándalo a la cola de revisión. Cuando quieres respaldo o auditoría, exporta toda la memoria en JSON desde estos próximos pasos."
+        }
+      },
+      "agents": {
+        "step1": {
+          "title": "Tu equipo de agentes",
+          "body": "Los agentes son trabajadores con un rol dentro de tu workspace —cada uno tiene una persona, un modelo y acceso a conocimiento específico. Este es el plantel de cada agente que creaste."
+        },
+        "step2": {
+          "title": "Filtra por estado",
+          "body": "Los borradores están sin terminar, los activos responden conversaciones reales y los inactivos están en pausa. Filtra aquí para enfocarte en lo que necesita atención antes de que los usuarios lo noten."
+        },
+        "step3": {
+          "title": "Cada tarjeta es un agente",
+          "body": "Nombre, rol, modelo y estado en vivo de un vistazo. Haz clic en una tarjeta para editar prompts, sumar tools o ver con quién está conversando ahora."
+        },
+        "step4": {
+          "title": "Crea un agente nuevo",
+          "body": "Empieza desde una plantilla o desde cero. Las plantillas precargan la persona y el prompt, así ajustas detalles en vez de partir de una pantalla en blanco."
+        },
+        "step5": {
+          "title": "Conecta agentes al mundo",
+          "body": "Un agente sin canal ni base de conocimiento es solo un borrador. Usa estos siguientes pasos para conectarlo a los mensajes entrantes y a la documentación que debe citar."
+        }
+      },
+      "knowledgeBases": {
+        "step1": {
+          "title": "La biblioteca que tus agentes citan",
+          "body": "Las bases de conocimiento son los documentos, sitios y archivos que tus agentes leen antes de responder. Agrúpalas por dominio —producto, políticas, onboarding— para que la recuperación quede enfocada y las citas sean precisas."
+        },
+        "step2": {
+          "title": "Crea una base nueva",
+          "body": "Empieza desde una plantilla o desde cero. Las plantillas preconfiguran el modelo de embeddings y el tamaño de chunk para casos comunes, así evitas adivinar parámetros que aún no conoces."
+        },
+        "step3": {
+          "title": "Cada tarjeta es una base",
+          "body": "Cada tarjeta muestra el proveedor y el modelo de embeddings que impulsan la recuperación. Haz clic en una base para sumar fuentes, previsualizar chunks y probar consultas antes de conectarla a un agente."
+        },
+        "step4": {
+          "title": "Próximos pasos que importan",
+          "body": "Una base sin documentos no responde nada, y una base que ningún agente lee no ayuda a nadie. Usa estos enlaces para subir fuentes y conectar la base al agente que la necesita."
+        }
+      },
+      "providers": {
+        "step1": {
+          "title": "Conecta los cerebros",
+          "body": "Los proveedores son las cuentas de LLM que usan tus agentes: OpenAI, Anthropic, Google y más. Nada responde hasta que conectas al menos uno, porque cada respuesta depende de un modelo detrás de una clave que tú controlas."
+        },
+        "step2": {
+          "title": "Tus proveedores activos",
+          "body": "Cada proveedor conectado muestra el estado de su clave y los modelos que habilita. Rota las claves aquí cuando vencen o se filtran, y desconecta los proveedores cuyos modelos ya no usas."
+        },
+        "step3": {
+          "title": "Explora el catálogo",
+          "body": "Busca o filtra por capacidad —chat, embeddings, imágenes, audio— para encontrar un proveedor nuevo. Al conectarlo, sus modelos quedan disponibles para tus agentes y flujos."
+        },
+        "step4": {
+          "title": "Conecta los proveedores al trabajo",
+          "body": "Un proveedor conectado solo importa cuando algo lo usa. Abre Agentes para asignar un modelo, o Conocimiento para elegir el proveedor de embeddings que potencia la recuperación."
         }
       }
     },
@@ -2354,6 +2536,7 @@
     "providers": {
       "heroTitle": "Proveedores de IA",
       "heroSubtitle": "Conecta las empresas que dan potencia a tus agentes. Cada proveedor expone modelos para chat, embeddings, imágenes, audio y más. Tus claves se guardan cifradas y solo en este workspace.",
+      "tourLabel": "Hacer el tour",
       "tipTitle": "Trae tu propia clave",
       "tipBody": "Orchester no cobra recargo sobre los costos de los proveedores. Conecta tu propia clave de API y cada modelo se factura directamente en tu cuenta con ese proveedor.",
       "removeConfirmTitle": "Desconecta {provider}",
@@ -2375,6 +2558,135 @@
       "nextStepAddKnowledge": {
         "title": "Agrega conocimiento para recuperar",
         "body": "Sube documentos para que tus agentes apoyen sus respuestas en tu información en lugar de adivinar."
+      }
+    },
+    "templates": {
+      "shell": {
+        "title": {
+          "agent": "Crea un nuevo agente",
+          "flow": "Crea un nuevo flow",
+          "knowledge": "Crea una nueva knowledge base",
+          "channel": "Conecta un canal"
+        },
+        "subtitle": {
+          "agent": "Elige un punto de partida. Puedes editar el rol, el prompt y el modelo antes de guardar.",
+          "flow": "Elige un punto de partida. El canvas se abre pre-armado para que adaptes en vez de empezar de cero.",
+          "knowledge": "Elige un punto de partida. La configuración de embeddings se puede ajustar después desde la base.",
+          "channel": "Elige el tipo de canal. En el paso siguiente cargas credenciales y asignas un agente."
+        },
+        "close": "Cerrar",
+        "allTemplates": "Todas las plantillas",
+        "footerHint": "Las plantillas son puntos de partida — puedes cambiar todo después."
+      },
+      "agent": {
+        "blank": {
+          "label": "Agente en blanco",
+          "description": "Empieza desde cero. Rol vacío, prompt vacío, lo defines tú."
+        },
+        "support-tier1": {
+          "label": "Soporte Nivel 1",
+          "description": "Responde consultas de clientes apoyado en tus knowledge bases. Escala cuando la confianza es baja.",
+          "tags": ["soporte", "RAG"]
+        },
+        "lead-qualifier": {
+          "label": "Calificador de leads",
+          "description": "Califica leads entrantes con scoring BANT y devuelve un resumen estructurado.",
+          "tags": ["ventas", "BANT"]
+        },
+        "sales-coach": {
+          "label": "Coach de ventas",
+          "description": "Revisa llamadas y da a los ejecutivos tres cosas concretas para probar la próxima vez.",
+          "tags": ["ventas", "coaching"]
+        },
+        "internal-helpdesk": {
+          "label": "Mesa de ayuda interna",
+          "description": "Responde dudas de IT y RR. HH. de tus empleados. Abre un ticket cuando hace falta una persona.",
+          "tags": ["interno", "IT", "RR. HH."]
+        },
+        "onboarding-guide": {
+          "label": "Guía de onboarding",
+          "description": "Acompaña a usuarios nuevos por el camino más corto hasta su primer logro en el producto.",
+          "tags": ["onboarding", "producto"]
+        }
+      },
+      "flow": {
+        "blank": {
+          "label": "Flow en blanco",
+          "description": "Canvas vacío con un único nodo Trigger para que armes tu propia lógica."
+        },
+        "lead-qualification": {
+          "label": "Calificación de leads",
+          "description": "Webhook de entrada, enriquecimiento, agente calificador, branch por score.",
+          "tags": ["ventas", "webhook"]
+        },
+        "support-triage": {
+          "label": "Triage de soporte",
+          "description": "Mensaje entrante, búsqueda en KB, agente responde, escala si la confianza es baja.",
+          "tags": ["soporte", "RAG"]
+        },
+        "newsletter-compile": {
+          "label": "Armado de newsletter",
+          "description": "Trae novedades en un horario, un agente redacta la edición y se envía.",
+          "tags": ["agendado", "contenido"]
+        },
+        "pr-review-bot": {
+          "label": "Bot de PR review",
+          "description": "Webhook de GitHub, trae el diff, un agente revisa y deja un comentario en la PR.",
+          "tags": ["ingeniería", "webhook"]
+        }
+      },
+      "knowledge": {
+        "blank": {
+          "label": "Knowledge base en blanco",
+          "description": "Base vacía. Carga documentos después — chunkeamos e indexamos en segundo plano."
+        },
+        "product-docs": {
+          "label": "Docs de producto",
+          "description": "Documentación pública, changelogs y guías de funciones de tu producto.",
+          "tags": ["producto", "RAG"]
+        },
+        "hr-policies": {
+          "label": "Políticas de RR. HH.",
+          "description": "Vacaciones, beneficios, código de conducta y otras políticas para empleados.",
+          "tags": ["interno", "RR. HH."]
+        },
+        "engineering-wiki": {
+          "label": "Wiki de ingeniería",
+          "description": "Notas de arquitectura, runbooks, docs de on-call y ADRs.",
+          "tags": ["interno", "ingeniería"]
+        },
+        "brand-voice": {
+          "label": "Voz de marca",
+          "description": "Tono, palabras prohibidas, ejemplos on-brand y off-brand.",
+          "tags": ["marketing", "voz"]
+        }
+      },
+      "channel": {
+        "web-widget": {
+          "label": "Widget web",
+          "description": "Embebe un widget de chat en tu sitio. Trae un saludo por defecto que puedes editar.",
+          "tags": ["público", "embed"]
+        },
+        "whatsapp": {
+          "label": "WhatsApp",
+          "description": "Conecta un número de WhatsApp Business para que tus clientes chateen desde el teléfono.",
+          "tags": ["público", "mensajería"]
+        },
+        "slack": {
+          "label": "Slack",
+          "description": "Lleva un agente a tu workspace de Slack. Ideal para mesas de ayuda internas.",
+          "tags": ["interno", "mensajería"]
+        },
+        "email": {
+          "label": "Email",
+          "description": "Reenvía una casilla a un agente. Las respuestas llegan en el mismo hilo.",
+          "tags": ["público", "email"]
+        },
+        "api": {
+          "label": "API",
+          "description": "Habla con un agente por HTTP. Para integraciones a medida y tus propias apps.",
+          "tags": ["a medida", "API"]
+        }
       }
     },
     "onboarding": {
@@ -2497,6 +2809,73 @@
           }
         },
         "cta": "Abrir Studio"
+      }
+    },
+    "help": {
+      "openButton": "Ayuda",
+      "close": "Cerrar",
+      "title": "¿En qué te podemos ayudar?",
+      "searchPlaceholder": "Buscar artículos de ayuda...",
+      "empty": "Sin resultados. Prueba con otro término.",
+      "takeTour": "Hacer el tour",
+      "continueCta": "Abrir el asistente",
+      "commandBarHint": "Tip: presiona ⌘K / Ctrl-K para buscar cualquier cosa",
+      "humanCta": "Preguntar a la comunidad",
+      "sections": {
+        "onThisPage": "En esta página",
+        "continueOnboarding": "Continúa tu introducción",
+        "whatsNew": "Novedades",
+        "talkToHuman": "Habla con una persona"
+      },
+      "perPage": {
+        "default": {
+          "title": "¿Necesitas ayuda?",
+          "body": "Busca cualquier término arriba, reinicia el tour de la página o vuelve al onboarding. Todo lo que configures aquí es reversible."
+        },
+        "brain": {
+          "title": "Sobre la memoria Brain",
+          "body": "Brain es lo que tus agentes aprendieron en las conversaciones. Fija los hechos que importan, olvida el ruido y audita los cambios antes de llevarlos a producción."
+        },
+        "memory": {
+          "title": "Mantenimiento de la memoria",
+          "body": "Esta página ejecuta las tareas de Mnemosyne que mantienen la memoria precisa: dedup, prune, consolidar. Las tareas destructivas piden confirmación antes de tocar datos."
+        },
+        "flows": {
+          "title": "Sobre los Flows",
+          "body": "Los Flows son los programas visuales que tus agentes ejecutan de principio a fin. Ramas, tools y pasos humanos viven acá para que la lógica quede inspeccionable."
+        },
+        "channels": {
+          "title": "Sobre los Canales",
+          "body": "Los canales son las bandejas donde escuchan tus agentes: widget, Slack, WhatsApp, email. Conecta uno para enviar conversaciones reales a un flow."
+        },
+        "providers": {
+          "title": "Sobre los Providers",
+          "body": "Los providers son las cuentas de LLM que llaman tus agentes. Conecta al menos uno antes de que agentes o flows puedan correr."
+        },
+        "knowledge": {
+          "title": "Sobre las Knowledge Bases",
+          "body": "Las Knowledge Bases anclan las respuestas en tus documentos. Bases más chicas y enfocadas en un dominio recuperan mejor que una pila gigante."
+        },
+        "agents": {
+          "title": "Sobre los Agentes",
+          "body": "Los agentes son los trabajadores con rol de tu org: persona, tools, memoria. Cada cambio de prompt es una versión que puedes revertir."
+        }
+      },
+      "whatsNew": {
+        "items": {
+          "helpDrawer": {
+            "title": "Llegó el panel de ayuda",
+            "body": "Pulsa ? en cualquier momento para buscar artículos, reiniciar un tour o volver al onboarding."
+          },
+          "brainHealth": {
+            "title": "Panel de salud del Brain",
+            "body": "La cobertura de embeddings y las tendencias de dedup ahora aparecen arriba del Brain para detectar drift rápido."
+          },
+          "flowTemplates": {
+            "title": "Plantillas de Flows",
+            "body": "Arranca un flow desde una plantilla en lugar de un lienzo vacío. Las plantillas copian nodos, conexiones y variables."
+          }
+        }
       }
     }
   }

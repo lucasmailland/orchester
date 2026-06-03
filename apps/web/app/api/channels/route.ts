@@ -13,6 +13,9 @@ const createChannelSchema = z.object({
   name: z.string().trim().min(1, "name required"),
   type: z.enum(["widget", "web", "telegram", "slack", "whatsapp", "email", "api"]),
   agentId: z.string().optional(),
+  // Optional seed config from a TemplatePicker selection (greeting, position, etc.).
+  // Lands as-is into channels.config so the channel boots with a sensible default.
+  config: z.record(z.string(), z.unknown()).optional(),
 });
 
 export async function GET() {
@@ -38,7 +41,7 @@ export async function POST(req: Request) {
   if (!isAuthContext(ctx)) return ctx;
   const parsed = await parseBody(req, createChannelSchema);
   if (!parsed.ok) return parsed.response;
-  const { name, type, agentId } = parsed.data;
+  const { name, type, agentId, config } = parsed.data;
   const db = getDb();
   const inserted = await db
     .insert(schema.channels)
@@ -50,7 +53,7 @@ export async function POST(req: Request) {
       status: "inactive",
       agentId: agentId ?? null,
       secret: crypto.randomBytes(20).toString("hex"),
-      config: {},
+      config: config ?? {},
     })
     .returning();
   const row = inserted[0];

@@ -18,6 +18,14 @@ const STATUSES = [
   { value: "inactive", label: "Inactive" },
 ];
 
+export interface AgentFormPrefill {
+  name?: string;
+  role?: string;
+  systemPrompt?: string;
+  model?: string;
+  status?: string;
+}
+
 interface AgentFormModalProps {
   open: boolean;
   onClose: () => void;
@@ -31,6 +39,12 @@ interface AgentFormModalProps {
     model: string;
     status: string;
   };
+  /**
+   * Optional pre-fill seeded by a TemplatePicker selection. Only applied
+   * when there is no `initial` (i.e. create mode). The user can still edit
+   * every field before submit.
+   */
+  prefill?: AgentFormPrefill;
   labels: {
     createTitle: string;
     editTitle: string;
@@ -51,14 +65,18 @@ export function AgentFormModal({
   teamId,
   teams,
   initial,
+  prefill,
   labels,
 }: AgentFormModalProps) {
   const router = useRouter();
-  const [name, setName] = useState(initial?.name ?? "");
-  const [role, setRole] = useState(initial?.role ?? "");
-  const [systemPrompt, setSystemPrompt] = useState(initial?.systemPrompt ?? "");
-  const [model, setModel] = useState(initial?.model ?? "claude-sonnet-4-6");
-  const [status, setStatus] = useState(initial?.status ?? "draft");
+  // `initial` always wins (edit mode). Otherwise we seed from `prefill`
+  // (a template) and fall back to neutral defaults for a blank create.
+  const seed = initial ?? prefill;
+  const [name, setName] = useState(seed?.name ?? "");
+  const [role, setRole] = useState(seed?.role ?? "");
+  const [systemPrompt, setSystemPrompt] = useState(seed?.systemPrompt ?? "");
+  const [model, setModel] = useState(seed?.model ?? "claude-sonnet-4-6");
+  const [status, setStatus] = useState(seed?.status ?? "draft");
   const [selectedTeamId, setSelectedTeamId] = useState(teamId);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -73,6 +91,21 @@ export function AgentFormModal({
   const teamSelectId = useId();
   const modelId = useId();
   const statusId = useId();
+
+  // Re-seed fields when the modal opens with a different prefill (e.g. user
+  // picked a new template). Skipped in edit mode — `initial` is the source
+  // of truth there and stays stable for the lifetime of the modal.
+  useEffect(() => {
+    if (!open || initial) return;
+    setName(prefill?.name ?? "");
+    setRole(prefill?.role ?? "");
+    setSystemPrompt(prefill?.systemPrompt ?? "");
+    setModel(prefill?.model ?? "claude-sonnet-4-6");
+    setStatus(prefill?.status ?? "draft");
+    // We intentionally key on `open` + the prefill identity so re-opening
+    // with the same template doesn't clobber the user's mid-edit changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, prefill, initial]);
 
   // a11y-003: Escape closes the dialog. We only attach when the modal is
   // open so background pages aren't burdened with an extra listener.

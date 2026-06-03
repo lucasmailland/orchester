@@ -213,20 +213,27 @@ export function MemoryOpsClient({ workspace, isAdmin }: Props): ReactNode {
         titleKey="compass.tours.memoryOps.step1.title"
         bodyKey="compass.tours.memoryOps.step1.body"
       >
-        <div>
-          <PageHero
-            icon={<CompassIcon />}
-            title={t("pageTitle")}
-            subtitle={
-              // The subtitle string mentions "Mnemosyne" as a bare word —
-              // we post-wrap it with TermDef so the term gets a definition
-              // tooltip without forcing translators to learn ICU markup.
-              <>{wrapTermsInline(t("pageSubtitle"))}</>
-            }
-            tourId="memory-ops"
-            tourLabel={t("tourLabel")}
-          />
-        </div>
+        <TourSpot
+          tourId="mnemosyne-admin"
+          step={1}
+          titleKey="compass.tours.mnemosyne-admin.step1.title"
+          bodyKey="compass.tours.mnemosyne-admin.step1.body"
+        >
+          <div>
+            <PageHero
+              icon={<CompassIcon />}
+              title={t("pageTitle")}
+              subtitle={
+                // The subtitle string mentions "Mnemosyne" as a bare word —
+                // we post-wrap it with TermDef so the term gets a definition
+                // tooltip without forcing translators to learn ICU markup.
+                <>{wrapTermsInline(t("pageSubtitle"))}</>
+              }
+              tourId="mnemosyne-admin"
+              tourLabel={t("tourLabel")}
+            />
+          </div>
+        </TourSpot>
       </TourSpot>
 
       {!isAdmin ? (
@@ -235,78 +242,101 @@ export function MemoryOpsClient({ workspace, isAdmin }: Props): ReactNode {
         </Callout>
       ) : null}
 
-      <ul className="grid gap-4 md:grid-cols-2" aria-label={t("pageTitle")}>
-        {TASKS.map((task) => {
-          const card = (
-            <TaskCard
-              key={task.key}
-              task={task}
-              isAdmin={isAdmin}
-              pending={pendingKey === task.key}
-              anyPending={pendingKey !== null}
-              lastRunIso={task.key === "healthSnapshot" ? healthLastRun : null}
-              locale={locale}
-              onRequestRun={() => setConfirmTask(task)}
-              workspaceSlug={workspace.slug}
-            />
-          );
-          if (task.key === "dedup") {
-            return (
-              <TourSpot
-                key={task.key}
-                tourId="memory-ops"
-                step={2}
-                titleKey="compass.tours.memoryOps.step2.title"
-                bodyKey="compass.tours.memoryOps.step2.body"
-              >
-                {card}
-              </TourSpot>
-            );
-          }
-          if (task.key === "prune") {
-            return (
-              <TourSpot
-                key={task.key}
-                tourId="memory-ops"
-                step={3}
-                titleKey="compass.tours.memoryOps.step3.title"
-                bodyKey="compass.tours.memoryOps.step3.body"
-              >
-                {card}
-              </TourSpot>
-            );
-          }
-          return card;
-        })}
-      </ul>
-
-      <section
-        aria-labelledby="memory-ops-next-steps"
-        className="space-y-3 border-t border-line pt-8"
+      <TourSpot
+        tourId="mnemosyne-admin"
+        step={2}
+        titleKey="compass.tours.mnemosyne-admin.step2.title"
+        bodyKey="compass.tours.mnemosyne-admin.step2.body"
       >
-        <h2
-          id="memory-ops-next-steps"
-          className="text-sm font-semibold uppercase tracking-wide text-muted"
-        >
-          {t("nextStepsTitle")}
-        </h2>
-        <NextStepGroup className="lg:grid-cols-2">
-          <NextStep
-            icon={<BrainCircuit className="h-4 w-4" />}
-            href={`/${locale}/${workspace.slug}/brain`}
-            title={t("nextSteps.openBrain.title")}
-            body={t("nextSteps.openBrain.body")}
-          />
-          <NextStep
-            icon={<ScanSearch className="h-4 w-4" />}
-            href={`/${locale}/${workspace.slug}/settings`}
-            title={t("nextSteps.reviewPolicy.title")}
-            body={t("nextSteps.reviewPolicy.body")}
-          />
-        </NextStepGroup>
-      </section>
+        <ul className="grid gap-4 md:grid-cols-2" aria-label={t("pageTitle")}>
+          {TASKS.map((task) => {
+            const card = (
+              <TaskCard
+                key={task.key}
+                task={task}
+                isAdmin={isAdmin}
+                pending={pendingKey === task.key}
+                anyPending={pendingKey !== null}
+                lastRunIso={task.key === "healthSnapshot" ? healthLastRun : null}
+                locale={locale}
+                onRequestRun={() => setConfirmTask(task)}
+                workspaceSlug={workspace.slug}
+              />
+            );
+            if (task.key === "dedup") {
+              return (
+                <TourSpot
+                  key={task.key}
+                  tourId="memory-ops"
+                  step={2}
+                  titleKey="compass.tours.memoryOps.step2.title"
+                  bodyKey="compass.tours.memoryOps.step2.body"
+                >
+                  {card}
+                </TourSpot>
+              );
+            }
+            if (task.key === "prune") {
+              return (
+                <TourSpot
+                  key={task.key}
+                  tourId="memory-ops"
+                  step={3}
+                  titleKey="compass.tours.memoryOps.step3.title"
+                  bodyKey="compass.tours.memoryOps.step3.body"
+                >
+                  {card}
+                </TourSpot>
+              );
+            }
+            return card;
+          })}
+        </ul>
+      </TourSpot>
 
-      <RecallQualitySection isAdmin={isAdmin} />
+      <TourSpot
+        tourId="mnemosyne-admin"
+        step={3}
+        titleKey="compass.tours.mnemosyne-admin.step3.title"
+        bodyKey="compass.tours.mnemosyne-admin.step3.body"
+      >
+        <section
+          aria-labelledby="memory-ops-next-steps"
+          className="space-y-3 border-t border-line pt-8"
+        >
+          <h2
+            id="memory-ops-next-steps"
+            className="text-sm font-semibold uppercase tracking-wide text-muted"
+          >
+            {t("nextStepsTitle")}
+          </h2>
+          <NextStepGroup className="lg:grid-cols-2">
+            <NextStep
+              icon={<BrainCircuit className="h-4 w-4" />}
+              href={`/${locale}/${workspace.slug}/brain`}
+              title={t("nextSteps.openBrain.title")}
+              body={t("nextSteps.openBrain.body")}
+            />
+            <NextStep
+              icon={<ScanSearch className="h-4 w-4" />}
+              href={`/${locale}/${workspace.slug}/settings`}
+              title={t("nextSteps.reviewPolicy.title")}
+              body={t("nextSteps.reviewPolicy.body")}
+            />
+          </NextStepGroup>
+        </section>
+      </TourSpot>
+
+      <TourSpot
+        tourId="mnemosyne-admin"
+        step={4}
+        titleKey="compass.tours.mnemosyne-admin.step4.title"
+        bodyKey="compass.tours.mnemosyne-admin.step4.body"
+      >
+        <div>
+          <RecallQualitySection isAdmin={isAdmin} />
+        </div>
+      </TourSpot>
 
       <ConfirmAction
         open={confirmTask !== null}

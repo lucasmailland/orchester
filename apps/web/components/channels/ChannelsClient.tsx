@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { Button } from "@heroui/react";
 import {
   Globe,
   MessageCircle,
@@ -24,6 +25,9 @@ import { TermDef } from "@/components/compass/TermDef";
 import { Callout } from "@/components/compass/Callout";
 import { ConfirmAction } from "@/components/compass/ConfirmAction";
 import { NextStep, NextStepGroup } from "@/components/compass/NextStep";
+import { TemplatePicker } from "@/components/compass/TemplatePicker";
+import { TourSpot } from "@/components/compass/TourSpot";
+import type { ChannelTemplatePayload, CompassTemplate } from "@/lib/compass/templates";
 
 type ChannelType = "widget" | "telegram" | "slack" | "whatsapp" | "email" | "api" | "web";
 
@@ -71,11 +75,26 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
   const params = useParams<{ workspaceSlug: string }>();
   const workspaceSlug = params?.workspaceSlug ?? "";
 
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [creating, setCreating] = useState<ChannelType | null>(null);
   const [name, setName] = useState("");
   const [agentId, setAgentId] = useState<string>(agents[0]?.id ?? "");
+  const [templateConfig, setTemplateConfig] = useState<Record<string, unknown>>({});
   const [pendingDelete, setPendingDelete] = useState<Channel | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Two-step state machine for "+ New Channel":
+  //   idle → pickerOpen (TemplatePicker shows the channel-type catalog)
+  //   pickerOpen → creating=<type> (inline form, pre-filled name + agent + config)
+  // The template encodes `type`, so picking "whatsapp" skips the redundant
+  // type-picker grid that used to live below — the picker IS the type picker.
+  function handleTemplatePick(template: CompassTemplate<ChannelTemplatePayload>) {
+    const p = template.payload;
+    setName(p.name ?? "");
+    setTemplateConfig(p.config ?? {});
+    if (p.agentId) setAgentId(p.agentId);
+    setCreating(p.type as ChannelType);
+  }
 
   function typeMeta(typeKey: ChannelType) {
     return {
@@ -92,12 +111,18 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
     const r = await fetch("/api/channels", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, type, agentId }),
+      body: JSON.stringify({
+        name,
+        type,
+        agentId,
+        ...(Object.keys(templateConfig).length > 0 ? { config: templateConfig } : {}),
+      }),
     });
     if (r.ok) {
       toast.success(t("channelCreated"));
       setCreating(null);
       setName("");
+      setTemplateConfig({});
       router.refresh();
     } else {
       toast.error(t("createError"));
@@ -144,7 +169,30 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
     <div className="space-y-8">
       <NoProviderBanner />
 
-      <PageHero icon={<Globe />} title={tHero("heroTitle")} subtitle={heroSubtitle} />
+      <TourSpot
+        tourId="channels"
+        step={1}
+        titleKey="compass.tours.channels.step1.title"
+        bodyKey="compass.tours.channels.step1.body"
+      >
+        <PageHero
+          icon={<Globe />}
+          tourId="channels"
+          title={tHero("heroTitle")}
+          subtitle={heroSubtitle}
+          action={
+            <Button
+              size="sm"
+              radius="md"
+              onPress={() => setPickerOpen(true)}
+              className="bg-gradient-to-r from-violet-600 to-blue-600 font-medium text-white shadow-lg shadow-violet-500/20"
+              startContent={<Plus className="h-4 w-4" aria-hidden="true" />}
+            >
+              {t("newChannelShort")}
+            </Button>
+          }
+        />
+      </TourSpot>
 
       {isEmpty ? (
         <EmptyState
@@ -158,51 +206,58 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
         {tHero("tipBody")}
       </Callout>
 
-      <section aria-labelledby="channels-available-heading" className="space-y-3">
-        <h2
-          id="channels-available-heading"
-          className="text-sm font-semibold uppercase tracking-wide text-muted"
-        >
-          {tHero("availableHeading")}
-        </h2>
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {(Object.keys(TYPE_ICONS) as ChannelType[])
-            .filter((typeKey) => typeKey !== "web")
-            .map((typeKey) => {
-              const meta = typeMeta(typeKey);
-              return (
-                <div key={typeKey} className="rounded-2xl border border-line bg-card p-4">
-                  <div className="mb-3 flex items-center gap-2.5">
-                    <div
-                      className={
-                        meta.supported
-                          ? "flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400"
-                          : "flex h-9 w-9 items-center justify-center rounded-xl bg-elevated text-muted"
-                      }
-                    >
-                      <meta.Icon className="h-4 w-4" />
+      <TourSpot
+        tourId="channels"
+        step={2}
+        titleKey="compass.tours.channels.step2.title"
+        bodyKey="compass.tours.channels.step2.body"
+      >
+        <section aria-labelledby="channels-available-heading" className="space-y-3">
+          <h2
+            id="channels-available-heading"
+            className="text-sm font-semibold uppercase tracking-wide text-muted"
+          >
+            {tHero("availableHeading")}
+          </h2>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {(Object.keys(TYPE_ICONS) as ChannelType[])
+              .filter((typeKey) => typeKey !== "web")
+              .map((typeKey) => {
+                const meta = typeMeta(typeKey);
+                return (
+                  <div key={typeKey} className="rounded-2xl border border-line bg-card p-4">
+                    <div className="mb-3 flex items-center gap-2.5">
+                      <div
+                        className={
+                          meta.supported
+                            ? "flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400"
+                            : "flex h-9 w-9 items-center justify-center rounded-xl bg-elevated text-muted"
+                        }
+                      >
+                        <meta.Icon className="h-4 w-4" />
+                      </div>
+                      <div className="font-medium text-strong">{meta.label}</div>
+                      {!meta.supported && (
+                        <span className="ml-auto rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                          {t("beta")}
+                        </span>
+                      )}
                     </div>
-                    <div className="font-medium text-strong">{meta.label}</div>
-                    {!meta.supported && (
-                      <span className="ml-auto rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300">
-                        {t("beta")}
-                      </span>
-                    )}
+                    <p className="text-xs leading-relaxed text-muted">{meta.description}</p>
+                    <button
+                      type="button"
+                      disabled={!meta.supported}
+                      onClick={() => setCreating(typeKey)}
+                      className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-line bg-elevated py-2 text-xs text-body hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> {t("connect", { label: meta.label })}
+                    </button>
                   </div>
-                  <p className="text-xs leading-relaxed text-muted">{meta.description}</p>
-                  <button
-                    type="button"
-                    disabled={!meta.supported}
-                    onClick={() => setCreating(typeKey)}
-                    className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-line bg-elevated py-2 text-xs text-body hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> {t("connect", { label: meta.label })}
-                  </button>
-                </div>
-              );
-            })}
-        </div>
-      </section>
+                );
+              })}
+          </div>
+        </section>
+      </TourSpot>
 
       {creating && (
         <div className="space-y-2 rounded-2xl border border-violet-500/30 bg-card p-4">
@@ -237,7 +292,11 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
             </button>
             <button
               type="button"
-              onClick={() => setCreating(null)}
+              onClick={() => {
+                setCreating(null);
+                setName("");
+                setTemplateConfig({});
+              }}
               className="text-xs text-muted hover:text-body"
             >
               {t("cancel")}
@@ -247,46 +306,67 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
       )}
 
       {channels.length > 0 && (
-        <div>
-          <h2 className="mb-2 text-sm font-medium text-body">{t("connectedHeading")}</h2>
-          <div className="space-y-2">
-            {channels.map((c) => (
-              <ConnectedChannelRow
-                key={c.id}
-                channel={c}
-                agents={agents}
-                onRequestDelete={() => setPendingDelete(c)}
-              />
-            ))}
+        <TourSpot
+          tourId="channels"
+          step={3}
+          titleKey="compass.tours.channels.step3.title"
+          bodyKey="compass.tours.channels.step3.body"
+        >
+          <div>
+            <h2 className="mb-2 text-sm font-medium text-body">{t("connectedHeading")}</h2>
+            <div className="space-y-2">
+              {channels.map((c) => (
+                <ConnectedChannelRow
+                  key={c.id}
+                  channel={c}
+                  agents={agents}
+                  onRequestDelete={() => setPendingDelete(c)}
+                />
+              ))}
+            </div>
           </div>
-        </div>
+        </TourSpot>
       )}
 
-      <section
-        aria-labelledby="channels-next-steps"
-        className="space-y-3 border-t border-line pt-8"
+      <TourSpot
+        tourId="channels"
+        step={4}
+        titleKey="compass.tours.channels.step4.title"
+        bodyKey="compass.tours.channels.step4.body"
       >
-        <h2
-          id="channels-next-steps"
-          className="text-sm font-semibold uppercase tracking-wide text-muted"
+        <section
+          aria-labelledby="channels-next-steps"
+          className="space-y-3 border-t border-line pt-8"
         >
-          {tHero("nextStepsTitle")}
-        </h2>
-        <NextStepGroup className="lg:grid-cols-2">
-          <NextStep
-            icon={<Settings2 className="h-4 w-4" />}
-            href={`/${locale}/${workspaceSlug}/agents`}
-            title={tHero("nextStepConfigureAgent.title")}
-            body={tHero("nextStepConfigureAgent.body")}
-          />
-          <NextStep
-            icon={<MessagesSquare className="h-4 w-4" />}
-            href={`/${locale}/${workspaceSlug}/conversations`}
-            title={tHero("nextStepReviewConversations.title")}
-            body={tHero("nextStepReviewConversations.body")}
-          />
-        </NextStepGroup>
-      </section>
+          <h2
+            id="channels-next-steps"
+            className="text-sm font-semibold uppercase tracking-wide text-muted"
+          >
+            {tHero("nextStepsTitle")}
+          </h2>
+          <NextStepGroup className="lg:grid-cols-2">
+            <NextStep
+              icon={<Settings2 className="h-4 w-4" />}
+              href={`/${locale}/${workspaceSlug}/agents`}
+              title={tHero("nextStepConfigureAgent.title")}
+              body={tHero("nextStepConfigureAgent.body")}
+            />
+            <NextStep
+              icon={<MessagesSquare className="h-4 w-4" />}
+              href={`/${locale}/${workspaceSlug}/conversations`}
+              title={tHero("nextStepReviewConversations.title")}
+              body={tHero("nextStepReviewConversations.body")}
+            />
+          </NextStepGroup>
+        </section>
+      </TourSpot>
+
+      <TemplatePicker
+        kind="channel"
+        isOpen={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={handleTemplatePick}
+      />
 
       <ConfirmAction
         open={pendingDelete !== null}

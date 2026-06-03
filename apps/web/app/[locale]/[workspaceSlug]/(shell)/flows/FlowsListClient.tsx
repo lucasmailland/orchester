@@ -30,7 +30,22 @@ import { Callout } from "@/components/compass/Callout";
 import { EmptyState } from "@/components/compass/EmptyState";
 import { NextStep, NextStepGroup } from "@/components/compass/NextStep";
 import { PageHero } from "@/components/compass/PageHero";
+import { TemplatePicker } from "@/components/compass/TemplatePicker";
 import { TermDef } from "@/components/compass/TermDef";
+import { TourSpot } from "@/components/compass/TourSpot";
+import type { CompassTemplate, FlowTemplatePayload } from "@/lib/compass/templates";
+
+// Prefill captured from a TemplatePicker selection. Name + description seed
+// the inline create card; the graph (nodes/edges/variables) is sent verbatim
+// to `POST /api/flows` so the FlowBuilder opens with the template already
+// laid out instead of an empty canvas + guided state.
+interface FlowCreatePrefill {
+  name: string;
+  description?: string;
+  nodes?: unknown[];
+  edges?: unknown[];
+  variables?: Record<string, unknown>;
+}
 
 interface Item {
   id: string;
@@ -47,19 +62,71 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
   const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "es";
   const workspaceSlug = params?.workspaceSlug ?? "";
-  const [creating, setCreating] = useState(false);
+  // 3-state machine, mirrored from the Agent create flow:
+  //   "hidden" — no overlay; the user hasn't pressed New Flow yet.
+  //   "picker" — TemplatePicker visible; user is choosing a starting point.
+  //   "form"   — inline name card visible, optionally pre-filled by a template.
+  //
+  // The "Blank" template short-circuits picker → form with no prefill so the
+  // historical "open straight to name input" UX still works for users who
+  // don't want a template.
+  const [createStep, setCreateStep] = useState<"hidden" | "picker" | "form">("hidden");
+  const [prefill, setPrefill] = useState<FlowCreatePrefill | undefined>(undefined);
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  function handleStartCreate() {
+    setPrefill(undefined);
+    setName("");
+    setCreateStep("picker");
+  }
+
+  function handlePickTemplate(template: CompassTemplate<FlowTemplatePayload>) {
+    if (template.blank) {
+      // Blank skips prefill — name input starts empty and the server falls
+      // through to its "empty canvas + guided state" path.
+      setPrefill(undefined);
+      setName("");
+    } else {
+      const next: FlowCreatePrefill = { name: template.payload.name };
+      if (template.payload.description !== undefined) {
+        next.description = template.payload.description;
+      }
+      if (template.payload.nodes !== undefined) next.nodes = template.payload.nodes;
+      if (template.payload.edges !== undefined) next.edges = template.payload.edges;
+      if (template.payload.variables !== undefined) {
+        next.variables = template.payload.variables;
+      }
+      setPrefill(next);
+      setName(next.name);
+    }
+    setCreateStep("form");
+  }
+
+  function handleCloseCreateFlow() {
+    setCreateStep("hidden");
+    setPrefill(undefined);
+    setName("");
+  }
 
   async function create() {
     const trimmed = name.trim();
     if (!trimmed || submitting) return;
     setSubmitting(true);
     try {
+      // When a template was picked, we send its graph inline. The server
+      // will use these only if no `templateId` resolved (which is our case
+      // — the Compass registry is client-side, not in `flowTemplates`).
+      const body: Record<string, unknown> = { name: trimmed };
+      if (prefill?.description) body.description = prefill.description;
+      if (prefill?.nodes) body.nodes = prefill.nodes;
+      if (prefill?.edges) body.edges = prefill.edges;
+      if (prefill?.variables) body.variables = prefill.variables;
+
       const r = await fetch("/api/flows", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
+        body: JSON.stringify(body),
       });
       if (r.ok) {
         const j = await r.json();
@@ -81,37 +148,59 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
   );
 
   const newFlowAction = (
-    <Button
-      size="sm"
-      radius="md"
-      onPress={() => setCreating(true)}
-      className="bg-gradient-to-r from-violet-600 to-blue-600 font-medium text-white shadow-lg shadow-violet-500/20"
-      startContent={<Plus className="h-4 w-4" aria-hidden="true" />}
+    <TourSpot
+      tourId="flows"
+      step={2}
+      titleKey="compass.tours.flows.step2.title"
+      bodyKey="compass.tours.flows.step2.body"
     >
-      {t("newFlow")}
-    </Button>
+      <Button
+        size="sm"
+        radius="md"
+        onPress={handleStartCreate}
+        className="bg-gradient-to-r from-violet-600 to-blue-600 font-medium text-white shadow-lg shadow-violet-500/20"
+        startContent={<Plus className="h-4 w-4" aria-hidden="true" />}
+      >
+        {t("newFlow")}
+      </Button>
+    </TourSpot>
   );
 
   return (
     <div className="space-y-6 p-6">
       <NoProviderBanner />
 
-      <PageHero
-        icon={<Workflow />}
-        title={t("heroTitle")}
-        subtitle={heroSubtitle}
+      <TourSpot
         tourId="flows"
-        tourLabel={t("tourLabel")}
-        action={newFlowAction}
-      />
+        step={1}
+        titleKey="compass.tours.flows.step1.title"
+        bodyKey="compass.tours.flows.step1.body"
+      >
+        <PageHero
+          icon={<Workflow />}
+          title={t("heroTitle")}
+          subtitle={heroSubtitle}
+          tourId="flows"
+          tourLabel={t("tourLabel")}
+          action={newFlowAction}
+        />
+      </TourSpot>
 
-      {flows.length === 0 && !creating ? (
+      {flows.length === 0 && createStep === "hidden" ? (
         <Callout variant="tip" title={t("firstFlowTipTitle")}>
           {t("firstFlowTip")}
         </Callout>
       ) : null}
 
-      {creating ? (
+      {/* Step 1: pick a template (or Blank). */}
+      <TemplatePicker
+        kind="flow"
+        isOpen={createStep === "picker"}
+        onClose={() => setCreateStep("hidden")}
+        onSelect={handlePickTemplate}
+      />
+
+      {createStep === "form" ? (
         <div className="rounded-2xl border border-violet-500/30 bg-card p-4">
           <label htmlFor="flows-name-input" className="block text-sm font-semibold text-strong">
             {t("createTitle")}
@@ -126,7 +215,7 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
             autoFocus
             onKeyDown={(e) => {
               if (e.key === "Enter") create();
-              if (e.key === "Escape") setCreating(false);
+              if (e.key === "Escape") handleCloseCreateFlow();
             }}
           />
           <div className="mt-3 flex items-center gap-2">
@@ -139,65 +228,72 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
             >
               {t("create")}
             </Button>
-            <Button
-              size="sm"
-              variant="light"
-              onPress={() => {
-                setCreating(false);
-                setName("");
-              }}
-            >
+            <Button size="sm" variant="light" onPress={handleCloseCreateFlow}>
               {t("cancel")}
             </Button>
           </div>
         </div>
       ) : null}
 
-      {flows.length === 0 && !creating ? (
-        <EmptyStateForFlows newFlowLabel={t("newFlow")} onCreate={() => setCreating(true)} />
+      {flows.length === 0 && createStep === "hidden" ? (
+        <EmptyStateForFlows newFlowLabel={t("newFlow")} onCreate={handleStartCreate} />
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {flows.map((f) => (
-            <motion.button
-              key={f.id}
-              type="button"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              onClick={() => router.push(`/${locale}/${workspaceSlug}/flows/${f.id}`)}
-              className="rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
-            >
-              <div className="mb-2 flex items-center gap-2">
-                <Workflow className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-                <span className="truncate font-medium text-strong">{f.name}</span>
-              </div>
-              <p className="line-clamp-2 text-xs text-muted">{f.description ?? "—"}</p>
-              <div className="mt-3 flex items-center justify-between text-[10px] text-faint">
-                <span>{t("nodesLabel", { count: f.nodeCount })}</span>
-                <span className="uppercase tracking-wide">{f.status}</span>
-              </div>
-            </motion.button>
-          ))}
-        </div>
+        <TourSpot
+          tourId="flows"
+          step={3}
+          titleKey="compass.tours.flows.step3.title"
+          bodyKey="compass.tours.flows.step3.body"
+        >
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {flows.map((f) => (
+              <motion.button
+                key={f.id}
+                type="button"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                onClick={() => router.push(`/${locale}/${workspaceSlug}/flows/${f.id}`)}
+                className="rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
+              >
+                <div className="mb-2 flex items-center gap-2">
+                  <Workflow className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                  <span className="truncate font-medium text-strong">{f.name}</span>
+                </div>
+                <p className="line-clamp-2 text-xs text-muted">{f.description ?? "—"}</p>
+                <div className="mt-3 flex items-center justify-between text-[10px] text-faint">
+                  <span>{t("nodesLabel", { count: f.nodeCount })}</span>
+                  <span className="uppercase tracking-wide">{f.status}</span>
+                </div>
+              </motion.button>
+            ))}
+          </div>
+        </TourSpot>
       )}
 
       <section aria-labelledby="flows-next-steps-title" className="pt-2">
         <h2 id="flows-next-steps-title" className="mb-3 text-sm font-semibold text-strong">
           {t("nextStepsTitle")}
         </h2>
-        <NextStepGroup>
-          <NextStep
-            href={`/${locale}/${workspaceSlug}/channels`}
-            icon={<KeyRound className="h-4 w-4" aria-hidden="true" />}
-            title={t("nextStepConnectChannel.title")}
-            body={t("nextStepConnectChannel.body")}
-          />
-          <NextStep
-            href={`/${locale}/${workspaceSlug}/knowledge`}
-            icon={<BookOpenText className="h-4 w-4" aria-hidden="true" />}
-            title={t("nextStepAddKnowledge.title")}
-            body={t("nextStepAddKnowledge.body")}
-          />
-        </NextStepGroup>
+        <TourSpot
+          tourId="flows"
+          step={4}
+          titleKey="compass.tours.flows.step4.title"
+          bodyKey="compass.tours.flows.step4.body"
+        >
+          <NextStepGroup>
+            <NextStep
+              href={`/${locale}/${workspaceSlug}/channels`}
+              icon={<KeyRound className="h-4 w-4" aria-hidden="true" />}
+              title={t("nextStepConnectChannel.title")}
+              body={t("nextStepConnectChannel.body")}
+            />
+            <NextStep
+              href={`/${locale}/${workspaceSlug}/knowledge`}
+              icon={<BookOpenText className="h-4 w-4" aria-hidden="true" />}
+              title={t("nextStepAddKnowledge.title")}
+              body={t("nextStepAddKnowledge.body")}
+            />
+          </NextStepGroup>
+        </TourSpot>
       </section>
     </div>
   );

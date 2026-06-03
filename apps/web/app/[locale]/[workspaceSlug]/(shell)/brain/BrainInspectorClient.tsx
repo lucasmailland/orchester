@@ -41,6 +41,7 @@ import { TermDef } from "@/components/compass/TermDef";
 import { Callout } from "@/components/compass/Callout";
 import { ConfirmAction } from "@/components/compass/ConfirmAction";
 import { NextStep, NextStepGroup } from "@/components/compass/NextStep";
+import { TourSpot } from "@/components/compass/TourSpot";
 
 const DEFAULT_FILTERS: FactsFilters = {
   status: "active",
@@ -294,20 +295,29 @@ export function BrainInspectorClient() {
       {/* Compass PageHero — replaces the bespoke header. The subtitle
           wraps the "Mnemosyne" jargon in <TermDef> so curious operators
           can hover for a friendly definition. */}
-      <PageHero
-        icon={<BrainCircuit />}
-        title={tc("pageTitle")}
-        subtitle={
-          <>
-            {tc("pageSubtitlePart1")}
-            <TermDef term="mnemosyne">{tc("pageSubtitleTermMnemosyne")}</TermDef>
-            {tc("pageSubtitlePart2")}
-          </>
-        }
+      <TourSpot
         tourId="brain-inspector"
-        tourLabel={tc("tourLabel")}
-        action={<div className="flex flex-wrap items-center gap-2">{headerActions}</div>}
-      />
+        step={1}
+        titleKey="compass.tours.brainInspector.step1.title"
+        bodyKey="compass.tours.brainInspector.step1.body"
+      >
+        <div>
+          <PageHero
+            icon={<BrainCircuit />}
+            title={tc("pageTitle")}
+            subtitle={
+              <>
+                {tc("pageSubtitlePart1")}
+                <TermDef term="mnemosyne">{tc("pageSubtitleTermMnemosyne")}</TermDef>
+                {tc("pageSubtitlePart2")}
+              </>
+            }
+            tourId="brain-inspector"
+            tourLabel={tc("tourLabel")}
+            action={<div className="flex flex-wrap items-center gap-2">{headerActions}</div>}
+          />
+        </div>
+      </TourSpot>
 
       {/* v1.6 G1-3: time-travel banner — surfaces above the KPI strip
           so it's the FIRST thing the operator sees when in a
@@ -344,7 +354,16 @@ export function BrainInspectorClient() {
       </div>
 
       {/* Health charts */}
-      <HealthDashboard />
+      <TourSpot
+        tourId="brain-inspector"
+        step={2}
+        titleKey="compass.tours.brainInspector.step2.title"
+        bodyKey="compass.tours.brainInspector.step2.body"
+      >
+        <div>
+          <HealthDashboard />
+        </div>
+      </TourSpot>
 
       {/* Pedagogical tip — explains the "forget is safe" property of the
           inspector before the operator starts curating. Dismissible so it
@@ -356,7 +375,16 @@ export function BrainInspectorClient() {
       </Callout>
 
       {/* Filters */}
-      <FactFilters value={filters} onChange={setFilters} />
+      <TourSpot
+        tourId="brain-inspector"
+        step={3}
+        titleKey="compass.tours.brainInspector.step3.title"
+        bodyKey="compass.tours.brainInspector.step3.body"
+      >
+        <div>
+          <FactFilters value={filters} onChange={setFilters} />
+        </div>
+      </TourSpot>
 
       {/* List */}
       {error ? (
@@ -391,20 +419,27 @@ export function BrainInspectorClient() {
               <span>{t("list.showing", { count: items.length, total })}</span>
             </div>
           ) : null}
-          <ul className="space-y-2">
-            {items.map((fact) => (
-              <li key={fact.id}>
-                <FactRow
-                  fact={fact}
-                  onPinToggle={handlePinToggle}
-                  onForget={handleForget}
-                  onRestore={handleRestore}
-                  onViewCitations={handleViewCitations}
-                  onEdit={handleEdit}
-                />
-              </li>
-            ))}
-          </ul>
+          <TourSpot
+            tourId="brain-inspector"
+            step={4}
+            titleKey="compass.tours.brainInspector.step4.title"
+            bodyKey="compass.tours.brainInspector.step4.body"
+          >
+            <ul className="space-y-2">
+              {items.map((fact) => (
+                <li key={fact.id}>
+                  <FactRow
+                    fact={fact}
+                    onPinToggle={handlePinToggle}
+                    onForget={handleForget}
+                    onRestore={handleRestore}
+                    onViewCitations={handleViewCitations}
+                    onEdit={handleEdit}
+                  />
+                </li>
+              ))}
+            </ul>
+          </TourSpot>
           {hasMore ? (
             <div className="flex justify-center pt-2">
               <Button variant="flat" size="sm" onPress={() => loadMore()} isLoading={loadingMore}>
@@ -418,30 +453,37 @@ export function BrainInspectorClient() {
       {/* Next steps — passive nudges toward adjacent surfaces. Not a CTA
           because the user might be mid-curation; these just lower the
           discovery cost. */}
-      <section aria-labelledby="brain-next-steps" className="pt-2">
-        <h2
-          id="brain-next-steps"
-          className="mb-3 text-[10px] font-medium uppercase tracking-wider text-faint"
-        >
-          {tc("nextStepsTitle")}
-        </h2>
-        <NextStepGroup className="lg:grid-cols-2">
-          <NextStep
-            icon={<ClipboardCheck className="h-4 w-4" />}
-            title={tc("nextSteps.review.title")}
-            body={tc("nextSteps.review.body")}
-            href={`/${locale}/${ws}/brain/review`}
-            estimateMinutes={5}
-          />
-          <NextStep
-            icon={<Wrench className="h-4 w-4" />}
-            title={tc("nextSteps.housekeeping.title")}
-            body={tc("nextSteps.housekeeping.body")}
-            href={`/${locale}/${ws}/settings/memory`}
-            estimateMinutes={3}
-          />
-        </NextStepGroup>
-      </section>
+      <TourSpot
+        tourId="brain-inspector"
+        step={5}
+        titleKey="compass.tours.brainInspector.step5.title"
+        bodyKey="compass.tours.brainInspector.step5.body"
+      >
+        <section aria-labelledby="brain-next-steps" className="pt-2">
+          <h2
+            id="brain-next-steps"
+            className="mb-3 text-[10px] font-medium uppercase tracking-wider text-faint"
+          >
+            {tc("nextStepsTitle")}
+          </h2>
+          <NextStepGroup className="lg:grid-cols-2">
+            <NextStep
+              icon={<ClipboardCheck className="h-4 w-4" />}
+              title={tc("nextSteps.review.title")}
+              body={tc("nextSteps.review.body")}
+              href={`/${locale}/${ws}/brain/review`}
+              estimateMinutes={5}
+            />
+            <NextStep
+              icon={<Wrench className="h-4 w-4" />}
+              title={tc("nextSteps.housekeeping.title")}
+              body={tc("nextSteps.housekeeping.body")}
+              href={`/${locale}/${ws}/settings/memory`}
+              estimateMinutes={3}
+            />
+          </NextStepGroup>
+        </section>
+      </TourSpot>
 
       <EditFactDialog
         fact={editing}

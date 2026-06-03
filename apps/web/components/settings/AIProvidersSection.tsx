@@ -32,6 +32,7 @@ import { EmptyState } from "@/components/compass/EmptyState";
 import { TermDef } from "@/components/compass/TermDef";
 import { ConfirmAction } from "@/components/compass/ConfirmAction";
 import { NextStep, NextStepGroup } from "@/components/compass/NextStep";
+import { TourSpot } from "@/components/compass/TourSpot";
 import { notify } from "@/lib/toast";
 
 interface ProviderRow {
@@ -128,7 +129,22 @@ export function AIProvidersSection({ workspaceSlug }: AIProvidersSectionProps) {
 
   return (
     <div className="space-y-8">
-      <PageHero icon={<Sparkles />} title={tCompass("heroTitle")} subtitle={subtitle} />
+      <TourSpot
+        tourId="providers"
+        step={1}
+        titleKey="compass.tours.providers.step1.title"
+        bodyKey="compass.tours.providers.step1.body"
+      >
+        <div>
+          <PageHero
+            icon={<Sparkles />}
+            title={tCompass("heroTitle")}
+            subtitle={subtitle}
+            tourId="providers"
+            tourLabel={tCompass("tourLabel")}
+          />
+        </div>
+      </TourSpot>
 
       <Callout variant="tip" title={tCompass("tipTitle")}>
         {tCompass("tipBody")}
@@ -142,123 +158,144 @@ export function AIProvidersSection({ workspaceSlug }: AIProvidersSectionProps) {
         <div className="space-y-8">
           {/* Connected first. If nothing connected yet, show the Compass empty
               state instead of the small inline placeholder. */}
-          <section aria-labelledby="providers-connected-heading">
-            <h3
-              id="providers-connected-heading"
-              className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong"
-            >
-              <Check className="h-4 w-4 text-emerald-500" aria-hidden="true" />
-              {t("connectedHeading")}
-              <span className="rounded-full bg-elevated px-1.5 text-[11px] font-normal text-muted">
-                {connected.length}
-              </span>
-            </h3>
-            {connected.length === 0 ? (
-              <EmptyState
-                icon={<Sparkles className="h-6 w-6" aria-hidden="true" />}
-                title={tEmpty("title")}
-                body={
-                  <>
-                    {/* Wrap the bare word "provider" inline so users get a
+          <TourSpot
+            tourId="providers"
+            step={2}
+            titleKey="compass.tours.providers.step2.title"
+            bodyKey="compass.tours.providers.step2.body"
+          >
+            <section aria-labelledby="providers-connected-heading">
+              <h3
+                id="providers-connected-heading"
+                className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong"
+              >
+                <Check className="h-4 w-4 text-emerald-500" aria-hidden="true" />
+                {t("connectedHeading")}
+                <span className="rounded-full bg-elevated px-1.5 text-[11px] font-normal text-muted">
+                  {connected.length}
+                </span>
+              </h3>
+              {connected.length === 0 ? (
+                <EmptyState
+                  icon={<Sparkles className="h-6 w-6" aria-hidden="true" />}
+                  title={tEmpty("title")}
+                  body={
+                    <>
+                      {/* Wrap the bare word "provider" inline so users get a
                         definition tooltip without translators learning ICU. */}
-                    {wrapProviderTerm(tEmpty("body"))}
-                  </>
-                }
-              />
-            ) : (
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                {connected.map((p) => (
-                  <ProviderCard
-                    key={p.id}
-                    def={p}
-                    row={rows.find((r) => r.provider === p.id) ?? null}
-                    onChange={(u) => refresh(u, p.id)}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
+                      {wrapProviderTerm(tEmpty("body"))}
+                    </>
+                  }
+                />
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  {connected.map((p) => (
+                    <ProviderCard
+                      key={p.id}
+                      def={p}
+                      row={rows.find((r) => r.provider === p.id) ?? null}
+                      onChange={(u) => refresh(u, p.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          </TourSpot>
 
           {/* Search + filter to add new providers. */}
-          <section aria-labelledby="providers-add-heading">
-            <h3 id="providers-add-heading" className="mb-2 text-sm font-semibold text-strong">
-              {t("addProviderHeading")}
-            </h3>
-            <div className="relative mb-2">
-              <Search
-                className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-faint"
-                aria-hidden="true"
-              />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t("searchPlaceholder")}
-                className="w-full rounded-lg border border-line bg-elevated py-2 pl-9 pr-3 text-sm text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
-              />
-            </div>
-            <div className="mb-3 flex flex-wrap gap-1.5">
-              <Chip active={capFilter === "all"} onClick={() => setCapFilter("all")}>
-                {t("filterAll")}
-              </Chip>
-              {CAPABILITY_ORDER.map((c) => (
-                <Chip key={c} active={capFilter === c} onClick={() => setCapFilter(c)}>
-                  {CAPABILITY_LABELS[c].emoji} {getCapabilityLabel(c, locale)}
+          <TourSpot
+            tourId="providers"
+            step={3}
+            titleKey="compass.tours.providers.step3.title"
+            bodyKey="compass.tours.providers.step3.body"
+          >
+            <section aria-labelledby="providers-add-heading">
+              <h3 id="providers-add-heading" className="mb-2 text-sm font-semibold text-strong">
+                {t("addProviderHeading")}
+              </h3>
+              <div className="relative mb-2">
+                <Search
+                  className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-faint"
+                  aria-hidden="true"
+                />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={t("searchPlaceholder")}
+                  className="w-full rounded-lg border border-line bg-elevated py-2 pl-9 pr-3 text-sm text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
+                />
+              </div>
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                <Chip active={capFilter === "all"} onClick={() => setCapFilter("all")}>
+                  {t("filterAll")}
                 </Chip>
-              ))}
-            </div>
-
-            {available.length === 0 ? (
-              <p className="rounded-xl border border-line bg-card p-3 text-xs text-muted">
-                {t("noMatches")}
-              </p>
-            ) : (
-              <div className="space-y-5">
-                {CAPABILITY_ORDER.filter((c) => byPrimary[c]?.length).map((cap) => (
-                  <div key={cap}>
-                    <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted">
-                      {CAPABILITY_LABELS[cap].emoji} {getCapabilityLabel(cap, locale)}
-                    </p>
-                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                      {byPrimary[cap]!.map((p) => (
-                        <ProviderCard
-                          key={p.id}
-                          def={p}
-                          row={null}
-                          onChange={(u) => refresh(u, p.id)}
-                        />
-                      ))}
-                    </div>
-                  </div>
+                {CAPABILITY_ORDER.map((c) => (
+                  <Chip key={c} active={capFilter === c} onClick={() => setCapFilter(c)}>
+                    {CAPABILITY_LABELS[c].emoji} {getCapabilityLabel(c, locale)}
+                  </Chip>
                 ))}
               </div>
-            )}
-          </section>
 
-          <section
-            aria-labelledby="providers-next-steps"
-            className="space-y-3 border-t border-line pt-8"
+              {available.length === 0 ? (
+                <p className="rounded-xl border border-line bg-card p-3 text-xs text-muted">
+                  {t("noMatches")}
+                </p>
+              ) : (
+                <div className="space-y-5">
+                  {CAPABILITY_ORDER.filter((c) => byPrimary[c]?.length).map((cap) => (
+                    <div key={cap}>
+                      <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted">
+                        {CAPABILITY_LABELS[cap].emoji} {getCapabilityLabel(cap, locale)}
+                      </p>
+                      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                        {byPrimary[cap]!.map((p) => (
+                          <ProviderCard
+                            key={p.id}
+                            def={p}
+                            row={null}
+                            onChange={(u) => refresh(u, p.id)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </TourSpot>
+
+          <TourSpot
+            tourId="providers"
+            step={4}
+            titleKey="compass.tours.providers.step4.title"
+            bodyKey="compass.tours.providers.step4.body"
           >
-            <h2
-              id="providers-next-steps"
-              className="text-sm font-semibold uppercase tracking-wide text-muted"
+            <section
+              aria-labelledby="providers-next-steps"
+              className="space-y-3 border-t border-line pt-8"
             >
-              {tCompass("nextStepsTitle")}
-            </h2>
-            <NextStepGroup className="lg:grid-cols-2">
-              <NextStep
-                icon={<Bot className="h-4 w-4" aria-hidden="true" />}
-                href={`/${locale}/${workspaceSlug}/agents`}
-                title={tCompass("nextStepBuildAgent.title")}
-                body={tCompass("nextStepBuildAgent.body")}
-              />
-              <NextStep
-                icon={<BookOpen className="h-4 w-4" aria-hidden="true" />}
-                href={`/${locale}/${workspaceSlug}/knowledge`}
-                title={tCompass("nextStepAddKnowledge.title")}
-                body={tCompass("nextStepAddKnowledge.body")}
-              />
-            </NextStepGroup>
-          </section>
+              <h2
+                id="providers-next-steps"
+                className="text-sm font-semibold uppercase tracking-wide text-muted"
+              >
+                {tCompass("nextStepsTitle")}
+              </h2>
+              <NextStepGroup className="lg:grid-cols-2">
+                <NextStep
+                  icon={<Bot className="h-4 w-4" aria-hidden="true" />}
+                  href={`/${locale}/${workspaceSlug}/agents`}
+                  title={tCompass("nextStepBuildAgent.title")}
+                  body={tCompass("nextStepBuildAgent.body")}
+                />
+                <NextStep
+                  icon={<BookOpen className="h-4 w-4" aria-hidden="true" />}
+                  href={`/${locale}/${workspaceSlug}/knowledge`}
+                  title={tCompass("nextStepAddKnowledge.title")}
+                  body={tCompass("nextStepAddKnowledge.body")}
+                />
+              </NextStepGroup>
+            </section>
+          </TourSpot>
         </div>
       )}
     </div>

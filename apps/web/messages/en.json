@@ -1001,6 +1001,7 @@
       "beta": "Beta",
       "connect": "Connect {label}",
       "newChannel": "New channel · {label}",
+      "newChannelShort": "New channel",
       "connectedHeading": "Connected channels",
       "pause": "Pause",
       "activate": "Activate",
@@ -1980,6 +1981,53 @@
     }
   },
   "compass": {
+    "commandBar": {
+      "label": "Compass command bar",
+      "placeholder": "Search agents, flows, docs…",
+      "empty": "No results. Try another term.",
+      "footer": "↑↓ navigate · ↵ open · ⌘K close",
+      "hint": {
+        "navigate": "↑↓ ↵"
+      },
+      "sections": {
+        "recents": "Recent",
+        "actions": "Quick actions",
+        "agents": "Agents",
+        "flows": "Flows",
+        "knowledge": "Knowledge",
+        "conversations": "Conversations",
+        "docs": "Docs",
+        "tours": "Tours"
+      },
+      "type": {
+        "resource": "Open",
+        "action": "Action",
+        "agent": "Agent",
+        "flow": "Flow",
+        "kb": "KB",
+        "conversation": "Conversation",
+        "doc": "Doc",
+        "tour": "Tour"
+      },
+      "quickActions": {
+        "createAgent": "Create an agent",
+        "createFlow": "Create a flow",
+        "runMemoryHousekeeping": "Run memory housekeeping",
+        "openOnboarding": "Open onboarding wizard",
+        "toggleTheme": "Toggle theme",
+        "openBrain": "Open Brain inspector"
+      },
+      "tours": {
+        "memoryOps": "Take a tour: Memory operations",
+        "brainInspector": "Take a tour: Brain inspector",
+        "flows": "Take a tour: Flows",
+        "knowledgeBases": "Take a tour: Knowledge bases"
+      },
+      "doc": {
+        "close": "Close definition",
+        "learnMore": "Read full doc"
+      }
+    },
     "common": {
       "close": "Close",
       "cancel": "Cancel",
@@ -2022,6 +2070,140 @@
         "step4": {
           "title": "Run a task now",
           "body": "Press Run now to start a task immediately. You will see an impact preview — scope, estimated cost, time, reversibility — before anything happens."
+        }
+      },
+      "channels": {
+        "step1": {
+          "title": "Where conversations come in",
+          "body": "Channels are the inboxes your agents listen on — widget, Telegram, email and more. Connect one and the assigned agent starts answering real users from that surface."
+        },
+        "step2": {
+          "title": "Pick a channel to connect",
+          "body": "Each card is a channel type. Pick one to open the form: name it, attach an agent, and paste credentials when the type needs them. Beta types are marked so expectations stay honest."
+        },
+        "step3": {
+          "title": "Manage what is live",
+          "body": "Connected channels show their agent, status and webhook or embed snippet. Reassign the agent, rotate credentials or pause traffic without deleting the channel's history."
+        },
+        "step4": {
+          "title": "Tune who answers",
+          "body": "A channel is only as good as the agent behind it. Open Agents to adjust the persona, tools and knowledge bases that serve the conversations arriving here."
+        }
+      },
+      "flows": {
+        "step1": {
+          "title": "Visual orchestration lives here",
+          "body": "Flows are the visual programs your agents run — branches, tools and human steps wired on a canvas. This page lists every flow in the workspace so you can audit what's live."
+        },
+        "step2": {
+          "title": "Start a new flow",
+          "body": "Use this button to draft a flow from scratch or from a template. You pick the starting point now and design the canvas next; nothing runs until you save and connect a trigger."
+        },
+        "step3": {
+          "title": "Each card is a live flow",
+          "body": "Node count and status show health at a glance. Click any card to open the canvas and edit, version or run it. Use this view to spot orphan flows before they reach production."
+        },
+        "step4": {
+          "title": "Wire a flow to the world",
+          "body": "A flow only runs when something triggers it. Connect a channel to send real conversations through this orchestration, or add a knowledge base so the flow can cite sources."
+        }
+      },
+      "mnemosyne-admin": {
+        "step1": {
+          "title": "Mnemosyne control room",
+          "body": "This is the admin surface for Mnemosyne — the system that keeps long-term memory healthy. Every action here is workspace-scoped and admin-gated so you can audit it later."
+        },
+        "step2": {
+          "title": "Housekeeping tasks",
+          "body": "Each card is one maintenance job — dedup, prune, consolidation. Run them on demand when you suspect drift, or trust the schedule. Destructive jobs always confirm first."
+        },
+        "step3": {
+          "title": "Where to go next",
+          "body": "After running a task, jump to the Brain inspector to verify the impact on real facts, or open settings to tune which jobs run automatically."
+        },
+        "step4": {
+          "title": "Recall quality controls",
+          "body": "Toggle the retrieval stages your agents use — HyDE, rerank, graph expansion — or pin a premium embedding model. Changes apply on the next query, not retroactively."
+        }
+      },
+      "brainInspector": {
+        "step1": {
+          "title": "Your memory, in plain view",
+          "body": "This is the Brain — every fact your agents have learned across conversations. The header lets you time-travel, export, or open the review queue when something looks off."
+        },
+        "step2": {
+          "title": "Vital signs at a glance",
+          "body": "Counts, embedding coverage and trends so you can spot drift before it becomes noise. Check this dashboard first on Mondays, or after a heavy weekend of conversations."
+        },
+        "step3": {
+          "title": "Find any fact, fast",
+          "body": "Filter by status, scope, source or recency. Combine filters to audit a noisy domain or to surface candidates worth pinning before they age out."
+        },
+        "step4": {
+          "title": "Curate row by row",
+          "body": "Each row is one fact. Pin the keepers so agents always see them, forget the noise, or open citations to see exactly which message taught it."
+        },
+        "step5": {
+          "title": "What to do next",
+          "body": "When a fact needs a second opinion, send it to the review queue. When you want a backup or audit, export the whole memory as JSON from these next steps."
+        }
+      },
+      "agents": {
+        "step1": {
+          "title": "Your team of agents",
+          "body": "Agents are role-played workers in your workspace — each one has a persona, a model, and access to specific knowledge. This is the roster of every agent you've created."
+        },
+        "step2": {
+          "title": "Filter by status",
+          "body": "Drafts are unfinished, active agents answer real conversations, inactive ones are paused. Filter here to focus on what needs attention before users notice."
+        },
+        "step3": {
+          "title": "Each card is one agent",
+          "body": "Name, role, model and live status at a glance. Click a card to edit prompts, attach tools, or review who is currently chatting with it."
+        },
+        "step4": {
+          "title": "Create a new agent",
+          "body": "Start from a template or from scratch. Templates seed the persona and prompt so you adjust details instead of starting from a blank screen."
+        },
+        "step5": {
+          "title": "Connect agents to the world",
+          "body": "An agent without a channel or knowledge base is just a draft. Use these next steps to wire it to incoming messages and to the docs it should cite."
+        }
+      },
+      "knowledgeBases": {
+        "step1": {
+          "title": "The library your agents cite",
+          "body": "Knowledge bases are the docs, sites and files your agents read before answering. Group them by domain — product, policies, onboarding — so retrieval stays focused and citations stay accurate."
+        },
+        "step2": {
+          "title": "Create a new base",
+          "body": "Start from a template or from scratch. Templates preset the embedding model and chunk size for common use cases so you avoid guessing at parameters you do not yet understand."
+        },
+        "step3": {
+          "title": "Every card is one base",
+          "body": "Each card shows the embedding provider and model powering retrieval. Click a base to add sources, preview chunks, and test queries before pointing an agent at it."
+        },
+        "step4": {
+          "title": "Next steps that matter",
+          "body": "A base with no documents answers nothing, and a base no agent reads helps nobody. Use these links to upload sources and to attach the base to the agent that needs it."
+        }
+      },
+      "providers": {
+        "step1": {
+          "title": "Plug in the brains",
+          "body": "Providers are the LLM accounts your agents call — OpenAI, Anthropic, Google and more. Nothing runs until at least one is connected, because every reply depends on a model behind a key you control."
+        },
+        "step2": {
+          "title": "Your live providers",
+          "body": "Each connected provider shows its key status and the models it unlocks. Rotate keys here when they expire or leak, and disconnect any provider whose models you no longer use."
+        },
+        "step3": {
+          "title": "Browse the catalog",
+          "body": "Search or filter by capability — chat, embeddings, images, audio — to find a new provider. Connect one and its models become selectable across your agents and flows."
+        },
+        "step4": {
+          "title": "Wire providers into work",
+          "body": "A connected provider only matters once something uses it. Open Agents to assign a model, or Knowledge to pick the embedding provider that powers retrieval."
         }
       }
     },
@@ -2354,6 +2536,7 @@
     "providers": {
       "heroTitle": "AI providers",
       "heroSubtitle": "Connect the companies that power your agents. Each provider exposes a set of models for chat, embeddings, images, audio and more. Your keys stay encrypted and scoped to this workspace.",
+      "tourLabel": "Take a tour",
       "tipTitle": "Bring your own key",
       "tipBody": "Orchester never marks up provider costs. Connect your own API key and every model billing flows directly through your account with that provider.",
       "removeConfirmTitle": "Disconnect {provider}",
@@ -2375,6 +2558,135 @@
       "nextStepAddKnowledge": {
         "title": "Add knowledge to recall",
         "body": "Upload documents so your agents can ground answers in your data instead of guessing."
+      }
+    },
+    "templates": {
+      "shell": {
+        "title": {
+          "agent": "Start a new agent",
+          "flow": "Start a new flow",
+          "knowledge": "Start a new knowledge base",
+          "channel": "Connect a channel"
+        },
+        "subtitle": {
+          "agent": "Pick a starting point. You can edit the role, prompt, and model before saving.",
+          "flow": "Pick a starting point. The canvas opens pre-wired so you can adapt instead of starting blank.",
+          "knowledge": "Pick a starting point. Embedding settings can be tuned later from the base settings.",
+          "channel": "Pick a channel type. You'll add credentials and assign an agent in the next step."
+        },
+        "close": "Close",
+        "allTemplates": "All templates",
+        "footerHint": "Templates are starting points — you can change anything afterwards."
+      },
+      "agent": {
+        "blank": {
+          "label": "Blank agent",
+          "description": "Start from scratch. Empty role, empty prompt, your call."
+        },
+        "support-tier1": {
+          "label": "Support Tier 1",
+          "description": "Answers customer questions grounded in your knowledge bases. Escalates when confidence is low.",
+          "tags": ["customer support", "RAG"]
+        },
+        "lead-qualifier": {
+          "label": "Lead Qualifier",
+          "description": "Qualifies inbound leads with BANT scoring and returns a structured summary.",
+          "tags": ["sales", "BANT"]
+        },
+        "sales-coach": {
+          "label": "Sales Coach",
+          "description": "Reviews sales calls and gives account executives three specific things to try next time.",
+          "tags": ["sales", "coaching"]
+        },
+        "internal-helpdesk": {
+          "label": "Internal Helpdesk",
+          "description": "Answers IT and HR questions for employees. Opens a ticket when a human is needed.",
+          "tags": ["internal", "IT", "HR"]
+        },
+        "onboarding-guide": {
+          "label": "Onboarding Guide",
+          "description": "Walks new users through the shortest path to their first win in the product.",
+          "tags": ["onboarding", "product"]
+        }
+      },
+      "flow": {
+        "blank": {
+          "label": "Blank flow",
+          "description": "Empty canvas with a single Trigger node so you can wire your own logic."
+        },
+        "lead-qualification": {
+          "label": "Lead Qualification",
+          "description": "Webhook intake, enrichment, qualifier agent, branch on score.",
+          "tags": ["sales", "webhook"]
+        },
+        "support-triage": {
+          "label": "Support Triage",
+          "description": "Inbound message, KB search, agent answers, escalates if confidence is low.",
+          "tags": ["customer support", "RAG"]
+        },
+        "newsletter-compile": {
+          "label": "Newsletter Compile",
+          "description": "Pulls updates on a schedule, agent writes the issue, sends it.",
+          "tags": ["scheduled", "content"]
+        },
+        "pr-review-bot": {
+          "label": "PR Review Bot",
+          "description": "GitHub webhook, fetch diff, review agent, post a comment back on the PR.",
+          "tags": ["engineering", "webhook"]
+        }
+      },
+      "knowledge": {
+        "blank": {
+          "label": "Blank knowledge base",
+          "description": "Empty base. Add documents after — we'll chunk and embed in the background."
+        },
+        "product-docs": {
+          "label": "Product Docs",
+          "description": "Public documentation, changelogs, and feature guides for your product.",
+          "tags": ["product", "RAG"]
+        },
+        "hr-policies": {
+          "label": "HR Policies",
+          "description": "Vacation, benefits, code of conduct, and other employee-facing policies.",
+          "tags": ["internal", "HR"]
+        },
+        "engineering-wiki": {
+          "label": "Engineering Wiki",
+          "description": "Architecture notes, runbooks, on-call docs, and ADRs.",
+          "tags": ["internal", "engineering"]
+        },
+        "brand-voice": {
+          "label": "Brand Voice",
+          "description": "Tone of voice, banned words, on-brand and off-brand examples.",
+          "tags": ["marketing", "voice"]
+        }
+      },
+      "channel": {
+        "web-widget": {
+          "label": "Web widget",
+          "description": "Embed a chat widget on your site. Comes with a default greeting you can edit.",
+          "tags": ["public", "embed"]
+        },
+        "whatsapp": {
+          "label": "WhatsApp",
+          "description": "Connect a WhatsApp Business number so customers can chat from their phone.",
+          "tags": ["public", "messaging"]
+        },
+        "slack": {
+          "label": "Slack",
+          "description": "Bring an agent into your Slack workspace. Great for internal helpdesks.",
+          "tags": ["internal", "messaging"]
+        },
+        "email": {
+          "label": "Email",
+          "description": "Forward an inbox to an agent. Replies arrive in the same thread.",
+          "tags": ["public", "email"]
+        },
+        "api": {
+          "label": "API",
+          "description": "Talk to an agent over HTTP. For custom integrations and your own apps.",
+          "tags": ["custom", "API"]
+        }
       }
     },
     "onboarding": {
@@ -2497,6 +2809,73 @@
           }
         },
         "cta": "Open Studio"
+      }
+    },
+    "help": {
+      "openButton": "Help",
+      "close": "Close",
+      "title": "How can we help?",
+      "searchPlaceholder": "Search help articles...",
+      "empty": "No results. Try another term.",
+      "takeTour": "Take a tour",
+      "continueCta": "Open the wizard",
+      "commandBarHint": "Tip: press ⌘K / Ctrl-K to search anything",
+      "humanCta": "Ask the community",
+      "sections": {
+        "onThisPage": "On this page",
+        "continueOnboarding": "Continue your onboarding",
+        "whatsNew": "What's new",
+        "talkToHuman": "Talk to a human"
+      },
+      "perPage": {
+        "default": {
+          "title": "Need help?",
+          "body": "Search any term above, restart the page tour, or jump back into onboarding. Everything you set up here is reversible."
+        },
+        "brain": {
+          "title": "About Brain memory",
+          "body": "Brain is what your agents have learned across conversations. Pin the facts that matter, forget the noise, and audit changes before they reach production."
+        },
+        "memory": {
+          "title": "Memory housekeeping",
+          "body": "This page runs the Mnemosyne tasks that keep memory accurate: dedup, prune, consolidate. Destructive tasks confirm before they touch data."
+        },
+        "flows": {
+          "title": "About Flows",
+          "body": "Flows are the visual programs your agents run end to end. Branches, tools, and human handoffs live here so logic stays inspectable."
+        },
+        "channels": {
+          "title": "About Channels",
+          "body": "Channels are the inboxes your agents listen on: widget, Slack, WhatsApp, email. Connect one to send real conversations into a flow."
+        },
+        "providers": {
+          "title": "About Providers",
+          "body": "Providers are the LLM accounts your agents call. Connect at least one before agents or flows can run."
+        },
+        "knowledge": {
+          "title": "About Knowledge Bases",
+          "body": "Knowledge Bases ground answers in your docs. Smaller bases focused on one domain retrieve more accurately than one giant pile."
+        },
+        "agents": {
+          "title": "About Agents",
+          "body": "Agents are the role-played workers in your org: persona, tools, memory. Every prompt change becomes a version you can roll back."
+        }
+      },
+      "whatsNew": {
+        "items": {
+          "helpDrawer": {
+            "title": "Help drawer arrives",
+            "body": "Press ? anywhere to search articles, restart a tour, or jump back into onboarding."
+          },
+          "brainHealth": {
+            "title": "Brain health dashboard",
+            "body": "Embedding coverage and dedup trends now show at the top of Brain so drift is easy to catch."
+          },
+          "flowTemplates": {
+            "title": "Flow templates",
+            "body": "Start a flow from a template instead of a blank canvas. Templates copy nodes, edges, and variables."
+          }
+        }
       }
     }
   }

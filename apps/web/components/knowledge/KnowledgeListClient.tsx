@@ -34,7 +34,10 @@ import { Callout } from "@/components/compass/Callout";
 import { EmptyState } from "@/components/compass/EmptyState";
 import { NextStep, NextStepGroup } from "@/components/compass/NextStep";
 import { PageHero } from "@/components/compass/PageHero";
+import { TemplatePicker } from "@/components/compass/TemplatePicker";
 import { TermDef } from "@/components/compass/TermDef";
+import { TourSpot } from "@/components/compass/TourSpot";
+import type { CompassTemplate, KnowledgeTemplatePayload } from "@/lib/compass/templates";
 
 interface KB {
   id: string;
@@ -51,11 +54,37 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
   const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "es";
   const ws = params?.workspaceSlug ?? "";
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [provider, setProvider] = useState<"openai" | "google">("openai");
+  const [chunkSize, setChunkSize] = useState<number>(800);
+  const [chunkOverlap, setChunkOverlap] = useState<number>(100);
+  const [embeddingModel, setEmbeddingModel] = useState<string>("text-embedding-3-small");
+
+  // Two-step state machine for "+ New KB":
+  //   idle → pickerOpen (TemplatePicker)
+  //   pickerOpen → creating (inline form, pre-filled from payload)
+  //   blank template skips picker pre-fill but still opens the form.
+  function openPicker() {
+    setPickerOpen(true);
+  }
+
+  function handleTemplatePick(template: CompassTemplate<KnowledgeTemplatePayload>) {
+    const p = template.payload;
+    setName(p.name ?? "");
+    setDescription(p.description ?? "");
+    setProvider((p.embeddingProvider ?? "openai") as "openai" | "google");
+    setEmbeddingModel(
+      p.embeddingModel ??
+        (p.embeddingProvider === "google" ? "text-embedding-004" : "text-embedding-3-small")
+    );
+    setChunkSize(p.chunkSize ?? 800);
+    setChunkOverlap(p.chunkOverlap ?? 100);
+    setCreating(true);
+  }
 
   async function create() {
     const trimmed = name.trim();
@@ -69,7 +98,11 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
           name: trimmed,
           description,
           embeddingProvider: provider,
-          embeddingModel: provider === "openai" ? "text-embedding-3-small" : "text-embedding-004",
+          embeddingModel:
+            embeddingModel ||
+            (provider === "openai" ? "text-embedding-3-small" : "text-embedding-004"),
+          chunkSize,
+          chunkOverlap,
         }),
       });
       if (r.ok) {
@@ -95,29 +128,43 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
   );
 
   const newBaseAction = (
-    <Button
-      size="sm"
-      radius="md"
-      onPress={() => setCreating(true)}
-      className="bg-gradient-to-r from-violet-600 to-blue-600 font-medium text-white shadow-lg shadow-violet-500/20"
-      startContent={<Plus className="h-4 w-4" aria-hidden="true" />}
+    <TourSpot
+      tourId="knowledgeBases"
+      step={2}
+      titleKey="compass.tours.knowledgeBases.step2.title"
+      bodyKey="compass.tours.knowledgeBases.step2.body"
     >
-      {t("newBase")}
-    </Button>
+      <Button
+        size="sm"
+        radius="md"
+        onPress={openPicker}
+        className="bg-gradient-to-r from-violet-600 to-blue-600 font-medium text-white shadow-lg shadow-violet-500/20"
+        startContent={<Plus className="h-4 w-4" aria-hidden="true" />}
+      >
+        {t("newBase")}
+      </Button>
+    </TourSpot>
   );
 
   return (
     <div className="space-y-6 p-6">
       <NoProviderBanner />
 
-      <PageHero
-        icon={<BookOpen />}
-        title={t("heroTitle")}
-        subtitle={heroSubtitle}
+      <TourSpot
         tourId="knowledgeBases"
-        tourLabel={t("tourLabel")}
-        action={newBaseAction}
-      />
+        step={1}
+        titleKey="compass.tours.knowledgeBases.step1.title"
+        bodyKey="compass.tours.knowledgeBases.step1.body"
+      >
+        <PageHero
+          icon={<BookOpen />}
+          title={t("heroTitle")}
+          subtitle={heroSubtitle}
+          tourId="knowledgeBases"
+          tourLabel={t("tourLabel")}
+          action={newBaseAction}
+        />
+      </TourSpot>
 
       {kbs.length === 0 && !creating ? (
         <Callout variant="tip" title={t("firstBaseTipTitle")}>
@@ -181,6 +228,10 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
                 setCreating(false);
                 setName("");
                 setDescription("");
+                setChunkSize(800);
+                setChunkOverlap(100);
+                setEmbeddingModel("text-embedding-3-small");
+                setProvider("openai");
               }}
             >
               {t("cancel")}
@@ -190,58 +241,76 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
       ) : null}
 
       {kbs.length === 0 && !creating ? (
-        <EmptyStateForKnowledgeBases
-          newBaseLabel={t("newBase")}
-          onCreate={() => setCreating(true)}
-        />
+        <EmptyStateForKnowledgeBases newBaseLabel={t("newBase")} onCreate={openPicker} />
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {kbs.map((kb) => (
-            <motion.button
-              key={kb.id}
-              type="button"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              onClick={() => router.push(`/${locale}/${ws}/knowledge/${kb.id}`)}
-              aria-label={`${t("openLabel")} ${kb.name}`}
-              className="rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
-            >
-              <div className="mb-2 flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-                <span className="truncate font-medium text-strong">{kb.name}</span>
-              </div>
-              <p className="line-clamp-2 text-xs text-muted">{kb.description ?? "—"}</p>
-              <div className="mt-3 flex items-center gap-1.5 text-[10px] text-faint">
-                <Sparkles className="h-3 w-3" aria-hidden="true" />
-                <span className="text-muted">{t("providerLabel")}</span>
-                <span className="font-mono">
-                  {kb.embeddingProvider}/{kb.embeddingModel}
-                </span>
-              </div>
-            </motion.button>
-          ))}
-        </div>
+        <TourSpot
+          tourId="knowledgeBases"
+          step={3}
+          titleKey="compass.tours.knowledgeBases.step3.title"
+          bodyKey="compass.tours.knowledgeBases.step3.body"
+        >
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {kbs.map((kb) => (
+              <motion.button
+                key={kb.id}
+                type="button"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                onClick={() => router.push(`/${locale}/${ws}/knowledge/${kb.id}`)}
+                aria-label={`${t("openLabel")} ${kb.name}`}
+                className="rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
+              >
+                <div className="mb-2 flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                  <span className="truncate font-medium text-strong">{kb.name}</span>
+                </div>
+                <p className="line-clamp-2 text-xs text-muted">{kb.description ?? "—"}</p>
+                <div className="mt-3 flex items-center gap-1.5 text-[10px] text-faint">
+                  <Sparkles className="h-3 w-3" aria-hidden="true" />
+                  <span className="text-muted">{t("providerLabel")}</span>
+                  <span className="font-mono">
+                    {kb.embeddingProvider}/{kb.embeddingModel}
+                  </span>
+                </div>
+              </motion.button>
+            ))}
+          </div>
+        </TourSpot>
       )}
 
-      <section aria-labelledby="kb-next-steps-title" className="pt-2">
-        <h2 id="kb-next-steps-title" className="mb-3 text-sm font-semibold text-strong">
-          {t("nextStepsTitle")}
-        </h2>
-        <NextStepGroup>
-          <NextStep
-            href={`/${locale}/${ws}/knowledge`}
-            icon={<ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />}
-            title={t("nextStepUploadDocs.title")}
-            body={t("nextStepUploadDocs.body")}
-          />
-          <NextStep
-            href={`/${locale}/${ws}/agents`}
-            icon={<Bot className="h-4 w-4" aria-hidden="true" />}
-            title={t("nextStepConnectAgent.title")}
-            body={t("nextStepConnectAgent.body")}
-          />
-        </NextStepGroup>
-      </section>
+      <TourSpot
+        tourId="knowledgeBases"
+        step={4}
+        titleKey="compass.tours.knowledgeBases.step4.title"
+        bodyKey="compass.tours.knowledgeBases.step4.body"
+      >
+        <section aria-labelledby="kb-next-steps-title" className="pt-2">
+          <h2 id="kb-next-steps-title" className="mb-3 text-sm font-semibold text-strong">
+            {t("nextStepsTitle")}
+          </h2>
+          <NextStepGroup>
+            <NextStep
+              href={`/${locale}/${ws}/knowledge`}
+              icon={<ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />}
+              title={t("nextStepUploadDocs.title")}
+              body={t("nextStepUploadDocs.body")}
+            />
+            <NextStep
+              href={`/${locale}/${ws}/agents`}
+              icon={<Bot className="h-4 w-4" aria-hidden="true" />}
+              title={t("nextStepConnectAgent.title")}
+              body={t("nextStepConnectAgent.body")}
+            />
+          </NextStepGroup>
+        </section>
+      </TourSpot>
+
+      <TemplatePicker
+        kind="knowledge"
+        isOpen={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={handleTemplatePick}
+      />
     </div>
   );
 }
