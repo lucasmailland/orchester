@@ -153,7 +153,7 @@ export function HeroSection() {
       />
 
       {/* 2-column grid: text left, chart right */}
-      <div className="relative z-10 mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-12 lg:grid-cols-2 lg:gap-16">
+      <div className="relative z-10 mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-10 lg:grid-cols-[1.15fr_1fr] lg:gap-14">
         {/* LEFT COLUMN — badge, headline, subheadline, CTAs */}
         <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
           {/* Badge */}
@@ -161,7 +161,7 @@ export function HeroSection() {
             initial={{ opacity: 0, y: -12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
-            className="mb-7 inline-flex items-center gap-2.5 rounded-full border border-violet-500/30 bg-violet-500/10 px-4 py-1.5"
+            className="mb-5 inline-flex items-center gap-2.5 rounded-full border border-violet-500/30 bg-violet-500/10 px-4 py-1.5"
           >
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -171,7 +171,7 @@ export function HeroSection() {
           </motion.div>
 
           {/* Headline — word-stagger reveal */}
-          <h1 className="mb-6 font-display text-5xl font-bold leading-[1.05] tracking-tight text-white sm:text-6xl lg:text-7xl">
+          <h1 className="font-display text-4xl font-bold leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-6xl">
             <span className="block">
               <AnimatedWords text={t("headline1")} delayStart={0.12} />
             </span>
@@ -185,7 +185,7 @@ export function HeroSection() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.55, duration: 0.5 }}
-            className="mt-6 mb-10 max-w-xl text-base leading-relaxed text-zinc-400 sm:text-lg"
+            className="mt-5 max-w-lg text-base leading-relaxed text-zinc-400 sm:text-lg"
           >
             {t("subheadline")}
           </motion.p>
@@ -195,7 +195,7 @@ export function HeroSection() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.65, duration: 0.5 }}
-            className="flex flex-row items-center gap-3 justify-center lg:justify-start"
+            className="mt-8 flex flex-row items-center justify-center gap-3 lg:justify-start"
           >
             {/* Primary CTA */}
             <ShimmerButton
