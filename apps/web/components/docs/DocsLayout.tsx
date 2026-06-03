@@ -5,7 +5,11 @@ import { DOCS, type Doc, type DocBlock } from "@/lib/docs-content";
 function Block({ block }: { block: DocBlock }) {
   switch (block.kind) {
     case "h2":
-      return <h2 className="mt-10 scroll-mt-20 font-display text-2xl font-bold tracking-tight text-zinc-100">{block.text}</h2>;
+      return (
+        <h2 className="mt-10 scroll-mt-20 font-display text-2xl font-bold tracking-tight text-zinc-100">
+          {block.text}
+        </h2>
+      );
     case "h3":
       return <h3 className="mt-6 text-lg font-semibold text-zinc-200">{block.text}</h3>;
     case "p":
@@ -47,7 +51,7 @@ export function DocsLayout({ locale, doc }: { locale: string; doc: Doc }) {
     <div className="min-h-screen bg-black text-zinc-100">
       <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-black/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href={`/${locale}/welcome`} className="flex items-center gap-2">
+          <Link href={`/${locale}`} className="flex items-center gap-2">
             <div className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-blue-500 text-white">
               <Bot className="h-4 w-4" />
             </div>
@@ -57,8 +61,12 @@ export function DocsLayout({ locale, doc }: { locale: string; doc: Doc }) {
             </span>
           </Link>
           <nav className="hidden items-center gap-6 text-sm text-zinc-400 md:flex">
-            <Link href={`/${locale}/welcome#features`} className="hover:text-zinc-100">Producto</Link>
-            <Link href={`/${locale}/pricing`} className="hover:text-zinc-100">Precios</Link>
+            <Link href={`/${locale}#features`} className="hover:text-zinc-100">
+              Producto
+            </Link>
+            <Link href={`/${locale}/pricing`} className="hover:text-zinc-100">
+              Precios
+            </Link>
             <a
               href="https://github.com/orchester-io/orchester"
               target="_blank"
@@ -116,9 +124,15 @@ export function DocsLayout({ locale, doc }: { locale: string; doc: Doc }) {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6">
           <span>© {new Date().getFullYear()} Orchester</span>
           <div className="flex gap-4">
-            <Link href={`/${locale}/privacy`} className="hover:text-zinc-300">Privacidad</Link>
-            <Link href={`/${locale}/terms`} className="hover:text-zinc-300">Términos</Link>
-            <Link href={`/${locale}/pricing`} className="hover:text-zinc-300">Precios</Link>
+            <Link href={`/${locale}/privacy`} className="hover:text-zinc-300">
+              Privacidad
+            </Link>
+            <Link href={`/${locale}/terms`} className="hover:text-zinc-300">
+              Términos
+            </Link>
+            <Link href={`/${locale}/pricing`} className="hover:text-zinc-300">
+              Precios
+            </Link>
           </div>
         </div>
       </footer>

@@ -3,13 +3,14 @@ import { Check, Bot, Code2 } from "lucide-react";
 import { PLANS } from "@/lib/billing/plans";
 import { PricingCta } from "@/components/billing/PricingCta";
 
-export default async function PricingPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
+export default async function PricingPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-  const plans: Array<{ id: "free" | "starter" | "pro" | "business"; bullets: string[]; cta: string; highlight?: boolean }> = [
+  const plans: Array<{
+    id: "free" | "starter" | "pro" | "business";
+    bullets: string[];
+    cta: string;
+    highlight?: boolean;
+  }> = [
     {
       id: "free",
       bullets: ["3 agentes", "100 conversaciones/mes", "50K tokens", "1 usuario", "Comunidad"],
@@ -17,18 +18,38 @@ export default async function PricingPage({
     },
     {
       id: "starter",
-      bullets: ["10 agentes", "1.000 convs/mes", "500K tokens", "3 usuarios", "Web Widget + Telegram"],
+      bullets: [
+        "10 agentes",
+        "1.000 convs/mes",
+        "500K tokens",
+        "3 usuarios",
+        "Web Widget + Telegram",
+      ],
       cta: "Probar Starter",
     },
     {
       id: "pro",
-      bullets: ["50 agentes", "10K convs/mes", "5M tokens", "10 usuarios", "Todos los canales", "Conocimiento (RAG)"],
+      bullets: [
+        "50 agentes",
+        "10K convs/mes",
+        "5M tokens",
+        "10 usuarios",
+        "Todos los canales",
+        "Conocimiento (RAG)",
+      ],
       cta: "Suscribirse Pro",
       highlight: true,
     },
     {
       id: "business",
-      bullets: ["Agentes ilimitados", "100K convs/mes", "50M tokens", "50 usuarios", "Audit log + RBAC", "SLA"],
+      bullets: [
+        "Agentes ilimitados",
+        "100K convs/mes",
+        "50M tokens",
+        "50 usuarios",
+        "Audit log + RBAC",
+        "SLA",
+      ],
       cta: "Hablar con ventas",
     },
   ];
@@ -37,16 +58,22 @@ export default async function PricingPage({
       {/* Header (mismo chrome que el landing público) */}
       <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-black/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href={`/${locale}/welcome`} className="flex items-center gap-2">
+          <Link href={`/${locale}`} className="flex items-center gap-2">
             <div className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-blue-500 text-white">
               <Bot className="h-4 w-4" />
             </div>
             <span className="font-display text-lg font-semibold tracking-tight">Orchester</span>
           </Link>
           <nav className="hidden items-center gap-6 text-sm text-zinc-400 md:flex">
-            <Link href={`/${locale}/welcome#features`} className="hover:text-zinc-100">Producto</Link>
-            <Link href={`/${locale}/pricing`} className="text-zinc-100">Precios</Link>
-            <Link href={`/${locale}/docs`} className="hover:text-zinc-100">Docs</Link>
+            <Link href={`/${locale}#features`} className="hover:text-zinc-100">
+              Producto
+            </Link>
+            <Link href={`/${locale}/pricing`} className="text-zinc-100">
+              Precios
+            </Link>
+            <Link href={`/${locale}/docs`} className="hover:text-zinc-100">
+              Docs
+            </Link>
             <a
               href="https://github.com/orchester-io/orchester"
               target="_blank"
@@ -102,7 +129,12 @@ export default async function PricingPage({
                     </li>
                   ))}
                 </ul>
-                <PricingCta locale={locale} plan={p.id} label={p.cta} highlight={p.highlight ?? false} />
+                <PricingCta
+                  locale={locale}
+                  plan={p.id}
+                  label={p.cta}
+                  highlight={p.highlight ?? false}
+                />
               </div>
             );
           })}
@@ -120,9 +152,15 @@ export default async function PricingPage({
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6">
           <span>© {new Date().getFullYear()} Orchester</span>
           <div className="flex gap-4">
-            <Link href={`/${locale}/privacy`} className="hover:text-zinc-300">Privacidad</Link>
-            <Link href={`/${locale}/terms`} className="hover:text-zinc-300">Términos</Link>
-            <Link href={`/${locale}/docs`} className="hover:text-zinc-300">Docs</Link>
+            <Link href={`/${locale}/privacy`} className="hover:text-zinc-300">
+              Privacidad
+            </Link>
+            <Link href={`/${locale}/terms`} className="hover:text-zinc-300">
+              Términos
+            </Link>
+            <Link href={`/${locale}/docs`} className="hover:text-zinc-300">
+              Docs
+            </Link>
           </div>
         </div>
       </footer>
