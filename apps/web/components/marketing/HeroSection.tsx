@@ -1,75 +1,17 @@
 "use client";
 
-import { useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion } from "framer-motion";
 import { ArrowRight, Star, Zap } from "lucide-react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
 
-// ─── Aurora blob definitions ──────────────────────────────────────────────────
-const AURORA_BLOBS = [
-  {
-    color: "bg-violet-500/55",
-    size: 720,
-    top: "-10%",
-    left: "-15%",
-    dur: 16,
-    scale: [1, 1.18, 0.92, 1.12, 1] as number[],
-    translate: [
-      [0, 0],
-      [80, 60],
-      [-40, 100],
-      [60, -30],
-      [0, 0],
-    ] as [number, number][],
-  },
-  {
-    color: "bg-indigo-500/50",
-    size: 620,
-    top: "15%",
-    left: "60%",
-    dur: 18,
-    scale: [1, 0.88, 1.22, 0.94, 1] as number[],
-    translate: [
-      [0, 0],
-      [-100, 40],
-      [60, -80],
-      [-30, 70],
-      [0, 0],
-    ] as [number, number][],
-  },
-  {
-    color: "bg-cyan-500/45",
-    size: 560,
-    top: "55%",
-    left: "10%",
-    dur: 20,
-    scale: [1, 1.15, 0.9, 1.25, 1] as number[],
-    translate: [
-      [0, 0],
-      [70, -50],
-      [-40, 80],
-      [90, 40],
-      [0, 0],
-    ] as [number, number][],
-  },
-  {
-    color: "bg-fuchsia-500/45",
-    size: 520,
-    top: "45%",
-    left: "55%",
-    dur: 22,
-    scale: [1, 0.92, 1.28, 0.88, 1] as number[],
-    translate: [
-      [0, 0],
-      [-70, 80],
-      [40, -70],
-      [-50, 30],
-      [0, 0],
-    ] as [number, number][],
-  },
-];
+// Canvas-based wave background — client-only (uses raw 2D canvas + RAF)
+const HeroWave = dynamic(() => import("@/components/ui/dynamic-wave-canvas-background"), {
+  ssr: false,
+  loading: () => null,
+});
 
 // ─── Inline SVG assets ──────────────────────────────────────────────────────
 
@@ -169,82 +111,6 @@ function ShimmerButton({
   );
 }
 
-// ─── AgentCard ───────────────────────────────────────────────────────────────
-
-function AgentCard({
-  label,
-  model,
-  msgs,
-  status,
-  delay,
-  isChild = false,
-}: {
-  label: string;
-  model: string;
-  msgs: string;
-  status: "active" | "idle" | "online";
-  delay: number;
-  isChild?: boolean;
-}) {
-  const dotColor = { active: "bg-violet-400", idle: "bg-zinc-600", online: "bg-emerald-400" }[
-    status
-  ];
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: -8 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay, duration: 0.45, ease: [0.22, 0.61, 0.36, 1] }}
-      whileHover={{
-        scale: 1.02,
-        x: isChild ? 4 : 0,
-        transition: { duration: 0.18, ease: "easeOut" },
-      }}
-      className="flex cursor-default items-center gap-3 rounded-xl border border-zinc-800/80 bg-zinc-900/70 px-3 py-2.5 backdrop-blur-sm"
-    >
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 font-display text-xs font-bold text-violet-400">
-        {label[0]}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-medium text-zinc-200">{label}</p>
-        <p className="text-[10px] text-zinc-600">{model}</p>
-      </div>
-      <div className="flex shrink-0 items-center gap-1.5">
-        <span className="text-[10px] text-zinc-600">{msgs}</span>
-        <span className={cn("h-1.5 w-1.5 rounded-full", dotColor)} />
-      </div>
-    </motion.div>
-  );
-}
-
-// ─── Cursor glow for agent preview ───────────────────────────────────────────
-
-function PreviewGlowContainer({ children }: { children: React.ReactNode }) {
-  const [mouse, setMouse] = useState<{ x: number; y: number } | null>(null);
-  const ref = useRef<HTMLDivElement>(null);
-
-  return (
-    <div
-      ref={ref}
-      className="relative"
-      onMouseMove={(e) => {
-        const rect = ref.current?.getBoundingClientRect();
-        if (!rect) return;
-        setMouse({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-      }}
-      onMouseLeave={() => setMouse(null)}
-    >
-      {/* Cursor glow */}
-      {mouse && (
-        <div
-          className="pointer-events-none absolute z-20 h-32 w-32 -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500/10 blur-2xl transition-opacity duration-200"
-          style={{ left: mouse.x, top: mouse.y }}
-        />
-      )}
-      {children}
-    </div>
-  );
-}
-
 // ─── Word-stagger headline ────────────────────────────────────────────────────
 
 function AnimatedWords({
@@ -285,84 +151,22 @@ export function HeroSection() {
   const t = useTranslations("marketing.hero");
   const locale = useLocale();
 
-  // Parallax
-  const sectionRef = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start start", "end start"],
-  });
-  const previewY = useTransform(scrollYProgress, [0, 1], [0, -80]);
-
   return (
-    <section
-      ref={sectionRef}
-      className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 pt-16 sm:px-6"
-    >
-      {/* Aurora — large drifting color blobs */}
+    <section className="relative flex min-h-[88vh] flex-col items-center justify-center overflow-hidden px-4 pt-16 sm:px-6">
+      {/* Canvas wave background — full-section animated shader-style */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-        {/* Slow rotating conic halo behind the blobs */}
-        <motion.div
-          className="absolute left-1/2 top-1/2 h-[800px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-60"
-          style={{
-            background:
-              "conic-gradient(from 0deg, transparent, rgba(167,139,250,0.15), transparent, rgba(34,211,238,0.1), transparent)",
-          }}
-          animate={{ rotate: 360 }}
-          transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
-        />
-        {/* Counter-rotating smaller conic halo */}
-        <motion.div
-          className="absolute left-1/2 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-40"
-          style={{
-            background:
-              "conic-gradient(from 180deg, transparent, rgba(244,114,182,0.18), transparent, rgba(34,211,238,0.16), transparent)",
-          }}
-          animate={{ rotate: -360 }}
-          transition={{ duration: 35, repeat: Infinity, ease: "linear" }}
-        />
-        {AURORA_BLOBS.map((b, i) => (
-          <motion.div
-            key={i}
-            className={`absolute rounded-full blur-[140px] ${b.color}`}
-            style={{
-              width: b.size,
-              height: b.size,
-              top: b.top,
-              left: b.left,
-            }}
-            animate={{
-              x: b.translate.map(([x]) => x),
-              y: b.translate.map(([, y]) => y),
-              scale: b.scale,
-            }}
-            transition={{
-              duration: b.dur,
-              repeat: Infinity,
-              ease: "easeInOut",
-              times: [0, 0.25, 0.5, 0.75, 1],
-            }}
-          />
-        ))}
-        {/* Flowing ribbon — slowly drifts diagonally */}
-        <motion.div
-          className="pointer-events-none absolute inset-0"
-          animate={{
-            background: [
-              "radial-gradient(800px 400px at 10% 30%, rgba(167,139,250,0.22), transparent 60%)",
-              "radial-gradient(900px 450px at 80% 70%, rgba(34,211,238,0.22), transparent 60%)",
-              "radial-gradient(850px 420px at 50% 20%, rgba(129,140,248,0.22), transparent 60%)",
-              "radial-gradient(900px 450px at 20% 80%, rgba(244,114,182,0.22), transparent 60%)",
-              "radial-gradient(800px 400px at 10% 30%, rgba(167,139,250,0.22), transparent 60%)",
-            ],
-          }}
-          transition={{
-            duration: 20,
-            repeat: Infinity,
-            ease: "easeInOut",
-            times: [0, 0.25, 0.5, 0.75, 1],
-          }}
-        />
+        <HeroWave />
       </div>
+
+      {/* Vignette — fade the wave edges into the page bg so it doesn't fight the next section */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, transparent 0%, transparent 30%, rgba(9,9,11,0.55) 70%, #09090B 100%)",
+        }}
+        aria-hidden="true"
+      />
 
       {/* Noise grain overlay */}
       <NoiseOverlay />
@@ -470,133 +274,6 @@ export function HeroSection() {
               <span className="hidden sm:inline">GitHub</span>
             </span>
           </a>
-        </motion.div>
-
-        {/* Agent org preview — with parallax + cursor glow */}
-        <motion.div
-          initial={{ opacity: 0, y: 48 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.78, duration: 0.8, ease: [0.22, 0.61, 0.36, 1] }}
-          style={{ y: previewY }}
-          className="mx-auto mt-16 max-w-2xl"
-        >
-          <PreviewGlowContainer>
-            <div className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/30 p-5 shadow-2xl shadow-black/50 backdrop-blur-sm">
-              {/* Window chrome */}
-              <div className="mb-4 flex items-center gap-2">
-                <div className="flex gap-1.5">
-                  <div className="h-2.5 w-2.5 rounded-full bg-red-500/50" />
-                  <div className="h-2.5 w-2.5 rounded-full bg-amber-500/50" />
-                  <div className="h-2.5 w-2.5 rounded-full bg-emerald-500/50" />
-                </div>
-                <div className="ml-2 flex h-5 flex-1 items-center rounded-md bg-zinc-800/60 px-2">
-                  <span className="text-[10px] text-zinc-600">
-                    orchester.app / workspace / agents
-                  </span>
-                </div>
-              </div>
-
-              {/* Agent tree */}
-              <div className="relative space-y-2">
-                {/* Animated beams — SVG layer behind agent cards */}
-                <svg
-                  className="pointer-events-none absolute inset-0 h-full w-full"
-                  viewBox="0 0 400 280"
-                  preserveAspectRatio="none"
-                  aria-hidden="true"
-                >
-                  <defs>
-                    <filter id="beamGlow">
-                      <feGaussianBlur stdDeviation="2.5" result="blur" />
-                      <feMerge>
-                        <feMergeNode in="blur" />
-                        <feMergeNode in="SourceGraphic" />
-                      </feMerge>
-                    </filter>
-                    <linearGradient id="beamLine" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="#a78bfa" stopOpacity="0" />
-                      <stop offset="50%" stopColor="#a78bfa" stopOpacity="0.35" />
-                      <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-
-                  {/* Faint connector lines from Orchestrator down to each child */}
-                  {([110, 175, 240] as const).map((y, i) => (
-                    <line
-                      key={i}
-                      x1="50"
-                      y1="70"
-                      x2="50"
-                      y2={y}
-                      stroke="url(#beamLine)"
-                      strokeWidth="1"
-                    />
-                  ))}
-
-                  {/* Traveling dots */}
-                  {([110, 175, 240] as const).map((endY, i) => (
-                    <motion.circle
-                      key={i}
-                      cx="50"
-                      r={2.5}
-                      fill="#c4b5fd"
-                      filter="url(#beamGlow)"
-                      initial={{ cy: 70, opacity: 0 }}
-                      animate={{
-                        cy: [70, endY],
-                        opacity: [0, 1, 1, 0],
-                      }}
-                      transition={{
-                        duration: 1.8,
-                        repeat: Infinity,
-                        repeatDelay: 1.4,
-                        delay: 0.7 + i * 0.45,
-                        ease: "easeIn",
-                        times: [0, 0.15, 0.85, 1],
-                      }}
-                    />
-                  ))}
-                </svg>
-
-                <AgentCard
-                  label="Orchestrator"
-                  model="claude-opus-4"
-                  msgs="2.4k msgs"
-                  status="active"
-                  delay={0.9}
-                />
-                <div className="ml-5 space-y-2 border-l border-zinc-800 pl-4">
-                  <AgentCard
-                    label="Support"
-                    model="claude-sonnet"
-                    msgs="847 convs"
-                    status="online"
-                    delay={0.97}
-                    isChild
-                  />
-                  <AgentCard
-                    label="Analytics"
-                    model="gpt-4o"
-                    msgs="1.2k convs"
-                    status="online"
-                    delay={1.04}
-                    isChild
-                  />
-                  <AgentCard
-                    label="Sales"
-                    model="claude-haiku"
-                    msgs="312 convs"
-                    status="idle"
-                    delay={1.11}
-                    isChild
-                  />
-                </div>
-              </div>
-
-              {/* Fade out */}
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 rounded-b-2xl bg-gradient-to-t from-[#09090B] to-transparent" />
-            </div>
-          </PreviewGlowContainer>
         </motion.div>
       </div>
     </section>
