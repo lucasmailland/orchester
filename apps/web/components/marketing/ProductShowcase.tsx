@@ -2,7 +2,15 @@
 
 import { useTranslations } from "next-intl";
 import { motion } from "framer-motion";
-import { Brain, Workflow, Network, MessagesSquare, DollarSign, BookOpen } from "lucide-react";
+import {
+  Brain,
+  Workflow,
+  Network,
+  MessagesSquare,
+  DollarSign,
+  BookOpen,
+  type LucideIcon,
+} from "lucide-react";
 
 // ─── Shared Card primitives ───────────────────────────────────────────────────
 
@@ -35,7 +43,7 @@ function CardHeader({
   subtitle,
   accent = "text-violet-400",
 }: {
-  Icon: React.ElementType;
+  Icon: LucideIcon;
   label: string;
   title: string;
   subtitle: string;

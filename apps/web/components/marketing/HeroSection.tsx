@@ -5,7 +5,14 @@ import { useTranslations, useLocale } from "next-intl";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowRight, Star, Zap } from "lucide-react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
+
+// Three.js shader is client-only — lazy-load with no SSR
+const Wave = dynamic(() => import("@/components/ui/wave").then((m) => m.Wave), {
+  ssr: false,
+  loading: () => null,
+});
 
 // ─── Inline SVG assets ──────────────────────────────────────────────────────
 
@@ -234,6 +241,24 @@ export function HeroSection() {
       ref={sectionRef}
       className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 pt-16 sm:px-6"
     >
+      {/* Wave shader background — violet→indigo→cyan animated gradient */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{ mixBlendMode: "screen", opacity: 0.65 }}
+        aria-hidden="true"
+      >
+        <Wave speed={0.45} tiles={1.1} disablePointerTracking />
+      </div>
+
+      {/* Vignette to fade edges into the page bg */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, transparent 0%, transparent 35%, #09090B 90%)",
+        }}
+      />
+
       {/* Noise grain overlay */}
       <NoiseOverlay />
 
@@ -245,10 +270,6 @@ export function HeroSection() {
           backgroundSize: "30px 30px",
         }}
       />
-
-      {/* Ambient orbs */}
-      <div className="pointer-events-none absolute left-1/4 top-1/4 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500/6 blur-[120px]" />
-      <div className="pointer-events-none absolute bottom-1/4 right-1/4 h-[400px] w-[400px] rounded-full bg-indigo-500/5 blur-[100px]" />
 
       {/* Floating decorative elements */}
       <FloatingCmdPalette />

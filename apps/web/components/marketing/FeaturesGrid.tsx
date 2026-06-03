@@ -2,7 +2,15 @@
 
 import { useTranslations } from "next-intl";
 import { motion } from "framer-motion";
-import { MessagesSquare, Zap, Workflow, Wallet, KeyRound, Shield } from "lucide-react";
+import {
+  MessagesSquare,
+  Zap,
+  Workflow,
+  Wallet,
+  KeyRound,
+  Shield,
+  type LucideIcon,
+} from "lucide-react";
 import { type MouseEvent } from "react";
 import { cn } from "@/lib/utils";
 
@@ -10,7 +18,7 @@ type FeatureKey = "multiChannel" | "streaming" | "flows" | "costControl" | "byok
 
 const FEATURES: {
   key: FeatureKey;
-  icon: React.ElementType;
+  icon: LucideIcon;
   accent: string;
   hoverBg: string;
   iconBg: string;
