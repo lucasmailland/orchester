@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { motion } from "framer-motion";
 import { MessagesSquare, Zap, Workflow, Wallet, KeyRound, Shield } from "lucide-react";
+import { type MouseEvent } from "react";
 import { cn } from "@/lib/utils";
 
 type FeatureKey = "multiChannel" | "streaming" | "flows" | "costControl" | "byok" | "enterprise";
@@ -86,45 +87,64 @@ export function FeaturesGrid() {
 
         {/* Bento grid */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {FEATURES.map(({ key, icon: Icon, accent, hoverBg, iconBg, colSpan }, i) => (
-            <motion.div
-              key={key}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
-              transition={{ delay: i * 0.07, duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
-              className={cn(
-                "group relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6",
-                "transition-all duration-300 hover:border-zinc-700 hover:bg-zinc-900/60",
-                colSpan
-              )}
-            >
-              {/* Hover gradient */}
-              <div
+          {FEATURES.map(({ key, icon: Icon, accent, hoverBg, iconBg, colSpan }, i) => {
+            const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              e.currentTarget.style.setProperty("--mouse-x", `${e.clientX - rect.left}px`);
+              e.currentTarget.style.setProperty("--mouse-y", `${e.clientY - rect.top}px`);
+            };
+
+            return (
+              <motion.div
+                key={key}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ delay: i * 0.07, duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
+                onMouseMove={handleMouseMove}
                 className={cn(
-                  "absolute inset-0 bg-gradient-to-br to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100",
-                  hoverBg
+                  "group relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6",
+                  "transition-all duration-300 hover:border-zinc-700 hover:bg-zinc-900/60",
+                  colSpan
                 )}
-              />
-              <div className="relative z-10">
+              >
+                {/* Spotlight layer — follows cursor */}
+                <div
+                  className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                  style={{
+                    background:
+                      "radial-gradient(400px circle at var(--mouse-x) var(--mouse-y), rgba(167, 139, 250, 0.10), transparent 60%)",
+                  }}
+                />
+
+                {/* Hover gradient */}
                 <div
                   className={cn(
-                    "mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl border",
-                    iconBg,
-                    accent
+                    "absolute inset-0 bg-gradient-to-br to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100",
+                    hoverBg
                   )}
-                >
-                  <Icon size={18} />
+                />
+
+                <div className="relative z-10">
+                  <div
+                    className={cn(
+                      "mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl border",
+                      iconBg,
+                      accent
+                    )}
+                  >
+                    <Icon size={18} />
+                  </div>
+                  <h3 className="mb-2 font-display text-base font-semibold text-zinc-100">
+                    {(t as (k: string) => string)(`${key}.title`)}
+                  </h3>
+                  <p className="text-sm leading-relaxed text-zinc-500">
+                    {(t as (k: string) => string)(`${key}.desc`)}
+                  </p>
                 </div>
-                <h3 className="mb-2 font-display text-base font-semibold text-zinc-100">
-                  {(t as (k: string) => string)(`${key}.title`)}
-                </h3>
-                <p className="text-sm leading-relaxed text-zinc-500">
-                  {(t as (k: string) => string)(`${key}.desc`)}
-                </p>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            );
+          })}
         </div>
       </div>
     </section>
