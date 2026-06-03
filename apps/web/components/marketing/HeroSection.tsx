@@ -5,14 +5,71 @@ import { useTranslations, useLocale } from "next-intl";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowRight, Star, Zap } from "lucide-react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
 
-// Three.js shader is client-only — lazy-load with no SSR
-const Wave = dynamic(() => import("@/components/ui/wave").then((m) => m.Wave), {
-  ssr: false,
-  loading: () => null,
-});
+// ─── Aurora blob definitions ──────────────────────────────────────────────────
+const AURORA_BLOBS = [
+  {
+    color: "bg-violet-500/30",
+    size: 700,
+    top: "-10%",
+    left: "-15%",
+    dur: 22,
+    scale: [1, 1.12, 0.95, 1.08, 1] as number[],
+    translate: [
+      [0, 0],
+      [60, 40],
+      [-30, 80],
+      [40, -20],
+      [0, 0],
+    ] as [number, number][],
+  },
+  {
+    color: "bg-indigo-500/25",
+    size: 600,
+    top: "20%",
+    left: "60%",
+    dur: 25,
+    scale: [1, 0.9, 1.15, 0.95, 1] as number[],
+    translate: [
+      [0, 0],
+      [-80, 30],
+      [40, -60],
+      [-20, 50],
+      [0, 0],
+    ] as [number, number][],
+  },
+  {
+    color: "bg-cyan-500/20",
+    size: 550,
+    top: "55%",
+    left: "10%",
+    dur: 28,
+    scale: [1, 1.1, 0.92, 1.18, 1] as number[],
+    translate: [
+      [0, 0],
+      [50, -40],
+      [-30, 60],
+      [70, 30],
+      [0, 0],
+    ] as [number, number][],
+  },
+  {
+    color: "bg-fuchsia-500/18",
+    size: 500,
+    top: "45%",
+    left: "55%",
+    dur: 30,
+    scale: [1, 0.95, 1.2, 0.9, 1] as number[],
+    translate: [
+      [0, 0],
+      [-50, 60],
+      [30, -50],
+      [-40, 20],
+      [0, 0],
+    ] as [number, number][],
+  },
+];
 
 // ─── Inline SVG assets ──────────────────────────────────────────────────────
 
@@ -241,23 +298,42 @@ export function HeroSection() {
       ref={sectionRef}
       className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 pt-16 sm:px-6"
     >
-      {/* Wave shader background — violet→indigo→cyan animated gradient */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{ mixBlendMode: "screen", opacity: 0.65 }}
-        aria-hidden="true"
-      >
-        <Wave speed={0.45} tiles={1.1} disablePointerTracking />
+      {/* Aurora — large drifting color blobs */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+        {/* Slow rotating conic halo behind the blobs */}
+        <motion.div
+          className="absolute left-1/2 top-1/2 h-[800px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-30"
+          style={{
+            background:
+              "conic-gradient(from 0deg, transparent, rgba(167,139,250,0.15), transparent, rgba(34,211,238,0.1), transparent)",
+          }}
+          animate={{ rotate: 360 }}
+          transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
+        />
+        {AURORA_BLOBS.map((b, i) => (
+          <motion.div
+            key={i}
+            className={`absolute rounded-full blur-[120px] ${b.color}`}
+            style={{
+              width: b.size,
+              height: b.size,
+              top: b.top,
+              left: b.left,
+            }}
+            animate={{
+              x: b.translate.map(([x]) => x),
+              y: b.translate.map(([, y]) => y),
+              scale: b.scale,
+            }}
+            transition={{
+              duration: b.dur,
+              repeat: Infinity,
+              ease: "easeInOut",
+              times: [0, 0.25, 0.5, 0.75, 1],
+            }}
+          />
+        ))}
       </div>
-
-      {/* Vignette to fade edges into the page bg */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse at center, transparent 0%, transparent 35%, #09090B 90%)",
-        }}
-      />
 
       {/* Noise grain overlay */}
       <NoiseOverlay />
