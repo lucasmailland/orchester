@@ -1,7 +1,8 @@
 "use client";
 
+import { useRef, useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
-import { motion } from "framer-motion";
+import { motion, useInView } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 const CODE: Record<string, string> = {
@@ -38,6 +39,43 @@ const STEPS = [
   { key: "step2", number: "02" },
   { key: "step3", number: "03" },
 ] as const;
+
+function TypewriterCode({ source }: { source: string }) {
+  const ref = useRef<HTMLPreElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-80px" });
+  const [typed, setTyped] = useState("");
+
+  useEffect(() => {
+    if (!inView) return;
+    let i = 0;
+    const interval = setInterval(() => {
+      i++;
+      setTyped(source.slice(0, i));
+      if (i >= source.length) clearInterval(interval);
+    }, 14);
+    return () => clearInterval(interval);
+  }, [inView, source]);
+
+  const done = typed.length >= source.length;
+
+  return (
+    <pre
+      ref={ref}
+      className="overflow-x-auto p-5 font-mono text-xs leading-6 text-zinc-400 min-h-[180px]"
+    >
+      <code>
+        {typed}
+        <span
+          className={cn(
+            "inline-block w-[7px] h-[14px] -mb-[2px] ml-0.5 bg-violet-400/80",
+            !done && "animate-pulse",
+            done && "opacity-0"
+          )}
+        />
+      </code>
+    </pre>
+  );
+}
 
 export function HowItWorks() {
   const t = useTranslations("marketing.howItWorks");
@@ -111,9 +149,7 @@ export function HowItWorks() {
                       </div>
                       <div className="ml-2 h-4 flex-1 rounded-sm bg-zinc-800/50" />
                     </div>
-                    <pre className="overflow-x-auto p-5 font-mono text-xs leading-6 text-zinc-400">
-                      <code>{CODE[key]}</code>
-                    </pre>
+                    <TypewriterCode source={CODE[key] ?? ""} />
                   </div>
                 </div>
               </motion.div>
