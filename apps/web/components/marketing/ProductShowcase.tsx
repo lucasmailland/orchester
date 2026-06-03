@@ -9,6 +9,11 @@ import {
   MessagesSquare,
   DollarSign,
   BookOpen,
+  Users,
+  Bot,
+  MessageCircle,
+  Send,
+  Hash,
   type LucideIcon,
 } from "lucide-react";
 
@@ -219,56 +224,115 @@ function FlowMockup() {
 
 // ─── 3. Org Chart ────────────────────────────────────────────────────────────
 
-const ORG_NODES = {
-  root: { label: "Orchestrator", color: "border-blue-500/50 text-blue-300 bg-blue-500/10" },
-  leads: [
-    { label: "Sales Team", color: "border-violet-500/40 text-violet-300 bg-violet-500/10" },
-    { label: "Support Team", color: "border-emerald-500/40 text-emerald-300 bg-emerald-500/10" },
-  ],
-  agents: [
-    { label: "Prospector", parent: 0, color: "text-zinc-400 border-zinc-700 bg-zinc-800/60" },
-    { label: "Closer", parent: 0, color: "text-zinc-400 border-zinc-700 bg-zinc-800/60" },
-    { label: "Triager", parent: 1, color: "text-zinc-400 border-zinc-700 bg-zinc-800/60" },
-    { label: "Escalator", parent: 1, color: "text-zinc-400 border-zinc-700 bg-zinc-800/60" },
-  ],
-} as const;
+const AGENT_COLOR_MAP = {
+  cyan: { bg: "bg-cyan-500/20", text: "text-cyan-300" },
+  emerald: { bg: "bg-emerald-500/20", text: "text-emerald-300" },
+} as const satisfies Record<string, { bg: string; text: string }>;
 
-function AgentChip({ label, color }: { label: string; color: string }) {
-  return (
-    <div className={`rounded-lg border px-2.5 py-1 text-center text-[10px] font-medium ${color}`}>
-      {label}
-    </div>
-  );
+function agentColors(c: keyof typeof AGENT_COLOR_MAP) {
+  return AGENT_COLOR_MAP[c];
 }
+
+const ORG_AGENTS = [
+  { letter: "P", label: "Prospect", c: "cyan", left: "5%" },
+  { letter: "C", label: "Closer", c: "cyan", left: "30%" },
+  { letter: "T", label: "Triage", c: "emerald", left: "55%" },
+  { letter: "E", label: "Escalate", c: "emerald", left: "80%" },
+] as const;
 
 function OrgMockup() {
   return (
-    <div className="flex flex-col items-center gap-2 pt-1">
-      {/* Root */}
-      <AgentChip label={ORG_NODES.root.label} color={ORG_NODES.root.color} />
+    <div className="space-y-2">
+      <div className="relative">
+        <svg viewBox="0 0 240 110" className="h-[110px] w-full" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="orgEdge" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#a78bfa" stopOpacity="0.7" />
+              <stop offset="100%" stopColor="#71717a" stopOpacity="0.3" />
+            </linearGradient>
+          </defs>
+          {/* Tier 1 → Tier 2 */}
+          <path d="M 120 25 Q 120 35 80 50" stroke="url(#orgEdge)" strokeWidth="1.2" fill="none" />
+          <path d="M 120 25 Q 120 35 160 50" stroke="url(#orgEdge)" strokeWidth="1.2" fill="none" />
+          {/* Tier 2 → Tier 3 (Sales side) */}
+          <path
+            d="M 80 65 Q 80 80 40 95"
+            stroke="url(#orgEdge)"
+            strokeWidth="1"
+            fill="none"
+            opacity="0.7"
+          />
+          <path
+            d="M 80 65 Q 80 80 100 95"
+            stroke="url(#orgEdge)"
+            strokeWidth="1"
+            fill="none"
+            opacity="0.7"
+          />
+          {/* Tier 2 → Tier 3 (Support side) */}
+          <path
+            d="M 160 65 Q 160 80 140 95"
+            stroke="url(#orgEdge)"
+            strokeWidth="1"
+            fill="none"
+            opacity="0.7"
+          />
+          <path
+            d="M 160 65 Q 160 80 200 95"
+            stroke="url(#orgEdge)"
+            strokeWidth="1"
+            fill="none"
+            opacity="0.7"
+          />
+        </svg>
 
-      {/* Connector line */}
-      <div className="h-3 w-px bg-zinc-700" />
+        {/* Orchestrator pill */}
+        <div className="absolute left-1/2 top-0 -translate-x-1/2">
+          <div className="flex items-center gap-1.5 rounded-md border border-violet-500/50 bg-gradient-to-br from-violet-500/25 to-indigo-500/20 px-2 py-1">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            </span>
+            <span className="text-[9px] font-semibold text-violet-100">Orchestrator</span>
+            <span className="rounded bg-zinc-900/40 px-1 font-mono text-[8px] text-violet-200">
+              opus-4
+            </span>
+          </div>
+        </div>
 
-      {/* Lead row */}
-      <div className="flex w-full items-center justify-center gap-3">
-        {ORG_NODES.leads.map((lead) => (
-          <AgentChip key={lead.label} label={lead.label} color={lead.color} />
+        {/* Team pills */}
+        <div className="absolute left-[18%] top-[40%] -translate-y-1/2">
+          <div className="flex items-center gap-1 rounded-md border border-cyan-500/40 bg-cyan-500/10 px-1.5 py-0.5">
+            <Users size={9} className="text-cyan-400" />
+            <span className="text-[8px] font-medium text-cyan-200">Sales Team</span>
+          </div>
+        </div>
+        <div className="absolute right-[18%] top-[40%] -translate-y-1/2">
+          <div className="flex items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5">
+            <Users size={9} className="text-emerald-400" />
+            <span className="text-[8px] font-medium text-emerald-200">Support</span>
+          </div>
+        </div>
+
+        {/* Agent pills */}
+        {ORG_AGENTS.map((a) => (
+          <div key={a.label} className="absolute bottom-0" style={{ left: a.left }}>
+            <div className="flex items-center gap-1 rounded-md border border-zinc-700/60 bg-zinc-900/60 px-1.5 py-0.5">
+              <div
+                className={`flex h-3.5 w-3.5 items-center justify-center rounded-full text-[8px] font-bold ${agentColors(a.c).bg} ${agentColors(a.c).text}`}
+              >
+                {a.letter}
+              </div>
+              <span className="text-[8px] font-medium text-zinc-400">{a.label}</span>
+            </div>
+          </div>
         ))}
       </div>
 
-      {/* Connector lines */}
-      <div className="flex w-full justify-around px-6">
-        {ORG_NODES.leads.map((lead) => (
-          <div key={lead.label} className="h-3 w-px bg-zinc-700" />
-        ))}
-      </div>
-
-      {/* Agents row */}
-      <div className="grid w-full grid-cols-4 gap-1.5 px-1">
-        {ORG_NODES.agents.map((agent) => (
-          <AgentChip key={agent.label} label={agent.label} color={agent.color} />
-        ))}
+      <div className="flex items-center justify-between border-t border-zinc-800/50 pt-1.5 text-[9px] text-zinc-600">
+        <span>12 agents</span>
+        <span>3 tiers</span>
+        <span>247 convs</span>
       </div>
     </div>
   );
@@ -276,52 +340,69 @@ function OrgMockup() {
 
 // ─── 4. Conversations ────────────────────────────────────────────────────────
 
-const CONVS = [
+const CONVS_DATA = [
   {
-    channel: "WhatsApp",
-    dot: "bg-green-500",
-    pill: "bg-green-500/15 text-green-400 border-green-500/30",
-    user: "Hi, I'd like a quote for the Pro plan…",
-    agent: "Sure! Pro is $49/mo per seat. Want a demo?",
+    name: "WhatsApp",
+    Icon: MessageCircle,
+    bg: "bg-emerald-500",
+    time: "2m",
+    user: { letter: "M", msg: "Hola, busco info del plan Pro" },
+    agent: { msg: "Pro: $49/mes/seat. ¿Demo?" },
   },
   {
-    channel: "Telegram",
-    dot: "bg-sky-500",
-    pill: "bg-sky-500/15 text-sky-400 border-sky-500/30",
-    user: "Hola, busco integrar con mi CRM…",
-    agent: "¡Claro! Tenemos conectores nativos para HubSpot y Salesforce.",
+    name: "Telegram",
+    Icon: Send,
+    bg: "bg-sky-500",
+    time: "5m",
+    user: { letter: "L", msg: "¿Conecta con HubSpot?" },
+    agent: { msg: "Sí — conector nativo." },
   },
   {
-    channel: "Slack",
-    dot: "bg-purple-500",
-    pill: "bg-purple-500/15 text-purple-400 border-purple-500/30",
-    user: "@orchester help with onboarding flow",
-    agent: "I've found 3 resources for onboarding. Here's the top one…",
+    name: "Slack",
+    Icon: Hash,
+    bg: "bg-fuchsia-500",
+    time: "now",
+    user: { letter: "@", msg: "Resumir ticket #4521" },
+    agent: { msg: "Latency en SSE. Asigné a infra." },
   },
 ] as const;
 
 function ConvsMockup() {
   return (
-    <div className="space-y-2">
-      {CONVS.map((c, i) => (
-        <div key={i} className="rounded-lg bg-zinc-800/50 px-2.5 py-2">
-          {/* Channel pill */}
-          <div className="mb-1.5 flex items-center gap-1.5">
-            <span className={`inline-block h-1.5 w-1.5 rounded-full ${c.dot}`} />
-            <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-medium ${c.pill}`}>
-              {c.channel}
-            </span>
+    <div className="space-y-1.5">
+      {CONVS_DATA.map(({ name, Icon, bg, time, user, agent }) => (
+        <div key={name} className="rounded-lg border border-zinc-800/50 bg-zinc-900/40 p-2">
+          {/* Channel header */}
+          <div className="mb-1.5 flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <div className={`flex h-4 w-4 items-center justify-center rounded-full ${bg}`}>
+                <Icon size={9} className="text-white" />
+              </div>
+              <span className="text-[10px] font-medium text-zinc-300">{name}</span>
+            </div>
+            <span className="font-mono text-[8px] text-zinc-600">{time}</span>
           </div>
-          {/* User bubble */}
-          <p className="truncate text-[10px] text-zinc-400">
-            <span className="text-zinc-500">User: </span>
-            {c.user}
-          </p>
-          {/* Agent bubble */}
-          <p className="mt-0.5 truncate text-[10px] text-violet-300">
-            <span className="text-zinc-500">Agent: </span>
-            {c.agent}
-          </p>
+          {/* Messages */}
+          <div className="space-y-1">
+            {/* User bubble */}
+            <div className="flex items-start gap-1.5">
+              <div className="mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-[7px] font-bold text-zinc-300">
+                {user.letter}
+              </div>
+              <p className="truncate rounded-md bg-zinc-800/60 px-1.5 py-0.5 text-[9px] text-zinc-300">
+                {user.msg}
+              </p>
+            </div>
+            {/* Agent bubble */}
+            <div className="flex items-start justify-end gap-1.5">
+              <p className="truncate rounded-md border border-violet-500/30 bg-gradient-to-br from-violet-500/20 to-indigo-500/15 px-1.5 py-0.5 text-[9px] text-zinc-200">
+                {agent.msg}
+              </p>
+              <div className="mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-violet-500">
+                <Bot size={8} className="text-white" />
+              </div>
+            </div>
+          </div>
         </div>
       ))}
     </div>
