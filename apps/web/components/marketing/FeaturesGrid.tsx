@@ -2,10 +2,10 @@
 
 import { useTranslations } from "next-intl";
 import { motion } from "framer-motion";
-import { Building2, Cpu, GitBranch, Brain, Server, Shield } from "lucide-react";
+import { MessagesSquare, Zap, Workflow, Wallet, KeyRound, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type FeatureKey = "multiTenant" | "providers" | "flows" | "brain" | "selfHost" | "enterprise";
+type FeatureKey = "multiChannel" | "streaming" | "flows" | "costControl" | "byok" | "enterprise";
 
 const FEATURES: {
   key: FeatureKey;
@@ -16,43 +16,43 @@ const FEATURES: {
   colSpan: "md:col-span-2" | "md:col-span-1";
 }[] = [
   {
-    key: "multiTenant",
-    icon: Building2,
+    key: "multiChannel",
+    icon: MessagesSquare,
     accent: "text-violet-400",
     hoverBg: "from-violet-500/8",
-    iconBg: "border-violet-500/20 bg-violet-500/10",
+    iconBg: "bg-violet-500/10 border-violet-500/20",
     colSpan: "md:col-span-2",
   },
   {
-    key: "providers",
-    icon: Cpu,
-    accent: "text-indigo-400",
-    hoverBg: "from-indigo-500/8",
-    iconBg: "border-indigo-500/20 bg-indigo-500/10",
+    key: "streaming",
+    icon: Zap,
+    accent: "text-cyan-400",
+    hoverBg: "from-cyan-500/8",
+    iconBg: "bg-cyan-500/10 border-cyan-500/20",
     colSpan: "md:col-span-1",
   },
   {
     key: "flows",
-    icon: GitBranch,
-    accent: "text-cyan-400",
-    hoverBg: "from-cyan-500/8",
-    iconBg: "border-cyan-500/20 bg-cyan-500/10",
+    icon: Workflow,
+    accent: "text-indigo-400",
+    hoverBg: "from-indigo-500/8",
+    iconBg: "bg-indigo-500/10 border-indigo-500/20",
     colSpan: "md:col-span-1",
   },
   {
-    key: "brain",
-    icon: Brain,
+    key: "costControl",
+    icon: Wallet,
     accent: "text-emerald-400",
     hoverBg: "from-emerald-500/8",
-    iconBg: "border-emerald-500/20 bg-emerald-500/10",
+    iconBg: "bg-emerald-500/10 border-emerald-500/20",
     colSpan: "md:col-span-2",
   },
   {
-    key: "selfHost",
-    icon: Server,
+    key: "byok",
+    icon: KeyRound,
     accent: "text-amber-400",
     hoverBg: "from-amber-500/8",
-    iconBg: "border-amber-500/20 bg-amber-500/10",
+    iconBg: "bg-amber-500/10 border-amber-500/20",
     colSpan: "md:col-span-1",
   },
   {
@@ -60,7 +60,7 @@ const FEATURES: {
     icon: Shield,
     accent: "text-rose-400",
     hoverBg: "from-rose-500/8",
-    iconBg: "border-rose-500/20 bg-rose-500/10",
+    iconBg: "bg-rose-500/10 border-rose-500/20",
     colSpan: "md:col-span-1",
   },
 ];

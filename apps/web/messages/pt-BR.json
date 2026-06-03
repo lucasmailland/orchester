@@ -1656,29 +1656,29 @@
     "features": {
       "title": "Tudo que você precisa.",
       "subtitle": "Nada que não.",
-      "multiTenant": {
-        "title": "Multi-tenant por padrão",
-        "desc": "Isolamento de workspace desde o primeiro dia. Cada time tem seus dados, agentes e permissões — sem configuração extra."
+      "multiChannel": {
+        "title": "Multi-canal de verdade",
+        "desc": "Web widget, WhatsApp, Telegram, Slack, email e API. Uma conversa, todos os canais — com o estado compartilhado automaticamente."
       },
-      "providers": {
-        "title": "80+ provedores de IA",
-        "desc": "Anthropic, OpenAI, Gemini, Mistral, Llama e mais. Troque modelos sem reescrever uma linha do código dos seus agentes."
+      "streaming": {
+        "title": "Streaming token a token",
+        "desc": "As respostas aparecem enquanto o modelo pensa. UX de primeira com SSE nativo em cada canal."
       },
       "flows": {
-        "title": "Construtor visual de fluxos",
-        "desc": "Orquestração drag-and-drop com ramificações, loops e rastreamento de execução em tempo real no canvas."
+        "title": "Fluxos visuais, sem código",
+        "desc": "Conecte triggers, condições e ações em um canvas. Ramificações, retries e estado tipado de fábrica."
       },
-      "brain": {
-        "title": "Memória persistente (Brain)",
-        "desc": "Agentes lembram entre conversas com busca semântica vetorial, decay scoring, versionamento de fatos e exportação GDPR."
+      "costControl": {
+        "title": "Custos sob controle",
+        "desc": "Orçamento mensal por funcionário com alertas em 70/90/100%. Detalhamento por conversa e por mensagem — sem surpresas."
       },
-      "selfHost": {
-        "title": "Auto-hospedável",
-        "desc": "Um docker compose up. Roda no seu próprio Postgres e Redis. Controle total, sem vendor lock-in."
+      "byok": {
+        "title": "Seu modelo, suas chaves",
+        "desc": "Bring-your-own-key para Anthropic, OpenAI, Google, Azure, Mistral e 80+ provedores. Troque sem reescrever código."
       },
       "enterprise": {
-        "title": "Pronto para enterprise",
-        "desc": "RBAC, log de auditoria completo, exportação GDPR, CSP nonces, rate limiting por workspace e SSO — incluídos de fábrica."
+        "title": "Segurança enterprise",
+        "desc": "SSO/SAML, 2FA, RBAC, log de auditoria completo, exportação GDPR, CSP nonces, criptografia at-rest, webhooks assinados (HMAC)."
       }
     },
     "howItWorks": {
