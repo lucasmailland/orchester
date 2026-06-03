@@ -111,11 +111,46 @@ export function ChannelsSection() {
                 />
               );
             })}
+            {/* Animated message beams — dots traveling from agent center to each channel */}
+            {CHANNELS.map((_, i) => {
+              const angle = i * angleStep - Math.PI / 2;
+              const endX = 320 + RADIUS * Math.cos(angle);
+              const endY = 320 + RADIUS * Math.sin(angle);
+              return (
+                <motion.circle
+                  key={`beam-${i}`}
+                  r={3.5}
+                  fill="#c4b5fd"
+                  filter="url(#orbitGlow)"
+                  initial={{ cx: 320, cy: 320, opacity: 0 }}
+                  animate={{
+                    cx: [320, endX],
+                    cy: [320, endY],
+                    opacity: [0, 1, 1, 0],
+                  }}
+                  transition={{
+                    duration: 1.6,
+                    repeat: Infinity,
+                    repeatDelay: 1.8,
+                    delay: 1 + i * 0.3,
+                    ease: "easeOut",
+                    times: [0, 0.15, 0.85, 1],
+                  }}
+                />
+              );
+            })}
             <defs>
               <linearGradient id="orbitGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" stopColor="#a78bfa" />
                 <stop offset="100%" stopColor="#22d3ee" />
               </linearGradient>
+              <filter id="orbitGlow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
             </defs>
           </svg>
 
