@@ -144,7 +144,7 @@ function AnimatedWords({
           }}
         >
           {word}
-          {i < words.length - 1 ? " " : ""}
+          {i < words.length - 1 ? " " : ""}
         </motion.span>
       ))}
     </>
@@ -214,91 +214,96 @@ export function HeroSection() {
       <FloatingOrb1 />
       <FloatingOrb2 />
 
-      <div className="relative z-10 mx-auto max-w-6xl text-center">
-        {/* Badge */}
-        <motion.div
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
-          className="mb-8 inline-flex items-center gap-2.5 rounded-full border border-violet-500/20 bg-violet-500/5 px-4 py-1.5"
-        >
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-          </span>
-          <span className="text-xs font-medium tracking-wide text-violet-300">{t("badge")}</span>
-        </motion.div>
-
-        {/* Headline — word-stagger reveal */}
-        <h1 className="mb-6 font-display text-5xl font-bold leading-[1.08] tracking-tight text-white sm:text-6xl md:text-7xl">
-          <span className="block">
-            <AnimatedWords text={t("headline1")} delayStart={0.12} />
-          </span>
-          <span className="block bg-gradient-to-r from-violet-400 via-indigo-400 to-cyan-400 bg-clip-text text-transparent">
-            <AnimatedWords text={t("headline2")} delayStart={0.3} />
-          </span>
-        </h1>
-
-        {/* Subheadline */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.55, duration: 0.5 }}
-          className="mx-auto mb-10 max-w-2xl text-lg leading-relaxed text-zinc-400 sm:text-xl"
-        >
-          {t("subheadline")}
-        </motion.p>
-
-        {/* CTAs */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.65, duration: 0.5 }}
-          className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center"
-        >
-          {/* Primary CTA with shimmer */}
-          <ShimmerButton
-            href={`/${locale}/signup`}
-            className={cn(
-              "flex items-center gap-2 rounded-xl px-7 py-3.5 text-sm font-semibold text-white",
-              "bg-gradient-to-r from-violet-600 to-indigo-600",
-              "shadow-xl shadow-violet-500/25 transition-all duration-200",
-              "hover:scale-[1.02] hover:from-violet-500 hover:to-indigo-500 hover:shadow-violet-500/40"
-            )}
+      {/* 2-column grid: text left, chart right */}
+      <div className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-12 lg:grid-cols-[1.05fr_1fr] lg:gap-14">
+        {/* LEFT COLUMN — badge, headline, subheadline, CTAs */}
+        <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
+          {/* Badge */}
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
+            className="mb-7 inline-flex items-center gap-2.5 rounded-full border border-violet-500/20 bg-violet-500/5 px-4 py-1.5"
           >
-            <Zap size={14} />
-            {t("ctaPrimary")}
-            <ArrowRight
-              size={14}
-              className="transition-transform duration-150 group-hover:translate-x-0.5"
-            />
-          </ShimmerButton>
-
-          <a
-            href="https://github.com/lucasmailland/orchester"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={cn(
-              "group flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 px-7 py-3.5 text-sm font-medium text-zinc-300",
-              "transition-all duration-200 hover:border-zinc-700 hover:bg-zinc-900 hover:text-white"
-            )}
-          >
-            <GithubSVG />
-            {t("ctaGithub")}
-            <span className="flex items-center gap-1 rounded-md bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-500 transition-colors group-hover:text-zinc-300">
-              <Star size={10} className="text-amber-400" />
-              <span className="hidden sm:inline">GitHub</span>
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
             </span>
-          </a>
-        </motion.div>
+            <span className="text-xs font-medium tracking-wide text-violet-300">{t("badge")}</span>
+          </motion.div>
 
-        {/* Live Agent Network — reuses the org-chart from the login screen */}
+          {/* Headline — word-stagger reveal */}
+          <h1 className="mb-6 font-display text-5xl font-bold leading-[1.05] tracking-tight text-white sm:text-6xl lg:text-7xl xl:text-[80px]">
+            <span className="block">
+              <AnimatedWords text={t("headline1")} delayStart={0.12} />
+            </span>
+            <span className="block bg-gradient-to-r from-violet-400 via-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+              <AnimatedWords text={t("headline2")} delayStart={0.3} />
+            </span>
+          </h1>
+
+          {/* Subheadline */}
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.55, duration: 0.5 }}
+            className="mt-6 mb-10 max-w-xl text-base leading-relaxed text-zinc-400 sm:text-lg lg:text-xl"
+          >
+            {t("subheadline")}
+          </motion.p>
+
+          {/* CTAs */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.65, duration: 0.5 }}
+            className="flex flex-row items-center gap-3 justify-center lg:justify-start"
+          >
+            {/* Primary CTA with shimmer */}
+            <ShimmerButton
+              href={`/${locale}/signup`}
+              className={cn(
+                "flex items-center gap-2 rounded-xl px-7 py-3.5 text-sm font-semibold text-white",
+                "bg-gradient-to-r from-violet-600 to-indigo-600",
+                "shadow-xl shadow-violet-500/25 transition-all duration-200",
+                "hover:scale-[1.02] hover:from-violet-500 hover:to-indigo-500 hover:shadow-violet-500/40"
+              )}
+            >
+              <Zap size={14} />
+              {t("ctaPrimary")}
+              <ArrowRight
+                size={14}
+                className="transition-transform duration-150 group-hover:translate-x-0.5"
+              />
+            </ShimmerButton>
+
+            <a
+              href="https://github.com/lucasmailland/orchester"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                "group flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 px-7 py-3.5 text-sm font-medium text-zinc-300",
+                "transition-all duration-200 hover:border-zinc-700 hover:bg-zinc-900 hover:text-white"
+              )}
+            >
+              <GithubSVG />
+              {t("ctaGithub")}
+              <span className="flex items-center gap-1 rounded-md bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-500 transition-colors group-hover:text-zinc-300">
+                <Star size={10} className="text-amber-400" />
+                <span className="hidden sm:inline">GitHub</span>
+              </span>
+            </a>
+          </motion.div>
+        </div>
+
+        {/* RIGHT COLUMN — Live Network pill + AgentOrgChart */}
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.85, duration: 0.7, ease: [0.22, 0.61, 0.36, 1] }}
-          className="mt-16 flex flex-col items-center"
+          initial={{ opacity: 0, x: 40 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.5, duration: 0.8, ease: [0.22, 0.61, 0.36, 1] }}
+          className="flex flex-col items-center lg:items-end"
         >
+          {/* Live Network pill */}
           <div
             className="mb-6 flex items-center gap-2"
             style={{ fontFamily: "var(--font-auth-mono), monospace" }}
@@ -308,7 +313,11 @@ export function HeroSection() {
               {t("liveNetwork")}
             </span>
           </div>
-          <AgentOrgChart />
+
+          {/* AgentOrgChart */}
+          <div className="mx-auto scale-95 lg:scale-100">
+            <AgentOrgChart />
+          </div>
         </motion.div>
       </div>
     </section>
