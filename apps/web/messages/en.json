@@ -1641,10 +1641,10 @@
     },
     "hero": {
       "badge": "Open-source · Self-hostable · Multi-tenant",
-      "headline1": "Build AI agent teams",
-      "headline2": "that actually work.",
-      "subheadline": "The open-source platform for orchestrating AI agents into powerful workflows. Multi-tenant from day one, 80+ AI providers, self-hostable on Postgres.",
-      "ctaPrimary": "Start building free",
+      "headline1": "Stop building agents.",
+      "headline2": "Build teams.",
+      "subheadline": "Orchester organizes your AI agents into teams — with an orchestrator that delegates, specialists that focus, and shared memory that learns. Open-source, self-hostable, multi-tenant.",
+      "ctaPrimary": "Self-host in 30s",
       "ctaGithub": "Star on GitHub",
       "liveNetwork": "Live Agent Network"
     },
@@ -1858,6 +1858,117 @@
           "answer": "Same codebase, hosted by us. Useful if you don't want to operate Postgres/Redis. Pricing is at /pricing — completely optional, self-host stays 100% free forever."
         }
       }
+    },
+    "problem": {
+      "eyebrow": "WHY TEAMS",
+      "title1": "A single agent isn't an AI system.",
+      "title2": "It's a chatbot.",
+      "subtitle": "Real workflows have specialists. Real systems have boundaries. Real teams compound their context.",
+      "points": {
+        "confused": {
+          "title": "Confused",
+          "desc": "An agent doing 12 jobs loses context. Hallucinations and drift compound."
+        },
+        "slow": {
+          "title": "Slow",
+          "desc": "No parallelism. One LLM loop blocks every downstream step."
+        },
+        "blind": {
+          "title": "Untraceable",
+          "desc": "No audit trail. When something goes wrong, you can't tell which step or why."
+        }
+      }
+    },
+    "patterns": {
+      "eyebrow": "TWO PATTERNS, ONE PLATFORM",
+      "title1": "Pick the right tool for the job.",
+      "title2": "Use both.",
+      "subtitle": "Most platforms force you to choose. Orchester runs prompt-driven agents and visual flows side by side, in the same team.",
+      "prompt": {
+        "eyebrow": "FOR DIALOGUE",
+        "title": "Prompt + Tools",
+        "subtitle": "Conversational, ad-hoc, LLM-decided.",
+        "desc": "Define a persona, hand the LLM a toolbelt, let it decide what to call. Best for open-ended conversations and reasoning tasks."
+      },
+      "flow": {
+        "eyebrow": "FOR PROCESS",
+        "title": "Visual Flow",
+        "subtitle": "Deterministic, drag-and-drop, typed state.",
+        "desc": "Wire triggers, branches, loops and retries on a canvas. Best for structured processes — the kind QA can sign off on."
+      },
+      "mixBoth": "Mix both in the same team —",
+      "mixBothBold": "the orchestrator decides who handles what."
+    },
+    "brain": {
+      "eyebrow": "PERSISTENT MEMORY",
+      "title1": "Your agents remember.",
+      "title2": "For real.",
+      "subtitle": "Not chat history. A real knowledge graph that decays, gets recalled by similarity, and is auditable.",
+      "feats": {
+        "semantic": {
+          "title": "Semantic recall",
+          "desc": "pgvector embeddings return the right context — not the last 10 messages."
+        },
+        "decay": {
+          "title": "Trust decay",
+          "desc": "Old facts fade unless re-confirmed. No more agents holding 2022 prices as truth."
+        },
+        "inspect": {
+          "title": "Inspectable",
+          "desc": "Every fact has a source, a confidence score, and a last-recalled timestamp."
+        },
+        "gdpr": {
+          "title": "GDPR-safe",
+          "desc": "Per-fact export and delete. Compliance reviews go from weeks to hours."
+        }
+      }
+    },
+    "flowBuilder": {
+      "eyebrow": "VISUAL ORCHESTRATION",
+      "title": "Build flows that survive in production.",
+      "subtitle": "Drag, drop, branch, retry. Production-grade workflows your QA team can sign off on.",
+      "feats": {
+        "branches": {
+          "title": "Typed branches",
+          "desc": "Conditions on the state, not on the prompt. Refactor without surprise."
+        },
+        "loops": {
+          "title": "Bounded loops",
+          "desc": "Iterate over collections or until a stop condition — with a hard ceiling."
+        },
+        "retry": {
+          "title": "Retry policies",
+          "desc": "Per-node exponential backoff. Failures don't take the whole flow down."
+        },
+        "connect": {
+          "title": "Connect anything",
+          "desc": "Any HTTP, any LLM, any agent — and other flows. Composition all the way down."
+        }
+      }
+    },
+    "comparison": {
+      "eyebrow": "VS THE REST",
+      "title": "Comparing apples to oranges? Not anymore.",
+      "subtitle": "Most agent frameworks pick one trade-off. Orchester picks all of them.",
+      "featureCol": "FEATURE",
+      "recommended": "Recommended",
+      "vendors": {
+        "orchester": "Orchester",
+        "crewai": "CrewAI",
+        "autogen": "AutoGen",
+        "langgraph": "LangGraph"
+      },
+      "rows": {
+        "multitenant": "Multi-tenant by design",
+        "visualFlow": "Visual flow builder",
+        "memory": "Persistent memory (graph + decay)",
+        "channels": "Multi-channel (WhatsApp/Slack/Email)",
+        "budgets": "Cost budgets per workspace",
+        "audit": "Production audit log + RLS",
+        "selfhost": "Self-hostable on Postgres",
+        "license": "Apache-2.0 license"
+      },
+      "footnote": "Information based on each project's public documentation as of 2026. Got something wrong? Open an issue on GitHub."
     }
   }
 }

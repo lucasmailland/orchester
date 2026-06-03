@@ -1641,10 +1641,10 @@
     },
     "hero": {
       "badge": "Open-source · Auto-hospedável · Multi-tenant",
-      "headline1": "Construa times de agentes IA",
-      "headline2": "que realmente funcionam.",
-      "subheadline": "A plataforma open-source para orquestrar agentes IA em fluxos poderosos. Multi-tenant desde o primeiro dia, 80+ provedores de IA, auto-hospedável no Postgres.",
-      "ctaPrimary": "Começar grátis",
+      "headline1": "Pare de construir agentes.",
+      "headline2": "Construa times.",
+      "subheadline": "O Orchester organiza seus agentes de IA em times — um orquestrador que delega, especialistas focados, memória compartilhada que aprende. Open-source, auto-hospedável, multi-tenant.",
+      "ctaPrimary": "Auto-hospedar em 30s",
       "ctaGithub": "Star no GitHub",
       "liveNetwork": "Rede de Agentes ao Vivo"
     },
@@ -1858,6 +1858,117 @@
           "answer": "Mesmo código, hospedado por nós. Útil se você não quiser operar Postgres/Redis. Preço em /pricing — totalmente opcional, o self-host fica grátis para sempre."
         }
       }
+    },
+    "problem": {
+      "eyebrow": "POR QUE TIMES",
+      "title1": "Um único agente não é um sistema de IA.",
+      "title2": "É um chatbot.",
+      "subtitle": "Workflows reais têm especialistas. Sistemas reais têm fronteiras. Times reais acumulam contexto.",
+      "points": {
+        "confused": {
+          "title": "Confuso",
+          "desc": "Um agente fazendo 12 trabalhos perde o contexto. Alucinações e drift se acumulam."
+        },
+        "slow": {
+          "title": "Lento",
+          "desc": "Sem paralelismo. Um loop de LLM bloqueia tudo que vem depois."
+        },
+        "blind": {
+          "title": "Sem rastro",
+          "desc": "Sem audit trail. Quando algo dá errado, você não sabe qual passo nem por quê."
+        }
+      }
+    },
+    "patterns": {
+      "eyebrow": "DOIS PADRÕES, UMA PLATAFORMA",
+      "title1": "Escolha a ferramenta certa pra cada tarefa.",
+      "title2": "Use os dois.",
+      "subtitle": "A maioria das plataformas te obriga a escolher. O Orchester roda agentes por prompt e flows visuais lado a lado, no mesmo time.",
+      "prompt": {
+        "eyebrow": "PARA DIÁLOGO",
+        "title": "Prompt + Tools",
+        "subtitle": "Conversacional, ad-hoc, decidido pelo LLM.",
+        "desc": "Defina uma persona, dê ferramentas pro LLM, deixe ele decidir qual chamar. Ideal para conversas abertas e tarefas de raciocínio."
+      },
+      "flow": {
+        "eyebrow": "PARA PROCESSO",
+        "title": "Flow Visual",
+        "subtitle": "Determinístico, drag-and-drop, estado tipado.",
+        "desc": "Conecte triggers, branches, loops e retries num canvas. Ideal para processos estruturados — os que QA pode assinar embaixo."
+      },
+      "mixBoth": "Misture os dois no mesmo time —",
+      "mixBothBold": "o orquestrador decide quem cuida do quê."
+    },
+    "brain": {
+      "eyebrow": "MEMÓRIA PERSISTENTE",
+      "title1": "Seus agentes lembram.",
+      "title2": "De verdade.",
+      "subtitle": "Não o histórico do chat. Um grafo de conhecimento real que decai, é recuperado por similaridade e é auditável.",
+      "feats": {
+        "semantic": {
+          "title": "Recall semântico",
+          "desc": "Embeddings do pgvector devolvem o contexto certo — não as últimas 10 mensagens."
+        },
+        "decay": {
+          "title": "Decay de confiança",
+          "desc": "Fatos antigos somem se não forem reconfirmados. Chega de agentes presos em preços de 2022."
+        },
+        "inspect": {
+          "title": "Inspecionável",
+          "desc": "Cada fato tem fonte, score de confiança e timestamp do último recall."
+        },
+        "gdpr": {
+          "title": "GDPR-friendly",
+          "desc": "Exportar e deletar por fato. Reviews de compliance saem de semanas para horas."
+        }
+      }
+    },
+    "flowBuilder": {
+      "eyebrow": "ORQUESTRAÇÃO VISUAL",
+      "title": "Construa flows que sobrevivem em produção.",
+      "subtitle": "Arraste, solte, ramifique, refaça. Workflows production-grade que seu time de QA pode assinar embaixo.",
+      "feats": {
+        "branches": {
+          "title": "Branches tipados",
+          "desc": "Condições no estado, não no prompt. Refatore sem surpresas."
+        },
+        "loops": {
+          "title": "Loops limitados",
+          "desc": "Itere sobre coleções ou até uma condição de parada — com teto duro."
+        },
+        "retry": {
+          "title": "Retry policies",
+          "desc": "Backoff exponencial por nó. Falhas não derrubam o flow inteiro."
+        },
+        "connect": {
+          "title": "Conecte qualquer coisa",
+          "desc": "Qualquer HTTP, qualquer LLM, qualquer agente — e outros flows. Composição até o fim."
+        }
+      }
+    },
+    "comparison": {
+      "eyebrow": "VS O RESTO",
+      "title": "Comparando maçãs com laranjas? Não mais.",
+      "subtitle": "A maioria dos frameworks de agentes escolhe um trade-off. O Orchester escolhe todos.",
+      "featureCol": "FEATURE",
+      "recommended": "Recomendado",
+      "vendors": {
+        "orchester": "Orchester",
+        "crewai": "CrewAI",
+        "autogen": "AutoGen",
+        "langgraph": "LangGraph"
+      },
+      "rows": {
+        "multitenant": "Multi-tenant por design",
+        "visualFlow": "Flow builder visual",
+        "memory": "Memória persistente (grafo + decay)",
+        "channels": "Multi-canal (WhatsApp/Slack/Email)",
+        "budgets": "Orçamentos por workspace",
+        "audit": "Audit log de produção + RLS",
+        "selfhost": "Auto-hospedável em Postgres",
+        "license": "Licença Apache-2.0"
+      },
+      "footnote": "Informações baseadas na documentação pública de cada projeto em 2026. Achou algo errado? Abra uma issue no GitHub."
     }
   }
 }

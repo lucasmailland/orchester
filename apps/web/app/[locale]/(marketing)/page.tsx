@@ -3,14 +3,14 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { HeroSection } from "@/components/marketing/HeroSection";
 import { ModelMarquee } from "@/components/marketing/ModelMarquee";
-import { StatsBar } from "@/components/marketing/StatsBar";
-import { FeaturesGrid } from "@/components/marketing/FeaturesGrid";
-import { ProductShowcase } from "@/components/marketing/ProductShowcase";
-import { ChannelsSection } from "@/components/marketing/ChannelsSection";
+import { ProblemSection } from "@/components/marketing/ProblemSection";
+import { TwoPatternsSection } from "@/components/marketing/TwoPatternsSection";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
+import { BrainSection } from "@/components/marketing/BrainSection";
+import { FlowBuilderSection } from "@/components/marketing/FlowBuilderSection";
+import { ComparisonSection } from "@/components/marketing/ComparisonSection";
 import { TechStackSection } from "@/components/marketing/TechStackSection";
 import { TestimonialsSection } from "@/components/marketing/TestimonialsSection";
-import { IntegrationsGrid } from "@/components/marketing/IntegrationsGrid";
 import { FaqSection } from "@/components/marketing/FaqSection";
 import { OpenSourceCTA } from "@/components/marketing/OpenSourceCTA";
 
@@ -30,14 +30,14 @@ export default async function LandingPage({ params }: Props) {
     <>
       <HeroSection />
       <ModelMarquee />
-      <StatsBar />
-      <FeaturesGrid />
-      <ProductShowcase />
-      <ChannelsSection />
+      <ProblemSection />
+      <TwoPatternsSection />
       <HowItWorks />
+      <BrainSection />
+      <FlowBuilderSection />
+      <ComparisonSection />
       <TechStackSection />
       <TestimonialsSection />
-      <IntegrationsGrid />
       <FaqSection />
       <OpenSourceCTA />
     </>
