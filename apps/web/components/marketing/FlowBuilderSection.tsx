@@ -11,10 +11,10 @@ const NODES: {
   w: number;
   h: number;
   label: string;
-  color: string;
+  color: "violet" | "neutral";
   status?: "ok" | "pending";
 }[] = [
-  { id: "trigger", x: 350, y: 20, w: 100, h: 32, label: "Trigger", color: "amber", status: "ok" },
+  { id: "trigger", x: 350, y: 20, w: 100, h: 32, label: "Trigger", color: "violet", status: "ok" },
   {
     id: "classify",
     x: 340,
@@ -32,7 +32,7 @@ const NODES: {
     w: 110,
     h: 36,
     label: "Brain · recall",
-    color: "cyan",
+    color: "violet",
     status: "ok",
   },
   {
@@ -42,7 +42,7 @@ const NODES: {
     w: 110,
     h: 36,
     label: "Tool · search",
-    color: "indigo",
+    color: "neutral",
     status: "ok",
   },
   {
@@ -52,13 +52,13 @@ const NODES: {
     w: 110,
     h: 36,
     label: "Branch · if X",
-    color: "fuchsia",
+    color: "neutral",
     status: "pending",
   },
-  { id: "retry", x: 520, y: 250, w: 110, h: 36, label: "Retry × 3", color: "amber" },
-  { id: "refund", x: 100, y: 330, w: 110, h: 36, label: "Action · refund", color: "indigo" },
-  { id: "escalate", x: 270, y: 330, w: 130, h: 36, label: "Escalate · human", color: "rose" },
-  { id: "reply", x: 130, y: 410, w: 100, h: 32, label: "Reply", color: "emerald", status: "ok" },
+  { id: "retry", x: 520, y: 250, w: 110, h: 36, label: "Retry × 3", color: "neutral" },
+  { id: "refund", x: 100, y: 330, w: 110, h: 36, label: "Action · refund", color: "neutral" },
+  { id: "escalate", x: 270, y: 330, w: 130, h: 36, label: "Escalate · human", color: "neutral" },
+  { id: "reply", x: 130, y: 410, w: 100, h: 32, label: "Reply", color: "violet", status: "ok" },
 ];
 
 const EDGES: [string, string][] = [
@@ -72,14 +72,9 @@ const EDGES: [string, string][] = [
   ["refund", "reply"],
 ];
 
-const COLOR_MAP: Record<string, { fill: string; stroke: string; text: string }> = {
-  amber: { fill: "#f59e0b22", stroke: "#f59e0b", text: "#fef3c7" },
-  violet: { fill: "#8b5cf622", stroke: "#8b5cf6", text: "#ede9fe" },
-  cyan: { fill: "#06b6d422", stroke: "#06b6d4", text: "#cffafe" },
-  indigo: { fill: "#6366f122", stroke: "#6366f1", text: "#e0e7ff" },
-  fuchsia: { fill: "#d946ef22", stroke: "#d946ef", text: "#fae8ff" },
-  emerald: { fill: "#10b98122", stroke: "#10b981", text: "#d1fae5" },
-  rose: { fill: "#f43f5e22", stroke: "#f43f5e", text: "#ffe4e6" },
+const COLOR_MAP: Record<"violet" | "neutral", { fill: string; stroke: string; text: string }> = {
+  violet: { fill: "#a78bfa20", stroke: "#a78bfa", text: "#ede9fe" },
+  neutral: { fill: "#3f3f4640", stroke: "#71717a", text: "#d4d4d8" },
 };
 
 const FEATURES: { Icon: LucideIcon; key: string }[] = [
@@ -91,13 +86,13 @@ const FEATURES: { Icon: LucideIcon; key: string }[] = [
 
 function FlowCanvasMockup() {
   return (
-    <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/40 shadow-2xl shadow-black/40 backdrop-blur-sm">
+    <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/40 shadow-2xl shadow-black/30 backdrop-blur-sm">
       {/* Browser chrome */}
       <div className="flex items-center gap-2 border-b border-zinc-800/80 bg-zinc-900/60 px-4 py-3">
         <div className="flex gap-1.5">
-          <div className="h-2.5 w-2.5 rounded-full bg-red-500/50" />
-          <div className="h-2.5 w-2.5 rounded-full bg-amber-500/50" />
-          <div className="h-2.5 w-2.5 rounded-full bg-emerald-500/50" />
+          <div className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
+          <div className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
+          <div className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
         </div>
         <div className="ml-2 flex h-5 flex-1 items-center rounded-md bg-zinc-800/60 px-2">
           <span className="text-[10px] text-zinc-500">
@@ -181,7 +176,7 @@ function FlowCanvasMockup() {
                     <circle cx={n.x + n.w - 6} cy={n.y + 6} r={3} fill="#10b981" />
                   )}
                   {n.status === "pending" && (
-                    <circle cx={n.x + n.w - 6} cy={n.y + 6} r={3} fill="#f59e0b" />
+                    <circle cx={n.x + n.w - 6} cy={n.y + 6} r={3} fill="#71717a" />
                   )}
                 </g>
               );
@@ -208,7 +203,7 @@ function FlowCanvasMockup() {
               >
                 <span
                   className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                    r.status === "ok" ? "bg-emerald-400" : "bg-amber-400"
+                    r.status === "ok" ? "bg-emerald-400" : "bg-zinc-500"
                   }`}
                 />
                 <span className="font-mono text-[10px] text-zinc-300">#{r.id}</span>
@@ -226,21 +221,20 @@ export function FlowBuilderSection() {
   const t = useTranslations("marketing.flowBuilder");
 
   return (
-    <section className="relative overflow-hidden py-28">
-      {/* Ambient cyan glow */}
-      <div className="pointer-events-none absolute right-0 top-1/3 h-[500px] w-[500px] rounded-full bg-cyan-500/[0.04] blur-[140px]" />
-
-      <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <section className="relative overflow-hidden py-24">
+      <div className="relative mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         {/* Top — centered text */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
+          transition={{ duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
           className="mb-12 text-center"
         >
-          <p className="mb-3 text-xs uppercase tracking-[0.2em] text-cyan-400">{t("eyebrow")}</p>
-          <h2 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+          <p className="mb-3 text-[11px] uppercase tracking-[0.2em] text-zinc-500">
+            {t("eyebrow")}
+          </p>
+          <h2 className="font-display text-3xl font-bold leading-[1.1] tracking-tight text-white sm:text-4xl">
             {t("title")}
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-zinc-400">
@@ -250,10 +244,10 @@ export function FlowBuilderSection() {
 
         {/* Center — large canvas mockup */}
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
+          initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
-          transition={{ duration: 0.7, ease: [0.22, 0.61, 0.36, 1] }}
+          transition={{ duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
         >
           <FlowCanvasMockup />
         </motion.div>
@@ -266,10 +260,10 @@ export function FlowBuilderSection() {
               initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ delay: 0.1 + i * 0.06, duration: 0.4 }}
-              className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-5"
+              transition={{ delay: 0.1 + i * 0.06, duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
+              className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6"
             >
-              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-400">
+              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl border border-violet-500/30 bg-violet-500/10 text-violet-400">
                 <Icon size={16} />
               </div>
               <h3 className="mb-1 font-display text-sm font-semibold text-zinc-100">

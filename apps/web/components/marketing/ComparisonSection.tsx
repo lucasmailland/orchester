@@ -72,7 +72,7 @@ const ROWS: { feature: string; cells: Record<Competitor, Cell> }[] = [
 
 function CellIcon({ value }: { value: Cell }) {
   if (value === "yes") return <Check size={16} className="text-emerald-400" />;
-  if (value === "partial") return <Minus size={16} className="text-amber-400" />;
+  if (value === "partial") return <Minus size={16} className="text-zinc-500" />;
   return <X size={16} className="text-zinc-700" />;
 }
 
@@ -81,29 +81,31 @@ export function ComparisonSection() {
 
   return (
     <section className="border-y border-zinc-800/40 bg-zinc-950/30 py-24">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
+          transition={{ duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
           className="mb-14 text-center"
         >
-          <p className="mb-3 text-xs uppercase tracking-[0.2em] text-zinc-500">{t("eyebrow")}</p>
-          <h2 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+          <p className="mb-3 text-[11px] uppercase tracking-[0.2em] text-zinc-500">
+            {t("eyebrow")}
+          </p>
+          <h2 className="font-display text-3xl font-bold leading-[1.1] tracking-tight text-white sm:text-4xl">
             {t("title")}
           </h2>
-          <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-zinc-400">
+          <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-zinc-400">
             {t("subtitle")}
           </p>
         </motion.div>
 
         {/* Desktop table */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
           className="hidden md:block"
         >
           <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/30">
@@ -126,7 +128,7 @@ export function ComparisonSection() {
                       <div className="flex flex-col items-center gap-1">
                         <span>{t(`vendors.${c}`)}</span>
                         {c === "orchester" && (
-                          <span className="rounded-full bg-violet-500/20 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-violet-300">
+                          <span className="rounded-full border border-violet-500/30 bg-violet-500/15 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-violet-300">
                             {t("recommended")}
                           </span>
                         )}
@@ -178,7 +180,7 @@ export function ComparisonSection() {
                   {t(`vendors.${c}`)}
                 </span>
                 {c === "orchester" && (
-                  <span className="rounded-full bg-violet-500/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-violet-300">
+                  <span className="rounded-full border border-violet-500/30 bg-violet-500/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-violet-300">
                     {t("recommended")}
                   </span>
                 )}
@@ -196,7 +198,7 @@ export function ComparisonSection() {
         </div>
 
         {/* Footnote */}
-        <p className="mt-8 text-center text-xs text-zinc-600">{t("footnote")}</p>
+        <p className="mt-8 text-center text-xs text-zinc-500">{t("footnote")}</p>
       </div>
     </section>
   );
