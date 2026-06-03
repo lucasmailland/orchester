@@ -12,8 +12,7 @@ function PatternCard({
   desc,
   mockup,
   tags,
-  accent,
-  bg,
+  iconClass,
 }: {
   Icon: LucideIcon;
   eyebrow: string;
@@ -22,40 +21,37 @@ function PatternCard({
   desc: string;
   mockup: React.ReactNode;
   tags: string[];
-  accent: string;
-  bg: string;
+  iconClass: string;
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 24 }}
+      initial={{ opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.6, ease: [0.22, 0.61, 0.36, 1] }}
-      className={`group relative flex flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/40 p-7 transition-all duration-300 hover:border-zinc-700 hover:bg-zinc-900/60 ${bg}`}
+      transition={{ duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
+      className="group relative flex flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 transition-all duration-300 hover:border-zinc-700 hover:bg-zinc-900/60"
     >
       <div className="mb-5 flex items-center gap-3">
-        <div className={`flex h-10 w-10 items-center justify-center rounded-xl border ${accent}`}>
+        <div
+          className={`flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 ${iconClass}`}
+        >
           <Icon size={18} />
         </div>
         <div>
-          <p
-            className={`text-[10px] font-medium uppercase tracking-widest ${accent.split(" ")[0]}`}
-          >
-            {eyebrow}
-          </p>
+          <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">{eyebrow}</p>
           <h3 className="font-display text-xl font-bold text-zinc-100">{title}</h3>
         </div>
       </div>
       <p className="mb-1.5 text-sm font-medium text-zinc-300">{subtitle}</p>
-      <p className="mb-6 text-sm leading-relaxed text-zinc-500">{desc}</p>
+      <p className="mb-6 text-base leading-relaxed text-zinc-400">{desc}</p>
       <div className="mb-5 flex-1">{mockup}</div>
       <div className="flex flex-wrap gap-1.5">
-        {tags.map((t) => (
+        {tags.map((tag) => (
           <span
-            key={t}
-            className="rounded-md border border-zinc-700/60 bg-zinc-800/40 px-2 py-0.5 text-[10px] text-zinc-400"
+            key={tag}
+            className="rounded-full border border-zinc-800 bg-zinc-900/40 px-2 py-0.5 text-[10px] text-zinc-500"
           >
-            {t}
+            {tag}
           </span>
         ))}
       </div>
@@ -65,34 +61,34 @@ function PatternCard({
 
 function PromptToolsMockup() {
   return (
-    <div className="rounded-lg border border-zinc-800 bg-[#0A0A0C] p-4 font-mono text-[11px] leading-6">
+    <div className="rounded-xl border border-zinc-800 bg-[#0A0A0C] p-4 font-mono text-[11px] leading-6">
       <div className="mb-2 flex items-center gap-1.5">
-        <div className="h-2 w-2 rounded-full bg-red-500/40" />
-        <div className="h-2 w-2 rounded-full bg-amber-500/40" />
-        <div className="h-2 w-2 rounded-full bg-emerald-500/40" />
+        <div className="h-2 w-2 rounded-full bg-zinc-700" />
+        <div className="h-2 w-2 rounded-full bg-zinc-700" />
+        <div className="h-2 w-2 rounded-full bg-zinc-700" />
         <span className="ml-2 text-[9px] text-zinc-600">agents/support.ts</span>
       </div>
-      <pre className="overflow-x-auto text-zinc-400">
+      <pre className="overflow-x-auto">
         <code>
-          <span className="text-violet-400">const</span>{" "}
-          <span className="text-cyan-300">support</span> ={" "}
-          <span className="text-violet-400">await</span> {"orchester."}
-          <span className="text-cyan-300">agent</span>
+          <span className="text-zinc-500">const</span>{" "}
+          <span className="text-zinc-300">support</span> ={" "}
+          <span className="text-zinc-500">await</span> {"orchester."}
+          <span className="text-zinc-300">agent</span>
           {"({"}
           {"\n"}
           {"  persona: "}
-          <span className="text-amber-300">{`"You help customers..."`}</span>
+          <span className="text-zinc-400">{`"You help customers..."`}</span>
           {",\n"}
           {"  model:   "}
-          <span className="text-amber-300">{`"claude-sonnet-4-6"`}</span>
+          <span className="text-zinc-400">{`"claude-sonnet-4-6"`}</span>
           {",\n"}
           {"  tools:   ["}
-          <span className="text-amber-300">{`"search_kb"`}</span>
+          <span className="text-zinc-400">{`"search_kb"`}</span>
           {", "}
-          <span className="text-amber-300">{`"refund"`}</span>
+          <span className="text-zinc-400">{`"refund"`}</span>
           {"],\n"}
           {"  memory:  "}
-          <span className="text-amber-300">{`"semantic"`}</span>
+          <span className="text-zinc-400">{`"semantic"`}</span>
           {",\n"}
           {"});"}
         </code>
@@ -103,7 +99,7 @@ function PromptToolsMockup() {
 
 function FlowCanvasMockup() {
   return (
-    <div className="relative overflow-hidden rounded-lg border border-zinc-800 bg-[#0A0A0C] p-3">
+    <div className="relative overflow-hidden rounded-xl border border-zinc-800 bg-[#0A0A0C] p-3">
       {/* Grid background */}
       <svg className="absolute inset-0 h-full w-full opacity-20">
         <defs>
@@ -166,15 +162,15 @@ function FlowCanvasMockup() {
             width="50"
             height="20"
             rx="4"
-            fill="#f59e0b22"
-            stroke="#f59e0b"
+            fill="#a78bfa20"
+            stroke="#a78bfa"
             strokeWidth="1"
           />
           <text
             x="160"
             y="19"
             textAnchor="middle"
-            fill="#fef3c7"
+            fill="#ede9fe"
             fontSize="9"
             fontFamily="monospace"
           >
@@ -189,8 +185,8 @@ function FlowCanvasMockup() {
             width="70"
             height="22"
             rx="4"
-            fill="#8b5cf622"
-            stroke="#8b5cf6"
+            fill="#a78bfa20"
+            stroke="#a78bfa"
             strokeWidth="1"
           />
           <text
@@ -212,15 +208,15 @@ function FlowCanvasMockup() {
             width="60"
             height="22"
             rx="4"
-            fill="#06b6d422"
-            stroke="#06b6d4"
+            fill="#3f3f4640"
+            stroke="#71717a"
             strokeWidth="1"
           />
           <text
             x="80"
             y="116"
             textAnchor="middle"
-            fill="#cffafe"
+            fill="#d4d4d8"
             fontSize="9"
             fontFamily="monospace"
           >
@@ -235,15 +231,15 @@ function FlowCanvasMockup() {
             width="60"
             height="22"
             rx="4"
-            fill="#6366f122"
-            stroke="#6366f1"
+            fill="#3f3f4640"
+            stroke="#71717a"
             strokeWidth="1"
           />
           <text
             x="240"
             y="116"
             textAnchor="middle"
-            fill="#e0e7ff"
+            fill="#d4d4d8"
             fontSize="9"
             fontFamily="monospace"
           >
@@ -258,15 +254,15 @@ function FlowCanvasMockup() {
             width="50"
             height="20"
             rx="4"
-            fill="#10b98122"
-            stroke="#10b981"
+            fill="#a78bfa20"
+            stroke="#a78bfa"
             strokeWidth="1"
           />
           <text
             x="160"
             y="165"
             textAnchor="middle"
-            fill="#d1fae5"
+            fill="#ede9fe"
             fontSize="9"
             fontFamily="monospace"
           >
@@ -283,22 +279,21 @@ export function TwoPatternsSection() {
 
   return (
     <section className="py-24">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
+          viewport={{ once: true, margin: "-60px" }}
+          transition={{ duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
           className="mb-14 text-center"
         >
-          <p className="mb-3 text-xs uppercase tracking-[0.2em] text-zinc-500">{t("eyebrow")}</p>
-          <h2 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
-            {t("title1")}{" "}
-            <span className="bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">
-              {t("title2")}
-            </span>
+          <p className="mb-3 text-[11px] uppercase tracking-[0.2em] text-zinc-500">
+            {t("eyebrow")}
+          </p>
+          <h2 className="font-display text-3xl font-bold leading-[1.1] tracking-tight text-white sm:text-4xl">
+            {t("title1")} <span className="text-zinc-300">{t("title2")}</span>
           </h2>
-          <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-zinc-400">
+          <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-zinc-400">
             {t("subtitle")}
           </p>
         </motion.div>
@@ -312,8 +307,7 @@ export function TwoPatternsSection() {
             desc={t("prompt.desc")}
             mockup={<PromptToolsMockup />}
             tags={["support", "research", "sales", "Q&A"]}
-            accent="text-violet-400 bg-violet-500/10 border-violet-500/30"
-            bg=""
+            iconClass="text-violet-400"
           />
           <PatternCard
             Icon={Workflow}
@@ -323,16 +317,15 @@ export function TwoPatternsSection() {
             desc={t("flow.desc")}
             mockup={<FlowCanvasMockup />}
             tags={["onboarding", "lead routing", "approval", "ETL"]}
-            accent="text-cyan-400 bg-cyan-500/10 border-cyan-500/30"
-            bg=""
+            iconClass="text-zinc-300"
           />
         </div>
 
         <motion.p
           initial={{ opacity: 0, y: 12 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.2, duration: 0.5 }}
+          viewport={{ once: true, margin: "-60px" }}
+          transition={{ delay: 0.2, duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
           className="mt-10 text-center text-sm text-zinc-400"
         >
           {t("mixBoth")} <span className="font-medium text-zinc-200">{t("mixBothBold")}</span>

@@ -2,7 +2,7 @@
 
 import { useTranslations, useLocale } from "next-intl";
 import { motion } from "framer-motion";
-import { ArrowRight, Star, Zap } from "lucide-react";
+import { ArrowRight, Star } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
@@ -28,7 +28,6 @@ const GithubSVG = () => (
 );
 
 // ─── Noise overlay ───────────────────────────────────────────────────────────
-// Very subtle SVG noise rendered inline — opacity 0.015, mix-blend-mode overlay
 const NoiseOverlay = () => (
   <svg
     className="pointer-events-none absolute inset-0 h-full w-full"
@@ -43,53 +42,7 @@ const NoiseOverlay = () => (
   </svg>
 );
 
-// ─── Floating decorative pills ───────────────────────────────────────────────
-
-const FloatingCmdPalette = () => (
-  <motion.div
-    className="pointer-events-none absolute left-[4%] top-[22%] hidden lg:flex items-center gap-1.5 rounded-lg border border-zinc-700/50 bg-zinc-900/80 px-3 py-1.5 backdrop-blur-sm"
-    initial={{ opacity: 0, y: 8 }}
-    animate={{ opacity: [0, 0.75, 0.75, 0.6, 0.75], y: [8, 0, -6, 0, -4] }}
-    transition={{ delay: 1.2, duration: 7, repeat: Infinity, ease: "easeInOut" }}
-  >
-    <kbd className="rounded bg-zinc-800 px-1 py-0.5 font-mono text-[10px] text-zinc-400">⌘</kbd>
-    <kbd className="rounded bg-zinc-800 px-1 py-0.5 font-mono text-[10px] text-zinc-400">K</kbd>
-    <span className="text-[10px] text-zinc-500">Search</span>
-  </motion.div>
-);
-
-const FloatingLogLine = () => (
-  <motion.div
-    className="pointer-events-none absolute bottom-[28%] right-[4%] hidden lg:flex items-center gap-2 rounded-lg border border-zinc-700/50 bg-zinc-900/80 px-3 py-1.5 backdrop-blur-sm font-mono"
-    initial={{ opacity: 0, y: -8 }}
-    animate={{ opacity: [0, 0.65, 0.65, 0.5, 0.65], y: [-8, 0, 5, 0, 3] }}
-    transition={{ delay: 1.6, duration: 8, repeat: Infinity, ease: "easeInOut" }}
-  >
-    <span className="text-[10px] text-emerald-400">200 OK</span>
-    <span className="text-[10px] text-zinc-600">·</span>
-    <span className="text-[10px] text-zinc-500">claude-sonnet-4-6</span>
-    <span className="text-[10px] text-zinc-600">·</span>
-    <span className="text-[10px] text-zinc-500">247ms</span>
-  </motion.div>
-);
-
-const FloatingOrb1 = () => (
-  <motion.div
-    className="pointer-events-none absolute right-[8%] top-[18%] h-2 w-2 rounded-full bg-violet-400/50"
-    animate={{ y: [0, -12, 0], opacity: [0.3, 0.7, 0.3] }}
-    transition={{ delay: 0.8, duration: 6, repeat: Infinity, ease: "easeInOut" }}
-  />
-);
-
-const FloatingOrb2 = () => (
-  <motion.div
-    className="pointer-events-none absolute left-[10%] bottom-[35%] h-1.5 w-1.5 rounded-full bg-indigo-400/40"
-    animate={{ y: [0, 10, 0], opacity: [0.2, 0.55, 0.2] }}
-    transition={{ delay: 2, duration: 7.5, repeat: Infinity, ease: "easeInOut" }}
-  />
-);
-
-// ─── Shimmer CTA Button ──────────────────────────────────────────────────────
+// ─── Shimmer CTA Button — plain violet gradient, no sweep ───────────────────
 
 function ShimmerButton({
   children,
@@ -101,17 +54,7 @@ function ShimmerButton({
   href: string;
 }) {
   return (
-    <Link href={href} className={cn("group relative overflow-hidden", className)}>
-      {/* Shimmer sweep every 3s */}
-      <motion.div
-        className="pointer-events-none absolute inset-0 z-10"
-        style={{
-          background:
-            "linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.18) 50%, transparent 70%)",
-        }}
-        animate={{ x: ["-100%", "200%"] }}
-        transition={{ duration: 0.7, repeat: Infinity, repeatDelay: 2.3, ease: "easeInOut" }}
-      />
+    <Link href={href} className={cn("group", className)}>
       {children}
     </Link>
   );
@@ -145,7 +88,7 @@ function AnimatedWords({
           >
             {word}
           </motion.span>
-          {i < words.length - 1 ? " " : ""}
+          {i < words.length - 1 ? " " : ""}
         </span>
       ))}
     </>
@@ -209,12 +152,6 @@ export function HeroSection() {
         transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
       />
 
-      {/* Floating decorative elements */}
-      <FloatingCmdPalette />
-      <FloatingLogLine />
-      <FloatingOrb1 />
-      <FloatingOrb2 />
-
       {/* 2-column grid: text left, chart right */}
       <div className="relative z-10 mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-12 lg:grid-cols-2 lg:gap-16">
         {/* LEFT COLUMN — badge, headline, subheadline, CTAs */}
@@ -224,21 +161,21 @@ export function HeroSection() {
             initial={{ opacity: 0, y: -12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.22, 0.61, 0.36, 1] }}
-            className="mb-7 inline-flex items-center gap-2.5 rounded-full border border-violet-500/20 bg-violet-500/5 px-4 py-1.5"
+            className="mb-7 inline-flex items-center gap-2.5 rounded-full border border-violet-500/30 bg-violet-500/10 px-4 py-1.5"
           >
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
             </span>
-            <span className="text-xs font-medium tracking-wide text-violet-300">{t("badge")}</span>
+            <span className="text-xs font-medium tracking-wide text-violet-400">{t("badge")}</span>
           </motion.div>
 
           {/* Headline — word-stagger reveal */}
-          <h1 className="mb-6 font-display text-4xl font-bold leading-[1.1] tracking-tight text-white sm:text-5xl lg:text-[56px] xl:text-6xl">
+          <h1 className="mb-6 font-display text-5xl font-bold leading-[1.05] tracking-tight text-white sm:text-6xl lg:text-7xl">
             <span className="block">
               <AnimatedWords text={t("headline1")} delayStart={0.12} />
             </span>
-            <span className="block bg-gradient-to-r from-violet-400 via-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+            <span className="block bg-gradient-to-r from-violet-400 via-violet-300 to-violet-200 bg-clip-text text-transparent">
               <AnimatedWords text={t("headline2")} delayStart={0.3} />
             </span>
           </h1>
@@ -248,7 +185,7 @@ export function HeroSection() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.55, duration: 0.5 }}
-            className="mt-6 mb-10 max-w-xl text-base leading-relaxed text-zinc-400 sm:text-lg lg:text-xl"
+            className="mt-6 mb-10 max-w-xl text-base leading-relaxed text-zinc-400 sm:text-lg"
           >
             {t("subheadline")}
           </motion.p>
@@ -260,17 +197,16 @@ export function HeroSection() {
             transition={{ delay: 0.65, duration: 0.5 }}
             className="flex flex-row items-center gap-3 justify-center lg:justify-start"
           >
-            {/* Primary CTA with shimmer */}
+            {/* Primary CTA */}
             <ShimmerButton
               href={`/${locale}/signup`}
               className={cn(
                 "flex items-center gap-2 rounded-xl px-7 py-3.5 text-sm font-semibold text-white",
-                "bg-gradient-to-r from-violet-600 to-indigo-600",
-                "shadow-xl shadow-violet-500/25 transition-all duration-200",
-                "hover:scale-[1.02] hover:from-violet-500 hover:to-indigo-500 hover:shadow-violet-500/40"
+                "bg-gradient-to-r from-violet-600 to-violet-500",
+                "shadow-2xl shadow-black/30 transition-all duration-200",
+                "hover:scale-[1.02] hover:from-violet-500 hover:to-violet-400"
               )}
             >
-              <Zap size={14} />
               {t("ctaPrimary")}
               <ArrowRight
                 size={14}
@@ -290,7 +226,7 @@ export function HeroSection() {
               <GithubSVG />
               {t("ctaGithub")}
               <span className="flex items-center gap-1 rounded-md bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-500 transition-colors group-hover:text-zinc-300">
-                <Star size={10} className="text-amber-400" />
+                <Star size={10} className="text-zinc-500" />
                 <span className="hidden sm:inline">GitHub</span>
               </span>
             </a>
@@ -304,13 +240,13 @@ export function HeroSection() {
           transition={{ delay: 0.5, duration: 0.8, ease: [0.22, 0.61, 0.36, 1] }}
           className="flex flex-col items-center lg:items-end"
         >
-          {/* Live Network pill */}
+          {/* Live Network pill — static, no animation */}
           <div
             className="mb-6 flex items-center gap-2"
             style={{ fontFamily: "var(--font-auth-mono), monospace" }}
           >
             <span className="inline-flex h-1 w-1 shrink-0 rounded-full bg-violet-400/70" />
-            <span className="text-[11px] uppercase tracking-widest text-zinc-500">
+            <span className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">
               {t("liveNetwork")}
             </span>
           </div>
