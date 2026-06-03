@@ -359,7 +359,67 @@ export function HeroSection() {
               </div>
 
               {/* Agent tree */}
-              <div className="space-y-2">
+              <div className="relative space-y-2">
+                {/* Animated beams — SVG layer behind agent cards */}
+                <svg
+                  className="pointer-events-none absolute inset-0 h-full w-full"
+                  viewBox="0 0 400 280"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
+                  <defs>
+                    <filter id="beamGlow">
+                      <feGaussianBlur stdDeviation="2.5" result="blur" />
+                      <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                    <linearGradient id="beamLine" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="#a78bfa" stopOpacity="0" />
+                      <stop offset="50%" stopColor="#a78bfa" stopOpacity="0.35" />
+                      <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Faint connector lines from Orchestrator down to each child */}
+                  {([110, 175, 240] as const).map((y, i) => (
+                    <line
+                      key={i}
+                      x1="50"
+                      y1="70"
+                      x2="50"
+                      y2={y}
+                      stroke="url(#beamLine)"
+                      strokeWidth="1"
+                    />
+                  ))}
+
+                  {/* Traveling dots */}
+                  {([110, 175, 240] as const).map((endY, i) => (
+                    <motion.circle
+                      key={i}
+                      cx="50"
+                      r={2.5}
+                      fill="#c4b5fd"
+                      filter="url(#beamGlow)"
+                      initial={{ cy: 70, opacity: 0 }}
+                      animate={{
+                        cy: [70, endY],
+                        opacity: [0, 1, 1, 0],
+                      }}
+                      transition={{
+                        duration: 1.8,
+                        repeat: Infinity,
+                        repeatDelay: 1.4,
+                        delay: 0.7 + i * 0.45,
+                        ease: "easeIn",
+                        times: [0, 0.15, 0.85, 1],
+                      }}
+                    />
+                  ))}
+                </svg>
+
                 <AgentCard
                   label="Orchestrator"
                   model="claude-opus-4"
