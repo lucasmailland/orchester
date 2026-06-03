@@ -5,6 +5,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { CommandPalette } from "@/components/shell/CommandPalette";
 import { SuspendedBanner } from "@/components/workspace/SuspendedBanner";
 import { GdprExportProgress } from "@/components/workspace/GdprExportProgress";
+import { TourProvider } from "@/components/compass/TourProvider";
 import { getCurrentSession, getCurrentWorkspaceBySlug } from "@/lib/workspace";
 
 /**
@@ -92,6 +93,12 @@ export default async function ShellLayout({
           the route level. State lives in localStorage keyed on the
           latest job ID. */}
       <GdprExportProgress />
+      {/* Compass tour engine. Listens for `compass:tour` window events
+          (dispatched by PageHero's "Take a tour" button) and walks the
+          user through any `<TourSpot tourId="…">` regions mounted on
+          the current page. Lives at the shell so it survives in-app
+          navigation; renders nothing until a tour is active. */}
+      <TourProvider />
     </div>
   );
 }

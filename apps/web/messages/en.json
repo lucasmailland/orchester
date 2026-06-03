@@ -1989,13 +1989,37 @@
       "dismiss": "Dismiss",
       "runNow": "Run now",
       "viewArchive": "View archive",
-      "viewAuditLog": "View audit log"
+      "viewAuditLog": "View audit log",
+      "dontAskAgain": "Don't ask me again",
+      "resetConfirmations": "Reset confirmation prompts",
+      "autoConfirmedToast": "Auto-confirmed — you skipped this prompt previously. {action} ran."
     },
     "tour": {
       "skip": "Skip tour",
       "next": "Next",
       "previous": "Previous",
-      "finish": "Finish"
+      "finish": "Finish",
+      "stepCounter": "{current} of {total}"
+    },
+    "tours": {
+      "memoryOps": {
+        "step1": {
+          "title": "Memory housekeeping, in one place",
+          "body": "This page collects every maintenance task your agents' long-term memory needs. Read each card, then run it on demand or trust the schedule. Nothing changes your data without a confirmation."
+        },
+        "step2": {
+          "title": "Deduplicate similar facts",
+          "body": "Dedup merges facts that say the same thing in different words. It keeps recall sharp and reduces token cost on every query. Reversible from the audit log."
+        },
+        "step3": {
+          "title": "Prune stale memory",
+          "body": "Prune archives facts that are old, unused, or contradict newer ones. Archived facts stay restorable for 30 days, so you decide on evidence, not on guesses."
+        },
+        "step4": {
+          "title": "Run a task now",
+          "body": "Press Run now to start a task immediately. You will see an impact preview — scope, estimated cost, time, reversibility — before anything happens."
+        }
+      }
     },
     "memoryOps": {
       "pageTitle": "Memory housekeeping",
@@ -2019,7 +2043,7 @@
       "reversibilityDestructive": "Destructive. Archived facts are permanently removed and cannot be recovered.",
       "estimateUnavailable": "—",
       "successToastTitle": "{name} is running",
-      "successToastBody": "We will notify you here when it finishes.",
+      "successToastBody": "We'll notify you here when it finishes. {time, select, unknown {} other {Estimated time: {time}.}}",
       "errorToastTitle": "We could not start {name}",
       "errorToastBody": "{message}. Check your connection and try again. If the problem continues, review the system status page.",
       "nextStepsTitle": "What to do next",
@@ -2050,7 +2074,7 @@
         "dedup": {
           "name": "Merge duplicate facts",
           "description": "Scans every fact, finds pairs that mean almost the same thing, and combines them into a single cleaner record. Use it when your agents start repeating themselves.",
-          "whyMatters": "Fewer duplicates means faster recall and answers that feel less robotic.",
+          "whyMatters": "Fewer duplicates means faster recall and less repetition in answers.",
           "confirmLabel": "Merge duplicates",
           "runningLabel": "Merging duplicates",
           "doneLabel": "Duplicates merged"
@@ -2100,8 +2124,8 @@
         "title": "Recall quality",
         "subtitle": "Three recall enhancements run by default on every turn. Each adds a small cost. Turn one off only if you have measured that the savings matter more to you than the quality.",
         "tip": "Changes apply to the next recall turn. Existing answers are not regenerated.",
-        "savedToast": "Settings saved.",
-        "saveErrorToast": "We could not save your changes. {message}. Check your connection and try again.",
+        "savedToast": "Recall settings saved. The next conversation turn uses them.",
+        "saveErrorToast": "We couldn't save your recall settings. {message}. Check your connection and try again. If the problem continues, see the system status page.",
         "hyde": {
           "label": "HyDE — hypothetical document embedding",
           "help": "Generates a short fake answer to the user's question and uses that for the search instead of the raw question. This closes the gap between how questions and answers look in embedding space. Adds one cheap model call per turn."
@@ -2134,7 +2158,7 @@
     "empty": {
       "brain": {
         "title": "No memories yet",
-        "body": "Brain shows everything your agents have learned from past conversations. As soon as an agent answers a real message, the facts it picks up appear here for you to review and curate."
+        "body": "Brain shows everything your agents have learned from past conversations. Once an agent handles its first conversation, the facts it learns appear here for you to review and curate."
       },
       "flows": {
         "title": "No flows yet",
@@ -2335,8 +2359,8 @@
       "removeImpactModelsLabel": "Models exposed",
       "removeImpactReversibilityLabel": "Reversibility",
       "removeImpactReversibilityValue": "Reconnect anytime by pasting a new key.",
-      "removeError": "We couldn't disconnect this provider. Check your connection and try again.",
-      "removeSuccess": "Provider disconnected.",
+      "removeError": "We couldn't disconnect {provider}. Check your connection and try again. If the problem continues, see the system status page.",
+      "removeSuccess": "{provider} disconnected. Agents that relied on it won't respond until you connect another provider.",
       "unknownValue": "—",
       "nextStepsTitle": "What to do next",
       "nextStepBuildAgent": {
@@ -2346,6 +2370,123 @@
       "nextStepAddKnowledge": {
         "title": "Add knowledge to recall",
         "body": "Upload documents so your agents can ground answers in your data instead of guessing."
+      }
+    },
+    "onboarding": {
+      "skip": "Skip",
+      "back": "Back",
+      "stepper": {
+        "welcome": "Welcome",
+        "provider": "Provider",
+        "agent": "Agent",
+        "talk": "Talk",
+        "done": "Done"
+      },
+      "welcome": {
+        "eyebrow": "Welcome",
+        "heading": "Let's get your first agent live.",
+        "subhead": "Five short steps. By the end you'll have a working agent answering messages — and you can keep building from there.",
+        "question": "What are you here to build?",
+        "options": {
+          "customerSupport": {
+            "label": "Answer customers with AI",
+            "hint": "Tier-1 support, lead capture, FAQ deflection."
+          },
+          "internalAutomation": {
+            "label": "Automate internal tasks",
+            "hint": "Helpdesk, ops bots, knowledge lookup for employees."
+          },
+          "exploring": {
+            "label": "I'm exploring",
+            "hint": "I want to see what this can do before committing."
+          }
+        },
+        "sample": {
+          "label": "Work with sample data (Acme Inc.)",
+          "hint": "Drops you into a pre-seeded workspace with agents, conversations, and a knowledge base ready to inspect.",
+          "unavailable": "Available once your account has the Acme Inc. seed workspace."
+        },
+        "cta": "Get started"
+      },
+      "provider": {
+        "heading": "Connect an AI provider.",
+        "subhead": "Add a key to power your agents. We'll handle the rest — your key never leaves this server.",
+        "providerLabel": "Provider",
+        "apiKeyLabel": "API key",
+        "security": "Stored encrypted at rest. Used only to call the provider on your behalf.",
+        "cta": "Connect provider",
+        "errorFallback": "We could not connect the provider. Check the key and try again.",
+        "errorNetwork": "Network error reaching the server. Check your connection and try again."
+      },
+      "agent": {
+        "heading": "Create your first agent.",
+        "subhead": "An agent has a name, a role, and a model. Pick a template to skip the blank page — you can rewrite anything later.",
+        "templateLabel": "Template",
+        "templates": {
+          "tier1": {
+            "label": "Customer support tier 1",
+            "hint": "Answers FAQs, escalates the rest."
+          },
+          "helpdesk": {
+            "label": "Internal helpdesk",
+            "hint": "IT and HR questions for employees."
+          },
+          "salesCoach": {
+            "label": "Sales coach",
+            "hint": "Reviews calls and proposes next steps."
+          },
+          "blank": {
+            "label": "Start blank",
+            "hint": "Define everything yourself."
+          }
+        },
+        "nameLabel": "Agent name",
+        "namePlaceholder": "e.g. Support Tier 1",
+        "roleLabel": "Role",
+        "rolePlaceholder": "One line: what does this agent do?",
+        "modelLabel": "Model",
+        "cta": "Create agent",
+        "errorMissing": "Name and role are required.",
+        "errorFallback": "The agent could not be created. Review the form and try again.",
+        "errorNetwork": "Network error reaching the server. Check your connection and try again."
+      },
+      "talk": {
+        "heading": "Talk to {name}.",
+        "subhead": "Send a message to confirm your agent is wired up. One message and one reply is enough to continue.",
+        "chatLabel": "Test conversation",
+        "inputLabel": "Message",
+        "inputPlaceholder": "Ask your agent a question…",
+        "sendLabel": "Send",
+        "thinking": "Thinking…",
+        "emptyHint": "Send the first message to start the conversation.",
+        "cta": "Continue",
+        "errorFallback": "The agent did not reply. Check the provider key and try again.",
+        "errorEmpty": "The provider returned an empty response. Try a different prompt.",
+        "errorNetwork": "Network error reaching the server. Check your connection and try again."
+      },
+      "done": {
+        "badge": "Ready",
+        "heading": "Your agent answered its first message.",
+        "subhead": "You're ready to build the rest of the stack. Three short follow-ups will compound the result.",
+        "agentLive": "Agent live",
+        "lastMessage": "Last reply",
+        "nextStepsHeading": "Next steps",
+        "fallbackAgentName": "Your agent",
+        "nextSteps": {
+          "channel": {
+            "title": "Connect a channel",
+            "body": "Wire the agent to WhatsApp, web chat, or email so real users can reach it."
+          },
+          "knowledge": {
+            "title": "Add knowledge",
+            "body": "Ground answers in your docs. Upload a PDF or point at a URL."
+          },
+          "brain": {
+            "title": "Inspect Brain memory",
+            "body": "See what your agent has learned. Memory is what makes a second conversation feel personal."
+          }
+        },
+        "cta": "Open Studio"
       }
     }
   }

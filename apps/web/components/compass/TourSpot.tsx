@@ -45,6 +45,7 @@
  * tour copy to the region even when the tour is off.
  */
 
+import { useTranslations } from "next-intl";
 import {
   cloneElement,
   isValidElement,
@@ -61,19 +62,45 @@ import {
 // ---------------------------------------------------------------------------
 
 export interface TourSpotProps {
-  /** Stable identifier. The Tour overlay queries `[data-compass-spot="<id>"]`. */
-  id: string;
+  /**
+   * Stable identifier. The Tour overlay queries `[data-compass-spot="<id>"]`.
+   * Either `id` or the pair `tourId` + `step` can be supplied; when `tourId`
+   * is set, the effective id becomes `${tourId}:step${step}` so multiple spots
+   * can coexist under a single page-level tour.
+   */
+  id?: string;
+  /**
+   * Page-level tour identifier. When set, the matching `PageHero` (with the
+   * same `tourId`) renders its "Take a tour" button and the TourProvider
+   * iterates this tour's spots in `step` order.
+   */
+  tourId?: string;
   /** 1-indexed order in which this spot appears in the tour sequence. */
   step: number;
-  /** Heading shown by the Tour overlay. Must be already-localized text. */
-  title: string;
   /**
-   * Body copy shown by the Tour overlay. Plain string keeps the registry
-   * serializable; if you need rich content, render it from the consumer using
-   * the spot id (read via `getTourSpots()`) — TourSpot itself stays string-only
-   * so it can be inspected and reordered without React context.
+   * Heading shown by the Tour overlay. Prefer `titleKey` for i18n; this
+   * remains as a fallback for existing call sites that pass pre-localized
+   * strings.
    */
-  body: string;
+  title?: string;
+  /**
+   * Body copy shown by the Tour overlay. Prefer `bodyKey` for i18n; kept as
+   * a fallback. Plain string keeps the registry serializable.
+   */
+  body?: string;
+  /**
+   * Translation key (resolved against the root `useTranslations()` tree) for
+   * the step title. When provided, takes precedence over `title`.
+   */
+  titleKey?: string;
+  /**
+   * Translation key for the step body. When provided, takes precedence over
+   * `body`. The TourProvider also accepts the `i18n:` smuggling convention,
+   * so we forward keys as `i18n:<key>` into the registry — that lets the
+   * provider re-resolve them against the active locale without having to
+   * subscribe to `useTranslations()` inside the registry.
+   */
+  bodyKey?: string;
   /** The UI region being marked. Single element preferred (zero DOM shift). */
   children: ReactNode;
 }
@@ -165,10 +192,61 @@ function isIntrinsicElement(
   return isValidElement(node) && typeof node.type === "string";
 }
 
-export function TourSpot({ id, step, title, body, children }: TourSpotProps): ReactElement {
+export function TourSpot({
+  id,
+  tourId,
+  step,
+  title,
+  body,
+  titleKey,
+  bodyKey,
+  children,
+}: TourSpotProps): ReactElement {
   // A ref to whichever real DOM node ends up carrying the data attribute, so
   // `getRect` can read a live rect without re-running querySelector each tick.
   const nodeRef = useRef<HTMLElement | null>(null);
+
+  // Resolve the effective spot id. Callers may pass `id` directly (legacy
+  // contract) OR `tourId` + `step` (new contract); the latter produces a
+  // stable, collision-free id like `memory-ops:step3`.
+  const effectiveId = id ?? (tourId !== undefined ? `${tourId}:step${step}` : null);
+
+  if (effectiveId === null) {
+    // Hard fail at the TS level so consumers can't ship a spot with no id.
+    throw new Error("<TourSpot> requires either `id` or `tourId`.");
+  }
+
+  // Resolve copy. If the consumer passed translation keys, we still try to
+  // render at the consumer's site so non-tour readers (e.g. inspector views)
+  // see localized strings; but we ALSO smuggle the raw key into the registry
+  // (`i18n:<key>`) so the TourProvider can re-resolve against the active
+  // locale at presentation time. This sidesteps the "stale-closure" issue
+  // where a locale change wouldn't invalidate the registry entry.
+  const t = useTranslations();
+  const resolvedTitle = (() => {
+    if (titleKey) {
+      try {
+        return t(titleKey);
+      } catch {
+        return title ?? "";
+      }
+    }
+    return title ?? "";
+  })();
+  const resolvedBody = (() => {
+    if (bodyKey) {
+      try {
+        return t(bodyKey);
+      } catch {
+        return body ?? "";
+      }
+    }
+    return body ?? "";
+  })();
+
+  // Registry payload: prefer the i18n key form so the provider re-resolves.
+  const registryTitle = titleKey ? `i18n:${titleKey}` : resolvedTitle;
+  const registryBody = bodyKey ? `i18n:${bodyKey}` : resolvedBody;
 
   // Stable fallback id for the wrapper span so devs can find it in DevTools.
   const reactId = useId();
@@ -182,26 +260,34 @@ export function TourSpot({ id, step, title, body, children }: TourSpotProps): Re
         return live.getBoundingClientRect();
       }
       if (typeof document === "undefined") return null;
-      const found = document.querySelector<HTMLElement>(`[${SPOT_ATTR}="${CSS.escape(id)}"]`);
+      const found = document.querySelector<HTMLElement>(
+        `[${SPOT_ATTR}="${CSS.escape(effectiveId)}"]`
+      );
       return found ? found.getBoundingClientRect() : null;
     };
-  }, [id]);
+  }, [effectiveId]);
 
   // Register / update / unregister.
   useEffect(() => {
-    const entry: TourSpotEntry = { id, step, title, body, getRect };
-    registry.set(id, entry);
+    const entry: TourSpotEntry = {
+      id: effectiveId,
+      step,
+      title: registryTitle,
+      body: registryBody,
+      getRect,
+    };
+    registry.set(effectiveId, entry);
     emit();
     return () => {
       // Only delete if we're still the owner — protects against the
       // "two instances briefly co-mounted during route transition" case.
-      const current = registry.get(id);
+      const current = registry.get(effectiveId);
       if (current === entry) {
-        registry.delete(id);
+        registry.delete(effectiveId);
         emit();
       }
     };
-  }, [id, step, title, body, getRect]);
+  }, [effectiveId, step, registryTitle, registryBody, getRect]);
 
   // Render. Two paths:
   //   - Single intrinsic-element child → cloneElement and inject the data attr
@@ -220,7 +306,7 @@ export function TourSpot({ id, step, title, body, children }: TourSpotProps): Re
     };
     const existingRef = (onlyChild.props as { ref?: unknown }).ref;
     const props: Augmented = {
-      [SPOT_ATTR]: id,
+      [SPOT_ATTR]: effectiveId,
       ref: (node: HTMLElement | null) => {
         nodeRef.current = node;
         // Forward to any existing ref the child already had.
@@ -241,7 +327,7 @@ export function TourSpot({ id, step, title, body, children }: TourSpotProps): Re
       ref={(node) => {
         nodeRef.current = node;
       }}
-      {...{ [SPOT_ATTR]: id }}
+      {...{ [SPOT_ATTR]: effectiveId }}
       data-compass-spot-fallback={reactId}
       style={{ display: "contents" }}
     >

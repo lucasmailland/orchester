@@ -382,6 +382,7 @@ export function BrainInspectorClient() {
             label: t("empty.ctaLabel"),
             href: `/${locale}/${ws}/settings/ai-providers`,
           }}
+          intensity="subtle"
         />
       ) : (
         <>

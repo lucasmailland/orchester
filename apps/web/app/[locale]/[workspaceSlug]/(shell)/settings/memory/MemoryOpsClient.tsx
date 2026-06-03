@@ -41,6 +41,7 @@ import { ConfirmAction } from "@/components/compass/ConfirmAction";
 import { NextStep, NextStepGroup } from "@/components/compass/NextStep";
 import { PageHero } from "@/components/compass/PageHero";
 import { TermDef } from "@/components/compass/TermDef";
+import { TourSpot } from "@/components/compass/TourSpot";
 import { useBrainHealthLatest } from "@/lib/hooks/use-brain-health";
 import { notify } from "@/lib/toast";
 
@@ -202,18 +203,27 @@ export function MemoryOpsClient({ workspace, isAdmin }: Props): ReactNode {
 
   return (
     <div className="space-y-8">
-      <PageHero
-        icon={<CompassIcon />}
-        title={t("pageTitle")}
-        subtitle={
-          // The subtitle string mentions "Mnemosyne" as a bare word —
-          // we post-wrap it with TermDef so the term gets a definition
-          // tooltip without forcing translators to learn ICU markup.
-          <>{wrapTermsInline(t("pageSubtitle"))}</>
-        }
+      <TourSpot
         tourId="memory-ops"
-        tourLabel={t("tourLabel")}
-      />
+        step={1}
+        titleKey="compass.tours.memoryOps.step1.title"
+        bodyKey="compass.tours.memoryOps.step1.body"
+      >
+        <div>
+          <PageHero
+            icon={<CompassIcon />}
+            title={t("pageTitle")}
+            subtitle={
+              // The subtitle string mentions "Mnemosyne" as a bare word —
+              // we post-wrap it with TermDef so the term gets a definition
+              // tooltip without forcing translators to learn ICU markup.
+              <>{wrapTermsInline(t("pageSubtitle"))}</>
+            }
+            tourId="memory-ops"
+            tourLabel={t("tourLabel")}
+          />
+        </div>
+      </TourSpot>
 
       {!isAdmin ? (
         <Callout variant="note" icon={Lock}>
@@ -222,19 +232,48 @@ export function MemoryOpsClient({ workspace, isAdmin }: Props): ReactNode {
       ) : null}
 
       <ul className="grid gap-4 md:grid-cols-2" aria-label={t("pageTitle")}>
-        {TASKS.map((task) => (
-          <TaskCard
-            key={task.key}
-            task={task}
-            isAdmin={isAdmin}
-            pending={pendingKey === task.key}
-            anyPending={pendingKey !== null}
-            lastRunIso={task.key === "healthSnapshot" ? healthLastRun : null}
-            locale={locale}
-            onRequestRun={() => setConfirmTask(task)}
-            workspaceSlug={workspace.slug}
-          />
-        ))}
+        {TASKS.map((task) => {
+          const card = (
+            <TaskCard
+              key={task.key}
+              task={task}
+              isAdmin={isAdmin}
+              pending={pendingKey === task.key}
+              anyPending={pendingKey !== null}
+              lastRunIso={task.key === "healthSnapshot" ? healthLastRun : null}
+              locale={locale}
+              onRequestRun={() => setConfirmTask(task)}
+              workspaceSlug={workspace.slug}
+            />
+          );
+          if (task.key === "dedup") {
+            return (
+              <TourSpot
+                key={task.key}
+                tourId="memory-ops"
+                step={2}
+                titleKey="compass.tours.memoryOps.step2.title"
+                bodyKey="compass.tours.memoryOps.step2.body"
+              >
+                {card}
+              </TourSpot>
+            );
+          }
+          if (task.key === "prune") {
+            return (
+              <TourSpot
+                key={task.key}
+                tourId="memory-ops"
+                step={3}
+                titleKey="compass.tours.memoryOps.step3.title"
+                bodyKey="compass.tours.memoryOps.step3.body"
+              >
+                {card}
+              </TourSpot>
+            );
+          }
+          return card;
+        })}
       </ul>
 
       <section
@@ -283,6 +322,19 @@ export function MemoryOpsClient({ workspace, isAdmin }: Props): ReactNode {
         cancelLabel={tCommon("cancel")}
         tone={confirmTask?.tone ?? "neutral"}
         isPending={pendingKey !== null && confirmTask?.key === pendingKey}
+        // Experienced-operator escape hatch: each task gets its own
+        // remember-key so "don't ask again" for `prune` doesn't silently
+        // skip `dedup` next time.
+        rememberKey={confirmTask ? `memory-ops:${confirmTask.key}` : undefined}
+        rememberLabels={{
+          dontAskAgain: tCommon("dontAskAgain"),
+          resetConfirmations: tCommon("resetConfirmations"),
+        }}
+        onAutoConfirm={() => {
+          if (!confirmTask) return;
+          const name = t(`tasks.${confirmTask.key}.name`);
+          notify.success(tCommon("autoConfirmedToast", { action: name }));
+        }}
         impact={
           confirmTask
             ? [
@@ -418,7 +470,27 @@ function TaskCard({
             )}
           </dd>
         </dl>
-        {task.perAgent ? null : (
+        {task.perAgent ? null : task.key === "dedup" ? (
+          <TourSpot
+            tourId="memory-ops"
+            step={4}
+            titleKey="compass.tours.memoryOps.step4.title"
+            bodyKey="compass.tours.memoryOps.step4.body"
+          >
+            <span className="inline-flex">
+              <Button
+                size="sm"
+                variant="flat"
+                color="primary"
+                isDisabled={!isAdmin || (anyPending && !pending)}
+                isLoading={pending}
+                onPress={onRequestRun}
+              >
+                {tCommon("runNow")}
+              </Button>
+            </span>
+          </TourSpot>
+        ) : (
           <Button
             size="sm"
             variant="flat"

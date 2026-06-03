@@ -1989,13 +1989,37 @@
       "dismiss": "Dispensar",
       "runNow": "Executar agora",
       "viewArchive": "Ver arquivo",
-      "viewAuditLog": "Ver registro de auditoria"
+      "viewAuditLog": "Ver registro de auditoria",
+      "dontAskAgain": "Não perguntar novamente",
+      "resetConfirmations": "Restaurar confirmações",
+      "autoConfirmedToast": "Confirmação automática — você optou por pular este aviso antes. {action} foi executada."
     },
     "tour": {
       "skip": "Pular tour",
       "next": "Próximo",
       "previous": "Anterior",
-      "finish": "Concluir"
+      "finish": "Concluir",
+      "stepCounter": "{current} de {total}"
+    },
+    "tours": {
+      "memoryOps": {
+        "step1": {
+          "title": "Manutenção de memória em um só lugar",
+          "body": "Esta página reúne todas as tarefas de manutenção que a memória de longo prazo dos seus agentes precisa. Leia cada cartão e execute quando decidir ou confie na agenda. Nada altera seus dados sem uma confirmação."
+        },
+        "step2": {
+          "title": "Unifique fatos parecidos",
+          "body": "A deduplicação combina fatos que dizem o mesmo com palavras diferentes. Mantém a busca precisa e reduz o custo em tokens de cada consulta. Reversível a partir do registro de auditoria."
+        },
+        "step3": {
+          "title": "Limpe memória obsoleta",
+          "body": "A limpeza arquiva fatos antigos, sem uso ou que contradizem outros mais novos. Os fatos arquivados ficam restauráveis por 30 dias, então você decide com base em evidências, não em suposições."
+        },
+        "step4": {
+          "title": "Execute uma tarefa agora",
+          "body": "Pressione Executar agora para iniciar uma tarefa imediatamente. Você verá uma prévia do impacto — escopo, custo estimado, tempo, reversibilidade — antes de qualquer alteração."
+        }
+      }
     },
     "memoryOps": {
       "pageTitle": "Manutenção da memória",
@@ -2019,7 +2043,7 @@
       "reversibilityDestructive": "Destrutiva. Os fatos arquivados são removidos de forma permanente e não podem ser recuperados.",
       "estimateUnavailable": "—",
       "successToastTitle": "{name} está em execução",
-      "successToastBody": "Vamos avisar você aqui quando terminar.",
+      "successToastBody": "Vamos avisar você aqui quando terminar. {time, select, unknown {} other {Tempo estimado: {time}.}}",
       "errorToastTitle": "Não conseguimos iniciar \"{name}\"",
       "errorToastBody": "{message}. Verifique sua conexão e tente novamente. Se o problema continuar, consulte a página de status do sistema.",
       "nextStepsTitle": "O que fazer em seguida",
@@ -2050,7 +2074,7 @@
         "dedup": {
           "name": "Combinar fatos duplicados",
           "description": "Percorre todos os fatos, encontra os pares que dizem quase a mesma coisa e os combina em um único registro mais claro. Use-a quando perceber que seus agentes começam a se repetir.",
-          "whyMatters": "Menos duplicatas significa uma recuperação mais rápida e respostas que parecem menos mecânicas.",
+          "whyMatters": "Menos duplicatas significa uma recuperação mais rápida e menos repetição nas respostas.",
           "confirmLabel": "Combinar duplicatas",
           "runningLabel": "Combinando duplicatas",
           "doneLabel": "Duplicatas combinadas"
@@ -2100,8 +2124,8 @@
         "title": "Qualidade da recuperação",
         "subtitle": "Três melhorias de recuperação rodam por padrão em cada turno. Cada uma tem um custo pequeno. Desative alguma apenas se você mediu que a economia importa mais do que a qualidade.",
         "tip": "As mudanças entram em vigor no próximo turno de recuperação. As respostas existentes não são geradas novamente.",
-        "savedToast": "Configurações salvas.",
-        "saveErrorToast": "Não foi possível salvar as mudanças. {message}. Verifique sua conexão e tente novamente.",
+        "savedToast": "Configurações de recuperação salvas. A próxima conversa vai aplicá-las.",
+        "saveErrorToast": "Não conseguimos salvar as configurações de recuperação. {message}. Verifique sua conexão e tente novamente. Se o problema continuar, consulte a página de status do sistema.",
         "hyde": {
           "label": "HyDE — embedding de documento hipotético",
           "help": "Gera uma resposta curta e simulada para a pergunta do usuário e a utiliza na busca em vez da pergunta original. Isso reduz a distância entre como perguntas e respostas aparecem no espaço de embeddings. Soma uma chamada barata ao modelo por turno."
@@ -2134,7 +2158,7 @@
     "empty": {
       "brain": {
         "title": "Ainda não há memória guardada",
-        "body": "O Brain mostra tudo o que seus agentes aprenderam em conversas anteriores. Assim que um agente responder a uma mensagem real, os fatos que ele registrar vão aparecer aqui para você revisar e curar."
+        "body": "O Brain mostra tudo o que seus agentes aprenderam em conversas anteriores. Assim que um agente atender a primeira conversa, os fatos que aprender aparecerão aqui para você revisar e curar."
       },
       "flows": {
         "title": "Ainda não há fluxos",
@@ -2335,8 +2359,8 @@
       "removeImpactModelsLabel": "Modelos expostos",
       "removeImpactReversibilityLabel": "Reversibilidade",
       "removeImpactReversibilityValue": "Reconecte quando quiser colando uma nova chave.",
-      "removeError": "Não conseguimos desconectar este provedor. Verifique sua conexão e tente novamente.",
-      "removeSuccess": "Provedor desconectado.",
+      "removeError": "Não conseguimos desconectar {provider}. Verifique sua conexão e tente novamente. Se o problema continuar, consulte a página de status do sistema.",
+      "removeSuccess": "{provider} foi desconectado. Os agentes que dependiam dele não responderão até você conectar outro provedor.",
       "unknownValue": "—",
       "nextStepsTitle": "O que fazer agora",
       "nextStepBuildAgent": {
@@ -2346,6 +2370,123 @@
       "nextStepAddKnowledge": {
         "title": "Adicione conhecimento para recuperar",
         "body": "Envie documentos para que seus agentes baseiem as respostas nas suas próprias informações em vez de adivinhar."
+      }
+    },
+    "onboarding": {
+      "skip": "Pular",
+      "back": "Voltar",
+      "stepper": {
+        "welcome": "Boas-vindas",
+        "provider": "Provedor",
+        "agent": "Agente",
+        "talk": "Conversar",
+        "done": "Pronto"
+      },
+      "welcome": {
+        "eyebrow": "Boas-vindas",
+        "heading": "Vamos colocar seu primeiro agente para funcionar.",
+        "subhead": "Cinco passos curtos. No final você terá um agente respondendo mensagens, e a partir daí continua construindo.",
+        "question": "O que você quer construir?",
+        "options": {
+          "customerSupport": {
+            "label": "Atender clientes com IA",
+            "hint": "Suporte de primeiro nível, captura de leads, perguntas frequentes."
+          },
+          "internalAutomation": {
+            "label": "Automatizar tarefas internas",
+            "hint": "Helpdesk, bots de operações, consultas internas."
+          },
+          "exploring": {
+            "label": "Estou explorando",
+            "hint": "Quero ver o que isto faz antes de me comprometer."
+          }
+        },
+        "sample": {
+          "label": "Trabalhar com dados de exemplo (Acme Inc.)",
+          "hint": "Abre um workspace pré-carregado com agentes, conversas e uma base de conhecimento prontos para inspeção.",
+          "unavailable": "Disponível quando sua conta tiver o workspace de demonstração Acme Inc."
+        },
+        "cta": "Começar"
+      },
+      "provider": {
+        "heading": "Conecte um provedor de IA.",
+        "subhead": "Adicione uma chave para alimentar seus agentes. Sua chave nunca sai deste servidor.",
+        "providerLabel": "Provedor",
+        "apiKeyLabel": "Chave de API",
+        "security": "Armazenada criptografada em repouso. Usada apenas para chamar o provedor em seu nome.",
+        "cta": "Conectar provedor",
+        "errorFallback": "Não foi possível conectar o provedor. Verifique a chave e tente novamente.",
+        "errorNetwork": "Erro de rede ao contatar o servidor. Verifique sua conexão e tente novamente."
+      },
+      "agent": {
+        "heading": "Crie seu primeiro agente.",
+        "subhead": "Um agente tem nome, papel e modelo. Escolha um modelo para não partir do zero — tudo é editável depois.",
+        "templateLabel": "Modelo",
+        "templates": {
+          "tier1": {
+            "label": "Suporte ao cliente nível 1",
+            "hint": "Responde perguntas frequentes e escala o restante."
+          },
+          "helpdesk": {
+            "label": "Helpdesk interno",
+            "hint": "Dúvidas de TI e RH para colaboradores."
+          },
+          "salesCoach": {
+            "label": "Coach de vendas",
+            "hint": "Revisa chamadas e propõe próximos passos."
+          },
+          "blank": {
+            "label": "Começar em branco",
+            "hint": "Defina tudo manualmente."
+          }
+        },
+        "nameLabel": "Nome do agente",
+        "namePlaceholder": "Ex.: Suporte nível 1",
+        "roleLabel": "Papel",
+        "rolePlaceholder": "Uma linha: o que este agente faz?",
+        "modelLabel": "Modelo",
+        "cta": "Criar agente",
+        "errorMissing": "Nome e papel são obrigatórios.",
+        "errorFallback": "Não foi possível criar o agente. Revise o formulário e tente novamente.",
+        "errorNetwork": "Erro de rede ao contatar o servidor. Verifique sua conexão e tente novamente."
+      },
+      "talk": {
+        "heading": "Converse com {name}.",
+        "subhead": "Envie uma mensagem para confirmar que seu agente está conectado. Uma mensagem e uma resposta bastam para continuar.",
+        "chatLabel": "Conversa de teste",
+        "inputLabel": "Mensagem",
+        "inputPlaceholder": "Faça uma pergunta ao seu agente…",
+        "sendLabel": "Enviar",
+        "thinking": "Pensando…",
+        "emptyHint": "Envie a primeira mensagem para iniciar a conversa.",
+        "cta": "Continuar",
+        "errorFallback": "O agente não respondeu. Verifique a chave do provedor e tente novamente.",
+        "errorEmpty": "O provedor retornou uma resposta vazia. Tente outra mensagem.",
+        "errorNetwork": "Erro de rede ao contatar o servidor. Verifique sua conexão e tente novamente."
+      },
+      "done": {
+        "badge": "Pronto",
+        "heading": "Seu agente respondeu à primeira mensagem.",
+        "subhead": "Você já tem o básico funcionando. Três passos curtos multiplicam o resultado.",
+        "agentLive": "Agente ativo",
+        "lastMessage": "Última resposta",
+        "nextStepsHeading": "Próximos passos",
+        "fallbackAgentName": "Seu agente",
+        "nextSteps": {
+          "channel": {
+            "title": "Conectar um canal",
+            "body": "Conecte o agente ao WhatsApp, chat web ou email para que usuários reais possam alcançá-lo."
+          },
+          "knowledge": {
+            "title": "Adicionar conhecimento",
+            "body": "Embase as respostas em seus documentos. Faça upload de um PDF ou aponte para uma URL."
+          },
+          "brain": {
+            "title": "Inspecionar a memória do Brain",
+            "body": "Veja o que seu agente aprendeu. A memória é o que faz a segunda conversa parecer pessoal."
+          }
+        },
+        "cta": "Abrir Studio"
       }
     }
   }

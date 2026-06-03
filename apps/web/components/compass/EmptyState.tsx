@@ -74,18 +74,56 @@ export interface EmptyStateProps {
   illustration?: ReactNode;
   /** Escape hatch for layout tweaks. Avoid using for visual overrides. */
   className?: string;
+  /**
+   * Visual weight. Defaults to `"primary"` — the pedagogical, dashed-bordered
+   * surface used for first-time empties. Use `"subtle"` when the section
+   * already has data elsewhere and a filter just produced zero results: the
+   * surface flattens (no border, no gradient tile), padding shrinks, and CTAs
+   * de-escalate so the empty doesn't scream over the surrounding UI.
+   */
+  intensity?: "primary" | "subtle";
 }
 
-function CtaButton({ cta, variant }: { cta: EmptyStateCta; variant: "primary" | "secondary" }) {
+function CtaButton({
+  cta,
+  variant,
+  intensity,
+}: {
+  cta: EmptyStateCta;
+  variant: "primary" | "secondary";
+  intensity: "primary" | "subtle";
+}) {
   const isPrimary = variant === "primary";
 
-  const className = isPrimary
-    ? "bg-gradient-to-r from-violet-600 to-blue-600 font-medium text-white shadow-lg shadow-violet-500/20"
-    : "font-medium text-body";
+  // Secondary CTAs degrade to a plain text link in both intensities — adversarial
+  // review flagged that even a `variant="light"` button still reads as chrome
+  // and competes with the primary action.
+  if (!isPrimary) {
+    const linkClass =
+      "text-sm font-medium text-muted underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none";
+    if (cta.href) {
+      return (
+        <Link href={cta.href} className={linkClass}>
+          {cta.label}
+        </Link>
+      );
+    }
+    return (
+      <button type="button" onClick={cta.onClick} className={linkClass}>
+        {cta.label}
+      </button>
+    );
+  }
+
+  // Primary CTA: bold gradient at primary intensity, neutral light button at subtle.
+  const isSubtle = intensity === "subtle";
+  const className = isSubtle
+    ? "font-medium text-body"
+    : "bg-gradient-to-r from-violet-600 to-blue-600 font-medium text-white shadow-lg shadow-violet-500/20";
 
   const sharedProps = {
     size: "sm" as const,
-    variant: isPrimary ? ("solid" as const) : ("light" as const),
+    variant: (isSubtle ? "light" : "solid") as "light" | "solid",
     className,
   };
 
@@ -112,46 +150,72 @@ export function EmptyState({
   secondaryCta,
   illustration,
   className,
+  intensity = "primary",
 }: EmptyStateProps) {
   const hasCta = Boolean(primaryCta) || Boolean(secondaryCta);
+  const isSubtle = intensity === "subtle";
 
   return (
     <motion.section
       role="status"
       aria-live="polite"
+      aria-label={typeof title === "string" ? title : undefined}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: APPLE_EASE }}
       className={cn(
-        "mx-auto flex w-full max-w-xl flex-col items-center justify-center gap-6 rounded-2xl",
-        "border border-dashed border-line bg-card px-8 py-14 text-center",
+        "mx-auto flex w-full max-w-xl flex-col items-center justify-center text-center",
+        isSubtle
+          ? "gap-3 rounded-xl bg-app/30 px-6 py-8"
+          : "gap-6 rounded-2xl border border-dashed border-line bg-card px-8 py-14",
         className
       )}
     >
-      {illustration ? (
+      {/* Illustration slot is intentionally ignored in subtle mode — filter-empty
+          surfaces should not carry hero artwork. */}
+      {!isSubtle && illustration ? (
         <div aria-hidden="true" className="flex items-center justify-center">
           {illustration}
         </div>
       ) : icon ? (
-        <div
-          aria-hidden="true"
-          className="relative flex h-14 w-14 items-center justify-center rounded-2xl"
-        >
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-violet-600/25 to-blue-600/15" />
-          <div className="absolute inset-0 rounded-2xl border border-violet-500/20" />
-          <div className="relative text-violet-600 dark:text-violet-400">{icon}</div>
-        </div>
+        isSubtle ? (
+          <div aria-hidden="true" className="flex h-8 w-8 items-center justify-center text-muted">
+            {icon}
+          </div>
+        ) : (
+          <div
+            aria-hidden="true"
+            className="relative flex h-14 w-14 items-center justify-center rounded-2xl"
+          >
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-violet-600/25 to-blue-600/15" />
+            <div className="absolute inset-0 rounded-2xl border border-violet-500/20" />
+            <div className="relative text-violet-600 dark:text-violet-400">{icon}</div>
+          </div>
+        )
       ) : null}
 
-      <div className="space-y-2">
-        <h3 className="text-base font-semibold text-strong">{title}</h3>
-        <div className="mx-auto max-w-md text-sm leading-relaxed text-muted">{body}</div>
+      <div className={isSubtle ? "space-y-1" : "space-y-2"}>
+        <h3 className={cn("font-semibold text-strong", isSubtle ? "text-base" : "text-base")}>
+          {title}
+        </h3>
+        <div
+          className={cn(
+            "mx-auto max-w-md leading-relaxed text-muted",
+            isSubtle ? "text-xs" : "text-sm"
+          )}
+        >
+          {body}
+        </div>
       </div>
 
       {hasCta ? (
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          {primaryCta ? <CtaButton cta={primaryCta} variant="primary" /> : null}
-          {secondaryCta ? <CtaButton cta={secondaryCta} variant="secondary" /> : null}
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {primaryCta ? (
+            <CtaButton cta={primaryCta} variant="primary" intensity={intensity} />
+          ) : null}
+          {secondaryCta ? (
+            <CtaButton cta={secondaryCta} variant="secondary" intensity={intensity} />
+          ) : null}
         </div>
       ) : null}
     </motion.section>

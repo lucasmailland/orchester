@@ -54,30 +54,31 @@ export type CompassTermKey =
 export const COMPASS_TERMS: Record<CompassTermKey, TermDefinition> = {
   mnemosyne: {
     short: {
-      en: "The system that keeps your agents' long-term memory healthy and organized.",
-      es: "El sistema que mantiene ordenada y saludable la memoria de largo plazo de tus agentes.",
+      en: "Keeps your agents from forgetting users or repeating themselves. Our memory service runs in the background after every conversation.",
+      es: "Evita que tus agentes olviden usuarios o se repitan. Nuestro servicio de memoria corre en segundo plano después de cada conversación.",
       "pt-BR":
-        "O sistema que mantém a memória de longo prazo dos seus agentes organizada e saudável.",
+        "Evita que seus agentes esqueçam usuários ou se repitam. Nosso serviço de memória roda em segundo plano após cada conversa.",
     },
     long: {
-      en: "Mnemosyne is the background service that saves, combines, and removes the information your agents learn. It runs on a schedule so your agents stay accurate over time without manual cleanup.",
-      es: "Mnemosyne es el servicio en segundo plano que guarda, combina y elimina la información que tus agentes aprenden. Se ejecuta de forma programada para que tus agentes mantengan su precisión con el tiempo sin necesidad de limpieza manual.",
+      en: "Keeps your agents from forgetting users or repeating themselves across sessions. Our memory service Mnemosyne saves, merges, and prunes what each agent learns on a schedule, so accuracy holds up without manual cleanup.",
+      es: "Evita que tus agentes olviden a los usuarios o se repitan entre sesiones. Nuestro servicio de memoria Mnemosyne guarda, combina y depura lo que cada agente aprende de forma programada, para que la precisión se sostenga sin limpieza manual.",
       "pt-BR":
-        "O Mnemosyne é o serviço em segundo plano que salva, combina e remove as informações que seus agentes aprendem. Ele roda de forma programada para que seus agentes mantenham a precisão ao longo do tempo sem limpeza manual.",
+        "Evita que seus agentes esqueçam usuários ou se repitam entre sessões. Nosso serviço de memória Mnemosyne salva, combina e remove o que cada agente aprende de forma programada, para que a precisão se mantenha sem limpeza manual.",
     },
   },
 
   brain: {
     short: {
-      en: "The page where you inspect everything your agents have learned.",
-      es: "La página donde puedes inspeccionar todo lo que tus agentes aprendieron.",
-      "pt-BR": "A página onde você inspeciona tudo o que seus agentes aprenderam.",
+      en: "What your agents have actually learned. Inspect it before deploying changes that depend on persisted context.",
+      es: "Lo que tus agentes realmente aprendieron. Revísalo antes de publicar cambios que dependan del contexto guardado.",
+      "pt-BR":
+        "O que seus agentes de fato aprenderam. Revise antes de publicar mudanças que dependem do contexto salvo.",
     },
     long: {
-      en: "Brain is the view of your agents' long-term memory. You can review individual facts, see when they were learned, and decide which ones to keep or remove.",
-      es: "Brain es la vista de la memoria de largo plazo de tus agentes. Puedes revisar cada hecho, ver cuándo se aprendió y decidir cuáles conservar o eliminar.",
+      en: "Shows you what your agents have actually learned, so you can audit it before deploying changes that depend on persisted context. The Brain page lists every stored fact, when it was learned, and lets you keep or remove items one by one.",
+      es: "Te muestra lo que tus agentes realmente aprendieron, para que puedas auditarlo antes de publicar cambios que dependan del contexto guardado. La página Brain lista cada hecho almacenado, cuándo se aprendió, y te permite conservar o eliminar elementos uno a uno.",
       "pt-BR":
-        "O Brain é a visão da memória de longo prazo dos seus agentes. Você pode revisar cada fato, ver quando ele foi aprendido e decidir o que manter ou remover.",
+        "Mostra o que seus agentes de fato aprenderam, para que voce possa auditar antes de publicar mudanças que dependem do contexto salvo. A página Brain lista cada fato armazenado, quando foi aprendido, e permite manter ou remover itens um a um.",
     },
   },
 
@@ -187,30 +188,31 @@ export const COMPASS_TERMS: Record<CompassTermKey, TermDefinition> = {
 
   recall: {
     short: {
-      en: "The moment an agent pulls a fact from memory to answer a question.",
-      es: "El momento en que un agente recupera un hecho de la memoria para responder una pregunta.",
+      en: "Lets agents answer with what they already know about this user, instead of asking again. Triggered automatically by each incoming message.",
+      es: "Permite que los agentes respondan con lo que ya saben de este usuario, en vez de volver a preguntar. Se dispara automáticamente con cada mensaje entrante.",
       "pt-BR":
-        "O momento em que um agente recupera um fato da memória para responder a uma pergunta.",
+        "Permite que os agentes respondam com o que já sabem sobre este usuário, em vez de perguntar de novo. Disparado automaticamente por cada mensagem recebida.",
     },
     long: {
-      en: "Recall is how the agent decides which saved information is relevant to the current message. We track how often each fact is recalled so you can see what your agents actually rely on.",
-      es: "La recuperación es la forma en que el agente decide qué información guardada es relevante para el mensaje actual. Registramos cuántas veces se recupera cada hecho para que puedas ver en qué se apoyan realmente tus agentes.",
+      en: "Lets agents answer with what they already know about this user, instead of asking again. On each incoming message we score every stored fact for relevance, pull the top matches into the prompt, and log which ones were used so you can see what your agents lean on.",
+      es: "Permite que los agentes respondan con lo que ya saben de este usuario, en vez de volver a preguntar. Con cada mensaje entrante calificamos la relevancia de cada hecho guardado, llevamos los mejores al prompt y registramos cuáles se usaron, para que veas en qué se apoyan tus agentes.",
       "pt-BR":
-        "A recuperação é como o agente decide qual informação salva é relevante para a mensagem atual. Registramos quantas vezes cada fato é recuperado para que você veja no que seus agentes realmente se apoiam.",
+        "Permite que os agentes respondam com o que já sabem sobre este usuário, em vez de perguntar de novo. A cada mensagem recebida pontuamos a relevância de cada fato salvo, levamos os melhores para o prompt e registramos quais foram usados, para que voce veja no que seus agentes se apoiam.",
     },
   },
 
   fact: {
     short: {
-      en: "A single piece of information that an agent learned and can use later.",
-      es: "Una unidad de información que un agente aprendió y puede usar después.",
-      "pt-BR": "Uma unidade de informação que um agente aprendeu e pode usar depois.",
+      en: "One thing an agent decided is worth remembering. Pulled back into the prompt automatically on the next relevant message.",
+      es: "Una cosa que un agente decidió que vale la pena recordar. Vuelve al prompt de forma automática en el próximo mensaje relevante.",
+      "pt-BR":
+        "Uma coisa que um agente decidiu que vale a pena lembrar. Volta ao prompt automaticamente na próxima mensagem relevante.",
     },
     long: {
-      en: "A fact is the smallest unit of memory: one sentence with one idea, plus the source it came from. Agents combine many facts to answer a question.",
-      es: "Un hecho es la unidad mínima de memoria: una oración con una idea, junto con la fuente de donde proviene. Los agentes combinan varios hechos para responder una pregunta.",
+      en: "One thing an agent decided is worth remembering across conversations, so it does not have to relearn it. Each fact is a single sentence with one idea plus the source it came from, and gets pulled back into the prompt automatically when the next relevant message arrives.",
+      es: "Una cosa que un agente decidió que vale la pena recordar entre conversaciones, para no tener que volver a aprenderla. Cada hecho es una oración única con una idea, junto con la fuente de donde proviene, y vuelve al prompt de forma automática cuando llega el próximo mensaje relevante.",
       "pt-BR":
-        "Um fato é a menor unidade de memória: uma frase com uma ideia, junto com a fonte de onde veio. Os agentes combinam vários fatos para responder a uma pergunta.",
+        "Uma coisa que um agente decidiu que vale a pena lembrar entre conversas, para não precisar aprender de novo. Cada fato é uma frase única com uma ideia, junto com a fonte de onde veio, e volta ao prompt automaticamente quando chega a próxima mensagem relevante.",
     },
   },
 

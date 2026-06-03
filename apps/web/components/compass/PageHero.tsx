@@ -48,6 +48,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Compass as CompassIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { useHasTour } from "@/lib/compass/use-has-tour";
 import { APPLE_EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -73,12 +74,19 @@ export interface PageHeroProps {
   subtitle: ReactNode;
 
   /**
-   * When provided, renders a "Take a tour" button that, on press,
-   * dispatches `window.dispatchEvent(new CustomEvent("compass:tour",
-   * { detail: { tourId } }))`. A tour host elsewhere in the tree
-   * listens and runs the matching flow.
+   * Identifier of the page tour this hero belongs to. When provided AND at
+   * least one `<TourSpot>` with a matching id (either `tourId` exactly, or
+   * prefixed `${tourId}:`) is currently mounted, a "Take a tour" button is
+   * rendered. On press it dispatches `window.dispatchEvent(new
+   * CustomEvent("compass:tour", { detail: { tourId } }))`; a tour host
+   * elsewhere in the tree listens and runs the matching flow.
+   *
+   * If no matching `TourSpot` is mounted, the button is omitted entirely
+   * (not disabled, not greyed) — a disabled button promising onboarding
+   * that doesn't exist is also a UX lie. Passing `null`/`undefined` opts
+   * out the same way.
    */
-  tourId?: string;
+  tourId?: string | null;
 
   /**
    * Localized label for the tour button. Defaults to the English
@@ -121,7 +129,13 @@ export function PageHero({
 }: PageHeroProps): React.JSX.Element {
   const reduceMotion = useReducedMotion();
   const showIconTile = icon !== null && icon !== undefined;
-  const showTour = typeof tourId === "string" && tourId.length > 0;
+
+  // Renders the tour CTA only when at least one TourSpot with this tourId is
+  // mounted. Prevents promising onboarding that doesn't exist.
+  const hasTour = useHasTour(tourId);
+  const resolvedTourId: string | null =
+    typeof tourId === "string" && tourId.length > 0 ? tourId : null;
+  const showTour = resolvedTourId !== null && hasTour;
 
   // English aria fallback only — consumers should pass `tourLabel`.
   const resolvedTourLabel = tourLabel ?? "Take a tour";
@@ -165,15 +179,15 @@ export function PageHero({
 
       {(showTour || action) && (
         <div className="flex shrink-0 items-center gap-2 sm:pt-1">
-          {showTour ? (
+          {showTour && resolvedTourId !== null ? (
             <Button
               type="button"
               variant="bordered"
               size="sm"
               radius="md"
-              onPress={() => emitTour(tourId)}
+              onPress={() => emitTour(resolvedTourId)}
               aria-label={resolvedTourLabel}
-              data-compass-tour-id={tourId}
+              data-compass-tour-id={resolvedTourId}
             >
               {resolvedTourLabel}
             </Button>
