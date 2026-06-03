@@ -38,5 +38,15 @@ export async function GET() {
     .where(eq(schema.workspaceMembers.userId, session.user.id))
     .orderBy(desc(schema.workspaces.updatedAt));
 
-  return NextResponse.json({ workspaces: rows });
+  // Deduplicate by workspace ID — a user can have multiple membership
+  // rows for the same workspace (e.g. from a seed or a bug); keep the
+  // first occurrence (highest-privilege role or most-recent updatedAt).
+  const seen = new Set<string>();
+  const workspaces = rows.filter((row) => {
+    if (seen.has(row.id)) return false;
+    seen.add(row.id);
+    return true;
+  });
+
+  return NextResponse.json({ workspaces });
 }
