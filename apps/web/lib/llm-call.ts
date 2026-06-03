@@ -30,14 +30,30 @@ export type ChatMessage = CapChatMessage;
 export type ToolUseBlock = CapToolUseBlock;
 export type ToolResultBlock = CapToolResultBlock;
 
-/** Timeout para obtener la respuesta completa de un LLM (block call). */
-const LLM_TIMEOUT_MS = 120_000;
+/**
+ * Lee un entero positivo de `process.env[name]`. Si la variable está vacía o
+ * no parsea a un entero > 0, devuelve `fallback`. Mismo patrón que `envDays`
+ * en `lib/retention.ts`.
+ */
+function envMs(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+/**
+ * Timeout para obtener la respuesta completa de un LLM (block call).
+ * Configurable vía `LLM_TIMEOUT_MS` (ms). Default 120s.
+ */
+const LLM_TIMEOUT_MS = envMs("LLM_TIMEOUT_MS", 120_000);
 /**
  * Timeout para ESTABLECER la conexión de streaming. El `fetch` resuelve cuando
  * llegan los headers de respuesta; no abortamos mid-stream (el body se lee con
  * su propio reader). 120s para acomodar TTFB lento de modelos de razonamiento.
+ * Configurable vía `LLM_STREAM_CONNECT_TIMEOUT_MS` (ms).
  */
-const LLM_STREAM_CONNECT_TIMEOUT_MS = 120_000;
+const LLM_STREAM_CONNECT_TIMEOUT_MS = envMs("LLM_STREAM_CONNECT_TIMEOUT_MS", 120_000);
 
 export interface ToolDefinitionForLlm {
   name: string;
