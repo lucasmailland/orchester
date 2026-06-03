@@ -41,6 +41,126 @@ We're not chasing feature parity with hosted clouds. We're chasing the **substra
 
 ---
 
+## 🎭 Teams, not lone agents
+
+> A single agent isn't an AI system. It's a chatbot.
+
+The mental model of Orchester is **teams** — not the standard "one big agent with a giant prompt" pattern that breaks at the first edge case.
+
+```
+              ┌─ Orchestrator ─────────┐
+              │  claude-opus-4         │
+              │  decides who handles   │
+              │  what, when, with what │
+              └──────────┬─────────────┘
+                         │
+        ┌────────────────┼────────────────┐
+        │                │                │
+   ┌────▼─────┐    ┌─────▼─────┐    ┌─────▼─────┐
+   │  Sales   │    │  Support  │    │   Ops     │
+   │ specialist│    │ specialist│    │ specialist│
+   └──────────┘    └───────────┘    └───────────┘
+```
+
+The **Orchestrator** receives every message, classifies intent, and delegates to a **Specialist**. Specialists are focused: they know their tools, their persona, their model — and nothing else. When something goes wrong, you can tell _which_ specialist did _what_ and why, because the orchestrator emitted a `delegation` audit event with full context.
+
+Each specialist can in turn be either a **Prompt + Tools agent** (LLM-driven) or a **Visual Flow agent** (deterministic). Both kinds live in the same team. The orchestrator doesn't care.
+
+**Why this matters:**
+
+- **Bounded context** — each specialist sees only what it needs, no 12-job context overflow
+- **Parallelism** — specialists run concurrently when the orchestrator fans out
+- **Traceable** — every routing decision is an audit log entry with the prompt, the candidates, and the choice
+- **Composable** — swap a specialist's model, persona, or tools without touching the orchestrator
+
+---
+
+## ⚒️ Two ways to build an agent
+
+Most agent frameworks force you to pick one pattern: either everything is an LLM-driven prompt-and-tools call, or everything is a hand-wired graph. Orchester runs **both** side by side, in the same team.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+#### 🤖 Prompt + Tools
+
+**For dialogue · LLM-decided · ad-hoc**
+
+Define a persona, hand the model a toolbelt, let it decide what to call. Best for open-ended conversations, research, customer dialogue.
+
+```typescript
+const support = await orchester.agent({
+  persona: "You help customers solve billing issues",
+  model: "claude-sonnet-4-6",
+  tools: ["search_kb", "create_ticket", "refund"],
+  memory: "semantic",
+});
+```
+
+</td>
+<td width="50%" valign="top">
+
+#### 🔗 Visual Flow
+
+**For process · deterministic · drag-and-drop**
+
+Wire triggers, branches, loops and retries on a canvas. Typed state, bounded loops, retry policies per node. Best for onboarding, lead routing, multi-step workflows — anything QA needs to sign off on.
+
+```
+   ┌─ Trigger
+   └─► Classify intent
+        ├─► Search KB ──┐
+        └─► Call API ───┤
+                        └─► Reply
+```
+
+</td>
+</tr>
+</table>
+
+**Mix both in the same team.** A "support" specialist can be a Prompt+Tools agent. The same team's "billing-refund" specialist can be a Visual Flow that requires manager approval. The orchestrator delegates to whichever specialist matches the intent.
+
+---
+
+## 🧠 The Brain — persistent memory
+
+> Not chat history. A real knowledge graph that decays, gets recalled by similarity, and is auditable.
+
+Most agent frameworks ship with the wrong memory model: dump the last N messages into the prompt and hope. Orchester ships **the Brain** — a per-workspace knowledge graph designed for production teams.
+
+```typescript
+// Agents write facts as they learn — explicit, sourced, scored
+await brain.remember({
+  fact: "User is on Enterprise plan, 50 seats",
+  source: "msg_1247",
+  confidence: 0.95,
+  agent: "support",
+});
+
+// Specialists recall by meaning, not by string match
+const context = await brain.recall({
+  query: "what plan are they on?",
+  decay_after_days: 90,
+  min_confidence: 0.6,
+});
+```
+
+**What makes it different:**
+
+| Capability             | What it gives you                                                                                          |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Semantic recall**    | `pgvector` HNSW + tiered embedding (768d/1536d) returns the _right_ context — not the last 10 messages     |
+| **Trust decay**        | Every fact has a `confidence` that exponentially decays unless re-confirmed. Old prices stop being "truth" |
+| **Versioning + audit** | Every write is logged with `source`, `agent`, `timestamp`. Compliance reviews go from weeks to hours       |
+| **GDPR-safe**          | Per-fact `delete` and per-subject `export`. RLS keeps facts inside the workspace that wrote them           |
+| **Recall telemetry**   | `recall-debug` traces show which embeddings matched and why a fact was/wasn't recalled                     |
+| **Inspectable**        | The Brain Inspector UI lists facts with strength bars, last-recalled, source message, and decay rate       |
+
+The Brain isn't a vector DB hidden behind an SDK — it's a **product surface** with admin tooling, observability, and tenant guarantees. See [`packages/mnemosyne/`](packages/mnemosyne/) for the engine and `apps/web/app/[locale]/[workspaceSlug]/(shell)/brain/` for the UI.
+
+---
+
 ## ⚡ At a glance
 
 <table>
