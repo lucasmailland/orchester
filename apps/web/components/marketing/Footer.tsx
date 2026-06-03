@@ -18,7 +18,6 @@ export function Footer() {
       title: t("product"),
       links: [
         { label: t("links.docs"), href: `/${locale}/docs` },
-        { label: t("links.pricing"), href: `/${locale}/pricing` },
         { label: t("links.changelog"), href: "#changelog" },
       ],
     },

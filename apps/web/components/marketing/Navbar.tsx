@@ -36,7 +36,6 @@ export function Navbar() {
 
   const navLinks = [
     { key: "docs" as const, href: `/${locale}/docs` },
-    { key: "pricing" as const, href: `/${locale}/pricing` },
     { key: "changelog" as const, href: "#changelog" },
   ];
 

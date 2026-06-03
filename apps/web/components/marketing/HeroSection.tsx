@@ -10,62 +10,62 @@ import { cn } from "@/lib/utils";
 // ─── Aurora blob definitions ──────────────────────────────────────────────────
 const AURORA_BLOBS = [
   {
-    color: "bg-violet-500/30",
-    size: 700,
+    color: "bg-violet-500/55",
+    size: 720,
     top: "-10%",
     left: "-15%",
-    dur: 22,
-    scale: [1, 1.12, 0.95, 1.08, 1] as number[],
+    dur: 16,
+    scale: [1, 1.18, 0.92, 1.12, 1] as number[],
     translate: [
       [0, 0],
-      [60, 40],
-      [-30, 80],
-      [40, -20],
+      [80, 60],
+      [-40, 100],
+      [60, -30],
       [0, 0],
     ] as [number, number][],
   },
   {
-    color: "bg-indigo-500/25",
-    size: 600,
-    top: "20%",
+    color: "bg-indigo-500/50",
+    size: 620,
+    top: "15%",
     left: "60%",
-    dur: 25,
-    scale: [1, 0.9, 1.15, 0.95, 1] as number[],
+    dur: 18,
+    scale: [1, 0.88, 1.22, 0.94, 1] as number[],
     translate: [
       [0, 0],
-      [-80, 30],
-      [40, -60],
-      [-20, 50],
+      [-100, 40],
+      [60, -80],
+      [-30, 70],
       [0, 0],
     ] as [number, number][],
   },
   {
-    color: "bg-cyan-500/20",
-    size: 550,
+    color: "bg-cyan-500/45",
+    size: 560,
     top: "55%",
     left: "10%",
-    dur: 28,
-    scale: [1, 1.1, 0.92, 1.18, 1] as number[],
+    dur: 20,
+    scale: [1, 1.15, 0.9, 1.25, 1] as number[],
     translate: [
       [0, 0],
-      [50, -40],
-      [-30, 60],
-      [70, 30],
+      [70, -50],
+      [-40, 80],
+      [90, 40],
       [0, 0],
     ] as [number, number][],
   },
   {
-    color: "bg-fuchsia-500/18",
-    size: 500,
+    color: "bg-fuchsia-500/45",
+    size: 520,
     top: "45%",
     left: "55%",
-    dur: 30,
-    scale: [1, 0.95, 1.2, 0.9, 1] as number[],
+    dur: 22,
+    scale: [1, 0.92, 1.28, 0.88, 1] as number[],
     translate: [
       [0, 0],
-      [-50, 60],
-      [30, -50],
-      [-40, 20],
+      [-70, 80],
+      [40, -70],
+      [-50, 30],
       [0, 0],
     ] as [number, number][],
   },
@@ -302,18 +302,28 @@ export function HeroSection() {
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
         {/* Slow rotating conic halo behind the blobs */}
         <motion.div
-          className="absolute left-1/2 top-1/2 h-[800px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-30"
+          className="absolute left-1/2 top-1/2 h-[800px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-60"
           style={{
             background:
               "conic-gradient(from 0deg, transparent, rgba(167,139,250,0.15), transparent, rgba(34,211,238,0.1), transparent)",
           }}
           animate={{ rotate: 360 }}
-          transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
+          transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+        />
+        {/* Counter-rotating smaller conic halo */}
+        <motion.div
+          className="absolute left-1/2 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-40"
+          style={{
+            background:
+              "conic-gradient(from 180deg, transparent, rgba(244,114,182,0.18), transparent, rgba(34,211,238,0.16), transparent)",
+          }}
+          animate={{ rotate: -360 }}
+          transition={{ duration: 35, repeat: Infinity, ease: "linear" }}
         />
         {AURORA_BLOBS.map((b, i) => (
           <motion.div
             key={i}
-            className={`absolute rounded-full blur-[120px] ${b.color}`}
+            className={`absolute rounded-full blur-[140px] ${b.color}`}
             style={{
               width: b.size,
               height: b.size,
@@ -333,6 +343,25 @@ export function HeroSection() {
             }}
           />
         ))}
+        {/* Flowing ribbon — slowly drifts diagonally */}
+        <motion.div
+          className="pointer-events-none absolute inset-0"
+          animate={{
+            background: [
+              "radial-gradient(800px 400px at 10% 30%, rgba(167,139,250,0.22), transparent 60%)",
+              "radial-gradient(900px 450px at 80% 70%, rgba(34,211,238,0.22), transparent 60%)",
+              "radial-gradient(850px 420px at 50% 20%, rgba(129,140,248,0.22), transparent 60%)",
+              "radial-gradient(900px 450px at 20% 80%, rgba(244,114,182,0.22), transparent 60%)",
+              "radial-gradient(800px 400px at 10% 30%, rgba(167,139,250,0.22), transparent 60%)",
+            ],
+          }}
+          transition={{
+            duration: 20,
+            repeat: Infinity,
+            ease: "easeInOut",
+            times: [0, 0.25, 0.5, 0.75, 1],
+          }}
+        />
       </div>
 
       {/* Noise grain overlay */}
@@ -345,6 +374,18 @@ export function HeroSection() {
           backgroundImage: "radial-gradient(circle, #a78bfa 1px, transparent 1px)",
           backgroundSize: "30px 30px",
         }}
+      />
+
+      {/* Drifting grid */}
+      <motion.div
+        className="pointer-events-none absolute inset-0 opacity-[0.08]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(167,139,250,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(167,139,250,0.5) 1px, transparent 1px)",
+          backgroundSize: "60px 60px",
+        }}
+        animate={{ backgroundPosition: ["0px 0px", "60px 60px"] }}
+        transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
       />
 
       {/* Floating decorative elements */}
