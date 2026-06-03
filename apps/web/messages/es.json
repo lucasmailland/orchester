@@ -449,7 +449,9 @@
     "invalidCredentials": "Email o contraseña incorrectos",
     "emailTaken": "Ya existe una cuenta con este email",
     "googleSignIn": "Continuar con Google",
-    "orContinueWith": "o continúa con"
+    "orContinueWith": "o continúa con",
+    "tagline": "Equipos de agentes IA para tu empresa",
+    "liveNetwork": "Red de Agentes en Vivo"
   },
   "pages": {
     "dashboard": {
@@ -1626,6 +1628,100 @@
       "toast": {
         "enqueued": "Job encolado — corre en el próximo tick del worker.",
         "enqueueError": "No se pudo encolar: {message}"
+      }
+    }
+  },
+  "marketing": {
+    "nav": {
+      "docs": "Docs",
+      "pricing": "Precios",
+      "changelog": "Novedades",
+      "getStarted": "Empezar",
+      "signIn": "Iniciar sesión"
+    },
+    "hero": {
+      "badge": "Open-source · Auto-hospedable · Multi-tenant",
+      "headline1": "Construí equipos de agentes IA",
+      "headline2": "que realmente funcionan.",
+      "subheadline": "La plataforma open-source para orquestar agentes IA en flujos poderosos. Multi-tenant desde el día uno, 80+ proveedores de IA, auto-hospedable en Postgres.",
+      "ctaPrimary": "Empezar gratis",
+      "ctaGithub": "Star en GitHub"
+    },
+    "stats": {
+      "providers": "proveedores de IA",
+      "locales": "idiomas",
+      "openSource": "open source",
+      "selfHostable": "auto-hospedable"
+    },
+    "features": {
+      "title": "Todo lo que necesitás.",
+      "subtitle": "Nada que no.",
+      "multiTenant": {
+        "title": "Multi-tenant por defecto",
+        "desc": "Aislamiento de workspace desde el día uno. Cada equipo tiene sus datos, agentes y permisos — sin configuración extra."
+      },
+      "providers": {
+        "title": "80+ proveedores de IA",
+        "desc": "Anthropic, OpenAI, Gemini, Mistral, Llama y más. Cambiá modelos sin reescribir ni una línea de código de tus agentes."
+      },
+      "flows": {
+        "title": "Constructor visual de flujos",
+        "desc": "Orquestación drag-and-drop con bifurcaciones, loops y tracing de ejecución en tiempo real en el canvas."
+      },
+      "brain": {
+        "title": "Memoria persistente (Brain)",
+        "desc": "Los agentes recuerdan entre conversaciones con búsqueda semántica, decay scoring, versionado de hechos y export GDPR."
+      },
+      "selfHost": {
+        "title": "Auto-hospedable",
+        "desc": "Un docker compose up. Corre en tu propio Postgres y Redis. Control total, sin vendor lock-in."
+      },
+      "enterprise": {
+        "title": "Listo para enterprise",
+        "desc": "RBAC, audit log completo, export GDPR, CSP nonces, rate limiting por workspace y SSO — incluidos de fábrica."
+      }
+    },
+    "howItWorks": {
+      "title": "Arrancá en 3 pasos.",
+      "step1": {
+        "label": "Desplegá",
+        "title": "Setup en un comando",
+        "desc": "Clonás el repo, configurás el .env y corrés docker compose up. Postgres + Redis son las únicas dependencias de infraestructura."
+      },
+      "step2": {
+        "label": "Construí",
+        "title": "Creá tu primer agente",
+        "desc": "Definís persona, modelo, estrategia de memoria y herramientas desde la UI o la API. Conectalo a un canal o flujo en minutos."
+      },
+      "step3": {
+        "label": "Escalá",
+        "title": "Orquestá a escala",
+        "desc": "Encadenás agentes en flujos visuales, agregás compañeros de equipo con RBAC y monitoreás cada decisión de LLM en tiempo real."
+      }
+    },
+    "integrations": {
+      "title": "Funciona con cualquier proveedor de IA.",
+      "subtitle": "No te encerrés. Cambiá o mezclá modelos sin tocar el código de tus agentes."
+    },
+    "cta": {
+      "title": "Construido en público.",
+      "subtitle": "Danos una star, forkealo, rompelo. Orchester es open-source y así se va a quedar.",
+      "primaryButton": "Star en GitHub",
+      "secondaryButton": "Auto-hospedá en 5 minutos",
+      "selfHostCommand": "docker compose up -d"
+    },
+    "footer": {
+      "tagline": "Plataforma open-source de agentes IA.",
+      "product": "Producto",
+      "company": "Empresa",
+      "legal": "Legal",
+      "links": {
+        "docs": "Docs",
+        "pricing": "Precios",
+        "changelog": "Novedades",
+        "github": "GitHub",
+        "privacy": "Privacidad",
+        "terms": "Términos"
       }
     }
   }
