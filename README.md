@@ -1,14 +1,12 @@
 <div align="center">
 
-<img src=".github/assets/social-preview.png" alt="Orchester — Build agents. Orchestrate flows." width="100%" />
+<img src=".github/assets/social-preview.png" alt="Orchester — Stop building agents. Build teams." width="100%" />
 
 # Orchester
 
-### The open-source platform for the AI-agent era.
+### Stop building agents. Build teams.
 
-**Build agents. Orchestrate flows. Multi-tenant from day one.**
-
-<sub>One Postgres. One worker. 80+ AI providers behind one adapter layer. 30+ visual flow nodes.<br/>Self-hostable. Apache 2.0. Zero "free for personal use only" rug-pulls.</sub>
+<sub>An open-source platform for running **teams** of AI agents — with an orchestrator that delegates, specialists that execute, and a persistent memory that learns.<br/>One Postgres. One worker. 80+ AI providers. Multi-tenant from day one. Apache 2.0.</sub>
 
 <br/>
 
@@ -23,17 +21,40 @@
 
 <br/>
 
-[**Manifesto**](#-why-orchester) ・ [**Architecture**](#-architecture) ・ [**What you can build**](#-what-you-can-build) ・ [**Compare**](#-how-it-compares) ・ [**Quickstart**](#-quickstart) ・ [**API · MCP**](#-use-it-from-outside-the-studio) ・ [**FAQ**](#-faq) ・ [**Docs**](#-documentation)
+[**Teams**](#-teams-not-lone-agents) ・ [**Two patterns**](#%EF%B8%8F-two-ways-to-build-an-agent) ・ [**The Brain**](#-the-brain--persistent-memory) ・ [**Architecture**](#%EF%B8%8F-architecture) ・ [**Quickstart**](#-quickstart) ・ [**API · MCP**](#-use-it-from-outside-the-studio) ・ [**Compare**](#%EF%B8%8F-how-it-compares) ・ [**FAQ**](#-faq) ・ [**Docs**](#-documentation)
 
 </div>
 
 ---
 
-## ✦ Why Orchester
+<div align="center">
+  <img src=".github/assets/studio-dashboard.png" alt="Orchester Studio — Command Center" width="100%" />
+  <sub><i>The Orchester Studio — Command Center showing active agents, today's conversations, open queue and 30-day spend.</i></sub>
+</div>
+
+---
+
+## 🚀 Try it in 30 seconds
+
+```bash
+git clone https://github.com/lucasmailland/orchester
+cd orchester
+cp .env.example .env
+docker compose up -d
+pnpm install && pnpm db:migrate && pnpm dev
+```
+
+Open `http://localhost:3000`, log in with the seeded `demo@orchester.dev` account, and you'll have a workspace with a 3-agent team pre-wired to a flow. **Postgres and Redis are the only deps.**
+
+> Full setup, BYO keys, multi-tenant config and production hardening live in [**`docs/QUICKSTART.md`**](docs/QUICKSTART.md).
+
+---
+
+## ✦ Why this exists
 
 > Every team building with AI ends up reinventing the same six things: a way to compose agents and tools, a way to swap models without rewriting, multi-tenant isolation, cost control, observability, and a way to plug into the rest of the stack.
->
-> We built those six things, made them open source, and made the trade-offs **visible** — not hidden behind a SaaS pricing page.
+
+We built those six things, made them open source, and made the trade-offs **visible** — not hidden behind a SaaS pricing page.
 
 Most platforms in this space pick exactly **one** of _open source_, _AI-native_, _multi-tenant_, or _self-hostable_. Orchester is all four. The trade-offs are deliberate and documented in [`docs/adr/`](docs/adr/) — every load-bearing call has a record explaining what we chose, what we rejected, and what would invalidate the decision.
 

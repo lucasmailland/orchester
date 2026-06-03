@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { motion } from "framer-motion";
 import { ArrowRight, Star } from "lucide-react";
@@ -75,7 +76,7 @@ function AnimatedWords({
   return (
     <>
       {words.map((word, i) => (
-        <span key={i} className="inline-block whitespace-nowrap">
+        <Fragment key={i}>
           <motion.span
             className={cn("inline-block", className)}
             initial={{ opacity: 0, y: 20, filter: "blur(8px)" }}
@@ -89,7 +90,7 @@ function AnimatedWords({
             {word}
           </motion.span>
           {i < words.length - 1 ? " " : ""}
-        </span>
+        </Fragment>
       ))}
     </>
   );
