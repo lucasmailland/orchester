@@ -1645,7 +1645,8 @@
       "headline2": "que realmente funcionam.",
       "subheadline": "A plataforma open-source para orquestrar agentes IA em fluxos poderosos. Multi-tenant desde o primeiro dia, 80+ provedores de IA, auto-hospedável no Postgres.",
       "ctaPrimary": "Começar grátis",
-      "ctaGithub": "Star no GitHub"
+      "ctaGithub": "Star no GitHub",
+      "liveNetwork": "Rede de Agentes ao Vivo"
     },
     "stats": {
       "providers": "provedores de IA",

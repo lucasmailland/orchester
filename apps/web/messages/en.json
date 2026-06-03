@@ -1645,7 +1645,8 @@
       "headline2": "that actually work.",
       "subheadline": "The open-source platform for orchestrating AI agents into powerful workflows. Multi-tenant from day one, 80+ AI providers, self-hostable on Postgres.",
       "ctaPrimary": "Start building free",
-      "ctaGithub": "Star on GitHub"
+      "ctaGithub": "Star on GitHub",
+      "liveNetwork": "Live Agent Network"
     },
     "stats": {
       "providers": "AI providers",

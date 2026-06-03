@@ -7,11 +7,17 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
 
-// Canvas-based wave background — client-only (uses raw 2D canvas + RAF)
-const HeroWave = dynamic(() => import("@/components/ui/dynamic-wave-canvas-background"), {
-  ssr: false,
-  loading: () => null,
-});
+// Reuse the constellation canvas from the login screen — same visual language
+const NeuralBackground = dynamic(
+  () => import("@/components/auth/NeuralBackground").then((m) => m.NeuralBackground),
+  { ssr: false, loading: () => null }
+);
+
+// Reuse the org-chart visual from the login screen — same "live agent network" feel
+const AgentOrgChart = dynamic(
+  () => import("@/components/auth/AgentOrgChart").then((m) => m.AgentOrgChart),
+  { ssr: false, loading: () => null }
+);
 
 // ─── Inline SVG assets ──────────────────────────────────────────────────────
 
@@ -153,10 +159,20 @@ export function HeroSection() {
 
   return (
     <section className="relative flex min-h-[88vh] flex-col items-center justify-center overflow-hidden px-4 pt-16 sm:px-6">
-      {/* Canvas wave background — full-section animated shader-style */}
+      {/* Constellation background — same canvas as the login screen */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-        <HeroWave />
+        <NeuralBackground />
       </div>
+
+      {/* Brand-accent glow behind the chart */}
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 top-1/3 -z-0"
+        aria-hidden="true"
+        style={{
+          background:
+            "radial-gradient(ellipse 60% 50% at 50% 90%, rgba(139,92,246,0.18), transparent 70%)",
+        }}
+      />
 
       {/* Vignette — fade the wave edges into the page bg so it doesn't fight the next section */}
       <div
@@ -274,6 +290,28 @@ export function HeroSection() {
               <span className="hidden sm:inline">GitHub</span>
             </span>
           </a>
+        </motion.div>
+
+        {/* Live Agent Network — reuses the org-chart from the login screen */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.85, duration: 0.7, ease: [0.22, 0.61, 0.36, 1] }}
+          className="mt-16 flex flex-col items-center"
+        >
+          <div
+            className="mb-6 flex items-center gap-2"
+            style={{ fontFamily: "var(--font-auth-mono), monospace" }}
+          >
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            </span>
+            <span className="text-[10px] uppercase tracking-widest text-zinc-600">
+              {t("liveNetwork")}
+            </span>
+          </div>
+          <AgentOrgChart />
         </motion.div>
       </div>
     </section>
