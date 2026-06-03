@@ -1768,6 +1768,44 @@
         "privacy": "Privacidade",
         "terms": "Termos"
       }
+    },
+    "modelMarquee": {
+      "title": "Compatível com 80+ provedores de IA"
+    },
+    "productShowcase": {
+      "title1": "Veja o Orchester",
+      "title2": "em ação.",
+      "subtitle": "Seis superfícies, uma plataforma. Tudo o que sua equipe precisa para construir, lançar e operar agentes IA em escala.",
+      "brain": {
+        "label": "Memória",
+        "title": "Brain Inspector",
+        "subtitle": "Fatos com decay scoring e telemetria de recall"
+      },
+      "flow": {
+        "label": "Fluxos",
+        "title": "Flow Builder",
+        "subtitle": "Canvas visual com ramificações, loops e estado tipado"
+      },
+      "org": {
+        "label": "Hierarquia",
+        "title": "Organograma do time",
+        "subtitle": "O orchestrator delega aos agentes especialistas"
+      },
+      "convs": {
+        "label": "Canais",
+        "title": "Inbox unificado",
+        "subtitle": "WhatsApp, Telegram, Slack — um só contexto"
+      },
+      "cost": {
+        "label": "Gastos",
+        "title": "Dashboard de custos",
+        "subtitle": "Orçamentos, alertas, detalhamento por provedor"
+      },
+      "knowledge": {
+        "label": "RAG",
+        "title": "Base de conhecimento",
+        "subtitle": "Postgres + pgvector — PDFs, URLs, CSV, markdown"
+      }
     }
   }
 }

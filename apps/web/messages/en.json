@@ -1768,6 +1768,44 @@
         "privacy": "Privacy",
         "terms": "Terms"
       }
+    },
+    "modelMarquee": {
+      "title": "Compatible with 80+ AI providers"
+    },
+    "productShowcase": {
+      "title1": "See Orchester",
+      "title2": "in action.",
+      "subtitle": "Six surfaces, one platform. Everything your team needs to build, ship, and operate AI agents at scale.",
+      "brain": {
+        "label": "Memory",
+        "title": "Brain Inspector",
+        "subtitle": "Facts with decay scoring and recall telemetry"
+      },
+      "flow": {
+        "label": "Workflows",
+        "title": "Flow Builder",
+        "subtitle": "Visual canvas with branching, loops, and typed state"
+      },
+      "org": {
+        "label": "Hierarchy",
+        "title": "Team Org Chart",
+        "subtitle": "Orchestrator delegates to specialist agents"
+      },
+      "convs": {
+        "label": "Channels",
+        "title": "Unified Inbox",
+        "subtitle": "WhatsApp, Telegram, Slack — one context"
+      },
+      "cost": {
+        "label": "Spend",
+        "title": "Cost Dashboard",
+        "subtitle": "Budgets, alerts, per-provider breakdown"
+      },
+      "knowledge": {
+        "label": "RAG",
+        "title": "Knowledge Base",
+        "subtitle": "Postgres + pgvector — PDFs, URLs, CSV, markdown"
+      }
     }
   }
 }

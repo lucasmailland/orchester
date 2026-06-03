@@ -2,8 +2,10 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { HeroSection } from "@/components/marketing/HeroSection";
+import { ModelMarquee } from "@/components/marketing/ModelMarquee";
 import { StatsBar } from "@/components/marketing/StatsBar";
 import { FeaturesGrid } from "@/components/marketing/FeaturesGrid";
+import { ProductShowcase } from "@/components/marketing/ProductShowcase";
 import { ChannelsSection } from "@/components/marketing/ChannelsSection";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
 import { TechStackSection } from "@/components/marketing/TechStackSection";
@@ -25,8 +27,10 @@ export default async function LandingPage({ params }: Props) {
   return (
     <>
       <HeroSection />
+      <ModelMarquee />
       <StatsBar />
       <FeaturesGrid />
+      <ProductShowcase />
       <ChannelsSection />
       <HowItWorks />
       <TechStackSection />
