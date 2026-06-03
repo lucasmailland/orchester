@@ -132,20 +132,21 @@ function AnimatedWords({
   return (
     <>
       {words.map((word, i) => (
-        <motion.span
-          key={i}
-          className={cn("inline-block", className)}
-          initial={{ opacity: 0, y: 20, filter: "blur(8px)" }}
-          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-          transition={{
-            delay: delayStart + i * 0.08,
-            duration: 0.5,
-            ease: [0.22, 0.61, 0.36, 1],
-          }}
-        >
-          {word}
-          {i < words.length - 1 ? " " : ""}
-        </motion.span>
+        <span key={i} className="inline-block whitespace-nowrap">
+          <motion.span
+            className={cn("inline-block", className)}
+            initial={{ opacity: 0, y: 20, filter: "blur(8px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            transition={{
+              delay: delayStart + i * 0.08,
+              duration: 0.5,
+              ease: [0.22, 0.61, 0.36, 1],
+            }}
+          >
+            {word}
+          </motion.span>
+          {i < words.length - 1 ? " " : ""}
+        </span>
       ))}
     </>
   );
@@ -215,7 +216,7 @@ export function HeroSection() {
       <FloatingOrb2 />
 
       {/* 2-column grid: text left, chart right */}
-      <div className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-12 lg:grid-cols-[1.05fr_1fr] lg:gap-14">
+      <div className="relative z-10 mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-12 lg:grid-cols-2 lg:gap-16">
         {/* LEFT COLUMN — badge, headline, subheadline, CTAs */}
         <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
           {/* Badge */}
@@ -233,7 +234,7 @@ export function HeroSection() {
           </motion.div>
 
           {/* Headline — word-stagger reveal */}
-          <h1 className="mb-6 font-display text-5xl font-bold leading-[1.05] tracking-tight text-white sm:text-6xl lg:text-7xl xl:text-[80px]">
+          <h1 className="mb-6 font-display text-4xl font-bold leading-[1.1] tracking-tight text-white sm:text-5xl lg:text-[56px] xl:text-6xl">
             <span className="block">
               <AnimatedWords text={t("headline1")} delayStart={0.12} />
             </span>
