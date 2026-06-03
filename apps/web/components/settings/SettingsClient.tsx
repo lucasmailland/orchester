@@ -181,15 +181,7 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
           {activeTab === "general" && <GeneralSection workspace={workspace} />}
           {activeTab === "account" && <AccountSection me={me} />}
           {activeTab === "notifications" && <NotificationsSection />}
-          {activeTab === "providers" && (
-            <SettingsCard
-              icon={<Sparkles size={16} />}
-              title={t("sections.providersTitle")}
-              description={t("sections.providersDescription")}
-            >
-              <AIProvidersSection />
-            </SettingsCard>
-          )}
+          {activeTab === "providers" && <AIProvidersSection workspaceSlug={workspace.slug} />}
           {activeTab === "billing" && (
             <SettingsCard
               icon={<CreditCard size={16} />}

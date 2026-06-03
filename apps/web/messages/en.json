@@ -1978,5 +1978,375 @@
       },
       "footnote": "Information based on each project's public documentation as of 2026. Got something wrong? Open an issue on GitHub."
     }
+  },
+  "compass": {
+    "common": {
+      "close": "Close",
+      "cancel": "Cancel",
+      "confirm": "Confirm",
+      "learnMore": "Learn more",
+      "takeATour": "Take a tour",
+      "dismiss": "Dismiss",
+      "runNow": "Run now",
+      "viewArchive": "View archive",
+      "viewAuditLog": "View audit log"
+    },
+    "tour": {
+      "skip": "Skip tour",
+      "next": "Next",
+      "previous": "Previous",
+      "finish": "Finish"
+    },
+    "memoryOps": {
+      "pageTitle": "Memory housekeeping",
+      "pageSubtitle": "This is where Mnemosyne keeps your agents' long-term memory tidy. Each card below is a maintenance task you can run on demand or leave on its schedule. Read what each task does before running it; some change your data and we want you to decide on evidence.",
+      "tourLabel": "Take a tour",
+      "adminOnly": "Only workspace owners and admins can run housekeeping tasks. You can still review what each one does.",
+      "lastRunLabel": "Last run",
+      "neverRun": "Never run",
+      "outcomeUnknown": "—",
+      "whyMattersLabel": "Why this matters",
+      "confirmDialogTitle": "Run \"{name}\"",
+      "confirmDialogDescription": "Review the impact below before confirming. Nothing happens until you press the action button.",
+      "impactScopeLabel": "Scope",
+      "impactRecordsLabel": "Records analyzed",
+      "impactCostLabel": "Estimated cost",
+      "impactTimeLabel": "Estimated time",
+      "impactEffectLabel": "Effect on memory",
+      "impactReversibilityLabel": "Reversibility",
+      "reversibilityReversible": "Reversible from the audit log.",
+      "reversibilityArchive": "Archived for 30 days, restorable from the archive view.",
+      "reversibilityDestructive": "Destructive. Archived facts are permanently removed and cannot be recovered.",
+      "estimateUnavailable": "—",
+      "successToastTitle": "{name} is running",
+      "successToastBody": "We will notify you here when it finishes.",
+      "errorToastTitle": "We could not start {name}",
+      "errorToastBody": "{message}. Check your connection and try again. If the problem continues, review the system status page.",
+      "nextStepsTitle": "What to do next",
+      "nextSteps": {
+        "openBrain": {
+          "title": "Open the Brain inspector",
+          "body": "Review individual facts, see when they were learned, and decide which ones to keep."
+        },
+        "reviewPolicy": {
+          "title": "Review your memory policy",
+          "body": "Adjust which tasks run automatically and how often."
+        }
+      },
+      "summaryAgentCallout": {
+        "title": "This task runs per agent",
+        "body": "Memory summaries are scoped to a single agent. Open the agent's settings and run the refresh from its memory tab.",
+        "linkLabel": "Go to agent settings"
+      },
+      "tasks": {
+        "healthSnapshot": {
+          "name": "Take a health snapshot",
+          "description": "Measures the current size, growth rate, and duplication levels of your memory. Run it before any other task so you can compare before and after.",
+          "whyMatters": "A snapshot is the baseline that lets every other change be measured.",
+          "confirmLabel": "Take snapshot",
+          "runningLabel": "Taking snapshot",
+          "doneLabel": "Snapshot ready"
+        },
+        "dedup": {
+          "name": "Merge duplicate facts",
+          "description": "Scans every fact, finds pairs that mean almost the same thing, and combines them into a single cleaner record. Use it when your agents start repeating themselves.",
+          "whyMatters": "Fewer duplicates means faster recall and answers that feel less robotic.",
+          "confirmLabel": "Merge duplicates",
+          "runningLabel": "Merging duplicates",
+          "doneLabel": "Duplicates merged"
+        },
+        "prune": {
+          "name": "Remove unused facts",
+          "description": "Archives facts that have not been recalled in a long time and that no active agent depends on. The archive is reversible for 30 days.",
+          "whyMatters": "Smaller memory is cheaper to search and easier to keep accurate.",
+          "confirmLabel": "Prune memory",
+          "runningLabel": "Pruning memory",
+          "doneLabel": "Memory pruned"
+        },
+        "remConsolidation": {
+          "name": "Consolidate related facts",
+          "description": "Groups facts that belong to the same topic and merges them into a single summary. Inspired by how sleep consolidates memories in the human brain.",
+          "whyMatters": "Consolidated facts give shorter, more focused answers when an agent is asked a broad question.",
+          "confirmLabel": "Consolidate facts",
+          "runningLabel": "Consolidating facts",
+          "doneLabel": "Consolidation finished"
+        },
+        "reviewSweep": {
+          "name": "Queue facts for human review",
+          "description": "Finds facts with low confidence, conflicting sources, or unusual sources and adds them to your review queue. Nothing is deleted; you decide what to do with each item.",
+          "whyMatters": "Human review catches the cases the system is not sure about, before they affect an answer.",
+          "confirmLabel": "Queue for review",
+          "runningLabel": "Queuing facts",
+          "doneLabel": "Review queue updated"
+        },
+        "autoPin": {
+          "name": "Pin frequently recalled facts",
+          "description": "Identifies the facts your agents rely on the most and pins them so they always rank first in recall. You can unpin any of them at any time.",
+          "whyMatters": "Pinning the right facts keeps your most important answers consistent across conversations.",
+          "confirmLabel": "Pin top facts",
+          "runningLabel": "Pinning facts",
+          "doneLabel": "Top facts pinned"
+        },
+        "summaryRefresh": {
+          "name": "Refresh memory summaries",
+          "description": "Regenerates the short summaries that appear next to each topic in Brain. Run it after a large import or after a consolidation pass.",
+          "whyMatters": "Up-to-date summaries make it easier for you to scan what your agents know without opening every fact.",
+          "confirmLabel": "Refresh summaries",
+          "runningLabel": "Refreshing summaries",
+          "doneLabel": "Summaries refreshed"
+        }
+      },
+      "recall": {
+        "title": "Recall quality",
+        "subtitle": "Three recall enhancements run by default on every turn. Each adds a small cost. Turn one off only if you have measured that the savings matter more to you than the quality.",
+        "tip": "Changes apply to the next recall turn. Existing answers are not regenerated.",
+        "savedToast": "Settings saved.",
+        "saveErrorToast": "We could not save your changes. {message}. Check your connection and try again.",
+        "hyde": {
+          "label": "HyDE — hypothetical document embedding",
+          "help": "Generates a short fake answer to the user's question and uses that for the search instead of the raw question. This closes the gap between how questions and answers look in embedding space. Adds one cheap model call per turn."
+        },
+        "rerank": {
+          "label": "Cross-encoder rerank",
+          "help": "Reorders the top results using a second pass that scores each result against the question together. Uses Cohere when its API key is set; otherwise a local fallback. Adds about 50 milliseconds per turn."
+        },
+        "graph": {
+          "label": "Graph expansion",
+          "help": "After the initial recall, follows links between facts (derived from, supersedes, part of) to surface related ones. One extra database query. Improves recall quality by about 10 to 15 percent."
+        },
+        "premium": {
+          "title": "Premium embedding model",
+          "body": "Use a richer embedding model for the facts that matter most: pinned, high confidence, or workspace-wide. Other facts continue to use the default model so cost stays predictable. Leave the provider empty to disable this tier.",
+          "providerLabel": "Provider",
+          "providerPlaceholder": "Use default",
+          "providerDefault": "Use default",
+          "providerOpenai": "OpenAI",
+          "providerVoyage": "Voyage",
+          "providerCohere": "Cohere",
+          "modelLabel": "Model",
+          "modelPlaceholderOpenai": "text-embedding-3-large",
+          "modelPlaceholderVoyage": "voyage-3-large",
+          "modelPlaceholderCohere": "embed-v4.0",
+          "modelPlaceholderEmpty": "Pick a provider first"
+        }
+      }
+    },
+    "empty": {
+      "brain": {
+        "title": "No memories yet",
+        "body": "Brain shows everything your agents have learned from past conversations. As soon as an agent answers a real message, the facts it picks up appear here for you to review and curate."
+      },
+      "flows": {
+        "title": "No flows yet",
+        "body": "A flow is a sequence of agents and steps that runs together to complete a task. Create your first flow to chain agents and let them hand work to each other on demand or on a schedule."
+      },
+      "channels": {
+        "title": "No channels connected",
+        "body": "A channel is the doorway between an agent and your users, such as a website widget or a messaging app. Connect one to start receiving real conversations."
+      },
+      "providers": {
+        "title": "No providers connected",
+        "body": "A provider is the company that supplies the AI model your agents use, like OpenAI or Anthropic. Connect at least one with your own API key so your agents can start answering."
+      },
+      "knowledgeBases": {
+        "title": "No knowledge bases yet",
+        "body": "Knowledge bases give your agents the documents they should rely on when answering. Upload your first file or connect a source so agents can quote your own information instead of guessing."
+      },
+      "agents": {
+        "title": "No agents yet",
+        "body": "An agent is a configured assistant with its own prompt, model, and tools. Create your first agent and give it a clear role so you can start routing conversations to it."
+      },
+      "mnemosyneAdmin": {
+        "title": "Nothing scheduled yet",
+        "body": "This is where you control the maintenance tasks that keep memory healthy. Enable the tasks you want to run on a schedule, or trigger any of them manually when you need a one-off pass."
+      }
+    },
+    "brain": {
+      "pageTitle": "Brain inspector",
+      "pageSubtitlePart1": "Every durable fact your agents have learned, with the filters you need to audit and curate it. Memory is powered by ",
+      "pageSubtitleTermMnemosyne": "Mnemosyne",
+      "pageSubtitlePart2": ", the layer that keeps long-term context consistent across conversations.",
+      "tourLabel": "Take a tour",
+      "tip": {
+        "title": "Read before you forget",
+        "bodyPart1": "Forgetting a fact removes it from recall, but the original record stays in the audit log. ",
+        "bodyPart2": " is reversible from the Undo view, so curate freely."
+      },
+      "embeddedHelp": "Share of facts that already have an ",
+      "embeddedTermEmbedding": "embedding",
+      "embeddedHelpSuffix": " and can be found by semantic search.",
+      "forget": {
+        "title": "Forget this fact?",
+        "description": "The fact stops appearing in recall results. Agents will not use it on their next turn. The original record stays in the audit log.",
+        "action": "Forget fact",
+        "cancel": "Keep it",
+        "impactStatement": "Statement",
+        "impactScope": "Scope",
+        "impactReversibility": "Reversibility",
+        "reversibleValue": "Reversible from Undo"
+      },
+      "nextStepsTitle": "Next steps",
+      "nextSteps": {
+        "review": {
+          "title": "Work the review queue",
+          "body": "Curate low-confidence and conflicting facts before they shape an answer."
+        },
+        "housekeeping": {
+          "title": "Run memory housekeeping",
+          "body": "Merge duplicates, prune unused facts, and consolidate related ones."
+        }
+      }
+    },
+    "flows": {
+      "heroTitle": "Flows",
+      "heroSubtitlePart1": "A ",
+      "heroSubtitleTermFlow": "flow",
+      "heroSubtitlePart2": " chains ",
+      "heroSubtitleTermAgent": "agents",
+      "heroSubtitlePart3": " and tools into a single sequence so a job runs end-to-end. Use this page to see every flow in this workspace, create new ones, and open them in the visual editor.",
+      "tourLabel": "Take a tour",
+      "newFlow": "New flow",
+      "createTitle": "Name your flow",
+      "createHelp": "Pick a short, descriptive name. You can rename it later from the editor.",
+      "namePlaceholder": "e.g. Triage inbound leads",
+      "create": "Create flow",
+      "cancel": "Cancel",
+      "firstFlowTip": "Start small: one trigger and two or three steps is enough to see a flow run end-to-end. You can expand it once the basics work.",
+      "firstFlowTipTitle": "Tip for your first flow",
+      "nodesLabel": "{count, plural, one {# step} other {# steps}}",
+      "statusLabel": "Status",
+      "neverRun": "Never run",
+      "lastRunLabel": "Last run",
+      "nextStepsTitle": "What to do next",
+      "nextStepConnectChannel": {
+        "title": "Connect a channel",
+        "body": "Hook a website widget or messaging app to a flow so real conversations can trigger it."
+      },
+      "nextStepAddKnowledge": {
+        "title": "Add a knowledge base",
+        "body": "Give your agents documents to ground their answers in, instead of relying on the base model alone."
+      }
+    },
+    "knowledgeBases": {
+      "heroTitle": "Knowledge bases",
+      "heroSubtitlePart1": "A knowledge base is a collection of documents your agents can quote when they answer. We turn each document into ",
+      "heroSubtitleTermEmbedding": "embeddings",
+      "heroSubtitlePart2": " so agents recall by meaning, not just exact words — the technique commonly called ",
+      "heroSubtitleTermRag": "RAG",
+      "heroSubtitlePart3": ". Use this page to see every base in this workspace and create new ones.",
+      "tourLabel": "Take a tour",
+      "newBase": "New base",
+      "createTitle": "Name your knowledge base",
+      "createHelp": "Pick a short, descriptive name. You can rename it later from the base's settings.",
+      "namePlaceholder": "Name — e.g. Internal docs",
+      "descriptionPlaceholder": "Description (optional)",
+      "embeddingsLabel": "Embeddings model",
+      "embeddingHelp": "The embedding model decides how your documents become searchable. Keep the default unless you have a reason to switch.",
+      "create": "Create",
+      "cancel": "Cancel",
+      "created": "Knowledge base created",
+      "createError": "We could not create the knowledge base. Check your connection and try again.",
+      "firstBaseTipTitle": "Tip for your first base",
+      "firstBaseTipBody": "Start with one source — a single PDF or a short folder of docs is enough to see how recall behaves. You can add more sources once the first one works.",
+      "providerLabel": "Embedded with",
+      "openLabel": "Open",
+      "nextStepsTitle": "What to do next",
+      "nextStepUploadDocs": {
+        "title": "Upload your first documents",
+        "body": "Open a base and add PDFs, text or URLs so its agents can quote them in answers."
+      },
+      "nextStepConnectAgent": {
+        "title": "Attach a base to an agent",
+        "body": "Pick an agent and connect this base so its replies are grounded in your own information."
+      }
+    },
+    "agents": {
+      "heroTitle": "Agents",
+      "heroSubtitlePart1": "An ",
+      "heroSubtitleTermAgent": "agent",
+      "heroSubtitlePart2": " is a configured assistant with its own ",
+      "heroSubtitleTermPrompt": "prompt",
+      "heroSubtitlePart3": ", model, and tools. Use this page to see every agent in the workspace, change their role, and decide which conversations each one should handle.",
+      "tourLabel": "Take a tour",
+      "modelTipTitle": "Pick the right model for the job",
+      "modelTipBody": "Use Haiku for short, high-volume replies and Sonnet or Opus for longer reasoning or multi-step work. You can change the model on any agent without losing its history.",
+      "deleteImpactTitle": "Delete this agent?",
+      "deleteImpactDescription": "Deleting an agent removes its configuration. Past conversations stay in the workspace but stop receiving new replies from this agent.",
+      "deleteImpactAction": "Delete agent",
+      "deleteImpactCancel": "Cancel",
+      "deleteImpactRowAgent": "Agent",
+      "deleteImpactRowTeam": "Team",
+      "deleteImpactRowModel": "Model",
+      "deleteImpactRowReversibility": "Reversibility",
+      "deleteImpactReversibilityValue": "Permanent. The agent and its prompt cannot be restored.",
+      "deleteImpactValueUnknown": "—",
+      "nextStepsTitle": "What to do next",
+      "nextStepConnectChannel": {
+        "title": "Connect a channel",
+        "body": "Hook a website widget or messaging app to an agent so real conversations can reach it."
+      },
+      "nextStepAddKnowledge": {
+        "title": "Add knowledge",
+        "body": "Upload documents so your agents quote your own information instead of relying on the base model alone."
+      }
+    },
+    "channels": {
+      "heroTitle": "Channels",
+      "heroSubtitlePart1": "A ",
+      "heroSubtitleTermChannel": "channel",
+      "heroSubtitlePart2": " is the doorway between an ",
+      "heroSubtitleTermAgent": "agent",
+      "heroSubtitlePart3": " and your users — a website widget, a Telegram bot, an HTTP endpoint. Connect one and your agent starts answering real conversations through it.",
+      "tipTitle": "How channels work",
+      "tipBody": "Each channel routes incoming messages to a single agent. You can pause, reassign, or disconnect a channel at any time without losing past conversations.",
+      "availableHeading": "Connect a new channel",
+      "deleteTitle": "Disconnect this channel",
+      "deleteDescription": "Disconnecting stops new messages from arriving on this channel. Past conversations stay in your workspace; you can reconnect later, but the public URLs and secrets will be regenerated.",
+      "deleteAction": "Disconnect channel",
+      "deleteCancel": "Cancel",
+      "deleteImpactChannel": "Channel",
+      "deleteImpactType": "Type",
+      "deleteImpactStatus": "Current status",
+      "deleteImpactAgent": "Assigned agent",
+      "deleteImpactReversibility": "Reversibility",
+      "deleteImpactReversibilityValue": "Reconnecting later regenerates the public URL and the secret token.",
+      "noAgentAssigned": "No agent assigned",
+      "unknownValue": "—",
+      "nextStepsTitle": "What to do next",
+      "nextStepConfigureAgent": {
+        "title": "Configure the answering agent",
+        "body": "Give the agent the right prompt, tools, and knowledge so it answers correctly when a message arrives through this channel."
+      },
+      "nextStepReviewConversations": {
+        "title": "Review live conversations",
+        "body": "Open the conversations view to see what users are asking and how your agents respond."
+      }
+    },
+    "providers": {
+      "heroTitle": "AI providers",
+      "heroSubtitle": "Connect the companies that power your agents. Each provider exposes a set of models for chat, embeddings, images, audio and more. Your keys stay encrypted and scoped to this workspace.",
+      "tipTitle": "Bring your own key",
+      "tipBody": "Orchester never marks up provider costs. Connect your own API key and every model billing flows directly through your account with that provider.",
+      "removeConfirmTitle": "Disconnect {provider}",
+      "removeConfirmDescription": "Your stored API key is deleted from this workspace. Agents and flows that rely on this provider will stop responding until you connect another key.",
+      "removeConfirmAction": "Disconnect provider",
+      "removeConfirmCancel": "Cancel",
+      "removeImpactAgentsLabel": "Agents using this provider",
+      "removeImpactModelsLabel": "Models exposed",
+      "removeImpactReversibilityLabel": "Reversibility",
+      "removeImpactReversibilityValue": "Reconnect anytime by pasting a new key.",
+      "removeError": "We couldn't disconnect this provider. Check your connection and try again.",
+      "removeSuccess": "Provider disconnected.",
+      "unknownValue": "—",
+      "nextStepsTitle": "What to do next",
+      "nextStepBuildAgent": {
+        "title": "Assign a model to an agent",
+        "body": "Pick a model from a connected provider and wire it into the agent that should use it."
+      },
+      "nextStepAddKnowledge": {
+        "title": "Add knowledge to recall",
+        "body": "Upload documents so your agents can ground answers in your data instead of guessing."
+      }
+    }
   }
 }

@@ -1978,5 +1978,375 @@
       },
       "footnote": "Informações baseadas na documentação pública de cada projeto em 2026. Achou algo errado? Abra uma issue no GitHub."
     }
+  },
+  "compass": {
+    "common": {
+      "close": "Fechar",
+      "cancel": "Cancelar",
+      "confirm": "Confirmar",
+      "learnMore": "Saiba mais",
+      "takeATour": "Fazer o tour",
+      "dismiss": "Dispensar",
+      "runNow": "Executar agora",
+      "viewArchive": "Ver arquivo",
+      "viewAuditLog": "Ver registro de auditoria"
+    },
+    "tour": {
+      "skip": "Pular tour",
+      "next": "Próximo",
+      "previous": "Anterior",
+      "finish": "Concluir"
+    },
+    "memoryOps": {
+      "pageTitle": "Manutenção da memória",
+      "pageSubtitle": "É aqui que o Mnemosyne mantém em ordem a memória de longo prazo dos seus agentes. Cada cartão abaixo é uma tarefa de manutenção que você pode executar quando quiser ou deixar no horário programado. Leia o que cada tarefa faz antes de executá-la; algumas modificam seus dados e queremos que você decida com base em informação clara.",
+      "tourLabel": "Fazer um tour",
+      "adminOnly": "Apenas administradores e proprietários do workspace podem executar tarefas de manutenção. Você ainda pode revisar o que cada uma faz.",
+      "lastRunLabel": "Última execução",
+      "neverRun": "Ainda não foi executada",
+      "outcomeUnknown": "—",
+      "whyMattersLabel": "Por que isso importa",
+      "confirmDialogTitle": "Executar \"{name}\"",
+      "confirmDialogDescription": "Revise o impacto antes de confirmar. Nada acontece até você apertar o botão de ação.",
+      "impactScopeLabel": "Escopo",
+      "impactRecordsLabel": "Registros analisados",
+      "impactCostLabel": "Custo estimado",
+      "impactTimeLabel": "Tempo estimado",
+      "impactEffectLabel": "Efeito sobre a memória",
+      "impactReversibilityLabel": "Reversibilidade",
+      "reversibilityReversible": "Reversível a partir do registro de auditoria.",
+      "reversibilityArchive": "Arquivado por 30 dias, restaurável na visão do arquivo.",
+      "reversibilityDestructive": "Destrutiva. Os fatos arquivados são removidos de forma permanente e não podem ser recuperados.",
+      "estimateUnavailable": "—",
+      "successToastTitle": "{name} está em execução",
+      "successToastBody": "Vamos avisar você aqui quando terminar.",
+      "errorToastTitle": "Não conseguimos iniciar \"{name}\"",
+      "errorToastBody": "{message}. Verifique sua conexão e tente novamente. Se o problema continuar, consulte a página de status do sistema.",
+      "nextStepsTitle": "O que fazer em seguida",
+      "nextSteps": {
+        "openBrain": {
+          "title": "Abrir o inspetor Brain",
+          "body": "Revise cada fato, veja quando foi aprendido e decida quais manter."
+        },
+        "reviewPolicy": {
+          "title": "Revisar sua política de memória",
+          "body": "Ajuste quais tarefas rodam de forma automática e com que frequência."
+        }
+      },
+      "summaryAgentCallout": {
+        "title": "Esta tarefa roda por agente",
+        "body": "Os resumos de memória são específicos de cada agente. Abra as configurações do agente e execute a atualização na aba de memória.",
+        "linkLabel": "Ir para as configurações do agente"
+      },
+      "tasks": {
+        "healthSnapshot": {
+          "name": "Tirar um instantâneo de saúde",
+          "description": "Mede o tamanho atual, a velocidade de crescimento e o nível de duplicação da sua memória. Execute-a antes de qualquer outra tarefa para poder comparar o antes e o depois.",
+          "whyMatters": "O instantâneo é a linha de base que permite medir qualquer mudança posterior.",
+          "confirmLabel": "Tirar instantâneo",
+          "runningLabel": "Tirando instantâneo",
+          "doneLabel": "Instantâneo pronto"
+        },
+        "dedup": {
+          "name": "Combinar fatos duplicados",
+          "description": "Percorre todos os fatos, encontra os pares que dizem quase a mesma coisa e os combina em um único registro mais claro. Use-a quando perceber que seus agentes começam a se repetir.",
+          "whyMatters": "Menos duplicatas significa uma recuperação mais rápida e respostas que parecem menos mecânicas.",
+          "confirmLabel": "Combinar duplicatas",
+          "runningLabel": "Combinando duplicatas",
+          "doneLabel": "Duplicatas combinadas"
+        },
+        "prune": {
+          "name": "Remover fatos sem uso",
+          "description": "Arquiva os fatos que não foram recuperados há muito tempo e dos quais nenhum agente ativo depende. O arquivo é reversível por 30 dias.",
+          "whyMatters": "Uma memória menor é mais barata de pesquisar e mais simples de manter precisa.",
+          "confirmLabel": "Limpar memória",
+          "runningLabel": "Limpando memória",
+          "doneLabel": "Memória limpa"
+        },
+        "remConsolidation": {
+          "name": "Consolidar fatos relacionados",
+          "description": "Agrupa os fatos que pertencem ao mesmo assunto e os combina em um único resumo. Inspira-se na forma como o sono consolida as memórias no cérebro humano.",
+          "whyMatters": "Fatos consolidados oferecem respostas mais curtas e focadas quando um agente recebe uma pergunta ampla.",
+          "confirmLabel": "Consolidar fatos",
+          "runningLabel": "Consolidando fatos",
+          "doneLabel": "Consolidação concluída"
+        },
+        "reviewSweep": {
+          "name": "Enviar fatos para revisão humana",
+          "description": "Encontra os fatos com baixa confiança, fontes contraditórias ou fontes pouco habituais e os adiciona à sua fila de revisão. Nada é apagado; você decide o que fazer com cada um.",
+          "whyMatters": "A revisão humana resolve os casos em que o sistema não está seguro, antes que afetem uma resposta.",
+          "confirmLabel": "Enviar para revisão",
+          "runningLabel": "Enviando para revisão",
+          "doneLabel": "Fila de revisão atualizada"
+        },
+        "autoPin": {
+          "name": "Fixar os fatos mais recuperados",
+          "description": "Identifica os fatos nos quais seus agentes mais se apoiam e os fixa para que apareçam sempre em primeiro na recuperação. Você pode remover a fixação a qualquer momento.",
+          "whyMatters": "Fixar os fatos certos mantém consistentes as respostas mais importantes em todas as conversas.",
+          "confirmLabel": "Fixar fatos principais",
+          "runningLabel": "Fixando fatos",
+          "doneLabel": "Fatos principais fixados"
+        },
+        "summaryRefresh": {
+          "name": "Atualizar resumos da memória",
+          "description": "Gera novamente os resumos curtos que aparecem ao lado de cada tema no Brain. Execute-a depois de uma importação grande ou de uma consolidação.",
+          "whyMatters": "Resumos em dia permitem revisar o que seus agentes sabem sem precisar abrir cada fato.",
+          "confirmLabel": "Atualizar resumos",
+          "runningLabel": "Atualizando resumos",
+          "doneLabel": "Resumos atualizados"
+        }
+      },
+      "recall": {
+        "title": "Qualidade da recuperação",
+        "subtitle": "Três melhorias de recuperação rodam por padrão em cada turno. Cada uma tem um custo pequeno. Desative alguma apenas se você mediu que a economia importa mais do que a qualidade.",
+        "tip": "As mudanças entram em vigor no próximo turno de recuperação. As respostas existentes não são geradas novamente.",
+        "savedToast": "Configurações salvas.",
+        "saveErrorToast": "Não foi possível salvar as mudanças. {message}. Verifique sua conexão e tente novamente.",
+        "hyde": {
+          "label": "HyDE — embedding de documento hipotético",
+          "help": "Gera uma resposta curta e simulada para a pergunta do usuário e a utiliza na busca em vez da pergunta original. Isso reduz a distância entre como perguntas e respostas aparecem no espaço de embeddings. Soma uma chamada barata ao modelo por turno."
+        },
+        "rerank": {
+          "label": "Re-ranking com cross-encoder",
+          "help": "Reordena os melhores resultados com uma segunda passada que avalia cada um junto com a pergunta. Usa o Cohere quando a API key dele está configurada; caso contrário, uma alternativa local. Acrescenta cerca de 50 milissegundos por turno."
+        },
+        "graph": {
+          "label": "Expansão por grafo",
+          "help": "Depois da recuperação inicial, segue os vínculos entre fatos (derivado de, substitui, parte de) para mostrar os relacionados. Uma consulta extra ao banco. Melhora a qualidade da recuperação em cerca de 10 a 15 por cento."
+        },
+        "premium": {
+          "title": "Modelo de embedding premium",
+          "body": "Use um modelo de embedding mais rico para os fatos que mais importam: fixados, de alta confiança ou de alcance do workspace. Os demais continuam usando o modelo padrão para que o custo seja previsível. Deixe o provedor vazio para desativar esse nível.",
+          "providerLabel": "Provedor",
+          "providerPlaceholder": "Usar o padrão",
+          "providerDefault": "Usar o padrão",
+          "providerOpenai": "OpenAI",
+          "providerVoyage": "Voyage",
+          "providerCohere": "Cohere",
+          "modelLabel": "Modelo",
+          "modelPlaceholderOpenai": "text-embedding-3-large",
+          "modelPlaceholderVoyage": "voyage-3-large",
+          "modelPlaceholderCohere": "embed-v4.0",
+          "modelPlaceholderEmpty": "Escolha primeiro um provedor"
+        }
+      }
+    },
+    "empty": {
+      "brain": {
+        "title": "Ainda não há memória guardada",
+        "body": "O Brain mostra tudo o que seus agentes aprenderam em conversas anteriores. Assim que um agente responder a uma mensagem real, os fatos que ele registrar vão aparecer aqui para você revisar e curar."
+      },
+      "flows": {
+        "title": "Ainda não há fluxos",
+        "body": "Um fluxo é uma sequência de agentes e etapas que rodam juntos para concluir uma tarefa. Crie seu primeiro fluxo para encadear agentes e permitir que eles passem o trabalho entre si, sob demanda ou em um horário fixo."
+      },
+      "channels": {
+        "title": "Ainda não há canais conectados",
+        "body": "Um canal é a porta de entrada entre um agente e seus usuários, como um widget em um site ou um aplicativo de mensagens. Conecte um para começar a receber conversas reais."
+      },
+      "providers": {
+        "title": "Ainda não há provedores conectados",
+        "body": "Um provedor é a empresa que fornece o modelo de IA que seus agentes usam, como OpenAI ou Anthropic. Conecte ao menos um com sua própria chave de API para que seus agentes possam começar a responder."
+      },
+      "knowledgeBases": {
+        "title": "Ainda não há bases de conhecimento",
+        "body": "As bases de conhecimento dão aos seus agentes os documentos nos quais eles devem se apoiar ao responder. Envie seu primeiro arquivo ou conecte uma fonte para que os agentes citem suas próprias informações em vez de chutar."
+      },
+      "agents": {
+        "title": "Ainda não há agentes",
+        "body": "Um agente é um assistente configurado com prompt, modelo e ferramentas próprios. Crie seu primeiro agente e dê a ele um papel claro para começar a direcionar conversas."
+      },
+      "mnemosyneAdmin": {
+        "title": "Ainda não há nada agendado",
+        "body": "É aqui que você controla as tarefas de manutenção que mantêm a memória saudável. Ative as que quiser rodar em um horário fixo ou dispare qualquer uma manualmente quando precisar de uma passada pontual."
+      }
+    },
+    "brain": {
+      "pageTitle": "Inspetor da memória",
+      "pageSubtitlePart1": "Cada fato duradouro que seus agentes aprenderam, com os filtros necessários para auditá-los e curá-los. A memória é gerenciada pelo ",
+      "pageSubtitleTermMnemosyne": "Mnemosyne",
+      "pageSubtitlePart2": ", a camada que mantém o contexto de longo prazo consistente entre conversas.",
+      "tourLabel": "Fazer um tour",
+      "tip": {
+        "title": "Antes de esquecer, revise",
+        "bodyPart1": "Esquecer um fato o retira do recall, mas o registro original permanece no log de auditoria. ",
+        "bodyPart2": " é reversível pela visão Desfazer, então cure sem receio."
+      },
+      "embeddedHelp": "Proporção de fatos que já possuem um ",
+      "embeddedTermEmbedding": "embedding",
+      "embeddedHelpSuffix": " e podem ser encontrados por busca semântica.",
+      "forget": {
+        "title": "Esquecer este fato?",
+        "description": "O fato deixa de aparecer nos resultados de recall. Os agentes não vão usá-lo na próxima rodada. O registro original permanece no log de auditoria.",
+        "action": "Esquecer fato",
+        "cancel": "Manter",
+        "impactStatement": "Declaração",
+        "impactScope": "Escopo",
+        "impactReversibility": "Reversibilidade",
+        "reversibleValue": "Reversível pelo Desfazer"
+      },
+      "nextStepsTitle": "Próximos passos",
+      "nextSteps": {
+        "review": {
+          "title": "Trabalhe a fila de revisão",
+          "body": "Cure os fatos com baixa confiança ou em conflito antes que eles influenciem uma resposta."
+        },
+        "housekeeping": {
+          "title": "Execute a manutenção da memória",
+          "body": "Mescle duplicatas, arquive fatos sem uso e consolide os relacionados."
+        }
+      }
+    },
+    "flows": {
+      "heroTitle": "Fluxos",
+      "heroSubtitlePart1": "Um ",
+      "heroSubtitleTermFlow": "fluxo",
+      "heroSubtitlePart2": " encadeia ",
+      "heroSubtitleTermAgent": "agentes",
+      "heroSubtitlePart3": " e ferramentas em uma única sequência para que uma tarefa rode de ponta a ponta. Use esta página para ver todos os fluxos deste workspace, criar novos e abri-los no editor visual.",
+      "tourLabel": "Fazer o tour",
+      "newFlow": "Novo fluxo",
+      "createTitle": "Dê um nome ao seu fluxo",
+      "createHelp": "Escolha um nome curto e descritivo. Você pode renomeá-lo depois pelo editor.",
+      "namePlaceholder": "Ex. Triagem de leads recebidos",
+      "create": "Criar fluxo",
+      "cancel": "Cancelar",
+      "firstFlowTip": "Comece simples: um gatilho e dois ou três passos já bastam para ver um fluxo rodar de ponta a ponta. Você expande depois que o básico estiver funcionando.",
+      "firstFlowTipTitle": "Dica para o seu primeiro fluxo",
+      "nodesLabel": "{count, plural, one {# passo} other {# passos}}",
+      "statusLabel": "Status",
+      "neverRun": "Sem execuções",
+      "lastRunLabel": "Última execução",
+      "nextStepsTitle": "O que fazer agora",
+      "nextStepConnectChannel": {
+        "title": "Conecte um canal",
+        "body": "Ligue um widget de site ou um app de mensagens a um fluxo para que conversas reais possam acioná-lo."
+      },
+      "nextStepAddKnowledge": {
+        "title": "Adicione uma base de conhecimento",
+        "body": "Dê aos seus agentes documentos para embasar as respostas, em vez de depender só do modelo base."
+      }
+    },
+    "knowledgeBases": {
+      "heroTitle": "Bases de conhecimento",
+      "heroSubtitlePart1": "Uma base de conhecimento é um conjunto de documentos que seus agentes podem citar ao responder. Transformamos cada documento em ",
+      "heroSubtitleTermEmbedding": "embeddings",
+      "heroSubtitlePart2": " para que os agentes recordem pelo significado e não só por palavras exatas — a técnica conhecida como ",
+      "heroSubtitleTermRag": "RAG",
+      "heroSubtitlePart3": ". Use esta página para ver todas as bases do workspace e criar novas.",
+      "tourLabel": "Fazer o tour",
+      "newBase": "Nova base",
+      "createTitle": "Dê um nome à sua base de conhecimento",
+      "createHelp": "Escolha um nome curto e descritivo. Você pode renomeá-lo depois nas configurações da base.",
+      "namePlaceholder": "Nome — ex. Documentos internos",
+      "descriptionPlaceholder": "Descrição (opcional)",
+      "embeddingsLabel": "Modelo de embeddings",
+      "embeddingHelp": "O modelo de embeddings define como seus documentos ficam pesquisáveis. Mantenha o padrão a não ser que você tenha um motivo para trocar.",
+      "create": "Criar",
+      "cancel": "Cancelar",
+      "created": "Base de conhecimento criada",
+      "createError": "Não conseguimos criar a base de conhecimento. Verifique sua conexão e tente novamente.",
+      "firstBaseTipTitle": "Dica para a sua primeira base",
+      "firstBaseTipBody": "Comece com uma única fonte — um PDF ou uma pasta curta de documentos já é suficiente para ver como a busca se comporta. Você adiciona mais fontes assim que a primeira funcionar.",
+      "providerLabel": "Embedado com",
+      "openLabel": "Abrir",
+      "nextStepsTitle": "O que fazer agora",
+      "nextStepUploadDocs": {
+        "title": "Envie seus primeiros documentos",
+        "body": "Abra uma base e adicione PDFs, texto ou URLs para que os agentes possam citá-los nas respostas."
+      },
+      "nextStepConnectAgent": {
+        "title": "Ligue uma base a um agente",
+        "body": "Escolha um agente e ligue esta base para que as respostas dele se apoiem nas suas próprias informações."
+      }
+    },
+    "agents": {
+      "heroTitle": "Agentes",
+      "heroSubtitlePart1": "Um ",
+      "heroSubtitleTermAgent": "agente",
+      "heroSubtitlePart2": " é um assistente configurado com o próprio ",
+      "heroSubtitleTermPrompt": "prompt",
+      "heroSubtitlePart3": ", modelo e ferramentas. Use esta página para ver todos os agentes do workspace, ajustar o papel deles e decidir quais conversas cada um deve atender.",
+      "tourLabel": "Fazer o tour",
+      "modelTipTitle": "Escolha o modelo certo para cada tarefa",
+      "modelTipBody": "Use Haiku para respostas curtas em alto volume e Sonnet ou Opus para raciocínio mais longo ou trabalho em várias etapas. Você pode trocar o modelo de qualquer agente sem perder o histórico.",
+      "deleteImpactTitle": "Excluir este agente?",
+      "deleteImpactDescription": "Excluir um agente apaga a configuração dele. As conversas anteriores continuam no workspace, mas deixam de receber novas respostas deste agente.",
+      "deleteImpactAction": "Excluir agente",
+      "deleteImpactCancel": "Cancelar",
+      "deleteImpactRowAgent": "Agente",
+      "deleteImpactRowTeam": "Equipe",
+      "deleteImpactRowModel": "Modelo",
+      "deleteImpactRowReversibility": "Reversibilidade",
+      "deleteImpactReversibilityValue": "Permanente. O agente e o prompt dele não podem ser restaurados.",
+      "deleteImpactValueUnknown": "—",
+      "nextStepsTitle": "O que fazer agora",
+      "nextStepConnectChannel": {
+        "title": "Conecte um canal",
+        "body": "Ligue um widget de site ou um app de mensagens a um agente para que conversas reais cheguem a ele."
+      },
+      "nextStepAddKnowledge": {
+        "title": "Adicione conhecimento",
+        "body": "Envie documentos para que seus agentes citem suas próprias informações em vez de depender só do modelo base."
+      }
+    },
+    "channels": {
+      "heroTitle": "Canais",
+      "heroSubtitlePart1": "Um ",
+      "heroSubtitleTermChannel": "canal",
+      "heroSubtitlePart2": " é a porta de entrada entre um ",
+      "heroSubtitleTermAgent": "agente",
+      "heroSubtitlePart3": " e seus usuários: um widget de site, um bot do Telegram, um endpoint HTTP. Conecte um e seu agente passa a responder conversas reais por ele.",
+      "tipTitle": "Como os canais funcionam",
+      "tipBody": "Cada canal envia as mensagens recebidas para um único agente. Você pode pausar, reatribuir ou desconectar um canal a qualquer momento sem perder as conversas anteriores.",
+      "availableHeading": "Conectar um novo canal",
+      "deleteTitle": "Desconectar este canal",
+      "deleteDescription": "Ao desconectar, novas mensagens deixam de chegar por este canal. As conversas anteriores ficam no seu workspace; você pode reconectar depois, mas as URLs públicas e os segredos serão gerados novamente.",
+      "deleteAction": "Desconectar canal",
+      "deleteCancel": "Cancelar",
+      "deleteImpactChannel": "Canal",
+      "deleteImpactType": "Tipo",
+      "deleteImpactStatus": "Estado atual",
+      "deleteImpactAgent": "Agente atribuído",
+      "deleteImpactReversibility": "Reversibilidade",
+      "deleteImpactReversibilityValue": "Se você reconectar depois, a URL pública e o token secreto serão gerados novamente.",
+      "noAgentAssigned": "Sem agente atribuído",
+      "unknownValue": "—",
+      "nextStepsTitle": "O que fazer agora",
+      "nextStepConfigureAgent": {
+        "title": "Configure o agente que responde",
+        "body": "Dê ao agente o prompt, as ferramentas e o conhecimento certos para que ele responda bem quando chegar uma mensagem por este canal."
+      },
+      "nextStepReviewConversations": {
+        "title": "Acompanhe as conversas ao vivo",
+        "body": "Abra a visão de conversas para ver o que os usuários estão perguntando e como seus agentes respondem."
+      }
+    },
+    "providers": {
+      "heroTitle": "Provedores de IA",
+      "heroSubtitle": "Conecte as empresas que dão potência aos seus agentes. Cada provedor expõe modelos para chat, embeddings, imagens, áudio e mais. Suas chaves ficam criptografadas e restritas a este workspace.",
+      "tipTitle": "Traga sua própria chave",
+      "tipBody": "Orchester não cobra acréscimo sobre os custos dos provedores. Conecte sua própria chave de API e cada modelo é cobrado diretamente na sua conta com aquele provedor.",
+      "removeConfirmTitle": "Desconectar {provider}",
+      "removeConfirmDescription": "A chave de API armazenada é apagada deste workspace. Os agentes e fluxos que dependem deste provedor deixarão de responder até você conectar outra chave.",
+      "removeConfirmAction": "Desconectar provedor",
+      "removeConfirmCancel": "Cancelar",
+      "removeImpactAgentsLabel": "Agentes que usam este provedor",
+      "removeImpactModelsLabel": "Modelos expostos",
+      "removeImpactReversibilityLabel": "Reversibilidade",
+      "removeImpactReversibilityValue": "Reconecte quando quiser colando uma nova chave.",
+      "removeError": "Não conseguimos desconectar este provedor. Verifique sua conexão e tente novamente.",
+      "removeSuccess": "Provedor desconectado.",
+      "unknownValue": "—",
+      "nextStepsTitle": "O que fazer agora",
+      "nextStepBuildAgent": {
+        "title": "Atribua um modelo a um agente",
+        "body": "Escolha um modelo de um provedor conectado e ligue-o ao agente que deve usá-lo."
+      },
+      "nextStepAddKnowledge": {
+        "title": "Adicione conhecimento para recuperar",
+        "body": "Envie documentos para que seus agentes baseiem as respostas nas suas próprias informações em vez de adivinhar."
+      }
+    }
   }
 }

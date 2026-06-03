@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   Globe,
   MessageCircle,
@@ -13,10 +13,17 @@ import {
   Copy,
   Check,
   Loader2,
+  Settings2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { NoProviderBanner } from "@/components/common/NoProviderBanner";
+import { PageHero } from "@/components/compass/PageHero";
+import { EmptyState } from "@/components/compass/EmptyState";
+import { TermDef } from "@/components/compass/TermDef";
+import { Callout } from "@/components/compass/Callout";
+import { ConfirmAction } from "@/components/compass/ConfirmAction";
+import { NextStep, NextStepGroup } from "@/components/compass/NextStep";
 
 type ChannelType = "widget" | "telegram" | "slack" | "whatsapp" | "email" | "api" | "web";
 
@@ -58,9 +65,17 @@ const TYPE_SUPPORTED: Record<ChannelType, boolean> = {
 export function ChannelsClient({ channels, agents }: { channels: Channel[]; agents: Agent[] }) {
   const router = useRouter();
   const t = useTranslations("pages.channels");
+  const tHero = useTranslations("compass.channels");
+  const tEmpty = useTranslations("compass.empty.channels");
+  const locale = useLocale();
+  const params = useParams<{ workspaceSlug: string }>();
+  const workspaceSlug = params?.workspaceSlug ?? "";
+
   const [creating, setCreating] = useState<ChannelType | null>(null);
   const [name, setName] = useState("");
   const [agentId, setAgentId] = useState<string>(agents[0]?.id ?? "");
+  const [pendingDelete, setPendingDelete] = useState<Channel | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   function typeMeta(typeKey: ChannelType) {
     return {
@@ -89,53 +104,105 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
     }
   }
 
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      const r = await fetch(`/api/channels/${pendingDelete.id}`, { method: "DELETE" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      toast.success(t("deleted"));
+      setPendingDelete(null);
+      router.refresh();
+    } catch {
+      toast.error(t("saveError"));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  const heroSubtitle = (
+    <>
+      {tHero("heroSubtitlePart1")}
+      <TermDef term="channel">{tHero("heroSubtitleTermChannel")}</TermDef>
+      {tHero("heroSubtitlePart2")}
+      <TermDef term="agent">{tHero("heroSubtitleTermAgent")}</TermDef>
+      {tHero("heroSubtitlePart3")}
+    </>
+  );
+
+  const isEmpty = channels.length === 0;
+  const pendingAgentName = pendingDelete
+    ? (agents.find((a) => a.id === pendingDelete.agentId)?.name ?? tHero("noAgentAssigned"))
+    : "";
+  const pendingTypeLabel = pendingDelete
+    ? (pendingDelete.type as ChannelType) in TYPE_ICONS
+      ? t(`types.${pendingDelete.type as ChannelType}.label`)
+      : pendingDelete.type
+    : "";
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <NoProviderBanner />
 
-      <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-strong">{t("title")}</h1>
-        <p className="mt-1 text-sm text-muted">{t("subtitle")}</p>
-      </div>
+      <PageHero icon={<Globe />} title={tHero("heroTitle")} subtitle={heroSubtitle} />
 
-      {/* Available types to create */}
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {(Object.keys(TYPE_ICONS) as ChannelType[])
-          .filter((typeKey) => typeKey !== "web")
-          .map((typeKey) => {
-            const meta = typeMeta(typeKey);
-            return (
-              <div key={typeKey} className="rounded-2xl border border-line bg-card p-4">
-                <div className="mb-3 flex items-center gap-2.5">
-                  <div
-                    className={
-                      meta.supported
-                        ? "flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400"
-                        : "flex h-9 w-9 items-center justify-center rounded-xl bg-elevated text-muted"
-                    }
-                  >
-                    <meta.Icon className="h-4 w-4" />
+      {isEmpty ? (
+        <EmptyState
+          icon={<Globe className="h-5 w-5" />}
+          title={tEmpty("title")}
+          body={tEmpty("body")}
+        />
+      ) : null}
+
+      <Callout variant="tip" title={tHero("tipTitle")}>
+        {tHero("tipBody")}
+      </Callout>
+
+      <section aria-labelledby="channels-available-heading" className="space-y-3">
+        <h2
+          id="channels-available-heading"
+          className="text-sm font-semibold uppercase tracking-wide text-muted"
+        >
+          {tHero("availableHeading")}
+        </h2>
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {(Object.keys(TYPE_ICONS) as ChannelType[])
+            .filter((typeKey) => typeKey !== "web")
+            .map((typeKey) => {
+              const meta = typeMeta(typeKey);
+              return (
+                <div key={typeKey} className="rounded-2xl border border-line bg-card p-4">
+                  <div className="mb-3 flex items-center gap-2.5">
+                    <div
+                      className={
+                        meta.supported
+                          ? "flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400"
+                          : "flex h-9 w-9 items-center justify-center rounded-xl bg-elevated text-muted"
+                      }
+                    >
+                      <meta.Icon className="h-4 w-4" />
+                    </div>
+                    <div className="font-medium text-strong">{meta.label}</div>
+                    {!meta.supported && (
+                      <span className="ml-auto rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                        {t("beta")}
+                      </span>
+                    )}
                   </div>
-                  <div className="font-medium text-strong">{meta.label}</div>
-                  {!meta.supported && (
-                    <span className="ml-auto rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300">
-                      {t("beta")}
-                    </span>
-                  )}
+                  <p className="text-xs leading-relaxed text-muted">{meta.description}</p>
+                  <button
+                    type="button"
+                    disabled={!meta.supported}
+                    onClick={() => setCreating(typeKey)}
+                    className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-line bg-elevated py-2 text-xs text-body hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> {t("connect", { label: meta.label })}
+                  </button>
                 </div>
-                <p className="text-xs leading-relaxed text-muted">{meta.description}</p>
-                <button
-                  type="button"
-                  disabled={!meta.supported}
-                  onClick={() => setCreating(typeKey)}
-                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-line bg-elevated py-2 text-xs text-body hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <Plus className="h-3.5 w-3.5" /> {t("connect", { label: meta.label })}
-                </button>
-              </div>
-            );
-          })}
-      </div>
+              );
+            })}
+        </div>
+      </section>
 
       {creating && (
         <div className="space-y-2 rounded-2xl border border-violet-500/30 bg-card p-4">
@@ -184,16 +251,96 @@ export function ChannelsClient({ channels, agents }: { channels: Channel[]; agen
           <h2 className="mb-2 text-sm font-medium text-body">{t("connectedHeading")}</h2>
           <div className="space-y-2">
             {channels.map((c) => (
-              <ConnectedChannelRow key={c.id} channel={c} agents={agents} />
+              <ConnectedChannelRow
+                key={c.id}
+                channel={c}
+                agents={agents}
+                onRequestDelete={() => setPendingDelete(c)}
+              />
             ))}
           </div>
         </div>
       )}
+
+      <section
+        aria-labelledby="channels-next-steps"
+        className="space-y-3 border-t border-line pt-8"
+      >
+        <h2
+          id="channels-next-steps"
+          className="text-sm font-semibold uppercase tracking-wide text-muted"
+        >
+          {tHero("nextStepsTitle")}
+        </h2>
+        <NextStepGroup className="lg:grid-cols-2">
+          <NextStep
+            icon={<Settings2 className="h-4 w-4" />}
+            href={`/${locale}/${workspaceSlug}/agents`}
+            title={tHero("nextStepConfigureAgent.title")}
+            body={tHero("nextStepConfigureAgent.body")}
+          />
+          <NextStep
+            icon={<MessagesSquare className="h-4 w-4" />}
+            href={`/${locale}/${workspaceSlug}/conversations`}
+            title={tHero("nextStepReviewConversations.title")}
+            body={tHero("nextStepReviewConversations.body")}
+          />
+        </NextStepGroup>
+      </section>
+
+      <ConfirmAction
+        open={pendingDelete !== null}
+        onClose={() => {
+          if (deleting) return;
+          setPendingDelete(null);
+        }}
+        title={tHero("deleteTitle")}
+        description={tHero("deleteDescription")}
+        action={tHero("deleteAction")}
+        cancelLabel={tHero("deleteCancel")}
+        tone="destructive"
+        isPending={deleting}
+        impact={
+          pendingDelete
+            ? [
+                {
+                  label: tHero("deleteImpactChannel"),
+                  value: pendingDelete.name || tHero("unknownValue"),
+                },
+                {
+                  label: tHero("deleteImpactType"),
+                  value: pendingTypeLabel || tHero("unknownValue"),
+                },
+                {
+                  label: tHero("deleteImpactStatus"),
+                  value: pendingDelete.status || tHero("unknownValue"),
+                },
+                {
+                  label: tHero("deleteImpactAgent"),
+                  value: pendingAgentName,
+                },
+                {
+                  label: tHero("deleteImpactReversibility"),
+                  value: tHero("deleteImpactReversibilityValue"),
+                },
+              ]
+            : []
+        }
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }
 
-function ConnectedChannelRow({ channel, agents }: { channel: Channel; agents: Agent[] }) {
+function ConnectedChannelRow({
+  channel,
+  agents,
+  onRequestDelete,
+}: {
+  channel: Channel;
+  agents: Agent[];
+  onRequestDelete: () => void;
+}) {
   const router = useRouter();
   const t = useTranslations("pages.channels");
   const channelType =
@@ -261,13 +408,6 @@ function ConnectedChannelRow({ channel, agents }: { channel: Channel; agents: Ag
     router.refresh();
   }
 
-  async function remove() {
-    if (!confirm(t("deleteConfirm"))) return;
-    await fetch(`/api/channels/${channel.id}`, { method: "DELETE" });
-    toast.success(t("deleted"));
-    router.refresh();
-  }
-
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const embedSnippet = `<script src="${origin}/api/embed?c=${channel.id}" async></script>`;
   const telegramWebhookUrl = channel.secret
@@ -312,8 +452,9 @@ function ConnectedChannelRow({ channel, agents }: { channel: Channel; agents: Ag
         </button>
         <button
           type="button"
-          onClick={remove}
+          onClick={onRequestDelete}
           className="text-muted hover:text-red-600 dark:hover:text-red-400"
+          aria-label={t("deleteConfirm")}
         >
           ✕
         </button>

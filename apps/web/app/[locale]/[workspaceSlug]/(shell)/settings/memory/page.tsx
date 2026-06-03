@@ -32,7 +32,11 @@ export default async function MemoryOpsPage({
 
   return (
     <MemoryOpsClient
-      workspace={{ id: ws.workspace.id, slug: ws.workspace.slug }}
+      workspace={{
+        id: ws.workspace.id,
+        slug: ws.workspace.slug,
+        name: ws.workspace.name ?? ws.workspace.slug,
+      }}
       isAdmin={isAdmin}
     />
   );

@@ -14,6 +14,8 @@ import {
   Clock,
   Undo2,
   GitCompare,
+  Wrench,
+  ClipboardCheck,
 } from "lucide-react";
 import { Button, Skeleton, Chip } from "@heroui/react";
 import { notify } from "@/lib/toast";
@@ -33,6 +35,12 @@ import { FactRow } from "@/components/brain/FactRow";
 import { EditFactDialog } from "@/components/brain/EditFactDialog";
 import { HealthDashboard } from "@/components/brain/HealthDashboard";
 import { TimeTravelPicker } from "@/components/brain/TimeTravelPicker";
+import { PageHero } from "@/components/compass/PageHero";
+import { EmptyState as CompassEmptyState } from "@/components/compass/EmptyState";
+import { TermDef } from "@/components/compass/TermDef";
+import { Callout } from "@/components/compass/Callout";
+import { ConfirmAction } from "@/components/compass/ConfirmAction";
+import { NextStep, NextStepGroup } from "@/components/compass/NextStep";
 
 const DEFAULT_FILTERS: FactsFilters = {
   status: "active",
@@ -43,6 +51,8 @@ const DEFAULT_FILTERS: FactsFilters = {
 
 export function BrainInspectorClient() {
   const t = useTranslations("brain");
+  const tc = useTranslations("compass.brain");
+  const tEmpty = useTranslations("compass.empty.brain");
   const router = useRouter();
   const params = useParams<{ locale: string; workspaceSlug: string }>();
   const searchParams = useSearchParams();
@@ -82,39 +92,37 @@ export function BrainInspectorClient() {
   const [filters, setFilters] = useState<FactsFilters>(DEFAULT_FILTERS);
   const filtersWithAsOf = useMemo<FactsFilters>(() => ({ ...filters, asOf }), [filters, asOf]);
   const [editing, setEditing] = useState<Fact | null>(null);
+  // ConfirmAction state for the destructive "forget" verb. The dialog
+  // shows the user the exact statement, scope, and reversibility of the
+  // action before they commit. No impact numbers are fabricated.
+  const [forgetTarget, setForgetTarget] = useState<Fact | null>(null);
+  const [forgetPending, setForgetPending] = useState(false);
   const { items, total, error, isLoading, hasMore, loadingMore, loadMore, mutate } =
     useBrainFacts(filtersWithAsOf);
   const { snapshot, isLoading: healthLoading } = useBrainHealthLatest();
   const { count: reviewQueueCount } = useBrainReviewCount();
 
-  const kpis = useMemo(() => {
+  type Kpi = {
+    key: "totalFacts" | "pinned" | "embedded" | "active" | "forgotten";
+    label: string;
+    value: string | number;
+  };
+  const kpis = useMemo<Kpi[]>(() => {
     const totalFacts = snapshot?.factCountTotal ?? snapshot?.factCountActive ?? 0;
     const embeddedPct =
       snapshot?.factCountTotal && snapshot.factCountTotal > 0
         ? Math.round(((snapshot.factCountEmbedded ?? 0) / snapshot.factCountTotal) * 100)
         : null;
     return [
-      { label: t("stats.totalFacts"), value: totalFacts, valueRaw: totalFacts },
+      { key: "totalFacts", label: t("stats.totalFacts"), value: totalFacts },
+      { key: "pinned", label: t("stats.pinned"), value: snapshot?.factCountPinned ?? 0 },
       {
-        label: t("stats.pinned"),
-        value: snapshot?.factCountPinned ?? 0,
-        valueRaw: snapshot?.factCountPinned ?? 0,
-      },
-      {
+        key: "embedded",
         label: t("stats.embedded"),
         value: embeddedPct !== null ? `${embeddedPct}%` : t("stats.noData"),
-        valueRaw: embeddedPct,
       },
-      {
-        label: t("stats.active"),
-        value: snapshot?.factCountActive ?? 0,
-        valueRaw: snapshot?.factCountActive ?? 0,
-      },
-      {
-        label: t("stats.forgotten"),
-        value: snapshot?.factCountForgotten ?? 0,
-        valueRaw: snapshot?.factCountForgotten ?? 0,
-      },
+      { key: "active", label: t("stats.active"), value: snapshot?.factCountActive ?? 0 },
+      { key: "forgotten", label: t("stats.forgotten"), value: snapshot?.factCountForgotten ?? 0 },
     ];
   }, [snapshot, t]);
 
@@ -139,17 +147,28 @@ export function BrainInspectorClient() {
     }
   }
 
-  async function handleForget(fact: Fact) {
+  function handleForget(fact: Fact) {
     if (isTimeTravel) {
       notify.error(t("timeTravel.editsDisabled"));
       return;
     }
+    // Don't call the API yet — surface the destructive action through
+    // ConfirmAction so the user sees the impact preview first.
+    setForgetTarget(fact);
+  }
+
+  async function confirmForget() {
+    if (!forgetTarget) return;
+    setForgetPending(true);
     try {
-      await forgetFact(fact.id);
+      await forgetFact(forgetTarget.id);
       notify.success(t("toast.forgotten"));
       void mutate();
+      setForgetTarget(null);
     } catch {
       notify.error(t("toast.forgetError"));
+    } finally {
+      setForgetPending(false);
     }
   }
 
@@ -184,99 +203,111 @@ export function BrainInspectorClient() {
     setEditing((current) => (current?.id === next.id ? next : current));
   }
 
+  // Truncate a fact statement so the ConfirmAction impact row stays
+  // readable. We never fabricate copy — empty stays empty (handled by
+  // upstream validation), we just clip very long statements.
+  function previewStatement(text: string): string {
+    const trimmed = text.trim();
+    if (trimmed.length <= 96) return trimmed;
+    return `${trimmed.slice(0, 93)}…`;
+  }
+
+  const headerActions = (
+    <>
+      {/* v1.6 G1-3: bitemporal time-travel — Inspector renders the
+          memory snapshot at the chosen instant. */}
+      <TimeTravelPicker value={asOf} onChange={onAsOfChange} />
+      <Button
+        as={Link}
+        href={`/${locale}/${ws}/brain/timeline`}
+        variant="flat"
+        size="sm"
+        startContent={<Clock className="h-3.5 w-3.5" />}
+        className="bg-elevated text-body"
+      >
+        Timeline
+      </Button>
+      <Button
+        as={Link}
+        href={`/${locale}/${ws}/brain/undo`}
+        variant="flat"
+        size="sm"
+        startContent={<Undo2 className="h-3.5 w-3.5" />}
+        className="bg-elevated text-body"
+      >
+        Undo
+      </Button>
+      <Button
+        as={Link}
+        href={`/${locale}/${ws}/brain/diff`}
+        variant="flat"
+        size="sm"
+        startContent={<GitCompare className="h-3.5 w-3.5" />}
+        className="bg-elevated text-body"
+      >
+        Diff
+      </Button>
+      <Button
+        as={Link}
+        href={`/${locale}/${ws}/brain/recall-debug`}
+        variant="flat"
+        size="sm"
+        startContent={<Zap className="h-3.5 w-3.5" />}
+        className="bg-elevated text-body"
+      >
+        Debug recall
+      </Button>
+      <Button
+        as={Link}
+        href={`/${locale}/${ws}/brain/review`}
+        variant="flat"
+        size="sm"
+        startContent={<BookOpen className="h-3.5 w-3.5" />}
+        className="bg-elevated text-body"
+        aria-label={t("actions.reviewCount", { count: reviewQueueCount })}
+      >
+        {t("actions.reviewQueue")}
+        {reviewQueueCount > 0 ? (
+          <Chip
+            size="sm"
+            variant="flat"
+            className="ml-1 h-5 bg-violet-500/15 text-[10px] text-violet-500"
+          >
+            {reviewQueueCount}
+          </Chip>
+        ) : null}
+      </Button>
+      <Button
+        as={Link}
+        href={`/${locale}/${ws}/brain/export`}
+        color="primary"
+        size="sm"
+        startContent={<Download className="h-3.5 w-3.5" />}
+      >
+        {t("actions.export")}
+      </Button>
+    </>
+  );
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <BrainCircuit className="h-5 w-5 text-violet-500" />
-            <h1 className="font-display text-2xl font-bold tracking-tight text-strong">
-              {t("title")}
-            </h1>
-          </div>
-          <p className="mt-1 text-sm text-muted">{t("subtitle")}</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {/* v1.6 G1-3: bitemporal time-travel — Inspector renders the
-              memory snapshot at the chosen instant. */}
-          <TimeTravelPicker value={asOf} onChange={onAsOfChange} />
-          {/* Inspector UI v2 — recall pipeline visualizer entry point.
-              Lands at /brain/recall-debug which captures and renders
-              per-stage events from /api/mnemo/recall-debug. */}
-          {/* v2 — Timeline / Undo / Diff were shipped pages but never
-              surfaced from the toolbar. Discoverable now. */}
-          <Button
-            as={Link}
-            href={`/${locale}/${ws}/brain/timeline`}
-            variant="flat"
-            size="sm"
-            startContent={<Clock className="h-3.5 w-3.5" />}
-            className="bg-elevated text-body"
-          >
-            Timeline
-          </Button>
-          <Button
-            as={Link}
-            href={`/${locale}/${ws}/brain/undo`}
-            variant="flat"
-            size="sm"
-            startContent={<Undo2 className="h-3.5 w-3.5" />}
-            className="bg-elevated text-body"
-          >
-            Undo
-          </Button>
-          <Button
-            as={Link}
-            href={`/${locale}/${ws}/brain/diff`}
-            variant="flat"
-            size="sm"
-            startContent={<GitCompare className="h-3.5 w-3.5" />}
-            className="bg-elevated text-body"
-          >
-            Diff
-          </Button>
-          <Button
-            as={Link}
-            href={`/${locale}/${ws}/brain/recall-debug`}
-            variant="flat"
-            size="sm"
-            startContent={<Zap className="h-3.5 w-3.5" />}
-            className="bg-elevated text-body"
-          >
-            Debug recall
-          </Button>
-          <Button
-            as={Link}
-            href={`/${locale}/${ws}/brain/review`}
-            variant="flat"
-            size="sm"
-            startContent={<BookOpen className="h-3.5 w-3.5" />}
-            className="bg-elevated text-body"
-            aria-label={t("actions.reviewCount", { count: reviewQueueCount })}
-          >
-            {t("actions.reviewQueue")}
-            {reviewQueueCount > 0 ? (
-              <Chip
-                size="sm"
-                variant="flat"
-                className="ml-1 h-5 bg-violet-500/15 text-[10px] text-violet-500"
-              >
-                {reviewQueueCount}
-              </Chip>
-            ) : null}
-          </Button>
-          <Button
-            as={Link}
-            href={`/${locale}/${ws}/brain/export`}
-            color="primary"
-            size="sm"
-            startContent={<Download className="h-3.5 w-3.5" />}
-          >
-            {t("actions.export")}
-          </Button>
-        </div>
-      </header>
+      {/* Compass PageHero — replaces the bespoke header. The subtitle
+          wraps the "Mnemosyne" jargon in <TermDef> so curious operators
+          can hover for a friendly definition. */}
+      <PageHero
+        icon={<BrainCircuit />}
+        title={tc("pageTitle")}
+        subtitle={
+          <>
+            {tc("pageSubtitlePart1")}
+            <TermDef term="mnemosyne">{tc("pageSubtitleTermMnemosyne")}</TermDef>
+            {tc("pageSubtitlePart2")}
+          </>
+        }
+        tourId="brain-inspector"
+        tourLabel={tc("tourLabel")}
+        action={<div className="flex flex-wrap items-center gap-2">{headerActions}</div>}
+      />
 
       {/* v1.6 G1-3: time-travel banner — surfaces above the KPI strip
           so it's the FIRST thing the operator sees when in a
@@ -295,8 +326,10 @@ export function BrainInspectorClient() {
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         {kpis.map((k) => (
-          <div key={k.label} className="rounded-xl border border-line bg-card p-4">
-            <span className="text-[10px] uppercase tracking-wider text-faint">{k.label}</span>
+          <div key={k.key} className="rounded-xl border border-line bg-card p-4">
+            <span className="text-[10px] uppercase tracking-wider text-faint">
+              {k.key === "embedded" ? <TermDef term="embedding">{k.label}</TermDef> : k.label}
+            </span>
             <div className="mt-2 text-2xl font-bold text-strong">
               {healthLoading ? (
                 <Skeleton className="h-7 w-12 rounded-md" />
@@ -312,6 +345,15 @@ export function BrainInspectorClient() {
 
       {/* Health charts */}
       <HealthDashboard />
+
+      {/* Pedagogical tip — explains the "forget is safe" property of the
+          inspector before the operator starts curating. Dismissible so it
+          gets out of the way once internalised. */}
+      <Callout variant="tip" title={tc("tip.title")} dismissible>
+        {tc("tip.bodyPart1")}
+        <strong>{t("actions.forget")}</strong>
+        {tc("tip.bodyPart2")}
+      </Callout>
 
       {/* Filters */}
       <FactFilters value={filters} onChange={setFilters} />
@@ -332,7 +374,15 @@ export function BrainInspectorClient() {
           ))}
         </div>
       ) : items.length === 0 ? (
-        <EmptyState />
+        <CompassEmptyState
+          icon={<BrainCircuit className="h-5 w-5" />}
+          title={tEmpty("title")}
+          body={tEmpty("body")}
+          primaryCta={{
+            label: t("empty.ctaLabel"),
+            href: `/${locale}/${ws}/settings/ai-providers`,
+          }}
+        />
       ) : (
         <>
           {total > 0 ? (
@@ -364,40 +414,74 @@ export function BrainInspectorClient() {
         </>
       )}
 
+      {/* Next steps — passive nudges toward adjacent surfaces. Not a CTA
+          because the user might be mid-curation; these just lower the
+          discovery cost. */}
+      <section aria-labelledby="brain-next-steps" className="pt-2">
+        <h2
+          id="brain-next-steps"
+          className="mb-3 text-[10px] font-medium uppercase tracking-wider text-faint"
+        >
+          {tc("nextStepsTitle")}
+        </h2>
+        <NextStepGroup className="lg:grid-cols-2">
+          <NextStep
+            icon={<ClipboardCheck className="h-4 w-4" />}
+            title={tc("nextSteps.review.title")}
+            body={tc("nextSteps.review.body")}
+            href={`/${locale}/${ws}/brain/review`}
+            estimateMinutes={5}
+          />
+          <NextStep
+            icon={<Wrench className="h-4 w-4" />}
+            title={tc("nextSteps.housekeeping.title")}
+            body={tc("nextSteps.housekeeping.body")}
+            href={`/${locale}/${ws}/settings/memory`}
+            estimateMinutes={3}
+          />
+        </NextStepGroup>
+      </section>
+
       <EditFactDialog
         fact={editing}
         isOpen={!!editing}
         onClose={() => setEditing(null)}
         onSaved={handleEdited}
       />
-    </div>
-  );
-}
 
-function EmptyState() {
-  const t = useTranslations("brain");
-  const params = useParams<{ locale: string; workspaceSlug: string }>();
-  const locale = params?.locale ?? "en";
-  const ws = params?.workspaceSlug ?? "";
-
-  return (
-    <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-line bg-card py-16 text-center">
-      <div className="rounded-full bg-violet-500/10 p-4">
-        <BrainCircuit className="h-8 w-8 text-violet-500" />
-      </div>
-      <div>
-        <h3 className="text-base font-semibold text-strong">{t("empty.title")}</h3>
-        <p className="mx-auto mt-1 max-w-md text-sm text-muted">{t("empty.description")}</p>
-      </div>
-      <Button
-        as={Link}
-        href={`/${locale}/${ws}/settings/ai-providers`}
-        color="primary"
-        variant="flat"
-        size="sm"
-      >
-        {t("empty.ctaLabel")}
-      </Button>
+      {/* Destructive action — wrapped in ConfirmAction so the user sees
+          the exact statement, scope, and reversibility before forgetting. */}
+      <ConfirmAction
+        open={forgetTarget !== null}
+        onClose={() => {
+          if (!forgetPending) setForgetTarget(null);
+        }}
+        title={tc("forget.title")}
+        description={tc("forget.description")}
+        action={tc("forget.action")}
+        cancelLabel={tc("forget.cancel")}
+        tone="destructive"
+        isPending={forgetPending}
+        onConfirm={confirmForget}
+        impact={
+          forgetTarget
+            ? [
+                {
+                  label: tc("forget.impactStatement"),
+                  value: previewStatement(forgetTarget.statement),
+                },
+                {
+                  label: tc("forget.impactScope"),
+                  value: t(`filters.scope_${forgetTarget.scope}`),
+                },
+                {
+                  label: tc("forget.impactReversibility"),
+                  value: tc("forget.reversibleValue"),
+                },
+              ]
+            : []
+        }
+      />
     </div>
   );
 }

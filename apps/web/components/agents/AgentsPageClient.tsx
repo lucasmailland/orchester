@@ -3,14 +3,20 @@
 import { useState, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { toast } from "sonner";
-import { confirm } from "@/components/ui/ConfirmDialog";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bot, Plus, Pencil, Trash2, Zap, Filter } from "lucide-react";
+import { Bot, Plus, Pencil, Trash2, Zap, Filter, Plug, BookOpen } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { Button } from "@heroui/react";
 import { cn } from "@/lib/utils";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { AgentFormModal } from "./AgentFormModal";
 import { NoProviderBanner } from "@/components/common/NoProviderBanner";
+import { PageHero } from "@/components/compass/PageHero";
+import { TermDef } from "@/components/compass/TermDef";
+import { EmptyState } from "@/components/compass/EmptyState";
+import { Callout } from "@/components/compass/Callout";
+import { ConfirmAction } from "@/components/compass/ConfirmAction";
+import { NextStep, NextStepGroup } from "@/components/compass/NextStep";
 
 const STATUS_CONFIG = {
   active: {
@@ -81,12 +87,17 @@ type FilterStatus = "all" | "active" | "inactive" | "draft";
 export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
   const router = useRouter();
   const t = useTranslations("pages.agents");
+  const tc = useTranslations("compass.agents");
+  const tEmpty = useTranslations("compass.empty.agents");
+  const tCommon = useTranslations("compass.common");
   const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "es";
   const ws = params?.workspaceSlug ?? "";
   const [createOpen, setCreateOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<AgentItem | null>(null);
   const [filter, setFilter] = useState<FilterStatus>("all");
+  const [deletingAgent, setDeletingAgent] = useState<AgentItem | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
 
   const AGENT_LABELS = {
     createTitle: t("form.createTitle"),
@@ -122,20 +133,20 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
     return Array.from(map.entries()).map(([key, val]) => ({ key, ...val }));
   }, [filtered, teams, t]);
 
-  async function handleDelete(agentId: string) {
-    const ok = await confirm({
-      title: t("deleteAgent"),
-      description: t("deleteAgentDescription"),
-      confirmText: t("deleteConfirm"),
-      destructive: true,
-    });
-    if (!ok) return;
-    const r = await fetch(`/api/agents/${agentId}`, { method: "DELETE" });
-    if (r.ok) {
-      toast.success(t("agentDeleted"));
-      router.refresh();
-    } else {
-      toast.error(t("agentDeleteError"));
+  async function handleConfirmDelete() {
+    if (!deletingAgent) return;
+    setDeletePending(true);
+    try {
+      const r = await fetch(`/api/agents/${deletingAgent.id}`, { method: "DELETE" });
+      if (r.ok) {
+        toast.success(t("agentDeleted"));
+        setDeletingAgent(null);
+        router.refresh();
+      } else {
+        toast.error(t("agentDeleteError"));
+      }
+    } finally {
+      setDeletePending(false);
     }
   }
 
@@ -158,66 +169,104 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
     },
   ];
 
+  const hasAgents = agents.length > 0;
+
+  const deletingModelShort = deletingAgent
+    ? (MODEL_SHORT[deletingAgent.model] ?? deletingAgent.model)
+    : "";
+
   return (
     <div className="space-y-6">
       <NoProviderBanner />
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-strong">
-            {t("title")}
-          </h1>
-          <p className="mt-1 text-sm text-muted">{t("subtitle")}</p>
-        </div>
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="flex shrink-0 items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-opacity hover:opacity-90"
-        >
-          <Plus size={15} />
-          {t("newAgent")}
-        </button>
-      </div>
+
+      <PageHero
+        icon={<Bot />}
+        title={tc("heroTitle")}
+        subtitle={
+          <>
+            {tc("heroSubtitlePart1")}
+            <TermDef term="agent">{tc("heroSubtitleTermAgent")}</TermDef>
+            {tc("heroSubtitlePart2")}
+            <TermDef term="prompt">{tc("heroSubtitleTermPrompt")}</TermDef>
+            {tc("heroSubtitlePart3")}
+          </>
+        }
+        action={
+          <Button
+            type="button"
+            color="primary"
+            radius="md"
+            size="sm"
+            onPress={() => setCreateOpen(true)}
+            startContent={<Plus size={14} />}
+            className="bg-gradient-to-r from-violet-600 to-blue-600 font-medium text-white shadow-md shadow-violet-500/20"
+          >
+            {t("newAgent")}
+          </Button>
+        }
+      />
 
       {/* Filter chips */}
-      <div className="flex items-center gap-2">
-        <Filter size={13} className="text-faint" />
-        {FILTERS.map((f) => (
-          <button
-            key={f.value}
-            onClick={() => setFilter(f.value)}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
-              filter === f.value
-                ? "bg-violet-600/20 text-violet-700 dark:text-violet-300 ring-1 ring-violet-500/30"
-                : "text-muted hover:bg-hover hover:text-body"
-            )}
-          >
-            {f.label}
-            <span
+      {hasAgents && (
+        <div className="flex items-center gap-2">
+          <Filter size={13} className="text-faint" />
+          {FILTERS.map((f) => (
+            <button
+              key={f.value}
+              onClick={() => setFilter(f.value)}
               className={cn(
-                "rounded-md px-1.5 py-0.5 font-mono text-[10px]",
+                "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
                 filter === f.value
-                  ? "bg-violet-500/20 text-violet-700 dark:text-violet-300"
-                  : "bg-elevated text-faint"
+                  ? "bg-violet-600/20 text-violet-700 dark:text-violet-300 ring-1 ring-violet-500/30"
+                  : "text-muted hover:bg-hover hover:text-body"
               )}
             >
-              {f.count}
-            </span>
-          </button>
-        ))}
-      </div>
+              {f.label}
+              <span
+                className={cn(
+                  "rounded-md px-1.5 py-0.5 font-mono text-[10px]",
+                  filter === f.value
+                    ? "bg-violet-500/20 text-violet-700 dark:text-violet-300"
+                    : "bg-elevated text-faint"
+                )}
+              >
+                {f.count}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* Empty */}
-      {filtered.length === 0 && (
-        <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-line py-16">
-          <Bot size={24} className="text-faint" />
-          <p className="text-sm text-faint">{t("noAgentsToShow")}</p>
-          <button
-            onClick={() => setCreateOpen(true)}
-            className="rounded-xl bg-violet-600/20 px-4 py-2 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-600/30"
-          >
-            {t("createFirstAgent")}
-          </button>
+      {/* Pedagogical tip — only when there is something to look at */}
+      {hasAgents && (
+        <Callout
+          variant="tip"
+          title={tc("modelTipTitle")}
+          dismissible
+          dismissLabel={tCommon("dismiss")}
+        >
+          {tc("modelTipBody")}
+        </Callout>
+      )}
+
+      {/* Empty state — workspace has no agents at all */}
+      {!hasAgents && (
+        <EmptyState
+          icon={<Bot size={20} />}
+          title={tEmpty("title")}
+          body={tEmpty("body")}
+          primaryCta={{
+            label: t("createFirstAgent"),
+            onClick: () => setCreateOpen(true),
+          }}
+        />
+      )}
+
+      {/* Workspace has agents, but current filter returns none */}
+      {hasAgents && filtered.length === 0 && (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line py-12">
+          <Bot size={22} className="text-faint" />
+          <p className="text-sm text-muted">{t("noAgentsToShow")}</p>
         </div>
       )}
 
@@ -319,7 +368,7 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
                             <button
                               type="button"
                               aria-label={t("deleteAria", { name: agent.name })}
-                              onClick={() => handleDelete(agent.id)}
+                              onClick={() => setDeletingAgent(agent)}
                               className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
                             >
                               <Trash2 size={12} />
@@ -364,6 +413,29 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
         </div>
       </AnimatePresence>
 
+      {/* Next steps */}
+      {hasAgents && (
+        <section className="space-y-3 pt-4">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-muted">
+            {tc("nextStepsTitle")}
+          </h2>
+          <NextStepGroup>
+            <NextStep
+              href={`/${locale}/${ws}/channels`}
+              icon={<Plug className="h-4 w-4" />}
+              title={tc("nextStepConnectChannel.title")}
+              body={tc("nextStepConnectChannel.body")}
+            />
+            <NextStep
+              href={`/${locale}/${ws}/knowledge`}
+              icon={<BookOpen className="h-4 w-4" />}
+              title={tc("nextStepAddKnowledge.title")}
+              body={tc("nextStepAddKnowledge.body")}
+            />
+          </NextStepGroup>
+        </section>
+      )}
+
       {/* Modals */}
       <AgentFormModal
         open={createOpen}
@@ -396,6 +468,38 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
           labels={AGENT_LABELS}
         />
       )}
+
+      <ConfirmAction
+        open={deletingAgent !== null}
+        onClose={() => {
+          if (!deletePending) setDeletingAgent(null);
+        }}
+        title={tc("deleteImpactTitle")}
+        description={tc("deleteImpactDescription")}
+        action={tc("deleteImpactAction")}
+        cancelLabel={tc("deleteImpactCancel")}
+        tone="destructive"
+        isPending={deletePending}
+        onConfirm={handleConfirmDelete}
+        impact={[
+          {
+            label: tc("deleteImpactRowAgent"),
+            value: deletingAgent?.name ?? tc("deleteImpactValueUnknown"),
+          },
+          {
+            label: tc("deleteImpactRowTeam"),
+            value: deletingAgent?.teamName ?? t("noTeam"),
+          },
+          {
+            label: tc("deleteImpactRowModel"),
+            value: deletingModelShort || tc("deleteImpactValueUnknown"),
+          },
+          {
+            label: tc("deleteImpactRowReversibility"),
+            value: tc("deleteImpactReversibilityValue"),
+          },
+        ]}
+      />
     </div>
   );
 }

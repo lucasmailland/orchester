@@ -1,12 +1,40 @@
 "use client";
 
+/**
+ * Knowledge bases list — Compass-polished view.
+ *
+ * Wraps the knowledge-base index in the Compass design system: a PageHero
+ * frames the page with TermDef tooltips for "embeddings" and "RAG", a
+ * Callout teaches first-time users where to start, the EmptyState replaces
+ * the curt "No knowledge bases yet" card, and a NextStep row at the bottom
+ * suggests adjacent setup tasks (upload first documents, attach to an
+ * agent).
+ *
+ * Data shape is unchanged: the server component still queries Drizzle and
+ * hands us a typed list — no new endpoints. There is no destructive action
+ * on this list view (delete happens inside each base's detail page), so we
+ * do not wire a ConfirmAction here.
+ *
+ * Voice: all strings come from `compass.knowledgeBases.*` and the shared
+ * `compass.empty.knowledgeBases.*` namespace, and follow the Compass Voice
+ * guide (neutral Spanish with "tú", no contractions in ES, no regionalisms
+ * in any language).
+ */
+
 import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { BookOpen, Plus, Sparkles } from "lucide-react";
+import { BookOpen, Plus, Sparkles, ArrowUpFromLine, Bot } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
+import { Button } from "@heroui/react";
+
 import { NoProviderBanner } from "@/components/common/NoProviderBanner";
+import { Callout } from "@/components/compass/Callout";
+import { EmptyState } from "@/components/compass/EmptyState";
+import { NextStep, NextStepGroup } from "@/components/compass/NextStep";
+import { PageHero } from "@/components/compass/PageHero";
+import { TermDef } from "@/components/compass/TermDef";
 
 interface KB {
   id: string;
@@ -19,72 +47,114 @@ interface KB {
 
 export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
   const router = useRouter();
-  const t = useTranslations("pages.knowledge");
+  const t = useTranslations("compass.knowledgeBases");
   const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "es";
   const ws = params?.workspaceSlug ?? "";
   const [creating, setCreating] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [provider, setProvider] = useState<"openai" | "google">("openai");
 
   async function create() {
-    if (!name.trim()) return;
-    const r = await fetch("/api/knowledge-bases", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        name,
-        description,
-        embeddingProvider: provider,
-        embeddingModel: provider === "openai" ? "text-embedding-3-small" : "text-embedding-004",
-      }),
-    });
-    if (r.ok) {
-      const j = await r.json();
-      toast.success(t("created"));
-      router.push(`/${locale}/${ws}/knowledge/${j.id}`);
-    } else {
-      toast.error(t("createError"));
+    const trimmed = name.trim();
+    if (!trimmed || submitting) return;
+    setSubmitting(true);
+    try {
+      const r = await fetch("/api/knowledge-bases", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: trimmed,
+          description,
+          embeddingProvider: provider,
+          embeddingModel: provider === "openai" ? "text-embedding-3-small" : "text-embedding-004",
+        }),
+      });
+      if (r.ok) {
+        const j = await r.json();
+        toast.success(t("created"));
+        router.push(`/${locale}/${ws}/knowledge/${j.id}`);
+      } else {
+        toast.error(t("createError"));
+      }
+    } finally {
+      setSubmitting(false);
     }
   }
+
+  const heroSubtitle = (
+    <>
+      {t("heroSubtitlePart1")}
+      <TermDef term="embedding">{t("heroSubtitleTermEmbedding")}</TermDef>
+      {t("heroSubtitlePart2")}
+      <TermDef term="rag">{t("heroSubtitleTermRag")}</TermDef>
+      {t("heroSubtitlePart3")}
+    </>
+  );
+
+  const newBaseAction = (
+    <Button
+      size="sm"
+      radius="md"
+      onPress={() => setCreating(true)}
+      className="bg-gradient-to-r from-violet-600 to-blue-600 font-medium text-white shadow-lg shadow-violet-500/20"
+      startContent={<Plus className="h-4 w-4" aria-hidden="true" />}
+    >
+      {t("newBase")}
+    </Button>
+  );
 
   return (
     <div className="space-y-6 p-6">
       <NoProviderBanner />
 
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-strong">{t("title")}</h1>
-          <p className="text-sm text-muted">{t("subtitle")}</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-violet-500 px-3.5 py-2 text-sm font-medium text-white hover:bg-violet-400"
-        >
-          <Plus className="h-4 w-4" /> {t("newBase")}
-        </button>
-      </div>
+      <PageHero
+        icon={<BookOpen />}
+        title={t("heroTitle")}
+        subtitle={heroSubtitle}
+        tourId="knowledgeBases"
+        tourLabel={t("tourLabel")}
+        action={newBaseAction}
+      />
 
-      {creating && (
-        <div className="space-y-2 rounded-2xl border border-violet-500/30 bg-card p-4">
+      {kbs.length === 0 && !creating ? (
+        <Callout variant="tip" title={t("firstBaseTipTitle")}>
+          {t("firstBaseTipBody")}
+        </Callout>
+      ) : null}
+
+      {creating ? (
+        <div className="rounded-2xl border border-violet-500/30 bg-card p-4">
+          <label htmlFor="kb-name-input" className="block text-sm font-semibold text-strong">
+            {t("createTitle")}
+          </label>
+          <p className="mt-0.5 text-xs text-muted">{t("createHelp")}</p>
           <input
+            id="kb-name-input"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder={t("namePlaceholder")}
-            className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
+            className="mt-3 w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
             autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") create();
+              if (e.key === "Escape") setCreating(false);
+            }}
           />
           <input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder={t("descriptionPlaceholder")}
-            className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
+            className="mt-2 w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-strong outline-none focus:border-violet-500/60"
           />
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-muted">{t("embeddingsLabel")}</label>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <label htmlFor="kb-embedding-select" className="text-xs font-medium text-muted">
+              <TermDef term="embedding">{t("embeddingsLabel")}</TermDef>
+            </label>
             <select
+              id="kb-embedding-select"
               value={provider}
               onChange={(e) => setProvider(e.target.value as "openai" | "google")}
               className="rounded-lg border border-line bg-elevated px-2 py-1.5 text-xs text-strong outline-none"
@@ -93,57 +163,109 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
               <option value="google">Google · text-embedding-004 (768d)</option>
             </select>
           </div>
-          <div className="flex items-center gap-2 pt-1">
-            <button
-              type="button"
-              onClick={create}
-              className="rounded-lg bg-violet-500 px-3 py-1.5 text-xs text-white hover:bg-violet-400"
+          <p className="mt-2 text-xs text-muted">{t("embeddingHelp")}</p>
+          <div className="mt-3 flex items-center gap-2">
+            <Button
+              size="sm"
+              onPress={create}
+              isDisabled={!name.trim() || submitting}
+              isLoading={submitting}
+              className="bg-violet-500 text-white hover:bg-violet-400"
             >
               {t("create")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setCreating(false)}
-              className="text-xs text-muted hover:text-body"
+            </Button>
+            <Button
+              size="sm"
+              variant="light"
+              onPress={() => {
+                setCreating(false);
+                setName("");
+                setDescription("");
+              }}
             >
               {t("cancel")}
-            </button>
+            </Button>
           </div>
         </div>
-      )}
+      ) : null}
 
-      {kbs.length === 0 && !creating && (
-        <div className="rounded-2xl border border-dashed border-line p-10 text-center">
-          <BookOpen className="mx-auto mb-3 h-8 w-8 text-faint" />
-          <h3 className="text-sm font-medium text-body">{t("emptyTitle")}</h3>
-          <p className="mt-1 text-xs text-muted">{t("emptyDescription")}</p>
+      {kbs.length === 0 && !creating ? (
+        <EmptyStateForKnowledgeBases
+          newBaseLabel={t("newBase")}
+          onCreate={() => setCreating(true)}
+        />
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {kbs.map((kb) => (
+            <motion.button
+              key={kb.id}
+              type="button"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              onClick={() => router.push(`/${locale}/${ws}/knowledge/${kb.id}`)}
+              aria-label={`${t("openLabel")} ${kb.name}`}
+              className="rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
+            >
+              <div className="mb-2 flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                <span className="truncate font-medium text-strong">{kb.name}</span>
+              </div>
+              <p className="line-clamp-2 text-xs text-muted">{kb.description ?? "—"}</p>
+              <div className="mt-3 flex items-center gap-1.5 text-[10px] text-faint">
+                <Sparkles className="h-3 w-3" aria-hidden="true" />
+                <span className="text-muted">{t("providerLabel")}</span>
+                <span className="font-mono">
+                  {kb.embeddingProvider}/{kb.embeddingModel}
+                </span>
+              </div>
+            </motion.button>
+          ))}
         </div>
       )}
 
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {kbs.map((kb) => (
-          <motion.button
-            key={kb.id}
-            type="button"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            onClick={() => router.push(`/${locale}/${ws}/knowledge/${kb.id}`)}
-            className="rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
-          >
-            <div className="mb-2 flex items-center gap-2">
-              <BookOpen className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-              <span className="font-medium text-strong">{kb.name}</span>
-            </div>
-            <p className="line-clamp-2 text-xs text-muted">{kb.description ?? "—"}</p>
-            <div className="mt-3 flex items-center gap-1.5 text-[10px] text-faint">
-              <Sparkles className="h-3 w-3" />
-              <span className="font-mono">
-                {kb.embeddingProvider}/{kb.embeddingModel}
-              </span>
-            </div>
-          </motion.button>
-        ))}
-      </div>
+      <section aria-labelledby="kb-next-steps-title" className="pt-2">
+        <h2 id="kb-next-steps-title" className="mb-3 text-sm font-semibold text-strong">
+          {t("nextStepsTitle")}
+        </h2>
+        <NextStepGroup>
+          <NextStep
+            href={`/${locale}/${ws}/knowledge`}
+            icon={<ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />}
+            title={t("nextStepUploadDocs.title")}
+            body={t("nextStepUploadDocs.body")}
+          />
+          <NextStep
+            href={`/${locale}/${ws}/agents`}
+            icon={<Bot className="h-4 w-4" aria-hidden="true" />}
+            title={t("nextStepConnectAgent.title")}
+            body={t("nextStepConnectAgent.body")}
+          />
+        </NextStepGroup>
+      </section>
     </div>
+  );
+}
+
+/**
+ * Empty state lives in its own component so we can scope a second
+ * `useTranslations` call to `compass.empty.knowledgeBases` — the canonical
+ * Compass namespace for empty surfaces — without clobbering the
+ * `compass.knowledgeBases.*` translator used by the rest of the page.
+ */
+function EmptyStateForKnowledgeBases({
+  newBaseLabel,
+  onCreate,
+}: {
+  newBaseLabel: string;
+  onCreate: () => void;
+}) {
+  const tEmpty = useTranslations("compass.empty.knowledgeBases");
+  return (
+    <EmptyState
+      icon={<BookOpen className="h-5 w-5" />}
+      title={tEmpty("title")}
+      body={tEmpty("body")}
+      primaryCta={{ label: newBaseLabel, onClick: onCreate }}
+    />
   );
 }
