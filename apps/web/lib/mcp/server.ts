@@ -1,7 +1,8 @@
 import "server-only";
 import { getDb, schema } from "@orchester/db";
 import { createId } from "@paralleldrive/cuid2";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { withMnemoTx, searchMnemo, saveFactWithCandidates } from "@orchester/mnemosyne";
 
 /**
  * Orchester MCP server core.
@@ -341,6 +342,317 @@ const TOOLS: McpToolDef[] = [
         kind: "conversational",
       });
       return { id, status: "draft", message: "Agente creado en estado draft." };
+    },
+  },
+
+  // ─────────────────────────────────────────────────────────────────
+  // Mnemosyne — memory tools
+  //
+  // Exposes the Mnemosyne memory layer over MCP so any client (Claude
+  // Desktop, Cursor, Gemini, custom agents, third-party products) can:
+  //   - recall durable facts about a workspace's users, projects,
+  //     decisions
+  //   - explicitly remember a new fact (e.g. agent learns something
+  //     mid-conversation that didn't come from a chat turn)
+  //   - audit / curate the memory: pin important ones, forget the rest
+  //
+  // Every tool runs through `withMnemoTx` so the workspace_id GUC is
+  // set and RLS+FORCE Pattern A enforces tenant isolation — a client
+  // with an API key for workspace A can NEVER read or mutate memory
+  // in workspace B even if they craft a request that names a fact id
+  // belonging to the other tenant.
+  //
+  // Tool naming follows the MCP convention `<domain>_<verb>` and the
+  // Mnemosyne protocol's verbs (recall / remember / pin / forget) so
+  // existing client tooling that knows the protocol "just works."
+  // ─────────────────────────────────────────────────────────────────
+  {
+    name: "memory_recall",
+    title: "Recall memory",
+    description:
+      "Trae los hechos más relevantes que la memoria del workspace tiene sobre la query. Usá esto para recordar preferencias del usuario, decisiones pasadas, contexto histórico o cualquier conocimiento durable extraído de conversaciones anteriores. Devuelve top-K facts con score, subject, kind y statement.",
+    access: "read",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description:
+            "Texto libre — qué querés recordar (ej. 'preferencias de email del cliente')",
+        },
+        limit: {
+          type: "number",
+          description: "Cantidad máxima de hits a devolver. Default 5, max 25.",
+        },
+        agentId: {
+          type: "string",
+          description:
+            "Opcional. Limita el recall al pool del agente — útil cuando un agente tiene memory policy custom.",
+        },
+      },
+      required: ["query"],
+    },
+    async handler(input, auth) {
+      const query = String(input.query ?? "").trim();
+      if (query.length === 0) {
+        throw new Error("query no puede estar vacío");
+      }
+      const limit = Math.min(25, Math.max(1, Number(input.limit ?? 5) || 5));
+      const agentId = input.agentId ? String(input.agentId) : undefined;
+
+      return withMnemoTx(auth.workspaceId, async (tx) => {
+        // searchMnemo returns `RecallHit[]` where each hit wraps the
+        // underlying `MnemoFact` row + score + provenance reasons. We
+        // flatten to a client-friendly shape and drop internal columns
+        // (embedding bytes, tsvector, …) the MCP caller doesn't need.
+        const hits = await searchMnemo({
+          workspaceId: auth.workspaceId,
+          query,
+          ...(agentId !== undefined ? { agentId } : {}),
+          topK: limit,
+          tx,
+        });
+        return {
+          query,
+          hits: hits.map((h) => ({
+            id: h.fact.id,
+            score: Number(h.score.toFixed(4)),
+            kind: h.fact.kind,
+            subject: h.fact.subject,
+            statement: h.fact.statement,
+            confidence: h.fact.confidence,
+            pinned: h.fact.pinned,
+            createdAt:
+              h.fact.createdAt instanceof Date
+                ? h.fact.createdAt.toISOString()
+                : String(h.fact.createdAt),
+            reasons: h.reasons,
+          })),
+          count: hits.length,
+        };
+      });
+    },
+  },
+  {
+    name: "memory_remember",
+    title: "Remember a fact",
+    description:
+      "Persiste un hecho durable nuevo en la memoria del workspace. Usalo cuando descubras información que valga la pena recordar a futuro (preferencias, decisiones, configuraciones aprendidas en la conversación). El fact entra al review queue con confidence='llm' y se vuelve buscable inmediatamente. Idempotente vía content-hash: re-enviar el mismo statement no duplica.",
+    access: "write",
+    inputSchema: {
+      type: "object",
+      properties: {
+        statement: {
+          type: "string",
+          description:
+            "El hecho en una oración corta y precisa. Ej. 'El cliente Acme prefiere comunicación en español.'",
+        },
+        subject: {
+          type: "string",
+          description:
+            "Sobre quién / qué es el hecho. Ej. 'acme', 'user:lucas@example.com', 'org:billing'. Default 'workspace'.",
+        },
+        kind: {
+          type: "string",
+          description:
+            "Categoría: 'preference' | 'decision' | 'fact' | 'config' | 'process'. Default 'fact'.",
+        },
+        confidence: {
+          type: "number",
+          description: "[0, 1]. Default 0.7. Usá <0.5 para hechos derivados/inferidos.",
+        },
+        agentId: {
+          type: "string",
+          description: "Opcional. Quién originó el hecho — agente o conversación.",
+        },
+        conversationId: {
+          type: "string",
+          description: "Opcional. Pegá la conversación para trazabilidad (cite-back).",
+        },
+      },
+      required: ["statement"],
+    },
+    async handler(input, auth) {
+      const statement = String(input.statement ?? "").trim();
+      if (statement.length === 0 || statement.length > 1000) {
+        throw new Error("statement debe estar entre 1 y 1000 caracteres");
+      }
+      const subject = String(input.subject ?? "workspace");
+      const kind = String(input.kind ?? "fact");
+      const confidence = Math.max(0, Math.min(1, Number(input.confidence ?? 0.7)));
+
+      return withMnemoTx(auth.workspaceId, async (tx) => {
+        // saveFactWithCandidates inserts the row then surfaces
+        // potential contradictions for human/LLM judgment. For the
+        // MCP path we set `enqueueOnNoJudge: true` so any flagged
+        // contradiction lands in the workspace review queue instead
+        // of being silently saved — the operator sees it in
+        // `/brain/review`.
+        const result = await saveFactWithCandidates({
+          workspaceId: auth.workspaceId,
+          statement,
+          subject,
+          // Cast to the union the type wants. Callers send any string
+          // because the kind set is open-ended product-side and we
+          // don't want a typed enum to leak into the MCP boundary.
+          kind: kind as never,
+          scope: "global",
+          confidence,
+          metadata: { origin: "mcp", scopes: auth.scopes },
+          agentId: input.agentId ? String(input.agentId) : null,
+          enqueueOnNoJudge: true,
+          tx,
+        });
+        return {
+          id: result.newFact.id,
+          statement: result.newFact.statement,
+          subject: result.newFact.subject,
+          kind: result.newFact.kind,
+          confidence: result.newFact.confidence,
+          /** True when the writer saw potential contradictions with
+           *  existing facts — the caller may want to inspect
+           *  `enqueuedReviewId` in `/brain/review`. */
+          judgmentRequired: result.judgmentRequired,
+          enqueuedReviewId: result.enqueuedReviewId,
+        };
+      });
+    },
+  },
+  {
+    name: "memory_pin",
+    title: "Pin a fact",
+    description:
+      "Marca un hecho como 'pinned' — protege de prune/forget automáticos y le da prioridad en recall. Usalo para conocimiento crítico que NO querés que el sistema olvide jamás.",
+    access: "write",
+    inputSchema: {
+      type: "object",
+      properties: {
+        factId: { type: "string", description: "ID del fact a pinear." },
+      },
+      required: ["factId"],
+    },
+    async handler(input, auth) {
+      const factId = String(input.factId ?? "").trim();
+      if (factId.length === 0) throw new Error("factId requerido");
+
+      return withMnemoTx(auth.workspaceId, async (tx) => {
+        const res = await tx.execute<{ id: string }>(sql`
+          UPDATE mnemo_fact
+          SET pinned = true, updated_at = now()
+          WHERE id = ${factId} AND status = 'active'
+          RETURNING id
+        `);
+        const rows = (res as unknown as { rows?: { id: string }[] }).rows ?? [];
+        if (rows.length === 0) {
+          throw new Error(`Fact ${factId} no encontrado o ya archivado`);
+        }
+        return { id: rows[0]!.id, pinned: true };
+      });
+    },
+  },
+  {
+    name: "memory_forget",
+    title: "Forget a fact",
+    description:
+      "Archiva un hecho — sale del recall pero queda en mnemo_fact_archive para auditoría y eventual restore. Usalo cuando descubras que un hecho aprendido era incorrecto, sensible o ya no aplica. NO destruye datos.",
+    access: "write",
+    inputSchema: {
+      type: "object",
+      properties: {
+        factId: { type: "string", description: "ID del fact a archivar." },
+        reason: { type: "string", description: "Motivo opcional (queda en audit log)." },
+      },
+      required: ["factId"],
+    },
+    async handler(input, auth) {
+      const factId = String(input.factId ?? "").trim();
+      if (factId.length === 0) throw new Error("factId requerido");
+      const reason = input.reason ? String(input.reason).slice(0, 200) : "mcp_forget";
+
+      return withMnemoTx(auth.workspaceId, async (tx) => {
+        const res = await tx.execute<{ id: string }>(sql`
+          UPDATE mnemo_fact
+          SET status = 'archived',
+              archive_reason = ${reason},
+              archived_at = now(),
+              updated_at = now()
+          WHERE id = ${factId} AND status = 'active'
+          RETURNING id
+        `);
+        const rows = (res as unknown as { rows?: { id: string }[] }).rows ?? [];
+        if (rows.length === 0) {
+          throw new Error(`Fact ${factId} no encontrado o ya archivado`);
+        }
+        return { id: rows[0]!.id, status: "archived", reason };
+      });
+    },
+  },
+  {
+    name: "memory_timeline",
+    title: "List recent memory events",
+    description:
+      "Devuelve los hechos más recientes (created/updated/archived) del workspace. Útil para diff: '¿qué aprendió mi IA esta semana?'. Default 20, max 100.",
+    access: "read",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "number", description: "Default 20, max 100." },
+        kind: {
+          type: "string",
+          description: "Filtrá por categoría (preference / decision / fact / ...).",
+        },
+        sinceIso: { type: "string", description: "Solo hechos cuyo updated_at >= esta fecha ISO." },
+      },
+    },
+    async handler(input, auth) {
+      const limit = Math.min(100, Math.max(1, Number(input.limit ?? 20) || 20));
+      const kind = input.kind ? String(input.kind) : null;
+      const sinceIso = input.sinceIso ? String(input.sinceIso) : null;
+
+      return withMnemoTx(auth.workspaceId, async (tx) => {
+        const rows = await tx.execute<{
+          id: string;
+          subject: string;
+          kind: string;
+          statement: string;
+          confidence: number;
+          pinned: boolean;
+          status: string;
+          updated_at: Date;
+        }>(sql`
+          SELECT id, subject, kind, statement, confidence, pinned, status, updated_at
+          FROM mnemo_fact
+          WHERE workspace_id = ${auth.workspaceId}
+            ${kind ? sql`AND kind = ${kind}` : sql``}
+            ${sinceIso ? sql`AND updated_at >= ${sinceIso}::timestamptz` : sql``}
+          ORDER BY updated_at DESC
+          LIMIT ${limit}
+        `);
+        type EventRow = {
+          id: string;
+          subject: string;
+          kind: string;
+          statement: string;
+          confidence: number;
+          pinned: boolean;
+          status: string;
+          updated_at: Date;
+        };
+        const r = (rows as unknown as { rows: EventRow[] }).rows;
+        return {
+          count: r.length,
+          events: r.map((row) => ({
+            id: row.id,
+            subject: row.subject,
+            kind: row.kind,
+            statement: row.statement,
+            confidence: row.confidence,
+            pinned: row.pinned,
+            status: row.status,
+            updatedAt: row.updated_at.toISOString(),
+          })),
+        };
+      });
     },
   },
 ];

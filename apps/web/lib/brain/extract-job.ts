@@ -42,6 +42,9 @@ import {
 } from "@orchester/mnemosyne";
 import { resolveSmallTierModel } from "./model-resolve";
 import { extractFacts } from "./extract";
+// v2.1 — warm-up gate. Skips extraction on workspaces that haven't
+// crossed the activity threshold yet. See lib/mnemo/warm-up.ts.
+import { checkWarmUp } from "@/lib/mnemo/warm-up";
 import { shouldExtract } from "@orchester/mnemosyne";
 import { withBrainTx } from "./store";
 import { invalidateRecallCache } from "./recall";
@@ -134,6 +137,41 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
             completedAt: new Date(),
           })
           .where(eq(schema.brainExtractionJobs.id, payload.jobId));
+        return;
+      }
+
+      // v2.1 — warm-up gate. Cold workspaces (< N conversations) pay
+      // the extraction LLM cost for facts no one will recall against
+      // until the corpus grows. Skip extraction here and let the
+      // workspace re-cross this gate on the next conversation. The
+      // job is marked `skipped_cold_workspace` with the current count
+      // + threshold so the operator can see in the audit log why
+      // extraction was deferred. Fails open: a count-read error means
+      // we extract anyway (safe default).
+      const warmUp = await checkWarmUp(payload.workspaceId).catch(() => null);
+      if (warmUp && !warmUp.warmedUp) {
+        await tx
+          .update(schema.brainExtractionJobs)
+          .set({
+            state: "skipped_sensitivity",
+            // Reuse the skip-reason column rather than adding a new
+            // migration; the prefix uniquely identifies the reason
+            // for operators reading the audit log.
+            skipReason: `cold_workspace:${warmUp.conversationCount}/${warmUp.threshold}`,
+            factsProduced: 0,
+            completedAt: new Date(),
+          })
+          .where(eq(schema.brainExtractionJobs.id, payload.jobId));
+        // eslint-disable-next-line no-console
+        console.log(
+          JSON.stringify({
+            level: "info",
+            msg: "mnemo.extract.skipped.cold",
+            workspaceId: payload.workspaceId,
+            conversationCount: warmUp.conversationCount,
+            threshold: warmUp.threshold,
+          })
+        );
         return;
       }
 

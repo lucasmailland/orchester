@@ -103,11 +103,47 @@ export interface LlmCallParams {
   tx?: WsDb;
 }
 
+/**
+ * v2.1 — Anthropic prompt-cache observability.
+ *
+ * Anthropic returns four fields under `usage` for cache-aware
+ * billing:
+ *   - `input_tokens`           — billed at full rate (the non-cached
+ *                                portion of the prompt)
+ *   - `cache_creation_input_tokens` — tokens that this call WROTE
+ *                                into the cache (billed at ~125% for
+ *                                5-min TTL writes)
+ *   - `cache_read_input_tokens`  — tokens that this call READ from a
+ *                                hot cache (billed at ~10%)
+ *   - `output_tokens`          — billed at full rate
+ *
+ * Surfacing this on the result lets the caller (agent-runtime,
+ * recordAiUsage, the per-workspace usage dashboard) compute the
+ * effective tokens billed AND the savings vs no-cache. When the
+ * provider is not Anthropic the fields are `null`.
+ */
+export interface PromptCacheUsage {
+  /** Tokens billed at the regular input rate. */
+  inputTokens: number;
+  /** Tokens that this call WROTE into the cache (5-min TTL). */
+  cacheCreationTokens: number;
+  /** Tokens that this call READ from a hot cache (the win). */
+  cacheReadTokens: number;
+  /** Tokens billed at the regular output rate. */
+  outputTokens: number;
+}
+
 export interface LlmCallResult {
   content: string;
   tokensUsed: number;
   model: string;
   toolCalls?: ToolUseBlock[];
+  /**
+   * Per-call usage broken down by cache state. Only populated for
+   * Anthropic (the only provider currently exposing prompt cache).
+   * Other providers leave it `undefined`.
+   */
+  cacheUsage?: PromptCacheUsage;
 }
 
 /**
@@ -336,6 +372,21 @@ async function callAnthropic(p: LlmCallParams, apiKey: string): Promise<LlmCallR
     content: text,
     tokensUsed: (j.usage?.input_tokens ?? 0) + (j.usage?.output_tokens ?? 0),
     model: p.model,
+    // v2.1 — cache observability. When the provider doesn't return
+    // cache fields they collapse to 0 and the caller sees
+    // `cacheReadTokens === 0` (no win this turn). The structural
+    // presence vs absence lets downstream code (usage dashboard,
+    // savings reports) distinguish "Anthropic returned no cache hit"
+    // from "this provider doesn't support prompt cache."
+    cacheUsage: {
+      inputTokens: j.usage?.input_tokens ?? 0,
+      cacheCreationTokens:
+        (j.usage as { cache_creation_input_tokens?: number } | undefined)
+          ?.cache_creation_input_tokens ?? 0,
+      cacheReadTokens:
+        (j.usage as { cache_read_input_tokens?: number } | undefined)?.cache_read_input_tokens ?? 0,
+      outputTokens: j.usage?.output_tokens ?? 0,
+    },
   };
   if (toolCalls.length > 0) result.toolCalls = toolCalls;
   return result;
