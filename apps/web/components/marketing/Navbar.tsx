@@ -122,10 +122,9 @@ export function Navbar() {
     router.push(segments.join("/"));
   }
 
-  const navLinks = [
-    { key: "docs" as const, href: `/${locale}/docs` },
-    { key: "changelog" as const, href: "#changelog" },
-  ];
+  // Only real destinations. Add an entry here once a route or section
+  // actually ships — never link to vapor.
+  const navLinks = [{ key: "docs" as const, href: `/${locale}/docs` }];
 
   return (
     <>

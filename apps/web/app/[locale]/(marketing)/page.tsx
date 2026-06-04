@@ -6,6 +6,7 @@ import { ModelMarquee } from "@/components/marketing/ModelMarquee";
 import { ProblemSection } from "@/components/marketing/ProblemSection";
 import { TwoPatternsSection } from "@/components/marketing/TwoPatternsSection";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
+import { PlatformTourSection } from "@/components/marketing/PlatformTourSection";
 import { BrainSection } from "@/components/marketing/BrainSection";
 import { FlowBuilderSection } from "@/components/marketing/FlowBuilderSection";
 import { ComparisonSection } from "@/components/marketing/ComparisonSection";
@@ -33,6 +34,7 @@ export default async function LandingPage({ params }: Props) {
       <ProblemSection />
       <TwoPatternsSection />
       <HowItWorks />
+      <PlatformTourSection />
       <BrainSection />
       <FlowBuilderSection />
       <ComparisonSection />

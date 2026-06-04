@@ -217,5 +217,14 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|widget|c).*)"],
+  // Skip:
+  //   - `api`, `_next/*`, `favicon.ico`, `widget`, `c` (long-standing buckets)
+  //   - any request that looks like a static asset (path ends in a typical
+  //     asset extension). Without this last clause the next-intl middleware
+  //     hits `/screenshots/foo.png` and tries to rewrite it to
+  //     `/en/screenshots/foo.png`, which 404s — silently breaking every
+  //     image served straight from `/public`.
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico|widget|c|.*\\.(?:png|jpg|jpeg|gif|svg|webp|avif|ico|woff|woff2|ttf|otf|mp4|webm)).*)",
+  ],
 };

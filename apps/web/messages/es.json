@@ -1635,8 +1635,6 @@
   "marketing": {
     "nav": {
       "docs": "Docs",
-      "pricing": "Precios",
-      "changelog": "Novedades",
       "getStarted": "Empezar",
       "signIn": "Iniciar sesión"
     },
@@ -1759,13 +1757,10 @@
     },
     "footer": {
       "tagline": "Plataforma open-source de agentes IA.",
-      "product": "Producto",
-      "company": "Empresa",
-      "legal": "Legal",
+      "ariaLabel": "Enlaces del pie de página",
+      "madeIn": "Hecho con ♥ en Buenos Aires",
       "links": {
         "docs": "Docs",
-        "pricing": "Precios",
-        "changelog": "Novedades",
         "github": "GitHub",
         "privacy": "Privacidad",
         "terms": "Términos"
@@ -1978,6 +1973,81 @@
         "license": "Licencia Apache-2.0"
       },
       "footnote": "Información basada en la documentación pública de cada proyecto a 2026. ¿Algo está mal? Abrí un issue en GitHub."
+    },
+    "tour": {
+      "eyebrow": "El producto",
+      "heading": "Construido. Real. Open-source.",
+      "subhead": "Cada pantalla de abajo es el producto real — no es un mockup ni un render. Explorá lo que viene de fábrica.",
+      "railAriaLabel": "Categorías del recorrido del producto",
+      "categories": {
+        "build": "Construir",
+        "operate": "Operar",
+        "memory": "Memoria",
+        "insights": "Métricas",
+        "admin": "Administración"
+      },
+      "shots": {
+        "flowEditor": {
+          "title": "Editor de flujos",
+          "description": "Canvas drag-and-drop con más de 30 tipos de nodos. Auto-layout, run-as-form, edición asistida por copilot, validación inline.",
+          "alt": "Editor visual de flujos mostrando el flujo de Support triage"
+        },
+        "agents": {
+          "title": "Catálogo de agentes",
+          "description": "Todos los agentes que construiste, con modelo, estado y uso a la vista.",
+          "alt": "Catálogo de agentes IA con modelo y estadísticas"
+        },
+        "agentDetail": {
+          "title": "Detalle del agente",
+          "description": "Prompt, herramientas, política de memoria, guard-rails y un test chat en vivo, todo en un solo panel.",
+          "alt": "Vista detallada de un agente con su configuración"
+        },
+        "dashboard": {
+          "title": "Command Center",
+          "description": "Vista en tiempo real de conversaciones, agentes, costos, tasa de escalado y resolución.",
+          "alt": "Panel del workspace con métricas operativas clave"
+        },
+        "conversations": {
+          "title": "Conversaciones",
+          "description": "Todos los canales en una sola bandeja — web, WhatsApp, Slack, email, API — con transcripción y trazabilidad completa.",
+          "alt": "Lista de conversaciones de todos los canales"
+        },
+        "flowsList": {
+          "title": "Flujos",
+          "description": "Todas tus automatizaciones, con triggers, horarios y estado de la última ejecución.",
+          "alt": "Lista de flujos de automatización"
+        },
+        "brain": {
+          "title": "Memory inspector",
+          "description": "Memoria cognitiva bitemporal. Navegá hechos, decisiones, episodios y entidades. Time-travel. Cola de revisión.",
+          "alt": "Inspector de memoria Mnemosyne con hechos y decisiones"
+        },
+        "knowledge": {
+          "title": "Bases de conocimiento",
+          "description": "Fuentes RAG con pgvector. Re-embedding en vivo, inspector de chunks, citaciones al origen.",
+          "alt": "Listado de bases de conocimiento con estado del embedding"
+        },
+        "usage": {
+          "title": "Costo y uso",
+          "description": "Gasto de tokens por workspace, breakdown de costo por agente, topes de presupuesto fail-closed.",
+          "alt": "Panel de costo y uso con gasto de tokens por agente"
+        },
+        "org": {
+          "title": "Organigrama",
+          "description": "Vé tu organización IA como una jerarquía — orquestador, especialistas, empleados — con líneas de reporte.",
+          "alt": "Organigrama de la organización IA con jerarquía"
+        },
+        "settings": {
+          "title": "Proveedores",
+          "description": "Bring your own key. Anthropic, OpenAI, Google, Azure, Bedrock, Mistral — más de 80 proveedores.",
+          "alt": "Configuración de proveedores con las API keys"
+        },
+        "integrations": {
+          "title": "Integraciones",
+          "description": "Conectá con tu stack. Slack, WhatsApp, HubSpot, Notion, GitHub, GitLab, MCP servers, webhooks.",
+          "alt": "Catálogo de integraciones con los conectores disponibles"
+        }
+      }
     }
   },
   "compass": {

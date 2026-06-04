@@ -1635,8 +1635,6 @@
   "marketing": {
     "nav": {
       "docs": "Docs",
-      "pricing": "Pricing",
-      "changelog": "Changelog",
       "getStarted": "Get started",
       "signIn": "Sign in"
     },
@@ -1759,13 +1757,10 @@
     },
     "footer": {
       "tagline": "Open-source AI agent platform.",
-      "product": "Product",
-      "company": "Company",
-      "legal": "Legal",
+      "ariaLabel": "Footer links",
+      "madeIn": "Made with ♥ in Buenos Aires",
       "links": {
         "docs": "Docs",
-        "pricing": "Pricing",
-        "changelog": "Changelog",
         "github": "GitHub",
         "privacy": "Privacy",
         "terms": "Terms"
@@ -1978,6 +1973,81 @@
         "license": "Apache-2.0 license"
       },
       "footnote": "Information based on each project's public documentation as of 2026. Got something wrong? Open an issue on GitHub."
+    },
+    "tour": {
+      "eyebrow": "The product",
+      "heading": "Built. Real. Open-source.",
+      "subhead": "Every screen below is the actual product — not a mockup, not a render. Click through to explore what you get out of the box.",
+      "railAriaLabel": "Product tour categories",
+      "categories": {
+        "build": "Build",
+        "operate": "Operate",
+        "memory": "Memory",
+        "insights": "Insights",
+        "admin": "Admin"
+      },
+      "shots": {
+        "flowEditor": {
+          "title": "Flow editor",
+          "description": "Drag-and-drop canvas with 30+ node types. Auto-layout, run-as-form, copilot-assisted edits, inline validation.",
+          "alt": "Visual flow editor showing the Support triage workflow"
+        },
+        "agents": {
+          "title": "Agents catalog",
+          "description": "Every agent you've built, with model, status, and usage at a glance.",
+          "alt": "Catalog of AI agents with model and usage stats"
+        },
+        "agentDetail": {
+          "title": "Agent detail",
+          "description": "Prompt, tools, memory policy, guard-rails, and a live test chat — all in one panel.",
+          "alt": "Detail view of an individual agent with its configuration"
+        },
+        "dashboard": {
+          "title": "Command Center",
+          "description": "Real-time view of conversations, agents, costs, escalation rate, and resolution health.",
+          "alt": "Workspace dashboard with key operational metrics"
+        },
+        "conversations": {
+          "title": "Conversations",
+          "description": "Every channel in one inbox — web, WhatsApp, Slack, email, API — with full transcript and audit trail.",
+          "alt": "List of conversations across channels"
+        },
+        "flowsList": {
+          "title": "Flows",
+          "description": "All your automations, with triggers, schedules, and last-run status.",
+          "alt": "List of automation flows"
+        },
+        "brain": {
+          "title": "Memory inspector",
+          "description": "Bitemporal cognitive memory. Browse facts, decisions, episodes, entities. Time-travel. Review queue.",
+          "alt": "Mnemosyne memory inspector with facts and decisions"
+        },
+        "knowledge": {
+          "title": "Knowledge bases",
+          "description": "RAG sources with pgvector. Live re-embedding, chunk inspector, citations back to source.",
+          "alt": "Knowledge bases listing with embedding status"
+        },
+        "usage": {
+          "title": "Cost & usage",
+          "description": "Per-workspace token spend, per-agent cost breakdown, hard fail-closed budget caps.",
+          "alt": "Cost and usage dashboard with token spend per agent"
+        },
+        "org": {
+          "title": "Org chart",
+          "description": "See your AI org as a hierarchy — orchestrator, specialists, employees — with reporting lines.",
+          "alt": "AI organization chart with reporting hierarchy"
+        },
+        "settings": {
+          "title": "Providers",
+          "description": "Bring your own keys. Anthropic, OpenAI, Google, Azure, Bedrock, Mistral — 80+ providers.",
+          "alt": "Provider settings with API key configuration"
+        },
+        "integrations": {
+          "title": "Integrations",
+          "description": "Connect to your stack. Slack, WhatsApp, HubSpot, Notion, GitHub, GitLab, MCP servers, webhooks.",
+          "alt": "Integration catalog with available connectors"
+        }
+      }
     }
   },
   "compass": {

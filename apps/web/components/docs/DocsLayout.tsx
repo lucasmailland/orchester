@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Bot, Code2 } from "lucide-react";
 import { DOCS, type Doc, type DocBlock } from "@/lib/docs-content";
+import { Navbar } from "@/components/marketing/Navbar";
+import { Footer } from "@/components/marketing/Footer";
 
 function Block({ block }: { block: DocBlock }) {
   switch (block.kind) {
@@ -48,44 +49,11 @@ function Block({ block }: { block: DocBlock }) {
 
 export function DocsLayout({ locale, doc }: { locale: string; doc: Doc }) {
   return (
-    <div className="min-h-screen bg-black text-zinc-100">
-      <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-black/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href={`/${locale}`} className="flex items-center gap-2">
-            <div className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-blue-500 text-white">
-              <Bot className="h-4 w-4" />
-            </div>
-            <span className="font-display text-lg font-semibold tracking-tight">Orchester</span>
-            <span className="ml-1 rounded-md bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-zinc-500">
-              Docs
-            </span>
-          </Link>
-          <nav className="hidden items-center gap-6 text-sm text-zinc-400 md:flex">
-            <Link href={`/${locale}#features`} className="hover:text-zinc-100">
-              Producto
-            </Link>
-            <Link href={`/${locale}/pricing`} className="hover:text-zinc-100">
-              Precios
-            </Link>
-            <a
-              href="https://github.com/orchester-io/orchester"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 hover:text-zinc-100"
-            >
-              <Code2 className="h-3.5 w-3.5" /> GitHub
-            </a>
-          </nav>
-          <Link
-            href={`/${locale}/signup`}
-            className="rounded-lg bg-violet-500 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-violet-400"
-          >
-            Empezar gratis
-          </Link>
-        </div>
-      </header>
+    <div className="min-h-screen bg-[#09090B] text-zinc-100">
+      {/* Same chrome as the landing — fixed glass navbar at top */}
+      <Navbar />
 
-      <div className="mx-auto flex max-w-6xl gap-10 px-6 py-12">
+      <div className="mx-auto flex max-w-6xl gap-10 px-6 pb-16 pt-28">
         {/* Sidebar */}
         <aside className="hidden w-56 shrink-0 md:block">
           <nav className="sticky top-24 space-y-1">
@@ -120,22 +88,7 @@ export function DocsLayout({ locale, doc }: { locale: string; doc: Doc }) {
         </article>
       </div>
 
-      <footer className="border-t border-white/[0.06] py-8 text-center text-xs text-zinc-600">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6">
-          <span>© {new Date().getFullYear()} Orchester</span>
-          <div className="flex gap-4">
-            <Link href={`/${locale}/privacy`} className="hover:text-zinc-300">
-              Privacidad
-            </Link>
-            <Link href={`/${locale}/terms`} className="hover:text-zinc-300">
-              Términos
-            </Link>
-            <Link href={`/${locale}/pricing`} className="hover:text-zinc-300">
-              Precios
-            </Link>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
