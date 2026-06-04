@@ -263,6 +263,48 @@
       "attribution": "Attribution: {value}",
       "actor": "Actor: {actorId}",
       "protocol": "Memory Protocol {value}"
+    },
+    "heartbeat": {
+      "title": "Your AI is learning on its own",
+      "subtitleNow": "Updated just now",
+      "subtitleRelative": "Updated {time}",
+      "subtitleWaiting": "Waiting for the first cycle…",
+      "ariaLabel": "Memory learning status"
+    },
+    "onboarding": {
+      "title": "How memory works",
+      "subtitle": "Three short steps. You're set.",
+      "skip": "Skip",
+      "back": "Back",
+      "next": "Next",
+      "start": "Start exploring",
+      "stepCounter": "Step {current} of {total}",
+      "step1": {
+        "badge": "Step 1",
+        "title": "Your agents talk",
+        "body": "Every conversation your agents have — with customers, with your team, or with each other — feeds Orchester."
+      },
+      "step2": {
+        "badge": "Step 2",
+        "title": "Memory learns automatically",
+        "body": "When a conversation ends, Orchester extracts the durable facts: preferences, decisions, recurring patterns. No buttons. No prompts."
+      },
+      "step3": {
+        "badge": "Step 3",
+        "title": "You curate (optional)",
+        "body": "Pin what matters. Forget what doesn't. Travel back in time to audit. The system runs without you, but it works better with you."
+      }
+    },
+    "emptyOnboarding": {
+      "title": "Memory will appear here",
+      "body": "Every conversation your agents finish leaves a trace. Soon you'll review what they remembered, pin what matters, and forget what you don't want kept.",
+      "step1Title": "Conversation ends",
+      "step1Body": "Anywhere — web widget, Slack, WhatsApp, email.",
+      "step2Title": "Orchester extracts",
+      "step2Body": "3–5 durable facts in seconds.",
+      "step3Title": "You see them here",
+      "step3Body": "Curate, pin, or forget. Or just leave it running.",
+      "cta": "Start a conversation"
     }
   },
   "dashboard": {
@@ -400,8 +442,6 @@
       "accountDescription": "Profile, password, 2FA",
       "settingsLabel": "Workspace settings",
       "settingsDescription": "Team, plan, integrations",
-      "memoryLabel": "Memory operations",
-      "memoryDescription": "Cron triggers + recall quality",
       "signOutLabel": "Sign out",
       "signingOut": "Signing out…",
       "signOutError": "Could not sign out. Try again."
@@ -1123,7 +1163,8 @@
         "audit": "Audit log",
         "flags": "Feature flags",
         "developers": "Developers",
-        "danger": "Danger zone"
+        "danger": "Danger zone",
+        "memory": "Memory maintenance"
       },
       "general": {
         "title": "General",
@@ -1346,7 +1387,9 @@
         "auditTitle": "Audit log",
         "auditDescription": "Every critical workspace mutation is recorded here. Read-only.",
         "developersTitle": "Developers",
-        "developersDescription": "API keys, outbound webhooks, and the public API reference."
+        "developersDescription": "API keys, outbound webhooks, and the public API reference.",
+        "memoryTitle": "Memory maintenance",
+        "memoryDescription": "Scheduled jobs + recall quality. Admin backstage."
       },
       "empty": "Settings coming soon.",
       "workspace": "Workspace",

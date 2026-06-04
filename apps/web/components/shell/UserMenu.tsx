@@ -3,13 +3,15 @@
 // Topbar avatar → account dropdown. Replaces the static `<Avatar>`
 // that did nothing on click with a proper HeroUI Dropdown:
 //   - Identity card (name, email)
-//   - "Account settings" → /settings (account anchor)
-//   - "Memory operations" → /settings/memory
+//   - "Account settings" → /settings#account
+//   - "Workspace settings" → /settings
 //   - "Sign out" — calls better-auth client and bounces to /signin
 //
 // Kept narrow on purpose: every other shell action lives in the
 // sidebar; the user menu is for ME (the operator) — my profile, my
-// session.
+// session. Memory maintenance used to live here as its own item;
+// it now lives inside Settings → Memory maintenance because that's
+// where every other admin tab is (it was the only one out).
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
@@ -20,7 +22,7 @@ import {
   DropdownItem,
   DropdownSection,
 } from "@heroui/react";
-import { LogOut, User as UserIcon, BrainCircuit, Settings as SettingsIcon } from "lucide-react";
+import { LogOut, User as UserIcon, Settings as SettingsIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { signOut } from "@/lib/auth-client";
 import { notify } from "@/lib/toast";
@@ -75,9 +77,6 @@ export function UserMenu({ userName, userEmail, userImage }: UserMenuProps) {
         return;
       case "settings":
         router.push(`/${locale}/${ws}/settings`);
-        return;
-      case "memory":
-        router.push(`/${locale}/${ws}/settings/memory`);
         return;
       case "signout":
         void handleSignOut();
@@ -187,13 +186,6 @@ export function UserMenu({ userName, userEmail, userImage }: UserMenuProps) {
             description={t("userMenu.settingsDescription")}
           >
             {t("userMenu.settingsLabel")}
-          </DropdownItem>
-          <DropdownItem
-            key="memory"
-            startContent={<BrainCircuit className="h-4 w-4 text-muted" aria-hidden />}
-            description={t("userMenu.memoryDescription")}
-          >
-            {t("userMenu.memoryLabel")}
           </DropdownItem>
         </DropdownSection>
         <DropdownSection aria-label={t("userMenu.signOutLabel")} classNames={{ heading: "hidden" }}>

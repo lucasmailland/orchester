@@ -13,6 +13,7 @@ import {
   Monitor,
   ScrollText,
   Flag,
+  BrainCircuit,
   type LucideIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -28,6 +29,7 @@ import { DangerZoneSection } from "./DangerZoneSection";
 import { SessionsSection } from "./SessionsSection";
 import { AuditLogViewer } from "@/components/workspace/AuditLogViewer";
 import { FeatureFlagAdminPanel } from "@/components/workspace/FeatureFlagAdminPanel";
+import { MemoryOpsClient } from "@/app/[locale]/[workspaceSlug]/(shell)/settings/memory/MemoryOpsClient";
 import { SettingsCard } from "./_layout";
 
 interface WorkspaceCtx {
@@ -78,6 +80,11 @@ const TABS: Tab[] = [
     visible: (ctx) => ctx.stripeEnabled || true, // always visible — shows "Self-hosted"
   },
   { id: "members", icon: UsersIcon },
+  // Memory maintenance — used to live as its own item in the user-avatar
+  // dropdown which (a) confused operators ("why is memory in my account
+  // menu?") and (b) was the only admin tab not in Settings. Moved in.
+  // The standalone `/settings/memory` route still works for back-compat.
+  { id: "memory", icon: BrainCircuit },
   { id: "sessions", icon: Monitor },
   { id: "audit", icon: ScrollText },
   { id: "flags", icon: Flag },
@@ -198,6 +205,22 @@ export function SettingsClient({ workspace, me, stripeEnabled, labels }: Props) 
               description={t("sections.membersDescription")}
             >
               <MembersSection />
+            </SettingsCard>
+          )}
+          {activeTab === "memory" && (
+            <SettingsCard
+              icon={<BrainCircuit size={16} />}
+              title={t("sections.memoryTitle")}
+              description={t("sections.memoryDescription")}
+            >
+              {/* MemoryOpsClient renders its own admin-gate stub for
+                  non-admins (same as on the standalone /settings/memory
+                  route), so we can drop it inline without re-checking
+                  role here. */}
+              <MemoryOpsClient
+                workspace={{ id: workspace.id, slug: workspace.slug, name: workspace.name }}
+                isAdmin={workspace.role === "owner" || workspace.role === "admin"}
+              />
             </SettingsCard>
           )}
           {activeTab === "sessions" && (

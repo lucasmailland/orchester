@@ -35,8 +35,10 @@ import { FactRow } from "@/components/brain/FactRow";
 import { EditFactDialog } from "@/components/brain/EditFactDialog";
 import { HealthDashboard } from "@/components/brain/HealthDashboard";
 import { TimeTravelPicker } from "@/components/brain/TimeTravelPicker";
+import { MemoryHeartbeat } from "@/components/brain/MemoryHeartbeat";
+import { MemoryOnboardingWizard } from "@/components/brain/MemoryOnboardingWizard";
+import { MemoryEmptyOnboarding } from "@/components/brain/MemoryEmptyOnboarding";
 import { PageHero } from "@/components/compass/PageHero";
-import { EmptyState as CompassEmptyState } from "@/components/compass/EmptyState";
 import { TermDef } from "@/components/compass/TermDef";
 import { Callout } from "@/components/compass/Callout";
 import { ConfirmAction } from "@/components/compass/ConfirmAction";
@@ -53,7 +55,10 @@ const DEFAULT_FILTERS: FactsFilters = {
 export function BrainInspectorClient() {
   const t = useTranslations("brain");
   const tc = useTranslations("compass.brain");
-  const tEmpty = useTranslations("compass.empty.brain");
+  // Note: the pedagogical empty state owns its own i18n namespace
+  // (brain.emptyOnboarding) — the old generic compass.empty.brain
+  // copy is intentionally unused here. Kept the namespace for future
+  // surfaces (e.g. a brain widget) that may want a terser version.
   const router = useRouter();
   const params = useParams<{ locale: string; workspaceSlug: string }>();
   const searchParams = useSearchParams();
@@ -92,6 +97,20 @@ export function BrainInspectorClient() {
 
   const [filters, setFilters] = useState<FactsFilters>(DEFAULT_FILTERS);
   const filtersWithAsOf = useMemo<FactsFilters>(() => ({ ...filters, asOf }), [filters, asOf]);
+  // True when the user has narrowed the list (anything beyond the
+  // default "status:active" filter). The empty-state CTA hides under
+  // this so we don't send the operator off to start a conversation
+  // when their own filter is the reason they see no rows.
+  const hasActiveFilters = useMemo(
+    () =>
+      Object.keys(filters).some(
+        (k) =>
+          k !== "status" &&
+          (filters as Record<string, unknown>)[k] !== undefined &&
+          (filters as Record<string, unknown>)[k] !== null
+      ) || filters.status !== DEFAULT_FILTERS.status,
+    [filters]
+  );
   const [editing, setEditing] = useState<Fact | null>(null);
   // ConfirmAction state for the destructive "forget" verb. The dialog
   // shows the user the exact statement, scope, and reversibility of the
@@ -292,6 +311,16 @@ export function BrainInspectorClient() {
 
   return (
     <div className="space-y-6">
+      {/* First-visit pedagogy modal. Self-gates on localStorage so it
+          only opens once per operator + version. See component header. */}
+      <MemoryOnboardingWizard />
+
+      {/* Calm "system is alive" banner. Sits ABOVE PageHero on purpose
+          — the very first thing the operator's eye lands on. Closes
+          the "is this manual?" question before the buttons can scare
+          anyone. */}
+      <MemoryHeartbeat />
+
       {/* Compass PageHero — replaces the bespoke header. The subtitle
           wraps the "Mnemosyne" jargon in <TermDef> so curious operators
           can hover for a friendly definition. */}
@@ -402,16 +431,12 @@ export function BrainInspectorClient() {
           ))}
         </div>
       ) : items.length === 0 ? (
-        <CompassEmptyState
-          icon={<BrainCircuit className="h-5 w-5" />}
-          title={tEmpty("title")}
-          body={tEmpty("body")}
-          primaryCta={{
-            label: t("empty.ctaLabel"),
-            href: `/${locale}/${ws}/settings/ai-providers`,
-          }}
-          intensity="subtle"
-        />
+        // Pedagogical empty: shows the conversation → learn → curate
+        // flow so the operator understands what'll appear here. Hides
+        // the CTA when filters are active — otherwise we'd be sending
+        // them to /conversations to "start one" when one of their
+        // existing filters might just be hiding the data.
+        <MemoryEmptyOnboarding basePath={`/${locale}/${ws}`} showCta={!hasActiveFilters} />
       ) : (
         <>
           {total > 0 ? (

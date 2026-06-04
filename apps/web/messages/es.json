@@ -263,6 +263,48 @@
       "attribution": "Atribución: {value}",
       "actor": "Actor: {actorId}",
       "protocol": "Memory Protocol {value}"
+    },
+    "heartbeat": {
+      "title": "Tu IA aprende sola",
+      "subtitleNow": "Actualizado recién",
+      "subtitleRelative": "Actualizado {time}",
+      "subtitleWaiting": "Esperando el primer ciclo…",
+      "ariaLabel": "Estado del aprendizaje de memoria"
+    },
+    "onboarding": {
+      "title": "Cómo funciona la memoria",
+      "subtitle": "Tres pasos cortos. Listo.",
+      "skip": "Omitir",
+      "back": "Atrás",
+      "next": "Siguiente",
+      "start": "Empezar a explorar",
+      "stepCounter": "Paso {current} de {total}",
+      "step1": {
+        "badge": "Paso 1",
+        "title": "Tus agentes conversan",
+        "body": "Cada conversación que tus agentes tienen — con clientes, con tu equipo o entre ellos — alimenta a Orchester."
+      },
+      "step2": {
+        "badge": "Paso 2",
+        "title": "La memoria aprende sola",
+        "body": "Cuando termina una conversación, Orchester extrae los hechos durables: preferencias, decisiones, patrones repetidos. Sin botones. Sin que tengas que pedir nada."
+      },
+      "step3": {
+        "badge": "Paso 3",
+        "title": "Tú la curás (opcional)",
+        "body": "Fijá lo importante. Olvidá lo que sobra. Viajá al pasado para auditar. El sistema funciona sin ti, pero anda mejor contigo."
+      }
+    },
+    "emptyOnboarding": {
+      "title": "Acá va a aparecer la memoria",
+      "body": "Cada conversación que terminen tus agentes deja huella. Pronto vas a poder revisar lo que recordaron, fijar lo importante y olvidar lo que no querés que se guarde.",
+      "step1Title": "Termina una conversación",
+      "step1Body": "Donde sea — widget web, Slack, WhatsApp, email.",
+      "step2Title": "Orchester extrae los hechos",
+      "step2Body": "3–5 hechos durables en segundos.",
+      "step3Title": "Aparecen acá",
+      "step3Body": "Curás, fijás o olvidás. O simplemente lo dejás correr.",
+      "cta": "Empezar una conversación"
     }
   },
   "dashboard": {
@@ -400,8 +442,6 @@
       "accountDescription": "Perfil, contraseña, 2FA",
       "settingsLabel": "Configuración del workspace",
       "settingsDescription": "Equipo, plan, integraciones",
-      "memoryLabel": "Operaciones de memoria",
-      "memoryDescription": "Crons + calidad de recall",
       "signOutLabel": "Cerrar sesión",
       "signingOut": "Cerrando sesión…",
       "signOutError": "No se pudo cerrar sesión. Intentá de nuevo."
@@ -1124,7 +1164,8 @@
         "audit": "Audit log",
         "flags": "Feature flags",
         "developers": "Desarrolladores",
-        "danger": "Zona de peligro"
+        "danger": "Zona de peligro",
+        "memory": "Mantenimiento de memoria"
       },
       "general": {
         "title": "General",
@@ -1347,7 +1388,9 @@
         "auditTitle": "Audit log",
         "auditDescription": "Cada mutación crítica del workspace queda registrada aquí. Read-only.",
         "developersTitle": "Desarrolladores",
-        "developersDescription": "API keys, webhooks salientes, y referencia de la API pública."
+        "developersDescription": "API keys, webhooks salientes, y referencia de la API pública.",
+        "memoryTitle": "Mantenimiento de memoria",
+        "memoryDescription": "Tareas programadas + calidad de recall. Backstage admin."
       },
       "workspace": "Workspace",
       "workspaceName": "Nombre del Workspace",
