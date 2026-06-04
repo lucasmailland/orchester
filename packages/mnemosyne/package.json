@@ -21,7 +21,7 @@
     "lru-cache": "^11.5.1"
   },
   "devDependencies": {
-    "vitest": "^2.1.9",
+    "vitest": "^4.1.0",
     "typescript": "^5.7.2",
     "testcontainers": "^10.16.0",
     "postgres": "^3.4.9"
