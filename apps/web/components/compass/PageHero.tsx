@@ -147,12 +147,16 @@ export function PageHero({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: APPLE_EASE }}
       className={cn(
-        "flex flex-col gap-4 pb-6",
-        "sm:flex-row sm:items-start sm:justify-between sm:gap-6",
+        // `flex-wrap` is the key: when the action column won't fit next to
+        // the title (e.g. Brain Inspector ships ~9 buttons), it wraps to a
+        // new row instead of crushing the title down to 1-word-wide columns.
+        // The title column also keeps a sensible `min-w` floor so even if
+        // wrap doesn't kick in, the subtitle never breaks word-by-word.
+        "flex flex-wrap items-start gap-y-4 gap-x-6 pb-6",
         className
       )}
     >
-      <div className="flex min-w-0 items-start gap-3">
+      <div className="flex min-w-[min(100%,18rem)] flex-1 items-start gap-3">
         {showIconTile ? (
           <span
             aria-hidden="true"
@@ -178,7 +182,11 @@ export function PageHero({
       </div>
 
       {(showTour || action) && (
-        <div className="flex shrink-0 items-center gap-2 sm:pt-1">
+        // No `shrink-0` here: we'd rather the whole action cluster wrap
+        // onto its own row than starve the title. `flex-wrap` on the
+        // inner row lets individual buttons stack too if even one row is
+        // too narrow on small viewports.
+        <div className="flex flex-wrap items-center gap-2 sm:pt-1">
           {showTour && resolvedTourId !== null ? (
             <Button
               type="button"
