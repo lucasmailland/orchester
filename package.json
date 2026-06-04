@@ -1,7 +1,7 @@
 {
   "name": "orchester",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Open-source platform for building AI agents and orchestrating them in workflows. Multi-tenant from day one, 80+ AI providers, self-hostable on Postgres.",
   "license": "Apache-2.0",
   "author": "Lucas Mailland <lucasmailland@gmail.com>",
