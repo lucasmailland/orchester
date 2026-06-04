@@ -5,7 +5,6 @@
   "include-v-in-tag": true,
   "bump-minor-pre-major": false,
   "bump-patch-for-minor-pre-major": true,
-  "release-as": "0.0.1",
   "draft": false,
   "prerelease": false,
   "changelog-path": "CHANGELOG.md",
