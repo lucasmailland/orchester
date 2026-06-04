@@ -45,6 +45,7 @@ import { calculateChatCostUsd } from "@/lib/pricing";
 import { safeLogError } from "@/lib/safe-log";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 import { resolveSmallTierModel } from "@/lib/brain/model-resolve";
+import { CRON_JOBS, shouldRunForWorkspace, markRanForWorkspace } from "@/lib/mnemo/cron-policy";
 
 /** Hard cap per run to keep the cron tick bounded even on a
  *  pathologically-large workspace catalogue. The next weekly tick
@@ -209,6 +210,12 @@ export async function runConsolidationSweep(): Promise<ConsolidationStats> {
 
   stats.workspacesScanned = workspaceRows.length;
   for (const row of workspaceRows) {
+    // Per-workspace periodicity gate. See lib/mnemo/cron-policy.ts.
+    const allowed = await shouldRunForWorkspace(row.workspace_id, CRON_JOBS.remConsolidation);
+    if (!allowed) {
+      stats.workspacesSkippedNoLlm += 1;
+      continue;
+    }
     const result = await consolidateWorkspace(row.workspace_id);
     if (result === null) {
       stats.workspacesFailed += 1;
@@ -220,6 +227,7 @@ export async function runConsolidationSweep(): Promise<ConsolidationStats> {
     }
     stats.clustersConsolidated += result.clusters;
     stats.factsLinked += result.relations;
+    await markRanForWorkspace(row.workspace_id, CRON_JOBS.remConsolidation);
   }
 
   // eslint-disable-next-line no-console

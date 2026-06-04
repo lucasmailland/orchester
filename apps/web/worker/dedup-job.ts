@@ -28,6 +28,12 @@ import {
 } from "@orchester/mnemosyne";
 import { safeLogError } from "@/lib/safe-log";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
+// Per-workspace periodicity override gate. Driven by the
+// `mnemo_cron_schedule` table (migration 0052) + the Memory
+// Maintenance UI in Settings → Memory maintenance. Each workspace
+// can disable this job entirely or slow it down (weekly→monthly,
+// etc.). See apps/web/lib/mnemo/cron-policy.ts.
+import { CRON_JOBS, shouldRunForWorkspace, markRanForWorkspace } from "@/lib/mnemo/cron-policy";
 
 /** Hard cap per run to keep the cron tick bounded even on a
  *  pathologically-large workspace catalogue. The next tick catches up. */
@@ -107,6 +113,15 @@ export async function runDedupSweep(): Promise<DedupStats> {
 
   stats.workspacesScanned = workspaceRows.length;
   for (const row of workspaceRows) {
+    // Per-workspace gate: skip if the operator opted out or asked
+    // for a slower cadence than the global cron. The gate fails-open
+    // on error (logged inside the helper) so a transient DB issue
+    // can't silently disable a tenant.
+    const allowed = await shouldRunForWorkspace(row.workspace_id, CRON_JOBS.dedup);
+    if (!allowed) {
+      stats.workspacesSkipped += 1;
+      continue;
+    }
     const result = await dedupWorkspace(row.workspace_id);
     if (result === null) {
       stats.workspacesSkipped += 1;
@@ -114,6 +129,9 @@ export async function runDedupSweep(): Promise<DedupStats> {
     }
     stats.clustersMerged += result.clusters;
     stats.factsArchived += result.archived;
+    // Bookkeeping for the elapsed-time gate. Best-effort; the helper
+    // swallows errors so a missed write just means we re-run next tick.
+    await markRanForWorkspace(row.workspace_id, CRON_JOBS.dedup);
   }
 
   // eslint-disable-next-line no-console

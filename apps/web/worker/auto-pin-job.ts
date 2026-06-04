@@ -30,6 +30,7 @@ import {
 } from "@orchester/mnemosyne";
 import { safeLogError } from "@/lib/safe-log";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
+import { CRON_JOBS, shouldRunForWorkspace, markRanForWorkspace } from "@/lib/mnemo/cron-policy";
 
 const MAX_WORKSPACES_PER_RUN = 5000;
 /** Per-workspace per-tick cap. Generous because the rule filters
@@ -169,12 +170,19 @@ export async function runAutoPin(): Promise<AutoPinStats> {
 
   stats.workspacesScanned = workspaceRows.length;
   for (const row of workspaceRows) {
+    // Per-workspace periodicity gate. See lib/mnemo/cron-policy.ts.
+    const allowed = await shouldRunForWorkspace(row.workspace_id, CRON_JOBS.autoPin);
+    if (!allowed) {
+      stats.workspacesSkipped += 1;
+      continue;
+    }
     const pinned = await pinWorkspace(row.workspace_id);
     if (pinned === null) {
       stats.workspacesSkipped += 1;
       continue;
     }
     stats.factsPinned += pinned;
+    await markRanForWorkspace(row.workspace_id, CRON_JOBS.autoPin);
   }
 
   // eslint-disable-next-line no-console

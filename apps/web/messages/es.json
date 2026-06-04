@@ -2454,6 +2454,41 @@
           "modelPlaceholderCohere": "embed-v4.0",
           "modelPlaceholderEmpty": "Elige primero un proveedor"
         }
+      },
+      "schedule": {
+        "editLabel": "Editar periodicidad",
+        "editAria": "Editar periodicidad de {name}",
+        "modalTitle": "Periodicidad de {name}",
+        "modalSubtitle": "Elegí cuándo querés que esta tarea corra en este workspace.",
+        "globalLabel": "Por defecto del sistema",
+        "modesLabel": "Cuándo correrla",
+        "modes": {
+          "default": "Por defecto",
+          "defaultHint": "Usa la programación del sistema. Recomendado.",
+          "disabled": "Desactivada",
+          "disabledHint": "No corre nunca para este workspace.",
+          "hourly": "Cada hora",
+          "hourlyHint": "Mínimo 1 hora entre corridas (sujeto al global).",
+          "daily": "Diaria",
+          "dailyHint": "Mínimo 24h entre corridas (sujeto al global).",
+          "weekly": "Semanal",
+          "weeklyHint": "Mínimo 7 días entre corridas.",
+          "monthly": "Mensual",
+          "monthlyHint": "Mínimo 30 días entre corridas.",
+          "custom": "Personalizada",
+          "customHint": "Una expresión cron (5 campos). El gate aplica como diaria."
+        },
+        "customInputLabel": "Expresión cron",
+        "customPlaceholder": "0 3 * * 0",
+        "customHelp": "Formato estándar de 5 campos: minuto hora día-mes mes día-semana.",
+        "maxFreqNote": "Tu elección actúa como un máximo: no puede correr más seguido que el cron global.",
+        "lastRunLabel": "Última corrida",
+        "lastRunNever": "Aún no corrió",
+        "savedToast": "Periodicidad guardada",
+        "saveErrorToast": "No se pudo guardar la periodicidad",
+        "save": "Guardar",
+        "cancel": "Cancelar",
+        "disabledWarning": "Esta tarea no se va a ejecutar para este workspace. Activala de nuevo cuando quieras."
       }
     },
     "empty": {

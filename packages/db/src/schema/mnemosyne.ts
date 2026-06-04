@@ -7,6 +7,7 @@ import {
   pgTable,
   primaryKey,
   index,
+  uniqueIndex,
   text,
   real,
   boolean,
@@ -660,5 +661,60 @@ export const mnemoOrgFactView = pgTable(
   (t) => [
     index("idx_mnemo_org_fact_view_org").on(t.orgId, t.createdAt),
     index("idx_mnemo_org_fact_view_subject_kind").on(t.orgId, t.subject, t.kind),
+  ]
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// mnemo_cron_schedule — per-workspace cron periodicity overrides.
+//
+// Each row says: for THIS workspace, run THIS mnemosyne housekeeping job
+// at this cadence — or skip it entirely. When no row exists for a
+// (workspace, job) pair, the worker treats it as `mode='default'` (run at
+// the global cadence). Keeps existing installs unchanged.
+//
+// Semantics + invariants are documented in detail in migration 0052
+// (packages/db/migrations/0052_mnemo_cron_schedule.sql). The summary:
+//   - `default`  → use the global cron (the case for every legacy row)
+//   - `disabled` → skip this workspace entirely
+//   - `hourly|daily|weekly|monthly|custom` → minimum interval gate
+//   - chosen mode is a MAXIMUM frequency; cannot fire more often than
+//     the global cron does (the UI surfaces this contract explicitly).
+//
+// `last_run_at` is the bookkeeping field the worker updates after each
+// successful per-workspace tick to drive the interval gate. The
+// `cron-policy` helper in apps/web/lib/mnemo/cron-policy.ts owns the
+// reads + writes; the API only mutates `mode` and `custom_cron_expression`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const mnemoCronSchedule = pgTable(
+  "mnemo_cron_schedule",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    /** Well-known job identifier (see CRON_JOBS in cron-policy.ts). */
+    jobName: text("job_name").notNull(),
+    /**
+     * Cadence override. Valid values are enforced by the migration's
+     * CHECK constraint, mirrored here as a readable union literal for
+     * TS callers.
+     */
+    mode: text("mode").notNull().default("default"),
+    /**
+     * Crontab expression when `mode='custom'`. The migration's
+     * CHECK guarantees this is non-null iff mode='custom'.
+     */
+    customCronExpression: text("custom_cron_expression"),
+    lastRunAt: timestamp("last_run_at", { withTimezone: true, mode: "date" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    // UNIQUE(workspace_id, job_name) — DB-side guarantees one row per
+    // pair so the `INSERT ... ON CONFLICT (workspace_id, job_name)
+    // DO UPDATE` upsert in cron-policy.ts is cheap and atomic. The
+    // primary key is `id` (text) above; this is the secondary unique
+    // that backs the upsert.
+    uniqueIndex("mnemo_cron_schedule_ws_job_unq").on(t.workspaceId, t.jobName),
   ]
 );

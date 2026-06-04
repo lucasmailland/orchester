@@ -26,6 +26,7 @@ import { sql } from "drizzle-orm";
 import { findPruneCandidates, pruneFacts, withMnemoTx, type Tx } from "@orchester/mnemosyne";
 import { safeLogError } from "@/lib/safe-log";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
+import { CRON_JOBS, shouldRunForWorkspace, markRanForWorkspace } from "@/lib/mnemo/cron-policy";
 
 /** Hard cap per run on the workspace catalogue scan. Same shape as
  *  the dedup cron — keeps the tick bounded even with thousands of
@@ -100,12 +101,19 @@ export async function runPruneSweep(): Promise<PruneStats> {
 
   stats.workspacesScanned = workspaceRows.length;
   for (const row of workspaceRows) {
+    // Per-workspace periodicity gate. See lib/mnemo/cron-policy.ts.
+    const allowed = await shouldRunForWorkspace(row.workspace_id, CRON_JOBS.prune);
+    if (!allowed) {
+      stats.workspacesSkipped += 1;
+      continue;
+    }
     const archived = await pruneWorkspace(row.workspace_id);
     if (archived === null) {
       stats.workspacesSkipped += 1;
       continue;
     }
     stats.factsArchived += archived;
+    await markRanForWorkspace(row.workspace_id, CRON_JOBS.prune);
   }
 
   // eslint-disable-next-line no-console

@@ -25,6 +25,7 @@ import {
 } from "@orchester/mnemosyne";
 import { safeLogError } from "@/lib/safe-log";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
+import { CRON_JOBS, shouldRunForWorkspace, markRanForWorkspace } from "@/lib/mnemo/cron-policy";
 
 /** Hard cap per run. Protects against pathological growth of the
  *  workspace catalogue (and the cron still catches up on the next
@@ -85,9 +86,19 @@ export async function runHealthSnapshotCron(): Promise<{
 
   stats.workspacesScanned = workspaceRows.length;
   for (const row of workspaceRows) {
+    // Per-workspace periodicity gate. See lib/mnemo/cron-policy.ts.
+    const allowed = await shouldRunForWorkspace(row.workspace_id, CRON_JOBS.healthSnapshot);
+    if (!allowed) {
+      stats.workspacesSkipped += 1;
+      continue;
+    }
     const snap = await refreshWorkspace(row.workspace_id);
-    if (snap) stats.workspacesSnapshotted += 1;
-    else stats.workspacesSkipped += 1;
+    if (snap) {
+      stats.workspacesSnapshotted += 1;
+      await markRanForWorkspace(row.workspace_id, CRON_JOBS.healthSnapshot);
+    } else {
+      stats.workspacesSkipped += 1;
+    }
   }
 
   // eslint-disable-next-line no-console

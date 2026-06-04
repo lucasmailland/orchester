@@ -2454,6 +2454,41 @@
           "modelPlaceholderCohere": "embed-v4.0",
           "modelPlaceholderEmpty": "Pick a provider first"
         }
+      },
+      "schedule": {
+        "editLabel": "Edit schedule",
+        "editAria": "Edit schedule for {name}",
+        "modalTitle": "{name} schedule",
+        "modalSubtitle": "Choose when this task should run for this workspace.",
+        "globalLabel": "System default",
+        "modesLabel": "When to run",
+        "modes": {
+          "default": "Default",
+          "defaultHint": "Use the system schedule. Recommended.",
+          "disabled": "Disabled",
+          "disabledHint": "Never runs for this workspace.",
+          "hourly": "Hourly",
+          "hourlyHint": "At most every hour (subject to the global cron).",
+          "daily": "Daily",
+          "dailyHint": "At most every 24h (subject to the global cron).",
+          "weekly": "Weekly",
+          "weeklyHint": "At most every 7 days.",
+          "monthly": "Monthly",
+          "monthlyHint": "At most every 30 days.",
+          "custom": "Custom",
+          "customHint": "A cron expression (5 fields). Gate treats it as daily."
+        },
+        "customInputLabel": "Cron expression",
+        "customPlaceholder": "0 3 * * 0",
+        "customHelp": "Standard 5-field format: minute hour day-of-month month day-of-week.",
+        "maxFreqNote": "Your choice acts as a maximum: it cannot run more often than the global cron.",
+        "lastRunLabel": "Last run",
+        "lastRunNever": "Never run",
+        "savedToast": "Schedule saved",
+        "saveErrorToast": "Could not save the schedule",
+        "save": "Save",
+        "cancel": "Cancel",
+        "disabledWarning": "This task will not run for this workspace. Turn it on again whenever you want."
       }
     },
     "empty": {

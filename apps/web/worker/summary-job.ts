@@ -29,6 +29,7 @@ import { calculateChatCostUsd } from "@/lib/pricing";
 import { safeLogError } from "@/lib/safe-log";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 import { resolveSmallTierModel } from "@/lib/brain/model-resolve";
+import { CRON_JOBS, shouldRunForWorkspace, markRanForWorkspace } from "@/lib/mnemo/cron-policy";
 
 /** Look back this many days for "recent fact activity" gating. */
 const RECENT_FACT_WINDOW_DAYS = 7;
@@ -175,8 +176,24 @@ export async function runSummaryRefreshCron(): Promise<{
   });
 
   const seenWorkspaces = new Set<string>();
+  // Per-workspace periodicity gate cache. We hit `shouldRunForWorkspace`
+  // at most once per workspace per tick (not once per triplet) so a
+  // big workspace doesn't pay the cost N times. See
+  // apps/web/lib/mnemo/cron-policy.ts.
+  const allowedCache = new Map<string, boolean>();
   for (const t of triplets) {
     seenWorkspaces.add(t.workspace_id);
+
+    let allowed = allowedCache.get(t.workspace_id);
+    if (allowed === undefined) {
+      allowed = await shouldRunForWorkspace(t.workspace_id, CRON_JOBS.summaryRefresh);
+      allowedCache.set(t.workspace_id, allowed);
+    }
+    if (!allowed) {
+      stats.tripletsSkipped += 1;
+      continue;
+    }
+
     // user_id for the summary maps to scope_ref ONLY for employee/team
     // scoped facts — for global/conversation scope, we treat user as
     // null (workspace-level summary).
@@ -187,6 +204,13 @@ export async function runSummaryRefreshCron(): Promise<{
       stats.tripletsRefreshed += 1;
     } else {
       stats.tripletsSkipped += 1;
+    }
+  }
+  // Mark `last_run_at` once per workspace whose triplets we processed
+  // — not in the loop, so a long catalogue doesn't spam writes.
+  for (const wsId of seenWorkspaces) {
+    if (allowedCache.get(wsId)) {
+      await markRanForWorkspace(wsId, CRON_JOBS.summaryRefresh);
     }
   }
   stats.workspacesScanned = seenWorkspaces.size;

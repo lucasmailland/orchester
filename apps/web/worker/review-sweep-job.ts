@@ -29,6 +29,7 @@ import {
 } from "@orchester/mnemosyne";
 import { safeLogError } from "@/lib/safe-log";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
+import { CRON_JOBS, shouldRunForWorkspace, markRanForWorkspace } from "@/lib/mnemo/cron-policy";
 
 /** Hard cap on the workspace catalogue scan. Same shape as the other
  *  v1.2 / v1.3 crons. */
@@ -106,12 +107,19 @@ export async function runReviewSweep(): Promise<SweepStats> {
 
   stats.workspacesScanned = workspaceRows.length;
   for (const row of workspaceRows) {
+    // Per-workspace periodicity gate. See lib/mnemo/cron-policy.ts.
+    const allowed = await shouldRunForWorkspace(row.workspace_id, CRON_JOBS.reviewSweep);
+    if (!allowed) {
+      stats.workspacesSkipped += 1;
+      continue;
+    }
     const queued = await sweepWorkspace(row.workspace_id);
     if (queued === null) {
       stats.workspacesSkipped += 1;
       continue;
     }
     stats.factsQueued += queued;
+    await markRanForWorkspace(row.workspace_id, CRON_JOBS.reviewSweep);
   }
 
   // eslint-disable-next-line no-console
