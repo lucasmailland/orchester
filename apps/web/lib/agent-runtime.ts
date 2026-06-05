@@ -99,7 +99,7 @@ function interpolate(template: string, vars: Record<string, string>): string {
 
 /* ───────────────── Mnemosyne v1.6 — local lexical reranker ───────────────── */
 
-// v2 — `makeLocalLexicalRerank` now lives in `@orchester/mnemosyne` as
+// v2 — `makeLocalLexicalRerank` now lives in `@mnemosyne/core` as
 // `defaultRerank` and is wired automatically by `searchMnemo` when the
 // caller doesn't supply a reranker. The host-local copy was deleted in
 // favor of the package version (byte-identical migration). We still
@@ -637,7 +637,7 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
   // agent knows when/how to use mnemosyne_* tools (recall/save_fact/
   // save_decision/judge). Delimited with `---` so model parsing is
   // unambiguous; protocol body is version-locked in
-  // `@orchester/mnemosyne`'s `protocol/v1.ts` (bumping the version
+  // `@mnemosyne/core`'s `protocol/v1.ts` (bumping the version
   // invalidates extractions tagged with the prior version).
   const protocolBlock = `\n\n---\n${MEMORY_PROTOCOL_V1}\n---\n`;
 

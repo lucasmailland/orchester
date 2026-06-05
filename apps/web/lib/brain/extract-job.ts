@@ -2,7 +2,7 @@
 //
 // pg-boss handler for JOB_BRAIN_EXTRACT. Loads the conversation slice,
 // calls extractFacts, persists each fact via `saveFactWithCandidates`
-// from @orchester/mnemosyne (writes to `mnemo_fact` + surfaces
+// from @mnemosyne/core (writes to `mnemo_fact` + surfaces
 // contradictions + queues a review row when no LLM judge is wired).
 // Updates brain_extraction_job state. Runs inside withCrossTenantAdmin
 // so RLS FORCE is satisfied for the message read across workspaces.

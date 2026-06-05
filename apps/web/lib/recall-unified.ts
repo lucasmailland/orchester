@@ -1,6 +1,6 @@
 // apps/web/lib/recall-unified.ts
 //
-// Host adapter for `recallUnified` from `@orchester/mnemosyne`.
+// Host adapter for `recallUnified` from `@mnemosyne/core`.
 //
 // Mnemosyne is KB-agnostic by design — it accepts a `KbChunkProvider`
 // callback that returns scored chunks. This file is where the host

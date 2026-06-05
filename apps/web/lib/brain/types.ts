@@ -53,7 +53,7 @@ export interface RecallHit {
 
 /**
  * Mnemosyne v1.5 (F1) — the cognitive classification surfaced by the
- * extractor. Mirrors `MemoryType` in `@orchester/mnemosyne/episode`
+ * extractor. Mirrors `MemoryType` in `@mnemosyne/core/episode`
  * (kept local here so the brain/extract.ts layer doesn't have to pull
  * the package barrel for a four-string enum). Defaults to 'semantic'
  * when the LLM omits it.
@@ -62,7 +62,7 @@ export type FactMemoryType = "semantic" | "episodic" | "procedural" | "working";
 
 /**
  * Mnemosyne v1.5 (F1) — theory-of-mind classification surfaced by the
- * extractor. Mirrors `Attribution` in `@orchester/mnemosyne`. Defaults
+ * extractor. Mirrors `Attribution` in `@mnemosyne/core`. Defaults
  * to 'inferred' when the LLM omits it.
  */
 export type FactAttribution = "user_stated" | "user_belief" | "objective_fact" | "inferred";

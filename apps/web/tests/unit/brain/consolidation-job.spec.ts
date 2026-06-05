@@ -1,10 +1,9 @@
 // apps/web/tests/unit/brain/consolidation-job.spec.ts
 //
 // Contract test for the v1.4 REM-style consolidation worker. The full
-// LLM-mocked cluster + summarise flow lives in
-// `packages/mnemosyne/tests/integration/consolidation-cluster.spec.ts`;
-// this spec catches the structural drift that always hurts most: the
-// queue-name constant + the worker entry point.
+// LLM-mocked cluster + summarise flow lives in the mnemosyne standalone
+// repo's integration tests; this spec catches the structural drift that
+// always hurts most: the queue-name constant + the worker entry point.
 //
 //   1. `JOB_MNEMO_CONSOLIDATION` is exported from `@/lib/queue` (so
 //      mnemosyne callers can enqueue) and lines up with the worker

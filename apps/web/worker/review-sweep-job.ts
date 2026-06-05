@@ -5,7 +5,7 @@
 // Walks every workspace with at least one active mnemo_fact and
 // enqueues low-confidence inactive facts into mnemo_review_queue
 // for human triage. Definition of "candidate" lives in
-// `findLowConfidenceCandidates` (packages/mnemosyne/src/review/queue.ts):
+// `findLowConfidenceCandidates` (mnemosyne standalone repo, `src/review/queue.ts`):
 //
 //   • confidence < 0.5
 //   • NOT pinned
