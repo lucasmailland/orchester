@@ -22,6 +22,27 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./"),
       "@orchester/db": path.resolve(__dirname, "../../packages/db/src/index.ts"),
       "@orchester/db/schema": path.resolve(__dirname, "../../packages/db/src/schema/index.ts"),
+      // Mnemosyne v2.0 uses subpath exports — we mirror the package.json
+      // `exports` map here so Vite's resolver can find `/db`, `/graph`,
+      // `/graph/server`, `/protocol`. The `@mnemosyne/core` root alias MUST
+      // come LAST so it doesn't shadow the more specific subpath aliases
+      // (Vite picks longest-prefix-first, but order is the documented tie-break).
+      "@mnemosyne/core/db": path.resolve(
+        __dirname,
+        "../../../mnemosyne/packages/core/src/db/index.ts"
+      ),
+      "@mnemosyne/core/protocol": path.resolve(
+        __dirname,
+        "../../../mnemosyne/packages/core/src/protocol/v1.ts"
+      ),
+      "@mnemosyne/core/graph/server": path.resolve(
+        __dirname,
+        "../../../mnemosyne/packages/core/src/graph/server.ts"
+      ),
+      "@mnemosyne/core/graph": path.resolve(
+        __dirname,
+        "../../../mnemosyne/packages/core/src/graph/index.ts"
+      ),
       "@mnemosyne/core": path.resolve(__dirname, "../../../mnemosyne/packages/core/src/index.ts"),
       "server-only": path.resolve(__dirname, "./__mocks__/server-only.ts"),
     },

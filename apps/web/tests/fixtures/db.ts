@@ -69,6 +69,16 @@ export async function setupTestDb(): Promise<{
   sql = postgres(url, { max: 5, onnotice: () => {} });
   db = drizzle(sql);
 
+  // Wire @mnemosyne/core's DI registry to the testcontainer client. Mirrors
+  // the production `setDb()` call in apps/web/instrumentation-node.ts so any
+  // spec exercising `withMnemoTx` / `searchMnemo` / `recallUnified` etc. hits
+  // the same testcontainer instead of throwing "No DB client registered".
+  // `force: true` keeps the setup idempotent across rerun-in-same-process.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { setDb } = await import("@mnemosyne/core/db");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setDb(db as any, { force: true });
+
   // 1. Apply the drizzle-kit baseline + indexes (these own the schema and
   //    ship a meta/_journal.json so the migrator can resume).
   //
