@@ -5,16 +5,19 @@
 // render the narrative + the cluster of facts the extraction pipeline
 // tied to it in a single round-trip.
 //
+// As of the service-extraction Phase 2 (tramo 1), the handler
+// delegates to `getWorkspaceEpisode()` which picks the data source at
+// runtime (service vs library). `X-Mnemo-Mode` surfaces which path
+// served the request.
+//
 // 404 when the episode doesn't exist OR lives in another workspace
 // (RLS already filters cross-tenant rows; the explicit check just
 // gives a tighter error message).
 //
 // RBAC: member+ (== `viewer`) — read-only surface for the Inspector.
 import { NextResponse } from "next/server";
-import { inArray } from "drizzle-orm";
-import { schema } from "@orchester/db";
-import { getEpisode, withMnemoTx } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { getWorkspaceEpisode } from "@/lib/mnemo/episodes";
 
 export const dynamic = "force-dynamic";
 
@@ -29,29 +32,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  const result = await withMnemoTx(ctx.workspace.id, async (tx) => {
-    const episode = await getEpisode(ctx.workspace.id, id, tx);
-    if (!episode) return null;
-
-    // Resolve linked facts in one batch. `linkedFactIds` is the
-    // denormalised reverse pointer to mnemo_fact ids (set by the
-    // extraction pipeline). Some ids may point at facts that have
-    // since been archived (janitor / forget); we filter those out
-    // silently rather than 500-ing — an episode legitimately
-    // outlives some of its constituent facts.
-    let linkedFacts: unknown[] = [];
-    if (episode.linkedFactIds.length > 0) {
-      linkedFacts = await tx
-        .select()
-        .from(schema.mnemoFacts)
-        .where(inArray(schema.mnemoFacts.id, episode.linkedFactIds));
+  try {
+    const { mode, data } = await getWorkspaceEpisode(ctx.workspace.id, id);
+    if (!data) {
+      return NextResponse.json(
+        { error: "Not found" },
+        { status: 404, headers: { "X-Mnemo-Mode": mode } }
+      );
     }
-
-    return { episode, linkedFacts };
-  });
-
-  if (!result) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json(data, { headers: { "X-Mnemo-Mode": mode } });
+  } catch (e) {
+    console.error("[mnemo/episodes/:id] fetch failed", e);
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
-  return NextResponse.json(result);
 }

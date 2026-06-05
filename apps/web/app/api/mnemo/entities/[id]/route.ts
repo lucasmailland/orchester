@@ -6,6 +6,12 @@
 //   PATCH /api/mnemo/entities/[id] — rename, alias edits, kind change,
 //                                    canonical_id (merge into another).
 //
+// As of the service-extraction Phase 2 (tramo 1), GET delegates to
+// `getWorkspaceEntity()` which picks the data source at runtime
+// (service vs library). PATCH stays on the in-process path — writes
+// haven't shipped upstream yet (tramo 2). `X-Mnemo-Mode` is set on
+// the GET response.
+//
 // 404 when the entity doesn't exist OR lives in another workspace
 // (RLS already filters cross-tenant rows; the explicit check just
 // gives a tighter error message).
@@ -13,12 +19,13 @@
 // RBAC: viewer+ for GET, editor+ for PATCH.
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { schema } from "@orchester/db";
-import { getEntity, updateEntity, withMnemoTx } from "@mnemosyne/core";
+import { updateEntity, withMnemoTx } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
+import { getWorkspaceEntity } from "@/lib/mnemo/entities";
 
 export const dynamic = "force-dynamic";
 
@@ -44,31 +51,19 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  const result = await withMnemoTx(ctx.workspace.id, async (tx) => {
-    const entity = await getEntity(ctx.workspace.id, id, tx);
-    if (!entity) return null;
-
-    // Cheap linked-fact count for the inspector header. A full list
-    // is served by the sibling /facts route — here we just need the
-    // header chip ("12 linked facts"). The partial index
-    // `idx_mnemo_fact_entity` covers the (workspace_id, entity_id)
-    // predicate; the count is constant-time enough at v1.6 scale.
-    const countRows = (await tx.execute(sql`
-      SELECT COUNT(*)::int AS total
-      FROM mnemo_fact
-      WHERE workspace_id = ${ctx.workspace.id}
-        AND entity_id = ${id}
-        AND status = 'active'
-    `)) as unknown as Array<{ total: number }>;
-    const linkedFactCount = countRows[0]?.total ?? 0;
-
-    return { entity, linkedFactCount };
-  });
-
-  if (!result) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  try {
+    const { mode, data } = await getWorkspaceEntity(ctx.workspace.id, id);
+    if (!data) {
+      return NextResponse.json(
+        { error: "Not found" },
+        { status: 404, headers: { "X-Mnemo-Mode": mode } }
+      );
+    }
+    return NextResponse.json(data, { headers: { "X-Mnemo-Mode": mode } });
+  } catch (e) {
+    console.error("[mnemo/entities/:id] fetch failed", e);
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
-  return NextResponse.json(result);
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {

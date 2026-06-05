@@ -10,15 +10,21 @@
 //   ?topic=string    (single-topic filter via GIN-indexed `topics`)
 //   ?limit=50        (default 50, max 200)
 //
+// As of the service-extraction Phase 2 (tramo 1), the handler
+// delegates to `listWorkspaceEpisodes()` which picks the data source
+// at runtime (service vs library). `X-Mnemo-Mode` surfaces which path
+// served the request.
+//
 // RBAC: member+ (same as the rest of the read-side Inspector surface).
 //
-// RLS: the read goes through `withMnemoTx(workspace.id, ...)` so the
-// `app.workspace_id` GUC is set and the tx runs as `app_user` — the
-// FORCE policies on mnemo_episode (migration 0034) prevent any cross-
-// tenant leakage even if the connection role has BYPASSRLS.
+// RLS (library mode): the read goes through `withMnemoTx(workspace.id,
+// ...)` so the `app.workspace_id` GUC is set and the tx runs as
+// `app_user` — the FORCE policies on mnemo_episode (migration 0034)
+// prevent any cross-tenant leakage even if the connection role has
+// BYPASSRLS.
 import { NextResponse } from "next/server";
-import { listEpisodes, withMnemoTx } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { listWorkspaceEpisodes } from "@/lib/mnemo/episodes";
 
 export const dynamic = "force-dynamic";
 
@@ -52,19 +58,17 @@ export async function GET(req: Request) {
   const limit =
     Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 200) : 50;
 
-  const items = await withMnemoTx(ctx.workspace.id, (tx) =>
-    listEpisodes({
-      workspaceId: ctx.workspace.id,
-      // The package is built with exactOptionalPropertyTypes; only spread
-      // keys whose values are defined so undefined never lands on a
-      // property typed as `Date | undefined`.
+  try {
+    const { mode, data } = await listWorkspaceEpisodes(ctx.workspace.id, {
+      // exactOptionalPropertyTypes — only spread defined keys.
       ...(from ? { from } : {}),
       ...(to ? { to } : {}),
       ...(topic ? { topic } : {}),
       limit,
-      tx,
-    })
-  );
-
-  return NextResponse.json({ items });
+    });
+    return NextResponse.json(data, { headers: { "X-Mnemo-Mode": mode } });
+  } catch (e) {
+    console.error("[mnemo/episodes] list failed", e);
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
+  }
 }

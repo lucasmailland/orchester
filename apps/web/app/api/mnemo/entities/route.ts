@@ -5,27 +5,34 @@
 //   GET  /api/mnemo/entities       — list entities (kind / q / limit).
 //   POST /api/mnemo/entities       — manual create (editor+).
 //
-// Why a manual-create endpoint exists at all:
-//   The extraction pipeline auto-creates entities via `findOrCreate`,
-//   but the inspector also needs a way for a human to (a) bootstrap
-//   the entity table before any conversation has happened ("set up
-//   the canonical names ahead of the first onboarding chat") and
-//   (b) backfill an entity discovered out-of-band ("CEO mentioned in
-//   a doc we just imported").
+// As of the service-extraction Phase 2 (tramo 1), GET delegates to
+// `listWorkspaceEntities()` which picks the data source at runtime:
+//   - service mode (preferred): HTTPS round-trip to @mnemosyne/server
+//     via `client.listEntities()`, when `MNEMO_URL` + `MNEMO_API_KEY`
+//     are set;
+//   - library mode (legacy fallback): in-process via `listEntities()`
+//     under `withMnemoTx(workspace.id)`.
 //
-// RBAC: viewer+ for GET, editor+ for POST. The list surface is read-
-// only inspection; only editor+ can mutate state.
+// POST stays on the in-process path — writes haven't shipped upstream
+// yet (tramo 2 ships them). RBAC + RLS semantics are preserved
+// verbatim either way.
 //
-// RLS: every read/write goes through `withMnemoTx(workspace.id, ...)`
-// so `app.workspace_id` is set and the role is downgraded to app_user
+// The `X-Mnemo-Mode` response header surfaces which path served GET
+// — strictly operational, lets `curl -I` confirm a deploy is using
+// the service path.
+//
+// RBAC: viewer+ for GET, editor+ for POST.
+// RLS: writes go through `withMnemoTx(workspace.id, ...)` so
+// `app.workspace_id` is set and the role is downgraded to app_user
 // — the FORCE policies on mnemo_entity (migration 0039) prevent
 // cross-tenant leakage even if the connection role has BYPASSRLS.
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createEntity, listEntities, withMnemoTx, type EntityKind } from "@mnemosyne/core";
+import { createEntity, withMnemoTx, type EntityKind } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
+import { listWorkspaceEntities } from "@/lib/mnemo/entities";
 
 export const dynamic = "force-dynamic";
 
@@ -66,20 +73,20 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Invalid kind" }, { status: 400 });
   }
 
-  const items = await withMnemoTx(ctx.workspace.id, (tx) =>
-    listEntities({
-      workspaceId: ctx.workspace.id,
+  try {
+    const { mode, data } = await listWorkspaceEntities(ctx.workspace.id, {
       // exactOptionalPropertyTypes: only spread keys whose values are
       // defined so undefined never lands on a property typed as
       // `EntityKind | undefined` / `string | undefined`.
       ...(kindRaw ? { kind: kindRaw as EntityKind } : {}),
       ...(q && q.trim().length > 0 ? { q } : {}),
       limit,
-      tx,
-    })
-  );
-
-  return NextResponse.json({ items });
+    });
+    return NextResponse.json(data, { headers: { "X-Mnemo-Mode": mode } });
+  } catch (e) {
+    console.error("[mnemo/entities] list failed", e);
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
+  }
 }
 
 export async function POST(req: Request) {
