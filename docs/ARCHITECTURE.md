@@ -12,14 +12,17 @@ orchester/
 │   ├── web/         Next.js 15 application (Studio UI + REST API + MCP + worker)
 │   └── widget/      Embeddable chat widget (separate bundle)
 ├── packages/
-│   ├── db/          Drizzle schema, migrations, typed client
-│   └── mnemosyne/   Multi-tenant memory engine (extraction, recall, consolidation)
+│   └── db/          Drizzle schema, migrations, typed client
 ├── scripts/
 │   └── audit-invariants.sh   Structural CI guard
 └── docs/            Public docs: this file, ADRs, runbook, audit playbook
+
+../mnemosyne/        Sibling standalone repo — multi-tenant memory engine
+                     (extraction, recall, consolidation). Consumed by
+                     apps/web via pnpm `file:` link as @mnemosyne/core.
 ```
 
-One Next.js app. Two packages — the typed DB layer and the memory engine. One widget. The worker process lives inside the web app and shares the same code paths — see "Worker" below. `@orchester/mnemosyne` is intentionally Next-agnostic (no `server-only`, no `@/` aliases) so it remains OSS-extractable.
+One Next.js app. One typed-DB package. One widget. The memory engine — `@mnemosyne/core` — lives in a [separate standalone repo](https://github.com/lucasmailland/mnemosyne) and is consumed via the `pnpm` `file:` protocol; see the README's "Local mnemosyne setup" for layout. The worker process lives inside the web app and shares the same code paths — see "Worker" below. `@mnemosyne/core` is intentionally Next-agnostic (no `server-only`, no `@/` aliases) so it remains OSS-extractable.
 
 ## Runtime topology
 
@@ -139,7 +142,7 @@ The structural-invariants guard still enforces that every workspace-scoped query
 - Application filter — first line, catches dev mistakes at code-review time.
 - RLS+FORCE — defence in depth, catches anything the filter missed at the DB layer.
 
-The audit found that the deployed `DATABASE_URL` connects as a role with `rolbypassrls=t`, which silently disables RLS. The fix in `lib/tenant/context.ts` and `packages/mnemosyne/src/tx.ts` is to `SET LOCAL ROLE app_user` at the top of every tx — `app_user` is `NOINHERIT` with no `BYPASSRLS`, so RLS+FORCE actually applies regardless of how the connection was authenticated. The transaction-local scope means the role auto-reverts on commit/rollback and never leaks across pooled connections. See ADR-0010 for the layered remediation.
+The audit found that the deployed `DATABASE_URL` connects as a role with `rolbypassrls=t`, which silently disables RLS. The fix in `lib/tenant/context.ts` and `@mnemosyne/core`'s `tx.ts` (sibling repo: `mnemosyne/packages/core/src/tx.ts`) is to `SET LOCAL ROLE app_user` at the top of every tx — `app_user` is `NOINHERIT` with no `BYPASSRLS`, so RLS+FORCE actually applies regardless of how the connection was authenticated. The transaction-local scope means the role auto-reverts on commit/rollback and never leaks across pooled connections. See ADR-0010 for the layered remediation.
 
 Three transaction wrappers, all built on the same pattern:
 
@@ -155,12 +158,12 @@ Three transaction wrappers, all built on the same pattern:
 
 Mnemosyne is the v1.6 GA memory layer. It exposes four cognitive primitives and a recall pipeline the agent runtime injects into every conversational turn.
 
-| Primitive    | Table            | Module                                          | What it is                                                                              |
-| ------------ | ---------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------- |
-| **Fact**     | `mnemo_fact`     | `packages/mnemosyne/src/primitives/fact.ts`     | Durable factual knowledge with hybrid recall (semantic + recency + decay + pin)         |
-| **Decision** | `mnemo_decision` | `packages/mnemosyne/src/primitives/decision.ts` | Recorded choice + rationale + supersedes link, queryable as facts                       |
-| **Episode**  | `mnemo_episode`  | `packages/mnemosyne/src/episode/`               | Timeline event with duration and linked facts; meeting/milestone-shaped data lives here |
-| **Entity**   | `mnemo_entity`   | `packages/mnemosyne/src/entity/`                | Canonical person / org / project / concept / place; facts reference it via `entity_id`  |
+| Primitive    | Table            | Module                                           | What it is                                                                              |
+| ------------ | ---------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| **Fact**     | `mnemo_fact`     | `@mnemosyne/core` · `src/primitives/fact.ts`     | Durable factual knowledge with hybrid recall (semantic + recency + decay + pin)         |
+| **Decision** | `mnemo_decision` | `@mnemosyne/core` · `src/primitives/decision.ts` | Recorded choice + rationale + supersedes link, queryable as facts                       |
+| **Episode**  | `mnemo_episode`  | `@mnemosyne/core` · `src/episode/`               | Timeline event with duration and linked facts; meeting/milestone-shaped data lives here |
+| **Entity**   | `mnemo_entity`   | `@mnemosyne/core` · `src/entity/`                | Canonical person / org / project / concept / place; facts reference it via `entity_id`  |
 
 Every primitive ships with `memory_type` (semantic / episodic / procedural / working), `attribution` (user_stated / user_belief / objective_fact / inferred — theory-of-mind discriminator), and `protocol_version` (the Memory Protocol revision the row was extracted under). Facts also carry bitemporal `valid_from` / `valid_to` so historical state is queryable via `searchMnemo({ asOf })`.
 
@@ -194,7 +197,7 @@ flowchart LR
 
 Notable invariants:
 
-- The `shouldExtract` prefilter (`packages/mnemosyne/src/extraction/prefilter.ts:104`) is pure code and skips ~80% of turns (greetings, acks, smalltalk) before any LLM is touched — the dominant per-turn extraction-cost win.
+- The `shouldExtract` prefilter (`@mnemosyne/core` · `src/extraction/prefilter.ts:104`) is pure code and skips ~80% of turns (greetings, acks, smalltalk) before any LLM is touched — the dominant per-turn extraction-cost win.
 - The job runs inside `withCrossTenantAdmin` so the cross-workspace message read is satisfied, then opens `withMnemoTx(workspaceId, …)` for every `saveFactWithCandidates` call. Each fact's `actor_id` is set from `conversation.employeeId`; workspace-shared facts pass `null`.
 - The extraction model is the workspace's configured cheap tier via `resolveSmallTierModel` (`lib/brain/model-resolve.ts`). Hardcoded provider strings are forbidden by Mnemosyne Charter §25 and enforced by the audit invariants.
 - Provider health is sampled per call via `recordProviderResult`; when the rolling window trips the circuit breaker, the job is **deferred** (`state='deferred_provider_outage'`) and re-enqueued with `startAfter` so the conversation isn't lost during an outage.
@@ -289,7 +292,7 @@ sequenceDiagram
   participant Router as channels/router.ts
   participant Tx1 as withWorkspaceTx#40;resolve#41;
   participant Agent as agent-runtime.ts
-  participant Mnemo as @orchester/mnemosyne
+  participant Mnemo as @mnemosyne/core
   participant Tx2 as withWorkspaceTx#40;persist#41;
   participant Q as pg-boss
   participant DB as Postgres
@@ -458,13 +461,13 @@ The worker MUST be a long-running process — it polls. Serverless functions don
 
 - Strict TypeScript. `any` is rejected in PR review.
 - No default exports for cross-module functions.
-- Server-only modules import `"server-only"` so a mis-import surfaces at build time. `@orchester/mnemosyne` is the exception: it stays package-clean (no `server-only`, no `@/` aliases) so the host app guards server-only execution at its own boundary.
+- Server-only modules import `"server-only"` so a mis-import surfaces at build time. `@mnemosyne/core` is the exception: it stays package-clean (no `server-only`, no `@/` aliases) so the host app guards server-only execution at its own boundary.
 - Public API responses go through `lib/api-response.ts` — direct `Response.json(...)` in routes is rejected by review.
 - Per-module tests colocated as `*.test.ts`.
 
 ## Testing
 
-- **Unit + integration** — Vitest. Run `pnpm --filter @orchester/web test`. 80+ specs cover the flow engine, RBAC, providers, copilot tools, spreadsheet, encryption, plus the full Mnemosyne suite in `packages/mnemosyne/tests/`.
+- **Unit + integration** — Vitest. Run `pnpm --filter @orchester/web test`. 80+ specs cover the flow engine, RBAC, providers, copilot tools, spreadsheet, encryption, plus the full Mnemosyne suite which now lives in the sibling repo (`mnemosyne/packages/core/tests/`) — run it from there with `pnpm --filter @mnemosyne/core test`.
 - **Structural invariants** — `scripts/audit-invariants.sh` (also runs in CI). Checks:
   - Every mutating route has zod validation.
   - Every mutating route has an `assertCan` call.
