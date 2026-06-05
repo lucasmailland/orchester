@@ -219,7 +219,7 @@ function computePlacement(rect: DOMRect): Placement {
 
   // Below
   let top = rect.bottom + CARD_GAP;
-  let left = Math.min(Math.max(rect.left, 12), vw - cardW - 12);
+  const left = Math.min(Math.max(rect.left, 12), vw - cardW - 12);
 
   if (top + CARD_MIN_HEIGHT > vh - 12) {
     // Above

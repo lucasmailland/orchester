@@ -40,7 +40,7 @@ export function DoneStep({ agentName, lastMessage, workspaceSlug, locale, onOpen
         <p className="mt-1 text-sm font-semibold text-text-strong">{agentName}</p>
         {lastMessage && (
           <p className="mt-2 line-clamp-3 text-sm text-text-muted">
-            {t("lastMessage")}: <span className="italic">"{lastMessage}"</span>
+            {t("lastMessage")}: <span className="italic">&quot;{lastMessage}&quot;</span>
           </p>
         )}
       </div>
