@@ -1,5 +1,11 @@
 // packages/mnemosyne/src/graph/index.ts
-export { buildGraphData, buildGraphQuery } from "./query";
+// CLIENT-SAFE graph primitives: canvas drawing, types, layout, colors.
+//
+// PORTABILITY CONTRACT: this entry imports ZERO server/DB code. It is the
+// surface a browser bundle (or any non-Node renderer) imports. The DB query
+// layer lives in `./server` (which pulls @orchester/db → postgres) and must
+// never be re-exported from here — doing so would drag the Node Postgres
+// driver into client bundles. See docs/specs/2026-06-04-memory-graph-design.md.
 export {
   drawNode,
   nodeRadius,

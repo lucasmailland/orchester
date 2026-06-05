@@ -561,11 +561,14 @@ export {
   type RecallHit as ClientRecallHit,
 } from "./storage/client";
 
-// Memory Graph — framework-agnostic graph primitives (types, DB query, canvas).
+// Memory Graph — framework-agnostic graph primitives (types, canvas, layout)
+// plus the server-only DB query layer. The two are split across `./graph`
+// (client-safe) and `./graph/server` (pulls @orchester/db) so browser bundles
+// can import the canvas helpers without the Postgres driver. This top-level
+// barrel is a SERVER surface, so it re-exports both.
 // See docs/specs/2026-06-04-memory-graph-design.md for the portability contract.
+export { buildGraphData, buildGraphQuery } from "./graph/server";
 export {
-  buildGraphData,
-  buildGraphQuery,
   drawNode,
   drawEdge,
   nodeRadius,

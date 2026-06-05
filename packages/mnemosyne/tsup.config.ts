@@ -48,6 +48,10 @@ export default defineConfig({
     index: "src/index.ts",
     protocol: "src/protocol/v1.ts",
     migrate: "src/cli/migrate.ts",
+    // Client-safe graph primitives (canvas/types/layout). Its own bundle so
+    // browser consumers importing `@orchester/mnemosyne/graph` never pull the
+    // server-only DB query (and thus the `postgres` driver). See src/graph/index.ts.
+    graph: "src/graph/index.ts",
   },
 
   format: ["esm", "cjs"],

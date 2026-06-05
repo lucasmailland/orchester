@@ -58,6 +58,11 @@ export function buildGraphData(
     factStats.filter((s) => s.entityId != null).map((s) => [s.entityId!, s])
   );
 
+  // avgMemoryStrength baseline note: an entity/episode/decision with no linked
+  // facts gets 1.0, not 0. 1.0 is Mnemosyne's neutral potentiation baseline
+  // (a fresh fact starts at 1.0), so a node with no facts renders with the same
+  // faint aura as a brand-new memory rather than vanishing. The aura formula in
+  // node-canvas scales strength/5.0, so 1.0 ≈ a barely-there glow.
   const entityNodes: GraphNode[] = entities
     .filter((e) => e.canonicalId == null)
     .map((e) => ({

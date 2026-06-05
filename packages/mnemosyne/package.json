@@ -47,8 +47,15 @@
       "import": "./dist/protocol.js",
       "require": "./dist/protocol.cjs"
     },
+    "./graph": {
+      "import": "./dist/graph.js",
+      "require": "./dist/graph.cjs",
+      "default": "./dist/graph.js"
+    },
     "./package.json": "./package.json"
   },
+  "//4": "sideEffects:false lets bundlers tree-shake the server-only graph query (and its @orchester/db → postgres chain) out of browser bundles that only import canvas helpers.",
+  "sideEffects": false,
   "files": [
     "dist",
     "migrations",

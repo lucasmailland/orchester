@@ -100,6 +100,30 @@ describe("drawNode — canvas calls", () => {
     expect(ctx.arc).toHaveBeenCalled();
   });
 
+  it("produces a valid (no-NaN) fill for a 3-char hex color", async () => {
+    const { drawNode } = await import("../../src/graph/node-canvas");
+    const ctx = makeMockCtx();
+    const fills: string[] = [];
+    Object.defineProperty(ctx, "fillStyle", {
+      set: (v: string) => fills.push(v),
+      get: () => fills[fills.length - 1] ?? "",
+    });
+    drawNode(ctx, {
+      x: 10,
+      y: 10,
+      r: 16,
+      color: "#abc", // short hex — must expand, not yield rgba(NaN,…)
+      selected: false,
+      memoryStrength: 2.5,
+      label: "Short",
+      kind: "entity",
+      entityKind: "person",
+      globalScale: 1,
+    });
+    expect(fills.length).toBeGreaterThan(0);
+    expect(fills.every((f) => !f.includes("NaN"))).toBe(true);
+  });
+
   it("applies a dash pattern when selected=true", async () => {
     const { drawNode } = await import("../../src/graph/node-canvas");
     const ctx = makeMockCtx();
@@ -128,10 +152,13 @@ describe("drawEdge — canvas calls", () => {
       moveTo: vi.fn(),
       lineTo: vi.fn(),
       stroke: vi.fn(),
+      fill: vi.fn(),
+      closePath: vi.fn(),
       save: vi.fn(),
       restore: vi.fn(),
       setLineDash: vi.fn(),
       strokeStyle: "",
+      fillStyle: "",
       lineWidth: 1,
       globalAlpha: 1,
     } as unknown as CanvasRenderingContext2D;
@@ -144,6 +171,22 @@ describe("drawEdge — canvas calls", () => {
     expect(ctx.moveTo).toHaveBeenCalled();
     expect(ctx.lineTo).toHaveBeenCalled();
     expect(ctx.stroke).toHaveBeenCalled();
+  });
+
+  it("draws a directional arrowhead (fills a triangle) at the target end", async () => {
+    const { drawEdge } = await import("../../src/graph/edge-canvas");
+    const ctx = makeMockCtx();
+    drawEdge(ctx, { sx: 0, sy: 0, tx: 100, ty: 0, relation: "supersedes", confidence: 0.9 });
+    expect(ctx.fill).toHaveBeenCalled();
+    expect(ctx.closePath).toHaveBeenCalled();
+  });
+
+  it("does not throw on a zero-length edge (source === target)", async () => {
+    const { drawEdge } = await import("../../src/graph/edge-canvas");
+    const ctx = makeMockCtx();
+    expect(() =>
+      drawEdge(ctx, { sx: 50, sy: 50, tx: 50, ty: 50, relation: "related", confidence: 0.5 })
+    ).not.toThrow();
   });
 
   it("falls back to 'related' style for an unknown relation", async () => {
