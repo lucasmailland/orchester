@@ -18,19 +18,29 @@ import { validateEnv } from "./lib/env";
 
 // ── Mnemosyne v2.0 DI wiring ─────────────────────────────────────────────
 // Register @mnemosyne/core's DB client before any request path runs.
-// Guard against HMR re-registration: setDb() stores on globalThis.__mnemoCoreDb;
-// if it's already set, skip to avoid the "called twice" throw.
+// Reuses Orchester's existing postgres pool (no second connection pool).
+// @mnemosyne/core only uses Drizzle's select/insert/update builder (never
+// db.query.* relational API), so any PostgresJsDatabase instance works at
+// runtime regardless of its schema type parameter.
+// Guard against HMR double-registration via getDb() probe — stable API,
+// avoids coupling to @mnemosyne/core's internal __mnemoCoreDb field name.
 {
-  const g = globalThis as unknown as { __mnemoCoreDb?: unknown };
-  if (!g.__mnemoCoreDb) {
-    const { drizzle } = await import("drizzle-orm/postgres-js");
-    const postgres = (await import("postgres")).default;
-    const { schema: mnemoSchema, setDb } = await import("@mnemosyne/core/db");
-    const url = process.env["DATABASE_URL"];
-    if (!url) throw new Error("[mnemo-di] DATABASE_URL is required");
-    const sql = postgres(url, { max: 5, idle_timeout: 20, connect_timeout: 10, prepare: true });
-    const db = drizzle(sql, { schema: mnemoSchema });
-    setDb(db);
+  const { setDb, getDb } = await import("@mnemosyne/core/db");
+  let alreadyRegistered = false;
+  try {
+    getDb();
+    alreadyRegistered = true;
+  } catch {
+    /* not yet registered */
+  }
+  if (!alreadyRegistered) {
+    const { getDb: orchGetDb } = await import("@orchester/db");
+    // Type cast: orchGetDb() returns PostgresJsDatabase<OrchestrSchema>.
+    // @mnemosyne/core expects PostgresJsDatabase<MnemoSchema> but only uses
+    // the select/insert/update builder (no db.query.* relational queries),
+    // so any postgres-js Drizzle client works at runtime.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setDb(orchGetDb() as any);
     console.log("[instrumentation] @mnemosyne/core DI wiring complete");
   }
 }
