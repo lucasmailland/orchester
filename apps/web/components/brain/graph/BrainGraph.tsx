@@ -42,7 +42,7 @@ export function BrainGraph() {
 
   const nodeCanvasObject = useCallback(
     (node: Record<string, unknown>, ctx: CanvasRenderingContext2D, globalScale: number) => {
-      const n = node as GraphNode & { x: number; y: number };
+      const n = node as unknown as GraphNode & { x: number; y: number };
       const color = ENTITY_KIND_COLOR[n.entityKind ?? n.kind] ?? "#52525b";
       const r = nodeRadius(n.mentionCount, maxMentionCount);
       drawNode(ctx, {
@@ -54,7 +54,7 @@ export function BrainGraph() {
         memoryStrength: n.avgMemoryStrength,
         label: n.label,
         kind: n.kind,
-        entityKind: n.entityKind,
+        ...(n.entityKind !== undefined ? { entityKind: n.entityKind } : {}),
         globalScale,
       });
     },
@@ -63,23 +63,23 @@ export function BrainGraph() {
 
   const linkCanvasObject = useCallback(
     (link: Record<string, unknown>, ctx: CanvasRenderingContext2D) => {
-      const src = link.source as Record<string, number> | undefined;
-      const tgt = link.target as Record<string, number> | undefined;
-      if (typeof src?.x !== "number" || typeof tgt?.x !== "number") return;
+      const src = link.source as Record<string, unknown> | undefined;
+      const tgt = link.target as Record<string, unknown> | undefined;
+      if (!src || !tgt || typeof src.x !== "number" || typeof tgt.x !== "number") return;
       drawEdge(ctx, {
         sx: src.x,
-        sy: src.y,
+        sy: typeof src.y === "number" ? src.y : 0,
         tx: tgt.x,
-        ty: tgt.y,
-        relation: link.relation as string,
-        confidence: (link.confidence as number) ?? 0.7,
+        ty: typeof tgt.y === "number" ? tgt.y : 0,
+        relation: typeof link.relation === "string" ? link.relation : "related",
+        confidence: typeof link.confidence === "number" ? link.confidence : 0.7,
       });
     },
     []
   );
 
   const handleNodeClick = useCallback((node: Record<string, unknown>) => {
-    setSelectedNode(node as GraphNode);
+    setSelectedNode(node as unknown as GraphNode);
   }, []);
 
   const handleBackgroundClick = useCallback(() => {
@@ -120,24 +120,25 @@ export function BrainGraph() {
 
       <ForceGraph
         graphData={filteredGraphData}
-        nodeCanvasObject={is3D ? undefined : nodeCanvasObject}
-        nodeCanvasObjectMode={is3D ? undefined : () => "replace"}
-        linkCanvasObject={is3D ? undefined : linkCanvasObject}
-        linkCanvasObjectMode={is3D ? undefined : () => "replace"}
         onNodeClick={handleNodeClick}
         onBackgroundClick={handleBackgroundClick}
         backgroundColor="#050507"
         nodeId="id"
         linkSource="source"
         linkTarget="target"
-        nodeColor={
-          is3D
-            ? (n: unknown) => {
+        {...(is3D
+          ? {
+              nodeColor: (n: unknown) => {
                 const node = n as GraphNode;
                 return ENTITY_KIND_COLOR[node.entityKind ?? node.kind] ?? "#52525b";
-              }
-            : undefined
-        }
+              },
+            }
+          : {
+              nodeCanvasObject,
+              nodeCanvasObjectMode: () => "replace" as const,
+              linkCanvasObject,
+              linkCanvasObjectMode: () => "replace" as const,
+            })}
         width={containerRef.current?.clientWidth ?? 800}
         height={containerRef.current?.clientHeight ?? 600}
       />
