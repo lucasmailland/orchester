@@ -36,14 +36,25 @@ What's NOT wired:
 
 ### Phase 1 upstream prerequisites (mnemosyne repo)
 
-- [x] Fix `docker/Dockerfile.{migrate,server}`: drop `COPY apps apps` — that directory doesn't exist in the standalone repo. Done in `0d201e0`.
-- [x] Fix `docker/Dockerfile.{migrate,server}`: add `tsconfig.base.json` and `turbo.json` to the COPY layer so the workspace build doesn't fail with `TS5083: Cannot read file '/app/tsconfig.base.json'`. Done in `38480e5`.
-- [ ] **Fix `docker/Dockerfile.migrate`: missing `mnemo-migrate` CLI binary at runtime.** Reproduces with `docker compose up migrate` once the image builds. Two likely root causes:
-  - the runtime stage may not copy `node_modules/.bin/` from the build stage, or
-  - the build stage may not link the bin from `packages/core/bin/migrate.js` into the workspace's `.bin` dir.
-  Inspect with `docker run --rm -it docker-migrate ls -la node_modules/.bin/` to confirm.
-- [ ] **Confirm `docker compose up migrate` exits 0** after the fix.
-- [ ] **Confirm `docker compose up -d server` is healthy** (`/healthz` returns 200) — the server image build already passed; this is just `up`.
+Status as of 2026-06-05 evening: **eight Dockerfile bugs found and fixed**. A ninth is structural and requires a rewrite rather than another patch.
+
+- [x] Fix `docker/Dockerfile.{migrate,server}`: drop `COPY apps apps` — the standalone repo has no `apps/`. Done in `0d201e0`.
+- [x] Fix `docker/Dockerfile.{migrate,server}`: add `tsconfig.base.json` and `turbo.json` to the COPY layer so the workspace build doesn't crash with `TS5083: Cannot read file '/app/tsconfig.base.json'`. Done in `38480e5`.
+- [x] Fix `docker/Dockerfile.migrate`: invoke `node /app/dist/migrate.js` directly — pnpm doesn't symlink the binary of the package being installed into `.bin/`. Done in `5cb727a`.
+- [x] Fix `docker/Dockerfile.migrate`: bolt `postgres` and `drizzle-orm` onto the deploy bundle (they're peer deps, not included by `pnpm deploy --prod`). Done in `bc314ad`.
+- [x] Fix `docker/Dockerfile.migrate`: use `pnpm add --ignore-scripts` (not `npm install --ignore-scripts`) because npm 10's `--ignore-scripts` still fires `prepare` hooks of pre-existing pnpm-managed deps (lru-cache@11's `tshy` etc.). Done in `9f7a5b7`.
+- [x] Fix `docker/Dockerfile.migrate`: drop `--no-frozen-lockfile` from `pnpm add` (it belongs to `pnpm install`). Done in `0dc9e14`.
+- [x] Fix `docker/Dockerfile.migrate`: drop `--prod` from `pnpm add` because the deploy bundle was installed with all deps modes (`ERR_PNPM_INCLUDED_DEPS_CONFLICT`). Done in `92836d1`.
+- [x] Fix `docker/Dockerfile.migrate`: align deploy + peer-install + COPY on the **real** bundle path `/app/packages/core/deploy/` (not `/app/deploy/` — pnpm's `--filter X deploy <path>` is relative to the filtered package, not the workspace root). Done in `f53ac8d`.
+- [ ] **Open: `pnpm add postgres drizzle-orm` inside `/app/packages/core/deploy/` reshapes the bundle and wipes `dist/`.** Verified with `docker run --entrypoint sh docker-migrate ls /app/` after the build — `dist/` and the rest of the `files:` content disappear, leaving only `node_modules/` and `package.json`. Runtime then dies with `Error: Cannot find module '/app/dist/migrate.js'`.
+
+  Three plausible directions to break the loop (recommend a single focused session for this, not another patch):
+  1. **Refactor**: do the peer-install BEFORE the deploy. Add `postgres` + `drizzle-orm` as direct dependencies of `@mnemosyne/core` for the deploy build (e.g. via a separate `package.json` overlay or a dedicated `packages/core-deploy/` thin wrapper), and let `pnpm deploy --prod` pull them in naturally.
+  2. **Simpler runtime**: stop using `pnpm deploy` altogether for the migrate image. Copy the relevant subset (`packages/core/dist/`, `packages/core/migrations/`, and a hand-curated `node_modules/` containing only the runtime deps + peers) into the runtime stage. Smaller image, no pnpm-vs-npm contortions.
+  3. **Two-stage bundle**: `pnpm deploy` to one temp path, then `cp -r` the surviving artefacts (dist/, migrations/, package.json) PLUS the freshly-pnpm-add-ed peers into the runtime stage from two source paths. Less elegant but mirrors the actual control flow.
+
+- [ ] **Confirm `docker compose up migrate` exits 0** after the open item lands.
+- [ ] **Confirm `docker compose up -d server` is healthy** (`/healthz` returns 200) — the server image build itself passed in 2026-06-05's first round.
 
 ### Phase 1 tasks (orchester repo)
 
