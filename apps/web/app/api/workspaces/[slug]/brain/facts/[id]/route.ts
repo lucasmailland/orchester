@@ -1,6 +1,9 @@
 // GET    /api/workspaces/[slug]/brain/facts/[id]
 // PATCH  /api/workspaces/[slug]/brain/facts/[id]   — pin/edit (admin)
 // DELETE /api/workspaces/[slug]/brain/facts/[id]   — soft-delete to forgotten
+//
+// @deprecated Use `/api/mnemo/facts/[id]` instead. Backed by the legacy
+// `brain_fact` table — see ../route.ts for the deprecation rationale.
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";

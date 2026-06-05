@@ -1,4 +1,8 @@
 // POST /api/workspaces/[slug]/brain/search — hybrid recall query
+//
+// @deprecated Use `/api/mnemo/recall-unified` instead. Backed by the
+// legacy `brain_fact` recall path — see ../facts/route.ts for the
+// deprecation rationale.
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";

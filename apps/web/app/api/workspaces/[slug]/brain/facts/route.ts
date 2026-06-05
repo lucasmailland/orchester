@@ -1,5 +1,11 @@
 // GET  /api/workspaces/[slug]/brain/facts        — paginated list, filters
 // POST /api/workspaces/[slug]/brain/facts        — manually create a fact (admin)
+//
+// @deprecated Use `/api/mnemo/facts` instead. Backed by the legacy
+// `brain_fact` table which no longer receives new writes. This handler
+// stays available for backwards compatibility with any pinned external
+// integration. Every response carries an `X-Deprecated` header pointing
+// to the replacement endpoint.
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { sql } from "drizzle-orm";

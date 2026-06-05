@@ -1,5 +1,9 @@
 // GET /api/workspaces/[slug]/brain/stats
 // Workspace-wide brain statistics: counts by kind, top subjects, recall rate.
+//
+// @deprecated Use `/api/mnemo/audit` (or the inspector aggregates) for
+// stats backed by `mnemo_fact`. This handler reads the legacy
+// `brain_fact` table — see ../facts/route.ts for the rationale.
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
