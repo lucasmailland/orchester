@@ -28,11 +28,11 @@
 // cross-tenant leakage even if the connection role has BYPASSRLS.
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createEntity, withMnemoTx, type EntityKind } from "@mnemosyne/core";
+import type { EntityKind } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
-import { listWorkspaceEntities } from "@/lib/mnemo/entities";
+import { createWorkspaceEntity, listWorkspaceEntities } from "@/lib/mnemo/entities";
 
 export const dynamic = "force-dynamic";
 
@@ -97,32 +97,40 @@ export async function POST(req: Request) {
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
 
-  const created = await withMnemoTx(ctx.workspace.id, (tx) =>
-    createEntity({
-      workspaceId: ctx.workspace.id,
+  try {
+    const { mode, data: created } = await createWorkspaceEntity(ctx.workspace.id, {
       name: body.name,
       kind: body.kind,
+      // Pre-tramo-2 the route silently materialized [] for aliases;
+      // we preserve that semantic so the audit log entry below keeps
+      // its old shape.
       aliases: body.aliases ?? [],
-      // exactOptionalPropertyTypes guard: only forward `description`
-      // when the caller supplied a value (including explicit null).
       ...(body.description !== undefined ? { description: body.description } : {}),
       ...(body.metadata !== undefined ? { metadata: body.metadata } : {}),
-      tx,
-    })
-  );
+    });
 
-  await logAudit({
-    workspaceId: ctx.workspace.id,
-    userId: ctx.user.id,
-    action: "mnemo.entity.create",
-    resource: "mnemo_entity",
-    resourceId: created.id,
-    after: {
-      name: created.name,
-      kind: created.kind,
-      aliases: created.aliases,
-    },
-  });
+    // Audit-log entry is the same regardless of mode — the wire
+    // payload mirrors the legacy lib-mode body so existing audit
+    // tooling keeps parsing it.
+    await logAudit({
+      workspaceId: ctx.workspace.id,
+      userId: ctx.user.id,
+      action: "mnemo.entity.create",
+      resource: "mnemo_entity",
+      resourceId: created.id,
+      after: {
+        name: created.name,
+        kind: created.kind,
+        aliases: created.aliases,
+      },
+    });
 
-  return NextResponse.json(created, { status: 201 });
+    return NextResponse.json(created, {
+      status: 201,
+      headers: { "X-Mnemo-Mode": mode },
+    });
+  } catch (e) {
+    console.error("[mnemo/entities] create failed", e);
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
+  }
 }

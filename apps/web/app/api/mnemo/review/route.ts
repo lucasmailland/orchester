@@ -8,11 +8,17 @@
 //   ?reason=low_confidence|contradiction|manual  (filter)
 //   ?all=true  (include resolved rows; default false → open only)
 //
+// As of the service-extraction Phase 2 (tramo 2), the handler
+// delegates to `listWorkspaceReview()` which picks the data source at
+// runtime (service vs library). `X-Mnemo-Mode` surfaces which path
+// served the request.
+//
 // RBAC: editor+ — the queue is an operational concern, not just a
 // viewer surface.
 import { NextResponse } from "next/server";
-import { listReview, withMnemoTx, type ReviewReason } from "@mnemosyne/core";
+import type { ReviewReason } from "@mnemosyne/client-ts";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { listWorkspaceReview } from "@/lib/mnemo/review";
 
 export const dynamic = "force-dynamic";
 
@@ -34,18 +40,18 @@ export async function GET(req: Request) {
   const reason = (reasonParam as ReviewReason | null) ?? undefined;
   const all = url.searchParams.get("all") === "true";
 
-  const items = await withMnemoTx(ctx.workspace.id, (tx) =>
-    listReview({
-      workspaceId: ctx.workspace.id,
-      // Only include the `reason` key when it's set — the package
-      // is built with exactOptionalPropertyTypes, so undefined is
-      // not assignable to ReviewReason.
+  try {
+    const { mode, data } = await listWorkspaceReview(ctx.workspace.id, {
+      // exactOptionalPropertyTypes — only spread the reason key when
+      // it's set so undefined doesn't land on a property typed as
+      // `ReviewReason | undefined`.
       ...(reason ? { reason } : {}),
       includeResolved: all,
       limit,
-      tx,
-    })
-  );
-
-  return NextResponse.json({ items });
+    });
+    return NextResponse.json(data, { headers: { "X-Mnemo-Mode": mode } });
+  } catch (e) {
+    console.error("[mnemo/review] list failed", e);
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
+  }
 }

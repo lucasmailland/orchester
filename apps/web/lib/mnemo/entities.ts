@@ -24,12 +24,14 @@
 
 import "server-only";
 import type {
+  CreateEntityInput,
   EntityFactsResponse,
   EntityKind,
   EntityWithCount,
   ListEntitiesResponse,
   MemoryFact,
   MnemoEntity,
+  UpdateEntityInput,
 } from "@mnemosyne/client-ts";
 
 export type MnemoMode = "service" | "library";
@@ -273,4 +275,122 @@ export async function listWorkspaceEntityFacts(
     };
   });
   return { mode, data: result };
+}
+
+/**
+ * Manually create an entity. Service mode delegates to
+ * `client.createEntity`; library mode falls through to the in-process
+ * `createEntity` helper under a workspace-scoped tx. Either path
+ * surfaces the `(workspace_id, name, kind)` unique-constraint
+ * violation as a thrown error — the route handler maps it to 409.
+ */
+export async function createWorkspaceEntity(
+  workspaceId: string,
+  input: CreateEntityInput
+): Promise<{ mode: MnemoMode; data: MnemoEntity }> {
+  const mode = getMnemoMode();
+
+  if (mode === "service") {
+    const { getMnemoClient } = await import("@/lib/mnemo/client");
+    const client = getMnemoClient();
+    const data = await client.createEntity(input);
+    return { mode, data };
+  }
+
+  const { createEntity, withMnemoTx } = await import("@mnemosyne/core");
+  const created = await withMnemoTx(workspaceId, (tx) =>
+    createEntity({
+      workspaceId,
+      name: input.name,
+      kind: input.kind,
+      aliases: input.aliases ?? [],
+      ...(input.description !== undefined ? { description: input.description } : {}),
+      ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
+      tx,
+    })
+  );
+  return { mode, data: entityRowToWire(created) };
+}
+
+/**
+ * Patch an entity. Returns `data:null` when the row does not exist
+ * (route maps → 404). The canonicalId sanity check (must exist in
+ * this workspace, must not equal id) is upstream in service mode;
+ * in library mode the caller is responsible (the legacy route does
+ * its own select-1 check before calling). We surface the same shape
+ * either way — the route reads the legacy guard verbatim.
+ */
+export async function updateWorkspaceEntity(
+  workspaceId: string,
+  id: string,
+  input: UpdateEntityInput
+): Promise<{ mode: MnemoMode; data: MnemoEntity | null }> {
+  const mode = getMnemoMode();
+
+  if (mode === "service") {
+    const { getMnemoClient } = await import("@/lib/mnemo/client");
+    const { MnemosyneAPIError } = await import("@mnemosyne/client-ts");
+    const client = getMnemoClient();
+    try {
+      const data = await client.updateEntity(id, input);
+      return { mode, data };
+    } catch (e) {
+      if (e instanceof MnemosyneAPIError && e.status === 404) {
+        return { mode, data: null };
+      }
+      throw e;
+    }
+  }
+
+  const { updateEntity, withMnemoTx } = await import("@mnemosyne/core");
+  const updated = await withMnemoTx(workspaceId, (tx) =>
+    updateEntity({
+      workspaceId,
+      id,
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.kind !== undefined ? { kind: input.kind } : {}),
+      ...(input.aliases !== undefined ? { aliases: input.aliases } : {}),
+      ...(input.canonicalId !== undefined ? { canonicalId: input.canonicalId } : {}),
+      ...(input.description !== undefined ? { description: input.description } : {}),
+      ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
+      tx,
+    })
+  );
+  return { mode, data: updated ? entityRowToWire(updated) : null };
+}
+
+/**
+ * Sanity-check helper used by the PATCH route's canonicalId
+ * validation. In service mode we don't expose a dedicated endpoint
+ * for this (the upstream PATCH handler does the check itself), so we
+ * fall back to a `getEntity()` round-trip and inspect for 404. In
+ * library mode it's a 1-row select, same as the legacy route.
+ */
+export async function workspaceEntityExists(workspaceId: string, id: string): Promise<boolean> {
+  const mode = getMnemoMode();
+
+  if (mode === "service") {
+    const { getMnemoClient } = await import("@/lib/mnemo/client");
+    const { MnemosyneAPIError } = await import("@mnemosyne/client-ts");
+    const client = getMnemoClient();
+    try {
+      await client.getEntity(id);
+      return true;
+    } catch (e) {
+      if (e instanceof MnemosyneAPIError && e.status === 404) return false;
+      throw e;
+    }
+  }
+
+  const { withMnemoTx } = await import("@mnemosyne/core");
+  const { schema } = await import("@orchester/db");
+  const { and, eq } = await import("drizzle-orm");
+  return withMnemoTx(workspaceId, async (tx) => {
+    const rows = await tx
+      .select({ id: schema.mnemoEntity.id })
+      .from(schema.mnemoEntity)
+      .where(and(eq(schema.mnemoEntity.id, id), eq(schema.mnemoEntity.workspaceId, workspaceId)))
+      .limit(1);
+    return rows.length > 0;
+  });
 }

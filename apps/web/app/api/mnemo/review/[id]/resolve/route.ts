@@ -11,19 +11,26 @@
 //                  separately; this just closes the queue row. The
 //                  separate PATCH call provides the audit trail.
 //   'forgotten'  — cascade to mnemo_fact.status='forgotten' so the
-//                  fact leaves the recall pool.
+//                  fact leaves the recall pool. Atomic with the
+//                  resolve write (same tx in lib mode, same wire call
+//                  in service mode).
 //   'dismissed'  — no cascade; the reviewer chose "don't show me
 //                  this again". The fact remains as-is.
+//
+// As of the service-extraction Phase 2 (tramo 2), the handler
+// delegates to `resolveWorkspaceReview()` (service vs library picked
+// at runtime). The cascade contract is preserved exactly — service
+// mode does it server-side; library mode does it inline. The wire
+// response carries `cascaded` so the audit log captures it
+// deterministically.
 //
 // RBAC: editor+.
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
-import { schema } from "@orchester/db";
-import { resolveReview, withMnemoTx } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
+import { resolveWorkspaceReview } from "@/lib/mnemo/review";
 
 export const dynamic = "force-dynamic";
 
@@ -39,53 +46,44 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!parsed.ok) return parsed.response;
   const { resolution } = parsed.data;
 
-  const result = await withMnemoTx(ctx.workspace.id, async (tx) => {
-    const r = await resolveReview({
+  try {
+    const { mode, data, alreadyResolved } = await resolveWorkspaceReview(
+      ctx.workspace.id,
+      id,
+      { resolution },
+      ctx.user.id
+    );
+
+    if (!data) {
+      // Disambiguate via the `alreadyResolved` flag the helper
+      // surfaced — preserves the legacy 404 vs 409 contract.
+      if (alreadyResolved) {
+        return NextResponse.json(
+          { error: "Already resolved" },
+          { status: 409, headers: { "X-Mnemo-Mode": mode } }
+        );
+      }
+      return NextResponse.json(
+        { error: "Not found" },
+        { status: 404, headers: { "X-Mnemo-Mode": mode } }
+      );
+    }
+
+    await logAudit({
       workspaceId: ctx.workspace.id,
-      reviewId: id,
-      resolvedByUserId: ctx.user.id,
-      resolution,
-      tx,
+      userId: ctx.user.id,
+      action: "mnemo.review.resolve",
+      resource: "mnemo_review_queue",
+      resourceId: id,
+      after: { resolution, factId: data.factId, cascade: data.cascaded },
     });
 
-    // Cascade on 'forgotten' — same tx so the audit-log entry below
-    // can reference both sides without a race. Other resolutions
-    // don't touch the fact.
-    if (r.resolved && resolution === "forgotten" && r.factId) {
-      await tx
-        .update(schema.mnemoFacts)
-        .set({ status: "forgotten", updatedAt: new Date() })
-        .where(
-          and(
-            eq(schema.mnemoFacts.id, r.factId),
-            eq(schema.mnemoFacts.workspaceId, ctx.workspace.id)
-          )
-        );
-    }
-    return r;
-  });
-
-  if (!result.resolved) {
-    // Already resolved or doesn't exist. Disambiguate via factId:
-    // null → never existed (404); non-null → already resolved (409).
-    if (result.factId === null) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-    return NextResponse.json({ error: "Already resolved", factId: result.factId }, { status: 409 });
+    return NextResponse.json(
+      { id, resolution, factId: data.factId },
+      { headers: { "X-Mnemo-Mode": mode } }
+    );
+  } catch (e) {
+    console.error("[mnemo/review/:id/resolve] failed", e);
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
-
-  await logAudit({
-    workspaceId: ctx.workspace.id,
-    userId: ctx.user.id,
-    action: "mnemo.review.resolve",
-    resource: "mnemo_review_queue",
-    resourceId: id,
-    after: { resolution, factId: result.factId, cascade: resolution === "forgotten" },
-  });
-
-  return NextResponse.json({
-    id,
-    resolution,
-    factId: result.factId,
-  });
 }

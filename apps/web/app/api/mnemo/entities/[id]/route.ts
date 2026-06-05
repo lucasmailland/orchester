@@ -19,13 +19,14 @@
 // RBAC: viewer+ for GET, editor+ for PATCH.
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
-import { schema } from "@orchester/db";
-import { updateEntity, withMnemoTx } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
-import { getWorkspaceEntity } from "@/lib/mnemo/entities";
+import {
+  getWorkspaceEntity,
+  updateWorkspaceEntity,
+  workspaceEntityExists,
+} from "@/lib/mnemo/entities";
 
 export const dynamic = "force-dynamic";
 
@@ -89,26 +90,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   // Sanity check: if the patch sets `canonicalId`, verify the target
-  // entity exists in this workspace. We use a direct schema.select
-  // rather than getEntity so we can pull only the id column. RLS
-  // gives us the workspace scope free of charge.
+  // entity exists in this workspace and isn't the row being patched.
+  // The check happens on the orchester side regardless of mode — in
+  // service mode it's a getEntity round-trip; in library mode it's a
+  // 1-row select. Both produce the same 400 contract so any caller
+  // that depended on the message text keeps working.
   if (body.canonicalId !== undefined && body.canonicalId !== null) {
-    const canonExists = await withMnemoTx(ctx.workspace.id, async (tx) => {
-      const rows = await tx
-        .select({ id: schema.mnemoEntity.id })
-        .from(schema.mnemoEntity)
-        .where(
-          and(
-            eq(schema.mnemoEntity.id, body.canonicalId!),
-            eq(schema.mnemoEntity.workspaceId, ctx.workspace.id)
-          )
-        )
-        .limit(1);
-      return rows.length > 0;
-    });
-    if (!canonExists) {
-      return NextResponse.json({ error: "canonicalId target does not exist" }, { status: 400 });
-    }
     if (body.canonicalId === id) {
       // An entity cannot be its own canonical (that's just the
       // canonical state — pass null instead).
@@ -117,37 +104,43 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         { status: 400 }
       );
     }
+    const canonExists = await workspaceEntityExists(ctx.workspace.id, body.canonicalId);
+    if (!canonExists) {
+      return NextResponse.json({ error: "canonicalId target does not exist" }, { status: 400 });
+    }
   }
 
-  const updated = await withMnemoTx(ctx.workspace.id, (tx) =>
-    updateEntity({
-      workspaceId: ctx.workspace.id,
-      id,
-      // Only spread defined keys under exactOptionalPropertyTypes.
+  try {
+    const { mode, data: updated } = await updateWorkspaceEntity(ctx.workspace.id, id, {
       ...(body.name !== undefined ? { name: body.name } : {}),
       ...(body.kind !== undefined ? { kind: body.kind } : {}),
       ...(body.aliases !== undefined ? { aliases: body.aliases } : {}),
       ...(body.canonicalId !== undefined ? { canonicalId: body.canonicalId } : {}),
       ...(body.description !== undefined ? { description: body.description } : {}),
       ...(body.metadata !== undefined ? { metadata: body.metadata } : {}),
-      tx,
-    })
-  );
+    });
 
-  if (!updated) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!updated) {
+      return NextResponse.json(
+        { error: "Not found" },
+        { status: 404, headers: { "X-Mnemo-Mode": mode } }
+      );
+    }
+
+    await logAudit({
+      workspaceId: ctx.workspace.id,
+      userId: ctx.user.id,
+      action: "mnemo.entity.update",
+      resource: "mnemo_entity",
+      resourceId: updated.id,
+      after: {
+        fieldsTouched: Object.keys(body),
+      },
+    });
+
+    return NextResponse.json(updated, { headers: { "X-Mnemo-Mode": mode } });
+  } catch (e) {
+    console.error("[mnemo/entities/:id] update failed", e);
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
-
-  await logAudit({
-    workspaceId: ctx.workspace.id,
-    userId: ctx.user.id,
-    action: "mnemo.entity.update",
-    resource: "mnemo_entity",
-    resourceId: updated.id,
-    after: {
-      fieldsTouched: Object.keys(body),
-    },
-  });
-
-  return NextResponse.json(updated);
 }
