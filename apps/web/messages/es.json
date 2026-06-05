@@ -1,0 +1,3032 @@
+{
+  "nav": {
+    "home": "Inicio",
+    "teams": "Equipos",
+    "org": "Organigrama",
+    "agents": "Agentes",
+    "flows": "Flujos",
+    "knowledge": "Conocimiento",
+    "brain": "Memoria",
+    "conversations": "Conversaciones",
+    "employees": "Empleados",
+    "channels": "Canales",
+    "integrations": "Integraciones",
+    "usage": "Uso",
+    "settings": "Configuración",
+    "group_workspace": "Workspace",
+    "group_automation": "Automatización",
+    "group_data": "Datos",
+    "group_system": "Sistema"
+  },
+  "brain": {
+    "title": "Memoria",
+    "subtitle": "Todos los hechos duraderos que los agentes han aprendido",
+    "stats": {
+      "totalFacts": "Total de hechos",
+      "pinned": "Fijados",
+      "embedded": "Indexados",
+      "active": "Activos",
+      "forgotten": "Olvidados",
+      "noData": "Sin datos todavía"
+    },
+    "actions": {
+      "export": "Exportar",
+      "reviewQueue": "Cola de revisión",
+      "edit": "Editar",
+      "pin": "Fijar",
+      "unpin": "Desfijar",
+      "pinned": "Fijado",
+      "forget": "Olvidar",
+      "restore": "Restaurar",
+      "viewCitations": "Ver citas",
+      "save": "Guardar",
+      "discard": "Descartar",
+      "refreshNow": "Actualizar ahora",
+      "menu": "Acciones",
+      "reviewCount": "Abrir cola de revisión ({count} pendientes)"
+    },
+    "filters": {
+      "kind": "Tipo",
+      "kindAll": "Todos los tipos",
+      "scope": "Ámbito",
+      "scopeAll": "Todos los ámbitos",
+      "scope_global": "Global",
+      "scope_conversation": "Conversación",
+      "scope_employee": "Empleado",
+      "scope_team": "Equipo",
+      "status": "Estado",
+      "status_active": "Activo",
+      "status_forgotten": "Olvidado",
+      "status_merged": "Fusionado",
+      "statusForgotten": "Olvidado",
+      "pinnedOnly": "Fijados",
+      "search": "Buscar declaraciones...",
+      "sortBy": "Ordenar por",
+      "sortUpdated": "Actualizado",
+      "sortCreated": "Creado",
+      "sortRelevance": "Relevancia",
+      "sortHits": "Recuentos"
+    },
+    "list": {
+      "showing": "Mostrando {count} de {total}",
+      "loadMore": "Cargar más"
+    },
+    "empty": {
+      "title": "Aún no hay recuerdos",
+      "description": "Conectá un proveedor de IA en Configuración → Proveedores y dejá que tus agentes empiecen a aprender.",
+      "ctaLabel": "Abrir Proveedores"
+    },
+    "detail": {
+      "fact": "Hecho",
+      "statement": "Declaración",
+      "subject": "Sujeto",
+      "kind": "Tipo",
+      "scope": "Ámbito",
+      "confidence": "Confianza",
+      "pinned": "Fijado",
+      "metadata": "Metadatos",
+      "citations": "Citas",
+      "activity": "Actividad",
+      "timestamps": "Fechas",
+      "createdAt": "Creado",
+      "updatedAt": "Actualizado",
+      "back": "Volver",
+      "editTitle": "Editar memoria",
+      "openConversation": "Abrir conversación",
+      "recalledNTimes": "Recordado {count, plural, =0 {0 veces} =1 {una vez} other {# veces}}",
+      "lastRecalled": "Última vez recordado {when}",
+      "neverRecalled": "Nunca recordado",
+      "sourceCount": "{count, plural, =0 {Sin fuentes} =1 {1 fuente} other {# fuentes}}",
+      "noCitations": "Aún no hay citas",
+      "characterCount": "{used}/{max} caracteres"
+    },
+    "health": {
+      "title": "Salud",
+      "factCountActive": "Hechos activos — 30 días",
+      "recallHitRate": "Tasa de aciertos — 30 días",
+      "lastRefresh": "Actualizado {when}"
+    },
+    "toast": {
+      "saved": "Memoria guardada",
+      "saveError": "No se pudo guardar",
+      "pinned": "Fijado",
+      "unpinned": "Desfijado",
+      "pinError": "No se pudo actualizar el fijado",
+      "forgotten": "Olvidado",
+      "forgetError": "No se pudo olvidar",
+      "restored": "Restaurado",
+      "restoreError": "No se pudo restaurar"
+    },
+    "errors": {
+      "loadFailed": "No se pudo cargar la memoria.",
+      "retry": "Reintentar",
+      "citationsFailed": "No se pudieron cargar las citas."
+    },
+    "timeline": {
+      "title": "Línea de tiempo",
+      "subtitle": "Registro cronológico de lo que tus agentes aprendieron y cuándo. Más reciente primero.",
+      "rangeLabel": "Rango",
+      "range": {
+        "7d": "Últimos 7 días",
+        "30d": "Últimos 30 días",
+        "90d": "Últimos 90 días",
+        "all": "Todo el tiempo",
+        "custom": "Personalizado"
+      },
+      "daySummary": "{learned} aprendidos · {forgotten} olvidados",
+      "sourceConversation": "Desde conversación",
+      "empty": "Aún no hay eventos de memoria en este período.",
+      "error": "No se pudo cargar la línea de tiempo. Probá refrescar.",
+      "refresh": "Actualizar"
+    },
+    "diff": {
+      "title": "Diff de memoria",
+      "subtitle": "Qué cambió en la memoria en la ventana seleccionada.",
+      "rangeLabel": "Comparar",
+      "range": {
+        "7d": "Últimos 7 días",
+        "30d": "Últimos 30 días",
+        "custom": "Personalizado"
+      },
+      "refresh": "Actualizar",
+      "columns": {
+        "added": "Agregados",
+        "forgotten": "Olvidados",
+        "updated": "Actualizados"
+      },
+      "emptyAdded": "Sin hechos nuevos en esta ventana.",
+      "emptyForgotten": "No se olvidaron hechos en esta ventana.",
+      "emptyUpdated": "Sin ediciones de hechos en esta ventana.",
+      "error": "No se pudo cargar el diff. Probá refrescar.",
+      "kpi": {
+        "net": "Cambio neto",
+        "facts": "hechos",
+        "priorPeriod": "Período anterior: +{count}",
+        "topKind": "Tipo principal",
+        "topKindDetail": "+{count} nuevos",
+        "topSubject": "Sujeto más activo",
+        "topSubjectDetail": "{count} nuevos",
+        "empty": "—",
+        "emptyDetail": "Nada todavía"
+      }
+    },
+    "export": {
+      "title": "Exportá tu memoria",
+      "subtitle": "Todos los hechos durables, decisiones, relaciones y citas que los agentes aprendieron sobre este workspace.",
+      "format": "Formato",
+      "jsonTitle": "JSON",
+      "jsonDescription": "Exportación completa — hechos, decisiones, relaciones, citas. Ideal para reimportar o analizar.",
+      "csvTitle": "CSV",
+      "csvDescription": "Una fila por hecho. No incluye decisiones ni relaciones.",
+      "scope": "Qué incluir",
+      "scopeAll": "Todo",
+      "scopeByKind": "Filtrar por tipo",
+      "scopeByScope": "Filtrar por alcance",
+      "download": "Descargar",
+      "success": "Descarga iniciada.",
+      "error": "No se pudo generar la exportación. Reintentá.",
+      "notReady": "La exportación todavía no está disponible — probá en un minuto.",
+      "whatsInside": "Qué contiene la exportación",
+      "schema": {
+        "facts": "id, scope, kind, subject, statement, confidence, pinned, status, createdAt, updatedAt.",
+        "decisions": "Decisiones destiladas registradas por los agentes (id, statement, justificación, links a hechos fuente).",
+        "relations": "Aristas entre hechos (sujeto ↔ predicado ↔ objeto, con confianza).",
+        "citations": "Punteros a los mensajes fuente que produjeron cada hecho — IDs de mensaje, no el contenido."
+      },
+      "privacyTitle": "Sobre esta exportación",
+      "privacyBody": "Esta exportación contiene todo lo que los agentes recuerdan sobre este workspace. No incluye las conversaciones fuente — sólo referencias (IDs de mensaje)."
+    },
+    "undo": {
+      "title": "Cambios recientes",
+      "subtitle": "Los últimos 20 cambios en la memoria. Podés revertir cualquiera de los últimos 7 días.",
+      "refresh": "Actualizar",
+      "windowNote": "Sólo los cambios de los últimos 7 días son reversibles. Los anteriores se muestran como referencia.",
+      "empty": "No se registraron cambios recientes.",
+      "comingSoonTitle": "Registro de auditoría próximamente",
+      "comingSoonBody": "Acá vas a ver todos los cambios de memoria en cuanto se active el feed de auditoría.",
+      "error": "No se pudo cargar el registro. Probá refrescar.",
+      "revertButton": "Revertir",
+      "revertDisabled": "Fuera de la ventana de reversión de 7 días.",
+      "revertUnsupported": "Este cambio aún no se puede revertir automáticamente.",
+      "revertSuccess": "Revertido.",
+      "revertError": "No se pudo revertir.",
+      "actorSystem": "Sistema",
+      "actorUser": "Usuario",
+      "actions": {
+        "created": "Creado",
+        "updated": "Actualizado",
+        "forgotten": "Olvidado",
+        "restored": "Restaurado",
+        "pinned": "Fijado",
+        "unpinned": "Desfijado"
+      }
+    },
+    "sensitivity": {
+      "toggleLabel": "No aprender de esta conversación",
+      "toggleHelp": "Pausa la extracción de memoria para esta conversación. Podés reactivarla cuando quieras.",
+      "bannerPaused": "El aprendizaje de memoria está pausado para esta conversación.",
+      "toastPaused": "Aprendizaje de memoria pausado",
+      "toastResumed": "Aprendizaje de memoria reanudado",
+      "toggleError": "No se pudo actualizar la configuración de memoria"
+    },
+    "timeTravel": {
+      "label": "Ver memoria al:",
+      "now": "Ahora",
+      "reset": "Volver a ahora",
+      "banner": "Viendo estado histórico al {date}. Las ediciones están deshabilitadas en modo histórico.",
+      "editsDisabled": "Las ediciones están deshabilitadas en modo histórico"
+    },
+    "review": {
+      "title": "Cola de revisión",
+      "subtitle": "Hechos que los agentes marcaron como de baja confianza o contradictorios. Resolvelos para mantener la memoria confiable.",
+      "filterOpen": "Abiertos",
+      "filterAll": "Todos",
+      "emptyTitle": "Cola vacía",
+      "emptyDescription": "No hay nada para revisar. Aparecerán nuevos elementos cuando los workers marquen un hecho como dudoso o contradictorio.",
+      "queuedAgo": "Encolado hace {when}",
+      "reason_low_confidence": "Baja confianza",
+      "reason_contradiction": "Contradicción",
+      "reason_manual": "Manual",
+      "resolution_kept": "Conservado",
+      "resolution_edited": "Editado",
+      "resolution_forgotten": "Olvidado",
+      "resolution_dismissed": "Descartado",
+      "actionKeep": "Conservar",
+      "actionEdit": "Abrir y editar",
+      "actionForget": "Olvidar",
+      "actionDismiss": "Descartar",
+      "toastResolved": "Resuelto.",
+      "toastResolveError": "No se pudo resolver. Intentá de nuevo."
+    },
+    "cognitive": {
+      "memoryType": "Tipo de memoria: {value}",
+      "attribution": "Atribución: {value}",
+      "actor": "Actor: {actorId}",
+      "protocol": "Memory Protocol {value}"
+    },
+    "heartbeat": {
+      "title": "Tu IA aprende sola",
+      "subtitleNow": "Actualizado recién",
+      "subtitleRelative": "Actualizado {time}",
+      "subtitleWaiting": "Esperando el primer ciclo…",
+      "ariaLabel": "Estado del aprendizaje de memoria"
+    },
+    "onboarding": {
+      "title": "Cómo funciona la memoria",
+      "subtitle": "Tres pasos cortos. Listo.",
+      "skip": "Omitir",
+      "back": "Atrás",
+      "next": "Siguiente",
+      "start": "Empezar a explorar",
+      "stepCounter": "Paso {current} de {total}",
+      "step1": {
+        "badge": "Paso 1",
+        "title": "Tus agentes conversan",
+        "body": "Cada conversación que tus agentes tienen — con clientes, con tu equipo o entre ellos — alimenta a Orchester."
+      },
+      "step2": {
+        "badge": "Paso 2",
+        "title": "La memoria aprende sola",
+        "body": "Cuando termina una conversación, Orchester extrae los hechos durables: preferencias, decisiones, patrones repetidos. Sin botones. Sin que tengas que pedir nada."
+      },
+      "step3": {
+        "badge": "Paso 3",
+        "title": "Tú la curás (opcional)",
+        "body": "Fijá lo importante. Olvidá lo que sobra. Viajá al pasado para auditar. El sistema funciona sin ti, pero anda mejor contigo."
+      }
+    },
+    "emptyOnboarding": {
+      "title": "Acá va a aparecer la memoria",
+      "body": "Cada conversación que terminen tus agentes deja huella. Pronto vas a poder revisar lo que recordaron, fijar lo importante y olvidar lo que no querés que se guarde.",
+      "step1Title": "Termina una conversación",
+      "step1Body": "Donde sea — widget web, Slack, WhatsApp, email.",
+      "step2Title": "Orchester extrae los hechos",
+      "step2Body": "3–5 hechos durables en segundos.",
+      "step3Title": "Aparecen acá",
+      "step3Body": "Curás, fijás o olvidás. O simplemente lo dejás correr.",
+      "cta": "Empezar una conversación"
+    }
+  },
+  "dashboard": {
+    "title": "Command Center",
+    "live": "LIVE",
+    "lastNDays": "Últimos 30 días",
+    "convs": "convs",
+    "tokens": "tokens",
+    "kpi": {
+      "activeAgents": "Agentes activos",
+      "activeAgentsOf": "de {total} totales",
+      "conversationsToday": "Conversaciones hoy",
+      "vsYesterday": "vs ayer",
+      "openNow": "Abiertas ahora",
+      "awaitingReply": "en espera de respuesta",
+      "employees": "Empleados",
+      "activeUsers": "usuarios activos",
+      "escalationRate": "Tasa escalación",
+      "thisMonth": "este mes",
+      "resolution": "Resolución",
+      "closedConversations": "conversaciones cerradas"
+    },
+    "metrics": {
+      "tokensThisMonth": "Tokens este mes",
+      "firstMonth": "primer mes",
+      "estimatedCost": "Costo estimado",
+      "perConv": "{cost} / conv",
+      "conversationsPerMonth": "Conversaciones / mes",
+      "avgDuration": "Dur. media",
+      "tokensPerConv": "{tokens} tokens / conv"
+    },
+    "charts": {
+      "activityLast30": "Actividad — últimos 30 días",
+      "conversations": "Conversaciones",
+      "costPerAgent": "Costo por agente",
+      "currentMonth": "mes actual",
+      "agentPerformance": "Rendimiento de agentes · {count} agentes",
+      "agentPerformanceSub": "mes actual · ordenado por consumo de tokens",
+      "teams": "Equipos",
+      "peakActivity": "Pico de actividad",
+      "peakActivitySub": "distribución por hora del día",
+      "conversationStatus": "Estado de conversaciones",
+      "inboundChannel": "Canal de entrada",
+      "mostActiveEmployees": "Empleados más activos",
+      "recentActivity": "Actividad reciente",
+      "recentActivitySub": "últimas conversaciones",
+      "viewAllConversations": "Ver todas las conversaciones",
+      "noData": "Sin datos",
+      "peakAt": "Pico: {hour}h",
+      "morning": "Mañana (6-12)",
+      "afternoon": "Tarde (12-18)",
+      "evening": "Noche (18-24)"
+    },
+    "table": {
+      "agent": "Agente",
+      "model": "Modelo",
+      "status": "Estado",
+      "conversations": "Conversaciones",
+      "tokensConsumed": "Tokens consumidos",
+      "costUsd": "Costo USD",
+      "tokPerConv": "Tok / conv"
+    }
+  },
+  "common": {
+    "loading": "Cargando…",
+    "error": "Algo salió mal",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "create": "Crear",
+    "search": "Buscar",
+    "noResults": "Sin resultados",
+    "learnMore": "Más información"
+  },
+  "errors": {
+    "generic": {
+      "title": "Algo salió mal",
+      "description": "Ocurrió un error inesperado. Puedes reintentar o volver al inicio.",
+      "retry": "Reintentar",
+      "backHome": "Volver al inicio",
+      "backDashboard": "Ir al dashboard"
+    },
+    "notFound": {
+      "code": "404",
+      "title": "Página no encontrada",
+      "description": "La página que buscas no existe o fue movida.",
+      "backDashboard": "Volver al dashboard"
+    },
+    "loading": "Cargando…"
+  },
+  "themes": {
+    "light": "Claro",
+    "dark": "Oscuro",
+    "system": "Sistema"
+  },
+  "presentationMode": {
+    "enable": "Activar modo presentación",
+    "disable": "Desactivar modo presentación"
+  },
+  "shell": {
+    "live": "Live",
+    "presentationMode": "Modo presentación",
+    "themeLight": "Cambiar a modo claro",
+    "themeDark": "Cambiar a modo oscuro",
+    "selectLanguage": "Seleccionar idioma",
+    "skipToContent": "Saltar al contenido",
+    "commandPalette": {
+      "label": "Paleta de comandos",
+      "placeholder": "Buscar agente, flujo, KB, página…",
+      "empty": "Sin resultados.",
+      "navigation": "Navegación",
+      "resources": "Recursos",
+      "footer": "↑↓ navegar · ↵ abrir · ⌘K cerrar",
+      "nav": {
+        "home": "Inicio",
+        "agents": "Agentes",
+        "flows": "Flujos",
+        "knowledge": "Conocimiento",
+        "conversations": "Conversaciones",
+        "teams": "Equipos",
+        "org": "Organigrama",
+        "employees": "Empleados",
+        "channels": "Canales",
+        "settings": "Ajustes"
+      }
+    },
+    "userMenu": {
+      "openLabel": "Abrir menú de cuenta",
+      "menuLabel": "Menú de cuenta",
+      "identityLabel": "Identidad",
+      "shortcutsLabel": "Atajos",
+      "unnamedUser": "Cuenta",
+      "accountLabel": "Configuración de cuenta",
+      "accountDescription": "Perfil, contraseña, 2FA",
+      "settingsLabel": "Configuración del workspace",
+      "settingsDescription": "Equipo, plan, integraciones",
+      "signOutLabel": "Cerrar sesión",
+      "signingOut": "Cerrando sesión…",
+      "signOutError": "No se pudo cerrar sesión. Intentá de nuevo."
+    }
+  },
+  "emptyStates": {
+    "teams": {
+      "title": "Aún no hay equipos",
+      "description": "Crea tu primer equipo de IA y déjalo trabajar para ti.",
+      "cta": "Crear un equipo"
+    },
+    "agents": {
+      "title": "Sin agentes aquí",
+      "description": "Los agentes son los bloques fundamentales de tus equipos de IA.",
+      "cta": "Agregar un agente"
+    },
+    "conversations": {
+      "title": "Aún no hay conversaciones",
+      "description": "Las conversaciones aparecerán aquí cuando los empleados empiecen a chatear.",
+      "cta": "Configurar un canal"
+    },
+    "employees": {
+      "title": "Sin empleados cargados",
+      "description": "Importa tu equipo por CSV o agrégalos uno a uno.",
+      "cta": "Importar empleados"
+    }
+  },
+  "auth": {
+    "welcomeBack": "Bienvenido de vuelta",
+    "signIn": "Inicia sesión en tu workspace",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "signInButton": "Iniciar sesión",
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "noAccount": "¿No tienes cuenta?",
+    "signUp": "Registrarse",
+    "createAccount": "Crea tu cuenta",
+    "startFree": "Empieza a crear equipos de IA gratis",
+    "name": "Nombre completo",
+    "namePlaceholder": "María García",
+    "confirmPassword": "Confirmar contraseña",
+    "alreadyAccount": "¿Ya tienes cuenta?",
+    "signingIn": "Iniciando sesión…",
+    "creatingAccount": "Creando cuenta…",
+    "invalidCredentials": "Email o contraseña incorrectos",
+    "emailTaken": "Ya existe una cuenta con este email",
+    "googleSignIn": "Continuar con Google",
+    "orContinueWith": "o continúa con",
+    "tagline": "Equipos de agentes IA para tu empresa",
+    "liveNetwork": "Red de Agentes en Vivo"
+  },
+  "pages": {
+    "dashboard": {
+      "title": "Dashboard",
+      "subtitle": "Tu workspace de un vistazo",
+      "activeAgents": "Agentes Activos",
+      "conversationsToday": "Conversaciones Hoy",
+      "totalEmployees": "Total Empleados",
+      "avgResponseTime": "Tiempo Medio de Respuesta",
+      "seconds": "seg",
+      "conversationsChart": "Conversaciones — Últimos 30 Días",
+      "noData": "Sin datos aún — ejecuta el seed para ver analytics."
+    },
+    "org": {
+      "title": "Organigrama",
+      "subtitle": "La jerarquía de tu IA: equipos de agentes que orquestan flujos. Click en un nodo para abrirlo.",
+      "searchPlaceholder": "Buscar agente, equipo, flujo…",
+      "resetLayout": "Reset layout",
+      "resetLayoutTitle": "Volver al layout original",
+      "summary": {
+        "teams": "equipos",
+        "agents": "agentes",
+        "agentsActive": "activos",
+        "flows": "flujos",
+        "live": "live"
+      },
+      "empty": "Aún no hay agentes ni equipos.",
+      "createFirstAgent": "Crear el primer agente",
+      "node": {
+        "workspace": "Workspace",
+        "teams": "equipos",
+        "agents": "agentes",
+        "flows": "flujos",
+        "active": "activos",
+        "flow": "Flow"
+      }
+    },
+    "teams": {
+      "title": "Equipos",
+      "subtitle": "Tus equipos de agentes IA",
+      "agents": "agentes",
+      "agent": "agente",
+      "channel": "canal",
+      "channels": "canales",
+      "empty": "Aún no hay equipos.",
+      "emptyCta": "Crear equipo",
+      "addTeam": "Nuevo equipo",
+      "addAgent": "Agregar agente",
+      "back": "Equipos",
+      "editTeam": "Editar",
+      "deleteTeam": "Eliminar",
+      "deleteConfirm": "Eliminar",
+      "teamDeleted": "Equipo eliminado",
+      "deleteError": "No se pudo eliminar",
+      "teamAgentsHeading": "Agentes del equipo",
+      "manageAgents": "Gestionar agentes",
+      "noAgentsInTeam": "Este equipo no tiene agentes.",
+      "goToAgents": "Ir a Agentes →",
+      "connectedChannels": "Canales conectados",
+      "seeChannels": "Ver canales",
+      "noActiveChannels": "Sin canales activos.",
+      "createTitle": "Crear equipo",
+      "editTitle": "Editar equipo",
+      "nameLabel": "Nombre del equipo",
+      "descriptionLabel": "Descripción",
+      "colorLabel": "Color",
+      "save": "Guardar",
+      "saving": "...",
+      "cancel": "Cancelar",
+      "genericError": "Algo salió mal",
+      "namePlaceholder": "ej. Soporte RRHH",
+      "descriptionPlaceholder": "¿Qué hace este equipo?",
+      "createAgentTitle": "Agregar agente",
+      "editAgentTitle": "Editar agente",
+      "confirmDelete": "¿Eliminar este equipo? Los agentes quedarán sin asignar.",
+      "confirmDeleteAgent": "¿Eliminar este agente?",
+      "agentFormFields": {
+        "nameLabel": "Nombre",
+        "roleLabel": "Rol",
+        "promptLabel": "Prompt del sistema",
+        "modelLabel": "Modelo",
+        "statusLabel": "Estado"
+      }
+    },
+    "agents": {
+      "title": "Agentes",
+      "subtitle": "Configura y gestiona todos los agentes de IA de tu workspace.",
+      "model": "Modelo",
+      "team": "Equipo",
+      "status": {
+        "active": "Activo",
+        "inactive": "Inactivo",
+        "draft": "Borrador"
+      },
+      "statusBadge": {
+        "active": "Activo",
+        "inactive": "Inactivo",
+        "draft": "Borrador"
+      },
+      "newAgent": "Nuevo Agente",
+      "createFirstAgent": "Crear primer agente",
+      "noAgentsToShow": "No hay agentes que mostrar.",
+      "agent": "agente",
+      "agents": "agentes",
+      "noTeam": "Sin equipo",
+      "filters": {
+        "all": "Todos",
+        "active": "Activos",
+        "draft": "Borrador",
+        "inactive": "Inactivos"
+      },
+      "deleteAgent": "¿Eliminar este agente?",
+      "deleteAgentDescription": "Esta acción no se puede deshacer.",
+      "deleteConfirm": "Eliminar",
+      "agentDeleted": "Agente eliminado",
+      "agentDeleteError": "No se pudo eliminar el agente",
+      "editAria": "Editar {name}",
+      "deleteAria": "Eliminar {name}",
+      "form": {
+        "createTitle": "Crear Agente",
+        "editTitle": "Editar Agente",
+        "nameLabel": "Nombre",
+        "roleLabel": "Rol",
+        "promptLabel": "System Prompt",
+        "modelLabel": "Modelo",
+        "statusLabel": "Estado",
+        "teamLabel": "Equipo",
+        "save": "Guardar",
+        "cancel": "Cancelar"
+      },
+      "studio": {
+        "save": "Guardar",
+        "agentSaved": "Agente guardado",
+        "saveError": "No se pudo guardar",
+        "invalidJson": "El JSON Schema no es válido",
+        "kindFlow": "flow",
+        "kindConversational": "conversacional",
+        "tabs": {
+          "config": "Prompt + Modelo",
+          "advanced": "Avanzado",
+          "versions": "Versiones"
+        },
+        "flowAgentTitle": "Agente driven by flow",
+        "flowAgentDescription": "Este agente no usa prompt. Cada mensaje ejecuta el flujo seleccionado en la pestaña <b>Avanzado</b>.",
+        "editFlow": "Editar el flujo →",
+        "noFlowSelected": "⚠ Ningún flujo seleccionado. Andá a <b>Avanzado</b> y elegí uno.",
+        "model": "Modelo",
+        "temperature": "Temperature",
+        "maxTokens": "Max tokens",
+        "defaultPlaceholder": "default",
+        "testChat": {
+          "title": "Test chat",
+          "emptyHint": "Escribí un mensaje para probar al agente con la configuración actual.",
+          "thinking": "Pensando…",
+          "messageAria": "Mensaje para el agente",
+          "messagePlaceholder": "Escribí un mensaje (Enter para enviar, Shift+Enter para salto de línea)…",
+          "sendAria": "Enviar mensaje",
+          "tokensUsed": "Tokens usados:",
+          "tool": "tool",
+          "tools": "tools",
+          "providerNotConfigured": "Configurá el proveedor en Ajustes para usar este modelo.",
+          "genericError": "Error",
+          "ranByFlow": "_(ejecutado por flujo)_",
+          "errorBadge": "error",
+          "flowRun": "flow run:"
+        },
+        "memory": {
+          "title": "Memoria persistente",
+          "description": "El agente puede leer/escribir estas memorias a través de las tools <code>memory_get</code> / <code>memory_set</code>. También se inyectan automáticamente en el system prompt al inicio de cada conversación.",
+          "noMemory": "Sin memorias guardadas todavía.",
+          "scopeGlobal": "Global",
+          "scopeConversation": "Conversación",
+          "scopeEmployee": "Por usuario",
+          "keyPlaceholder": "key (ej. preferred_language)",
+          "valuePlaceholder": "value (JSON o texto)",
+          "save": "Guardar",
+          "saved": "Guardado",
+          "saveError": "Error",
+          "missingFields": "key + value requeridos"
+        },
+        "config": {
+          "kindSectionTitle": "Tipo de agente",
+          "kindSectionSubtitle": "Cómo procesa los mensajes",
+          "kindConversational": "Conversacional",
+          "kindConversationalHint": "Responde con un prompt + tools.",
+          "kindFlow": "Driven by flow",
+          "kindFlowHint": "Cada mensaje ejecuta un flujo.",
+          "flowLabel": "Flujo a ejecutar",
+          "pickFlow": "— elegir —",
+          "flowResponseHint": "El flujo debe devolver una variable `response` para que el agente conteste.",
+          "toolsSectionTitle": "Herramientas",
+          "toolsSectionSubtitle": "El agente puede llamarlas durante la conversación",
+          "loading": "Cargando…",
+          "variablesSectionTitle": "Variables",
+          "variablesSectionSubtitle": "Cada variable se referencia en el prompt por su nombre entre llaves dobles",
+          "brandingSectionTitle": "Branding",
+          "brandingSectionSubtitle": "Personalidad visual del agente",
+          "colorLabel": "Color",
+          "colorAria": "Color {color}",
+          "avatarLabel": "URL del avatar",
+          "conversationSectionTitle": "Conversación",
+          "conversationSectionSubtitle": "Cómo arranca y termina cada chat",
+          "greetingLabel": "Saludo inicial",
+          "greetingPlaceholder": "¡Hola! ¿En qué puedo ayudarte hoy?",
+          "fallbackLabel": "Mensaje de fallback",
+          "fallbackPlaceholder": "No pude entenderte, ¿podés reformular?",
+          "startersLabel": "Sugerencias iniciales (botones que el usuario puede tocar)",
+          "addStarter": "Agregar",
+          "addStarterAria": "Agregar sugerencia inicial",
+          "starterAria": "Sugerencia {n}",
+          "starterPlaceholder": "¿Cómo me suscribo?",
+          "deleteStarterAria": "Eliminar sugerencia {n}",
+          "noStarters": "Sin sugerencias",
+          "maxTurnsLabel": "Máximo de turnos (corta el chat tras N intercambios)",
+          "responseSectionTitle": "Formato de respuesta",
+          "responseSectionSubtitle": "Cómo debe estructurar la salida",
+          "responseText": "Texto plano",
+          "responseJson": "JSON estructurado",
+          "responseMarkdown": "Markdown",
+          "outputSchemaLabel": "JSON Schema (opcional)",
+          "outputSchemaPlaceholder": "{ \"type\": \"object\", \"properties\": { \"score\": { \"type\": \"number\" } } }",
+          "variableNamePlaceholder": "nombre",
+          "variableValuePlaceholder": "valor",
+          "addVariable": "Agregar variable"
+        },
+        "templates": {
+          "title": "Plantillas profesionales"
+        },
+        "promptGen": {
+          "stepHeader": "Generador de prompts con IA · Paso {step}/3",
+          "step1Label": "¿Qué hace este agente?",
+          "step1Placeholder": "Necesito un agente que califique leads B2B según BANT y los enrute al vendedor correcto…",
+          "charCount": "{count} / 50–500 caracteres",
+          "toneLabel": "Tono",
+          "companyLabel": "Empresa (opcional)",
+          "industryLabel": "Industria (opcional)",
+          "variation": "Variación {n}",
+          "providerError": "Configurá un proveedor en Ajustes para usar el generador.",
+          "genError": "Error",
+          "cancel": "Cancelar",
+          "back": "Atrás",
+          "regenerate": "Regenerar",
+          "next": "Siguiente",
+          "generate": "Generar"
+        },
+        "promptEditor": {
+          "templates": "Plantillas",
+          "generate": "Generar con IA",
+          "placeholder": "Escribí el system prompt del agente o usá el generador con IA…",
+          "chars": "{n} chars",
+          "tokens": "~{n} tokens"
+        },
+        "modelPicker": {
+          "loading": "Cargando modelos…",
+          "noModels": "No hay modelos disponibles. Conectá un proveedor en Ajustes.",
+          "search": "Buscar modelo…",
+          "pickModel": "Elegir modelo…",
+          "noConnected": "Configurá un proveedor en Ajustes para ver modelos.",
+          "noModelsInProvider": "No hay modelos. Probá la conexión."
+        },
+        "versions": {
+          "title": "Historial de versiones",
+          "loading": "Cargando…",
+          "noVersions": "Aún no hay versiones guardadas.",
+          "saveVersion": "Guardar versión",
+          "labelPlaceholder": "Etiqueta (opcional)",
+          "noLabel": "Sin etiqueta",
+          "restore": "Restaurar",
+          "restored": "Versión restaurada",
+          "restoreConfirm": "¿Restaurar esta versión? Los cambios actuales se pierden.",
+          "current": "Actual",
+          "byline": "por {actor}"
+        }
+      },
+      "empty": "Aún no hay agentes.",
+      "emptyCta": "Agregar agente"
+    },
+    "flows": {
+      "title": "Flujos",
+      "subtitle": "Conectá tus agentes en pipelines visuales que se ejecutan automáticamente.",
+      "newFlow": "Nuevo flujo",
+      "namePlaceholder": "Nombre del flujo",
+      "create": "Crear",
+      "cancel": "Cancelar",
+      "emptyTitle": "Aún no hay flujos",
+      "emptyDescription": "Creá tu primer flujo para empezar a orquestar agentes.",
+      "nodes": "nodos",
+      "copilot": {
+        "title": "Copiloto",
+        "closeAria": "Cerrar",
+        "emptyTitle": "Contame qué querés automatizar 👇",
+        "emptyHint": "Por ejemplo: <em>“cuando llega un mensaje, buscá en mi base de conocimiento y respondé con un agente”</em>. Si tenés una API, pegá su link y armo el paso por vos.",
+        "explainFlow": "Explicame este flujo",
+        "explainFlowPrompt": "Explicá en lenguaje simple, para alguien no técnico, qué hace este flujo paso a paso:\n\n{describe}",
+        "reviewErrors": "Revisá si hay errores",
+        "reviewErrorsPrompt": "Revisá este flujo y decime, en lenguaje simple, si tiene errores, pasos sin configurar o conexiones faltantes. No uses la herramienta set_flow, solo explicá:\n\n{describe}",
+        "thinking": "Armando el flujo…",
+        "couldNotAnswer": "El copiloto no pudo responder.",
+        "connectionError": "Hubo un problema de conexión. Probá de nuevo.",
+        "doneShort": "Listo.",
+        "partialErrors": "Algunos pasos no se pudieron crear: {errors}",
+        "proposalCount": "Propuesta: {n} paso",
+        "proposalCountPlural": "Propuesta: {n} pasos",
+        "step": "Paso",
+        "andMore": "…y {n} más",
+        "replaceFlow": "Reemplazar el flujo",
+        "mergeFlow": "Sumar al flujo",
+        "discard": "Descartar",
+        "apiUrlPlaceholder": "https://api.tu-servicio.com/…",
+        "inputPlaceholder": "Describí lo que querés que haga…",
+        "send": "Enviar",
+        "removeApiLink": "Quitar link de API",
+        "addApiLink": "+ Agregar link de una API"
+      },
+      "palette": {
+        "searchPlaceholder": "Buscar un paso…",
+        "noMatches": "No encontramos ningún paso con “{query}”."
+      },
+      "runs": {
+        "title": "Ejecuciones",
+        "closeAria": "Cerrar",
+        "noRuns": "Aún no hubo ejecuciones.",
+        "back": "← Volver",
+        "stepsHeading": "Pasos",
+        "trigger": "trigger"
+      },
+      "builder": {
+        "save": "Guardar",
+        "saved": "Flujo guardado",
+        "saveError": "No se pudo guardar el flujo",
+        "publish": "Publicar",
+        "published": "Flujo publicado",
+        "publishError": "No se pudo publicar",
+        "draft": "Borrador",
+        "active": "Activo",
+        "paused": "Pausado",
+        "runFlow": "Ejecutar",
+        "running": "Ejecutando…",
+        "runs": "Ejecuciones",
+        "copilot": "Copiloto",
+        "addNode": "Agregar paso",
+        "deleteNode": "Eliminar",
+        "deleteAria": "Eliminar",
+        "duplicateNode": "Duplicar",
+        "configureNode": "Configurar",
+        "validationErrors": "{n} problema de validación",
+        "validationErrorsPlural": "{n} problemas de validación",
+        "renameFlow": "Renombrar",
+        "deleteFlow": "Eliminar flujo",
+        "deleteFlowConfirm": "¿Eliminar este flujo?",
+        "flowDeleted": "Flujo eliminado",
+        "tidyLayout": "Ordenar los pasos automáticamente",
+        "autoLayout": "Layout automático",
+        "undo": "Deshacer (Cmd/Ctrl+Z)",
+        "redo": "Rehacer (Cmd/Ctrl+Shift+Z)",
+        "copy": "Copiar",
+        "paste": "Pegar",
+        "dryRun": "Dry run",
+        "pin": "Anclar output",
+        "unpin": "Desanclar",
+        "saving": "Guardando…",
+        "saveErrorShort": "Error al guardar",
+        "autoSaved": "Auto-guardado",
+        "runComplete": "Ejecución completada",
+        "runInputObject": "Los datos tienen que ser un objeto ({…}).",
+        "runInputJsonError": "El JSON tiene un error.",
+        "reviewFlow": "Revisar el flujo",
+        "copilotTooltip": "Copiloto: armá el flujo hablando",
+        "flowVariables": "Variables del flujo",
+        "runHistory": "Historial de ejecuciones",
+        "fillRunData": "Completá los datos con los que querés probar el flujo.",
+        "noRunDataNeeded": "Este flujo no necesita datos para arrancar.",
+        "closeAria": "Cerrar",
+        "backToForm": "← Volver al formulario",
+        "editAsJson": "Editar como JSON (avanzado)",
+        "runResult": "Resultado de la ejecución",
+        "running2": "Ejecutando…",
+        "triggerManual": "Cuando lo ejecuto yo",
+        "triggerMessage": "Cuando llega un mensaje",
+        "triggerSchedule": "En un horario",
+        "triggerWebhook": "Con un webhook",
+        "runModalTitle": "Ejecutar flujo",
+        "runNoFieldsHint": "Hacé clic en \"Ejecutar\" para correrlo. Si querés, agregá variables al flujo desde el botón de variables.",
+        "runJsonLabel": "Datos (JSON)",
+        "cancel": "Cancelar",
+        "runButton": "Ejecutar"
+      },
+      "inspector": {
+        "deleteNodeAria": "Eliminar nodo",
+        "nameLabel": "Nombre de este paso",
+        "nameHelp": "Cómo aparece en el flujo.",
+        "pathValuePlaceholder": "valor del camino",
+        "removeAria": "Quitar",
+        "keyPlaceholder": "clave",
+        "valuePlaceholder": "valor",
+        "all": "Todos",
+        "pickOne": "Elegí una opción…",
+        "noIntegrations": "No tenés integraciones conectadas. Andá a <link>Integraciones</link> para conectar una.",
+        "cronEvery15": "Cada 15 minutos",
+        "cronHourly": "Cada hora",
+        "cronDaily": "Todos los días a las 9",
+        "cronWeekly": "Cada lunes a las 9",
+        "cronMonthly": "El día 1 de cada mes"
+      }
+    },
+    "knowledge": {
+      "title": "Conocimiento",
+      "subtitle": "Subí documentos para que tus agentes puedan responder con tu información (RAG).",
+      "newBase": "Nueva base",
+      "namePlaceholder": "Nombre — ej. Documentación interna",
+      "descriptionPlaceholder": "Descripción (opcional)",
+      "embeddingsLabel": "Embeddings:",
+      "create": "Crear",
+      "cancel": "Cancelar",
+      "created": "Base de conocimiento creada",
+      "createError": "No se pudo crear",
+      "emptyTitle": "Aún no hay bases de conocimiento",
+      "emptyDescription": "Creá la primera y subí documentos para alimentar a tus agentes.",
+      "detail": {
+        "tabDocs": "Documentos",
+        "tabSearch": "Probar búsqueda",
+        "uploadDoc": "Subir documento",
+        "titlePlaceholder": "Título del documento",
+        "sourceText": "Pegar texto",
+        "sourceUrl": "Desde URL",
+        "sourceFile": "Subir PDF / DOCX",
+        "textPlaceholder": "Pegá el texto del documento aquí…",
+        "urlPlaceholder": "https://docs.midominio.com/article",
+        "indexing": "Indexar",
+        "cancel": "Cancelar",
+        "titleRequired": "Título requerido",
+        "contentRequired": "Contenido requerido",
+        "urlRequired": "URL requerida",
+        "selectFile": "Seleccioná un archivo",
+        "indexed": "Indexado: {count} chunks",
+        "indexError": "Error al indexar",
+        "confirmDelete": "¿Eliminar este documento?",
+        "deleted": "Eliminado",
+        "emptyDocs": "Sin documentos",
+        "emptyDocsHint": "Subí el primero arriba.",
+        "searchPlaceholder": "Probá una búsqueda semántica…",
+        "search": "Buscar"
+      }
+    },
+    "employees": {
+      "title": "Empleados",
+      "subtitle": "Directorio de tu equipo",
+      "search": "Buscar por nombre o email…",
+      "area": "Área",
+      "email": "Email",
+      "phone": "Teléfono",
+      "active": "Activo",
+      "inactive": "Inactivo",
+      "empty": "Aún no hay empleados.",
+      "emptyCta": "Importar CSV",
+      "budget": {
+        "prompt": "Budget mensual en USD para {name} (vacío = sin límite)",
+        "invalid": "El budget debe ser un número ≥ 0 o vacío",
+        "updateError": "No se pudo actualizar",
+        "removed": "Budget removido",
+        "set": "Budget: ${value}/mes",
+        "perMonth": "${value}/mes",
+        "noLimit": "Sin límite",
+        "editAria": "Editar budget de {name}"
+      }
+    },
+    "conversations": {
+      "title": "Conversaciones",
+      "subtitle": "Cada interacción con un agente, en cada canal.",
+      "status": {
+        "open": "Abierta",
+        "closed": "Cerrada",
+        "escalated": "Escalada",
+        "openPl": "Abiertas",
+        "closedPl": "Cerradas",
+        "escalatedPl": "Escaladas"
+      },
+      "statusFilter": "Estado · Todos",
+      "channelFilter": "Canal · Todos",
+      "agentFilter": "Agente · Todos",
+      "tagFilter": "Tag · Todos",
+      "channel": {
+        "web": "Web",
+        "widget": "Web Widget",
+        "whatsapp": "WhatsApp",
+        "telegram": "Telegram",
+        "slack": "Slack",
+        "email": "Email",
+        "api": "API"
+      },
+      "messages": "mensajes",
+      "duration": "seg",
+      "empty": "Aún no hay conversaciones.",
+      "emptyTitle": "Sin conversaciones",
+      "emptyDescription": "Cuando un agente reciba mensajes, los verás aquí.",
+      "emptyCta": "Configurar canal",
+      "search": "Buscar conversaciones",
+      "searchPlaceholder": "Buscar nombre, email o resumen…",
+      "exportCsv": "Exportar CSV",
+      "csvDownloaded": "CSV descargado",
+      "loading": "Cargando…",
+      "loadMore": "Cargar {n} más",
+      "loadingMore": "Cargando…",
+      "showing": "Mostrando {count}",
+      "hasMore": "(hay más)",
+      "anonymous": "Anónimo",
+      "takeOverBadge": "take-over",
+      "withAgent": "con",
+      "close": "Cerrar",
+      "filterByStatus": "Filtrar por estado",
+      "filterByChannel": "Filtrar por canal",
+      "filterByAgent": "Filtrar por agente",
+      "actions": {
+        "takeOver": "Tomar",
+        "release": "Devolver al agente",
+        "send": "Enviar",
+        "taken": "Conversación tomada",
+        "returned": "Devuelta al agente",
+        "sent": "Mensaje enviado",
+        "sendError": "No se pudo enviar"
+      },
+      "drawer": {
+        "operator": "Operador",
+        "agent": "Agente",
+        "budgetExceeded": "Budget excedido",
+        "replyAsOperator": "Responder como operador…",
+        "takeoverPrompt": "Tomá la conversación para escribir como humano",
+        "employeeMonth": "Empleado: {amount} este mes (sin límite)",
+        "tokens": "tokens",
+        "conversationsCount": "{n} conversaciones este mes"
+      }
+    },
+    "channels": {
+      "title": "Canales",
+      "subtitle": "Conectá tus agentes a los canales donde están tus clientes y empleados.",
+      "empty": "No hay canales configurados.",
+      "emptyCta": "Conectar canal",
+      "nameRequired": "Nombre requerido",
+      "agentRequired": "Asigná un agente",
+      "channelCreated": "Canal creado",
+      "createError": "No se pudo crear",
+      "namePlaceholder": "Nombre del canal (e.g. 'Soporte WhatsApp')",
+      "selectAgent": "— Elegí un agente —",
+      "noAgent": "— Sin agente —",
+      "create": "Crear",
+      "cancel": "Cancelar",
+      "beta": "Beta",
+      "connect": "Conectar {label}",
+      "newChannel": "Nuevo canal · {label}",
+      "newChannelShort": "Nuevo canal",
+      "connectedHeading": "Canales conectados",
+      "pause": "Pausar",
+      "activate": "Activar",
+      "close": "Cerrar",
+      "configure": "Configurar",
+      "channelActivated": "Canal activado",
+      "channelPaused": "Canal pausado",
+      "deleteConfirm": "¿Eliminar este canal?",
+      "deleted": "Eliminado",
+      "copied": "Copiado",
+      "tokenRequired": "Pegá el bot token",
+      "credsSaved": "Credenciales guardadas",
+      "webhookSet": "Webhook configurado para @{username}",
+      "saveError": "No se pudo guardar",
+      "agentLabel": "Agente",
+      "snippetLabel": "Snippet de instalación",
+      "snippetHelp": "Pegá este script antes de <code>{tag}</code> en cualquier página HTML.",
+      "telegramTokenLabel": "Bot Token (@BotFather)",
+      "telegramPlaceholder": "123456:ABC-DEF…",
+      "telegramReplacePlaceholder": "•••••••• (ya configurado, pegá uno nuevo para reemplazar)",
+      "save": "Guardar",
+      "webhookLabel": "Webhook URL (auto-configurado)",
+      "apiEndpointLabel": "Endpoint público",
+      "apiBodyHint": "Body:",
+      "types": {
+        "widget": {
+          "label": "Web Widget",
+          "description": "Embed un chat en cualquier sitio con un script."
+        },
+        "telegram": {
+          "label": "Telegram",
+          "description": "Bot de Telegram con respuesta automática del agente."
+        },
+        "whatsapp": {
+          "label": "WhatsApp",
+          "description": "Conectá vía Twilio o Meta Cloud API. (Adapter listo, requiere cuenta)."
+        },
+        "slack": {
+          "label": "Slack",
+          "description": "Slash commands y DMs. (Requiere Slack app)."
+        },
+        "email": {
+          "label": "Email",
+          "description": "Inbox virtual con Resend / Postmark."
+        },
+        "api": {
+          "label": "API",
+          "description": "Endpoint público con secret para disparar agentes desde código."
+        },
+        "web": {
+          "label": "Web Widget",
+          "description": "Alias de Widget."
+        }
+      }
+    },
+    "integrations": {
+      "title": "Integraciones",
+      "subtitle": "Conectá Orchester con las herramientas que ya usás. Las credenciales se guardan encriptadas y cada integración expone acciones que tus agentes pueden ejecutar.",
+      "empty": "Aún no hay integraciones.",
+      "emptyCta": "Explorar integraciones",
+      "connectedHeading": "Conectadas",
+      "availableHeading": "Disponibles",
+      "testing": "Probando conexión…",
+      "connectionOk": "Conexión OK",
+      "connectionFailed": "Falló la conexión",
+      "deleteConfirm": "¿Eliminar la integración \"{name}\"?",
+      "deleted": "Integración eliminada",
+      "test": "Probar",
+      "edit": "Editar",
+      "removeAria": "Eliminar {name}",
+      "untested": "sin probar",
+      "actionsCount": "{count} acciones para agentes",
+      "actionsCountOne": "{count} acción para agentes",
+      "addAnother": "Agregar otra",
+      "connect": "Conectar",
+      "footer": "💡 Las integraciones conectadas exponen sus acciones como <b>tools</b> que los agentes pueden usar. Las credenciales se guardan encriptadas (AES-256-GCM).",
+      "connectTitle": "Conectar {name}",
+      "oauthNote": "Requiere registrar una app OAuth. Pegá tus client ID/secret; el flujo de autorización se completa después.",
+      "fieldRequired": "{label} es requerido",
+      "saveError": "Error al guardar",
+      "connectedOk": "Conectado correctamente",
+      "savedButFailed": "Guardado, pero la conexión falló: {error}",
+      "nameLabel": "Nombre",
+      "saveAndTest": "Guardar y probar",
+      "close": "Cerrar"
+    },
+    "usage": {
+      "title": "Uso",
+      "subtitle": "Consumo de tokens y desglose de costos por agente",
+      "empty": "Sin datos de uso todavía.",
+      "noData": "Sin datos para este período.",
+      "totalTokens": "Tokens Totales",
+      "estimatedCost": "Costo Est.",
+      "conversations": "Conversaciones",
+      "avgTokens": "Tokens Prom/Conv",
+      "chartTitle": "Uso de Tokens",
+      "agentTableTitle": "Desglose por Agente",
+      "col": {
+        "agent": "Agente",
+        "model": "Modelo",
+        "conversations": "Conversaciones",
+        "tokens": "Tokens",
+        "cost": "Costo (USD)"
+      }
+    },
+    "settings": {
+      "title": "Ajustes",
+      "subtitle": "Configuración del workspace",
+      "empty": "Ajustes próximamente.",
+      "loadError": "No se pudo cargar el workspace.",
+      "sidebarAria": "Secciones de configuración",
+      "tabs": {
+        "general": "General",
+        "account": "Mi cuenta",
+        "notifications": "Notificaciones",
+        "providers": "Proveedores IA",
+        "billing": "Plan y uso",
+        "members": "Equipo",
+        "sessions": "Sesiones",
+        "audit": "Audit log",
+        "flags": "Feature flags",
+        "developers": "Desarrolladores",
+        "danger": "Zona de peligro",
+        "memory": "Mantenimiento de memoria"
+      },
+      "general": {
+        "title": "General",
+        "description": "Datos básicos del workspace que ven todos los miembros.",
+        "save": "Guardar",
+        "saved": "Workspace actualizado",
+        "saveError": "No se pudo guardar",
+        "nameLabel": "Nombre del workspace",
+        "namePlaceholder": "Acme Inc.",
+        "slugLabel": "Slug",
+        "slugHint": "No editable. Aparece en la URL del workspace.",
+        "timezoneLabel": "Timezone",
+        "timezoneHint": "Usado para fechas del dashboard y reportes.",
+        "roleLabel": "Tu rol",
+        "roleHint": "Solo owners y admins editan."
+      },
+      "account": {
+        "title": "Mi cuenta",
+        "description": "Datos personales y preferencias de la interfaz.",
+        "save": "Guardar",
+        "saved": "Cuenta actualizada",
+        "saveError": "No se pudo guardar",
+        "nameLabel": "Nombre",
+        "namePlaceholder": "Tu nombre",
+        "emailLabel": "Email",
+        "emailHint": "Para cambiar tu email, contactá soporte.",
+        "localeLabel": "Idioma de la interfaz",
+        "twoFactorTitle": "Autenticación de dos factores (2FA)",
+        "twoFactorActive": "activo",
+        "deleteAccountTitle": "Eliminar cuenta (GDPR)",
+        "deleteAccountDescription": "Borra tu cuenta y todos tus datos. Si sos owner único de algún workspace, el workspace y todo su contenido también se eliminan.",
+        "deleteAccountButton": "Eliminar mi cuenta",
+        "deleteModalTitle": "Eliminar cuenta",
+        "deleteModalDescription": "Esto borra tu user de la DB. No se puede deshacer. Para confirmar, escribí tu email:",
+        "deleteEmailPlaceholder": "Tipeá tu email",
+        "cancel": "Cancelar",
+        "deleteConfirm": "Eliminar definitivamente",
+        "deleted": "Cuenta eliminada",
+        "deleteError": "No se pudo eliminar"
+      },
+      "notifications": {
+        "title": "Notificaciones",
+        "description": "Elegí qué eventos del workspace generan emails. La configuración aplica solo a tu cuenta.",
+        "loading": "Cargando preferencias…",
+        "saveError": "No se pudo guardar la preferencia",
+        "defaultFrom": "Por defecto de {kind}",
+        "defaultWorkspace": "workspace",
+        "defaultSystem": "sistema"
+      },
+      "members": {
+        "activeHeading": "Miembros activos",
+        "loading": "Cargando…",
+        "noneYet": "Sin miembros aún.",
+        "invitesHeading": "Invitaciones",
+        "inviteSent": "Invitación enviada",
+        "inviteError": "Error",
+        "inviteLinkLabel": "Link de invitación (también enviado por email):",
+        "copyAria": "Copiar link",
+        "removeConfirm": "¿Sacar a {name} del workspace?",
+        "memberRemoved": "Miembro removido",
+        "removeError": "No se pudo remover",
+        "roleUpdated": "Rol actualizado",
+        "roleError": "No se pudo cambiar el rol",
+        "inviteRevoked": "Invitación revocada",
+        "revokeError": "No se pudo revocar",
+        "emailPlaceholder": "email@empresa.com",
+        "emailAria": "Email del invitado",
+        "roleAria": "Rol",
+        "changeRoleAria": "Cambiar rol",
+        "removeAria": "Remover a {name}",
+        "revokeAria": "Revocar invitación a {email}",
+        "invite": "Invitar",
+        "expires": "expira"
+      },
+      "sessions": {
+        "loading": "Cargando…",
+        "noSessions": "Sin sesiones activas.",
+        "current": "Actual",
+        "lastSeen": "Visto último",
+        "createdAt": "Creada",
+        "expires": "Expira",
+        "revoke": "Revocar",
+        "revokeAll": "Revocar todas las demás",
+        "confirmRevokeAll": "¿Revocar todas las otras sesiones?",
+        "revoked": "Sesión revocada",
+        "revokeError": "No se pudo revocar",
+        "allRevoked": "Todas las otras sesiones revocadas",
+        "unknown": "Dispositivo desconocido"
+      },
+      "developers": {
+        "apiKeysHeading": "API Keys",
+        "webhooksHeading": "Webhooks (eventos salientes)",
+        "noApiKeys": "Aún no creaste ninguna API key.",
+        "createKey": "Crear key",
+        "keyNamePlaceholder": "Nombre — ej. 'Production server'",
+        "keyNameAria": "Nombre de la nueva API key",
+        "keyCreated": "API key creada — copiala ahora, no la vas a ver de nuevo",
+        "copyOnceWarning": "⚠️ Copiala ahora — solo se muestra una vez:",
+        "saved": "Ya la guardé →",
+        "revoked": "revocada",
+        "lastUsed": "usada {date}",
+        "neverUsed": "sin usar",
+        "revokeKeyConfirm": "¿Revocar esta API key?",
+        "keyRevoked": "Revocada",
+        "createError": "Error",
+        "copied": "Copiado",
+        "noWebhooks": "Sin webhooks configurados.",
+        "urlAria": "URL del webhook saliente",
+        "urlPlaceholder": "https://tu-servidor.com/orchester-events",
+        "test": "Probar",
+        "active": "Activo",
+        "paused": "Pausado",
+        "deleteWebhookConfirm": "¿Eliminar webhook?",
+        "webhookCreated": "Webhook creado",
+        "testingWebhook": "Enviando evento de prueba…",
+        "testWebhookOk": "Evento de prueba entregado",
+        "testWebhookFailed": "Falló la entrega de prueba",
+        "addWebhook": "Agregar webhook",
+        "apiHint": "Usá tu API key con"
+      },
+      "providers": {
+        "loading": "Cargando proveedores…",
+        "connectedHeading": "Conectados",
+        "noProvidersEmpty": "Todavía no conectaste ningún proveedor. Buscá uno abajo y conectalo con tu API key.",
+        "addProviderHeading": "Agregar un proveedor",
+        "searchPlaceholder": "Buscar proveedor (OpenAI, Replicate, ElevenLabs…)",
+        "filterAll": "Todas",
+        "noMatches": "No hay proveedores que coincidan con la búsqueda.",
+        "connected": "Conectado",
+        "notConnected": "No conectado",
+        "aggregator": "agregador",
+        "local": "local",
+        "edit": "Editar",
+        "connect": "Conectar",
+        "viewModels": "Ver modelos",
+        "aggregatorHint": "+ acepta cualquier otro modelo por su id.",
+        "remove": "Quitar",
+        "replacePlaceholder": "Reemplazar key…",
+        "apiKey": "API key",
+        "apiKeyWith": "API key · {hint}",
+        "showHideAria": "Mostrar/ocultar",
+        "endpointPlaceholder": "https://… (endpoint)",
+        "saving": "Guardando…",
+        "save": "Guardar",
+        "test": "Probar",
+        "saveError": "Error al guardar",
+        "connectedFeedback": "Conectado",
+        "testOkFeedback": "OK · {count} modelos",
+        "testErrorFeedback": "Error: {error}",
+        "whereDoIGetKey": "¿Dónde consigo la key? →"
+      },
+      "billing": {
+        "loading": "Cargando…",
+        "currentPlan": "Plan actual",
+        "noLimits": "· sin límites",
+        "perMonth": "$",
+        "upgrade": "Upgrade a Pro",
+        "managePlan": "Gestionar suscripción",
+        "conversationsMonth": "Conversaciones (mes)",
+        "tokensMonth": "Tokens (mes)",
+        "flowRuns": "Flow runs:",
+        "kbQueries": "KB queries:",
+        "stripeNotConfigured": "Stripe no configurado — definí STRIPE_SECRET_KEY + STRIPE_PRICE_*",
+        "noStripeCustomer": "No hay cliente Stripe asociado"
+      },
+      "audit": {
+        "filterAria": "Filtrar audit log",
+        "filterPlaceholder": "Filtrar por action, resource, id…",
+        "reloadAria": "Recargar audit log",
+        "loading": "Cargando…",
+        "loadError": "No se pudo cargar el audit log.",
+        "retry": "Reintentar",
+        "noActivity": "Sin actividad registrada todavía.",
+        "noMatches": "Sin matches.",
+        "viewDiff": "ver diff"
+      },
+      "twoFactor": {
+        "enabledBanner": "2FA activado. Tu cuenta está protegida con autenticación de dos factores.",
+        "disableLabel": "Para desactivar, ingresá tu password:",
+        "disableButton": "Desactivar 2FA",
+        "backupCodesWarning": "Guardá estos códigos en un lugar seguro. Sirven para loguearte si perdés acceso a tu app de autenticador. Cada código se puede usar UNA SOLA VEZ.",
+        "copyAll": "Copiar todos",
+        "copied": "Copiado",
+        "doneSaved": "Listo, los guardé",
+        "setupDescription": "Escaneá el QR con tu app de autenticador (Google Authenticator, Authy, 1Password, etc.) y luego ingresá el código de 6 dígitos.",
+        "qrAlt": "QR del TOTP secret",
+        "cantScan": "¿No podés escanear?",
+        "pasteUrl": "Pegá esta URL en tu app:",
+        "codeLabel": "Código de 6 dígitos",
+        "cancel": "Cancelar",
+        "verifyAndActivate": "Verificar y activar",
+        "disabledHint": "2FA no está activado. Recomendado para cuentas owner/admin.",
+        "confirmWithPassword": "Confirmá con tu password:",
+        "enableButton": "Activar 2FA",
+        "passwordRequired": "Ingresá tu password para confirmar",
+        "passwordDisableRequired": "Ingresá tu password para desactivar",
+        "setupFailed": "No se pudo iniciar setup",
+        "code6": "Código de 6 dígitos",
+        "codeInvalid": "Código inválido",
+        "enabled": "2FA activado",
+        "disableFailed": "No se pudo desactivar",
+        "disabled": "2FA desactivado"
+      },
+      "danger": {
+        "title": "Zona de Peligro",
+        "description": "Acciones irreversibles. Transferí la propiedad o archivá el workspace. Solo los owners pueden usar estos controles.",
+        "deleteButton": "Archivar workspace",
+        "onlyOwner": "Solo el owner del workspace puede realizar esta acción",
+        "yourRoleIs": "Tu rol actual es <b>{role}</b>."
+      },
+      "sections": {
+        "providersTitle": "Proveedores de IA",
+        "providersDescription": "Conectá proveedores de IA (chat, imagen, embeddings, video, audio y más) con tu propia API key. Los modelos disponibles aparecen en el editor de agentes y los flujos.",
+        "billingTitle": "Plan y uso",
+        "billingDescription": "Tu plan, uso del mes y límites.",
+        "membersTitle": "Equipo",
+        "membersDescription": "Miembros del workspace e invitaciones pendientes.",
+        "sessionsTitle": "Sesiones activas",
+        "sessionsDescription": "Devices conectados a tu cuenta. Cerralos remotamente si sospechás compromise.",
+        "auditTitle": "Audit log",
+        "auditDescription": "Cada mutación crítica del workspace queda registrada aquí. Read-only.",
+        "developersTitle": "Desarrolladores",
+        "developersDescription": "API keys, webhooks salientes, y referencia de la API pública.",
+        "memoryTitle": "Mantenimiento de memoria",
+        "memoryDescription": "Tareas programadas + calidad de recall. Backstage admin."
+      },
+      "workspace": "Workspace",
+      "workspaceName": "Nombre del Workspace",
+      "workspaceSlug": "Slug del Workspace",
+      "workspaceNamePlaceholder": "Acme Inc.",
+      "save": "Guardar Cambios",
+      "saved": "¡Guardado!",
+      "deleteWorkspace": "Eliminar Workspace",
+      "deleteWarning": "Esta acción es irreversible. Todos los datos serán eliminados permanentemente.",
+      "apiKeys": "Claves API",
+      "apiKeysDescription": "Gestiona claves para integraciones externas.",
+      "noApiKeys": "Sin claves API aún.",
+      "addApiKey": "Agregar Clave",
+      "notificationsDescription": "Configura tus preferencias de alertas.",
+      "locale": "Idioma",
+      "localeDescription": "Idioma de la interfaz para tu cuenta.",
+      "team": "Miembros del Equipo",
+      "teamDescription": "Gestiona quién tiene acceso a este workspace."
+    }
+  },
+  "onboarding": {
+    "step1": {
+      "title": "Bienvenido a Orchester",
+      "description": "Configuremos tu workspace en menos de 2 minutos.",
+      "workspaceName": "Nombre del workspace",
+      "workspaceNamePlaceholder": "Acme Inc.",
+      "workspaceSlug": "URL del workspace",
+      "slugHint": "orchester.io/w/tu-slug",
+      "continue": "Continuar"
+    },
+    "step2": {
+      "title": "Conecta tu proveedor de IA",
+      "description": "Agrega una clave API para potenciar tus agentes. Puedes cambiarla después.",
+      "provider": "Proveedor",
+      "apiKey": "Clave API",
+      "apiKeyPlaceholder": "sk-ant-...",
+      "skip": "Omitir por ahora",
+      "continue": "Continuar",
+      "recommended": "Recomendado"
+    },
+    "step3": {
+      "title": "Elige un punto de partida",
+      "description": "Elige un equipo listo o empieza desde cero.",
+      "useTemplate": "Usar template",
+      "startBlank": "Empezar en blanco",
+      "skip": "Omitir"
+    },
+    "step4": {
+      "title": "Carga tus empleados",
+      "description": "Importa tu equipo para que los agentes los saluden por nombre.",
+      "importCsv": "Importar CSV",
+      "skipForNow": "Omitir por ahora — lo haré después",
+      "finishing": "Configurando tu workspace…",
+      "allDone": "¡Todo listo!"
+    },
+    "progressStep": "Paso {current} de {total}",
+    "checklist": {
+      "title": "Primeros pasos",
+      "subtitle": "5 cosas para hacer primero en tu workspace",
+      "tasks": {
+        "createAgent": {
+          "title": "Creá tu primer agente",
+          "description": "Definí un prompt, modelo y herramientas para darle a tu equipo un colega de IA."
+        },
+        "connectProvider": {
+          "title": "Conectá un proveedor de modelos",
+          "description": "Agregá una clave API para que tus agentes puedan llamar a un modelo."
+        },
+        "setupChannel": {
+          "title": "Configurá un canal",
+          "description": "Conectá tus agentes a un widget web, WhatsApp, Slack o email."
+        },
+        "inviteTeammate": {
+          "title": "Invitá a un compañero",
+          "description": "Sumá a alguien para que el workspace no sea de una sola persona."
+        },
+        "firstRun": {
+          "title": "Corré un flujo o enviá un mensaje",
+          "description": "Dispará tu primera conversación o run de flujo — prueba de que todo funciona."
+        }
+      },
+      "cta": {
+        "getStarted": "Empezar",
+        "done": "Listo"
+      },
+      "completed": {
+        "banner": "Workspace listo — ya está todo configurado.",
+        "dismiss": "Cerrar"
+      }
+    }
+  },
+  "workspace": {
+    "switcher": {
+      "label": "Cambiar workspace",
+      "search": "Buscar workspaces…",
+      "current": "Actual",
+      "other": "Otros workspaces",
+      "create": "Crear workspace",
+      "invite": "Invitar a compañero a {name}",
+      "openShortcut": "⌘⇧K"
+    },
+    "create": {
+      "title": "Crear workspace",
+      "nameLabel": "Nombre del workspace",
+      "slugLabel": "Slug de URL",
+      "slugHint": "Minúsculas, números y guiones",
+      "slugAvailable": "disponible",
+      "slugTaken": "ya está en uso",
+      "slugChecking": "verificando…",
+      "timezoneLabel": "Zona horaria",
+      "colorLabel": "Color de acento",
+      "cancel": "Cancelar",
+      "submit": "Crear workspace",
+      "created": "Workspace creado"
+    },
+    "delete": {
+      "title": "Eliminar {name}",
+      "intro": "Esto va a:",
+      "willHide": "Ocultar el workspace a todos los miembros",
+      "willPause": "Pausar todas las integraciones y canales",
+      "willStop": "Detener todos los agentes y flujos",
+      "willEmail": "Enviarte un email con un link de restauración",
+      "windowExplainer": "Tenés {days} días para restaurar. Después, todos los datos se eliminan de forma permanente.",
+      "reasonLabel": "Motivo (opcional)",
+      "confirmLabel": "Escribí el slug del workspace para confirmar:",
+      "expected": "Esperado: {slug}",
+      "submit": "Eliminar workspace",
+      "deleted": "Workspace eliminado. Restaurá dentro de {days} días."
+    },
+    "restore": {
+      "title": "Restaurar {name}",
+      "deletedOn": "Eliminado el {date}",
+      "restoreUntil": "Podés restaurar hasta el {date}",
+      "daysRemaining": "{n} días restantes",
+      "tokenLabel": "Token de restauración (del email)",
+      "tokenPlaceholder": "rst_…",
+      "tokenHint": "Pegá el token del email de eliminación. Opcional si sos el owner original.",
+      "submit": "Restaurar workspace",
+      "submitting": "Restaurando…",
+      "continueDeletion": "Continuar con la eliminación",
+      "restored": "Workspace restaurado",
+      "pageHeading": "Restaurar workspace",
+      "expiredOrInvalid": "Este link de recuperación está expirado o es inválido.",
+      "expiredOrInvalidBody": "Si pensás que es un error, contactá a soporte — el workspace puede haber sido restaurado, la ventana de 30 días puede haber pasado, o quizá necesitás iniciar sesión como owner.",
+      "restoreFailed": "Falló la restauración"
+    },
+    "suspended": {
+      "title": "Este workspace está en pausa (solo lectura)",
+      "body": "Podés ver datos y exportar, pero no editar ni enviar mensajes.",
+      "reason": "Motivo: {reason}",
+      "contactSupport": "Contactar soporte"
+    },
+    "export": {
+      "preparing": "Preparando tu exportación",
+      "exporting": "Exportando datos…",
+      "ready": "Exportación lista",
+      "failed": "Falló la exportación",
+      "availableUntil": "Disponible hasta {date}",
+      "download": "Descargar",
+      "retry": "Reintentar",
+      "dismiss": "Descartar",
+      "progressLabel": "Progreso de la exportación",
+      "title": "Exportación del workspace"
+    },
+    "transfer": {
+      "title": "Transferir propiedad",
+      "intro": "Transferir la propiedad de {name} a otro admin. Esto es irreversible — vas a pasar a ser admin.",
+      "selectMember": "Elegí el nuevo owner",
+      "selectPlaceholder": "Elegí un miembro…",
+      "noEligible": "No hay otros admins disponibles. Promové primero a un miembro a admin.",
+      "passwordLabel": "Confirmá tu contraseña",
+      "passwordHint": "Reverificamos tu contraseña para defendernos de un session hijack.",
+      "ackLabel": "Entiendo que voy a pasar a ser admin y voy a tener que volver a iniciar sesión",
+      "submit": "Transferir propiedad",
+      "submitting": "Transfiriendo…",
+      "cancel": "Cancelar",
+      "transferred": "Propiedad transferida",
+      "passwordInvalid": "La contraseña es incorrecta",
+      "rateLimited": "Demasiados intentos. Probá de nuevo en {minutes} min.",
+      "sameOwner": "No te podés transferir la propiedad a vos mismo.",
+      "notAMember": "El usuario seleccionado ya no es miembro.",
+      "openButton": "Transferir propiedad",
+      "loadingMembers": "Cargando miembros…",
+      "genericError": "No se pudo transferir la propiedad"
+    },
+    "audit": {
+      "title": "Registro de auditoría",
+      "subtitle": "Cada cambio crítico queda registrado.",
+      "chainStatus": "Estado de la cadena",
+      "chainIntact": "Intacta",
+      "chainBroken": "Comprometida",
+      "lastVerified": "Última verificación {date}",
+      "loadMore": "Cargar más",
+      "noEvents": "Todavía no hay eventos registrados",
+      "reverify": "Re-verificar",
+      "verifyAria": "Re-verificar la cadena de auditoría",
+      "entries": "entradas",
+      "action": "Acción",
+      "actor": "Actor",
+      "target": "Objetivo",
+      "when": "Cuándo"
+    },
+    "featureFlags": {
+      "title": "Feature flags",
+      "subtitle": "Habilitá funcionalidades experimentales para este workspace.",
+      "search": "Buscar flags…",
+      "setBy": "Configurado por {actor} · {time}",
+      "system": "sistema"
+    },
+    "listPage": {
+      "title": "Tus workspaces",
+      "memberCount": "{n} miembros",
+      "lastVisited": "última visita {time}",
+      "createNew": "Crear nuevo workspace",
+      "recentlyDeleted": "Los workspaces eliminados recientemente todavía pueden restaurarse:",
+      "restoreCta": "Restaurar"
+    },
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "editor": "Editor",
+      "viewer": "Visualizador"
+    },
+    "errors": {
+      "workspaceNotFound": "Workspace no encontrado",
+      "notAMember": "No sos miembro de este workspace",
+      "suspended": "Este workspace está en pausa",
+      "deleted": "Este workspace fue eliminado",
+      "rateLimited": "Estás haciendo eso muy seguido. Probá de nuevo en {minutes} min.",
+      "slugInvalid": "Usá minúsculas, números y guiones (3-40 caracteres).",
+      "slugTaken": "Ese slug ya está en uso. Probá {suggestion}."
+    }
+  },
+  "settings": {
+    "memory": {
+      "title": "Operaciones de memoria",
+      "subtitle": "Disparadores manuales para los cron de mantenimiento de Mnemosyne. Cada acción encola un job que corre en el próximo tick del worker.",
+      "adminOnly": "Solo los administradores del workspace pueden ejecutar operaciones de memoria.",
+      "lastRun": "Última ejecución",
+      "ops": {
+        "health": {
+          "name": "Snapshot de salud",
+          "description": "Recalcula el snapshot de salud del workspace (cantidad de hechos, cobertura de embeddings, hit-rate, contradicciones)."
+        },
+        "dedup": {
+          "name": "Deduplicación",
+          "description": "Fusiona hechos casi duplicados (coseno ≥ 0.92) en un único registro primario. Idempotente."
+        },
+        "prune": {
+          "name": "Limpiar hechos inactivos",
+          "description": "Archiva hechos sin pin, sin hits de recall, con antigüedad > 90 días y relevancia < 0.1. Reversible desde el archivo."
+        },
+        "consolidation": {
+          "name": "Consolidación estilo REM",
+          "description": "Agrupa hechos relacionados y escribe un resumen de una oración que los supersede. Los originales siguen disponibles."
+        },
+        "review-sweep": {
+          "name": "Barrido de cola de revisión",
+          "description": "Inserta hechos de baja confianza en la cola de revisión para triage humano (tope 50 por corrida)."
+        },
+        "auto-pin": {
+          "name": "Auto-pin",
+          "description": "Evalúa las reglas de auto-pin contra los hechos activos y fija las coincidencias. Respeta los overrides del usuario."
+        },
+        "summary": {
+          "name": "Refresh de resumen",
+          "description": "Pre-destila un resumen por (agente, usuario) para que el próximo turno no pague el round-trip al LLM.",
+          "requiresAgent": "Dispará desde la config del agente — requiere un agente específico."
+        }
+      },
+      "actions": {
+        "runNow": "Ejecutar ahora",
+        "cancel": "Cancelar"
+      },
+      "confirm": {
+        "title": "¿Ejecutar {op}?",
+        "body": "Esto encola el job para este workspace. Corre en el próximo tick del worker — usualmente en menos de un minuto."
+      },
+      "toast": {
+        "enqueued": "Job encolado — corre en el próximo tick del worker.",
+        "enqueueError": "No se pudo encolar: {message}"
+      }
+    }
+  },
+  "marketing": {
+    "nav": {
+      "docs": "Docs",
+      "getStarted": "Empezar",
+      "signIn": "Iniciar sesión"
+    },
+    "hero": {
+      "badge": "Open-source · Auto-hospedable · Multi-tenant",
+      "headline1": "Dejá de construir agentes.",
+      "headline2": "Construí equipos.",
+      "subheadline": "Orchester organiza tus agentes IA en equipos — un orquestador que delega, especialistas enfocados, memoria compartida que aprende. Open-source, auto-hospedable, multi-tenant.",
+      "ctaPrimary": "Auto-hospedar en 30s",
+      "ctaGithub": "Star en GitHub",
+      "liveNetwork": "Red de Agentes en Vivo"
+    },
+    "stats": {
+      "providers": "proveedores de IA",
+      "locales": "idiomas",
+      "openSource": "open source",
+      "selfHostable": "auto-hospedable"
+    },
+    "features": {
+      "title": "Todo lo que necesitás.",
+      "subtitle": "Nada que no.",
+      "multiChannel": {
+        "title": "Multi-canal real",
+        "desc": "Web widget, WhatsApp, Telegram, Slack, email y API. Una conversación, todos los canales — con el estado compartido automáticamente."
+      },
+      "streaming": {
+        "title": "Streaming token por token",
+        "desc": "Las respuestas aparecen mientras el modelo piensa. UX de primera con SSE nativo en cada canal."
+      },
+      "flows": {
+        "title": "Flujos visuales, sin código",
+        "desc": "Conectás triggers, condiciones y acciones en un canvas. Bifurcaciones, reintentos y estado tipado de fábrica."
+      },
+      "costControl": {
+        "title": "Costos bajo control",
+        "desc": "Presupuesto mensual por empleado con alertas al 70/90/100%. Desglose por conversación y por mensaje — sin sorpresas."
+      },
+      "byok": {
+        "title": "Tu modelo, tus claves",
+        "desc": "Bring-your-own-key para Anthropic, OpenAI, Google, Azure, Mistral y 80+ proveedores. Cambiá sin reescribir código."
+      },
+      "enterprise": {
+        "title": "Seguridad enterprise",
+        "desc": "SSO/SAML, 2FA, RBAC, audit log completo, export GDPR, CSP nonces, encriptación at-rest, webhooks firmados (HMAC)."
+      }
+    },
+    "channels": {
+      "title": "Una conversación.",
+      "titleAccent": "Todos los canales.",
+      "subtitle": "Conectás tu agente una vez. Web, mobile, mensajería, email, código — Orchester maneja el estado.",
+      "labels": {
+        "whatsapp": "WhatsApp",
+        "telegram": "Telegram",
+        "slack": "Slack",
+        "email": "Email",
+        "web": "Widget",
+        "webhook": "Webhook",
+        "api": "API"
+      },
+      "statChannels": "canales",
+      "statContext": "contexto unificado",
+      "statSync": "líneas de sync"
+    },
+    "techStack": {
+      "title1": "Tu modelo.",
+      "title2": "Tu cloud.",
+      "title3": "Tus datos.",
+      "subtitle": "Bring-your-own-key. Auto-hospedá con un comando. O usás nuestra cloud — vos elegís.",
+      "proofs": {
+        "pgvector": {
+          "title": "pgvector para RAG",
+          "desc": "Postgres con búsqueda vectorial nativa. Sin DB de vectores separada."
+        },
+        "workers": {
+          "title": "Workers durables",
+          "desc": "Cola pg-boss con retry exponencial e idempotency keys de fábrica."
+        },
+        "webhooks": {
+          "title": "Webhooks firmados",
+          "desc": "Firmas HMAC-SHA256, retries automáticos, protección contra replay."
+        },
+        "otel": {
+          "title": "OpenTelemetry",
+          "desc": "Tracing distribuido, logs estructurados, métricas Prometheus."
+        },
+        "rls": {
+          "title": "Aislamiento row-level",
+          "desc": "Postgres RLS garantiza que los datos de un tenant nunca cruzan workspaces."
+        }
+      }
+    },
+    "howItWorks": {
+      "title": "Arrancá en 3 pasos.",
+      "step1": {
+        "label": "Desplegá",
+        "title": "Setup en un comando",
+        "desc": "Clonás el repo, configurás el .env y corrés docker compose up. Postgres + Redis son las únicas dependencias de infraestructura."
+      },
+      "step2": {
+        "label": "Construí",
+        "title": "Creá tu primer agente",
+        "desc": "Definís persona, modelo, estrategia de memoria y herramientas desde la UI o la API. Conectalo a un canal o flujo en minutos."
+      },
+      "step3": {
+        "label": "Escalá",
+        "title": "Orquestá a escala",
+        "desc": "Encadenás agentes en flujos visuales, agregás compañeros de equipo con RBAC y monitoreás cada decisión de LLM en tiempo real."
+      }
+    },
+    "integrations": {
+      "title": "Funciona con cualquier proveedor de IA.",
+      "subtitle": "No te encerrés. Cambiá o mezclá modelos sin tocar el código de tus agentes."
+    },
+    "cta": {
+      "title": "Construido en público.",
+      "subtitle": "Danos una star, forkealo, rompelo. Orchester es open-source y así se va a quedar.",
+      "primaryButton": "Star en GitHub",
+      "secondaryButton": "Auto-hospedá en 5 minutos",
+      "selfHostCommand": "docker compose up -d"
+    },
+    "footer": {
+      "tagline": "Plataforma open-source de agentes IA.",
+      "ariaLabel": "Enlaces del pie de página",
+      "madeIn": "Hecho con ♥ en Buenos Aires",
+      "links": {
+        "docs": "Docs",
+        "github": "GitHub",
+        "privacy": "Privacidad",
+        "terms": "Términos"
+      }
+    },
+    "modelMarquee": {
+      "title": "Compatible con 80+ proveedores de IA"
+    },
+    "productShowcase": {
+      "title1": "Orchester",
+      "title2": "en acción.",
+      "subtitle": "Seis superficies, una plataforma. Todo lo que tu equipo necesita para construir, lanzar y operar agentes IA a escala.",
+      "brain": {
+        "label": "Memoria",
+        "title": "Brain Inspector",
+        "subtitle": "Hechos con decay scoring y telemetría de recall"
+      },
+      "flow": {
+        "label": "Flujos",
+        "title": "Flow Builder",
+        "subtitle": "Canvas visual con bifurcaciones, loops y estado tipado"
+      },
+      "org": {
+        "label": "Jerarquía",
+        "title": "Organigrama del equipo",
+        "subtitle": "El orchestrator delega en agentes especialistas"
+      },
+      "convs": {
+        "label": "Canales",
+        "title": "Inbox unificado",
+        "subtitle": "WhatsApp, Telegram, Slack — un solo contexto"
+      },
+      "cost": {
+        "label": "Gasto",
+        "title": "Dashboard de costos",
+        "subtitle": "Presupuestos, alertas, desglose por proveedor"
+      },
+      "knowledge": {
+        "label": "RAG",
+        "title": "Base de conocimiento",
+        "subtitle": "Postgres + pgvector — PDFs, URLs, CSV, markdown"
+      }
+    },
+    "testimonials": {
+      "eyebrow": "Construido en público · amado por makers",
+      "title": "De la gente que está construyendo agentes hoy",
+      "quotes": {
+        "ana": {
+          "name": "Ana García",
+          "role": "AI Product Lead · Startup",
+          "body": "Orchester nos permitió orquestar cinco agentes distintos sin escribir infraestructura. En una tarde teníamos el primer flujo en producción."
+        },
+        "marcus": {
+          "name": "Marcus Chen",
+          "role": "Staff Engineer · Scale-up",
+          "body": "Solo la capa de model-routing nos ahorró semanas de plumbing. Describimos intención y Orchester elige el proveedor correcto al costo justo."
+        },
+        "rafael": {
+          "name": "Rafael Souza",
+          "role": "Fundador · Indie hacker",
+          "body": "Lancé mi primer agente autónomo en menos de un día. La DX es absurdamente buena cuando trabajás solo."
+        }
+      }
+    },
+    "faq": {
+      "eyebrow": "Preguntas que hacen los developers",
+      "title": "Preguntas frecuentes",
+      "q": {
+        "free": {
+          "question": "¿Orchester es realmente gratis?",
+          "answer": "Sí — licencia Apache-2.0. Auto-hospedá lo que quieras, sin tarifa por seat, sin tope de uso. Plan cloud opcional si no querés operarlo."
+        },
+        "selfhost": {
+          "question": "¿Cómo lo auto-hospedo?",
+          "answer": "Un `docker compose up`. Postgres (con pgvector) y Redis son las únicas deps. El setup completo en los docs lleva menos de 10 minutos."
+        },
+        "models": {
+          "question": "¿Qué modelos IA soporta?",
+          "answer": "80+ proveedores vía BYOK: Anthropic, OpenAI, Google, Mistral, Llama, Cohere, Azure, Bedrock, vLLM, Ollama (local) y más. Cambiá sin tocar el código del agente."
+        },
+        "multitenant": {
+          "question": "¿Puedo correr múltiples workspaces?",
+          "answer": "Sí — multi-tenant desde el día uno. Aislamiento de workspace por Postgres RLS, claves separadas, presupuestos separados, audit logs separados."
+        },
+        "production": {
+          "question": "¿Está listo para producción?",
+          "answer": "Sí. RBAC, audit log, export GDPR, webhooks firmados (HMAC), rate limiting por workspace, OpenTelemetry, workers durables con retry. Usado por equipos que ya están en prod."
+        },
+        "cloud": {
+          "question": "¿Y la versión cloud?",
+          "answer": "Mismo código, hosteado por nosotros. Útil si no querés operar Postgres/Redis. El pricing está en /pricing — totalmente opcional, el self-host se queda gratis para siempre."
+        }
+      }
+    },
+    "problem": {
+      "eyebrow": "POR QUÉ EQUIPOS",
+      "title1": "Un solo agente no es un sistema IA.",
+      "title2": "Es un chatbot.",
+      "subtitle": "Los workflows reales tienen especialistas. Los sistemas reales tienen límites. Los equipos reales acumulan contexto.",
+      "points": {
+        "confused": {
+          "title": "Confundido",
+          "desc": "Un agente que hace 12 cosas pierde contexto. Las alucinaciones y el drift se acumulan."
+        },
+        "slow": {
+          "title": "Lento",
+          "desc": "Sin paralelismo. Un loop de LLM bloquea todo lo que viene después."
+        },
+        "blind": {
+          "title": "Sin rastro",
+          "desc": "Sin audit trail. Cuando algo sale mal, no sabés qué paso ni por qué."
+        }
+      },
+      "compare": {
+        "before": "Antes",
+        "after": "Después",
+        "singleTitle": "Un agente. Doce trabajos.",
+        "singleSub": "Context overflow. Drift. Alucinaciones.",
+        "teamTitle": "Un equipo. Un trabajo cada uno.",
+        "teamSub": "Enrutado. Paralelo. Trazable."
+      }
+    },
+    "patterns": {
+      "eyebrow": "DOS PATRONES, UNA PLATAFORMA",
+      "title1": "Elegí la herramienta correcta para cada tarea.",
+      "title2": "Usá las dos.",
+      "subtitle": "La mayoría de las plataformas te obligan a elegir. Orchester corre agentes basados en prompts y flujos visuales lado a lado, en el mismo equipo.",
+      "prompt": {
+        "eyebrow": "PARA DIÁLOGO",
+        "title": "Prompt + Tools",
+        "subtitle": "Conversacional, ad-hoc, decidido por el LLM.",
+        "desc": "Definí una persona, dale herramientas al LLM, dejá que decida cuál usar. Ideal para conversaciones abiertas y tareas de razonamiento."
+      },
+      "flow": {
+        "eyebrow": "PARA PROCESO",
+        "title": "Flujo Visual",
+        "subtitle": "Determinístico, drag-and-drop, estado tipado.",
+        "desc": "Conectá triggers, branches, loops y retries en un canvas. Ideal para procesos estructurados — los que QA puede firmar."
+      },
+      "mixBoth": "Mezclá ambos en el mismo equipo —",
+      "mixBothBold": "el orquestador decide quién hace qué."
+    },
+    "brain": {
+      "eyebrow": "MEMORIA PERSISTENTE",
+      "title1": "Tus agentes recuerdan.",
+      "title2": "De verdad.",
+      "subtitle": "No el historial del chat. Un grafo de conocimiento real que decae, se recupera por similitud y es auditable.",
+      "feats": {
+        "semantic": {
+          "title": "Recall semántico",
+          "desc": "Los embeddings de pgvector devuelven el contexto correcto — no los últimos 10 mensajes."
+        },
+        "decay": {
+          "title": "Decay de confianza",
+          "desc": "Los hechos viejos se desvanecen si no se reconfirman. Nada de agentes que se aferran a precios de 2022."
+        },
+        "inspect": {
+          "title": "Inspectable",
+          "desc": "Cada hecho tiene una fuente, un score de confianza y un timestamp del último recall."
+        },
+        "gdpr": {
+          "title": "GDPR-friendly",
+          "desc": "Export y delete por hecho. Las revisiones de compliance pasan de semanas a horas."
+        }
+      }
+    },
+    "flowBuilder": {
+      "eyebrow": "ORQUESTACIÓN VISUAL",
+      "title": "Construí flujos que sobreviven en producción.",
+      "subtitle": "Arrastrá, conectá, ramificá, reintentá. Workflows production-grade que tu equipo de QA puede firmar.",
+      "feats": {
+        "branches": {
+          "title": "Branches tipados",
+          "desc": "Condiciones sobre el estado, no sobre el prompt. Refactor sin sorpresas."
+        },
+        "loops": {
+          "title": "Loops acotados",
+          "desc": "Iterá sobre colecciones o hasta una condición de parada — con un techo duro."
+        },
+        "retry": {
+          "title": "Retry policies",
+          "desc": "Backoff exponencial por nodo. Los fallos no tumban todo el flow."
+        },
+        "connect": {
+          "title": "Conectá lo que sea",
+          "desc": "Cualquier HTTP, cualquier LLM, cualquier agente — y otros flows. Composición hasta el final."
+        }
+      }
+    },
+    "comparison": {
+      "eyebrow": "VS EL RESTO",
+      "title": "¿Comparar manzanas con naranjas? Ya no.",
+      "subtitle": "La mayoría de frameworks de agentes elige un trade-off. Orchester los elige todos.",
+      "featureCol": "FEATURE",
+      "recommended": "Recomendado",
+      "vendors": {
+        "orchester": "Orchester",
+        "crewai": "CrewAI",
+        "autogen": "AutoGen",
+        "langgraph": "LangGraph"
+      },
+      "rows": {
+        "multitenant": "Multi-tenant por diseño",
+        "visualFlow": "Flow builder visual",
+        "memory": "Memoria persistente (grafo + decay)",
+        "channels": "Multi-canal (WhatsApp/Slack/Email)",
+        "budgets": "Presupuestos por workspace",
+        "audit": "Audit log producción + RLS",
+        "selfhost": "Auto-hospedable en Postgres",
+        "license": "Licencia Apache-2.0"
+      },
+      "footnote": "Información basada en la documentación pública de cada proyecto a 2026. ¿Algo está mal? Abrí un issue en GitHub."
+    },
+    "tour": {
+      "eyebrow": "El producto",
+      "heading": "Construido. Real. Open-source.",
+      "subhead": "Cada pantalla de abajo es el producto real — no es un mockup ni un render. Explorá lo que viene de fábrica.",
+      "railAriaLabel": "Categorías del recorrido del producto",
+      "categories": {
+        "build": "Construir",
+        "operate": "Operar",
+        "memory": "Memoria",
+        "insights": "Métricas",
+        "admin": "Administración"
+      },
+      "shots": {
+        "flowEditor": {
+          "title": "Editor de flujos",
+          "description": "Canvas drag-and-drop con más de 30 tipos de nodos. Auto-layout, run-as-form, edición asistida por copilot, validación inline.",
+          "alt": "Editor visual de flujos mostrando el flujo de Support triage"
+        },
+        "agents": {
+          "title": "Catálogo de agentes",
+          "description": "Todos los agentes que construiste, con modelo, estado y uso a la vista.",
+          "alt": "Catálogo de agentes IA con modelo y estadísticas"
+        },
+        "agentDetail": {
+          "title": "Detalle del agente",
+          "description": "Prompt, herramientas, política de memoria, guard-rails y un test chat en vivo, todo en un solo panel.",
+          "alt": "Vista detallada de un agente con su configuración"
+        },
+        "dashboard": {
+          "title": "Command Center",
+          "description": "Vista en tiempo real de conversaciones, agentes, costos, tasa de escalado y resolución.",
+          "alt": "Panel del workspace con métricas operativas clave"
+        },
+        "conversations": {
+          "title": "Conversaciones",
+          "description": "Todos los canales en una sola bandeja — web, WhatsApp, Slack, email, API — con transcripción y trazabilidad completa.",
+          "alt": "Lista de conversaciones de todos los canales"
+        },
+        "flowsList": {
+          "title": "Flujos",
+          "description": "Todas tus automatizaciones, con triggers, horarios y estado de la última ejecución.",
+          "alt": "Lista de flujos de automatización"
+        },
+        "brain": {
+          "title": "Memory inspector",
+          "description": "Memoria cognitiva bitemporal. Navegá hechos, decisiones, episodios y entidades. Time-travel. Cola de revisión.",
+          "alt": "Inspector de memoria Mnemosyne con hechos y decisiones"
+        },
+        "knowledge": {
+          "title": "Bases de conocimiento",
+          "description": "Fuentes RAG con pgvector. Re-embedding en vivo, inspector de chunks, citaciones al origen.",
+          "alt": "Listado de bases de conocimiento con estado del embedding"
+        },
+        "usage": {
+          "title": "Costo y uso",
+          "description": "Gasto de tokens por workspace, breakdown de costo por agente, topes de presupuesto fail-closed.",
+          "alt": "Panel de costo y uso con gasto de tokens por agente"
+        },
+        "org": {
+          "title": "Organigrama",
+          "description": "Vé tu organización IA como una jerarquía — orquestador, especialistas, empleados — con líneas de reporte.",
+          "alt": "Organigrama de la organización IA con jerarquía"
+        },
+        "settings": {
+          "title": "Proveedores",
+          "description": "Bring your own key. Anthropic, OpenAI, Google, Azure, Bedrock, Mistral — más de 80 proveedores.",
+          "alt": "Configuración de proveedores con las API keys"
+        },
+        "integrations": {
+          "title": "Integraciones",
+          "description": "Conectá con tu stack. Slack, WhatsApp, HubSpot, Notion, GitHub, GitLab, MCP servers, webhooks.",
+          "alt": "Catálogo de integraciones con los conectores disponibles"
+        }
+      }
+    }
+  },
+  "compass": {
+    "commandBar": {
+      "label": "Barra de comandos de Compass",
+      "placeholder": "Busca agentes, flujos, docs…",
+      "empty": "Sin resultados. Prueba con otro término.",
+      "overflow": "Mostrando {shown} de {total} — afina tu búsqueda.",
+      "footer": "↑↓ navega · ↵ abre · ⌘K cierra",
+      "hint": {
+        "navigate": "↑↓ ↵"
+      },
+      "sections": {
+        "recents": "Recientes",
+        "actions": "Acciones rápidas",
+        "agents": "Agentes",
+        "flows": "Flujos",
+        "knowledge": "Conocimiento",
+        "conversations": "Conversaciones",
+        "docs": "Documentación",
+        "tours": "Tours"
+      },
+      "type": {
+        "resource": "Abrir",
+        "action": "Acción",
+        "agent": "Agente",
+        "flow": "Flujo",
+        "kb": "KB",
+        "conversation": "Conversación",
+        "doc": "Doc",
+        "tour": "Tour"
+      },
+      "quickActions": {
+        "createAgent": "Crear un agente",
+        "createFlow": "Crear un flujo",
+        "runMemoryHousekeeping": "Ejecutar mantenimiento de memoria",
+        "openOnboarding": "Abrir asistente de onboarding",
+        "toggleTheme": "Cambiar tema",
+        "openBrain": "Abrir inspector de Brain"
+      },
+      "tours": {
+        "memoryOps": "Hacer tour: Operaciones de memoria",
+        "brainInspector": "Hacer tour: Inspector de Brain",
+        "flows": "Hacer tour: Flujos",
+        "knowledgeBases": "Hacer tour: Bases de conocimiento"
+      },
+      "doc": {
+        "close": "Cerrar definición",
+        "learnMore": "Leer doc completa"
+      }
+    },
+    "common": {
+      "close": "Cerrar",
+      "cancel": "Cancelar",
+      "confirm": "Confirmar",
+      "learnMore": "Más información",
+      "takeATour": "Hacer el recorrido",
+      "dismiss": "Descartar",
+      "runNow": "Ejecutar ahora",
+      "viewArchive": "Ver archivo",
+      "viewAuditLog": "Ver registro de auditoría",
+      "dontAskAgain": "No volver a preguntar",
+      "resetConfirmations": "Restablecer confirmaciones",
+      "autoConfirmedToast": "Confirmación automática — anteriormente decidiste omitir este aviso. Se ejecutó {action}."
+    },
+    "tour": {
+      "skip": "Omitir recorrido",
+      "next": "Siguiente",
+      "previous": "Anterior",
+      "finish": "Finalizar",
+      "stepCounter": "{current} de {total}",
+      "runtime": {
+        "missingStepsWarning": "Algunos pasos no se pudieron cargar. El recorrido los omitirá.",
+        "skippedStepNote": "Este paso aún no está en la página actual."
+      }
+    },
+    "tours": {
+      "memoryOps": {
+        "step1": {
+          "title": "Mantenimiento de memoria, en un solo lugar",
+          "body": "Esta página reúne todas las tareas de mantenimiento que necesita la memoria de largo plazo de tus agentes. Lee cada tarjeta y ejecútala cuando lo decidas o confía en su horario. Nada toca tus datos sin tu confirmación."
+        },
+        "step2": {
+          "title": "Unifica hechos similares",
+          "body": "La deduplicación combina hechos que dicen lo mismo con palabras distintas. Mantiene la búsqueda precisa y reduce el costo en tokens de cada consulta. Reversible desde el registro de auditoría."
+        },
+        "step3": {
+          "title": "Limpia memoria obsoleta",
+          "body": "La limpieza archiva los hechos antiguos, sin uso o que contradicen otros más nuevos. Los hechos archivados quedan restaurables por 30 días, así decides con datos, no con suposiciones."
+        },
+        "step4": {
+          "title": "Ejecuta una tarea ahora",
+          "body": "Pulsa Ejecutar ahora para iniciar una tarea de inmediato. Verás una vista previa del impacto —alcance, costo estimado, tiempo, reversibilidad— antes de que ocurra cualquier cambio."
+        }
+      },
+      "channels": {
+        "step1": {
+          "title": "Donde entran las conversaciones",
+          "body": "Los canales son las bandejas en las que escuchan tus agentes: widget, Telegram, email y más. Conecta uno y el agente asignado empieza a responder desde esa superficie."
+        },
+        "step2": {
+          "title": "Elige un canal para conectar",
+          "body": "Cada tarjeta es un tipo de canal. Elige uno para abrir el formulario: ponle nombre, asigna un agente y pega credenciales si el tipo lo requiere. Los tipos beta están marcados para no generar falsas expectativas."
+        },
+        "step3": {
+          "title": "Administra lo que está activo",
+          "body": "Los canales conectados muestran su agente, estado y URL del webhook o snippet de embed. Reasigna el agente, rota credenciales o pausa el tráfico sin borrar el historial del canal."
+        },
+        "step4": {
+          "title": "Ajusta quién responde",
+          "body": "Cada canal está vinculado a un agente. El canal define quién puede escribirle; el agente define cómo responder. Elige el agente en los ajustes del canal."
+        }
+      },
+      "flows": {
+        "step1": {
+          "title": "Aquí vive la orquestación visual",
+          "body": "Los flows son los programas visuales que ejecutan tus agentes: ramas, herramientas y pasos humanos conectados en un canvas. Esta página lista todos los flows del workspace para que puedas auditar qué está activo."
+        },
+        "step2": {
+          "title": "Crea un nuevo flow",
+          "body": "Usa este botón para crear un flow desde cero o desde una plantilla. Eliges el punto de partida ahora y diseñas el canvas después; nada se ejecuta hasta que lo guardes y conectes un disparador."
+        },
+        "step3": {
+          "title": "Cada tarjeta es un flow activo",
+          "body": "El conteo de nodos y el estado te muestran la salud de un vistazo. Haz clic en una tarjeta para abrir el canvas y editar, versionar o ejecutar. Usa esta vista para detectar flows huérfanos antes de que lleguen a producción."
+        },
+        "step4": {
+          "title": "Conecta un flow al mundo",
+          "body": "Un flow solo se ejecuta cuando algo lo dispara. Conecta un canal para mandar conversaciones reales a esta orquestación, o agrega una knowledge base para que el flow pueda citar fuentes."
+        }
+      },
+      "mnemosyne-admin": {
+        "step1": {
+          "title": "Centro de control de Mnemosyne",
+          "body": "Esta es la superficie de administración de Mnemosyne, el sistema que mantiene sana la memoria de largo plazo. Cada acción aquí queda acotada al workspace y reservada a administradores para que puedas auditarla después."
+        },
+        "step2": {
+          "title": "Tareas de mantenimiento",
+          "body": "Cada tarjeta es un trabajo de mantenimiento: deduplicar, podar, consolidar. Ejecútalos cuando sospeches drift o confía en su horario. Los destructivos siempre piden confirmación."
+        },
+        "step3": {
+          "title": "A dónde ir después",
+          "body": "Tras ejecutar una tarea, salta al inspector de Brain para verificar el impacto sobre los hechos reales, o abre Configuración para ajustar qué trabajos corren automáticamente."
+        },
+        "step4": {
+          "title": "Controles de calidad de recall",
+          "body": "Activa o desactiva las etapas de recuperación que usan tus agentes (HyDE, rerank, expansión de grafo) o fija un modelo de embeddings premium. Los cambios aplican en la próxima consulta, no de forma retroactiva."
+        }
+      },
+      "brainInspector": {
+        "step1": {
+          "title": "Tu memoria, a la vista",
+          "body": "Este es el Brain: cada hecho que tus agentes aprendieron en conversaciones. El encabezado te deja viajar en el tiempo, exportar o abrir la cola de revisión cuando algo no cierra."
+        },
+        "step2": {
+          "title": "Signos vitales de un vistazo",
+          "body": "Conteos, cobertura de embeddings y tendencias para detectar drift antes de que se vuelva ruido. Revisa este panel los lunes o después de un fin de semana cargado de conversaciones."
+        },
+        "step3": {
+          "title": "Encuentra cualquier hecho, rápido",
+          "body": "Filtra por estado, alcance, fuente o recencia. Combina filtros para auditar un dominio ruidoso o para encontrar candidatos a fijar antes de que envejezcan."
+        },
+        "step4": {
+          "title": "Cura fila por fila",
+          "body": "Cada fila es un hecho. Fija los que valen para que los agentes siempre los vean, olvida el ruido o abre citas para ver exactamente qué mensaje lo enseñó."
+        },
+        "step5": {
+          "title": "Qué hacer después",
+          "body": "Cuando un hecho necesita una segunda mirada, mándalo a la cola de revisión. Cuando quieres respaldo o auditoría, exporta toda la memoria en JSON desde estos próximos pasos."
+        }
+      },
+      "agents": {
+        "step1": {
+          "title": "Tu equipo de agentes",
+          "body": "Los agentes son trabajadores con un rol dentro de tu workspace —cada uno tiene una persona, un modelo y acceso a conocimiento específico. Este es el plantel de cada agente que creaste."
+        },
+        "step2": {
+          "title": "Filtra por estado",
+          "body": "Los borradores están sin terminar, los activos responden conversaciones reales y los inactivos están en pausa. Filtra aquí para enfocarte en lo que necesita atención antes de que los usuarios lo noten."
+        },
+        "step3": {
+          "title": "Cada tarjeta es un agente",
+          "body": "Nombre, rol, modelo y estado en vivo de un vistazo. Haz clic en una tarjeta para editar prompts, sumar tools o ver con quién está conversando ahora."
+        },
+        "step4": {
+          "title": "Crea un agente nuevo",
+          "body": "Empieza desde una plantilla o desde cero. Las plantillas precargan la persona y el prompt, así ajustas detalles en vez de partir de una pantalla en blanco."
+        },
+        "step5": {
+          "title": "Conecta agentes al mundo",
+          "body": "Un agente sin canal ni base de conocimiento es solo un borrador. Usa estos siguientes pasos para conectarlo a los mensajes entrantes y a la documentación que debe citar."
+        }
+      },
+      "knowledgeBases": {
+        "step1": {
+          "title": "La biblioteca que tus agentes citan",
+          "body": "Las bases de conocimiento son los documentos, sitios y archivos que tus agentes leen antes de responder. Agrúpalas por dominio —producto, políticas, onboarding— para que la recuperación quede enfocada y las citas sean precisas."
+        },
+        "step2": {
+          "title": "Crea una base nueva",
+          "body": "Empieza desde una plantilla o desde cero. Las plantillas preconfiguran el modelo de embeddings y el tamaño de chunk para casos comunes, así evitas adivinar parámetros que aún no conoces."
+        },
+        "step3": {
+          "title": "Cada tarjeta es una base",
+          "body": "Cada tarjeta muestra el proveedor y el modelo de embeddings que impulsan la recuperación. Haz clic en una base para sumar fuentes, previsualizar chunks y probar consultas antes de conectarla a un agente."
+        },
+        "step4": {
+          "title": "Próximos pasos que importan",
+          "body": "Una base sin documentos no responde nada, y una base que ningún agente lee no ayuda a nadie. Usa estos enlaces para subir fuentes y conectar la base al agente que la necesita."
+        }
+      },
+      "providers": {
+        "step1": {
+          "title": "Conecta los cerebros",
+          "body": "Los proveedores son las cuentas de LLM que usan tus agentes: OpenAI, Anthropic, Google y más. Nada responde hasta que conectas al menos uno, porque cada respuesta depende de un modelo detrás de una clave que tú controlas."
+        },
+        "step2": {
+          "title": "Tus proveedores activos",
+          "body": "Cada proveedor conectado muestra el estado de su clave y los modelos que habilita. Rota las claves aquí cuando vencen o se filtran, y desconecta los proveedores cuyos modelos ya no usas."
+        },
+        "step3": {
+          "title": "Explora el catálogo",
+          "body": "Busca o filtra por capacidad —chat, embeddings, imágenes, audio— para encontrar un proveedor nuevo. Al conectarlo, sus modelos quedan disponibles para tus agentes y flujos."
+        },
+        "step4": {
+          "title": "Conecta los proveedores al trabajo",
+          "body": "Un proveedor conectado solo importa cuando algo lo usa. Abre Agentes para asignar un modelo, o Conocimiento para elegir el proveedor de embeddings que potencia la recuperación."
+        }
+      }
+    },
+    "memoryOps": {
+      "pageTitle": "Mantenimiento de la memoria",
+      "pageSubtitle": "Aquí es donde Mnemosyne mantiene en orden la memoria de largo plazo de tus agentes. Cada tarjeta debajo es una tarea de mantenimiento que puedes ejecutar cuando quieras o dejar en su horario habitual. Lee qué hace cada tarea antes de ejecutarla; algunas modifican tus datos y queremos que decidas con información clara.",
+      "tourLabel": "Hacer un recorrido",
+      "adminOnly": "Solo los administradores y propietarios del espacio de trabajo pueden ejecutar tareas de mantenimiento. Aún puedes revisar qué hace cada una.",
+      "lastRunLabel": "Última ejecución",
+      "neverRun": "Aún no se ha ejecutado",
+      "outcomeUnknown": "—",
+      "whyMattersLabel": "Por qué importa",
+      "confirmDialogTitle": "Ejecutar \"{name}\"",
+      "confirmDialogDescription": "Revisa el impacto antes de confirmar. Nada cambia hasta que pulses el botón de acción.",
+      "impactScopeLabel": "Alcance",
+      "impactRecordsLabel": "Registros analizados",
+      "impactCostLabel": "Costo estimado",
+      "impactTimeLabel": "Tiempo estimado",
+      "impactEffectLabel": "Efecto sobre la memoria",
+      "impactReversibilityLabel": "Reversibilidad",
+      "reversibilityReversible": "Reversible desde el registro de auditoría.",
+      "reversibilityArchive": "Archivado durante 30 días, restaurable desde la vista del archivo.",
+      "reversibilityDestructive": "Destructiva. Los hechos archivados se eliminan de forma permanente y no se pueden recuperar.",
+      "estimateUnavailable": "—",
+      "noEstimateAvailable": "No tenemos una estimación precisa para esta tarea. Generalmente termina en menos de un minuto.",
+      "successToastTitle": "{name} se está ejecutando",
+      "successToastBody": "Te avisaremos aquí cuando termine. {time, select, unknown {} other {Tiempo estimado: {time}.}}",
+      "errorToastTitle": "No pudimos iniciar \"{name}\"",
+      "errorToastBody": "{message}. Verifica tu conexión y vuelve a intentarlo. Si el problema continúa, consulta la página de estado del sistema.",
+      "nextStepsTitle": "Qué hacer a continuación",
+      "nextSteps": {
+        "openBrain": {
+          "title": "Abrir el inspector Brain",
+          "body": "Revisa cada hecho, observa cuándo se aprendió y decide cuáles conservar."
+        },
+        "reviewPolicy": {
+          "title": "Revisar tu política de memoria",
+          "body": "Ajusta qué tareas se ejecutan de forma automática y con qué frecuencia."
+        }
+      },
+      "summaryAgentCallout": {
+        "title": "Esta tarea se ejecuta por agente",
+        "body": "Los resúmenes de memoria son específicos de cada agente. Abre la configuración del agente y ejecuta la actualización desde su pestaña de memoria.",
+        "linkLabel": "Ir a la configuración del agente"
+      },
+      "tasks": {
+        "healthSnapshot": {
+          "name": "Tomar una instantánea de salud",
+          "description": "Mide el tamaño actual, la velocidad de crecimiento y el nivel de duplicación de tu memoria. Ejecútala antes de cualquier otra tarea para poder comparar el antes y el después.",
+          "whyMatters": "La instantánea es la línea base que permite medir cualquier cambio posterior.",
+          "confirmLabel": "Tomar instantánea",
+          "runningLabel": "Tomando instantánea",
+          "doneLabel": "Instantánea lista"
+        },
+        "dedup": {
+          "name": "Combinar hechos duplicados",
+          "description": "Recorre todos los hechos, encuentra los pares que dicen casi lo mismo y los combina en un único registro más claro. Úsala cuando notes que tus agentes empiezan a repetirse.",
+          "whyMatters": "Menos duplicados significan una recuperación más rápida y menos repetición en las respuestas.",
+          "confirmLabel": "Combinar duplicados",
+          "runningLabel": "Combinando duplicados",
+          "doneLabel": "Duplicados combinados"
+        },
+        "prune": {
+          "name": "Eliminar hechos sin uso",
+          "description": "Archiva los hechos que no se han recuperado en mucho tiempo y de los que no depende ningún agente activo. El archivo es reversible durante 30 días.",
+          "whyMatters": "Una memoria más pequeña es más económica de buscar y más sencilla de mantener precisa.",
+          "confirmLabel": "Limpiar memoria",
+          "runningLabel": "Limpiando memoria",
+          "doneLabel": "Memoria limpiada"
+        },
+        "remConsolidation": {
+          "name": "Consolidar hechos relacionados",
+          "description": "Agrupa los hechos que pertenecen al mismo tema y los combina en un único resumen. Está inspirada en la forma en que el sueño consolida los recuerdos en el cerebro humano.",
+          "whyMatters": "Los hechos consolidados ofrecen respuestas más cortas y enfocadas cuando un agente recibe una pregunta amplia.",
+          "confirmLabel": "Consolidar hechos",
+          "runningLabel": "Consolidando hechos",
+          "doneLabel": "Consolidación finalizada"
+        },
+        "reviewSweep": {
+          "name": "Enviar hechos a revisión humana",
+          "description": "Encuentra los hechos con baja confianza, fuentes contradictorias o fuentes poco habituales y los agrega a tu cola de revisión. Nada se elimina; tú decides qué hacer con cada uno.",
+          "whyMatters": "La revisión humana resuelve los casos en los que el sistema no está seguro, antes de que afecten una respuesta.",
+          "confirmLabel": "Enviar a revisión",
+          "runningLabel": "Enviando a revisión",
+          "doneLabel": "Cola de revisión actualizada"
+        },
+        "autoPin": {
+          "name": "Fijar los hechos más recuperados",
+          "description": "Identifica los hechos en los que más se apoyan tus agentes y los fija para que aparezcan siempre primero en la recuperación. Puedes quitar la fijación en cualquier momento.",
+          "whyMatters": "Fijar los hechos correctos mantiene consistentes las respuestas más importantes a lo largo de las conversaciones.",
+          "confirmLabel": "Fijar hechos principales",
+          "runningLabel": "Fijando hechos",
+          "doneLabel": "Hechos principales fijados"
+        },
+        "summaryRefresh": {
+          "name": "Actualizar resúmenes de memoria",
+          "description": "Regenera los resúmenes breves que aparecen junto a cada tema en Brain. Ejecútala después de una importación grande o de una consolidación.",
+          "whyMatters": "Los resúmenes al día te permiten revisar lo que saben tus agentes sin necesidad de abrir cada hecho.",
+          "confirmLabel": "Actualizar resúmenes",
+          "runningLabel": "Actualizando resúmenes",
+          "doneLabel": "Resúmenes actualizados"
+        }
+      },
+      "recall": {
+        "title": "Calidad de recuperación",
+        "subtitle": "Tres mejoras de recuperación se ejecutan por defecto en cada turno. Cada una tiene un costo pequeño. Desactiva alguna solo si has medido que el ahorro te importa más que la calidad.",
+        "tip": "Los cambios se aplican en el siguiente turno de recuperación. Las respuestas existentes no se regeneran.",
+        "savedToast": "Se guardaron los ajustes de recuperación. La próxima conversación los aplicará.",
+        "saveErrorToast": "No pudimos guardar los ajustes de recuperación. {message}. Verifica tu conexión y vuelve a intentarlo. Si el problema continúa, consulta la página de estado del sistema.",
+        "hyde": {
+          "label": "HyDE — embedding de documento hipotético",
+          "help": "Genera una respuesta breve y simulada a la pregunta del usuario y la usa en la búsqueda en lugar de la pregunta tal cual. Esto reduce la distancia entre cómo se ven las preguntas y las respuestas en el espacio de embeddings. Suma una llamada económica al modelo por cada turno."
+        },
+        "rerank": {
+          "label": "Re-ranking con cross-encoder",
+          "help": "Reordena los mejores resultados con una segunda pasada que evalúa cada uno junto con la pregunta. Usa Cohere cuando su API key está configurada; en caso contrario, una alternativa local. Añade unos 50 milisegundos por turno."
+        },
+        "graph": {
+          "label": "Expansión por grafo",
+          "help": "Después de la recuperación inicial, sigue los vínculos entre hechos (derivado de, reemplaza a, parte de) para mostrar los relacionados. Una consulta adicional a la base de datos. Mejora la calidad de la recuperación entre un 10 y un 15 por ciento."
+        },
+        "premium": {
+          "title": "Modelo de embedding premium",
+          "body": "Usa un modelo de embedding más rico para los hechos que más importan: fijados, de alta confianza o de alcance de workspace. El resto sigue usando el modelo por defecto para que el costo sea predecible. Deja el proveedor vacío para desactivar este nivel.",
+          "providerLabel": "Proveedor",
+          "providerPlaceholder": "Usar el predeterminado",
+          "providerDefault": "Usar el predeterminado",
+          "providerOpenai": "OpenAI",
+          "providerVoyage": "Voyage",
+          "providerCohere": "Cohere",
+          "modelLabel": "Modelo",
+          "modelPlaceholderOpenai": "text-embedding-3-large",
+          "modelPlaceholderVoyage": "voyage-3-large",
+          "modelPlaceholderCohere": "embed-v4.0",
+          "modelPlaceholderEmpty": "Elige primero un proveedor"
+        }
+      },
+      "schedule": {
+        "editLabel": "Editar periodicidad",
+        "editAria": "Editar periodicidad de {name}",
+        "modalTitle": "Periodicidad de {name}",
+        "modalSubtitle": "Elegí cuándo querés que esta tarea corra en este workspace.",
+        "globalLabel": "Por defecto del sistema",
+        "modesLabel": "Cuándo correrla",
+        "modes": {
+          "default": "Por defecto",
+          "defaultHint": "Usa la programación del sistema. Recomendado.",
+          "disabled": "Desactivada",
+          "disabledHint": "No corre nunca para este workspace.",
+          "hourly": "Cada hora",
+          "hourlyHint": "Mínimo 1 hora entre corridas (sujeto al global).",
+          "daily": "Diaria",
+          "dailyHint": "Mínimo 24h entre corridas (sujeto al global).",
+          "weekly": "Semanal",
+          "weeklyHint": "Mínimo 7 días entre corridas.",
+          "monthly": "Mensual",
+          "monthlyHint": "Mínimo 30 días entre corridas.",
+          "custom": "Personalizada",
+          "customHint": "Una expresión cron (5 campos). El gate aplica como diaria."
+        },
+        "customInputLabel": "Expresión cron",
+        "customPlaceholder": "0 3 * * 0",
+        "customHelp": "Formato estándar de 5 campos: minuto hora día-mes mes día-semana.",
+        "maxFreqNote": "Tu elección actúa como un máximo: no puede correr más seguido que el cron global.",
+        "lastRunLabel": "Última corrida",
+        "lastRunNever": "Aún no corrió",
+        "savedToast": "Periodicidad guardada",
+        "saveErrorToast": "No se pudo guardar la periodicidad",
+        "save": "Guardar",
+        "cancel": "Cancelar",
+        "disabledWarning": "Esta tarea no se va a ejecutar para este workspace. Activala de nuevo cuando quieras."
+      }
+    },
+    "empty": {
+      "brain": {
+        "title": "Aún no hay memoria guardada",
+        "body": "Brain muestra todo lo que tus agentes aprendieron en conversaciones pasadas. En cuanto un agente atienda su primera conversación, los hechos que aprenda aparecerán aquí para que los revises y los gestiones."
+      },
+      "flows": {
+        "title": "Aún no hay flujos",
+        "body": "Un flujo es una secuencia de agentes y pasos que se ejecutan juntos para completar una tarea. Crea tu primer flujo para encadenar agentes y permitir que se pasen el trabajo entre ellos, a demanda o en un horario fijo."
+      },
+      "channels": {
+        "title": "Aún no hay canales conectados",
+        "body": "Un canal es la puerta de entrada entre un agente y tus usuarios, como un widget en un sitio web o una aplicación de mensajería. Conecta uno para empezar a recibir conversaciones reales."
+      },
+      "providers": {
+        "title": "Aún no hay proveedores conectados",
+        "body": "Un proveedor es la empresa que provee el modelo de IA que usan tus agentes, como OpenAI o Anthropic. Conecta al menos uno con tu propia clave de API para que tus agentes puedan empezar a responder."
+      },
+      "knowledgeBases": {
+        "title": "Aún no hay bases de conocimiento",
+        "body": "Las bases de conocimiento le dan a tus agentes los documentos en los que deben apoyarse al responder. Sube tu primer archivo o conecta una fuente para que los agentes citen tu información en lugar de adivinar."
+      },
+      "agents": {
+        "title": "Aún no hay agentes",
+        "body": "Un agente es un asistente configurado con su propio prompt, modelo y herramientas. Crea tu primer agente y dale un rol claro para empezar a derivarle conversaciones."
+      },
+      "mnemosyneAdmin": {
+        "title": "Aún no hay nada programado",
+        "body": "Desde aquí controlas las tareas de mantenimiento que mantienen sana la memoria. Activa las que quieras ejecutar en un horario fijo, o lanza cualquiera de forma manual cuando necesites una pasada puntual."
+      }
+    },
+    "brain": {
+      "pageTitle": "Inspector de memoria",
+      "pageSubtitlePart1": "Cada hecho duradero que tus agentes han aprendido, con los filtros que necesitas para auditarlo y curarlo. La memoria está gestionada por ",
+      "pageSubtitleTermMnemosyne": "Mnemosyne",
+      "pageSubtitlePart2": ", la capa que mantiene el contexto de largo plazo consistente entre conversaciones.",
+      "tourLabel": "Hacer un recorrido",
+      "tip": {
+        "title": "Antes de olvidar, revisa",
+        "bodyPart1": "Olvidar un hecho lo retira del recall, pero el registro original queda en el log de auditoría. ",
+        "bodyPart2": " es reversible desde la vista Deshacer, así que cura sin miedo."
+      },
+      "embeddedHelp": "Proporción de hechos que ya tienen un ",
+      "embeddedTermEmbedding": "embedding",
+      "embeddedHelpSuffix": " y se pueden encontrar por búsqueda semántica.",
+      "forget": {
+        "title": "¿Olvidar este hecho?",
+        "description": "El hecho deja de aparecer en los resultados de recall. Los agentes no lo usarán en su próximo turno. El registro original queda en el log de auditoría.",
+        "action": "Olvidar hecho",
+        "cancel": "Conservarlo",
+        "impactStatement": "Declaración",
+        "impactScope": "Ámbito",
+        "impactReversibility": "Reversibilidad",
+        "reversibleValue": "Reversible desde Deshacer"
+      },
+      "nextStepsTitle": "Próximos pasos",
+      "nextSteps": {
+        "review": {
+          "title": "Trabaja la cola de revisión",
+          "body": "Cura los hechos con baja confianza o en conflicto antes de que influyan en una respuesta."
+        },
+        "housekeeping": {
+          "title": "Ejecuta el mantenimiento de memoria",
+          "body": "Combina duplicados, archiva hechos sin uso y consolida los relacionados."
+        }
+      }
+    },
+    "flows": {
+      "heroTitle": "Flujos",
+      "heroSubtitlePart1": "Un ",
+      "heroSubtitleTermFlow": "flujo",
+      "heroSubtitlePart2": " encadena ",
+      "heroSubtitleTermAgent": "agentes",
+      "heroSubtitlePart3": " y herramientas en una sola secuencia para que una tarea se ejecute de principio a fin. Usa esta página para ver todos los flujos de este workspace, crear nuevos y abrirlos en el editor visual.",
+      "tourLabel": "Hacer el recorrido",
+      "newFlow": "Nuevo flujo",
+      "createTitle": "Nombra tu flujo",
+      "createHelp": "Elige un nombre corto y descriptivo. Puedes renombrarlo más tarde desde el editor.",
+      "namePlaceholder": "Ej. Calificar leads entrantes",
+      "create": "Crear flujo",
+      "cancel": "Cancelar",
+      "firstFlowTip": "Empieza simple: con un disparador y dos o tres pasos ya puedes ver un flujo correr de principio a fin. Lo amplías cuando lo básico funcione.",
+      "firstFlowTipTitle": "Consejo para tu primer flujo",
+      "nodesLabel": "{count, plural, one {# paso} other {# pasos}}",
+      "statusLabel": "Estado",
+      "neverRun": "Sin ejecuciones",
+      "lastRunLabel": "Última ejecución",
+      "nextStepsTitle": "Qué hacer ahora",
+      "nextStepConnectChannel": {
+        "title": "Conecta un canal",
+        "body": "Vincula un widget web o una app de mensajería a un flujo para que las conversaciones reales puedan dispararlo."
+      },
+      "nextStepAddKnowledge": {
+        "title": "Agrega una base de conocimiento",
+        "body": "Dale a tus agentes documentos en los que apoyar sus respuestas, en lugar de depender solo del modelo base."
+      }
+    },
+    "knowledgeBases": {
+      "heroTitle": "Bases de conocimiento",
+      "heroSubtitlePart1": "Una base de conocimiento es un conjunto de documentos que tus agentes pueden citar al responder. Convertimos cada documento en ",
+      "heroSubtitleTermEmbedding": "embeddings",
+      "heroSubtitlePart2": " para que los agentes recuerden por significado y no solo por palabras exactas — la técnica conocida como ",
+      "heroSubtitleTermRag": "RAG",
+      "heroSubtitlePart3": ". Usa esta página para ver todas las bases del workspace y crear nuevas.",
+      "tourLabel": "Hacer el recorrido",
+      "newBase": "Nueva base",
+      "createTitle": "Nombra tu base de conocimiento",
+      "createHelp": "Elige un nombre corto y descriptivo. Puedes renombrarlo más adelante desde los ajustes de la base.",
+      "namePlaceholder": "Nombre — ej. Documentos internos",
+      "descriptionPlaceholder": "Descripción (opcional)",
+      "embeddingsLabel": "Modelo de embeddings",
+      "embeddingHelp": "El modelo de embeddings define cómo se vuelven buscables tus documentos. Conserva el predeterminado salvo que tengas un motivo para cambiarlo.",
+      "create": "Crear",
+      "cancel": "Cancelar",
+      "created": "Base de conocimiento creada",
+      "createError": "No pudimos crear la base de conocimiento. Verifica tu conexión y vuelve a intentarlo.",
+      "firstBaseTipTitle": "Consejo para tu primera base",
+      "firstBaseTipBody": "Empieza con una sola fuente — un solo PDF o una carpeta breve de documentos es suficiente para ver cómo se comporta la búsqueda. Puedes agregar más fuentes cuando la primera funcione.",
+      "providerLabel": "Embebido con",
+      "openLabel": "Abrir",
+      "nextStepsTitle": "Qué hacer ahora",
+      "nextStepUploadDocs": {
+        "title": "Sube tus primeros documentos",
+        "body": "Abre una base y agrega PDFs, texto o URLs para que los agentes puedan citarlos en sus respuestas."
+      },
+      "nextStepConnectAgent": {
+        "title": "Conecta una base a un agente",
+        "body": "Elige un agente y vincula esta base para que sus respuestas se apoyen en tu propia información."
+      }
+    },
+    "agents": {
+      "heroTitle": "Agentes",
+      "heroSubtitlePart1": "Un ",
+      "heroSubtitleTermAgent": "agente",
+      "heroSubtitlePart2": " es un asistente configurado con su propio ",
+      "heroSubtitleTermPrompt": "prompt",
+      "heroSubtitlePart3": ", modelo y herramientas. Usa esta página para ver todos los agentes del workspace, ajustar su rol y decidir qué conversaciones debe atender cada uno.",
+      "tourLabel": "Hacer el recorrido",
+      "modelTipTitle": "Elige el modelo adecuado para cada tarea",
+      "modelTipBody": "Usa Haiku para respuestas cortas de alto volumen y Sonnet u Opus para razonamiento largo o trabajo en varios pasos. Puedes cambiar el modelo de cualquier agente sin perder su historial.",
+      "deleteImpactTitle": "¿Eliminar este agente?",
+      "deleteImpactDescription": "Eliminar un agente borra su configuración. Las conversaciones pasadas se conservan en el workspace, pero dejan de recibir respuestas nuevas de este agente.",
+      "deleteImpactAction": "Eliminar agente",
+      "deleteImpactCancel": "Cancelar",
+      "deleteImpactRowAgent": "Agente",
+      "deleteImpactRowTeam": "Equipo",
+      "deleteImpactRowModel": "Modelo",
+      "deleteImpactRowReversibility": "Reversibilidad",
+      "deleteImpactReversibilityValue": "Permanente. El agente y su prompt no se pueden restaurar.",
+      "deleteImpactValueUnknown": "—",
+      "nextStepsTitle": "Qué hacer ahora",
+      "nextStepConnectChannel": {
+        "title": "Conecta un canal",
+        "body": "Vincula un widget web o una app de mensajería a un agente para que las conversaciones reales lleguen a él."
+      },
+      "nextStepAddKnowledge": {
+        "title": "Agrega conocimiento",
+        "body": "Sube documentos para que tus agentes citen tu propia información en lugar de depender solo del modelo base."
+      }
+    },
+    "channels": {
+      "heroTitle": "Canales",
+      "heroSubtitlePart1": "Un ",
+      "heroSubtitleTermChannel": "canal",
+      "heroSubtitlePart2": " es la puerta de entrada entre un ",
+      "heroSubtitleTermAgent": "agente",
+      "heroSubtitlePart3": " y tus usuarios: un widget en un sitio web, un bot de Telegram o un endpoint HTTP. Conecta uno y tu agente empezará a responder conversaciones reales por ese canal.",
+      "tipTitle": "Cómo funcionan los canales",
+      "tipBody": "Cada canal envía los mensajes entrantes a un único agente. Puedes pausar, reasignar o desconectar un canal en cualquier momento sin perder las conversaciones anteriores.",
+      "availableHeading": "Conectar un nuevo canal",
+      "deleteTitle": "Desconectar este canal",
+      "deleteDescription": "Al desconectarlo, dejarán de llegar mensajes nuevos por este canal. Las conversaciones anteriores se conservan en tu workspace; puedes volver a conectarlo más tarde, pero las URLs públicas y los secretos se regenerarán.",
+      "deleteAction": "Desconectar canal",
+      "deleteCancel": "Cancelar",
+      "deleteImpactChannel": "Canal",
+      "deleteImpactType": "Tipo",
+      "deleteImpactStatus": "Estado actual",
+      "deleteImpactAgent": "Agente asignado",
+      "deleteImpactReversibility": "Reversibilidad",
+      "deleteImpactReversibilityValue": "Si vuelves a conectarlo más tarde, se regenerarán la URL pública y el token secreto.",
+      "noAgentAssigned": "Sin agente asignado",
+      "unknownValue": "—",
+      "nextStepsTitle": "Qué hacer ahora",
+      "nextStepConfigureAgent": {
+        "title": "Configura el agente que responde",
+        "body": "Dale al agente el prompt, las herramientas y el conocimiento adecuados para que responda bien cuando llegue un mensaje por este canal."
+      },
+      "nextStepReviewConversations": {
+        "title": "Revisa las conversaciones en vivo",
+        "body": "Abre la vista de conversaciones para ver qué están preguntando los usuarios y cómo responden tus agentes."
+      }
+    },
+    "providers": {
+      "heroTitle": "Proveedores de IA",
+      "heroSubtitle": "Conecta las empresas que dan potencia a tus agentes. Cada proveedor expone modelos para chat, embeddings, imágenes, audio y más. Tus claves se guardan cifradas y solo en este workspace.",
+      "tourLabel": "Hacer el tour",
+      "tipTitle": "Trae tu propia clave",
+      "tipBody": "Orchester no cobra recargo sobre los costos de los proveedores. Conecta tu propia clave de API y cada modelo se factura directamente en tu cuenta con ese proveedor.",
+      "removeConfirmTitle": "Desconecta {provider}",
+      "removeConfirmDescription": "La clave de API guardada se elimina de este workspace. Los agentes y flujos que dependen de este proveedor dejarán de responder hasta que conectes otra clave.",
+      "removeConfirmAction": "Desconectar proveedor",
+      "removeConfirmCancel": "Cancelar",
+      "removeImpactAgentsLabel": "Agentes que usan este proveedor",
+      "removeImpactModelsLabel": "Modelos expuestos",
+      "removeImpactReversibilityLabel": "Reversibilidad",
+      "removeImpactReversibilityValue": "Vuelve a conectar cuando quieras pegando una clave nueva.",
+      "removeError": "No pudimos desconectar {provider}. Verifica tu conexión y vuelve a intentarlo. Si el problema continúa, consulta la página de estado del sistema.",
+      "removeSuccess": "Se desconectó {provider}. Los agentes que dependían de él dejarán de responder hasta que conectes otro proveedor.",
+      "unknownValue": "—",
+      "nextStepsTitle": "Qué hacer ahora",
+      "nextStepBuildAgent": {
+        "title": "Asigna un modelo a un agente",
+        "body": "Elige un modelo de un proveedor conectado y vincúlalo al agente que debe usarlo."
+      },
+      "nextStepAddKnowledge": {
+        "title": "Agrega conocimiento para recuperar",
+        "body": "Sube documentos para que tus agentes apoyen sus respuestas en tu información en lugar de adivinar."
+      }
+    },
+    "templates": {
+      "shell": {
+        "title": {
+          "agent": "Crea un nuevo agente",
+          "flow": "Crea un nuevo flow",
+          "knowledge": "Crea una nueva knowledge base",
+          "channel": "Conecta un canal"
+        },
+        "subtitle": {
+          "agent": "Elige un punto de partida. Puedes editar el rol, el prompt y el modelo antes de guardar.",
+          "flow": "Elige un punto de partida. El canvas se abre pre-armado para que adaptes en vez de empezar de cero.",
+          "knowledge": "Elige un punto de partida. La configuración de embeddings se puede ajustar después desde la base.",
+          "channel": "Elige el tipo de canal. En el paso siguiente cargas credenciales y asignas un agente."
+        },
+        "close": "Cerrar",
+        "footerHint": "Las plantillas son puntos de partida — puedes cambiar todo después."
+      },
+      "agent": {
+        "blank": {
+          "label": "Agente en blanco",
+          "description": "Empieza desde cero. Rol vacío, prompt vacío, lo defines tú."
+        },
+        "support-tier1": {
+          "label": "Soporte Nivel 1",
+          "description": "Responde consultas de clientes apoyado en tus knowledge bases. Escala cuando la confianza es baja.",
+          "tags": ["soporte", "RAG"]
+        },
+        "lead-qualifier": {
+          "label": "Calificador de leads",
+          "description": "Califica leads entrantes con scoring BANT y devuelve un resumen estructurado.",
+          "tags": ["ventas", "BANT"]
+        },
+        "sales-coach": {
+          "label": "Coach de ventas",
+          "description": "Revisa llamadas y da a los ejecutivos tres cosas concretas para probar la próxima vez.",
+          "tags": ["ventas", "coaching"]
+        },
+        "internal-helpdesk": {
+          "label": "Mesa de ayuda interna",
+          "description": "Responde dudas de IT y RR. HH. de tus empleados. Abre un ticket cuando hace falta una persona.",
+          "tags": ["interno", "IT", "RR. HH."]
+        },
+        "onboarding-guide": {
+          "label": "Guía de onboarding",
+          "description": "Acompaña a usuarios nuevos por el camino más corto hasta su primer logro en el producto.",
+          "tags": ["onboarding", "producto"]
+        }
+      },
+      "flow": {
+        "blank": {
+          "label": "Flow en blanco",
+          "description": "Canvas vacío con un único nodo Trigger para que armes tu propia lógica."
+        },
+        "lead-qualification": {
+          "label": "Calificación de leads",
+          "description": "Webhook de entrada, enriquecimiento, agente calificador, branch por score.",
+          "tags": ["ventas", "webhook"]
+        },
+        "support-triage": {
+          "label": "Triage de soporte",
+          "description": "Mensaje entrante, búsqueda en KB, agente responde, escala si la confianza es baja.",
+          "tags": ["soporte", "RAG"]
+        },
+        "newsletter-compile": {
+          "label": "Armado de newsletter",
+          "description": "Trae novedades en un horario, un agente redacta la edición y se envía.",
+          "tags": ["agendado", "contenido"]
+        },
+        "pr-review-bot": {
+          "label": "Bot de PR review",
+          "description": "Webhook de GitHub, trae el diff, un agente revisa y deja un comentario en la PR.",
+          "tags": ["ingeniería", "webhook"]
+        }
+      },
+      "knowledge": {
+        "blank": {
+          "label": "Knowledge base en blanco",
+          "description": "Base vacía. Carga documentos después — chunkeamos e indexamos en segundo plano."
+        },
+        "product-docs": {
+          "label": "Docs de producto",
+          "description": "Documentación pública, changelogs y guías de funciones de tu producto.",
+          "tags": ["producto", "RAG"]
+        },
+        "hr-policies": {
+          "label": "Políticas de RR. HH.",
+          "description": "Vacaciones, beneficios, código de conducta y otras políticas para empleados.",
+          "tags": ["interno", "RR. HH."]
+        },
+        "engineering-wiki": {
+          "label": "Wiki de ingeniería",
+          "description": "Notas de arquitectura, runbooks, docs de on-call y ADRs.",
+          "tags": ["interno", "ingeniería"]
+        },
+        "brand-voice": {
+          "label": "Voz de marca",
+          "description": "Tono, palabras prohibidas, ejemplos on-brand y off-brand.",
+          "tags": ["marketing", "voz"]
+        }
+      },
+      "channel": {
+        "web-widget": {
+          "label": "Widget web",
+          "description": "Embebe un widget de chat en tu sitio. Trae un saludo por defecto que puedes editar.",
+          "tags": ["público", "embed"]
+        },
+        "whatsapp": {
+          "label": "WhatsApp",
+          "description": "Conecta un número de WhatsApp Business para que tus clientes chateen desde el teléfono.",
+          "tags": ["público", "mensajería"]
+        },
+        "slack": {
+          "label": "Slack",
+          "description": "Lleva un agente a tu workspace de Slack. Ideal para mesas de ayuda internas.",
+          "tags": ["interno", "mensajería"]
+        },
+        "email": {
+          "label": "Email",
+          "description": "Reenvía una casilla a un agente. Las respuestas llegan en el mismo hilo.",
+          "tags": ["público", "email"]
+        },
+        "api": {
+          "label": "API",
+          "description": "Habla con un agente por HTTP. Para integraciones a medida y tus propias apps.",
+          "tags": ["a medida", "API"]
+        }
+      }
+    },
+    "onboarding": {
+      "skip": "Omitir",
+      "back": "Atrás",
+      "common": {
+        "sessionExpiredTitle": "Tu sesión expiró",
+        "sessionExpiredBody": "Vuelve a iniciar sesión para seguir configurando tu primer agente. Tu progreso está guardado.",
+        "signInAgain": "Iniciar sesión de nuevo"
+      },
+      "stepper": {
+        "welcome": "Bienvenida",
+        "provider": "Proveedor",
+        "agent": "Agente",
+        "talk": "Probar",
+        "done": "Listo"
+      },
+      "welcome": {
+        "eyebrow": "Bienvenida",
+        "heading": "Pongamos en marcha tu primer agente.",
+        "subhead": "Cinco pasos cortos. Al final vas a tener un agente respondiendo mensajes, y desde ahí seguís construyendo.",
+        "question": "¿Qué querés construir?",
+        "options": {
+          "customerSupport": {
+            "label": "Atender clientes con IA",
+            "hint": "Soporte de primer nivel, captura de leads, respuestas frecuentes."
+          },
+          "internalAutomation": {
+            "label": "Automatizar tareas internas",
+            "hint": "Mesa de ayuda, bots de operaciones, consultas internas."
+          },
+          "exploring": {
+            "label": "Estoy explorando",
+            "hint": "Quiero ver qué puede hacer antes de comprometerme."
+          }
+        },
+        "sample": {
+          "label": "Trabajar con datos de ejemplo (Acme Inc.)",
+          "hint": "Entra a un workspace pre-cargado con agentes, conversaciones y una base de conocimiento lista para revisar.",
+          "unavailable": "Disponible cuando tu cuenta incluya el workspace de demo Acme Inc."
+        },
+        "cta": "Empezar"
+      },
+      "provider": {
+        "heading": "Conecta un proveedor de IA.",
+        "subhead": "Agrega una clave para alimentar a tus agentes. Tu clave nunca sale de este servidor.",
+        "providerLabel": "Proveedor",
+        "apiKeyLabel": "Clave de API",
+        "security": "Se guarda cifrada en reposo. Solo se usa para llamar al proveedor en tu nombre.",
+        "cta": "Conectar proveedor",
+        "errorFallback": "No se pudo conectar el proveedor. Revisa la clave y vuelve a intentar.",
+        "errorNetwork": "Error de red al contactar el servidor. Revisa tu conexión y vuelve a intentar."
+      },
+      "agent": {
+        "heading": "Crea tu primer agente.",
+        "subhead": "Un agente tiene nombre, rol y modelo. Elige una plantilla para no partir de cero — todo se puede editar después.",
+        "templateLabel": "Plantilla",
+        "templates": {
+          "tier1": {
+            "label": "Soporte al cliente nivel 1",
+            "hint": "Responde preguntas frecuentes y escala el resto."
+          },
+          "helpdesk": {
+            "label": "Mesa de ayuda interna",
+            "hint": "Consultas de IT y RR. HH. para colaboradores."
+          },
+          "salesCoach": {
+            "label": "Coach de ventas",
+            "hint": "Revisa llamadas y propone próximos pasos."
+          },
+          "blank": {
+            "label": "Empezar en blanco",
+            "hint": "Define todo manualmente."
+          }
+        },
+        "nameLabel": "Nombre del agente",
+        "namePlaceholder": "Ej.: Soporte nivel 1",
+        "roleLabel": "Rol",
+        "rolePlaceholder": "Una línea: ¿qué hace este agente?",
+        "modelLabel": "Modelo",
+        "cta": "Crear agente",
+        "errorMissing": "El nombre y el rol son obligatorios.",
+        "errorFallback": "No se pudo crear el agente. Revisa el formulario y vuelve a intentar.",
+        "errorNetwork": "Error de red al contactar el servidor. Revisa tu conexión y vuelve a intentar."
+      },
+      "talk": {
+        "heading": "Habla con {name}.",
+        "subhead": "Envía un mensaje para confirmar que tu agente está conectado. Con un mensaje y una respuesta alcanza para continuar.",
+        "chatLabel": "Conversación de prueba",
+        "inputLabel": "Mensaje",
+        "inputPlaceholder": "Hazle una pregunta a tu agente…",
+        "sendLabel": "Enviar",
+        "thinking": "Pensando…",
+        "emptyHint": "Envía el primer mensaje para iniciar la conversación.",
+        "cta": "Continuar",
+        "errorFallback": "El agente no respondió. Revisa la clave del proveedor y vuelve a intentar.",
+        "errorEmpty": "El proveedor devolvió una respuesta vacía. Prueba con otro mensaje.",
+        "errorNetwork": "Error de red al contactar el servidor. Revisa tu conexión y vuelve a intentar."
+      },
+      "done": {
+        "badge": "Listo",
+        "heading": "Tu agente respondió su primer mensaje.",
+        "subhead": "Ya tienes lo básico funcionando. Tres pasos cortos hacen que el resultado se multiplique.",
+        "agentLive": "Agente activo",
+        "lastMessage": "Última respuesta",
+        "nextStepsHeading": "Próximos pasos",
+        "fallbackAgentName": "Tu agente",
+        "nextSteps": {
+          "channel": {
+            "title": "Conectar un canal",
+            "body": "Conecta el agente a WhatsApp, chat web o email para que usuarios reales lo alcancen."
+          },
+          "knowledge": {
+            "title": "Sumar conocimiento",
+            "body": "Apoya las respuestas en tus documentos. Sube un PDF o apunta a una URL."
+          },
+          "brain": {
+            "title": "Revisar la memoria del Brain",
+            "body": "Mira qué aprendió tu agente. La memoria es lo que hace que la segunda conversación se sienta personal."
+          }
+        },
+        "cta": "Abrir Studio"
+      }
+    },
+    "help": {
+      "openButton": "Ayuda",
+      "close": "Cerrar",
+      "title": "¿En qué te podemos ayudar?",
+      "searchPlaceholder": "Buscar artículos de ayuda...",
+      "empty": "Sin resultados. Prueba con otro término.",
+      "takeTour": "Hacer el tour",
+      "continueCta": "Abrir el asistente",
+      "commandBarHint": "Tip: presiona ⌘K / Ctrl-K para buscar cualquier cosa",
+      "humanCta": "Pregunta a la comunidad",
+      "askCommunityBody": "Orchester es de código abierto. Encuentra a los mantenedores y a otros operadores en GitHub Discussions. Solemos responder en un día.",
+      "sections": {
+        "onThisPage": "En esta página",
+        "continueOnboarding": "Continúa tu introducción",
+        "whatsNew": "Novedades",
+        "askCommunity": "Pregunta a la comunidad"
+      },
+      "perPage": {
+        "default": {
+          "title": "¿Necesitas ayuda?",
+          "body": "Busca cualquier término arriba, reinicia el tour de la página o vuelve al onboarding. Todo lo que configures aquí es reversible."
+        },
+        "brain": {
+          "title": "Sobre la memoria Brain",
+          "body": "Brain es lo que tus agentes aprendieron en las conversaciones. Fija los hechos que importan, olvida el ruido y audita los cambios antes de llevarlos a producción."
+        },
+        "memory": {
+          "title": "Mantenimiento de la memoria",
+          "body": "Abre la página de mantenimiento de la memoria para inspeccionarla o reconstruirla. Verás alcance y reversibilidad antes de cada acción."
+        },
+        "flows": {
+          "title": "Sobre los Flows",
+          "body": "Los Flows son los programas visuales que tus agentes ejecutan de principio a fin. Ramas, tools y pasos humanos viven aquí para que la lógica quede inspeccionable."
+        },
+        "channels": {
+          "title": "Sobre los Canales",
+          "body": "Los canales son las bandejas donde escuchan tus agentes: widget, Slack, WhatsApp, email. Conecta uno para enviar conversaciones reales a un flow."
+        },
+        "providers": {
+          "title": "Sobre los Providers",
+          "body": "Los providers son las cuentas de LLM que llaman tus agentes. Conecta al menos uno antes de que agentes o flows puedan correr."
+        },
+        "knowledge": {
+          "title": "Sobre las Knowledge Bases",
+          "body": "Las Knowledge Bases anclan las respuestas en tus documentos. Bases más chicas y enfocadas en un dominio recuperan mejor que una pila gigante."
+        },
+        "agents": {
+          "title": "Sobre los Agentes",
+          "body": "Los agentes son los trabajadores con rol de tu org: persona, tools, memoria. Cada cambio de prompt es una versión que puedes revertir."
+        }
+      },
+      "whatsNew": {
+        "empty": "Las notas de cada versión van a aparecer acá cuando salga la próxima.",
+        "items": {
+          "helpDrawer": {
+            "title": "Llegó el panel de ayuda",
+            "body": "Pulsa ? en cualquier momento para buscar artículos, reiniciar un tour o volver al onboarding."
+          },
+          "brainHealth": {
+            "title": "Panel de salud del Brain",
+            "body": "La cobertura de embeddings y las tendencias de dedup ahora aparecen arriba del Brain para detectar drift rápido."
+          },
+          "flowTemplates": {
+            "title": "Plantillas de Flows",
+            "body": "Comienza desde una plantilla para adaptar lógica predefinida en vez de construir el grafo desde cero."
+          }
+        }
+      }
+    }
+  }
+}

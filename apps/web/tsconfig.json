@@ -1,0 +1,24 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"],
+      "@orchester/db": ["../../packages/db/src/index.ts"],
+      "@orchester/db/schema": ["../../packages/db/src/schema/index.ts"],
+      "@orchester/mnemosyne": ["../../packages/mnemosyne/src/index.ts"]
+    },
+    "jsx": "preserve",
+    "incremental": true,
+    "allowJs": true,
+    "noEmit": true
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules", "scripts"]
+}

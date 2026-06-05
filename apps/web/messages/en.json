@@ -1,0 +1,3032 @@
+{
+  "nav": {
+    "home": "Home",
+    "teams": "Teams",
+    "org": "Org Chart",
+    "agents": "Agents",
+    "flows": "Flows",
+    "knowledge": "Knowledge",
+    "brain": "Memory",
+    "conversations": "Conversations",
+    "employees": "Employees",
+    "channels": "Channels",
+    "integrations": "Integrations",
+    "usage": "Usage",
+    "settings": "Settings",
+    "group_workspace": "Workspace",
+    "group_automation": "Automation",
+    "group_data": "Data",
+    "group_system": "System"
+  },
+  "brain": {
+    "title": "Memory",
+    "subtitle": "All durable facts the agents have learned",
+    "stats": {
+      "totalFacts": "Total facts",
+      "pinned": "Pinned",
+      "embedded": "Embedded",
+      "active": "Active",
+      "forgotten": "Forgotten",
+      "noData": "No data yet"
+    },
+    "actions": {
+      "export": "Export",
+      "reviewQueue": "Review queue",
+      "edit": "Edit",
+      "pin": "Pin",
+      "unpin": "Unpin",
+      "pinned": "Pinned",
+      "forget": "Forget",
+      "restore": "Restore",
+      "viewCitations": "View citations",
+      "save": "Save",
+      "discard": "Discard",
+      "refreshNow": "Refresh now",
+      "menu": "Actions",
+      "reviewCount": "Open review queue ({count} pending)"
+    },
+    "filters": {
+      "kind": "Kind",
+      "kindAll": "All kinds",
+      "scope": "Scope",
+      "scopeAll": "All scopes",
+      "scope_global": "Global",
+      "scope_conversation": "Conversation",
+      "scope_employee": "Employee",
+      "scope_team": "Team",
+      "status": "Status",
+      "status_active": "Active",
+      "status_forgotten": "Forgotten",
+      "status_merged": "Merged",
+      "statusForgotten": "Forgotten",
+      "pinnedOnly": "Pinned",
+      "search": "Search statements...",
+      "sortBy": "Sort by",
+      "sortUpdated": "Updated",
+      "sortCreated": "Created",
+      "sortRelevance": "Relevance",
+      "sortHits": "Hit count"
+    },
+    "list": {
+      "showing": "Showing {count} of {total}",
+      "loadMore": "Load more"
+    },
+    "empty": {
+      "title": "No memories yet",
+      "description": "Connect an AI provider in Settings → Providers and let your agents start learning.",
+      "ctaLabel": "Open Providers"
+    },
+    "detail": {
+      "fact": "Fact",
+      "statement": "Statement",
+      "subject": "Subject",
+      "kind": "Kind",
+      "scope": "Scope",
+      "confidence": "Confidence",
+      "pinned": "Pinned",
+      "metadata": "Metadata",
+      "citations": "Citations",
+      "activity": "Activity",
+      "timestamps": "Timestamps",
+      "createdAt": "Created",
+      "updatedAt": "Updated",
+      "back": "Back",
+      "editTitle": "Edit memory",
+      "openConversation": "Open conversation",
+      "recalledNTimes": "Recalled {count, plural, =0 {0 times} =1 {once} other {# times}}",
+      "lastRecalled": "Last recalled {when}",
+      "neverRecalled": "Never recalled yet",
+      "sourceCount": "{count, plural, =0 {No sources} =1 {1 source} other {# sources}}",
+      "noCitations": "No citations yet",
+      "characterCount": "{used}/{max} characters"
+    },
+    "health": {
+      "title": "Health",
+      "factCountActive": "Active facts — 30 days",
+      "recallHitRate": "Recall hit rate — 30 days",
+      "lastRefresh": "Updated {when}"
+    },
+    "toast": {
+      "saved": "Memory saved",
+      "saveError": "Couldn't save",
+      "pinned": "Pinned",
+      "unpinned": "Unpinned",
+      "pinError": "Couldn't update pin",
+      "forgotten": "Forgotten",
+      "forgetError": "Couldn't forget",
+      "restored": "Restored",
+      "restoreError": "Couldn't restore"
+    },
+    "errors": {
+      "loadFailed": "Couldn't load memory.",
+      "retry": "Retry",
+      "citationsFailed": "Couldn't load citations."
+    },
+    "timeline": {
+      "title": "Memory timeline",
+      "subtitle": "Chronological log of what your agents learned and when. Newest first.",
+      "rangeLabel": "Range",
+      "range": {
+        "7d": "Last 7 days",
+        "30d": "Last 30 days",
+        "90d": "Last 90 days",
+        "all": "All time",
+        "custom": "Custom"
+      },
+      "daySummary": "{learned} learned · {forgotten} forgotten",
+      "sourceConversation": "From conversation",
+      "empty": "No memory events in this period yet.",
+      "error": "Couldn't load the timeline. Try refreshing.",
+      "refresh": "Refresh"
+    },
+    "diff": {
+      "title": "Memory diff",
+      "subtitle": "What changed in memory across the selected window.",
+      "rangeLabel": "Compare",
+      "range": {
+        "7d": "Last 7 days",
+        "30d": "Last 30 days",
+        "custom": "Custom"
+      },
+      "refresh": "Refresh",
+      "columns": {
+        "added": "Added",
+        "forgotten": "Forgotten",
+        "updated": "Updated"
+      },
+      "emptyAdded": "No new facts in this window.",
+      "emptyForgotten": "No facts forgotten in this window.",
+      "emptyUpdated": "No fact edits in this window.",
+      "error": "Couldn't load the diff. Try refreshing.",
+      "kpi": {
+        "net": "Net change",
+        "facts": "facts",
+        "priorPeriod": "Prior period: +{count}",
+        "topKind": "Top kind",
+        "topKindDetail": "+{count} new",
+        "topSubject": "Most active subject",
+        "topSubjectDetail": "{count} new",
+        "empty": "—",
+        "emptyDetail": "Nothing yet"
+      }
+    },
+    "export": {
+      "title": "Export your memory",
+      "subtitle": "All durable facts, decisions, relations, and citations the agents have learned about your workspace.",
+      "format": "Format",
+      "jsonTitle": "JSON",
+      "jsonDescription": "Full export — facts, decisions, relations, citations. Best for reimport or analysis.",
+      "csvTitle": "CSV",
+      "csvDescription": "One row per fact. Doesn't include decisions or relations.",
+      "scope": "What to include",
+      "scopeAll": "Everything",
+      "scopeByKind": "Filter by kind",
+      "scopeByScope": "Filter by scope",
+      "download": "Download",
+      "success": "Download started.",
+      "error": "Couldn't generate export. Please try again.",
+      "notReady": "Export isn't available yet — try again in a minute.",
+      "whatsInside": "What's in the export",
+      "schema": {
+        "facts": "id, scope, kind, subject, statement, confidence, pinned, status, createdAt, updatedAt.",
+        "decisions": "Distilled decisions logged by agents (id, statement, rationale, links to source facts).",
+        "relations": "Edges between facts (subject ↔ predicate ↔ object, with confidence).",
+        "citations": "Pointers to the source messages that produced each fact — message IDs, not message bodies."
+      },
+      "privacyTitle": "About this export",
+      "privacyBody": "This export contains everything your agents remember about this workspace. It does not include source conversations themselves — only references to them (message IDs)."
+    },
+    "undo": {
+      "title": "Recent changes",
+      "subtitle": "The last 20 changes to memory. Revert any of them from the last 7 days.",
+      "refresh": "Refresh",
+      "windowNote": "Only changes from the last 7 days are revertible. Older entries are shown for reference.",
+      "empty": "No recent changes recorded.",
+      "comingSoonTitle": "Audit log coming soon",
+      "comingSoonBody": "We'll show every memory change here as soon as the audit feed lands.",
+      "error": "Couldn't load the change log. Try refreshing.",
+      "revertButton": "Revert",
+      "revertDisabled": "Outside the 7-day revert window.",
+      "revertUnsupported": "This change can't be reverted automatically yet.",
+      "revertSuccess": "Reverted.",
+      "revertError": "Revert failed.",
+      "actorSystem": "System",
+      "actorUser": "User",
+      "actions": {
+        "created": "Created",
+        "updated": "Updated",
+        "forgotten": "Forgotten",
+        "restored": "Restored",
+        "pinned": "Pinned",
+        "unpinned": "Unpinned"
+      }
+    },
+    "sensitivity": {
+      "toggleLabel": "Don't learn from this conversation",
+      "toggleHelp": "Pause memory extraction for this conversation. You can turn it back on anytime.",
+      "bannerPaused": "Memory learning is paused for this conversation.",
+      "toastPaused": "Memory learning paused",
+      "toastResumed": "Memory learning resumed",
+      "toggleError": "Failed to update memory setting"
+    },
+    "timeTravel": {
+      "label": "View memory as of:",
+      "now": "Now",
+      "reset": "Reset to now",
+      "banner": "Viewing historical state from {date}. Edits are disabled in time-travel mode.",
+      "editsDisabled": "Edits are disabled in time-travel mode"
+    },
+    "review": {
+      "title": "Review queue",
+      "subtitle": "Facts the agents flagged as low-confidence or contradictory. Resolve them so the recall pool stays trustworthy.",
+      "filterOpen": "Open",
+      "filterAll": "All",
+      "emptyTitle": "Queue is clear",
+      "emptyDescription": "Nothing needs your attention right now. New items show up when the workers flag a fact as low-confidence or contradictory.",
+      "queuedAgo": "Queued {when} ago",
+      "reason_low_confidence": "Low confidence",
+      "reason_contradiction": "Contradiction",
+      "reason_manual": "Manual",
+      "resolution_kept": "Kept",
+      "resolution_edited": "Edited",
+      "resolution_forgotten": "Forgotten",
+      "resolution_dismissed": "Dismissed",
+      "actionKeep": "Keep",
+      "actionEdit": "Open & edit",
+      "actionForget": "Forget",
+      "actionDismiss": "Dismiss",
+      "toastResolved": "Resolved.",
+      "toastResolveError": "Could not resolve. Try again."
+    },
+    "cognitive": {
+      "memoryType": "Memory type: {value}",
+      "attribution": "Attribution: {value}",
+      "actor": "Actor: {actorId}",
+      "protocol": "Memory Protocol {value}"
+    },
+    "heartbeat": {
+      "title": "Your AI is learning on its own",
+      "subtitleNow": "Updated just now",
+      "subtitleRelative": "Updated {time}",
+      "subtitleWaiting": "Waiting for the first cycle…",
+      "ariaLabel": "Memory learning status"
+    },
+    "onboarding": {
+      "title": "How memory works",
+      "subtitle": "Three short steps. You're set.",
+      "skip": "Skip",
+      "back": "Back",
+      "next": "Next",
+      "start": "Start exploring",
+      "stepCounter": "Step {current} of {total}",
+      "step1": {
+        "badge": "Step 1",
+        "title": "Your agents talk",
+        "body": "Every conversation your agents have — with customers, with your team, or with each other — feeds Orchester."
+      },
+      "step2": {
+        "badge": "Step 2",
+        "title": "Memory learns automatically",
+        "body": "When a conversation ends, Orchester extracts the durable facts: preferences, decisions, recurring patterns. No buttons. No prompts."
+      },
+      "step3": {
+        "badge": "Step 3",
+        "title": "You curate (optional)",
+        "body": "Pin what matters. Forget what doesn't. Travel back in time to audit. The system runs without you, but it works better with you."
+      }
+    },
+    "emptyOnboarding": {
+      "title": "Memory will appear here",
+      "body": "Every conversation your agents finish leaves a trace. Soon you'll review what they remembered, pin what matters, and forget what you don't want kept.",
+      "step1Title": "Conversation ends",
+      "step1Body": "Anywhere — web widget, Slack, WhatsApp, email.",
+      "step2Title": "Orchester extracts",
+      "step2Body": "3–5 durable facts in seconds.",
+      "step3Title": "You see them here",
+      "step3Body": "Curate, pin, or forget. Or just leave it running.",
+      "cta": "Start a conversation"
+    }
+  },
+  "dashboard": {
+    "title": "Command Center",
+    "live": "LIVE",
+    "lastNDays": "Last 30 days",
+    "convs": "convs",
+    "tokens": "tokens",
+    "kpi": {
+      "activeAgents": "Active agents",
+      "activeAgentsOf": "of {total} total",
+      "conversationsToday": "Conversations today",
+      "vsYesterday": "vs yesterday",
+      "openNow": "Open now",
+      "awaitingReply": "awaiting reply",
+      "employees": "Employees",
+      "activeUsers": "active users",
+      "escalationRate": "Escalation rate",
+      "thisMonth": "this month",
+      "resolution": "Resolution",
+      "closedConversations": "closed conversations"
+    },
+    "metrics": {
+      "tokensThisMonth": "Tokens this month",
+      "firstMonth": "first month",
+      "estimatedCost": "Estimated cost",
+      "perConv": "{cost} / conv",
+      "conversationsPerMonth": "Conversations / month",
+      "avgDuration": "Avg. duration",
+      "tokensPerConv": "{tokens} tokens / conv"
+    },
+    "charts": {
+      "activityLast30": "Activity — last 30 days",
+      "conversations": "Conversations",
+      "costPerAgent": "Cost per agent",
+      "currentMonth": "current month",
+      "agentPerformance": "Agent performance · {count} agents",
+      "agentPerformanceSub": "current month · ordered by token consumption",
+      "teams": "Teams",
+      "peakActivity": "Activity peak",
+      "peakActivitySub": "distribution by hour of day",
+      "conversationStatus": "Conversation status",
+      "inboundChannel": "Inbound channel",
+      "mostActiveEmployees": "Most active employees",
+      "recentActivity": "Recent activity",
+      "recentActivitySub": "latest conversations",
+      "viewAllConversations": "View all conversations",
+      "noData": "No data",
+      "peakAt": "Peak: {hour}h",
+      "morning": "Morning (6-12)",
+      "afternoon": "Afternoon (12-18)",
+      "evening": "Evening (18-24)"
+    },
+    "table": {
+      "agent": "Agent",
+      "model": "Model",
+      "status": "Status",
+      "conversations": "Conversations",
+      "tokensConsumed": "Tokens consumed",
+      "costUsd": "Cost USD",
+      "tokPerConv": "Tok / conv"
+    }
+  },
+  "common": {
+    "loading": "Loading…",
+    "error": "Something went wrong",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "noResults": "No results found",
+    "learnMore": "Learn more"
+  },
+  "errors": {
+    "generic": {
+      "title": "Something went wrong",
+      "description": "An unexpected error occurred. You can retry or go back home.",
+      "retry": "Retry",
+      "backHome": "Go back home",
+      "backDashboard": "Go to dashboard"
+    },
+    "notFound": {
+      "code": "404",
+      "title": "Page not found",
+      "description": "The page you are looking for does not exist or has been moved.",
+      "backDashboard": "Back to dashboard"
+    },
+    "loading": "Loading…"
+  },
+  "themes": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "presentationMode": {
+    "enable": "Enable presentation mode",
+    "disable": "Disable presentation mode"
+  },
+  "shell": {
+    "live": "Live",
+    "presentationMode": "Presentation Mode",
+    "themeLight": "Switch to light mode",
+    "themeDark": "Switch to dark mode",
+    "selectLanguage": "Select language",
+    "skipToContent": "Skip to content",
+    "commandPalette": {
+      "label": "Command palette",
+      "placeholder": "Search agent, flow, KB, page…",
+      "empty": "No results.",
+      "navigation": "Navigation",
+      "resources": "Resources",
+      "footer": "↑↓ navigate · ↵ open · ⌘K close",
+      "nav": {
+        "home": "Home",
+        "agents": "Agents",
+        "flows": "Flows",
+        "knowledge": "Knowledge",
+        "conversations": "Conversations",
+        "teams": "Teams",
+        "org": "Org chart",
+        "employees": "Employees",
+        "channels": "Channels",
+        "settings": "Settings"
+      }
+    },
+    "userMenu": {
+      "openLabel": "Open account menu",
+      "menuLabel": "Account menu",
+      "identityLabel": "Account identity",
+      "shortcutsLabel": "Shortcuts",
+      "unnamedUser": "Account",
+      "accountLabel": "Account settings",
+      "accountDescription": "Profile, password, 2FA",
+      "settingsLabel": "Workspace settings",
+      "settingsDescription": "Team, plan, integrations",
+      "signOutLabel": "Sign out",
+      "signingOut": "Signing out…",
+      "signOutError": "Could not sign out. Try again."
+    }
+  },
+  "emptyStates": {
+    "teams": {
+      "title": "No teams yet",
+      "description": "Create your first AI team and let them work for you.",
+      "cta": "Create a team"
+    },
+    "agents": {
+      "title": "No agents here",
+      "description": "Agents are the building blocks of your AI teams.",
+      "cta": "Add an agent"
+    },
+    "conversations": {
+      "title": "No conversations yet",
+      "description": "Conversations will appear here once employees start chatting.",
+      "cta": "Set up a channel"
+    },
+    "employees": {
+      "title": "No employees loaded",
+      "description": "Import your team via CSV or add them one by one.",
+      "cta": "Import employees"
+    }
+  },
+  "auth": {
+    "welcomeBack": "Welcome back",
+    "signIn": "Sign in to your workspace",
+    "email": "Email",
+    "password": "Password",
+    "signInButton": "Sign in",
+    "forgotPassword": "Forgot password?",
+    "noAccount": "Don't have an account?",
+    "signUp": "Sign up",
+    "createAccount": "Create your account",
+    "startFree": "Start building AI teams for free",
+    "name": "Full name",
+    "namePlaceholder": "Jane Smith",
+    "confirmPassword": "Confirm password",
+    "alreadyAccount": "Already have an account?",
+    "signingIn": "Signing in…",
+    "creatingAccount": "Creating account…",
+    "invalidCredentials": "Invalid email or password",
+    "emailTaken": "An account with this email already exists",
+    "googleSignIn": "Continue with Google",
+    "orContinueWith": "or continue with",
+    "tagline": "AI agent teams for your enterprise",
+    "liveNetwork": "Live Agent Network"
+  },
+  "pages": {
+    "dashboard": {
+      "title": "Dashboard",
+      "subtitle": "Your workspace at a glance",
+      "activeAgents": "Active Agents",
+      "conversationsToday": "Conversations Today",
+      "totalEmployees": "Total Employees",
+      "avgResponseTime": "Avg. Response Time",
+      "seconds": "sec",
+      "conversationsChart": "Conversations — Last 30 Days",
+      "noData": "No data yet — seed your database to see analytics."
+    },
+    "org": {
+      "title": "Org Chart",
+      "subtitle": "Your AI hierarchy: teams of agents orchestrating flows. Click a node to open it.",
+      "searchPlaceholder": "Search agent, team, flow…",
+      "resetLayout": "Reset layout",
+      "resetLayoutTitle": "Restore original layout",
+      "summary": {
+        "teams": "teams",
+        "agents": "agents",
+        "agentsActive": "active",
+        "flows": "flows",
+        "live": "live"
+      },
+      "empty": "No agents or teams yet.",
+      "createFirstAgent": "Create the first agent",
+      "node": {
+        "workspace": "Workspace",
+        "teams": "teams",
+        "agents": "agents",
+        "flows": "flows",
+        "active": "active",
+        "flow": "Flow"
+      }
+    },
+    "teams": {
+      "title": "Teams",
+      "subtitle": "Your AI agent teams",
+      "agents": "agents",
+      "agent": "agent",
+      "channel": "channel",
+      "channels": "channels",
+      "empty": "No teams yet. Create your first team to get started.",
+      "emptyCta": "Create team",
+      "addTeam": "New Team",
+      "addAgent": "Add Agent",
+      "back": "Teams",
+      "editTeam": "Edit",
+      "deleteTeam": "Delete",
+      "deleteConfirm": "Delete",
+      "teamDeleted": "Team deleted",
+      "deleteError": "Could not delete",
+      "teamAgentsHeading": "Team agents",
+      "manageAgents": "Manage agents",
+      "noAgentsInTeam": "This team has no agents.",
+      "goToAgents": "Go to Agents →",
+      "connectedChannels": "Connected channels",
+      "seeChannels": "See channels",
+      "noActiveChannels": "No active channels.",
+      "createTitle": "Create team",
+      "editTitle": "Edit team",
+      "nameLabel": "Team name",
+      "descriptionLabel": "Description",
+      "colorLabel": "Color",
+      "save": "Save",
+      "saving": "...",
+      "cancel": "Cancel",
+      "genericError": "Something went wrong",
+      "namePlaceholder": "e.g. HR Support",
+      "descriptionPlaceholder": "What does this team do?",
+      "createAgentTitle": "Add agent",
+      "editAgentTitle": "Edit agent",
+      "confirmDelete": "Delete this team? All agents will be unassigned.",
+      "confirmDeleteAgent": "Delete this agent?",
+      "agentFormFields": {
+        "nameLabel": "Name",
+        "roleLabel": "Role",
+        "promptLabel": "System prompt",
+        "modelLabel": "Model",
+        "statusLabel": "Status"
+      }
+    },
+    "agents": {
+      "title": "Agents",
+      "subtitle": "Configure and manage all the AI agents in your workspace.",
+      "model": "Model",
+      "team": "Team",
+      "status": {
+        "active": "Active",
+        "inactive": "Inactive",
+        "draft": "Draft"
+      },
+      "statusBadge": {
+        "active": "Active",
+        "inactive": "Inactive",
+        "draft": "Draft"
+      },
+      "newAgent": "New Agent",
+      "createFirstAgent": "Create first agent",
+      "noAgentsToShow": "No agents to show.",
+      "agent": "agent",
+      "agents": "agents",
+      "noTeam": "No team",
+      "filters": {
+        "all": "All",
+        "active": "Active",
+        "draft": "Draft",
+        "inactive": "Inactive"
+      },
+      "deleteAgent": "Delete this agent?",
+      "deleteAgentDescription": "This action cannot be undone.",
+      "deleteConfirm": "Delete",
+      "agentDeleted": "Agent deleted",
+      "agentDeleteError": "Could not delete the agent",
+      "editAria": "Edit {name}",
+      "deleteAria": "Delete {name}",
+      "form": {
+        "createTitle": "Create Agent",
+        "editTitle": "Edit Agent",
+        "nameLabel": "Name",
+        "roleLabel": "Role",
+        "promptLabel": "System Prompt",
+        "modelLabel": "Model",
+        "statusLabel": "Status",
+        "teamLabel": "Team",
+        "save": "Save",
+        "cancel": "Cancel"
+      },
+      "studio": {
+        "save": "Save",
+        "agentSaved": "Agent saved",
+        "saveError": "Could not save",
+        "invalidJson": "Invalid JSON Schema",
+        "kindFlow": "flow",
+        "kindConversational": "conversational",
+        "tabs": {
+          "config": "Prompt + Model",
+          "advanced": "Advanced",
+          "versions": "Versions"
+        },
+        "flowAgentTitle": "Agent driven by flow",
+        "flowAgentDescription": "This agent doesn't use a prompt. Each message runs the flow selected in the <b>Advanced</b> tab.",
+        "editFlow": "Edit the flow →",
+        "noFlowSelected": "⚠ No flow selected. Go to <b>Advanced</b> and pick one.",
+        "model": "Model",
+        "temperature": "Temperature",
+        "maxTokens": "Max tokens",
+        "defaultPlaceholder": "default",
+        "testChat": {
+          "title": "Test chat",
+          "emptyHint": "Type a message to test the agent with the current configuration.",
+          "thinking": "Thinking…",
+          "messageAria": "Message for the agent",
+          "messagePlaceholder": "Type a message (Enter to send, Shift+Enter for newline)…",
+          "sendAria": "Send message",
+          "tokensUsed": "Tokens used:",
+          "tool": "tool",
+          "tools": "tools",
+          "providerNotConfigured": "Configure the provider in Settings to use this model.",
+          "genericError": "Error",
+          "ranByFlow": "_(executed by flow)_",
+          "errorBadge": "error",
+          "flowRun": "flow run:"
+        },
+        "memory": {
+          "title": "Persistent memory",
+          "description": "The agent can read/write these memories through the <code>memory_get</code> / <code>memory_set</code> tools. They're also injected automatically into the system prompt at the start of every conversation.",
+          "noMemory": "No memories saved yet.",
+          "scopeGlobal": "Global",
+          "scopeConversation": "Conversation",
+          "scopeEmployee": "Per user",
+          "keyPlaceholder": "key (e.g. preferred_language)",
+          "valuePlaceholder": "value (JSON or text)",
+          "save": "Save",
+          "saved": "Saved",
+          "saveError": "Error",
+          "missingFields": "key + value required"
+        },
+        "config": {
+          "kindSectionTitle": "Agent kind",
+          "kindSectionSubtitle": "How it processes messages",
+          "kindConversational": "Conversational",
+          "kindConversationalHint": "Replies with a prompt + tools.",
+          "kindFlow": "Driven by flow",
+          "kindFlowHint": "Every message runs a flow.",
+          "flowLabel": "Flow to run",
+          "pickFlow": "— pick —",
+          "flowResponseHint": "The flow must return a `response` variable for the agent to reply.",
+          "toolsSectionTitle": "Tools",
+          "toolsSectionSubtitle": "The agent can call them during the conversation",
+          "loading": "Loading…",
+          "variablesSectionTitle": "Variables",
+          "variablesSectionSubtitle": "Reference each variable in the prompt by its name (double-brace placeholder)",
+          "brandingSectionTitle": "Branding",
+          "brandingSectionSubtitle": "Visual personality of the agent",
+          "colorLabel": "Color",
+          "colorAria": "Color {color}",
+          "avatarLabel": "Avatar URL",
+          "conversationSectionTitle": "Conversation",
+          "conversationSectionSubtitle": "How each chat starts and ends",
+          "greetingLabel": "Initial greeting",
+          "greetingPlaceholder": "Hi! How can I help you today?",
+          "fallbackLabel": "Fallback message",
+          "fallbackPlaceholder": "I couldn't understand you, can you rephrase?",
+          "startersLabel": "Initial suggestions (buttons the user can tap)",
+          "addStarter": "Add",
+          "addStarterAria": "Add initial suggestion",
+          "starterAria": "Suggestion {n}",
+          "starterPlaceholder": "How do I subscribe?",
+          "deleteStarterAria": "Delete suggestion {n}",
+          "noStarters": "No suggestions",
+          "maxTurnsLabel": "Max turns (ends the chat after N exchanges)",
+          "responseSectionTitle": "Response format",
+          "responseSectionSubtitle": "How it should structure the output",
+          "responseText": "Plain text",
+          "responseJson": "Structured JSON",
+          "responseMarkdown": "Markdown",
+          "outputSchemaLabel": "JSON Schema (optional)",
+          "outputSchemaPlaceholder": "{ \"type\": \"object\", \"properties\": { \"score\": { \"type\": \"number\" } } }",
+          "variableNamePlaceholder": "name",
+          "variableValuePlaceholder": "value",
+          "addVariable": "Add variable"
+        },
+        "templates": {
+          "title": "Professional templates"
+        },
+        "promptGen": {
+          "stepHeader": "AI prompt generator · Step {step}/3",
+          "step1Label": "What does this agent do?",
+          "step1Placeholder": "I need an agent that qualifies B2B leads using BANT and routes them to the right rep…",
+          "charCount": "{count} / 50–500 characters",
+          "toneLabel": "Tone",
+          "companyLabel": "Company (optional)",
+          "industryLabel": "Industry (optional)",
+          "variation": "Variation {n}",
+          "providerError": "Configure a provider in Settings to use the generator.",
+          "genError": "Error",
+          "cancel": "Cancel",
+          "back": "Back",
+          "regenerate": "Regenerate",
+          "next": "Next",
+          "generate": "Generate"
+        },
+        "promptEditor": {
+          "templates": "Templates",
+          "generate": "Generate with AI",
+          "placeholder": "Write the agent's system prompt or use the AI generator…",
+          "chars": "{n} chars",
+          "tokens": "~{n} tokens"
+        },
+        "modelPicker": {
+          "loading": "Loading models…",
+          "noModels": "No models available. Connect a provider in Settings.",
+          "search": "Search model…",
+          "pickModel": "Pick a model…",
+          "noConnected": "Configure a provider in Settings to see models.",
+          "noModelsInProvider": "No models. Test the connection."
+        },
+        "versions": {
+          "title": "Version history",
+          "loading": "Loading…",
+          "noVersions": "No versions saved yet.",
+          "saveVersion": "Save version",
+          "labelPlaceholder": "Label (optional)",
+          "noLabel": "No label",
+          "restore": "Restore",
+          "restored": "Version restored",
+          "restoreConfirm": "Restore this version? Current changes will be lost.",
+          "current": "Current",
+          "byline": "by {actor}"
+        }
+      },
+      "empty": "No agents yet.",
+      "emptyCta": "Add agent"
+    },
+    "flows": {
+      "title": "Flows",
+      "subtitle": "Connect your agents into visual pipelines that run automatically.",
+      "newFlow": "New flow",
+      "namePlaceholder": "Flow name",
+      "create": "Create",
+      "cancel": "Cancel",
+      "emptyTitle": "No flows yet",
+      "emptyDescription": "Create your first flow to start orchestrating agents.",
+      "nodes": "nodes",
+      "copilot": {
+        "title": "Copilot",
+        "closeAria": "Close",
+        "emptyTitle": "Tell me what you want to automate 👇",
+        "emptyHint": "For example: <em>“when a message arrives, look up my knowledge base and reply with an agent”</em>. If you have an API, paste its link and I'll wire the step for you.",
+        "explainFlow": "Explain this flow",
+        "explainFlowPrompt": "Explain in plain language, for a non-technical reader, what this flow does step by step:\n\n{describe}",
+        "reviewErrors": "Check for errors",
+        "reviewErrorsPrompt": "Review this flow and tell me, in plain language, whether it has errors, unconfigured steps, or missing connections. Do not use the set_flow tool, only explain:\n\n{describe}",
+        "thinking": "Building the flow…",
+        "couldNotAnswer": "The copilot couldn't reply.",
+        "connectionError": "There was a connection issue. Try again.",
+        "doneShort": "Done.",
+        "partialErrors": "Some steps couldn't be created: {errors}",
+        "proposalCount": "Proposal: {n} step",
+        "proposalCountPlural": "Proposal: {n} steps",
+        "step": "Step",
+        "andMore": "…and {n} more",
+        "replaceFlow": "Replace flow",
+        "mergeFlow": "Merge into flow",
+        "discard": "Discard",
+        "apiUrlPlaceholder": "https://api.your-service.com/…",
+        "inputPlaceholder": "Describe what you want to happen…",
+        "send": "Send",
+        "removeApiLink": "Remove API link",
+        "addApiLink": "+ Add an API link"
+      },
+      "palette": {
+        "searchPlaceholder": "Search a step…",
+        "noMatches": "We didn't find any step matching “{query}”."
+      },
+      "runs": {
+        "title": "Runs",
+        "closeAria": "Close",
+        "noRuns": "No runs yet.",
+        "back": "← Back",
+        "stepsHeading": "Steps",
+        "trigger": "trigger"
+      },
+      "builder": {
+        "save": "Save",
+        "saved": "Flow saved",
+        "saveError": "Could not save the flow",
+        "publish": "Publish",
+        "published": "Flow published",
+        "publishError": "Could not publish",
+        "draft": "Draft",
+        "active": "Active",
+        "paused": "Paused",
+        "runFlow": "Run",
+        "running": "Running…",
+        "runs": "Runs",
+        "copilot": "Copilot",
+        "addNode": "Add step",
+        "deleteNode": "Delete",
+        "deleteAria": "Delete",
+        "duplicateNode": "Duplicate",
+        "configureNode": "Configure",
+        "validationErrors": "{n} validation issue",
+        "validationErrorsPlural": "{n} validation issues",
+        "renameFlow": "Rename",
+        "deleteFlow": "Delete flow",
+        "deleteFlowConfirm": "Delete this flow?",
+        "flowDeleted": "Flow deleted",
+        "tidyLayout": "Auto-arrange steps",
+        "autoLayout": "Auto layout",
+        "undo": "Undo (Cmd/Ctrl+Z)",
+        "redo": "Redo (Cmd/Ctrl+Shift+Z)",
+        "copy": "Copy",
+        "paste": "Paste",
+        "dryRun": "Dry run",
+        "pin": "Pin output",
+        "unpin": "Unpin",
+        "saving": "Saving…",
+        "saveErrorShort": "Save error",
+        "autoSaved": "Auto-saved",
+        "runComplete": "Run complete",
+        "runInputObject": "Data must be an object ({…}).",
+        "runInputJsonError": "JSON has an error.",
+        "reviewFlow": "Check the flow",
+        "copilotTooltip": "Copilot: build the flow by talking",
+        "flowVariables": "Flow variables",
+        "runHistory": "Run history",
+        "fillRunData": "Fill in the data you want to test the flow with.",
+        "noRunDataNeeded": "This flow doesn't need data to start.",
+        "closeAria": "Close",
+        "backToForm": "← Back to form",
+        "editAsJson": "Edit as JSON (advanced)",
+        "runResult": "Run result",
+        "running2": "Running…",
+        "triggerManual": "When I run it",
+        "triggerMessage": "When a message arrives",
+        "triggerSchedule": "On a schedule",
+        "triggerWebhook": "Via webhook",
+        "runModalTitle": "Run flow",
+        "runNoFieldsHint": "Click \"Run\" to launch it. If you want, add variables to the flow from the variables button.",
+        "runJsonLabel": "Data (JSON)",
+        "cancel": "Cancel",
+        "runButton": "Run"
+      },
+      "inspector": {
+        "deleteNodeAria": "Delete node",
+        "nameLabel": "Step name",
+        "nameHelp": "How it appears in the flow.",
+        "pathValuePlaceholder": "path value",
+        "removeAria": "Remove",
+        "keyPlaceholder": "key",
+        "valuePlaceholder": "value",
+        "all": "All",
+        "pickOne": "Pick an option…",
+        "noIntegrations": "No integrations connected. Go to <link>Integrations</link> to connect one.",
+        "cronEvery15": "Every 15 minutes",
+        "cronHourly": "Every hour",
+        "cronDaily": "Every day at 9am",
+        "cronWeekly": "Every Monday at 9am",
+        "cronMonthly": "On day 1 of every month"
+      }
+    },
+    "knowledge": {
+      "title": "Knowledge",
+      "subtitle": "Upload documents so your agents can answer with your own information (RAG).",
+      "newBase": "New base",
+      "namePlaceholder": "Name — e.g. Internal docs",
+      "descriptionPlaceholder": "Description (optional)",
+      "embeddingsLabel": "Embeddings:",
+      "create": "Create",
+      "cancel": "Cancel",
+      "created": "Knowledge base created",
+      "createError": "Could not create",
+      "emptyTitle": "No knowledge bases yet",
+      "emptyDescription": "Create the first one and upload documents to feed your agents.",
+      "detail": {
+        "tabDocs": "Documents",
+        "tabSearch": "Try search",
+        "uploadDoc": "Upload document",
+        "titlePlaceholder": "Document title",
+        "sourceText": "Paste text",
+        "sourceUrl": "From URL",
+        "sourceFile": "Upload PDF / DOCX",
+        "textPlaceholder": "Paste the document text here…",
+        "urlPlaceholder": "https://docs.example.com/article",
+        "indexing": "Index",
+        "cancel": "Cancel",
+        "titleRequired": "Title required",
+        "contentRequired": "Content required",
+        "urlRequired": "URL required",
+        "selectFile": "Pick a file",
+        "indexed": "Indexed: {count} chunks",
+        "indexError": "Indexing error",
+        "confirmDelete": "Delete this document?",
+        "deleted": "Deleted",
+        "emptyDocs": "No documents",
+        "emptyDocsHint": "Upload the first above.",
+        "searchPlaceholder": "Try a semantic search…",
+        "search": "Search"
+      }
+    },
+    "employees": {
+      "title": "Employees",
+      "subtitle": "Your team directory",
+      "search": "Search by name or email…",
+      "area": "Area",
+      "email": "Email",
+      "phone": "Phone",
+      "active": "Active",
+      "inactive": "Inactive",
+      "empty": "No employees yet. Import your team to get started.",
+      "emptyCta": "Import CSV",
+      "budget": {
+        "prompt": "Monthly budget in USD for {name} (empty = no limit)",
+        "invalid": "Budget must be a number ≥ 0 or empty",
+        "updateError": "Could not update",
+        "removed": "Budget removed",
+        "set": "Budget: ${value}/mo",
+        "perMonth": "${value}/mo",
+        "noLimit": "No limit",
+        "editAria": "Edit {name}'s budget"
+      }
+    },
+    "conversations": {
+      "title": "Conversations",
+      "subtitle": "Every interaction with an agent, on every channel.",
+      "status": {
+        "open": "Open",
+        "closed": "Closed",
+        "escalated": "Escalated",
+        "openPl": "Open",
+        "closedPl": "Closed",
+        "escalatedPl": "Escalated"
+      },
+      "statusFilter": "Status · All",
+      "channelFilter": "Channel · All",
+      "agentFilter": "Agent · All",
+      "tagFilter": "Tag · All",
+      "channel": {
+        "web": "Web",
+        "widget": "Web Widget",
+        "whatsapp": "WhatsApp",
+        "telegram": "Telegram",
+        "slack": "Slack",
+        "email": "Email",
+        "api": "API"
+      },
+      "messages": "messages",
+      "duration": "sec",
+      "empty": "No conversations yet.",
+      "emptyTitle": "No conversations",
+      "emptyDescription": "When an agent receives messages, you'll see them here.",
+      "emptyCta": "Set up a channel",
+      "search": "Search conversations",
+      "searchPlaceholder": "Search by name, email or summary…",
+      "exportCsv": "Export CSV",
+      "csvDownloaded": "CSV downloaded",
+      "loading": "Loading…",
+      "loadMore": "Load {n} more",
+      "loadingMore": "Loading…",
+      "showing": "Showing {count}",
+      "hasMore": "(more available)",
+      "anonymous": "Anonymous",
+      "takeOverBadge": "take-over",
+      "withAgent": "with",
+      "close": "Close",
+      "filterByStatus": "Filter by status",
+      "filterByChannel": "Filter by channel",
+      "filterByAgent": "Filter by agent",
+      "actions": {
+        "takeOver": "Take",
+        "release": "Return to agent",
+        "send": "Send",
+        "taken": "Conversation taken",
+        "returned": "Returned to agent",
+        "sent": "Message sent",
+        "sendError": "Could not send"
+      },
+      "drawer": {
+        "operator": "Operator",
+        "agent": "Agent",
+        "budgetExceeded": "Budget exceeded",
+        "replyAsOperator": "Reply as operator…",
+        "takeoverPrompt": "Take the conversation to write as human",
+        "employeeMonth": "Employee: {amount} this month (no limit)",
+        "tokens": "tokens",
+        "conversationsCount": "{n} conversations this month"
+      }
+    },
+    "channels": {
+      "title": "Channels",
+      "subtitle": "Connect your agents to the channels where your customers and employees are.",
+      "empty": "No channels configured.",
+      "emptyCta": "Connect a channel",
+      "nameRequired": "Name required",
+      "agentRequired": "Assign an agent",
+      "channelCreated": "Channel created",
+      "createError": "Could not create",
+      "namePlaceholder": "Channel name (e.g. 'WhatsApp support')",
+      "selectAgent": "— Pick an agent —",
+      "noAgent": "— No agent —",
+      "create": "Create",
+      "cancel": "Cancel",
+      "beta": "Beta",
+      "connect": "Connect {label}",
+      "newChannel": "New channel · {label}",
+      "newChannelShort": "New channel",
+      "connectedHeading": "Connected channels",
+      "pause": "Pause",
+      "activate": "Activate",
+      "close": "Close",
+      "configure": "Configure",
+      "channelActivated": "Channel activated",
+      "channelPaused": "Channel paused",
+      "deleteConfirm": "Delete this channel?",
+      "deleted": "Deleted",
+      "copied": "Copied",
+      "tokenRequired": "Paste the bot token",
+      "credsSaved": "Credentials saved",
+      "webhookSet": "Webhook configured for @{username}",
+      "saveError": "Could not save",
+      "agentLabel": "Agent",
+      "snippetLabel": "Install snippet",
+      "snippetHelp": "Paste this script before <code>{tag}</code> on any HTML page.",
+      "telegramTokenLabel": "Bot Token (@BotFather)",
+      "telegramPlaceholder": "123456:ABC-DEF…",
+      "telegramReplacePlaceholder": "•••••••• (already set, paste a new one to replace)",
+      "save": "Save",
+      "webhookLabel": "Webhook URL (auto-configured)",
+      "apiEndpointLabel": "Public endpoint",
+      "apiBodyHint": "Body:",
+      "types": {
+        "widget": {
+          "label": "Web Widget",
+          "description": "Embed a chat on any site with a script."
+        },
+        "telegram": {
+          "label": "Telegram",
+          "description": "Telegram bot with agent auto-reply."
+        },
+        "whatsapp": {
+          "label": "WhatsApp",
+          "description": "Connect via Twilio or Meta Cloud API. (Adapter ready, requires account)."
+        },
+        "slack": {
+          "label": "Slack",
+          "description": "Slash commands and DMs. (Requires Slack app)."
+        },
+        "email": {
+          "label": "Email",
+          "description": "Virtual inbox with Resend / Postmark."
+        },
+        "api": {
+          "label": "API",
+          "description": "Public endpoint with secret to trigger agents from code."
+        },
+        "web": {
+          "label": "Web Widget",
+          "description": "Widget alias."
+        }
+      }
+    },
+    "integrations": {
+      "title": "Integrations",
+      "subtitle": "Connect Orchester with the tools you already use. Credentials are stored encrypted and each integration exposes actions your agents can run.",
+      "empty": "No integrations yet.",
+      "emptyCta": "Browse integrations",
+      "connectedHeading": "Connected",
+      "availableHeading": "Available",
+      "testing": "Testing connection…",
+      "connectionOk": "Connection OK",
+      "connectionFailed": "Connection failed",
+      "deleteConfirm": "Delete the \"{name}\" integration?",
+      "deleted": "Integration deleted",
+      "test": "Test",
+      "edit": "Edit",
+      "removeAria": "Delete {name}",
+      "untested": "untested",
+      "actionsCount": "{count} actions for agents",
+      "actionsCountOne": "{count} action for agents",
+      "addAnother": "Add another",
+      "connect": "Connect",
+      "footer": "💡 Connected integrations expose their actions as <b>tools</b> agents can use. Credentials are stored encrypted (AES-256-GCM).",
+      "connectTitle": "Connect {name}",
+      "oauthNote": "Requires registering an OAuth app. Paste your client ID/secret; the auth flow happens after.",
+      "fieldRequired": "{label} is required",
+      "saveError": "Save error",
+      "connectedOk": "Connected successfully",
+      "savedButFailed": "Saved, but the connection failed: {error}",
+      "nameLabel": "Name",
+      "saveAndTest": "Save and test",
+      "close": "Close"
+    },
+    "usage": {
+      "title": "Usage",
+      "subtitle": "Token consumption and cost breakdown by agent",
+      "empty": "No usage data yet.",
+      "noData": "No data available for this period.",
+      "totalTokens": "Total Tokens",
+      "estimatedCost": "Est. Cost",
+      "conversations": "Conversations",
+      "avgTokens": "Avg Tokens/Conv",
+      "chartTitle": "Token Usage",
+      "agentTableTitle": "Agent Breakdown",
+      "col": {
+        "agent": "Agent",
+        "model": "Model",
+        "conversations": "Conversations",
+        "tokens": "Tokens",
+        "cost": "Cost (USD)"
+      }
+    },
+    "settings": {
+      "title": "Settings",
+      "subtitle": "Workspace configuration",
+      "loadError": "Could not load the workspace.",
+      "sidebarAria": "Settings sections",
+      "tabs": {
+        "general": "General",
+        "account": "My account",
+        "notifications": "Notifications",
+        "providers": "AI Providers",
+        "billing": "Plan and usage",
+        "members": "Team",
+        "sessions": "Sessions",
+        "audit": "Audit log",
+        "flags": "Feature flags",
+        "developers": "Developers",
+        "danger": "Danger zone",
+        "memory": "Memory maintenance"
+      },
+      "general": {
+        "title": "General",
+        "description": "Basic workspace info visible to all members.",
+        "save": "Save",
+        "saved": "Workspace updated",
+        "saveError": "Could not save",
+        "nameLabel": "Workspace name",
+        "namePlaceholder": "Acme Inc.",
+        "slugLabel": "Slug",
+        "slugHint": "Not editable. Appears in the workspace URL.",
+        "timezoneLabel": "Timezone",
+        "timezoneHint": "Used for dashboard and report dates.",
+        "roleLabel": "Your role",
+        "roleHint": "Only owners and admins can edit."
+      },
+      "account": {
+        "title": "My account",
+        "description": "Personal info and interface preferences.",
+        "save": "Save",
+        "saved": "Account updated",
+        "saveError": "Could not save",
+        "nameLabel": "Name",
+        "namePlaceholder": "Your name",
+        "emailLabel": "Email",
+        "emailHint": "To change your email, contact support.",
+        "localeLabel": "Interface language",
+        "twoFactorTitle": "Two-factor authentication (2FA)",
+        "twoFactorActive": "active",
+        "deleteAccountTitle": "Delete account (GDPR)",
+        "deleteAccountDescription": "Wipes your account and all your data. If you're the sole owner of any workspace, the workspace and its content are deleted too.",
+        "deleteAccountButton": "Delete my account",
+        "deleteModalTitle": "Delete account",
+        "deleteModalDescription": "This removes your user from the DB. Cannot be undone. To confirm, type your email:",
+        "deleteEmailPlaceholder": "Type your email",
+        "cancel": "Cancel",
+        "deleteConfirm": "Delete permanently",
+        "deleted": "Account deleted",
+        "deleteError": "Could not delete"
+      },
+      "notifications": {
+        "title": "Notifications",
+        "description": "Choose which workspace events trigger email notifications. Settings apply to your account only.",
+        "loading": "Loading preferences…",
+        "saveError": "Could not save the preference",
+        "defaultFrom": "Default from {kind}",
+        "defaultWorkspace": "workspace",
+        "defaultSystem": "system"
+      },
+      "members": {
+        "activeHeading": "Active members",
+        "loading": "Loading…",
+        "noneYet": "No members yet.",
+        "invitesHeading": "Invitations",
+        "inviteSent": "Invitation sent",
+        "inviteError": "Error",
+        "inviteLinkLabel": "Invite link (also sent by email):",
+        "copyAria": "Copy link",
+        "removeConfirm": "Remove {name} from the workspace?",
+        "memberRemoved": "Member removed",
+        "removeError": "Could not remove",
+        "roleUpdated": "Role updated",
+        "roleError": "Could not change the role",
+        "inviteRevoked": "Invitation revoked",
+        "revokeError": "Could not revoke",
+        "emailPlaceholder": "email@company.com",
+        "emailAria": "Invitee email",
+        "roleAria": "Role",
+        "changeRoleAria": "Change role",
+        "removeAria": "Remove {name}",
+        "revokeAria": "Revoke invitation to {email}",
+        "invite": "Invite",
+        "expires": "expires"
+      },
+      "sessions": {
+        "loading": "Loading…",
+        "noSessions": "No active sessions.",
+        "current": "Current",
+        "lastSeen": "Last seen",
+        "createdAt": "Created",
+        "expires": "Expires",
+        "revoke": "Revoke",
+        "revokeAll": "Revoke all others",
+        "confirmRevokeAll": "Revoke all other sessions?",
+        "revoked": "Session revoked",
+        "revokeError": "Could not revoke",
+        "allRevoked": "All other sessions revoked",
+        "unknown": "Unknown device"
+      },
+      "developers": {
+        "apiKeysHeading": "API Keys",
+        "webhooksHeading": "Webhooks (outgoing events)",
+        "noApiKeys": "You haven't created any API keys yet.",
+        "createKey": "Create key",
+        "keyNamePlaceholder": "Name — e.g. 'Production server'",
+        "keyNameAria": "Name for the new API key",
+        "keyCreated": "API key created — copy it now, you won't see it again",
+        "copyOnceWarning": "⚠️ Copy it now — only shown once:",
+        "saved": "Saved →",
+        "revoked": "revoked",
+        "lastUsed": "used {date}",
+        "neverUsed": "never used",
+        "revokeKeyConfirm": "Revoke this API key?",
+        "keyRevoked": "Revoked",
+        "createError": "Error",
+        "copied": "Copied",
+        "noWebhooks": "No webhooks configured.",
+        "urlAria": "Outgoing webhook URL",
+        "urlPlaceholder": "https://your-server.com/orchester-events",
+        "test": "Test",
+        "active": "Active",
+        "paused": "Paused",
+        "deleteWebhookConfirm": "Delete webhook?",
+        "webhookCreated": "Webhook created",
+        "testingWebhook": "Sending test event…",
+        "testWebhookOk": "Test event delivered",
+        "testWebhookFailed": "Test delivery failed",
+        "addWebhook": "Add webhook",
+        "apiHint": "Use your API key with"
+      },
+      "providers": {
+        "loading": "Loading providers…",
+        "connectedHeading": "Connected",
+        "noProvidersEmpty": "You haven't connected any providers yet. Search below and connect one with your API key.",
+        "addProviderHeading": "Add a provider",
+        "searchPlaceholder": "Search provider (OpenAI, Replicate, ElevenLabs…)",
+        "filterAll": "All",
+        "noMatches": "No providers match your search.",
+        "connected": "Connected",
+        "notConnected": "Not connected",
+        "aggregator": "aggregator",
+        "local": "local",
+        "edit": "Edit",
+        "connect": "Connect",
+        "viewModels": "View models",
+        "aggregatorHint": "+ accepts any other model by id.",
+        "remove": "Remove",
+        "replacePlaceholder": "Replace key…",
+        "apiKey": "API key",
+        "apiKeyWith": "API key · {hint}",
+        "showHideAria": "Show/hide",
+        "endpointPlaceholder": "https://… (endpoint)",
+        "saving": "Saving…",
+        "save": "Save",
+        "test": "Test",
+        "saveError": "Error saving",
+        "connectedFeedback": "Connected",
+        "testOkFeedback": "OK · {count} models",
+        "testErrorFeedback": "Error: {error}",
+        "whereDoIGetKey": "Where do I get the key? →"
+      },
+      "billing": {
+        "loading": "Loading…",
+        "currentPlan": "Current plan",
+        "noLimits": "· no limits",
+        "perMonth": "$",
+        "upgrade": "Upgrade to Pro",
+        "managePlan": "Manage subscription",
+        "conversationsMonth": "Conversations (month)",
+        "tokensMonth": "Tokens (month)",
+        "flowRuns": "Flow runs:",
+        "kbQueries": "KB queries:",
+        "stripeNotConfigured": "Stripe not configured — set STRIPE_SECRET_KEY + STRIPE_PRICE_*",
+        "noStripeCustomer": "No Stripe customer associated"
+      },
+      "audit": {
+        "filterAria": "Filter audit log",
+        "filterPlaceholder": "Filter by action, resource, id…",
+        "reloadAria": "Reload audit log",
+        "loading": "Loading…",
+        "loadError": "Could not load the audit log.",
+        "retry": "Retry",
+        "noActivity": "No activity recorded yet.",
+        "noMatches": "No matches.",
+        "viewDiff": "view diff"
+      },
+      "twoFactor": {
+        "enabledBanner": "2FA enabled. Your account is protected with two-factor authentication.",
+        "disableLabel": "To disable, enter your password:",
+        "disableButton": "Disable 2FA",
+        "backupCodesWarning": "Save these codes somewhere safe. They let you log in if you lose access to your authenticator app. Each code can only be used ONCE.",
+        "copyAll": "Copy all",
+        "copied": "Copied",
+        "doneSaved": "Done, I've saved them",
+        "setupDescription": "Scan the QR with your authenticator app (Google Authenticator, Authy, 1Password, etc.) and then enter the 6-digit code.",
+        "qrAlt": "TOTP secret QR",
+        "cantScan": "Can't scan?",
+        "pasteUrl": "Paste this URL into your app:",
+        "codeLabel": "6-digit code",
+        "cancel": "Cancel",
+        "verifyAndActivate": "Verify and activate",
+        "disabledHint": "2FA is not enabled. Recommended for owner/admin accounts.",
+        "confirmWithPassword": "Confirm with your password:",
+        "enableButton": "Enable 2FA",
+        "passwordRequired": "Enter your password to confirm",
+        "passwordDisableRequired": "Enter your password to disable",
+        "setupFailed": "Could not start setup",
+        "code6": "6-digit code",
+        "codeInvalid": "Invalid code",
+        "enabled": "2FA enabled",
+        "disableFailed": "Could not disable",
+        "disabled": "2FA disabled"
+      },
+      "danger": {
+        "title": "Danger Zone",
+        "description": "Irreversible actions. Transfer ownership or soft-delete the workspace. Only owners can use these controls.",
+        "deleteButton": "Soft-delete workspace",
+        "onlyOwner": "Only the workspace owner can perform this action",
+        "yourRoleIs": "Your current role is <b>{role}</b>."
+      },
+      "sections": {
+        "providersTitle": "AI Providers",
+        "providersDescription": "Connect AI providers (chat, image, embeddings, video, audio and more) with your own API key. Available models show up in the agent editor and flows.",
+        "billingTitle": "Plan and usage",
+        "billingDescription": "Your plan, monthly usage and limits.",
+        "membersTitle": "Team",
+        "membersDescription": "Workspace members and pending invitations.",
+        "sessionsTitle": "Active sessions",
+        "sessionsDescription": "Devices connected to your account. Close them remotely if you suspect a compromise.",
+        "auditTitle": "Audit log",
+        "auditDescription": "Every critical workspace mutation is recorded here. Read-only.",
+        "developersTitle": "Developers",
+        "developersDescription": "API keys, outbound webhooks, and the public API reference.",
+        "memoryTitle": "Memory maintenance",
+        "memoryDescription": "Scheduled jobs + recall quality. Admin backstage."
+      },
+      "empty": "Settings coming soon.",
+      "workspace": "Workspace",
+      "workspaceName": "Workspace Name",
+      "workspaceSlug": "Workspace Slug",
+      "workspaceNamePlaceholder": "Acme Inc.",
+      "save": "Save Changes",
+      "saved": "Saved!",
+      "deleteWorkspace": "Delete Workspace",
+      "deleteWarning": "This action is irreversible. All data will be permanently deleted.",
+      "apiKeys": "API Keys",
+      "apiKeysDescription": "Manage keys for external integrations.",
+      "noApiKeys": "No API keys yet.",
+      "addApiKey": "Add Key",
+      "notificationsDescription": "Configure alert preferences.",
+      "locale": "Language",
+      "localeDescription": "Interface language for your account.",
+      "team": "Team Members",
+      "teamDescription": "Manage who has access to this workspace."
+    }
+  },
+  "onboarding": {
+    "step1": {
+      "title": "Welcome to Orchester",
+      "description": "Let's set up your workspace in under 2 minutes.",
+      "workspaceName": "Workspace name",
+      "workspaceNamePlaceholder": "Acme Inc.",
+      "workspaceSlug": "Workspace URL",
+      "slugHint": "orchester.io/w/your-slug",
+      "continue": "Continue"
+    },
+    "step2": {
+      "title": "Connect your AI provider",
+      "description": "Add an API key to power your agents. You can change this later.",
+      "provider": "Provider",
+      "apiKey": "API key",
+      "apiKeyPlaceholder": "sk-ant-...",
+      "skip": "Skip for now",
+      "continue": "Continue",
+      "recommended": "Recommended"
+    },
+    "step3": {
+      "title": "Choose a starting point",
+      "description": "Pick a ready-made team or start from scratch.",
+      "useTemplate": "Use template",
+      "startBlank": "Start blank",
+      "skip": "Skip"
+    },
+    "step4": {
+      "title": "Load your employees",
+      "description": "Import your team so agents can greet them by name.",
+      "importCsv": "Import CSV",
+      "skipForNow": "Skip for now — I'll do this later",
+      "finishing": "Setting up your workspace…",
+      "allDone": "You're all set!"
+    },
+    "progressStep": "Step {current} of {total}",
+    "checklist": {
+      "title": "Get started",
+      "subtitle": "5 things to do first in your workspace",
+      "tasks": {
+        "createAgent": {
+          "title": "Create your first agent",
+          "description": "Define a system prompt, model, and tools to give your team an AI teammate."
+        },
+        "connectProvider": {
+          "title": "Connect a model provider",
+          "description": "Add an API key so your agents can actually call a language model."
+        },
+        "setupChannel": {
+          "title": "Set up a channel",
+          "description": "Wire your agents to a web widget, WhatsApp, Slack, or email."
+        },
+        "inviteTeammate": {
+          "title": "Invite a teammate",
+          "description": "Bring someone in so the workspace isn't a one-person show."
+        },
+        "firstRun": {
+          "title": "Run a flow or send a message",
+          "description": "Kick off your first conversation or flow run — proof it all works end-to-end."
+        }
+      },
+      "cta": {
+        "getStarted": "Get started",
+        "done": "Done"
+      },
+      "completed": {
+        "banner": "Workspace ready — you're set up.",
+        "dismiss": "Dismiss"
+      }
+    }
+  },
+  "workspace": {
+    "switcher": {
+      "label": "Switch workspace",
+      "search": "Search workspaces…",
+      "current": "Current",
+      "other": "Other workspaces",
+      "create": "Create workspace",
+      "invite": "Invite teammate to {name}",
+      "openShortcut": "⌘⇧K"
+    },
+    "create": {
+      "title": "Create workspace",
+      "nameLabel": "Workspace name",
+      "slugLabel": "URL slug",
+      "slugHint": "Lowercase letters, numbers, hyphens",
+      "slugAvailable": "available",
+      "slugTaken": "already taken",
+      "slugChecking": "checking…",
+      "timezoneLabel": "Timezone",
+      "colorLabel": "Accent color",
+      "cancel": "Cancel",
+      "submit": "Create workspace",
+      "created": "Workspace created"
+    },
+    "delete": {
+      "title": "Delete {name}",
+      "intro": "This will:",
+      "willHide": "Hide the workspace from all members",
+      "willPause": "Pause all integrations and channels",
+      "willStop": "Stop all agents and flows",
+      "willEmail": "Send you an email with a restore link",
+      "windowExplainer": "You have {days} days to restore. After that, all data is permanently deleted.",
+      "reasonLabel": "Reason (optional)",
+      "confirmLabel": "Type the workspace slug to confirm:",
+      "expected": "Expected: {slug}",
+      "submit": "Delete workspace",
+      "deleted": "Workspace deleted. Restore within {days} days."
+    },
+    "restore": {
+      "title": "Restore {name}",
+      "deletedOn": "Deleted on {date}",
+      "restoreUntil": "You can restore until {date}",
+      "daysRemaining": "{n} days remaining",
+      "tokenLabel": "Restore token (from email)",
+      "tokenPlaceholder": "rst_…",
+      "tokenHint": "Paste the token from the deletion email. Optional if you're the original owner.",
+      "submit": "Restore workspace",
+      "submitting": "Restoring…",
+      "continueDeletion": "Continue deletion",
+      "restored": "Workspace restored",
+      "pageHeading": "Restore workspace",
+      "expiredOrInvalid": "This recovery link is expired or invalid.",
+      "expiredOrInvalidBody": "If you believe this is a mistake, contact support — the workspace may already have been restored, the 30-day window may have passed, or you may need to be signed in as the owner.",
+      "restoreFailed": "Restore failed"
+    },
+    "suspended": {
+      "title": "This workspace is paused (read-only)",
+      "body": "You can view data and export, but cannot edit or send messages.",
+      "reason": "Reason: {reason}",
+      "contactSupport": "Contact support"
+    },
+    "export": {
+      "preparing": "Preparing your export",
+      "exporting": "Exporting data…",
+      "ready": "Export ready",
+      "failed": "Export failed",
+      "availableUntil": "Available until {date}",
+      "download": "Download",
+      "retry": "Retry",
+      "dismiss": "Dismiss",
+      "progressLabel": "Export progress",
+      "title": "Workspace export"
+    },
+    "transfer": {
+      "title": "Transfer ownership",
+      "intro": "Transfer ownership of {name} to another admin. This is irreversible — you will become an admin.",
+      "selectMember": "Select new owner",
+      "selectPlaceholder": "Choose a member…",
+      "noEligible": "No other admins available. Promote a member to admin first.",
+      "passwordLabel": "Confirm your password",
+      "passwordHint": "We re-verify your password to defend against session hijack.",
+      "ackLabel": "I understand I will become an admin and need to log in again",
+      "submit": "Transfer ownership",
+      "submitting": "Transferring…",
+      "cancel": "Cancel",
+      "transferred": "Ownership transferred",
+      "passwordInvalid": "Password is incorrect",
+      "rateLimited": "Too many attempts. Try again in {minutes} min.",
+      "sameOwner": "You can't transfer to yourself.",
+      "notAMember": "The selected user is no longer a member.",
+      "openButton": "Transfer ownership",
+      "loadingMembers": "Loading members…",
+      "genericError": "Could not transfer ownership"
+    },
+    "audit": {
+      "title": "Audit log",
+      "subtitle": "Every critical change is recorded.",
+      "chainStatus": "Chain status",
+      "chainIntact": "Intact",
+      "chainBroken": "Broken",
+      "lastVerified": "Last verified {date}",
+      "loadMore": "Load more",
+      "noEvents": "No events recorded yet",
+      "reverify": "Re-verify",
+      "verifyAria": "Re-verify audit chain",
+      "entries": "entries",
+      "action": "Action",
+      "actor": "Actor",
+      "target": "Target",
+      "when": "When"
+    },
+    "featureFlags": {
+      "title": "Feature flags",
+      "subtitle": "Enable experimental features for this workspace.",
+      "search": "Search flags…",
+      "setBy": "Set by {actor} · {time}",
+      "system": "system"
+    },
+    "listPage": {
+      "title": "Your workspaces",
+      "memberCount": "{n} members",
+      "lastVisited": "last visited {time}",
+      "createNew": "Create new workspace",
+      "recentlyDeleted": "Recently deleted workspaces can still be restored:",
+      "restoreCta": "Restore"
+    },
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "editor": "Editor",
+      "viewer": "Viewer"
+    },
+    "errors": {
+      "workspaceNotFound": "Workspace not found",
+      "notAMember": "You're not a member of this workspace",
+      "suspended": "This workspace is paused",
+      "deleted": "This workspace was deleted",
+      "rateLimited": "You're doing that too often. Try again in {minutes} min.",
+      "slugInvalid": "Use lowercase letters, numbers, and hyphens (3-40 chars).",
+      "slugTaken": "That slug is already taken. Try {suggestion}."
+    }
+  },
+  "settings": {
+    "memory": {
+      "title": "Memory operations",
+      "subtitle": "On-demand triggers for the Mnemosyne housekeeping crons. Each action enqueues a job that runs in the next worker tick.",
+      "adminOnly": "Only workspace admins can trigger memory operations.",
+      "lastRun": "Last run",
+      "ops": {
+        "health": {
+          "name": "Memory health snapshot",
+          "description": "Recomputes the memory health snapshot for this workspace (fact counts, embedding coverage, recall hit-rate, contradictions)."
+        },
+        "dedup": {
+          "name": "Dedup pass",
+          "description": "Merges near-duplicate facts (cosine ≥ 0.92) into a single primary record. Idempotent — re-runs find nothing to do."
+        },
+        "prune": {
+          "name": "Prune inactive facts",
+          "description": "Archives unpinned facts with no recall hits, age > 90 days, and relevance < 0.1. Reversible from the archive."
+        },
+        "consolidation": {
+          "name": "REM-style consolidation",
+          "description": "Clusters related facts and writes a one-sentence summary that supersedes them. Originals stay findable."
+        },
+        "review-sweep": {
+          "name": "Review-queue sweep",
+          "description": "Surfaces low-confidence facts into the review queue for human triage (cap 50 per run)."
+        },
+        "auto-pin": {
+          "name": "Auto-pin pass",
+          "description": "Evaluates the auto-pin rule set against active facts and pins matches. Skips user-overridden rows."
+        },
+        "summary": {
+          "name": "Summary refresh",
+          "description": "Pre-distills a per-(agent, user) memory summary so the next chat turn skips the LLM round-trip.",
+          "requiresAgent": "Trigger from agent settings — needs a specific agent."
+        }
+      },
+      "actions": {
+        "runNow": "Run now",
+        "cancel": "Cancel"
+      },
+      "confirm": {
+        "title": "Run {op}?",
+        "body": "This will enqueue the job for this workspace. It runs on the next worker tick — usually within a minute."
+      },
+      "toast": {
+        "enqueued": "Job enqueued — runs in the next worker tick.",
+        "enqueueError": "Couldn't enqueue: {message}"
+      }
+    }
+  },
+  "marketing": {
+    "nav": {
+      "docs": "Docs",
+      "getStarted": "Get started",
+      "signIn": "Sign in"
+    },
+    "hero": {
+      "badge": "Open-source · Self-hostable · Multi-tenant",
+      "headline1": "Stop building agents.",
+      "headline2": "Build teams.",
+      "subheadline": "Orchester organizes your AI agents into teams — with an orchestrator that delegates, specialists that focus, and shared memory that learns. Open-source, self-hostable, multi-tenant.",
+      "ctaPrimary": "Self-host in 30s",
+      "ctaGithub": "Star on GitHub",
+      "liveNetwork": "Live Agent Network"
+    },
+    "stats": {
+      "providers": "AI providers",
+      "locales": "languages",
+      "openSource": "open source",
+      "selfHostable": "self-hostable"
+    },
+    "features": {
+      "title": "Everything you need.",
+      "subtitle": "Nothing you don't.",
+      "multiChannel": {
+        "title": "Real multi-channel",
+        "desc": "Web widget, WhatsApp, Telegram, Slack, email, and API. One conversation, every channel — with state shared automatically."
+      },
+      "streaming": {
+        "title": "Token-by-token streaming",
+        "desc": "Responses appear while the model thinks. First-class UX with native SSE on every channel."
+      },
+      "flows": {
+        "title": "Visual flows, no code",
+        "desc": "Wire triggers, conditions, and actions on a canvas. Branches, retries, and typed state out of the box."
+      },
+      "costControl": {
+        "title": "Cost under control",
+        "desc": "Monthly budget per employee with alerts at 70/90/100%. Per-conversation and per-message breakdown — no surprises."
+      },
+      "byok": {
+        "title": "Your model, your keys",
+        "desc": "Bring-your-own-key for Anthropic, OpenAI, Google, Azure, Mistral and 80+ providers. Switch without rewriting code."
+      },
+      "enterprise": {
+        "title": "Enterprise security",
+        "desc": "SSO/SAML, 2FA, RBAC, full audit log, GDPR export, CSP nonces, at-rest encryption, signed webhooks (HMAC)."
+      }
+    },
+    "channels": {
+      "title": "One conversation.",
+      "titleAccent": "Every channel.",
+      "subtitle": "Connect your agent once. Web, mobile, messaging, email, code — Orchester handles the state.",
+      "labels": {
+        "whatsapp": "WhatsApp",
+        "telegram": "Telegram",
+        "slack": "Slack",
+        "email": "Email",
+        "web": "Widget",
+        "webhook": "Webhook",
+        "api": "API"
+      },
+      "statChannels": "channels",
+      "statContext": "shared context",
+      "statSync": "lines of sync code"
+    },
+    "techStack": {
+      "title1": "Your model.",
+      "title2": "Your cloud.",
+      "title3": "Your data.",
+      "subtitle": "Bring-your-own-key. Self-host with one command. Or use our cloud — your call.",
+      "proofs": {
+        "pgvector": {
+          "title": "pgvector for RAG",
+          "desc": "Postgres with native vector search. No separate vector DB to operate."
+        },
+        "workers": {
+          "title": "Durable workers",
+          "desc": "pg-boss queue with exponential retry and idempotency keys built in."
+        },
+        "webhooks": {
+          "title": "Signed webhooks",
+          "desc": "HMAC-SHA256 signatures, automatic retries, replay protection."
+        },
+        "otel": {
+          "title": "OpenTelemetry",
+          "desc": "Distributed tracing, structured logs, Prometheus-compatible metrics."
+        },
+        "rls": {
+          "title": "Row-level isolation",
+          "desc": "Postgres RLS guarantees tenant data never leaks across workspaces."
+        }
+      }
+    },
+    "howItWorks": {
+      "title": "Up and running in 3 steps.",
+      "step1": {
+        "label": "Deploy",
+        "title": "One-command setup",
+        "desc": "Clone the repo, configure your .env, and run docker compose up. Postgres + Redis are the only infrastructure dependencies."
+      },
+      "step2": {
+        "label": "Build",
+        "title": "Create your first agent",
+        "desc": "Define persona, model, memory strategy, and tools through the UI or API. Connect it to a channel or flow in minutes."
+      },
+      "step3": {
+        "label": "Scale",
+        "title": "Orchestrate at scale",
+        "desc": "Chain agents into visual flows, add teammates as members with RBAC, and monitor every LLM decision in real time."
+      }
+    },
+    "integrations": {
+      "title": "Works with every AI provider.",
+      "subtitle": "Don't get locked in. Switch or mix models without changing your agent code."
+    },
+    "cta": {
+      "title": "Built in the open.",
+      "subtitle": "Star us, fork us, break us. Orchester is open-source and will stay that way.",
+      "primaryButton": "Star on GitHub",
+      "secondaryButton": "Self-host in 5 minutes",
+      "selfHostCommand": "docker compose up -d"
+    },
+    "footer": {
+      "tagline": "Open-source AI agent platform.",
+      "ariaLabel": "Footer links",
+      "madeIn": "Made with ♥ in Buenos Aires",
+      "links": {
+        "docs": "Docs",
+        "github": "GitHub",
+        "privacy": "Privacy",
+        "terms": "Terms"
+      }
+    },
+    "modelMarquee": {
+      "title": "Compatible with 80+ AI providers"
+    },
+    "productShowcase": {
+      "title1": "See Orchester",
+      "title2": "in action.",
+      "subtitle": "Six surfaces, one platform. Everything your team needs to build, ship, and operate AI agents at scale.",
+      "brain": {
+        "label": "Memory",
+        "title": "Brain Inspector",
+        "subtitle": "Facts with decay scoring and recall telemetry"
+      },
+      "flow": {
+        "label": "Workflows",
+        "title": "Flow Builder",
+        "subtitle": "Visual canvas with branching, loops, and typed state"
+      },
+      "org": {
+        "label": "Hierarchy",
+        "title": "Team Org Chart",
+        "subtitle": "Orchestrator delegates to specialist agents"
+      },
+      "convs": {
+        "label": "Channels",
+        "title": "Unified Inbox",
+        "subtitle": "WhatsApp, Telegram, Slack — one context"
+      },
+      "cost": {
+        "label": "Spend",
+        "title": "Cost Dashboard",
+        "subtitle": "Budgets, alerts, per-provider breakdown"
+      },
+      "knowledge": {
+        "label": "RAG",
+        "title": "Knowledge Base",
+        "subtitle": "Postgres + pgvector — PDFs, URLs, CSV, markdown"
+      }
+    },
+    "testimonials": {
+      "eyebrow": "Built in public · loved by makers",
+      "title": "From the people building agents today",
+      "quotes": {
+        "ana": {
+          "name": "Ana García",
+          "role": "AI Product Lead · Startup",
+          "body": "Orchester let us orchestrate five distinct agents without writing infrastructure. In one afternoon we had our first flow in production."
+        },
+        "marcus": {
+          "name": "Marcus Chen",
+          "role": "Staff Engineer · Scale-up",
+          "body": "The model-routing layer alone saved us weeks of plumbing. We describe intent and Orchester picks the right provider at the right cost."
+        },
+        "rafael": {
+          "name": "Rafael Souza",
+          "role": "Founder · Indie hacker",
+          "body": "I shipped my first autonomous agent in less than a day. The DX is ridiculously good when you're working solo."
+        }
+      }
+    },
+    "faq": {
+      "eyebrow": "Questions developers ask",
+      "title": "Frequently asked",
+      "q": {
+        "free": {
+          "question": "Is Orchester really free?",
+          "answer": "Yes — Apache-2.0 license. Self-host as much as you want, no per-seat fee, no usage cap. Optional cloud plan if you don't want to operate it."
+        },
+        "selfhost": {
+          "question": "How do I self-host?",
+          "answer": "One `docker compose up`. Postgres (with pgvector) and Redis are the only deps. Full setup in the docs takes under 10 minutes."
+        },
+        "models": {
+          "question": "Which AI models work?",
+          "answer": "80+ providers via BYOK: Anthropic, OpenAI, Google, Mistral, Llama, Cohere, Azure, Bedrock, vLLM, Ollama (local), and more. Switch without changing agent code."
+        },
+        "multitenant": {
+          "question": "Can I run multiple workspaces?",
+          "answer": "Yes — multi-tenant from day one. Workspace isolation via Postgres RLS, separate keys, separate budgets, separate audit logs."
+        },
+        "production": {
+          "question": "Is it production-ready?",
+          "answer": "Yes. RBAC, audit log, GDPR export, signed webhooks (HMAC), per-workspace rate limiting, OpenTelemetry, durable background workers with retry. Used by teams shipping to customers today."
+        },
+        "cloud": {
+          "question": "What about the cloud version?",
+          "answer": "Same codebase, hosted by us. Useful if you don't want to operate Postgres/Redis. Pricing is at /pricing — completely optional, self-host stays 100% free forever."
+        }
+      }
+    },
+    "problem": {
+      "eyebrow": "WHY TEAMS",
+      "title1": "A single agent isn't an AI system.",
+      "title2": "It's a chatbot.",
+      "subtitle": "Real workflows have specialists. Real systems have boundaries. Real teams compound their context.",
+      "points": {
+        "confused": {
+          "title": "Confused",
+          "desc": "An agent doing 12 jobs loses context. Hallucinations and drift compound."
+        },
+        "slow": {
+          "title": "Slow",
+          "desc": "No parallelism. One LLM loop blocks every downstream step."
+        },
+        "blind": {
+          "title": "Untraceable",
+          "desc": "No audit trail. When something goes wrong, you can't tell which step or why."
+        }
+      },
+      "compare": {
+        "before": "Before",
+        "after": "After",
+        "singleTitle": "One agent. Twelve jobs.",
+        "singleSub": "Context overflow. Drift. Hallucination.",
+        "teamTitle": "A team. One job each.",
+        "teamSub": "Routed. Parallel. Traceable."
+      }
+    },
+    "patterns": {
+      "eyebrow": "TWO PATTERNS, ONE PLATFORM",
+      "title1": "Pick the right tool for the job.",
+      "title2": "Use both.",
+      "subtitle": "Most platforms force you to choose. Orchester runs prompt-driven agents and visual flows side by side, in the same team.",
+      "prompt": {
+        "eyebrow": "FOR DIALOGUE",
+        "title": "Prompt + Tools",
+        "subtitle": "Conversational, ad-hoc, LLM-decided.",
+        "desc": "Define a persona, hand the LLM a toolbelt, let it decide what to call. Best for open-ended conversations and reasoning tasks."
+      },
+      "flow": {
+        "eyebrow": "FOR PROCESS",
+        "title": "Visual Flow",
+        "subtitle": "Deterministic, drag-and-drop, typed state.",
+        "desc": "Wire triggers, branches, loops and retries on a canvas. Best for structured processes — the kind QA can sign off on."
+      },
+      "mixBoth": "Mix both in the same team —",
+      "mixBothBold": "the orchestrator decides who handles what."
+    },
+    "brain": {
+      "eyebrow": "PERSISTENT MEMORY",
+      "title1": "Your agents remember.",
+      "title2": "For real.",
+      "subtitle": "Not chat history. A real knowledge graph that decays, gets recalled by similarity, and is auditable.",
+      "feats": {
+        "semantic": {
+          "title": "Semantic recall",
+          "desc": "pgvector embeddings return the right context — not the last 10 messages."
+        },
+        "decay": {
+          "title": "Trust decay",
+          "desc": "Old facts fade unless re-confirmed. No more agents holding 2022 prices as truth."
+        },
+        "inspect": {
+          "title": "Inspectable",
+          "desc": "Every fact has a source, a confidence score, and a last-recalled timestamp."
+        },
+        "gdpr": {
+          "title": "GDPR-safe",
+          "desc": "Per-fact export and delete. Compliance reviews go from weeks to hours."
+        }
+      }
+    },
+    "flowBuilder": {
+      "eyebrow": "VISUAL ORCHESTRATION",
+      "title": "Build flows that survive in production.",
+      "subtitle": "Drag, drop, branch, retry. Production-grade workflows your QA team can sign off on.",
+      "feats": {
+        "branches": {
+          "title": "Typed branches",
+          "desc": "Conditions on the state, not on the prompt. Refactor without surprise."
+        },
+        "loops": {
+          "title": "Bounded loops",
+          "desc": "Iterate over collections or until a stop condition — with a hard ceiling."
+        },
+        "retry": {
+          "title": "Retry policies",
+          "desc": "Per-node exponential backoff. Failures don't take the whole flow down."
+        },
+        "connect": {
+          "title": "Connect anything",
+          "desc": "Any HTTP, any LLM, any agent — and other flows. Composition all the way down."
+        }
+      }
+    },
+    "comparison": {
+      "eyebrow": "VS THE REST",
+      "title": "Comparing apples to oranges? Not anymore.",
+      "subtitle": "Most agent frameworks pick one trade-off. Orchester picks all of them.",
+      "featureCol": "FEATURE",
+      "recommended": "Recommended",
+      "vendors": {
+        "orchester": "Orchester",
+        "crewai": "CrewAI",
+        "autogen": "AutoGen",
+        "langgraph": "LangGraph"
+      },
+      "rows": {
+        "multitenant": "Multi-tenant by design",
+        "visualFlow": "Visual flow builder",
+        "memory": "Persistent memory (graph + decay)",
+        "channels": "Multi-channel (WhatsApp/Slack/Email)",
+        "budgets": "Cost budgets per workspace",
+        "audit": "Production audit log + RLS",
+        "selfhost": "Self-hostable on Postgres",
+        "license": "Apache-2.0 license"
+      },
+      "footnote": "Information based on each project's public documentation as of 2026. Got something wrong? Open an issue on GitHub."
+    },
+    "tour": {
+      "eyebrow": "The product",
+      "heading": "Built. Real. Open-source.",
+      "subhead": "Every screen below is the actual product — not a mockup, not a render. Click through to explore what you get out of the box.",
+      "railAriaLabel": "Product tour categories",
+      "categories": {
+        "build": "Build",
+        "operate": "Operate",
+        "memory": "Memory",
+        "insights": "Insights",
+        "admin": "Admin"
+      },
+      "shots": {
+        "flowEditor": {
+          "title": "Flow editor",
+          "description": "Drag-and-drop canvas with 30+ node types. Auto-layout, run-as-form, copilot-assisted edits, inline validation.",
+          "alt": "Visual flow editor showing the Support triage workflow"
+        },
+        "agents": {
+          "title": "Agents catalog",
+          "description": "Every agent you've built, with model, status, and usage at a glance.",
+          "alt": "Catalog of AI agents with model and usage stats"
+        },
+        "agentDetail": {
+          "title": "Agent detail",
+          "description": "Prompt, tools, memory policy, guard-rails, and a live test chat — all in one panel.",
+          "alt": "Detail view of an individual agent with its configuration"
+        },
+        "dashboard": {
+          "title": "Command Center",
+          "description": "Real-time view of conversations, agents, costs, escalation rate, and resolution health.",
+          "alt": "Workspace dashboard with key operational metrics"
+        },
+        "conversations": {
+          "title": "Conversations",
+          "description": "Every channel in one inbox — web, WhatsApp, Slack, email, API — with full transcript and audit trail.",
+          "alt": "List of conversations across channels"
+        },
+        "flowsList": {
+          "title": "Flows",
+          "description": "All your automations, with triggers, schedules, and last-run status.",
+          "alt": "List of automation flows"
+        },
+        "brain": {
+          "title": "Memory inspector",
+          "description": "Bitemporal cognitive memory. Browse facts, decisions, episodes, entities. Time-travel. Review queue.",
+          "alt": "Mnemosyne memory inspector with facts and decisions"
+        },
+        "knowledge": {
+          "title": "Knowledge bases",
+          "description": "RAG sources with pgvector. Live re-embedding, chunk inspector, citations back to source.",
+          "alt": "Knowledge bases listing with embedding status"
+        },
+        "usage": {
+          "title": "Cost & usage",
+          "description": "Per-workspace token spend, per-agent cost breakdown, hard fail-closed budget caps.",
+          "alt": "Cost and usage dashboard with token spend per agent"
+        },
+        "org": {
+          "title": "Org chart",
+          "description": "See your AI org as a hierarchy — orchestrator, specialists, employees — with reporting lines.",
+          "alt": "AI organization chart with reporting hierarchy"
+        },
+        "settings": {
+          "title": "Providers",
+          "description": "Bring your own keys. Anthropic, OpenAI, Google, Azure, Bedrock, Mistral — 80+ providers.",
+          "alt": "Provider settings with API key configuration"
+        },
+        "integrations": {
+          "title": "Integrations",
+          "description": "Connect to your stack. Slack, WhatsApp, HubSpot, Notion, GitHub, GitLab, MCP servers, webhooks.",
+          "alt": "Integration catalog with available connectors"
+        }
+      }
+    }
+  },
+  "compass": {
+    "commandBar": {
+      "label": "Compass command bar",
+      "placeholder": "Search agents, flows, docs…",
+      "empty": "No results. Try another term.",
+      "overflow": "Showing {shown} of {total} — narrow your search.",
+      "footer": "↑↓ navigate · ↵ open · ⌘K close",
+      "hint": {
+        "navigate": "↑↓ ↵"
+      },
+      "sections": {
+        "recents": "Recent",
+        "actions": "Quick actions",
+        "agents": "Agents",
+        "flows": "Flows",
+        "knowledge": "Knowledge",
+        "conversations": "Conversations",
+        "docs": "Docs",
+        "tours": "Tours"
+      },
+      "type": {
+        "resource": "Open",
+        "action": "Action",
+        "agent": "Agent",
+        "flow": "Flow",
+        "kb": "KB",
+        "conversation": "Conversation",
+        "doc": "Doc",
+        "tour": "Tour"
+      },
+      "quickActions": {
+        "createAgent": "Create an agent",
+        "createFlow": "Create a flow",
+        "runMemoryHousekeeping": "Run memory housekeeping",
+        "openOnboarding": "Open onboarding wizard",
+        "toggleTheme": "Toggle theme",
+        "openBrain": "Open Brain inspector"
+      },
+      "tours": {
+        "memoryOps": "Take a tour: Memory operations",
+        "brainInspector": "Take a tour: Brain inspector",
+        "flows": "Take a tour: Flows",
+        "knowledgeBases": "Take a tour: Knowledge bases"
+      },
+      "doc": {
+        "close": "Close definition",
+        "learnMore": "Read full doc"
+      }
+    },
+    "common": {
+      "close": "Close",
+      "cancel": "Cancel",
+      "confirm": "Confirm",
+      "learnMore": "Learn more",
+      "takeATour": "Take a tour",
+      "dismiss": "Dismiss",
+      "runNow": "Run now",
+      "viewArchive": "View archive",
+      "viewAuditLog": "View audit log",
+      "dontAskAgain": "Don't ask me again",
+      "resetConfirmations": "Reset confirmation prompts",
+      "autoConfirmedToast": "Auto-confirmed — you skipped this prompt previously. {action} ran."
+    },
+    "tour": {
+      "skip": "Skip tour",
+      "next": "Next",
+      "previous": "Previous",
+      "finish": "Finish",
+      "stepCounter": "{current} of {total}",
+      "runtime": {
+        "missingStepsWarning": "Some steps could not load. The tour will skip them.",
+        "skippedStepNote": "This step is not on the current page yet."
+      }
+    },
+    "tours": {
+      "memoryOps": {
+        "step1": {
+          "title": "Memory housekeeping, in one place",
+          "body": "This page collects every maintenance task your agents' long-term memory needs. Read each card, then run it on demand or trust the schedule. Nothing changes your data without a confirmation."
+        },
+        "step2": {
+          "title": "Deduplicate similar facts",
+          "body": "Dedup merges facts that say the same thing in different words. It keeps recall sharp and reduces token cost on every query. Reversible from the audit log."
+        },
+        "step3": {
+          "title": "Prune stale memory",
+          "body": "Prune archives facts that are old, unused, or contradict newer ones. Archived facts stay restorable for 30 days, so you decide on evidence, not on guesses."
+        },
+        "step4": {
+          "title": "Run a task now",
+          "body": "Press Run now to start a task immediately. You will see an impact preview — scope, estimated cost, time, reversibility — before anything happens."
+        }
+      },
+      "channels": {
+        "step1": {
+          "title": "Where conversations come in",
+          "body": "Channels are the inboxes your agents listen on — widget, Telegram, email and more. Connect one and the assigned agent starts answering real users from that surface."
+        },
+        "step2": {
+          "title": "Pick a channel to connect",
+          "body": "Each card is a channel type. Pick one to open the form: name it, attach an agent, and paste credentials when the type needs them. Beta types are marked so expectations stay honest."
+        },
+        "step3": {
+          "title": "Manage what is live",
+          "body": "Connected channels show their agent, status and webhook or embed snippet. Reassign the agent, rotate credentials or pause traffic without deleting the channel's history."
+        },
+        "step4": {
+          "title": "Tune who answers",
+          "body": "Each channel is bound to one agent. The channel decides who can talk to it; the agent decides how to respond. Pick the agent in the channel's settings."
+        }
+      },
+      "flows": {
+        "step1": {
+          "title": "Visual orchestration lives here",
+          "body": "Flows are the visual programs your agents run — branches, tools and human steps wired on a canvas. This page lists every flow in the workspace so you can audit what's live."
+        },
+        "step2": {
+          "title": "Start a new flow",
+          "body": "Use this button to draft a flow from scratch or from a template. You pick the starting point now and design the canvas next; nothing runs until you save and connect a trigger."
+        },
+        "step3": {
+          "title": "Each card is a live flow",
+          "body": "Node count and status show health at a glance. Click any card to open the canvas and edit, version or run it. Use this view to spot orphan flows before they reach production."
+        },
+        "step4": {
+          "title": "Wire a flow to the world",
+          "body": "A flow only runs when something triggers it. Connect a channel to send real conversations through this orchestration, or add a knowledge base so the flow can cite sources."
+        }
+      },
+      "mnemosyne-admin": {
+        "step1": {
+          "title": "Mnemosyne control room",
+          "body": "This is the admin surface for Mnemosyne — the system that keeps long-term memory healthy. Every action here is workspace-scoped and admin-gated so you can audit it later."
+        },
+        "step2": {
+          "title": "Housekeeping tasks",
+          "body": "Each card is one maintenance job — dedup, prune, consolidation. Run them on demand when you suspect drift, or trust the schedule. Destructive jobs always confirm first."
+        },
+        "step3": {
+          "title": "Where to go next",
+          "body": "After running a task, jump to the Brain inspector to verify the impact on real facts, or open settings to tune which jobs run automatically."
+        },
+        "step4": {
+          "title": "Recall quality controls",
+          "body": "Toggle the retrieval stages your agents use — HyDE, rerank, graph expansion — or pin a premium embedding model. Changes apply on the next query, not retroactively."
+        }
+      },
+      "brainInspector": {
+        "step1": {
+          "title": "Your memory, in plain view",
+          "body": "This is the Brain — every fact your agents have learned across conversations. The header lets you time-travel, export, or open the review queue when something looks off."
+        },
+        "step2": {
+          "title": "Vital signs at a glance",
+          "body": "Counts, embedding coverage and trends so you can spot drift before it becomes noise. Check this dashboard first on Mondays, or after a heavy weekend of conversations."
+        },
+        "step3": {
+          "title": "Find any fact, fast",
+          "body": "Filter by status, scope, source or recency. Combine filters to audit a noisy domain or to surface candidates worth pinning before they age out."
+        },
+        "step4": {
+          "title": "Curate row by row",
+          "body": "Each row is one fact. Pin the keepers so agents always see them, forget the noise, or open citations to see exactly which message taught it."
+        },
+        "step5": {
+          "title": "What to do next",
+          "body": "When a fact needs a second opinion, send it to the review queue. When you want a backup or audit, export the whole memory as JSON from these next steps."
+        }
+      },
+      "agents": {
+        "step1": {
+          "title": "Your team of agents",
+          "body": "Agents are role-played workers in your workspace — each one has a persona, a model, and access to specific knowledge. This is the roster of every agent you've created."
+        },
+        "step2": {
+          "title": "Filter by status",
+          "body": "Drafts are unfinished, active agents answer real conversations, inactive ones are paused. Filter here to focus on what needs attention before users notice."
+        },
+        "step3": {
+          "title": "Each card is one agent",
+          "body": "Name, role, model and live status at a glance. Click a card to edit prompts, attach tools, or review who is currently chatting with it."
+        },
+        "step4": {
+          "title": "Create a new agent",
+          "body": "Start from a template or from scratch. Templates seed the persona and prompt so you adjust details instead of starting from a blank screen."
+        },
+        "step5": {
+          "title": "Connect agents to the world",
+          "body": "An agent without a channel or knowledge base is just a draft. Use these next steps to wire it to incoming messages and to the docs it should cite."
+        }
+      },
+      "knowledgeBases": {
+        "step1": {
+          "title": "The library your agents cite",
+          "body": "Knowledge bases are the docs, sites and files your agents read before answering. Group them by domain — product, policies, onboarding — so retrieval stays focused and citations stay accurate."
+        },
+        "step2": {
+          "title": "Create a new base",
+          "body": "Start from a template or from scratch. Templates preset the embedding model and chunk size for common use cases so you avoid guessing at parameters you do not yet understand."
+        },
+        "step3": {
+          "title": "Every card is one base",
+          "body": "Each card shows the embedding provider and model powering retrieval. Click a base to add sources, preview chunks, and test queries before pointing an agent at it."
+        },
+        "step4": {
+          "title": "Next steps that matter",
+          "body": "A base with no documents answers nothing, and a base no agent reads helps nobody. Use these links to upload sources and to attach the base to the agent that needs it."
+        }
+      },
+      "providers": {
+        "step1": {
+          "title": "Plug in the brains",
+          "body": "Providers are the LLM accounts your agents call — OpenAI, Anthropic, Google and more. Nothing runs until at least one is connected, because every reply depends on a model behind a key you control."
+        },
+        "step2": {
+          "title": "Your live providers",
+          "body": "Each connected provider shows its key status and the models it unlocks. Rotate keys here when they expire or leak, and disconnect any provider whose models you no longer use."
+        },
+        "step3": {
+          "title": "Browse the catalog",
+          "body": "Search or filter by capability — chat, embeddings, images, audio — to find a new provider. Connect one and its models become selectable across your agents and flows."
+        },
+        "step4": {
+          "title": "Wire providers into work",
+          "body": "A connected provider only matters once something uses it. Open Agents to assign a model, or Knowledge to pick the embedding provider that powers retrieval."
+        }
+      }
+    },
+    "memoryOps": {
+      "pageTitle": "Memory housekeeping",
+      "pageSubtitle": "This is where Mnemosyne keeps your agents' long-term memory tidy. Each card below is a maintenance task you can run on demand or leave on its schedule. Read what each task does before running it; some change your data and we want you to decide on evidence.",
+      "tourLabel": "Take a tour",
+      "adminOnly": "Only workspace owners and admins can run housekeeping tasks. You can still review what each one does.",
+      "lastRunLabel": "Last run",
+      "neverRun": "Never run",
+      "outcomeUnknown": "—",
+      "whyMattersLabel": "Why this matters",
+      "confirmDialogTitle": "Run \"{name}\"",
+      "confirmDialogDescription": "Review the impact below before confirming. Nothing happens until you press the action button.",
+      "impactScopeLabel": "Scope",
+      "impactRecordsLabel": "Records analyzed",
+      "impactCostLabel": "Estimated cost",
+      "impactTimeLabel": "Estimated time",
+      "impactEffectLabel": "Effect on memory",
+      "impactReversibilityLabel": "Reversibility",
+      "reversibilityReversible": "Reversible from the audit log.",
+      "reversibilityArchive": "Archived for 30 days, restorable from the archive view.",
+      "reversibilityDestructive": "Destructive. Archived facts are permanently removed and cannot be recovered.",
+      "estimateUnavailable": "—",
+      "noEstimateAvailable": "We don't have a precise estimate for this task. It usually completes within a minute.",
+      "successToastTitle": "{name} is running",
+      "successToastBody": "We'll notify you here when it finishes. {time, select, unknown {} other {Estimated time: {time}.}}",
+      "errorToastTitle": "We could not start {name}",
+      "errorToastBody": "{message}. Check your connection and try again. If the problem continues, review the system status page.",
+      "nextStepsTitle": "What to do next",
+      "nextSteps": {
+        "openBrain": {
+          "title": "Open the Brain inspector",
+          "body": "Review individual facts, see when they were learned, and decide which ones to keep."
+        },
+        "reviewPolicy": {
+          "title": "Review your memory policy",
+          "body": "Adjust which tasks run automatically and how often."
+        }
+      },
+      "summaryAgentCallout": {
+        "title": "This task runs per agent",
+        "body": "Memory summaries are scoped to a single agent. Open the agent's settings and run the refresh from its memory tab.",
+        "linkLabel": "Go to agent settings"
+      },
+      "tasks": {
+        "healthSnapshot": {
+          "name": "Take a health snapshot",
+          "description": "Measures the current size, growth rate, and duplication levels of your memory. Run it before any other task so you can compare before and after.",
+          "whyMatters": "A snapshot is the baseline that lets every other change be measured.",
+          "confirmLabel": "Take snapshot",
+          "runningLabel": "Taking snapshot",
+          "doneLabel": "Snapshot ready"
+        },
+        "dedup": {
+          "name": "Merge duplicate facts",
+          "description": "Scans every fact, finds pairs that mean almost the same thing, and combines them into a single cleaner record. Use it when your agents start repeating themselves.",
+          "whyMatters": "Fewer duplicates means faster recall and less repetition in answers.",
+          "confirmLabel": "Merge duplicates",
+          "runningLabel": "Merging duplicates",
+          "doneLabel": "Duplicates merged"
+        },
+        "prune": {
+          "name": "Remove unused facts",
+          "description": "Archives facts that have not been recalled in a long time and that no active agent depends on. The archive is reversible for 30 days.",
+          "whyMatters": "Smaller memory is cheaper to search and easier to keep accurate.",
+          "confirmLabel": "Prune memory",
+          "runningLabel": "Pruning memory",
+          "doneLabel": "Memory pruned"
+        },
+        "remConsolidation": {
+          "name": "Consolidate related facts",
+          "description": "Groups facts that belong to the same topic and merges them into a single summary. Inspired by how sleep consolidates memories in the human brain.",
+          "whyMatters": "Consolidated facts give shorter, more focused answers when an agent is asked a broad question.",
+          "confirmLabel": "Consolidate facts",
+          "runningLabel": "Consolidating facts",
+          "doneLabel": "Consolidation finished"
+        },
+        "reviewSweep": {
+          "name": "Queue facts for human review",
+          "description": "Finds facts with low confidence, conflicting sources, or unusual sources and adds them to your review queue. Nothing is deleted; you decide what to do with each item.",
+          "whyMatters": "Human review catches the cases the system is not sure about, before they affect an answer.",
+          "confirmLabel": "Queue for review",
+          "runningLabel": "Queuing facts",
+          "doneLabel": "Review queue updated"
+        },
+        "autoPin": {
+          "name": "Pin frequently recalled facts",
+          "description": "Identifies the facts your agents rely on the most and pins them so they always rank first in recall. You can unpin any of them at any time.",
+          "whyMatters": "Pinning the right facts keeps your most important answers consistent across conversations.",
+          "confirmLabel": "Pin top facts",
+          "runningLabel": "Pinning facts",
+          "doneLabel": "Top facts pinned"
+        },
+        "summaryRefresh": {
+          "name": "Refresh memory summaries",
+          "description": "Regenerates the short summaries that appear next to each topic in Brain. Run it after a large import or after a consolidation pass.",
+          "whyMatters": "Up-to-date summaries make it easier for you to scan what your agents know without opening every fact.",
+          "confirmLabel": "Refresh summaries",
+          "runningLabel": "Refreshing summaries",
+          "doneLabel": "Summaries refreshed"
+        }
+      },
+      "recall": {
+        "title": "Recall quality",
+        "subtitle": "Three recall enhancements run by default on every turn. Each adds a small cost. Turn one off only if you have measured that the savings matter more to you than the quality.",
+        "tip": "Changes apply to the next recall turn. Existing answers are not regenerated.",
+        "savedToast": "Recall settings saved. The next conversation turn uses them.",
+        "saveErrorToast": "We couldn't save your recall settings. {message}. Check your connection and try again. If the problem continues, see the system status page.",
+        "hyde": {
+          "label": "HyDE — hypothetical document embedding",
+          "help": "Generates a short fake answer to the user's question and uses that for the search instead of the raw question. This closes the gap between how questions and answers look in embedding space. Adds one cheap model call per turn."
+        },
+        "rerank": {
+          "label": "Cross-encoder rerank",
+          "help": "Reorders the top results using a second pass that scores each result against the question together. Uses Cohere when its API key is set; otherwise a local fallback. Adds about 50 milliseconds per turn."
+        },
+        "graph": {
+          "label": "Graph expansion",
+          "help": "After the initial recall, follows links between facts (derived from, supersedes, part of) to surface related ones. One extra database query. Improves recall quality by about 10 to 15 percent."
+        },
+        "premium": {
+          "title": "Premium embedding model",
+          "body": "Use a richer embedding model for the facts that matter most: pinned, high confidence, or workspace-wide. Other facts continue to use the default model so cost stays predictable. Leave the provider empty to disable this tier.",
+          "providerLabel": "Provider",
+          "providerPlaceholder": "Use default",
+          "providerDefault": "Use default",
+          "providerOpenai": "OpenAI",
+          "providerVoyage": "Voyage",
+          "providerCohere": "Cohere",
+          "modelLabel": "Model",
+          "modelPlaceholderOpenai": "text-embedding-3-large",
+          "modelPlaceholderVoyage": "voyage-3-large",
+          "modelPlaceholderCohere": "embed-v4.0",
+          "modelPlaceholderEmpty": "Pick a provider first"
+        }
+      },
+      "schedule": {
+        "editLabel": "Edit schedule",
+        "editAria": "Edit schedule for {name}",
+        "modalTitle": "{name} schedule",
+        "modalSubtitle": "Choose when this task should run for this workspace.",
+        "globalLabel": "System default",
+        "modesLabel": "When to run",
+        "modes": {
+          "default": "Default",
+          "defaultHint": "Use the system schedule. Recommended.",
+          "disabled": "Disabled",
+          "disabledHint": "Never runs for this workspace.",
+          "hourly": "Hourly",
+          "hourlyHint": "At most every hour (subject to the global cron).",
+          "daily": "Daily",
+          "dailyHint": "At most every 24h (subject to the global cron).",
+          "weekly": "Weekly",
+          "weeklyHint": "At most every 7 days.",
+          "monthly": "Monthly",
+          "monthlyHint": "At most every 30 days.",
+          "custom": "Custom",
+          "customHint": "A cron expression (5 fields). Gate treats it as daily."
+        },
+        "customInputLabel": "Cron expression",
+        "customPlaceholder": "0 3 * * 0",
+        "customHelp": "Standard 5-field format: minute hour day-of-month month day-of-week.",
+        "maxFreqNote": "Your choice acts as a maximum: it cannot run more often than the global cron.",
+        "lastRunLabel": "Last run",
+        "lastRunNever": "Never run",
+        "savedToast": "Schedule saved",
+        "saveErrorToast": "Could not save the schedule",
+        "save": "Save",
+        "cancel": "Cancel",
+        "disabledWarning": "This task will not run for this workspace. Turn it on again whenever you want."
+      }
+    },
+    "empty": {
+      "brain": {
+        "title": "No memories yet",
+        "body": "Brain shows everything your agents have learned from past conversations. Once an agent handles its first conversation, the facts it learns appear here for you to review and curate."
+      },
+      "flows": {
+        "title": "No flows yet",
+        "body": "A flow is a sequence of agents and steps that runs together to complete a task. Create your first flow to chain agents and let them hand work to each other on demand or on a schedule."
+      },
+      "channels": {
+        "title": "No channels connected",
+        "body": "A channel is the doorway between an agent and your users, such as a website widget or a messaging app. Connect one to start receiving real conversations."
+      },
+      "providers": {
+        "title": "No providers connected",
+        "body": "A provider is the company that supplies the AI model your agents use, like OpenAI or Anthropic. Connect at least one with your own API key so your agents can start answering."
+      },
+      "knowledgeBases": {
+        "title": "No knowledge bases yet",
+        "body": "Knowledge bases give your agents the documents they should rely on when answering. Upload your first file or connect a source so agents can quote your own information instead of guessing."
+      },
+      "agents": {
+        "title": "No agents yet",
+        "body": "An agent is a configured assistant with its own prompt, model, and tools. Create your first agent and give it a clear role so you can start routing conversations to it."
+      },
+      "mnemosyneAdmin": {
+        "title": "Nothing scheduled yet",
+        "body": "This is where you control the maintenance tasks that keep memory healthy. Enable the tasks you want to run on a schedule, or trigger any of them manually when you need a one-off pass."
+      }
+    },
+    "brain": {
+      "pageTitle": "Brain inspector",
+      "pageSubtitlePart1": "Every durable fact your agents have learned, with the filters you need to audit and curate it. Memory is powered by ",
+      "pageSubtitleTermMnemosyne": "Mnemosyne",
+      "pageSubtitlePart2": ", the layer that keeps long-term context consistent across conversations.",
+      "tourLabel": "Take a tour",
+      "tip": {
+        "title": "Read before you forget",
+        "bodyPart1": "Forgetting a fact removes it from recall, but the original record stays in the audit log. ",
+        "bodyPart2": " is reversible from the Undo view, so curate freely."
+      },
+      "embeddedHelp": "Share of facts that already have an ",
+      "embeddedTermEmbedding": "embedding",
+      "embeddedHelpSuffix": " and can be found by semantic search.",
+      "forget": {
+        "title": "Forget this fact?",
+        "description": "The fact stops appearing in recall results. Agents will not use it on their next turn. The original record stays in the audit log.",
+        "action": "Forget fact",
+        "cancel": "Keep it",
+        "impactStatement": "Statement",
+        "impactScope": "Scope",
+        "impactReversibility": "Reversibility",
+        "reversibleValue": "Reversible from Undo"
+      },
+      "nextStepsTitle": "Next steps",
+      "nextSteps": {
+        "review": {
+          "title": "Work the review queue",
+          "body": "Curate low-confidence and conflicting facts before they shape an answer."
+        },
+        "housekeeping": {
+          "title": "Run memory housekeeping",
+          "body": "Merge duplicates, prune unused facts, and consolidate related ones."
+        }
+      }
+    },
+    "flows": {
+      "heroTitle": "Flows",
+      "heroSubtitlePart1": "A ",
+      "heroSubtitleTermFlow": "flow",
+      "heroSubtitlePart2": " chains ",
+      "heroSubtitleTermAgent": "agents",
+      "heroSubtitlePart3": " and tools into a single sequence so a job runs end-to-end. Use this page to see every flow in this workspace, create new ones, and open them in the visual editor.",
+      "tourLabel": "Take a tour",
+      "newFlow": "New flow",
+      "createTitle": "Name your flow",
+      "createHelp": "Pick a short, descriptive name. You can rename it later from the editor.",
+      "namePlaceholder": "e.g. Triage inbound leads",
+      "create": "Create flow",
+      "cancel": "Cancel",
+      "firstFlowTip": "Start small: one trigger and two or three steps is enough to see a flow run end-to-end. You can expand it once the basics work.",
+      "firstFlowTipTitle": "Tip for your first flow",
+      "nodesLabel": "{count, plural, one {# step} other {# steps}}",
+      "statusLabel": "Status",
+      "neverRun": "Never run",
+      "lastRunLabel": "Last run",
+      "nextStepsTitle": "What to do next",
+      "nextStepConnectChannel": {
+        "title": "Connect a channel",
+        "body": "Hook a website widget or messaging app to a flow so real conversations can trigger it."
+      },
+      "nextStepAddKnowledge": {
+        "title": "Add a knowledge base",
+        "body": "Give your agents documents to ground their answers in, instead of relying on the base model alone."
+      }
+    },
+    "knowledgeBases": {
+      "heroTitle": "Knowledge bases",
+      "heroSubtitlePart1": "A knowledge base is a collection of documents your agents can quote when they answer. We turn each document into ",
+      "heroSubtitleTermEmbedding": "embeddings",
+      "heroSubtitlePart2": " so agents recall by meaning, not just exact words — the technique commonly called ",
+      "heroSubtitleTermRag": "RAG",
+      "heroSubtitlePart3": ". Use this page to see every base in this workspace and create new ones.",
+      "tourLabel": "Take a tour",
+      "newBase": "New base",
+      "createTitle": "Name your knowledge base",
+      "createHelp": "Pick a short, descriptive name. You can rename it later from the base's settings.",
+      "namePlaceholder": "Name — e.g. Internal docs",
+      "descriptionPlaceholder": "Description (optional)",
+      "embeddingsLabel": "Embeddings model",
+      "embeddingHelp": "The embedding model decides how your documents become searchable. Keep the default unless you have a reason to switch.",
+      "create": "Create",
+      "cancel": "Cancel",
+      "created": "Knowledge base created",
+      "createError": "We could not create the knowledge base. Check your connection and try again.",
+      "firstBaseTipTitle": "Tip for your first base",
+      "firstBaseTipBody": "Start with one source — a single PDF or a short folder of docs is enough to see how recall behaves. You can add more sources once the first one works.",
+      "providerLabel": "Embedded with",
+      "openLabel": "Open",
+      "nextStepsTitle": "What to do next",
+      "nextStepUploadDocs": {
+        "title": "Upload your first documents",
+        "body": "Open a base and add PDFs, text or URLs so its agents can quote them in answers."
+      },
+      "nextStepConnectAgent": {
+        "title": "Attach a base to an agent",
+        "body": "Pick an agent and connect this base so its replies are grounded in your own information."
+      }
+    },
+    "agents": {
+      "heroTitle": "Agents",
+      "heroSubtitlePart1": "An ",
+      "heroSubtitleTermAgent": "agent",
+      "heroSubtitlePart2": " is a configured assistant with its own ",
+      "heroSubtitleTermPrompt": "prompt",
+      "heroSubtitlePart3": ", model, and tools. Use this page to see every agent in the workspace, change their role, and decide which conversations each one should handle.",
+      "tourLabel": "Take a tour",
+      "modelTipTitle": "Pick the right model for the job",
+      "modelTipBody": "Use Haiku for short, high-volume replies and Sonnet or Opus for longer reasoning or multi-step work. You can change the model on any agent without losing its history.",
+      "deleteImpactTitle": "Delete this agent?",
+      "deleteImpactDescription": "Deleting an agent removes its configuration. Past conversations stay in the workspace but stop receiving new replies from this agent.",
+      "deleteImpactAction": "Delete agent",
+      "deleteImpactCancel": "Cancel",
+      "deleteImpactRowAgent": "Agent",
+      "deleteImpactRowTeam": "Team",
+      "deleteImpactRowModel": "Model",
+      "deleteImpactRowReversibility": "Reversibility",
+      "deleteImpactReversibilityValue": "Permanent. The agent and its prompt cannot be restored.",
+      "deleteImpactValueUnknown": "—",
+      "nextStepsTitle": "What to do next",
+      "nextStepConnectChannel": {
+        "title": "Connect a channel",
+        "body": "Hook a website widget or messaging app to an agent so real conversations can reach it."
+      },
+      "nextStepAddKnowledge": {
+        "title": "Add knowledge",
+        "body": "Upload documents so your agents quote your own information instead of relying on the base model alone."
+      }
+    },
+    "channels": {
+      "heroTitle": "Channels",
+      "heroSubtitlePart1": "A ",
+      "heroSubtitleTermChannel": "channel",
+      "heroSubtitlePart2": " is the doorway between an ",
+      "heroSubtitleTermAgent": "agent",
+      "heroSubtitlePart3": " and your users — a website widget, a Telegram bot, an HTTP endpoint. Connect one and your agent starts answering real conversations through it.",
+      "tipTitle": "How channels work",
+      "tipBody": "Each channel routes incoming messages to a single agent. You can pause, reassign, or disconnect a channel at any time without losing past conversations.",
+      "availableHeading": "Connect a new channel",
+      "deleteTitle": "Disconnect this channel",
+      "deleteDescription": "Disconnecting stops new messages from arriving on this channel. Past conversations stay in your workspace; you can reconnect later, but the public URLs and secrets will be regenerated.",
+      "deleteAction": "Disconnect channel",
+      "deleteCancel": "Cancel",
+      "deleteImpactChannel": "Channel",
+      "deleteImpactType": "Type",
+      "deleteImpactStatus": "Current status",
+      "deleteImpactAgent": "Assigned agent",
+      "deleteImpactReversibility": "Reversibility",
+      "deleteImpactReversibilityValue": "Reconnecting later regenerates the public URL and the secret token.",
+      "noAgentAssigned": "No agent assigned",
+      "unknownValue": "—",
+      "nextStepsTitle": "What to do next",
+      "nextStepConfigureAgent": {
+        "title": "Configure the answering agent",
+        "body": "Give the agent the right prompt, tools, and knowledge so it answers correctly when a message arrives through this channel."
+      },
+      "nextStepReviewConversations": {
+        "title": "Review live conversations",
+        "body": "Open the conversations view to see what users are asking and how your agents respond."
+      }
+    },
+    "providers": {
+      "heroTitle": "AI providers",
+      "heroSubtitle": "Connect the companies that power your agents. Each provider exposes a set of models for chat, embeddings, images, audio and more. Your keys stay encrypted and scoped to this workspace.",
+      "tourLabel": "Take a tour",
+      "tipTitle": "Bring your own key",
+      "tipBody": "Orchester never marks up provider costs. Connect your own API key and every model billing flows directly through your account with that provider.",
+      "removeConfirmTitle": "Disconnect {provider}",
+      "removeConfirmDescription": "Your stored API key is deleted from this workspace. Agents and flows that rely on this provider will stop responding until you connect another key.",
+      "removeConfirmAction": "Disconnect provider",
+      "removeConfirmCancel": "Cancel",
+      "removeImpactAgentsLabel": "Agents using this provider",
+      "removeImpactModelsLabel": "Models exposed",
+      "removeImpactReversibilityLabel": "Reversibility",
+      "removeImpactReversibilityValue": "Reconnect anytime by pasting a new key.",
+      "removeError": "We couldn't disconnect {provider}. Check your connection and try again. If the problem continues, see the system status page.",
+      "removeSuccess": "{provider} disconnected. Agents that relied on it won't respond until you connect another provider.",
+      "unknownValue": "—",
+      "nextStepsTitle": "What to do next",
+      "nextStepBuildAgent": {
+        "title": "Assign a model to an agent",
+        "body": "Pick a model from a connected provider and wire it into the agent that should use it."
+      },
+      "nextStepAddKnowledge": {
+        "title": "Add knowledge to recall",
+        "body": "Upload documents so your agents can ground answers in your data instead of guessing."
+      }
+    },
+    "templates": {
+      "shell": {
+        "title": {
+          "agent": "Start a new agent",
+          "flow": "Start a new flow",
+          "knowledge": "Start a new knowledge base",
+          "channel": "Connect a channel"
+        },
+        "subtitle": {
+          "agent": "Pick a starting point. You can edit the role, prompt, and model before saving.",
+          "flow": "Pick a starting point. The canvas opens pre-wired so you can adapt instead of starting blank.",
+          "knowledge": "Pick a starting point. Embedding settings can be tuned later from the base settings.",
+          "channel": "Pick a channel type. You'll add credentials and assign an agent in the next step."
+        },
+        "close": "Close",
+        "footerHint": "Templates are starting points — you can change anything afterwards."
+      },
+      "agent": {
+        "blank": {
+          "label": "Blank agent",
+          "description": "Start from scratch. Empty role, empty prompt, your call."
+        },
+        "support-tier1": {
+          "label": "Support Tier 1",
+          "description": "Answers customer questions grounded in your knowledge bases. Escalates when confidence is low.",
+          "tags": ["customer support", "RAG"]
+        },
+        "lead-qualifier": {
+          "label": "Lead Qualifier",
+          "description": "Qualifies inbound leads with BANT scoring and returns a structured summary.",
+          "tags": ["sales", "BANT"]
+        },
+        "sales-coach": {
+          "label": "Sales Coach",
+          "description": "Reviews sales calls and gives account executives three specific things to try next time.",
+          "tags": ["sales", "coaching"]
+        },
+        "internal-helpdesk": {
+          "label": "Internal Helpdesk",
+          "description": "Answers IT and HR questions for employees. Opens a ticket when a human is needed.",
+          "tags": ["internal", "IT", "HR"]
+        },
+        "onboarding-guide": {
+          "label": "Onboarding Guide",
+          "description": "Walks new users through the shortest path to their first win in the product.",
+          "tags": ["onboarding", "product"]
+        }
+      },
+      "flow": {
+        "blank": {
+          "label": "Blank flow",
+          "description": "Empty canvas with a single Trigger node so you can wire your own logic."
+        },
+        "lead-qualification": {
+          "label": "Lead Qualification",
+          "description": "Webhook intake, enrichment, qualifier agent, branch on score.",
+          "tags": ["sales", "webhook"]
+        },
+        "support-triage": {
+          "label": "Support Triage",
+          "description": "Inbound message, KB search, agent answers, escalates if confidence is low.",
+          "tags": ["customer support", "RAG"]
+        },
+        "newsletter-compile": {
+          "label": "Newsletter Compile",
+          "description": "Pulls updates on a schedule, agent writes the issue, sends it.",
+          "tags": ["scheduled", "content"]
+        },
+        "pr-review-bot": {
+          "label": "PR Review Bot",
+          "description": "GitHub webhook, fetch diff, review agent, post a comment back on the PR.",
+          "tags": ["engineering", "webhook"]
+        }
+      },
+      "knowledge": {
+        "blank": {
+          "label": "Blank knowledge base",
+          "description": "Empty base. Add documents after — we'll chunk and embed in the background."
+        },
+        "product-docs": {
+          "label": "Product Docs",
+          "description": "Public documentation, changelogs, and feature guides for your product.",
+          "tags": ["product", "RAG"]
+        },
+        "hr-policies": {
+          "label": "HR Policies",
+          "description": "Vacation, benefits, code of conduct, and other employee-facing policies.",
+          "tags": ["internal", "HR"]
+        },
+        "engineering-wiki": {
+          "label": "Engineering Wiki",
+          "description": "Architecture notes, runbooks, on-call docs, and ADRs.",
+          "tags": ["internal", "engineering"]
+        },
+        "brand-voice": {
+          "label": "Brand Voice",
+          "description": "Tone of voice, banned words, on-brand and off-brand examples.",
+          "tags": ["marketing", "voice"]
+        }
+      },
+      "channel": {
+        "web-widget": {
+          "label": "Web widget",
+          "description": "Embed a chat widget on your site. Comes with a default greeting you can edit.",
+          "tags": ["public", "embed"]
+        },
+        "whatsapp": {
+          "label": "WhatsApp",
+          "description": "Connect a WhatsApp Business number so customers can chat from their phone.",
+          "tags": ["public", "messaging"]
+        },
+        "slack": {
+          "label": "Slack",
+          "description": "Bring an agent into your Slack workspace. Great for internal helpdesks.",
+          "tags": ["internal", "messaging"]
+        },
+        "email": {
+          "label": "Email",
+          "description": "Forward an inbox to an agent. Replies arrive in the same thread.",
+          "tags": ["public", "email"]
+        },
+        "api": {
+          "label": "API",
+          "description": "Talk to an agent over HTTP. For custom integrations and your own apps.",
+          "tags": ["custom", "API"]
+        }
+      }
+    },
+    "onboarding": {
+      "skip": "Skip",
+      "back": "Back",
+      "common": {
+        "sessionExpiredTitle": "Your session expired",
+        "sessionExpiredBody": "Sign in again to continue setting up your first agent. Your progress is saved.",
+        "signInAgain": "Sign in again"
+      },
+      "stepper": {
+        "welcome": "Welcome",
+        "provider": "Provider",
+        "agent": "Agent",
+        "talk": "Talk",
+        "done": "Done"
+      },
+      "welcome": {
+        "eyebrow": "Welcome",
+        "heading": "Let's get your first agent live.",
+        "subhead": "Five short steps. By the end you'll have a working agent answering messages — and you can keep building from there.",
+        "question": "What are you here to build?",
+        "options": {
+          "customerSupport": {
+            "label": "Answer customers with AI",
+            "hint": "Tier-1 support, lead capture, FAQ deflection."
+          },
+          "internalAutomation": {
+            "label": "Automate internal tasks",
+            "hint": "Helpdesk, ops bots, knowledge lookup for employees."
+          },
+          "exploring": {
+            "label": "I'm exploring",
+            "hint": "I want to see what this can do before committing."
+          }
+        },
+        "sample": {
+          "label": "Work with sample data (Acme Inc.)",
+          "hint": "Drops you into a pre-seeded workspace with agents, conversations, and a knowledge base ready to inspect.",
+          "unavailable": "Available once your account has the Acme Inc. seed workspace."
+        },
+        "cta": "Get started"
+      },
+      "provider": {
+        "heading": "Connect an AI provider.",
+        "subhead": "Add a key to power your agents. We'll handle the rest — your key never leaves this server.",
+        "providerLabel": "Provider",
+        "apiKeyLabel": "API key",
+        "security": "Stored encrypted at rest. Used only to call the provider on your behalf.",
+        "cta": "Connect provider",
+        "errorFallback": "We could not connect the provider. Check the key and try again.",
+        "errorNetwork": "Network error reaching the server. Check your connection and try again."
+      },
+      "agent": {
+        "heading": "Create your first agent.",
+        "subhead": "An agent has a name, a role, and a model. Pick a template to skip the blank page — you can rewrite anything later.",
+        "templateLabel": "Template",
+        "templates": {
+          "tier1": {
+            "label": "Customer support tier 1",
+            "hint": "Answers FAQs, escalates the rest."
+          },
+          "helpdesk": {
+            "label": "Internal helpdesk",
+            "hint": "IT and HR questions for employees."
+          },
+          "salesCoach": {
+            "label": "Sales coach",
+            "hint": "Reviews calls and proposes next steps."
+          },
+          "blank": {
+            "label": "Start blank",
+            "hint": "Define everything yourself."
+          }
+        },
+        "nameLabel": "Agent name",
+        "namePlaceholder": "e.g. Support Tier 1",
+        "roleLabel": "Role",
+        "rolePlaceholder": "One line: what does this agent do?",
+        "modelLabel": "Model",
+        "cta": "Create agent",
+        "errorMissing": "Name and role are required.",
+        "errorFallback": "The agent could not be created. Review the form and try again.",
+        "errorNetwork": "Network error reaching the server. Check your connection and try again."
+      },
+      "talk": {
+        "heading": "Talk to {name}.",
+        "subhead": "Send a message to confirm your agent is wired up. One message and one reply is enough to continue.",
+        "chatLabel": "Test conversation",
+        "inputLabel": "Message",
+        "inputPlaceholder": "Ask your agent a question…",
+        "sendLabel": "Send",
+        "thinking": "Thinking…",
+        "emptyHint": "Send the first message to start the conversation.",
+        "cta": "Continue",
+        "errorFallback": "The agent did not reply. Check the provider key and try again.",
+        "errorEmpty": "The provider returned an empty response. Try a different prompt.",
+        "errorNetwork": "Network error reaching the server. Check your connection and try again."
+      },
+      "done": {
+        "badge": "Ready",
+        "heading": "Your agent answered its first message.",
+        "subhead": "You're ready to build the rest of the stack. Three short follow-ups will compound the result.",
+        "agentLive": "Agent live",
+        "lastMessage": "Last reply",
+        "nextStepsHeading": "Next steps",
+        "fallbackAgentName": "Your agent",
+        "nextSteps": {
+          "channel": {
+            "title": "Connect a channel",
+            "body": "Wire the agent to WhatsApp, web chat, or email so real users can reach it."
+          },
+          "knowledge": {
+            "title": "Add knowledge",
+            "body": "Ground answers in your docs. Upload a PDF or point at a URL."
+          },
+          "brain": {
+            "title": "Inspect Brain memory",
+            "body": "See what your agent has learned. Memory is what makes a second conversation feel personal."
+          }
+        },
+        "cta": "Open Studio"
+      }
+    },
+    "help": {
+      "openButton": "Help",
+      "close": "Close",
+      "title": "How can we help?",
+      "searchPlaceholder": "Search help articles...",
+      "empty": "No results. Try another term.",
+      "takeTour": "Take a tour",
+      "continueCta": "Open the wizard",
+      "commandBarHint": "Tip: press ⌘K / Ctrl-K to search anything",
+      "humanCta": "Ask the community",
+      "askCommunityBody": "Orchester is open source. Reach maintainers and other operators on GitHub Discussions. We usually respond within a day.",
+      "sections": {
+        "onThisPage": "On this page",
+        "continueOnboarding": "Continue your onboarding",
+        "whatsNew": "What's new",
+        "askCommunity": "Ask the community"
+      },
+      "perPage": {
+        "default": {
+          "title": "Need help?",
+          "body": "Search any term above, restart the page tour, or jump back into onboarding. Everything you set up here is reversible."
+        },
+        "brain": {
+          "title": "About Brain memory",
+          "body": "Brain is what your agents have learned across conversations. Pin the facts that matter, forget the noise, and audit changes before they reach production."
+        },
+        "memory": {
+          "title": "Memory housekeeping",
+          "body": "Open the memory housekeeping page to inspect or rebuild the memory layer. You will see scope and reversibility before each action."
+        },
+        "flows": {
+          "title": "About Flows",
+          "body": "Flows are the visual programs your agents run end to end. Branches, tools, and human handoffs live here so logic stays inspectable."
+        },
+        "channels": {
+          "title": "About Channels",
+          "body": "Channels are the inboxes your agents listen on: widget, Slack, WhatsApp, email. Connect one to send real conversations into a flow."
+        },
+        "providers": {
+          "title": "About Providers",
+          "body": "Providers are the LLM accounts your agents call. Connect at least one before agents or flows can run."
+        },
+        "knowledge": {
+          "title": "About Knowledge Bases",
+          "body": "Knowledge Bases ground answers in your docs. Smaller bases focused on one domain retrieve more accurately than one giant pile."
+        },
+        "agents": {
+          "title": "About Agents",
+          "body": "Agents are the role-played workers in your org: persona, tools, memory. Every prompt change becomes a version you can roll back."
+        }
+      },
+      "whatsNew": {
+        "empty": "Release notes will land here when the next version ships.",
+        "items": {
+          "helpDrawer": {
+            "title": "Help drawer arrives",
+            "body": "Press ? anywhere to search articles, restart a tour, or jump back into onboarding."
+          },
+          "brainHealth": {
+            "title": "Brain health dashboard",
+            "body": "Embedding coverage and dedup trends now show at the top of Brain so drift is easy to catch."
+          },
+          "flowTemplates": {
+            "title": "Flow templates",
+            "body": "Start from a template so you can adapt prewired logic instead of building flow graphs from scratch."
+          }
+        }
+      }
+    }
+  }
+}
