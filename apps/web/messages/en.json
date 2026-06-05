@@ -308,8 +308,12 @@
     },
     "graph": {
       "title": "Memory Graph",
+      "loading": "Loading graph…",
+      "errorTitle": "Failed to load graph.",
+      "retry": "Retry",
       "emptyTitle": "No entities yet",
       "emptyDesc": "Start conversations — your agents will build this graph automatically.",
+      "emptyCta": "Start a conversation",
       "filter": "Filter",
       "searchPlaceholder": "Search entities…",
       "nodeTypes": "Node types",
@@ -317,10 +321,42 @@
       "memoryStrength": "Memory strength",
       "toggle2d": "2D",
       "toggle3d": "3D",
+      "viewMode": "View mode",
       "statusBar": "{entities} entities · {relations} relations",
+      "kinds": {
+        "person": "Person",
+        "organization": "Org",
+        "project": "Project",
+        "concept": "Concept",
+        "place": "Place",
+        "other": "Other",
+        "episode": "Episode",
+        "decision": "Decision"
+      },
+      "edgeLabels": {
+        "related": "related",
+        "compatible": "compatible",
+        "not_conflict": "not conflict",
+        "conflicts_with": "conflict",
+        "derived_from": "derived",
+        "scoped": "scoped",
+        "supersedes": "supersedes",
+        "part_of": "part of",
+        "member_of": "member"
+      },
+      "legend": {
+        "nodes": "Nodes",
+        "edges": "Edges",
+        "related": "related",
+        "conflict": "conflict",
+        "derived": "derived",
+        "memoryAura": "Memory aura"
+      },
       "detail": {
         "memoryStrength": "Memory Strength",
         "facts": "Facts",
+        "activeFacts": "{count} active facts",
+        "potentiating": "↑ potentiating",
         "focusLocal": "Focus local graph",
         "viewFacts": "View all facts"
       }

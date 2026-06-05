@@ -1,57 +1,59 @@
 "use client";
 import { Search } from "lucide-react";
-import { ENTITY_KIND_COLOR } from "@orchester/mnemosyne";
+import { useTranslations } from "next-intl";
+import { ENTITY_KIND_COLOR, EDGE_STYLES } from "@orchester/mnemosyne/graph";
+import { ALL_NODE_KINDS, ALL_EDGE_TYPES } from "@/lib/hooks/use-graph-filters";
 import type { GraphFiltersState } from "@/lib/hooks/use-graph-filters";
 
-const NODE_CHIPS: { kind: string; label: string; icon: string }[] = [
-  { kind: "person", label: "Person", icon: "●" },
-  { kind: "organization", label: "Org", icon: "⬡" },
-  { kind: "project", label: "Project", icon: "▣" },
-  { kind: "concept", label: "Concept", icon: "◆" },
-  { kind: "episode", label: "Episode", icon: "▶" },
-];
-
-const EDGE_CHIPS: { type: string; label: string; isConflict?: boolean }[] = [
-  { type: "related", label: "related" },
-  { type: "conflicts_with", label: "conflict", isConflict: true },
-  { type: "derived_from", label: "derived" },
-  { type: "part_of", label: "part_of" },
-  { type: "member_of", label: "member" },
-];
+// Glyph per node kind (mirrors the canvas shape vocabulary).
+const KIND_ICON: Record<string, string> = {
+  person: "●",
+  organization: "⬡",
+  project: "▣",
+  concept: "◆",
+  place: "⬠",
+  other: "●",
+  episode: "▶",
+  decision: "⚖",
+};
 
 interface Props {
   filters: GraphFiltersState;
 }
 
 export function BrainGraphFilters({ filters }: Props) {
+  const t = useTranslations("brain.graph");
   return (
     <div className="absolute top-4 left-4 z-10 w-44 bg-[#111113f2] backdrop-blur-md border border-zinc-800 rounded-xl p-3.5">
-      <p className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 mb-2.5">Filter</p>
+      <p className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 mb-2.5">
+        {t("filter")}
+      </p>
 
       {/* Search */}
       <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-md px-2 py-1 mb-3">
         <Search className="h-3 w-3 text-zinc-500 flex-shrink-0" />
         <input
-          aria-label="Search entities"
+          aria-label={t("searchPlaceholder")}
           className="bg-transparent text-xs text-zinc-200 placeholder-zinc-600 outline-none w-full"
-          placeholder="Search entities…"
+          placeholder={t("searchPlaceholder")}
           value={filters.searchQuery}
           onChange={(e) => filters.setSearchQuery(e.target.value)}
         />
       </div>
 
-      {/* Node type chips */}
+      {/* Node type chips — every node kind is toggleable. */}
       <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">
-        Node types
+        {t("nodeTypes")}
       </p>
       <div className="flex flex-wrap gap-1 mb-3">
-        {NODE_CHIPS.map(({ kind, label, icon }) => {
+        {ALL_NODE_KINDS.map((kind) => {
           const active = filters.visibleNodeKinds.has(kind);
           const color = ENTITY_KIND_COLOR[kind] ?? "#52525b";
           return (
             <button
               key={kind}
               onClick={() => filters.toggleNodeKind(kind)}
+              aria-pressed={active}
               className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium border transition-opacity"
               style={{
                 borderColor: `${color}40`,
@@ -60,32 +62,34 @@ export function BrainGraphFilters({ filters }: Props) {
                 opacity: active ? 1 : 0.3,
               }}
             >
-              <span>{icon}</span> {label}
+              <span>{KIND_ICON[kind]}</span> {t(`kinds.${kind}`)}
             </button>
           );
         })}
       </div>
 
-      {/* Edge type chips */}
+      {/* Edge type chips — every relation verb is toggleable. */}
       <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">
-        Edge types
+        {t("edgeTypes")}
       </p>
       <div className="flex flex-wrap gap-1 mb-3">
-        {EDGE_CHIPS.map(({ type, label, isConflict }) => {
+        {ALL_EDGE_TYPES.map((type) => {
           const active = filters.visibleEdgeTypes.has(type);
+          const color = EDGE_STYLES[type]?.color ?? "#7c3aed";
           return (
             <button
               key={type}
               onClick={() => filters.toggleEdgeType(type)}
+              aria-pressed={active}
               className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium border transition-opacity"
               style={{
-                borderColor: isConflict ? "#dc262640" : "#7c3aed40",
-                backgroundColor: isConflict ? "#2d0a0a" : "#1e1b4b",
-                color: isConflict ? "#f87171" : "#8b5cf6",
+                borderColor: `${color}40`,
+                backgroundColor: `${color}22`,
+                color,
                 opacity: active ? 1 : 0.3,
               }}
             >
-              {label}
+              {t(`edgeLabels.${type}`)}
             </button>
           );
         })}
@@ -93,7 +97,7 @@ export function BrainGraphFilters({ filters }: Props) {
 
       {/* Memory strength slider */}
       <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1">
-        Memory strength
+        {t("memoryStrength")}
       </p>
       <div className="flex items-center gap-2">
         <input
@@ -104,7 +108,7 @@ export function BrainGraphFilters({ filters }: Props) {
           value={filters.minMemoryStrength}
           onChange={(e) => filters.setMinMemoryStrength(Number(e.target.value))}
           className="flex-1 accent-violet-600 cursor-pointer"
-          aria-label="Minimum memory strength"
+          aria-label={t("memoryStrength")}
         />
         <span className="text-[10px] text-zinc-400 font-medium w-8 text-right">
           {filters.minMemoryStrength.toFixed(1)}

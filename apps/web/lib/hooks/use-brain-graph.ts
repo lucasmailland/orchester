@@ -3,9 +3,11 @@
 // SWR hook for GET /api/workspaces/[slug]/brain/graph.
 // Transforms the API response into react-force-graph format.
 
+import { useMemo } from "react";
 import useSWR from "swr";
 import { useParams } from "next/navigation";
-import type { GraphResponse, GraphNode, GraphEdge } from "@orchester/mnemosyne";
+// Client-safe subpath — pulls ONLY types/canvas, never the server DB query.
+import type { GraphResponse, GraphNode, GraphEdge } from "@orchester/mnemosyne/graph";
 
 export interface ForceGraphData {
   nodes: (GraphNode & { val: number })[];
@@ -40,12 +42,22 @@ export function useBrainGraph(focusEntityId?: string): UseBrainGraphResult {
     dedupingInterval: 30_000,
   });
 
-  const maxMentionCount = Math.max(1, ...(data?.nodes ?? []).map((n) => n.mentionCount));
+  // Memoised on `data` identity. SWR returns a stable `data` reference between
+  // renders unless the payload actually changes, so these derived structures
+  // (new arrays each compute) only recompute on a real data change — keeping
+  // downstream `useMemo`s in BrainGraph from invalidating every render.
+  const maxMentionCount = useMemo(
+    () => Math.max(1, ...(data?.nodes ?? []).map((n) => n.mentionCount)),
+    [data]
+  );
 
-  const graphData: ForceGraphData = {
-    nodes: (data?.nodes ?? []).map((n) => ({ ...n, val: n.mentionCount })),
-    links: (data?.edges ?? []).map((e) => ({ ...e })),
-  };
+  const graphData = useMemo<ForceGraphData>(
+    () => ({
+      nodes: (data?.nodes ?? []).map((n) => ({ ...n, val: n.mentionCount })),
+      links: (data?.edges ?? []).map((e) => ({ ...e })),
+    }),
+    [data]
+  );
 
   return {
     data: data ?? null,

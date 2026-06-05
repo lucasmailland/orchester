@@ -2,8 +2,10 @@
 // lib/hooks/use-graph-filters.ts
 // Client-side filter state for the Memory Graph. Pure React state — no server calls.
 
-import { useState, useMemo } from "react";
-import type { GraphNode, GraphEdge } from "@orchester/mnemosyne";
+import { useState, useMemo, useCallback } from "react";
+// Client-safe subpath — types only here, but import from /graph so this module
+// never transitively references the server DB query layer.
+import type { GraphNode, GraphEdge } from "@orchester/mnemosyne/graph";
 
 export const ALL_NODE_KINDS = [
   "person",
@@ -77,27 +79,38 @@ export function useGraphFilters(nodes: GraphNode[], edges: GraphEdge[]): GraphFi
     [edges, visibleEdgeTypes, filteredNodeIds]
   );
 
-  const toggleNodeKind = (kind: string) =>
-    setVisibleNodeKinds((prev) => {
-      const next = new Set(prev);
-      if (next.has(kind)) next.delete(kind);
-      else next.add(kind);
-      return next;
-    });
+  // Memoised on `filteredEdges` so the Set identity is stable between renders —
+  // BrainGraph's `filteredGraphData` useMemo depends on it and would otherwise
+  // recompute every render against a fresh Set.
+  const filteredEdgeIds = useMemo(() => new Set(filteredEdges.map((e) => e.id)), [filteredEdges]);
 
-  const toggleEdgeType = (type: string) =>
-    setVisibleEdgeTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(type)) next.delete(type);
-      else next.add(type);
-      return next;
-    });
+  const toggleNodeKind = useCallback(
+    (kind: string) =>
+      setVisibleNodeKinds((prev) => {
+        const next = new Set(prev);
+        if (next.has(kind)) next.delete(kind);
+        else next.add(kind);
+        return next;
+      }),
+    []
+  );
+
+  const toggleEdgeType = useCallback(
+    (type: string) =>
+      setVisibleEdgeTypes((prev) => {
+        const next = new Set(prev);
+        if (next.has(type)) next.delete(type);
+        else next.add(type);
+        return next;
+      }),
+    []
+  );
 
   return {
     filteredNodes,
     filteredEdges,
     filteredNodeIds,
-    filteredEdgeIds: new Set(filteredEdges.map((e) => e.id)),
+    filteredEdgeIds,
     visibleNodeKinds,
     visibleEdgeTypes,
     minMemoryStrength,

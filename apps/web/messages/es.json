@@ -305,6 +305,61 @@
       "step3Title": "Aparecen acá",
       "step3Body": "Curás, fijás o olvidás. O simplemente lo dejás correr.",
       "cta": "Empezar una conversación"
+    },
+    "graph": {
+      "title": "Grafo de Memoria",
+      "loading": "Cargando grafo…",
+      "errorTitle": "No se pudo cargar el grafo.",
+      "retry": "Reintentar",
+      "emptyTitle": "Aún no hay entidades",
+      "emptyDesc": "Inicia conversaciones — tus agentes construirán este grafo automáticamente.",
+      "emptyCta": "Iniciar una conversación",
+      "filter": "Filtrar",
+      "searchPlaceholder": "Buscar entidades…",
+      "nodeTypes": "Tipos de nodo",
+      "edgeTypes": "Tipos de relación",
+      "memoryStrength": "Fuerza de memoria",
+      "toggle2d": "2D",
+      "toggle3d": "3D",
+      "viewMode": "Modo de vista",
+      "statusBar": "{entities} entidades · {relations} relaciones",
+      "kinds": {
+        "person": "Persona",
+        "organization": "Org",
+        "project": "Proyecto",
+        "concept": "Concepto",
+        "place": "Lugar",
+        "other": "Otro",
+        "episode": "Episodio",
+        "decision": "Decisión"
+      },
+      "edgeLabels": {
+        "related": "relacionado",
+        "compatible": "compatible",
+        "not_conflict": "sin conflicto",
+        "conflicts_with": "conflicto",
+        "derived_from": "derivado",
+        "scoped": "acotado",
+        "supersedes": "reemplaza",
+        "part_of": "parte de",
+        "member_of": "miembro"
+      },
+      "legend": {
+        "nodes": "Nodos",
+        "edges": "Relaciones",
+        "related": "relacionado",
+        "conflict": "conflicto",
+        "derived": "derivado",
+        "memoryAura": "Aura de memoria"
+      },
+      "detail": {
+        "memoryStrength": "Fuerza de Memoria",
+        "facts": "Hechos",
+        "activeFacts": "{count} hechos activos",
+        "potentiating": "↑ potenciando",
+        "focusLocal": "Enfocar grafo local",
+        "viewFacts": "Ver todos los hechos"
+      }
     }
   },
   "dashboard": {

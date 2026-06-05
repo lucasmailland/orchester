@@ -12,7 +12,8 @@
       "@/*": ["./*"],
       "@orchester/db": ["../../packages/db/src/index.ts"],
       "@orchester/db/schema": ["../../packages/db/src/schema/index.ts"],
-      "@orchester/mnemosyne": ["../../packages/mnemosyne/src/index.ts"]
+      "@orchester/mnemosyne": ["../../packages/mnemosyne/src/index.ts"],
+      "@orchester/mnemosyne/graph": ["../../packages/mnemosyne/src/graph/index.ts"]
     },
     "jsx": "preserve",
     "incremental": true,

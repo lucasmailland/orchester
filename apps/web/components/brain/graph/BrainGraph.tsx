@@ -5,9 +5,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { useSearchParams } from "next/navigation";
-import { drawNode, drawEdge, nodeRadius, ENTITY_KIND_COLOR } from "@orchester/mnemosyne";
-import type { GraphNode } from "@orchester/mnemosyne";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
+// Client-safe subpath — canvas/types only, never the server DB query (which
+// would drag the Postgres driver into this client bundle).
+import { drawNode, drawEdge, nodeRadius, ENTITY_KIND_COLOR } from "@orchester/mnemosyne/graph";
+import type { GraphNode } from "@orchester/mnemosyne/graph";
 import { useBrainGraph } from "@/lib/hooks/use-brain-graph";
 import { useGraphFilters } from "@/lib/hooks/use-graph-filters";
 import { BrainGraphFilters } from "./BrainGraphFilters";
@@ -21,6 +24,11 @@ const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), { ssr: false 
 const ForceGraph3D = dynamic(() => import("react-force-graph-3d"), { ssr: false });
 
 export function BrainGraph() {
+  const t = useTranslations("brain.graph");
+  const router = useRouter();
+  const params = useParams<{ locale: string; workspaceSlug: string }>();
+  const locale = params?.locale ?? "en";
+  const ws = params?.workspaceSlug ?? "";
   const searchParams = useSearchParams();
   const focusEntityId = searchParams?.get("focus") ?? undefined;
 
@@ -51,6 +59,14 @@ export function BrainGraph() {
     }),
     [graphData, filteredNodeIds, filteredEdgeIds]
   );
+
+  // Status bar reflects the FILTERED view, not the full server payload, so the
+  // counts track the chips/slider/search the operator has applied.
+  const visibleEntityCount = useMemo(
+    () => filteredGraphData.nodes.filter((n) => n.kind === "entity").length,
+    [filteredGraphData]
+  );
+  const visibleRelationCount = filteredGraphData.links.length;
 
   const nodeCanvasObject = useCallback(
     (node: Record<string, unknown>, ctx: CanvasRenderingContext2D, globalScale: number) => {
@@ -90,9 +106,29 @@ export function BrainGraph() {
     []
   );
 
-  const handleNodeClick = useCallback((node: Record<string, unknown>) => {
-    setSelectedNode(node as unknown as GraphNode);
-  }, []);
+  // react-force-graph exposes only `onNodeClick`, so double-click is detected
+  // manually: a second click on the same node within 300ms enters local graph
+  // mode (?focus=<id> → server returns the 1-hop neighbourhood). A single click
+  // just opens the detail panel. Non-entity nodes (episodes/decisions) are not
+  // focusable, so they only ever select.
+  const lastClickRef = useRef<{ id: string; t: number } | null>(null);
+  const handleNodeClick = useCallback(
+    (node: Record<string, unknown>) => {
+      const n = node as unknown as GraphNode;
+      const now = Date.now();
+      const last = lastClickRef.current;
+      if (last && last.id === n.id && now - last.t < 300) {
+        lastClickRef.current = null;
+        if (n.kind === "entity") {
+          router.push(`/${locale}/${ws}/brain/graph?focus=${encodeURIComponent(n.id)}`);
+          return;
+        }
+      }
+      lastClickRef.current = { id: n.id, t: now };
+      setSelectedNode(n);
+    },
+    [router, locale, ws]
+  );
 
   const handleBackgroundClick = useCallback(() => {
     setSelectedNode(null);
@@ -101,7 +137,7 @@ export function BrainGraph() {
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-[#050507]">
-        <div className="text-zinc-500 text-sm animate-pulse">Loading graph…</div>
+        <div className="text-zinc-500 text-sm animate-pulse">{t("loading")}</div>
       </div>
     );
   }
@@ -110,9 +146,9 @@ export function BrainGraph() {
     return (
       <div className="flex-1 flex items-center justify-center bg-[#050507]">
         <div className="text-red-400 text-sm">
-          Failed to load graph.{" "}
+          {t("errorTitle")}{" "}
           <button onClick={() => mutate()} className="underline">
-            Retry
+            {t("retry")}
           </button>
         </div>
       </div>
@@ -160,7 +196,7 @@ export function BrainGraph() {
       <BrainGraphNodeDetail node={selectedNode} onClose={() => setSelectedNode(null)} />
 
       <div className="absolute bottom-4 right-14 z-10 text-xs text-zinc-500 bg-[#111113cc] border border-zinc-800 rounded px-2.5 py-1 backdrop-blur">
-        {data.meta.entityCount} entities · {data.meta.relationCount} relations
+        {t("statusBar", { entities: visibleEntityCount, relations: visibleRelationCount })}
       </div>
     </div>
   );

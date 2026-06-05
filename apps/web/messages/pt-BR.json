@@ -305,6 +305,61 @@
       "step3Title": "Aparecem aqui",
       "step3Body": "Curas, fixas ou esquece. Ou apenas deixa rodando.",
       "cta": "Começar uma conversa"
+    },
+    "graph": {
+      "title": "Grafo de Memória",
+      "loading": "Carregando grafo…",
+      "errorTitle": "Falha ao carregar o grafo.",
+      "retry": "Tentar novamente",
+      "emptyTitle": "Ainda não há entidades",
+      "emptyDesc": "Inicie conversas — seus agentes construirão este grafo automaticamente.",
+      "emptyCta": "Iniciar uma conversa",
+      "filter": "Filtrar",
+      "searchPlaceholder": "Buscar entidades…",
+      "nodeTypes": "Tipos de nó",
+      "edgeTypes": "Tipos de relação",
+      "memoryStrength": "Força da memória",
+      "toggle2d": "2D",
+      "toggle3d": "3D",
+      "viewMode": "Modo de visualização",
+      "statusBar": "{entities} entidades · {relations} relações",
+      "kinds": {
+        "person": "Pessoa",
+        "organization": "Org",
+        "project": "Projeto",
+        "concept": "Conceito",
+        "place": "Lugar",
+        "other": "Outro",
+        "episode": "Episódio",
+        "decision": "Decisão"
+      },
+      "edgeLabels": {
+        "related": "relacionado",
+        "compatible": "compatível",
+        "not_conflict": "sem conflito",
+        "conflicts_with": "conflito",
+        "derived_from": "derivado",
+        "scoped": "delimitado",
+        "supersedes": "substitui",
+        "part_of": "parte de",
+        "member_of": "membro"
+      },
+      "legend": {
+        "nodes": "Nós",
+        "edges": "Relações",
+        "related": "relacionado",
+        "conflict": "conflito",
+        "derived": "derivado",
+        "memoryAura": "Aura de memória"
+      },
+      "detail": {
+        "memoryStrength": "Força da Memória",
+        "facts": "Fatos",
+        "activeFacts": "{count} fatos ativos",
+        "potentiating": "↑ potencializando",
+        "focusLocal": "Focar grafo local",
+        "viewFacts": "Ver todos os fatos"
+      }
     }
   },
   "dashboard": {

@@ -1,21 +1,12 @@
 "use client";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { X, Target, ArrowRight } from "lucide-react";
 import { Button } from "@heroui/react";
-import type { GraphNode } from "@orchester/mnemosyne";
-import { ENTITY_KIND_COLOR } from "@orchester/mnemosyne";
+import type { GraphNode } from "@orchester/mnemosyne/graph";
+import { ENTITY_KIND_COLOR } from "@orchester/mnemosyne/graph";
 
-const KIND_LABELS: Record<string, string> = {
-  person: "Person",
-  organization: "Org",
-  project: "Project",
-  concept: "Concept",
-  place: "Place",
-  other: "Other",
-  episode: "Episode",
-  decision: "Decision",
-};
 const KIND_ICONS: Record<string, string> = {
   person: "●",
   organization: "⬡",
@@ -24,7 +15,7 @@ const KIND_ICONS: Record<string, string> = {
   place: "⬠",
   other: "●",
   episode: "▶",
-  decision: "◆",
+  decision: "⚖",
 };
 
 interface Props {
@@ -33,6 +24,7 @@ interface Props {
 }
 
 export function BrainGraphNodeDetail({ node, onClose }: Props) {
+  const t = useTranslations("brain.graph");
   const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "en";
   const ws = params?.workspaceSlug ?? "";
@@ -63,7 +55,7 @@ export function BrainGraphNodeDetail({ node, onClose }: Props) {
               style={{ borderColor: `${color}40`, backgroundColor: `${color}18`, color }}
             >
               <span>{KIND_ICONS[kind]}</span>
-              {KIND_LABELS[kind]}
+              {t(`kinds.${kind}`)}
             </div>
             <h3 className="text-base font-bold text-zinc-50 mb-1 pr-6">{node.label}</h3>
             {node.description && (
@@ -76,7 +68,7 @@ export function BrainGraphNodeDetail({ node, onClose }: Props) {
             {/* Memory Strength */}
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
-                Memory Strength
+                {t("detail.memoryStrength")}
               </p>
               <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden mb-1.5">
                 <div
@@ -87,7 +79,7 @@ export function BrainGraphNodeDetail({ node, onClose }: Props) {
               <div className="flex justify-between text-[11px] text-zinc-400">
                 <span>{node.avgMemoryStrength.toFixed(1)} / 5.0</span>
                 {node.avgMemoryStrength > 3 && (
-                  <span className="text-violet-400">↑ potentiating</span>
+                  <span className="text-violet-400">{t("detail.potentiating")}</span>
                 )}
               </div>
             </div>
@@ -95,9 +87,11 @@ export function BrainGraphNodeDetail({ node, onClose }: Props) {
             {/* Fact count */}
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
-                Facts
+                {t("detail.facts")}
               </p>
-              <p className="text-sm text-zinc-300">{node.factCount} active facts</p>
+              <p className="text-sm text-zinc-300">
+                {t("detail.activeFacts", { count: node.factCount })}
+              </p>
             </div>
 
             {/* Actions */}
@@ -111,7 +105,7 @@ export function BrainGraphNodeDetail({ node, onClose }: Props) {
                   startContent={<Target className="h-3.5 w-3.5" />}
                   className="w-full justify-start bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-violet-700 hover:text-violet-300 transition-colors"
                 >
-                  Focus local graph
+                  {t("detail.focusLocal")}
                 </Button>
               )}
               <Button
@@ -122,7 +116,7 @@ export function BrainGraphNodeDetail({ node, onClose }: Props) {
                 startContent={<ArrowRight className="h-3.5 w-3.5" />}
                 className="w-full justify-start bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-violet-700 hover:text-violet-300 transition-colors"
               >
-                View all facts
+                {t("detail.viewFacts")}
               </Button>
             </div>
           </div>
