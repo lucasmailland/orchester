@@ -130,6 +130,12 @@ describe("embed-batch-job — v1.6 tiered grouping", () => {
     // restricted to the fields the embed-batch worker reads. PII
     // redaction / poisoning scans / pointer-index upserts are skipped
     // — none of those gate the embed-batch grouping logic under test.
+    //
+    // ⚠️ If you COPY this seeding pattern into a test that depends on
+    // pointer-id matching (e.g. dedup, drawer-grep), you MUST seed
+    // `mnemo_pointer` separately OR import `createFact` from the new
+    // @mnemosyne/core CoreLike factory. Direct inserts produce no
+    // pointer rows.
     await withMnemoTx(wsA.id, async (tx) => {
       // Tx cast: withMnemoTx types tx against @mnemosyne/core's schema,
       // but this file uses @orchester/db's schema objects. Drizzle's

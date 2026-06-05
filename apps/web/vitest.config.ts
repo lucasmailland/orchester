@@ -24,9 +24,10 @@ export default defineConfig({
       "@orchester/db/schema": path.resolve(__dirname, "../../packages/db/src/schema/index.ts"),
       // Mnemosyne v2.0 uses subpath exports — we mirror the package.json
       // `exports` map here so Vite's resolver can find `/db`, `/graph`,
-      // `/graph/server`, `/protocol`. The `@mnemosyne/core` root alias MUST
-      // come LAST so it doesn't shadow the more specific subpath aliases
-      // (Vite picks longest-prefix-first, but order is the documented tie-break).
+      // `/graph/server`, `/protocol`. Vite matches aliases in insertion
+      // order, so subpath aliases (/db, /graph/server, /graph, /protocol)
+      // MUST appear BEFORE the bare `@mnemosyne/core` root alias —
+      // otherwise the root match wins and shadows the subpaths.
       "@mnemosyne/core/db": path.resolve(
         __dirname,
         "../../../mnemosyne/packages/core/src/db/index.ts"
