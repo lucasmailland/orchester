@@ -554,24 +554,26 @@ export async function executeTool(
   if (name === "brain_recall") {
     const query = String(input.query ?? "");
     if (!query) throw new Error("query required");
-    const { searchBrain } = await import("@/lib/brain");
-    const hits = await searchBrain({
+    // Migrated 2026-06-05: searchBrain (legacy brain_fact recall) →
+    // recallUnified (@mnemosyne/core, mnemo_fact). UnifiedRecallHit
+    // has a flat shape with the fact metadata under `metadata`.
+    const { recallUnified } = await import("@mnemosyne/core");
+    const hits = await recallUnified({
       workspaceId: ctx.workspaceId,
       query,
       topK: Math.min(Number(input.topK ?? 5), 20),
       ...(ctx.agentId ? { agentId: ctx.agentId } : {}),
-      ...(ctx.conversationId
-        ? { scope: "conversation" as const, scopeRef: ctx.conversationId }
-        : {}),
     });
     return {
-      hits: hits.map((h) => ({
-        kind: h.fact.kind,
-        subject: h.fact.subject,
-        statement: h.fact.statement,
-        confidence: h.fact.confidence,
-        score: Number(h.score.toFixed(3)),
-      })),
+      hits: hits.map((h) => {
+        const meta = h.metadata as { kind?: string; subject?: string } | undefined;
+        return {
+          kind: meta?.kind ?? "fact",
+          subject: meta?.subject ?? "",
+          statement: h.content,
+          score: Number(h.score.toFixed(3)),
+        };
+      }),
     };
   }
 

@@ -371,19 +371,27 @@ async function buildConversationContext(
   try {
     const lastUserMsg = [...fullHistory].reverse().find((m) => m.role === "user");
     if (lastUserMsg?.content) {
-      const { searchBrain } = await import("@/lib/brain");
-      const hits = await searchBrain({
+      // Migrated 2026-06-05 from legacy `searchBrain` (lib/brain/recall.ts,
+      // backed by `brain_fact`) to `recallUnified` (@mnemosyne/core,
+      // backed by `mnemo_fact`). Hit shape is flat now — no `h.fact` wrap.
+      const { recallUnified } = await import("@mnemosyne/core");
+      const hits = await recallUnified({
         workspaceId,
         query: String(lastUserMsg.content).slice(0, 500),
         topK: 3,
         agentId: agent.id,
       });
       if (hits.length > 0) {
+        // UnifiedRecallHit puts the fact fields under `metadata` (kind,
+        // subject, …). `content` is the statement text. `score` blends
+        // memory + KB so we use it as the confidence proxy.
         const lines = hits
-          .map(
-            (h) =>
-              `- [${h.fact.kind}] ${h.fact.subject}: ${h.fact.statement} (conf ${(h.fact.confidence * 100).toFixed(0)}%)`
-          )
+          .map((h) => {
+            const meta = h.metadata as { kind?: string; subject?: string } | undefined;
+            const kind = meta?.kind ?? "fact";
+            const subject = meta?.subject ?? "—";
+            return `- [${kind}] ${subject}: ${h.content} (score ${(h.score * 100).toFixed(0)}%)`;
+          })
           .join("\n");
         brainBlock = wrapMemoryBlock(`### Brain (semantic recall)\n${lines}`);
       }

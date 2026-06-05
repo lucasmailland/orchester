@@ -32,5 +32,4 @@
 
 export * from "./types";
 export * from "./store";
-export * from "./recall";
 export { embedBrain, invalidateEmbedding } from "./embed";

@@ -31,8 +31,6 @@ import {
   JOB_GDPR_EXPORT,
   JOB_GDPR_EXPORT_WATCHDOG,
   JOB_BRAIN_EXTRACT,
-  JOB_BRAIN_COMPACTION,
-  JOB_BRAIN_DECAY,
   JOB_MNEMO_EMBED_FACT,
   JOB_MNEMO_EMBED_BATCH,
   JOB_MNEMO_SUMMARY,
@@ -55,8 +53,6 @@ import { runHardDeleteCron } from "../lib/tenant/hard-delete-job";
 import { runExportJob } from "../lib/gdpr/export-job";
 import { runExportWatchdog } from "../lib/gdpr/watchdog";
 import { runBrainExtractJob, type BrainExtractPayload } from "../lib/brain/extract-job";
-import { runBrainCompaction } from "../lib/brain/compaction";
-import { runBrainDecay } from "../lib/brain/decay";
 import { runEmbedFactJob, runEmbedBatchSweep, type EmbedFactPayload } from "./embed-batch-job";
 import { summaryJobHandler, type SummaryJobPayload } from "./summary-job";
 import { healthJobHandler, type HealthJobPayload } from "./health-job";
@@ -215,28 +211,17 @@ async function main(): Promise<void> {
     await runBrainExtractJob(job.data);
   });
 
-  // ─── Brain Core (LEGACY) — `brain_fact` table is deprecated in
-  // favour of `mnemo_fact` (@mnemosyne/core v2.x). The compaction +
-  // decay jobs below maintained the legacy table; with no new writes
-  // arriving (the UI inspector and agent-runtime both read/write
-  // `mnemo_*` now) there is nothing left for these to do but churn
-  // the same rows nightly.
-  //
-  // The handlers stay REGISTERED — that way if some long-tail consumer
-  // we missed still emits `JOB_BRAIN_COMPACTION` / `JOB_BRAIN_DECAY`,
-  // pg-boss has someone to dispatch to and the message isn't dead-
-  // lettered. The `schedule()` calls are commented out so the cron
-  // tick no longer self-enqueues. Re-enable if `brain_fact` ever gets
-  // a new writer that needs daily maintenance.
-  await registerWorker(JOB_BRAIN_COMPACTION, async () => {
-    await runBrainCompaction();
-  });
-  // await schedule(JOB_BRAIN_COMPACTION, "30 3 * * *");  // deprecated 2026-06-05
-
-  await registerWorker(JOB_BRAIN_DECAY, async () => {
-    await runBrainDecay();
-  });
-  // await schedule(JOB_BRAIN_DECAY, "0 4 * * *");  // deprecated 2026-06-05
+  // Brain Core legacy compaction/decay handlers were retired on
+  // 2026-06-05 along with `lib/brain/compaction.ts` and
+  // `lib/brain/decay.ts`. The `brain_fact` table is no longer being
+  // written to by any live code path (the agent-runtime, the
+  // Inspector UI, and the agent-tools all target `mnemo_fact` via
+  // @mnemosyne/core). If a long-tail consumer ever re-enqueues
+  // `JOB_BRAIN_COMPACTION` or `JOB_BRAIN_DECAY` the message will be
+  // dead-lettered by pg-boss — there's no handler to dispatch to and
+  // there's no daily schedule either. See
+  // docs/superpowers/plans/2026-06-05-mnemosyne-service-extraction.md
+  // for the broader retirement plan.
 
   // ─── Mnemosyne async batch embedding (v1.1 cost optimization) ──────
   // `mnemo.embed.fact` is the per-fact eager handler — pg-boss picks

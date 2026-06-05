@@ -47,7 +47,6 @@ import { extractFacts } from "./extract";
 import { checkWarmUp } from "@/lib/mnemo/warm-up";
 import { shouldExtract } from "@mnemosyne/core";
 import { withBrainTx } from "./store";
-import { invalidateRecallCache } from "./recall";
 import { extractEpisode } from "./episode-extractor";
 import { llmCall } from "@/lib/llm-call";
 // v1.6 (G2) — explicit spend cap + metering imports for the entity
@@ -604,7 +603,10 @@ export async function runBrainExtractJob(payload: BrainExtractPayload): Promise<
         })
         .where(eq(schema.brainExtractionJobs.id, payload.jobId));
 
-      invalidateRecallCache(payload.workspaceId);
+      // (Used to call invalidateRecallCache(workspaceId) here — that
+      // cache lived in the deleted `lib/brain/recall.ts` and was
+      // scoped to the legacy `brain_fact` recall path. The
+      // @mnemosyne/core recall manages its own cache internally.)
 
       // 6. Single audit row per extraction batch (B-T8: don't spam
       // per-fact, the source_message_ids cover that).
