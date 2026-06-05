@@ -116,9 +116,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const t = useTranslations("pages.flows.builder");
   const rawLocale = useLocale();
   const LOCALE: Locale =
-    rawLocale === "es" || rawLocale === "pt-BR" || rawLocale === "en"
-      ? (rawLocale as Locale)
-      : "es";
+    rawLocale === "es" || rawLocale === "pt" || rawLocale === "en" ? (rawLocale as Locale) : "es";
   const [nodes, setNodes] = useState<Node[]>(
     flow.nodes.map((n) => ({
       id: n.id,

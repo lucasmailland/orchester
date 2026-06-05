@@ -4,7 +4,7 @@
  * For every TS/TSX file under apps/web/{app,components,lib}/, picks
  * up `useTranslations("ns")` declarations + `t("key")` calls and
  * asserts the resulting dotted keys exist in en.json, es.json AND
- * pt-BR.json.
+ * pt.json.
  *
  * Heuristic (conservative): we trace each `const t = useTranslations("ns")`
  * (and `const tFoo = useTranslations("ns")`) to its identifier, then
@@ -30,7 +30,7 @@ const WEB_ROOT = resolve(__dirname, "..");
 const MESSAGES_DIR = resolve(WEB_ROOT, "messages");
 const SCAN_DIRS = ["app", "components", "lib"].map((d) => resolve(WEB_ROOT, d));
 
-const LOCALES = ["en", "es", "pt-BR"] as const;
+const LOCALES = ["en", "es", "pt"] as const;
 type Locale = (typeof LOCALES)[number];
 
 type LocaleBag = Record<string, unknown>;
@@ -162,7 +162,7 @@ function main(): void {
   }
 
   if (totalMissing === 0) {
-    console.log(`[i18n] OK - ${allKeys.length} keys, all present in en/es/pt-BR.`);
+    console.log(`[i18n] OK - ${allKeys.length} keys, all present in en/es/pt.`);
     process.exit(0);
   }
   console.error(`\n[i18n] FAIL - ${totalMissing} missing key references across locales.`);

@@ -87,7 +87,7 @@ function PaletteItem({
   const Icon = iconFor(node.icon);
   const docs = getNodeDocs(node.id);
   const whenToUseLabel =
-    locale === "es" ? "Cuándo conviene" : locale === "pt-BR" ? "Quando usar" : "When to use";
+    locale === "es" ? "Cuándo conviene" : locale === "pt" ? "Quando usar" : "When to use";
   const tooltip = docs
     ? `${node.summary[locale]}\n\n${whenToUseLabel}: ${docs.whenToUse[locale]}`
     : node.summary[locale];

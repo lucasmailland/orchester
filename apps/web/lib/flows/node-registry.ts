@@ -7,12 +7,12 @@ import type { FieldDef } from "./field-types";
  * agregar una entrada acá (+ su ejecutor en `flow-engine.ts` si es nuevo).
  *
  * COPYS: en lenguaje simple, que entienda cualquier persona (ver el principio
- * de copys del plan). Trilingüe (es/en/pt-BR).
+ * de copys del plan). Trilingüe (es/en/pt).
  */
 
 export type NodeCategory = "trigger" | "ai" | "logic" | "apps" | "data" | "actions";
 
-export type Locale = "es" | "en" | "pt-BR";
+export type Locale = "es" | "en" | "pt";
 export type I18n = Record<Locale, string>;
 
 export interface NodeDef {
@@ -35,7 +35,7 @@ export interface NodeDef {
   fixedConfig?: Record<string, unknown>;
 }
 
-const i = (es: string, en: string, pt: string): I18n => ({ es, en, "pt-BR": pt });
+const i = (es: string, en: string, pt: string): I18n => ({ es, en, pt: pt });
 
 export const NODE_REGISTRY: Record<string, NodeDef> = {
   // ── Disparadores ──────────────────────────────────────────────────────────

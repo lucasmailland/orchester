@@ -7,7 +7,7 @@ import { parseBody } from "@/lib/validation";
 
 const updateMeSchema = z.object({
   name: z.string().optional(),
-  preferredLocale: z.enum(["en", "es", "pt-BR"]).optional(),
+  preferredLocale: z.enum(["en", "es", "pt"]).optional(),
   preferredTheme: z.enum(["light", "dark", "system"]).optional(),
 });
 

@@ -676,7 +676,7 @@ export function DashboardClient({ stats, workspaceName, locale, workspaceSlug }:
   const t = useTranslations("dashboard");
   const now = new Date();
   // Map app locale → BCP-47 for Intl.DateTimeFormat
-  const dateLocale = locale === "es" ? "es" : locale === "pt-BR" ? "pt-BR" : "en";
+  const dateLocale = locale === "es" ? "es" : locale === "pt" ? "pt" : "en";
   const totalConvs30d = stats.activityByDay.reduce((s, d) => s + d.conversations, 0);
   const totalTokens30d = stats.activityByDay.reduce((s, d) => s + d.tokens, 0);
   const escalationRate =

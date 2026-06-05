@@ -7,8 +7,8 @@ describe("node-registry", () => {
       expect(def.id).toBeTruthy();
       expect(def.engine).toBeTruthy();
       expect(def.category).toBeTruthy();
-      expect(def.title.es && def.title.en && def.title["pt-BR"]).toBeTruthy();
-      expect(def.summary.es && def.summary.en && def.summary["pt-BR"]).toBeTruthy();
+      expect(def.title.es && def.title.en && def.title["pt"]).toBeTruthy();
+      expect(def.summary.es && def.summary.en && def.summary["pt"]).toBeTruthy();
       expect(Array.isArray(def.fields)).toBe(true);
     }
   });

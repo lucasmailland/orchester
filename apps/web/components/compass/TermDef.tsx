@@ -94,7 +94,7 @@ export interface TermDefProps {
   closeDelayMs?: number;
 }
 
-const SUPPORTED_LOCALES: readonly CompassLocale[] = ["en", "es", "pt-BR"];
+const SUPPORTED_LOCALES: readonly CompassLocale[] = ["en", "es", "pt"];
 
 function resolveLocale(raw: string): CompassLocale {
   return (SUPPORTED_LOCALES as readonly string[]).includes(raw) ? (raw as CompassLocale) : "en";

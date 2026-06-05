@@ -157,7 +157,7 @@ export function HelpDrawer({ open, onClose }: HelpDrawerProps): JSX.Element | nu
   const t = useTranslations("compass.help");
   const localeRaw = useLocale();
   const locale: CompassLocale =
-    localeRaw === "es" || localeRaw === "pt-BR" ? (localeRaw as CompassLocale) : "en";
+    localeRaw === "es" || localeRaw === "pt" ? (localeRaw as CompassLocale) : "en";
   const pathname = usePathname();
 
   const [mounted, setMounted] = useState(false);

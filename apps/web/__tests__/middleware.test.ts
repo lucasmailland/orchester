@@ -17,7 +17,7 @@ describe("middleware route classification", () => {
 
   it("extractLocalePath strips locale prefix", () => {
     expect(extractLocalePath("/en/teams")).toBe("/teams");
-    expect(extractLocalePath("/pt-BR/settings")).toBe("/settings");
+    expect(extractLocalePath("/pt/settings")).toBe("/settings");
     expect(extractLocalePath("/es")).toBe("/");
   });
 

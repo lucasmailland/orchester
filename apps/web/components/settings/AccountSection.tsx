@@ -22,7 +22,7 @@ interface Props {
 const LOCALES = [
   { value: "en", label: "🇺🇸 English" },
   { value: "es", label: "🇪🇸 Español" },
-  { value: "pt-BR", label: "🇧🇷 Português (BR)" },
+  { value: "pt", label: "🇧🇷 Português (BR)" },
 ];
 
 export function AccountSection({ me }: Props) {

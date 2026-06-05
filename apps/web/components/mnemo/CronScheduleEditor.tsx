@@ -23,7 +23,7 @@
  * so the calling list re-renders with the new mode without a page
  * reload.
  *
- * Voice — Compass: clear, professional. Spanish "tú", pt-BR "você".
+ * Voice — Compass: clear, professional. Spanish "tú", pt "você".
  */
 
 import { useEffect, useState, type JSX } from "react";

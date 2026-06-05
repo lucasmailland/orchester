@@ -3,7 +3,7 @@ import type { I18n, Locale } from "./node-registry";
 /**
  * Documentación rica de cada paso, pensada para que CUALQUIER persona entienda
  * qué hace, para qué sirve y cuándo conviene usarlo. También alimenta al
- * copiloto para que elija el paso correcto. Trilingüe (es/en/pt-BR).
+ * copiloto para que elija el paso correcto. Trilingüe (es/en/pt).
  */
 
 export interface NodeDocs {
@@ -15,7 +15,7 @@ export interface NodeDocs {
   tip?: I18n;
 }
 
-const i = (es: string, en: string, pt: string): I18n => ({ es, en, "pt-BR": pt });
+const i = (es: string, en: string, pt: string): I18n => ({ es, en, pt: pt });
 
 export const NODE_DOCS: Record<string, NodeDocs> = {
   trigger_manual: {

@@ -85,7 +85,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const localePath = extractLocalePath(pathname);
-  const locale = pathname.match(/^\/(en|pt-BR|es)/)?.[1] ?? "en";
+  const locale = pathname.match(/^\/(en|pt|es)/)?.[1] ?? "en";
 
   const sessionToken =
     request.cookies.get("better-auth.session_token")?.value ??

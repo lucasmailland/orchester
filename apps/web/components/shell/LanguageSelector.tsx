@@ -8,13 +8,13 @@ import { routing } from "@/i18n/routing";
 
 const LOCALE_LABELS: Record<string, string> = {
   en: "English",
-  "pt-BR": "Português",
+  pt: "Português",
   es: "Español",
 };
 
 const LOCALE_FLAGS: Record<string, string> = {
   en: "🇺🇸",
-  "pt-BR": "🇧🇷",
+  pt: "🇧🇷",
   es: "🇪🇸",
 };
 

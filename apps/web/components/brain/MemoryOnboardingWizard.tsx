@@ -30,7 +30,7 @@
  *
  * Voice
  *  - Compass voice: clear, professional, friendly. No slang, no
- *    "tipo" / "atenti". "Tú" in Spanish neutral; cedilla "você" in pt-BR.
+ *    "tipo" / "atenti". "Tú" in Spanish neutral; cedilla "você" in pt.
  *  - Copy lives entirely in i18n (`brain.onboarding`).
  */
 

@@ -37,7 +37,7 @@ export function InspectorForm({ node, locale, onChange, onDelete, availableData 
       <div className="p-4 text-xs text-muted">
         {locale === "es"
           ? "Seleccioná un nodo para configurarlo, o pedile al copiloto que lo arme por vos."
-          : locale === "pt-BR"
+          : locale === "pt"
             ? "Selecione um nó para configurá-lo, ou peça ao copiloto para montá-lo."
             : "Pick a node to configure it, or ask the copilot to build it."}
       </div>
