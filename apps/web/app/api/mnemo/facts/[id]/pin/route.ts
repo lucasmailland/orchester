@@ -35,6 +35,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const updated = await withMnemoTx(ctx.workspace.id, async (tx) => {
     const _tx = tx as unknown as DbClient;
+    // Schema bridge: withMnemoTx types tx against @mnemosyne/core's schema, but this
+    // file uses @orchester/db's schema objects. Drizzle's fluent builder (.update/.set/.where)
+    // uses SQL column name strings, not schema identity, so generated SQL is identical.
+    // Safe for fluent builder only — never use db.query.* on _tx. See instrumentation-node.ts.
     // Clear `auto_pinned_overridden` if set — the user is re-affirming.
     // We don't touch `auto_pinned` (which records the rule + date) so
     // the audit trail of "was once auto-pinned" survives. jsonb '-'
