@@ -39,7 +39,8 @@
     "worker": "pnpm --filter @orchester/workers dev",
     "audit:invariants": "bash scripts/audit-invariants.sh",
     "loadtest:chat": "k6 run scripts/loadtest-test-chat.js",
-    "prepare": "husky"
+    "bootstrap": "bash scripts/bootstrap-vendor.sh",
+    "prepare": "husky && bash scripts/bootstrap-vendor.sh"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml}": [

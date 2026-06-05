@@ -66,8 +66,8 @@ importers:
         specifier: ^5.4.0
         version: 5.4.0(react-hook-form@7.77.0(react@19.2.7))
       '@mnemosyne/core':
-        specifier: file:../../../mnemosyne/packages/core
-        version: file:../mnemosyne/packages/core(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(gel@2.2.0)(kysely@0.29.2)(pg@8.20.0)(postgres@3.4.9))(postgres@3.4.9)
+        specifier: file:../../vendor/mnemosyne/packages/core
+        version: file:vendor/mnemosyne/packages/core(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(gel@2.2.0)(kysely@0.29.2)(pg@8.20.0)(postgres@3.4.9))(postgres@3.4.9)
       '@paralleldrive/cuid2':
         specifier: ^3.3.0
         version: 3.3.0
@@ -2088,8 +2088,8 @@ packages:
   '@kwsites/file-exists@1.1.1':
     resolution: {integrity: sha512-m9/5YGR18lIwxSFDwfE3oA7bWuq9kdau6ugN4H2rJeyhFQZcG9AgSHkQtSD15a8WvTgfz9aikZMrKPHvbpqFiw==}
 
-  '@mnemosyne/core@file:../mnemosyne/packages/core':
-    resolution: {directory: ../mnemosyne/packages/core, type: directory}
+  '@mnemosyne/core@file:vendor/mnemosyne/packages/core':
+    resolution: {directory: vendor/mnemosyne/packages/core, type: directory}
     engines: {node: '>=20.0.0'}
     hasBin: true
     peerDependencies:
@@ -10069,7 +10069,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@mnemosyne/core@file:../mnemosyne/packages/core(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(gel@2.2.0)(kysely@0.29.2)(pg@8.20.0)(postgres@3.4.9))(postgres@3.4.9)':
+  '@mnemosyne/core@file:vendor/mnemosyne/packages/core(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(gel@2.2.0)(kysely@0.29.2)(pg@8.20.0)(postgres@3.4.9))(postgres@3.4.9)':
     dependencies:
       '@paralleldrive/cuid2': 3.3.0
       drizzle-orm: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(gel@2.2.0)(kysely@0.29.2)(pg@8.20.0)(postgres@3.4.9)

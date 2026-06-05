@@ -1,3 +1,12 @@
 packages:
   - "apps/*"
   - "packages/*"
+  # Note: vendor/mnemosyne is NOT a workspace package — it's a git submodule
+  # that builds itself in isolation (with its own pnpm install) before the
+  # main install runs. This prevents peer-dep bleed-through (e.g. drizzle-orm
+  # adapter overload resolution) that would happen if mnemosyne shared
+  # node_modules with orchester. apps/web consumes the built artifact via
+  # `file:../../vendor/mnemosyne/packages/core`. The bootstrap is handled by
+  # scripts/bootstrap-vendor.sh and the CI workflow. When @mnemosyne/core@2.x
+  # publishes to npm, replace `file:…` with a version range and drop the
+  # submodule + bootstrap script.

@@ -1,0 +1,4 @@
+[submodule "vendor/mnemosyne"]
+	path = vendor/mnemosyne
+	url = https://github.com/lucasmailland/mnemosyne.git
+	branch = main

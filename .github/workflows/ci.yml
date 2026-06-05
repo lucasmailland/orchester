@@ -19,6 +19,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Scan submodules too — vendor/mnemosyne is third-party-style code
+          # that should still be vetted for committed secrets.
+          submodules: recursive
       - uses: gitleaks/gitleaks-action@v2
         with:
           config-path: .gitleaks.toml
@@ -53,6 +56,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        # submodules:recursive pulls in vendor/mnemosyne (pinned to the SHA
+        # tracked in .gitmodules / the parent tree). Without this, the
+        # bootstrap step below can't find the submodule.
+        with:
+          submodules: recursive
 
       - uses: pnpm/action-setup@v4
         with:
@@ -62,6 +70,13 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+
+      # Build @mnemosyne/core IN ISOLATION before the main install.
+      # See scripts/bootstrap-vendor.sh for the why (peer-dep bleed-through).
+      # This produces vendor/mnemosyne/packages/core/dist/*, which apps/web's
+      # file: dependency then resolves in the main pnpm install below.
+      - name: Bootstrap vendor submodules
+        run: bash scripts/bootstrap-vendor.sh
 
       - name: Install
         run: pnpm install --frozen-lockfile
