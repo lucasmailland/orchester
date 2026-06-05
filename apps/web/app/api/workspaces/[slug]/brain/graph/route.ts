@@ -35,6 +35,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
 
   const url = new URL(req.url);
   const focusParam = url.searchParams.get("focus");
+  // Entity IDs are cuid2-based with a "ment_" prefix (e.g. ment_<24 lowercase alphanumeric chars>).
+  // Reject anything that doesn't match to prevent injection / unexpected query shapes.
+  if (focusParam && !/^ment_[a-z0-9]{24}$/.test(focusParam)) {
+    return NextResponse.json({ error: "invalid_focus_param" }, { status: 400 });
+  }
   const graphOpts = focusParam ? { focusEntityId: focusParam } : {};
 
   try {
