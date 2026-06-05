@@ -12,9 +12,9 @@ const SLUG_RE = /^[a-z][a-z0-9-]{2,38}[a-z0-9]$/;
  * them into a workspace context.
  *
  * Keep this list in sync with the directories that live directly
- * under `apps/web/app/[locale]/` (auth, marketing, onboarding,
- * checkout, etc.). `workspaces` is in here so the no-context landing
- * page is reachable without a workspace.
+ * under `apps/web/app/[locale]/` (auth, onboarding, checkout, etc.).
+ * `workspaces` is in here so the workspaces list page is reachable
+ * without a workspace context.
  */
 const NON_WORKSPACE_TOP_LEVEL = new Set([
   "login",
@@ -22,12 +22,8 @@ const NON_WORKSPACE_TOP_LEVEL = new Set([
   "logout",
   "welcome",
   "onboarding",
-  "pricing",
   "checkout",
   "invite",
-  "docs",
-  "privacy",
-  "terms",
   "showcase",
   "workspaces",
 ]);
