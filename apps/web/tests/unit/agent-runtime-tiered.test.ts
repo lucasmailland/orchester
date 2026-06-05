@@ -12,13 +12,13 @@
 //   4. Defensive: when `getOrComputeSummary` THROWS, `buildProfileBlock`
 //      returns "" rather than propagating the error. Same for `searchMnemo`.
 //
-// We mock `@orchester/mnemosyne` so the helpers don't reach into a real
+// We mock `@mnemosyne/core` so the helpers don't reach into a real
 // DB / pgvector index. The shape of each mock matches the public types
 // in `packages/mnemosyne/src/index.ts`.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// ── Mocks for @orchester/mnemosyne. Each function is a `vi.fn()` so per-
+// ── Mocks for @mnemosyne/core. Each function is a `vi.fn()` so per-
 // test we can `.mockReturnValueOnce` / `.mockResolvedValueOnce` and assert
 // call counts. The constants are passthroughs so the runtime can still
 // import them for its prompt assembly (not exercised in these unit tests).
