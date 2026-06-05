@@ -317,7 +317,7 @@
       "memoryStrength": "Memory strength",
       "toggle2d": "2D",
       "toggle3d": "3D",
-      "statusBar": "{{entities}} entities · {{relations}} relations",
+      "statusBar": "{entities} entities · {relations} relations",
       "detail": {
         "memoryStrength": "Memory Strength",
         "facts": "Facts",
