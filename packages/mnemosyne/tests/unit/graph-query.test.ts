@@ -80,4 +80,40 @@ describe("buildGraphData", () => {
     expect(ids).toContain("e2");
     expect(result.meta.entityCount).toBe(2);
   });
+
+  it("maps episode nodes with factCount from linkedFactIds.length", () => {
+    const episodes = [
+      {
+        id: "ep1",
+        workspaceId: "ws1",
+        title: "Sprint Planning",
+        isSynthetic: false,
+        linkedFactIds: ["f1", "f2", "f3"],
+        createdAt: new Date("2026-03-01"),
+      },
+    ];
+    const result = buildGraphData(baseEntities, episodes, [], baseFactStats, [], {});
+    const ep = result.nodes.find((n) => n.id === "ep1");
+    expect(ep?.kind).toBe("episode");
+    expect(ep?.label).toBe("Sprint Planning");
+    expect(ep?.factCount).toBe(3);
+    expect(result.meta.episodeCount).toBe(1);
+  });
+
+  it("maps decision nodes with kind='decision'", () => {
+    const decisions = [
+      {
+        id: "d1",
+        workspaceId: "ws1",
+        title: "Use TypeScript everywhere",
+        status: "active",
+        createdAt: new Date("2026-02-01"),
+      },
+    ];
+    const result = buildGraphData(baseEntities, [], decisions, baseFactStats, [], {});
+    const dec = result.nodes.find((n) => n.id === "d1");
+    expect(dec?.kind).toBe("decision");
+    expect(dec?.label).toBe("Use TypeScript everywhere");
+    expect(result.meta.decisionCount).toBe(1);
+  });
 });

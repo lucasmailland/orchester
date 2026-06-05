@@ -120,3 +120,43 @@ describe("drawNode — canvas calls", () => {
     expect(dashes.some((d) => d.length > 0)).toBe(true);
   });
 });
+
+describe("drawEdge — canvas calls", () => {
+  function makeMockCtx() {
+    return {
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      setLineDash: vi.fn(),
+      strokeStyle: "",
+      lineWidth: 1,
+      globalAlpha: 1,
+    } as unknown as CanvasRenderingContext2D;
+  }
+
+  it("calls moveTo, lineTo, and stroke for a known relation", async () => {
+    const { drawEdge } = await import("../../src/graph/edge-canvas");
+    const ctx = makeMockCtx();
+    drawEdge(ctx, { sx: 0, sy: 0, tx: 100, ty: 100, relation: "related", confidence: 0.8 });
+    expect(ctx.moveTo).toHaveBeenCalled();
+    expect(ctx.lineTo).toHaveBeenCalled();
+    expect(ctx.stroke).toHaveBeenCalled();
+  });
+
+  it("falls back to 'related' style for an unknown relation", async () => {
+    const { drawEdge, EDGE_STYLES } = await import("../../src/graph/edge-canvas");
+    const ctx = makeMockCtx();
+    let usedColor = "";
+    Object.defineProperty(ctx, "strokeStyle", {
+      set: (v) => {
+        usedColor = v;
+      },
+      get: () => usedColor,
+    });
+    drawEdge(ctx, { sx: 0, sy: 0, tx: 50, ty: 50, relation: "unknown_verb", confidence: 0.5 });
+    expect(usedColor).toBe(EDGE_STYLES["related"].color);
+  });
+});

@@ -38,12 +38,16 @@ export interface NodeDrawOptions {
   globalScale: number;
 }
 
-export function drawNode(ctx: CanvasRenderingContext2D, opts: NodeDrawOptions): void {
+export function drawNode(
+  ctx: CanvasRenderingContext2D,
+  opts: NodeDrawOptions,
+  now = Date.now()
+): void {
   const { x, y, r, color, selected, memoryStrength, label, kind, entityKind, globalScale } = opts;
 
   ctx.save();
 
-  _drawAura(ctx, x, y, r, color, memoryStrength);
+  _drawAura(ctx, x, y, r, color, memoryStrength, now);
 
   const resolvedKind = entityKind ?? kind;
   switch (resolvedKind) {
@@ -95,11 +99,12 @@ function _drawAura(
   y: number,
   r: number,
   color: string,
-  memoryStrength: number
+  memoryStrength: number,
+  now: number
 ): void {
   const baseOpacity = (memoryStrength / 5.0) * 0.18;
   if (baseOpacity < 0.01) return;
-  const pulse = Math.sin((Date.now() / 2000) * Math.PI) * 0.2 + 0.8;
+  const pulse = Math.sin((now / 2000) * Math.PI) * 0.2 + 0.8;
   for (const [ring_r, opMult] of [
     [r + 8, 1.0],
     [r + 18, 0.5],
@@ -129,12 +134,12 @@ function _drawCircle(
 ): void {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, 2 * Math.PI);
+  ctx.closePath();
   ctx.fillStyle = _withAlpha(color, FILL_OPACITY);
   ctx.fill();
   ctx.strokeStyle = color;
   ctx.lineWidth = 1.5;
   ctx.stroke();
-  ctx.closePath();
 }
 
 function _drawHexagon(
