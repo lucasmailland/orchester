@@ -36,7 +36,9 @@ What's NOT wired:
 
 ### Phase 1 upstream prerequisites (mnemosyne repo)
 
-Status as of 2026-06-05 evening: **eight Dockerfile bugs found and fixed**. A ninth is structural and requires a rewrite rather than another patch.
+**Status as of 2026-06-05 night: COMPLETE.** Twelve upstream bugs caught and fixed across the Docker stack and one missing SQL migration. The full stack now boots from a clean clone and serves `/v1/facts` and `/v1/recall` end-to-end. See "Phase 1 complete" section below for the verified smoke result.
+
+The original write-up of "eight bugs found, one structural" is retained verbatim for the historical record of the debugging arc:
 
 - [x] Fix `docker/Dockerfile.{migrate,server}`: drop `COPY apps apps` — the standalone repo has no `apps/`. Done in `0d201e0`.
 - [x] Fix `docker/Dockerfile.{migrate,server}`: add `tsconfig.base.json` and `turbo.json` to the COPY layer so the workspace build doesn't crash with `TS5083: Cannot read file '/app/tsconfig.base.json'`. Done in `38480e5`.
@@ -269,12 +271,92 @@ Phase 1 sets up the service locally. For prod, decide:
 
 ---
 
+## Phase 1 complete — service is live (2026-06-05 night)
+
+End state, verified with a clean `docker compose up` from the orchester
+submodule pinned to mnemosyne `a27dbc8`:
+
+```
+mnemosyne-postgres   healthy   pgvector/pgvector:pg17   55435 → 5432
+mnemosyne-migrate    exit 0    applied 33/33 migrations on a fresh DB
+mnemosyne-server     healthy   docker-server            3939 → 3939
+
+GET  /healthz                          → HTTP 200  {"status":"ok"}
+POST /v1/facts (with bearer + content) → HTTP 201  {"id":"mfact_…", "workspaceId":"ws_smoke", …}
+POST /v1/recall                        → HTTP 500  LLMProviderError: invalid_api_key
+                                                   (placeholder MNEMO_LLM_API_KEY in .env —
+                                                    set a real OpenAI key and recall returns)
+```
+
+Two facts were created end-to-end against the service and verified
+directly in Postgres (`mnemo_fact.workspace_id = 'ws_smoke'`, both
+statements stored, RLS scoping correct).
+
+Twelve upstream commits in `lucasmailland/mnemosyne` got us here. They
+fall into three groups:
+
+**Dockerfile.migrate** — eight commits, then a clean rewrite:
+- `0d201e0` drop `COPY apps apps` (the standalone repo has no apps/)
+- `38480e5` include `tsconfig.base.json` + `turbo.json` in the COPY layer
+- `5cb727a` invoke `node /app/dist/migrate.js` directly (pnpm doesn't
+  symlink the bin of the package being installed)
+- `bc314ad` → `f53ac8d` a series of patches trying to bolt the peer deps
+  (postgres, drizzle-orm) onto a `pnpm deploy --prod` bundle. Each one
+  fixed a specific quirk (`--ignore-scripts` arg, `--no-frozen-lockfile`
+  is invalid for `pnpm add`, `--prod` clashes with the deploy bundle's
+  install mode, the `--filter X deploy <path>` arg is relative to the
+  filtered package). None of them solved the underlying problem.
+- `595493d` **REWRITE** — drop `pnpm deploy` entirely. Three explicit
+  stages: build, runtime-deps (synthesise a flat node_modules from a
+  rewritten manifest that lifts peerDeps), runtime (minimal COPY).
+  Reproducible from a clean clone.
+
+**Dockerfile.server** — three commits:
+- `8badf0b` apply the same rewrite pattern, with the extra step of
+  `pnpm pack` for the workspace peers (`@mnemosyne/core`,
+  `@mnemosyne/llm-providers`) so the runtime-deps stage installs them
+  from local tarballs via npm.
+- `f360fcd` `pnpm pack` doesn't accept `--filter` in pnpm 9; `cd` into
+  each package first.
+- `ae8483c` extracted the manifest-synthesis logic into
+  `docker/scripts/synth-runtime-pkg.cjs`. Also fixed a tarball filename
+  bug (pnpm pack names them `mnemosyne-core-X.Y.Z.tgz`, not `core-…`).
+- `a27dbc8` drop `--ignore-scripts` from the server runtime-deps install
+  so bcrypt's `node-pre-gyp install` can fetch the prebuilt native
+  binding. Added `python3 make g++` to the throwaway stage in case the
+  prebuild misses and node-pre-gyp falls back to compiling from source.
+
+**Migration content** — one commit:
+- `828bf76` `CREATE EXTENSION IF NOT EXISTS vector` at the top of
+  migration 0015. Without it, migration 0016 (the first to declare
+  columns of type `vector(N)`) dies with `type "vector" does not exist`
+  on a fresh Postgres. Historically the Orchester host enabled the
+  extension in its own pre-0015 migrations; the standalone bundle had
+  no equivalent until this fix.
+
+The bottom line: bringing up `@mnemosyne/server` from a fresh clone
+needed twelve commits' worth of work upstream, but the result is a
+genuinely self-hostable stack. From here, **Phase 2 unblocks** — the
+service is real, the SDK can talk to it, and we can start migrating
+orchester routes off the in-process library.
+
+The single remaining setup step for any consumer is:
+
+```bash
+cd vendor/mnemosyne/docker
+cp .env.example .env
+$EDITOR .env   # set MNEMO_LLM_API_KEY=sk-… (real key, not sk-replace-me)
+docker compose up -d
+```
+
+---
+
 ## What's already done (anchor points)
 
 - 2026-06-05 — Audited + fixed `mnemo_entity` empty (seed extended). Smoke E2E of `buildGraphQuery` against local DB returns real payload.
 - 2026-06-05 — Retired `lib/brain/` legacy surface (`@deprecated` on 5 routes, dead UI deleted, 2 cron schedules silenced).
 - 2026-06-05 — Submodule pin updated to `220c955` (mnemo_decision.confidence migration) + Dockerfile upstream fixes started.
-- This document — Phase 1 partial; Phases 2–4 are spec-only.
+- 2026-06-05 — Phase 1 closed: 12 upstream commits + 1 SQL fix; smoke E2E green end-to-end. See "Phase 1 complete" section above.
 
 ---
 
