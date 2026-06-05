@@ -560,3 +560,27 @@ export {
   type RecallInput,
   type RecallHit as ClientRecallHit,
 } from "./storage/client";
+
+// Memory Graph — framework-agnostic graph primitives (types, DB query, canvas).
+// See docs/specs/2026-06-04-memory-graph-design.md for the portability contract.
+export {
+  buildGraphData,
+  buildGraphQuery,
+  drawNode,
+  drawEdge,
+  nodeRadius,
+  defaultForceConfig,
+  ENTITY_KIND_COLOR,
+  EDGE_STYLES,
+  NODE_RADIUS_MIN,
+  NODE_RADIUS_MAX,
+  type GraphNode,
+  type GraphEdge,
+  type GraphResponse,
+  type GraphQueryOptions,
+  type GraphNodeKind,
+  type GraphEntityKind,
+  type NodeDrawOptions,
+  type EdgeDrawOptions,
+  type ForceConfig,
+} from "./graph";

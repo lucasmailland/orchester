@@ -86,6 +86,7 @@
     "testcontainers": "^10.16.0",
     "tsup": "^8.0.0",
     "typescript": "^5.7.2",
+    "vite": "^6.0.0",
     "vitest": "^4.1.0"
   },
   "engines": {
