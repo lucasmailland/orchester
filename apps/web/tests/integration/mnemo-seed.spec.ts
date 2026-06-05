@@ -28,12 +28,12 @@ import {
 
 let wsA: WsFixture;
 let wsB: WsFixture;
-let withMnemoTx: typeof import("@orchester/mnemosyne").withMnemoTx;
+let withMnemoTx: typeof import("@mnemosyne/core").withMnemoTx;
 let seedMnemoFacts: typeof import("../../lib/dev-seed/mnemo-seed").seedMnemoFacts;
 
 beforeAll(async () => {
   [wsA, wsB] = await setupTestWorkspaces();
-  ({ withMnemoTx } = await import("@orchester/mnemosyne"));
+  ({ withMnemoTx } = await import("@mnemosyne/core"));
   ({ seedMnemoFacts } = await import("../../lib/dev-seed/mnemo-seed"));
 });
 

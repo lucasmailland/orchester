@@ -32,9 +32,8 @@ const assertWithinSpendMock = vi.fn().mockResolvedValue(undefined);
 const recordAiUsageMock = vi.fn().mockResolvedValue(undefined);
 const safeLogErrorMock = vi.fn();
 
-vi.mock("@orchester/mnemosyne", async () => {
-  const actual =
-    await vi.importActual<typeof import("@orchester/mnemosyne")>("@orchester/mnemosyne");
+vi.mock("@mnemosyne/core", async () => {
+  const actual = await vi.importActual<typeof import("@mnemosyne/core")>("@mnemosyne/core");
   return {
     ...actual,
     createEpisode: createEpisodeMock,

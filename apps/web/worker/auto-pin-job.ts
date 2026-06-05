@@ -27,7 +27,7 @@ import {
   withMnemoTx,
   type AutoPinFactInput,
   type Tx,
-} from "@orchester/mnemosyne";
+} from "@mnemosyne/core";
 import { safeLogError } from "@/lib/safe-log";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 import { CRON_JOBS, shouldRunForWorkspace, markRanForWorkspace } from "@/lib/mnemo/cron-policy";

@@ -30,7 +30,7 @@ const applyPolicyToRecallMock = vi.fn((_p, x) => x);
 const makeCohereRerankMock = vi.fn();
 const noopRerankMock = vi.fn();
 
-vi.mock("@orchester/mnemosyne", () => ({
+vi.mock("@mnemosyne/core", () => ({
   MEMORY_PROTOCOL_V1: "MEMORY_PROTOCOL_V1_FIXTURE_TEXT",
   MEMORY_RECALL_GUIDANCE: "RECALL_GUIDANCE_FIXTURE",
   DEFAULT_AGENT_MEMORY_POLICY: {

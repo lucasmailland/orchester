@@ -21,12 +21,7 @@
 // which this file deliberately never names).
 import "server-only";
 import { sql } from "drizzle-orm";
-import {
-  findLowConfidenceCandidates,
-  enqueueReview,
-  withMnemoTx,
-  type Tx,
-} from "@orchester/mnemosyne";
+import { findLowConfidenceCandidates, enqueueReview, withMnemoTx, type Tx } from "@mnemosyne/core";
 import { safeLogError } from "@/lib/safe-log";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 import { CRON_JOBS, shouldRunForWorkspace, markRanForWorkspace } from "@/lib/mnemo/cron-policy";

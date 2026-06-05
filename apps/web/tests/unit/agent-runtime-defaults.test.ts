@@ -32,9 +32,8 @@ const mocks = vi.hoisted(() => ({
 // through — this test asserts the actual lexical-overlap ordering
 // works end-to-end ("user prefers espresso" must rank above the
 // no-overlap distractors). Other package exports stay mocked.
-vi.mock("@orchester/mnemosyne", async () => {
-  const actual =
-    await vi.importActual<typeof import("@orchester/mnemosyne")>("@orchester/mnemosyne");
+vi.mock("@mnemosyne/core", async () => {
+  const actual = await vi.importActual<typeof import("@mnemosyne/core")>("@mnemosyne/core");
   return {
     MEMORY_PROTOCOL_V1: "PROTOCOL_FIXTURE",
     MEMORY_RECALL_GUIDANCE: "RECALL_GUIDANCE_FIXTURE",

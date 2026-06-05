@@ -15,7 +15,7 @@ vi.mock("@/lib/auth-guards", () => ({
   }),
   isAuthContext: (x: unknown) => !(x instanceof Response),
 }));
-vi.mock("@orchester/mnemosyne", () => ({
+vi.mock("@mnemosyne/core", () => ({
   composeBOM: vi.fn(),
   completenessScore: vi.fn(() => 1),
   withMnemoTx: vi.fn(),

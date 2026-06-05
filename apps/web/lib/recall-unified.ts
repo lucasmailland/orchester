@@ -17,7 +17,7 @@
 //      mapping is ambiguous (workspaces can have many KBs).
 
 import "server-only";
-import type { KbChunkProvider, KbChunk } from "@orchester/mnemosyne";
+import type { KbChunkProvider, KbChunk } from "@mnemosyne/core";
 import { searchKnowledgeBase } from "./knowledge-search";
 
 /**

@@ -16,7 +16,7 @@ import {
   type RerankFn,
   type UserProfileSummary,
   type TriggerDecision,
-} from "@orchester/mnemosyne";
+} from "@mnemosyne/core";
 import { llmCall, type ChatMessage } from "./llm-call";
 import { executeTool, getToolDefinitions, type ToolCall } from "./tools";
 import { assertWithinSpend } from "./cost-alerts";
@@ -108,7 +108,7 @@ function interpolate(template: string, vars: Record<string, string>): string {
 // lets us forward UNDEFINED to the package and rely on the default,
 // drop this import and the `else { rerankFn = makeLocalLexicalRerank() }`
 // branch in the same pass.
-import { makeLocalLexicalRerank } from "@orchester/mnemosyne";
+import { makeLocalLexicalRerank } from "@mnemosyne/core";
 
 /* ───────────────── Mnemosyne v1.4 — unified recall wiring ───────────────── */
 

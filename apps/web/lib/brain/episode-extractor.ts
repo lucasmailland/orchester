@@ -23,7 +23,7 @@
 import "server-only";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
-import { createEpisode, linkFactToEpisode, type Tx as MnemoTx } from "@orchester/mnemosyne";
+import { createEpisode, linkFactToEpisode, type Tx as MnemoTx } from "@mnemosyne/core";
 import { type LlmCallParams, type LlmCallResult } from "@/lib/llm-call";
 import { wrapUntrusted } from "@/lib/agent-runtime";
 import { safeLogError } from "@/lib/safe-log";

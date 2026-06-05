@@ -11,7 +11,7 @@ import {
   syntheticEpisodeIdForMessageTurn,
   syntheticEpisodeIdForDocument,
   syntheticEpisodeIdForDay,
-} from "@orchester/mnemosyne";
+} from "@mnemosyne/core";
 
 // ── Verificación del contrato que asume el backfill cron ────────────────────
 //

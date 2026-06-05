@@ -18,7 +18,7 @@
 // covers Inspector render via the `text_lemmatized` generated column,
 // so the Inspector renders fine without a vector backfill.
 import { sql } from "drizzle-orm";
-import { withMnemoTx } from "@orchester/mnemosyne";
+import { withMnemoTx } from "@mnemosyne/core";
 
 type FactKind = "preference" | "trait" | "event" | "relationship" | "skill" | "concern" | "other";
 type MemoryType = "semantic" | "episodic" | "procedural" | "working";

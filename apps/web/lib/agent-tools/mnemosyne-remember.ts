@@ -32,7 +32,7 @@ import {
   createFactAsync,
   withMnemoTx,
   type CreateFactAsyncInput,
-} from "@orchester/mnemosyne";
+} from "@mnemosyne/core";
 import type { DbClient } from "@orchester/db";
 import { getAgentMemoryPolicy } from "@/lib/policy/agent-memory";
 import { enqueue, JOB_MNEMO_EMBED_FACT } from "@/lib/queue";

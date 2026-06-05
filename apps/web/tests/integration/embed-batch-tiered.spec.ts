@@ -77,7 +77,7 @@ vi.mock("@/lib/ai/embedding-tier", () => ({
 }));
 
 let wsA: WsFixture;
-let withMnemoTx: typeof import("@orchester/mnemosyne").withMnemoTx;
+let withMnemoTx: typeof import("@mnemosyne/core").withMnemoTx;
 // Cast: createFact lives on the package's internal primitives surface
 // area. We resolve it via the same dynamic import path used by
 // fact-async-batch.spec.ts (relative — the integration tests in
@@ -88,7 +88,7 @@ let runEmbedBatchSweep: typeof import("@/worker/embed-batch-job").runEmbedBatchS
 
 beforeAll(async () => {
   [wsA] = await setupTestWorkspaces();
-  ({ withMnemoTx } = await import("@orchester/mnemosyne"));
+  ({ withMnemoTx } = await import("@mnemosyne/core"));
   ({ createFact } =
     (await import("../../../../packages/mnemosyne/src/primitives/fact")) as unknown as {
       createFact: CreateFactFn;

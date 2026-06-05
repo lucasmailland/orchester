@@ -25,7 +25,7 @@ import {
   withMnemoTx,
   type DedupCandidate,
   type Tx,
-} from "@orchester/mnemosyne";
+} from "@mnemosyne/core";
 import { safeLogError } from "@/lib/safe-log";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 // Per-workspace periodicity override gate. Driven by the

@@ -2,7 +2,7 @@ import "server-only";
 import { getDb, schema } from "@orchester/db";
 import { createId } from "@paralleldrive/cuid2";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { withMnemoTx, searchMnemo, saveFactWithCandidates } from "@orchester/mnemosyne";
+import { withMnemoTx, searchMnemo, saveFactWithCandidates } from "@mnemosyne/core";
 
 /**
  * Orchester MCP server core.
