@@ -16,6 +16,7 @@ import {
   GitCompare,
   Wrench,
   ClipboardCheck,
+  Network,
 } from "lucide-react";
 import { Button, Skeleton, Chip } from "@heroui/react";
 import { notify } from "@/lib/toast";
@@ -246,6 +247,16 @@ export function BrainInspectorClient() {
         className="bg-elevated text-body"
       >
         Timeline
+      </Button>
+      <Button
+        as={Link}
+        href={`/${locale}/${ws}/brain/graph`}
+        variant="flat"
+        size="sm"
+        startContent={<Network className="h-3.5 w-3.5" />}
+        className="bg-elevated text-body"
+      >
+        Graph
       </Button>
       <Button
         as={Link}

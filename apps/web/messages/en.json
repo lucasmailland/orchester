@@ -305,6 +305,25 @@
       "step3Title": "You see them here",
       "step3Body": "Curate, pin, or forget. Or just leave it running.",
       "cta": "Start a conversation"
+    },
+    "graph": {
+      "title": "Memory Graph",
+      "emptyTitle": "No entities yet",
+      "emptyDesc": "Start conversations — your agents will build this graph automatically.",
+      "filter": "Filter",
+      "searchPlaceholder": "Search entities…",
+      "nodeTypes": "Node types",
+      "edgeTypes": "Edge types",
+      "memoryStrength": "Memory strength",
+      "toggle2d": "2D",
+      "toggle3d": "3D",
+      "statusBar": "{{entities}} entities · {{relations}} relations",
+      "detail": {
+        "memoryStrength": "Memory Strength",
+        "facts": "Facts",
+        "focusLocal": "Focus local graph",
+        "viewFacts": "View all facts"
+      }
     }
   },
   "dashboard": {
