@@ -92,6 +92,18 @@ interface WebhookDeliverJob {
 async function main(): Promise<void> {
   console.log("[worker] booting…");
 
+  // ── @mnemosyne/core DI wiring ─────────────────────────────────
+  // The library no longer owns its DB connection; every entrypoint
+  // must register Orchester's pool via setDb() before any
+  // withMnemoTx / searchMnemo / recallUnified call. The Next.js
+  // process does this in instrumentation-node.ts; the worker
+  // process is a separate Node bundle (worker/.dist/worker.mjs)
+  // that never loads that hook, so we must wire here too.
+  // Missing this call crashes every mnemo cron + the brain-extract
+  // job on first tick with "No DB client registered".
+  const { wireMnemoDb } = await import("../lib/mnemo/wire-di");
+  if (await wireMnemoDb()) console.log("[worker] @mnemosyne/core DI wiring complete");
+
   // ── v1.6 G1-1: pre-create every queue row BEFORE any handler ────
   // Without this, the first admin enqueue (e.g. POST
   // /api/mnemo/admin/run-consolidation) races pg-boss's lazy
