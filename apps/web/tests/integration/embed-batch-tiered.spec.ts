@@ -78,10 +78,11 @@ vi.mock("@/lib/ai/embedding-tier", () => ({
 
 let wsA: WsFixture;
 let withMnemoTx: typeof import("@mnemosyne/core").withMnemoTx;
-// Cast: createFact lives on the package's internal primitives surface
-// area. We resolve it via the same dynamic import path used by
-// fact-async-batch.spec.ts (relative — the integration tests in
-// `packages/mnemosyne/tests` use `../../src/primitives/fact`).
+// createFact lives on the legacy package's internal primitives surface.
+// @mnemosyne/core v2.0 no longer exposes it as a public export (only the
+// CoreLike.createFact factory method does). This deep relative import will
+// be removed in Task 10 when packages/mnemosyne/ is deleted — the test
+// itself will be rewritten against CoreLike or against direct drizzle inserts.
 type CreateFactFn = typeof import("../../../../packages/mnemosyne/src/primitives/fact").createFact;
 let createFact: CreateFactFn;
 let runEmbedBatchSweep: typeof import("@/worker/embed-batch-job").runEmbedBatchSweep;
@@ -104,6 +105,12 @@ describe("embed-batch-job — v1.6 tiered grouping", () => {
     // Seed: 1 premium-tier fact (pinned trait, workspace-scope) +
     // 2 default-tier facts (conversation-scope, other kind).
     await withMnemoTx(wsA.id, async (tx) => {
+      // Tx cast: createFact (legacy package) types `tx` against the old
+      // packages/mnemosyne Tx, but withMnemoTx (new @mnemosyne/core) types
+      // it differently. Runtime object is the same Drizzle transaction
+      // handle. Will be cleaned up in Task 10 alongside the legacy package.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const _tx = tx as any;
       await createFact({
         workspaceId: wsA.id,
         scope: "global",
@@ -112,7 +119,7 @@ describe("embed-batch-job — v1.6 tiered grouping", () => {
         statement: "premium fact: pinned trait about the user",
         pinned: true,
         embeddingTier: "premium",
-        tx,
+        tx: _tx,
       });
       await createFact({
         workspaceId: wsA.id,
@@ -121,7 +128,7 @@ describe("embed-batch-job — v1.6 tiered grouping", () => {
         subject: "user",
         statement: "default fact A: random conversation detail",
         embeddingTier: "default",
-        tx,
+        tx: _tx,
       });
       await createFact({
         workspaceId: wsA.id,
@@ -130,7 +137,7 @@ describe("embed-batch-job — v1.6 tiered grouping", () => {
         subject: "user",
         statement: "default fact B: another random detail",
         embeddingTier: "default",
-        tx,
+        tx: _tx,
       });
     });
 
