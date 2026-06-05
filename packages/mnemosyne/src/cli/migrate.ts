@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 // packages/mnemosyne/src/cli/migrate.ts
 //
 // Tiny migration runner for @orchester/mnemosyne when consumed as a
@@ -43,13 +44,20 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// `postgres` is a peer dependency — we import it dynamically inside
-// `main()` so the package can still be IMPORTED for type information
-// in environments where postgres isn't installed (e.g. a build step).
-type PostgresClient = (
-  query: string,
-  params?: unknown[]
-) => Promise<unknown[]> & { unsafe: (q: string) => Promise<unknown[]>; end: () => Promise<void> };
+// Minimal structural type covering the subset of postgres-js's API
+// this CLI uses. We avoid importing the package's full types so the
+// module-level type-check works without `postgres` installed, and we
+// keep the contract narrow and explicit.
+interface SqlClient {
+  /** Tagged-template query with parameter binding. */
+  (strings: TemplateStringsArray, ...values: readonly unknown[]): Promise<unknown[]>;
+  /** Run a raw SQL string (no binding). Used for DDL the consumer wrote. */
+  unsafe(q: string): Promise<unknown[]>;
+  /** Wrap a function in a transaction; postgres-js rolls back on throw. */
+  begin<T>(fn: (tx: { unsafe(q: string): Promise<unknown> }) => Promise<T>): Promise<T>;
+  /** Close the connection pool. */
+  end(): Promise<void>;
+}
 
 interface CliFlags {
   /** Don't apply — just print what would run. */
@@ -173,8 +181,10 @@ const HISTORY_TABLE_DDL = `
   );
 `;
 
-async function loadAlreadyApplied(sql: PostgresClient): Promise<Set<string>> {
-  const rows = (await sql(`SELECT name FROM mnemo_migration_history`)) as Array<{ name: string }>;
+async function loadAlreadyApplied(sql: SqlClient): Promise<Set<string>> {
+  const rows = (await sql.unsafe(`SELECT name FROM mnemo_migration_history`)) as Array<{
+    name: string;
+  }>;
   return new Set(rows.map((r) => r.name));
 }
 
@@ -212,7 +222,7 @@ async function main(): Promise<number> {
   const postgres = (await import("postgres")).default;
   const sql = postgres(databaseUrl, {
     onnotice: () => undefined, // suppress "NOTICE: extension already exists" chatter
-  }) as unknown as PostgresClient;
+  }) as unknown as SqlClient;
 
   try {
     process.stdout.write(`▸ Discovered ${files.length} migrations in ${dir}\n`);
@@ -239,17 +249,14 @@ async function main(): Promise<number> {
       process.stdout.write(`${tag} ${m.name}\n`);
 
       if (!flags.dryRun) {
-        // Each migration in its own implicit transaction (sql.begin
-        // wraps a transaction; tx.unsafe runs the raw SQL). On error
-        // postgres-js rolls back the tx and re-throws, halting the loop.
-        await (
-          sql as unknown as {
-            begin: (
-              fn: (tx: { unsafe: (q: string) => Promise<unknown> }) => Promise<unknown>
-            ) => Promise<unknown>;
-          }
-        ).begin(async (tx) => {
+        // Each migration in its own implicit transaction. On error,
+        // postgres-js rolls back the tx and re-throws, halting the
+        // loop with the schema intact through the previous migration.
+        await sql.begin(async (tx) => {
           await tx.unsafe(sqlText);
+          // Dollar-quoted string so filenames with single quotes
+          // (none in the catalogue today, but defensive) don't break
+          // the INSERT.
           await tx.unsafe(
             `INSERT INTO mnemo_migration_history (name) VALUES ($name$${m.name}$name$)`
           );

@@ -1,31 +1,98 @@
 {
   "name": "@orchester/mnemosyne",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Multi-tenant memory architecture for AI agents — provider-agnostic, zero platform third-party cost, 3 operational modes.",
+  "version": "1.6.0",
+  "description": "Multi-tenant cognitive memory for AI agents — bitemporal, provider-agnostic, RLS-isolated.",
   "license": "Apache-2.0",
-  "main": "./src/index.ts",
-  "exports": {
-    ".": "./src/index.ts",
-    "./protocol": "./src/protocol/v1.ts"
+  "author": "Lucas Mailland <lucasmailland@gmail.com>",
+  "homepage": "https://github.com/lucasmailland/orchester/tree/main/packages/mnemosyne",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lucasmailland/orchester.git",
+    "directory": "packages/mnemosyne"
   },
+  "bugs": {
+    "url": "https://github.com/lucasmailland/orchester/issues"
+  },
+  "keywords": [
+    "ai-memory",
+    "rag",
+    "vector-search",
+    "pgvector",
+    "multi-tenant",
+    "rls",
+    "bitemporal",
+    "mnemosyne",
+    "llm",
+    "agents",
+    "mcp",
+    "model-context-protocol"
+  ],
+  "//": "type=module + dual output: tsup emits .js (ESM) and .cjs (CJS).",
+  "//1": "main = CJS entry for legacy require() callers.",
+  "//2": "module = ESM entry for bundlers that read the field.",
+  "//3": "types intentionally omitted in v1.6.0 — see CHANGELOG / tsup.config.ts.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "bin": {
+    "mnemo-migrate": "./dist/migrate.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    },
+    "./protocol": {
+      "import": "./dist/protocol.js",
+      "require": "./dist/protocol.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "migrations",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "pnpm clean && pnpm build"
+  },
+  "peerDependencies": {
+    "drizzle-orm": ">=0.45.0 <1.0.0",
+    "postgres": ">=3.4.0 <4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "postgres": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@orchester/db": "workspace:*",
     "@paralleldrive/cuid2": "^3.3.0",
-    "drizzle-orm": "^0.45.2",
     "lru-cache": "^11.5.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.9",
     "testcontainers": "^10.16.0",
     "tsup": "^8.0.0",
     "typescript": "^5.7.2",
     "vitest": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
   }
 }

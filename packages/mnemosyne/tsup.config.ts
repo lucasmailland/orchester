@@ -52,10 +52,27 @@ export default defineConfig({
 
   format: ["esm", "cjs"],
 
-  // Emit `.d.ts` (for ESM) and `.d.cts` (for CJS). The
-  // `experimentalDts` route avoids the slow rollup-dts in favour of
-  // tsc's project mode, which respects our tsconfig's `paths`.
-  dts: true,
+  // .d.ts emission is intentionally OFF in v1.6.0.
+  //
+  // Mnemosyne's source imports `@orchester/db` for the Drizzle schema
+  // tables — a workspace package that doesn't itself publish to npm
+  // yet. tsup's DTS bundler tries to follow the import and resolve
+  // types from `packages/db/src/...`, which works locally but doesn't
+  // round-trip to a tarball: a consumer installing
+  // `@orchester/mnemosyne` from npm wouldn't have the matching
+  // `@orchester/db` source to satisfy the type references.
+  //
+  // For v1.6.0 the JS bundles ship and the runtime works fine; the
+  // public API is documented in README.md and consumers can import
+  // types from the runtime via their own `declare module` if they
+  // need TypeScript inference.
+  //
+  // Tracked for v1.6.1: either (a) publish @orchester/db to npm
+  // alongside mnemosyne, or (b) re-export the relevant schema /
+  // type shapes into mnemosyne's own surface so the DTS emission is
+  // self-contained.
+  dts: false,
+  tsconfig: "./tsconfig.build.json",
 
   // Keep `dist/` clean across builds — no stale files from a previous
   // refactor sneaking into a tarball.
@@ -98,4 +115,11 @@ export default defineConfig({
   banner: {
     js: "/* @orchester/mnemosyne — see https://github.com/lucasmailland/orchester */",
   },
+
+  // After tsup writes the JS bundles, mark the CLI bin executable
+  // so `npx mnemo-migrate` works straight from a consumer's
+  // installed node_modules without a separate `chmod`. The shebang
+  // is in the source file (`#!/usr/bin/env node`) so the file
+  // itself is well-formed; the `+x` bit is what npx looks at.
+  onSuccess: "chmod +x dist/migrate.js dist/migrate.cjs 2>/dev/null || true",
 });

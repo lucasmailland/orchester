@@ -527,3 +527,36 @@ export {
   type BOMIdentitySlice,
   type BOMOutcomeSlice,
 } from "./bom";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v1.6 — storage adapter layer (foundation for v2.0 multi-backend support).
+//
+// These exports are the NEW, FORWARD path for consumers who want to use
+// Mnemosyne with a non-Drizzle backend (Prisma, raw `pg`, edge runtimes).
+// The legacy direct exports (`withMnemoTx`, `searchMnemo`, …) continue to
+// work unchanged.
+//
+// See packages/mnemosyne/src/storage/types.ts for the interface contract
+// and packages/mnemosyne/README.md "Using Mnemosyne in another product"
+// for the three integration paths.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export {
+  MnemoCapabilityError,
+  type MnemoStorage,
+  type MnemoFactRecord,
+  type VectorSearchInput,
+  type VectorSearchHit,
+  type FtsSearchInput,
+  type FtsSearchHit,
+} from "./storage/types";
+
+export { createDrizzleStorage, type DrizzleTxLike } from "./storage/drizzle";
+
+export {
+  createMnemoClient,
+  type MnemoClient,
+  type MnemoClientOptions,
+  type RecallInput,
+  type RecallHit as ClientRecallHit,
+} from "./storage/client";

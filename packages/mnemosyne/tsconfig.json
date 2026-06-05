@@ -24,6 +24,11 @@
     // the current TS version. Post-v1.0 polish: extract fixtures to
     // a shared package, then drop baseUrl + ignoreDeprecations.
     "rootDir": "../..",
+    // The CLI bin (src/cli/migrate.ts) targets Node and pulls in
+    // `node:` imports, `process`, `__dirname`. The base tsconfig
+    // leaves `types` empty for security; we opt the package in
+    // explicitly. `@types/node` is a devDependency of this package.
+    "types": ["node"],
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
