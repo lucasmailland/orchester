@@ -56,9 +56,12 @@ cd "$VENDOR"
 # (tsup, etc.) and the build would fail.
 pnpm install --frozen-lockfile
 
-# Only @mnemosyne/core is consumed by orchester. Other packages
-# (server, mcp, llm-providers, client-ts, examples) aren't needed.
+# Build @mnemosyne/core (in-process library — current canonical runtime)
+# and @mnemosyne/client-ts (HTTP SDK — the target of Phase 2 of the
+# service-extraction plan). The server, mcp, llm-providers, and
+# examples packages aren't consumed by orchester directly.
 pnpm --filter @mnemosyne/core build
+pnpm --filter @mnemosyne/client-ts build
 
 echo "==> vendor/mnemosyne/packages/core built."
 echo "    dist artifacts:"

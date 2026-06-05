@@ -120,6 +120,63 @@ These only happen once the upstream Docker stack is healthy.
 
 ## Phase 2 — Migrate orchester from library → SDK (incremental)
 
+### Phase 2 scaffolding — landed 2026-06-05
+
+Before any route migration starts, three pieces of plumbing have to
+exist on the orchester side. All three are now done and verified:
+
+- [x] `@mnemosyne/client-ts` added as a `file:` dep in `apps/web/package.json`, mirroring how `@mnemosyne/core` is consumed today.
+- [x] `apps/web/lib/mnemo/client.ts` ships a `getMnemoClient()` singleton that constructs the SDK once per process and **fails loud** at first call if `MNEMO_URL` or `MNEMO_API_KEY` is missing. Lazy import — does not crash routes that haven't been migrated yet.
+- [x] `MNEMO_URL` / `MNEMO_API_KEY` documented in `.env.example` with the docker-compose bring-up command alongside.
+- [x] `scripts/bootstrap-vendor.sh` extended to also `pnpm --filter @mnemosyne/client-ts build`, so the SDK ships in dist alongside core on every clone.
+- [x] `apps/web/tests/unit/mnemo-client.test.ts` smoke: 5/5 — verifies the SDK is importable, the public surface includes the four error classes, and `getMnemoClient()` enforces its env contract.
+
+### Server + SDK gap matrix — what we can migrate today vs. what needs upstream work
+
+The 47+ orchester routes that target `mnemo_*` fall into seven
+buckets by what they ultimately call into `@mnemosyne/core` for. The
+matrix below maps each bucket to its current upstream state. Items
+marked **available now** can start migrating as soon as `MNEMO_URL`
+is set in the target environment; items marked **upstream gap** need
+an endpoint added to `@mnemosyne/server` AND a method added to
+`@mnemosyne/client-ts` before the orchester route can be touched.
+
+| Orchester surface | Server endpoint | SDK method | Status |
+|---|---|---|---|
+| `/api/mnemo/recall-unified` + `lib/agent-runtime.ts` | `POST /v1/recall` | `client.recall()` | ✅ available now |
+| `/api/mnemo/facts/*` (create/get/list/pin/unpin/forget) | `POST/GET/DELETE /v1/facts[/{id}[/pin\|/unpin]]` | `client.createFact/getFact/pinFact/unpinFact/forgetFact()` | ⚠️ list endpoint missing — others available |
+| `/api/mnemo/timeline` | `GET /v1/timeline` | `client.timeline()` | ✅ available now |
+| `/api/mnemo/health/*` | `GET /healthz`, `GET /readyz` | `client.health()` | ✅ available now (no per-tenant detail) |
+| `/api/workspaces/[slug]/brain/graph` | `GET /v1/graph` — **not implemented** | `client.graph()` — **not implemented** | ❌ upstream gap (graph route file doesn't exist in `vendor/mnemosyne/packages/server/src/routes/`) |
+| `/api/mnemo/entities/*` | `/v1/entities` — **not implemented** | — | ❌ upstream gap |
+| `/api/mnemo/episodes/*`, `/decisions/*`, `/review/*`, `/audit/*`, `/export/*`, `/recall-debug` | — | — | ❌ upstream gaps (one route family each) |
+
+**Recommended migration order** (low risk → high risk, only items that exist today):
+
+1. `health` — single GET, no payload shape to worry about.
+2. `timeline` — read-only, narrow surface.
+3. `facts get/pin/unpin/forget` — single-item mutations, well-bounded.
+4. `recall-unified` — read-only but hot path; verify latency budget on a real call before doing the agent-runtime swap.
+5. `facts create` — wire writes, then start expecting the host to drop its own `mnemo_fact` inserts.
+6. `agent-runtime.ts` `recallUnified()` call — the hottest read on the system. Migrate ONLY after #4 is stable for at least a few days.
+
+For every "upstream gap" row, the work is in two repos:
+- `vendor/mnemosyne/packages/server/src/routes/` — add a new file, register it in `index.ts`, follow the `recall.ts` / `facts.ts` pattern (`createRoute({...}) + zod schemas + workspaceId from auth context`).
+- `vendor/mnemosyne/packages/client-ts/src/client.ts` — add a method that posts to the new path, with a typed input/output that re-exports from `./types.ts`.
+
+The graph endpoint is the most visible gap (the only route I personally
+authored that's blocked by it) and the most self-contained. Its
+DB-side function `buildGraphQuery` already lives in
+`@mnemosyne/core/graph/server`, so the server route is mostly: parse
+`?focus=ment_…` from query params, call `buildGraphQuery(tx, ws,
+opts)` inside `withMnemoTx`, return the `GraphResponse` (already
+typed). Estimated 30–60 lines on the server, 20 on the SDK.
+
+---
+
+### Phase 2 — Route migration plan (was below, kept verbatim)
+
+
 The pattern: every callsite that currently does `await withMnemoTx(ws, tx => mnemoFunction({...}, tx))` becomes `await mnemoClient.method({...})`. The SDK methods don't take a `tx` (HTTP requests are atomic on the server side); callers that bundled multiple mnemosyne writes inside one orchester transaction need to be reviewed individually.
 
 ### Phase 2 prep

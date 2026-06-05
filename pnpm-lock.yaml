@@ -65,6 +65,9 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.4.0
         version: 5.4.0(react-hook-form@7.77.0(react@19.2.7))
+      '@mnemosyne/client-ts':
+        specifier: file:../../vendor/mnemosyne/packages/client-ts
+        version: file:vendor/mnemosyne/packages/client-ts(@mnemosyne/core@file:vendor/mnemosyne/packages/core(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(gel@2.2.0)(kysely@0.29.2)(pg@8.20.0)(postgres@3.4.9))(postgres@3.4.9))
       '@mnemosyne/core':
         specifier: file:../../vendor/mnemosyne/packages/core
         version: file:vendor/mnemosyne/packages/core(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(gel@2.2.0)(kysely@0.29.2)(pg@8.20.0)(postgres@3.4.9))(postgres@3.4.9)
@@ -2087,6 +2090,15 @@ packages:
 
   '@kwsites/file-exists@1.1.1':
     resolution: {integrity: sha512-m9/5YGR18lIwxSFDwfE3oA7bWuq9kdau6ugN4H2rJeyhFQZcG9AgSHkQtSD15a8WvTgfz9aikZMrKPHvbpqFiw==}
+
+  '@mnemosyne/client-ts@file:vendor/mnemosyne/packages/client-ts':
+    resolution: {directory: vendor/mnemosyne/packages/client-ts, type: directory}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      '@mnemosyne/core': workspace:*
+    peerDependenciesMeta:
+      '@mnemosyne/core':
+        optional: true
 
   '@mnemosyne/core@file:vendor/mnemosyne/packages/core':
     resolution: {directory: vendor/mnemosyne/packages/core, type: directory}
@@ -10068,6 +10080,10 @@ snapshots:
       debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
+
+  '@mnemosyne/client-ts@file:vendor/mnemosyne/packages/client-ts(@mnemosyne/core@file:vendor/mnemosyne/packages/core(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(gel@2.2.0)(kysely@0.29.2)(pg@8.20.0)(postgres@3.4.9))(postgres@3.4.9))':
+    optionalDependencies:
+      '@mnemosyne/core': file:vendor/mnemosyne/packages/core(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(gel@2.2.0)(kysely@0.29.2)(pg@8.20.0)(postgres@3.4.9))(postgres@3.4.9)
 
   '@mnemosyne/core@file:vendor/mnemosyne/packages/core(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(gel@2.2.0)(kysely@0.29.2)(pg@8.20.0)(postgres@3.4.9))(postgres@3.4.9)':
     dependencies:
