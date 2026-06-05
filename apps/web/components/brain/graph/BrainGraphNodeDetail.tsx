@@ -43,6 +43,7 @@ export function BrainGraphNodeDetail({ node, onClose }: Props) {
 
   return (
     <div
+      aria-hidden={!isOpen}
       className="absolute top-0 right-0 bottom-0 w-[272px] bg-[#111113] border-l border-zinc-800 z-20 overflow-y-auto transition-transform duration-200 ease-out"
       style={{ transform: isOpen ? "translateX(0)" : "translateX(100%)" }}
     >
@@ -51,6 +52,7 @@ export function BrainGraphNodeDetail({ node, onClose }: Props) {
           {/* Header */}
           <div className="p-4 border-b border-zinc-800/60 sticky top-0 bg-[#111113] z-10">
             <button
+              aria-label="Close"
               onClick={onClose}
               className="float-right text-zinc-500 hover:text-zinc-200 transition-colors mt-0.5"
             >
