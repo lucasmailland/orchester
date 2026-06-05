@@ -129,29 +129,58 @@ Selected node gets a dashed ring at `r + 12`, color `#a78bfa`, stroke-width 1, d
 
 ## 4. Architecture
 
-### New files
+### Guiding principle: core logic lives in `packages/mnemosyne`
+
+The graph is a natural extension of the Mnemosyne memory engine — not a web-app feature. All framework-agnostic code (types, DB query, canvas drawing) lives inside `packages/mnemosyne/src/graph/` so any future consumer (mobile app, CLI, another SaaS, desktop electron) can `import { buildGraph, drawNode } from "@orchester/mnemosyne"` without pulling in React or Next.js.
+
+The `apps/web` layer provides only the React/Next.js adapter: components, hooks, page, and API route.
+
+```
+packages/mnemosyne/src/graph/          ← framework-agnostic, reusable anywhere
+  types.ts             ← GraphNode, GraphEdge, GraphResponse, GraphFilters
+  query.ts             ← buildGraphQuery(db, workspaceId, opts) → GraphResponse
+  node-canvas.ts       ← drawNode(ctx, node, opts) — pure canvas, zero React
+  edge-canvas.ts       ← drawEdge(ctx, edge, opts) — pure canvas, zero React
+  layout.ts            ← defaultForceConfig() — d3-force physics config
+  index.ts             ← barrel re-export
+```
+
+Exported from `packages/mnemosyne/src/index.ts`:
+
+```ts
+export {
+  buildGraphQuery,
+  drawNode,
+  drawEdge,
+  defaultForceConfig,
+  type GraphNode,
+  type GraphEdge,
+  type GraphResponse,
+  type GraphFilters,
+} from "./graph";
+```
+
+### New files — `apps/web` (React/Next.js adapter)
 
 ```
 apps/web/
   app/[locale]/[workspaceSlug]/(shell)/brain/graph/
     page.tsx                     ← Next.js page, lazy-loads BrainGraph
-  app/api/workspaces/[slug]/brain/
-    graph/
-      route.ts                   ← GET endpoint, returns GraphResponse
+
+  app/api/workspaces/[slug]/brain/graph/
+    route.ts                     ← GET endpoint, calls buildGraphQuery, returns GraphResponse
 
   components/brain/graph/
-    BrainGraph.tsx               ← react-force-graph wrapper, owns canvas
+    BrainGraph.tsx               ← react-force-graph-2d/3d wrapper; uses node-canvas + edge-canvas from pkg
     BrainGraphFilters.tsx        ← floating filter panel
     BrainGraphNodeDetail.tsx     ← right-side detail drawer
     BrainGraphLegend.tsx         ← bottom legend bar
     BrainGraphViewToggle.tsx     ← 2D/3D pill toggle
     BrainGraphEmptyState.tsx     ← "No entities yet" placeholder
-    node-canvas.ts               ← canvas drawing helpers (shapes + aura)
-    edge-canvas.ts               ← edge drawing helpers (dashed, arrows)
-    graph-types.ts               ← TypeScript types for GraphNode/GraphEdge
+
   lib/hooks/
     use-brain-graph.ts           ← SWR hook, fetches /api/.../brain/graph
-    use-graph-filters.ts         ← filter state (node types, edge types, strength)
+    use-graph-filters.ts         ← client filter state (node types, edge types, strength)
 ```
 
 ### Modified files
@@ -161,7 +190,21 @@ apps/web/
   app/[locale]/[workspaceSlug]/(shell)/brain/
     BrainInspectorClient.tsx     ← add "Graph" button to headerActions
   package.json                   ← add react-force-graph-2d, react-force-graph-3d
+
+packages/mnemosyne/
+  src/index.ts                   ← add graph/* exports
+  src/graph/                     ← new module (see above)
+  package.json                   ← no new deps (canvas is browser built-in; d3-force via react-force-graph peer)
 ```
+
+### Portability contract
+
+Because `packages/mnemosyne/src/graph/node-canvas.ts` and `edge-canvas.ts` only use the standard Canvas 2D API (`CanvasRenderingContext2D`), they work identically in:
+
+- A browser (via react-force-graph-2d's `nodeCanvasObject` callback)
+- Node.js + `canvas` npm package (for server-side rendering / PNG export)
+- React Native Skia (future — swap context type)
+- Any other renderer that accepts a 2D canvas context
 
 ---
 
@@ -364,13 +407,13 @@ New translation keys added to `en.json` (and forwarded to other locales):
 
 ## 11. Implementation Sequence
 
-The implementation is split into 5 tasks, each shippable independently:
+The implementation is split into 5 tasks. Tasks 1–2 are pure package work (no UI); tasks 3–5 are web-app work.
 
-1. **API** — `GET /api/workspaces/[slug]/brain/graph` route + types
-2. **Canvas primitives** — `node-canvas.ts`, `edge-canvas.ts`, `graph-types.ts`
-3. **Core graph component** — `BrainGraph.tsx` + `use-brain-graph.ts` + page route
-4. **UI chrome** — Filters, NodeDetail, Legend, ViewToggle, EmptyState
-5. **Wire-up** — Add "Graph" button to `BrainInspectorClient.tsx`; add deps to `package.json`; add i18n keys
+1. **`packages/mnemosyne` — graph module** — `types.ts`, `query.ts`, `node-canvas.ts`, `edge-canvas.ts`, `layout.ts`, barrel export from `src/index.ts`; unit tests
+2. **API route** — `GET /api/workspaces/[slug]/brain/graph` calls `buildGraphQuery` from the package
+3. **Core graph component** — `BrainGraph.tsx` (react-force-graph-2d/3d) + `use-brain-graph.ts` + page route; add `react-force-graph-2d` + `react-force-graph-3d` to `apps/web/package.json`
+4. **UI chrome** — `BrainGraphFilters`, `BrainGraphNodeDetail`, `BrainGraphLegend`, `BrainGraphViewToggle`, `BrainGraphEmptyState`; add i18n keys
+5. **Wire-up** — Add "✦ Graph" button to `BrainInspectorClient.tsx` `headerActions`; link from entity rows in list view via `?focus=<entityId>`
 
 ---
 
