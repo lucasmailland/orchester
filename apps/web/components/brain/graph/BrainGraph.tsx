@@ -3,7 +3,7 @@
 // Main Memory Graph component. Wraps react-force-graph-2d/3d with
 // Orchester's canvas primitives and filter/detail UI.
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { drawNode, drawEdge, nodeRadius, ENTITY_KIND_COLOR } from "@orchester/mnemosyne";
@@ -27,17 +27,29 @@ export function BrainGraph() {
   const { data, graphData, maxMentionCount, isLoading, error, mutate } =
     useBrainGraph(focusEntityId);
   const filters = useGraphFilters(data?.nodes ?? [], data?.edges ?? []);
+  const { filteredNodeIds, filteredEdgeIds } = filters;
 
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [is3D, setIs3D] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      setDimensions({ width: el.clientWidth, height: el.clientHeight });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const filteredGraphData = useMemo(
     () => ({
-      nodes: graphData.nodes.filter((n) => filters.filteredNodes.some((f) => f.id === n.id)),
-      links: graphData.links.filter((l) => filters.filteredEdges.some((e) => e.id === l.id)),
+      nodes: graphData.nodes.filter((n) => filteredNodeIds.has(n.id)),
+      links: graphData.links.filter((l) => filteredEdgeIds.has(l.id)),
     }),
-    [graphData, filters.filteredNodes, filters.filteredEdges]
+    [graphData, filteredNodeIds, filteredEdgeIds]
   );
 
   const nodeCanvasObject = useCallback(
@@ -139,8 +151,8 @@ export function BrainGraph() {
               linkCanvasObject,
               linkCanvasObjectMode: () => "replace" as const,
             })}
-        width={containerRef.current?.clientWidth ?? 800}
-        height={containerRef.current?.clientHeight ?? 600}
+        width={dimensions.width}
+        height={dimensions.height}
       />
 
       <BrainGraphLegend />

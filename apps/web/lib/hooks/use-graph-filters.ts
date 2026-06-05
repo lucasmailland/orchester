@@ -31,6 +31,8 @@ export const ALL_EDGE_TYPES = [
 export interface GraphFiltersState {
   filteredNodes: GraphNode[];
   filteredEdges: GraphEdge[];
+  filteredNodeIds: Set<string>;
+  filteredEdgeIds: Set<string>;
   visibleNodeKinds: Set<string>;
   visibleEdgeTypes: Set<string>;
   minMemoryStrength: number;
@@ -94,6 +96,8 @@ export function useGraphFilters(nodes: GraphNode[], edges: GraphEdge[]): GraphFi
   return {
     filteredNodes,
     filteredEdges,
+    filteredNodeIds,
+    filteredEdgeIds: new Set(filteredEdges.map((e) => e.id)),
     visibleNodeKinds,
     visibleEdgeTypes,
     minMemoryStrength,
