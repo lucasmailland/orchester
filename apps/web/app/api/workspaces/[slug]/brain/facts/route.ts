@@ -9,7 +9,7 @@ import { resolveBySlug } from "@/lib/tenant/resolve";
 import { isAccessible } from "@/lib/tenant/lifecycle";
 import { assertCan } from "@/lib/rbac";
 import { getDb } from "@orchester/db";
-import { PoisoningRejectedError } from "@orchester/mnemosyne";
+import { PoisoningRejectedError } from "@mnemosyne/core";
 import { createFact, listFacts, withBrainTx } from "@/lib/brain";
 import { appendAudit } from "@/lib/audit/log";
 

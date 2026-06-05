@@ -22,7 +22,7 @@
 // cross-tenant leakage even if the connection role has BYPASSRLS.
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createEntity, listEntities, withMnemoTx, type EntityKind } from "@orchester/mnemosyne";
+import { createEntity, listEntities, withMnemoTx, type EntityKind } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";

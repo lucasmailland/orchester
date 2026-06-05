@@ -20,7 +20,7 @@ import { describe, it, expect } from "vitest";
 
 describe("mnemo.embed.fact queue contract", () => {
   it("mnemosyne's EMBED_FACT_JOB_NAME matches JOB_MNEMO_EMBED_FACT in queue.ts", async () => {
-    const { EMBED_FACT_JOB_NAME } = await import("@orchester/mnemosyne");
+    const { EMBED_FACT_JOB_NAME } = await import("@mnemosyne/core");
     const { JOB_MNEMO_EMBED_FACT } = await import("@/lib/queue");
     expect(EMBED_FACT_JOB_NAME).toBe(JOB_MNEMO_EMBED_FACT);
   });

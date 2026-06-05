@@ -4,7 +4,8 @@ import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { resolveBySlug } from "@/lib/tenant/resolve";
 import { isAccessible } from "@/lib/tenant/lifecycle";
 import { assertCan } from "@/lib/rbac";
-import { withMnemoTx, buildGraphQuery } from "@orchester/mnemosyne";
+import { withMnemoTx } from "@mnemosyne/core";
+import { buildGraphQuery } from "@mnemosyne/core/graph/server";
 
 export const dynamic = "force-dynamic";
 

@@ -10,7 +10,7 @@ describe("brain/facts POST — poisoning rejection contract", () => {
       resolve(REPO_ROOT, "apps/web/app/api/workspaces/[slug]/brain/facts/route.ts"),
       "utf8"
     );
-    expect(src).toContain('from "@orchester/mnemosyne"');
+    expect(src).toContain('from "@mnemosyne/core"');
     expect(src).toContain("PoisoningRejectedError");
   });
 

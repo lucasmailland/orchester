@@ -20,7 +20,7 @@
 // RBAC: admin+.
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
-import { getHealthSnapshot, withMnemoTx } from "@orchester/mnemosyne";
+import { getHealthSnapshot, withMnemoTx } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 
 export const dynamic = "force-dynamic";

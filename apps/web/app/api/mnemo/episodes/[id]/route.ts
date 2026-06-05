@@ -13,7 +13,7 @@
 import { NextResponse } from "next/server";
 import { inArray } from "drizzle-orm";
 import { schema } from "@orchester/db";
-import { getEpisode, withMnemoTx } from "@orchester/mnemosyne";
+import { getEpisode, withMnemoTx } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 
 export const dynamic = "force-dynamic";

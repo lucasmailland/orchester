@@ -20,7 +20,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { schema } from "@orchester/db";
-import { resolveReview, withMnemoTx } from "@orchester/mnemosyne";
+import { resolveReview, withMnemoTx } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";

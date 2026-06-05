@@ -15,7 +15,7 @@
 // action, not an editor-scope one.
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
-import { withMnemoTx } from "@orchester/mnemosyne";
+import { withMnemoTx } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { logAudit } from "@/lib/audit";
 

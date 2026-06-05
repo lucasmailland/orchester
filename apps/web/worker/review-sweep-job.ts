@@ -5,7 +5,7 @@
 // Walks every workspace with at least one active mnemo_fact and
 // enqueues low-confidence inactive facts into mnemo_review_queue
 // for human triage. Definition of "candidate" lives in
-// `findLowConfidenceCandidates` (packages/mnemosyne/src/review/queue.ts):
+// `findLowConfidenceCandidates` (mnemosyne standalone repo, `src/review/queue.ts`):
 //
 //   • confidence < 0.5
 //   • NOT pinned
@@ -21,12 +21,7 @@
 // which this file deliberately never names).
 import "server-only";
 import { sql } from "drizzle-orm";
-import {
-  findLowConfidenceCandidates,
-  enqueueReview,
-  withMnemoTx,
-  type Tx,
-} from "@orchester/mnemosyne";
+import { findLowConfidenceCandidates, enqueueReview, withMnemoTx, type Tx } from "@mnemosyne/core";
 import { safeLogError } from "@/lib/safe-log";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 import { CRON_JOBS, shouldRunForWorkspace, markRanForWorkspace } from "@/lib/mnemo/cron-policy";

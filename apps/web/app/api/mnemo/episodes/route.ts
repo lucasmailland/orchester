@@ -17,7 +17,7 @@
 // FORCE policies on mnemo_episode (migration 0034) prevent any cross-
 // tenant leakage even if the connection role has BYPASSRLS.
 import { NextResponse } from "next/server";
-import { listEpisodes, withMnemoTx } from "@orchester/mnemosyne";
+import { listEpisodes, withMnemoTx } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 
 export const dynamic = "force-dynamic";

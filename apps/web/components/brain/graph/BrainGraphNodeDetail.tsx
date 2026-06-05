@@ -4,8 +4,8 @@ import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { X, Target, ArrowRight } from "lucide-react";
 import { Button } from "@heroui/react";
-import type { GraphNode } from "@orchester/mnemosyne/graph";
-import { ENTITY_KIND_COLOR } from "@orchester/mnemosyne/graph";
+import type { GraphNode } from "@mnemosyne/core/graph";
+import { ENTITY_KIND_COLOR } from "@mnemosyne/core/graph";
 
 const KIND_ICONS: Record<string, string> = {
   person: "●",

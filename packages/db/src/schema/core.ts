@@ -77,7 +77,7 @@ export const agents = pgTable("agent", {
   // jsonb to match the dynamic shape ({write_scope_default, read_scopes,
   // sensitive_categories}). The default mirrors the SQL default and is
   // the canonical TS source of truth lives in
-  // `packages/mnemosyne/src/policy/index.ts` (DEFAULT_AGENT_MEMORY_POLICY).
+  // `@mnemosyne/core` (policy module — DEFAULT_AGENT_MEMORY_POLICY).
   memoryPolicy: jsonb("memory_policy")
     .$type<{
       write_scope_default: "workspace" | "agent" | "conversation";

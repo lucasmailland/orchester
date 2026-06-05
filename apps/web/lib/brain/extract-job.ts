@@ -2,7 +2,7 @@
 //
 // pg-boss handler for JOB_BRAIN_EXTRACT. Loads the conversation slice,
 // calls extractFacts, persists each fact via `saveFactWithCandidates`
-// from @orchester/mnemosyne (writes to `mnemo_fact` + surfaces
+// from @mnemosyne/core (writes to `mnemo_fact` + surfaces
 // contradictions + queues a review row when no LLM judge is wired).
 // Updates brain_extraction_job state. Runs inside withCrossTenantAdmin
 // so RLS FORCE is satisfied for the message read across workspaces.
@@ -39,13 +39,13 @@ import {
   type EntityCandidate,
   type EntityLlmCallFn,
   type MnemoEntity,
-} from "@orchester/mnemosyne";
+} from "@mnemosyne/core";
 import { resolveSmallTierModel } from "./model-resolve";
 import { extractFacts } from "./extract";
 // v2.1 — warm-up gate. Skips extraction on workspaces that haven't
 // crossed the activity threshold yet. See lib/mnemo/warm-up.ts.
 import { checkWarmUp } from "@/lib/mnemo/warm-up";
-import { shouldExtract } from "@orchester/mnemosyne";
+import { shouldExtract } from "@mnemosyne/core";
 import { withBrainTx } from "./store";
 import { invalidateRecallCache } from "./recall";
 import { extractEpisode } from "./episode-extractor";

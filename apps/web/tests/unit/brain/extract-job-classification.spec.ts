@@ -61,7 +61,7 @@ vi.mock("@/lib/tenant/cron", () => ({
 }));
 vi.mock("@/lib/audit/log", () => ({ appendAudit: vi.fn() }));
 vi.mock("@/lib/safe-log", () => ({ safeLogError: vi.fn(), safeLogWarn: vi.fn() }));
-vi.mock("@orchester/mnemosyne", () => ({
+vi.mock("@mnemosyne/core", () => ({
   getProviderHealth: vi.fn(() => ({ samples: [] })),
   recordProviderResult: vi.fn(),
   resolveActiveMode: vi.fn().mockResolvedValue({ active: "C", degraded: false }),

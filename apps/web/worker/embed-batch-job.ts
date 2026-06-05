@@ -46,7 +46,7 @@ import { resolveEmbeddingTier, type EmbeddingTier } from "@/lib/ai/embedding-tie
  *
  * The role downgrade is layer 1 of defense-in-depth against the
  * BYPASSRLS connection role (audit P0, 2026-05-24). See
- * `packages/mnemosyne/src/tx.ts` for the full rationale.
+ * the mnemosyne standalone repo's `src/tx.ts` for the full rationale.
  */
 async function withMnemoTx<T>(
   workspaceId: string,

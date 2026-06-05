@@ -17,7 +17,7 @@
 import { useMemo, useState } from "react";
 import { Chip } from "@heroui/react";
 import { ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
-import type { RecallMetricEvent, RecallStage, RecallSample } from "@orchester/mnemosyne";
+import type { RecallMetricEvent, RecallStage, RecallSample } from "@mnemosyne/core";
 
 export interface RecallFunnelProps {
   events: RecallMetricEvent[];

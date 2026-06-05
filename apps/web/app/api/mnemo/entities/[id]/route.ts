@@ -15,7 +15,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { and, eq, sql } from "drizzle-orm";
 import { schema } from "@orchester/db";
-import { getEntity, updateEntity, withMnemoTx } from "@orchester/mnemosyne";
+import { getEntity, updateEntity, withMnemoTx } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";

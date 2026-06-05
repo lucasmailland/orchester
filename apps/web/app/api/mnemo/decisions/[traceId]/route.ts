@@ -24,7 +24,7 @@ import {
   completenessScore,
   withMnemoTx,
   type RecallMetricEvent,
-} from "@orchester/mnemosyne";
+} from "@mnemosyne/core";
 import { getDb } from "@orchester/db";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { safeLogError } from "@/lib/safe-log";

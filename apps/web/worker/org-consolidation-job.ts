@@ -34,8 +34,8 @@
 import "server-only";
 import { sql } from "drizzle-orm";
 import { withCrossTenantAdmin, type CrossTenantTx } from "@/lib/tenant/cron";
-import { clusterCrossWorkspace, type CrossWorkspaceFactInput } from "@orchester/mnemosyne";
-import { redactPIIWithCategories } from "@orchester/mnemosyne";
+import { clusterCrossWorkspace, type CrossWorkspaceFactInput } from "@mnemosyne/core";
+import { redactPIIWithCategories } from "@mnemosyne/core";
 import { logWithContext, recordMetric } from "@/lib/observability";
 import { safeLogError } from "@/lib/safe-log";
 import { createId } from "@paralleldrive/cuid2";

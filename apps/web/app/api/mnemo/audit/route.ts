@@ -35,7 +35,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
-import { withMnemoTx } from "@orchester/mnemosyne";
+import { withMnemoTx } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { safeLogError } from "@/lib/safe-log";
 

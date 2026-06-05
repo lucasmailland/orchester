@@ -178,7 +178,7 @@ const context = await brain.recall({
 | **Recall telemetry**   | `recall-debug` traces show which embeddings matched and why a fact was/wasn't recalled                     |
 | **Inspectable**        | The Brain Inspector UI lists facts with strength bars, last-recalled, source message, and decay rate       |
 
-The Brain isn't a vector DB hidden behind an SDK — it's a **product surface** with admin tooling, observability, and tenant guarantees. See [`packages/mnemosyne/`](packages/mnemosyne/) for the engine and `apps/web/app/[locale]/[workspaceSlug]/(shell)/brain/` for the UI.
+The Brain isn't a vector DB hidden behind an SDK — it's a **product surface** with admin tooling, observability, and tenant guarantees. The engine lives in the standalone [`@mnemosyne/core`](https://github.com/lucasmailland/mnemosyne) repo (consumed via `pnpm` `file:` link), and the UI lives at `apps/web/app/[locale]/[workspaceSlug]/(shell)/brain/`.
 
 ---
 
@@ -498,7 +498,12 @@ The agent space has split in two: **frameworks you import** into your code (Lang
 > **Requires:** Node 22, pnpm 9, Postgres 15+ with `pgvector`.
 
 ```bash
+# 1. Clone Orchester + sibling mnemosyne (see "Local mnemosyne setup" below)
 git clone https://github.com/lucasmailland/orchester.git
+git clone https://github.com/lucasmailland/mnemosyne.git
+cd mnemosyne && pnpm install && pnpm --filter @mnemosyne/core build && cd ..
+
+# 2. Install Orchester
 cd orchester
 pnpm install
 
@@ -516,6 +521,14 @@ pnpm worker:dev                        # worker (second terminal · executes flo
 ```
 
 Open `http://localhost:3333`, sign up, and you're in. The studio walks you through your first agent and provider connection.
+
+### Local mnemosyne setup
+
+The Brain engine lives in a separate repo — [`@mnemosyne/core`](https://github.com/lucasmailland/mnemosyne) — and Orchester consumes it via the `pnpm` `file:` protocol declared in `apps/web/package.json`. A few things to know:
+
+- The sibling repo **must** be checked out at `../mnemosyne` relative to `orchester/` (i.e. they share a parent directory). The standalone repo's `dist/` is gitignored, so after a fresh clone you must run `pnpm install && pnpm --filter @mnemosyne/core build` inside `mnemosyne/` **before** running `pnpm install` in `orchester/`.
+- Override the default sibling location with the `MNEMO_REPO_PATH` env var (absolute path). This is used by `scripts/audit-invariants.sh` and other tooling that needs to resolve the standalone repo from a non-standard layout.
+- Rebuild `@mnemosyne/core` (`pnpm --filter @mnemosyne/core build` inside the sibling repo) any time you pull or modify it — Orchester picks up the new `dist/` on the next `pnpm install` or dev-server restart.
 
 > [!TIP]
 > `make help` lists every common task. `make ci` runs everything CI runs — typecheck, vitest, prettier check, invariants guard.

@@ -69,6 +69,19 @@ export async function setupTestDb(): Promise<{
   sql = postgres(url, { max: 5, onnotice: () => {} });
   db = drizzle(sql);
 
+  // Wire @mnemosyne/core's DI registry to the testcontainer client. The
+  // shared helper at lib/mnemo/wire-di.ts is the single source of truth
+  // used by both production entrypoints (Next.js instrumentation, worker
+  // process). Tests bypass that helper and call setDb directly with
+  // `force: true` because the testcontainer's drizzle client is a
+  // different reference than orchGetDb() — wireMnemoDb() would resolve
+  // to the empty mock client from `@orchester/db` (mocked in
+  // vitest.setup.ts), not the testcontainer client we just built.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { setDb } = await import("@mnemosyne/core/db");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setDb(db as any, { force: true });
+
   // 1. Apply the drizzle-kit baseline + indexes (these own the schema and
   //    ship a meta/_journal.json so the migrator can resume).
   //

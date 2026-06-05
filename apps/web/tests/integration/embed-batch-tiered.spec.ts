@@ -16,6 +16,8 @@ import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 vi.unmock("@orchester/db");
 vi.doUnmock("@orchester/db");
 
+import { createId } from "@paralleldrive/cuid2";
+import { schema, type DbClient } from "@orchester/db";
 import {
   setupTestWorkspaces,
   teardownTestWorkspaces,
@@ -77,23 +79,42 @@ vi.mock("@/lib/ai/embedding-tier", () => ({
 }));
 
 let wsA: WsFixture;
-let withMnemoTx: typeof import("@orchester/mnemosyne").withMnemoTx;
-// Cast: createFact lives on the package's internal primitives surface
-// area. We resolve it via the same dynamic import path used by
-// fact-async-batch.spec.ts (relative — the integration tests in
-// `packages/mnemosyne/tests` use `../../src/primitives/fact`).
-type CreateFactFn = typeof import("../../../../packages/mnemosyne/src/primitives/fact").createFact;
-let createFact: CreateFactFn;
+let withMnemoTx: typeof import("@mnemosyne/core").withMnemoTx;
 let runEmbedBatchSweep: typeof import("@/worker/embed-batch-job").runEmbedBatchSweep;
+// Synthetic episode id shared by all 3 seeded facts. Migration 0051 made
+// `mnemo_fact.episode_id` NOT NULL, so we create a single throwaway episode
+// in beforeAll and point every seeded fact at it. The legacy createFact
+// would derive this id per-call via deriveSyntheticEpisodeId; this test
+// doesn't exercise episode-derivation logic, so a single shared id is
+// behaviorally equivalent for the embed-batch grouping assertions.
+let episodeId: string;
 
 beforeAll(async () => {
   [wsA] = await setupTestWorkspaces();
-  ({ withMnemoTx } = await import("@orchester/mnemosyne"));
-  ({ createFact } =
-    (await import("../../../../packages/mnemosyne/src/primitives/fact")) as unknown as {
-      createFact: CreateFactFn;
-    });
+  ({ withMnemoTx } = await import("@mnemosyne/core"));
   ({ runEmbedBatchSweep } = await import("@/worker/embed-batch-job"));
+
+  // Seed the throwaway synthetic episode that every fact row will FK to.
+  episodeId = `mepi_${createId()}`;
+  await withMnemoTx(wsA.id, async (tx) => {
+    // Tx cast: withMnemoTx types tx against @mnemosyne/core's schema, but
+    // this file uses @orchester/db's schema objects. Drizzle's fluent
+    // builder uses SQL column-name strings, not schema identity, so the
+    // generated SQL is identical. Safe for fluent builder only.
+    const _tx = tx as unknown as DbClient;
+    await _tx.insert(schema.mnemoEpisode).values({
+      id: episodeId,
+      workspaceId: wsA.id,
+      title: "(synthetic)",
+      narrative: "Auto-created by embed-batch-tiered.spec for episode_id invariant.",
+      occurredAt: new Date(),
+      participants: [],
+      topics: [],
+      linkedFactIds: [],
+      metadata: {},
+      isSynthetic: true,
+    });
+  });
 });
 afterAll(() => teardownTestWorkspaces());
 
@@ -103,34 +124,82 @@ describe("embed-batch-job — v1.6 tiered grouping", () => {
 
     // Seed: 1 premium-tier fact (pinned trait, workspace-scope) +
     // 2 default-tier facts (conversation-scope, other kind).
+    //
+    // Direct drizzle inserts (post-Task-10): we replicate the column
+    // shape that the legacy `createFact` primitive would have produced,
+    // restricted to the fields the embed-batch worker reads. PII
+    // redaction / poisoning scans / pointer-index upserts are skipped
+    // — none of those gate the embed-batch grouping logic under test.
+    //
+    // ⚠️ If you COPY this seeding pattern into a test that depends on
+    // pointer-id matching (e.g. dedup, drawer-grep), you MUST seed
+    // `mnemo_pointer` separately OR import `createFact` from the new
+    // @mnemosyne/core CoreLike factory. Direct inserts produce no
+    // pointer rows.
     await withMnemoTx(wsA.id, async (tx) => {
-      await createFact({
+      // Tx cast: withMnemoTx types tx against @mnemosyne/core's schema,
+      // but this file uses @orchester/db's schema objects. Drizzle's
+      // fluent builder uses SQL column-name strings, not schema identity,
+      // so the generated SQL is identical. Safe for fluent builder only.
+      const _tx = tx as unknown as DbClient;
+      await _tx.insert(schema.mnemoFacts).values({
+        id: `mfact_${createId()}`,
+        episodeId,
         workspaceId: wsA.id,
         scope: "global",
         kind: "trait",
         subject: "user",
         statement: "premium fact: pinned trait about the user",
+        confidence: 0.7,
         pinned: true,
-        embeddingTier: "premium",
-        tx,
+        relevance: 1.0,
+        hitCount: 0,
+        sourceMessageIds: [],
+        // embedding-tier hint lives in metadata.embedding_tier — the
+        // batch worker groups pending facts by this JSONB path.
+        metadata: { embedding_tier: "premium" },
+        status: "active",
+        memoryType: "semantic",
+        attribution: "inferred",
+        protocolVersion: "v1.1",
       });
-      await createFact({
+      await _tx.insert(schema.mnemoFacts).values({
+        id: `mfact_${createId()}`,
+        episodeId,
         workspaceId: wsA.id,
         scope: "conversation",
         kind: "other",
         subject: "user",
         statement: "default fact A: random conversation detail",
-        embeddingTier: "default",
-        tx,
+        confidence: 0.7,
+        pinned: false,
+        relevance: 1.0,
+        hitCount: 0,
+        sourceMessageIds: [],
+        metadata: { embedding_tier: "default" },
+        status: "active",
+        memoryType: "semantic",
+        attribution: "inferred",
+        protocolVersion: "v1.1",
       });
-      await createFact({
+      await _tx.insert(schema.mnemoFacts).values({
+        id: `mfact_${createId()}`,
+        episodeId,
         workspaceId: wsA.id,
         scope: "conversation",
         kind: "other",
         subject: "user",
         statement: "default fact B: another random detail",
-        embeddingTier: "default",
-        tx,
+        confidence: 0.7,
+        pinned: false,
+        relevance: 1.0,
+        hitCount: 0,
+        sourceMessageIds: [],
+        metadata: { embedding_tier: "default" },
+        status: "active",
+        memoryType: "semantic",
+        attribution: "inferred",
+        protocolVersion: "v1.1",
       });
     });
 
