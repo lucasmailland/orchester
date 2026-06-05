@@ -18,7 +18,7 @@
 // `app.workspace_id` is set and the role is downgraded to app_user.
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
-import { withMnemoTx } from "@orchester/mnemosyne";
+import { withMnemoTx } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 
 export const dynamic = "force-dynamic";

@@ -16,8 +16,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { and, eq, sql } from "drizzle-orm";
-import { schema } from "@orchester/db";
-import { withMnemoTx } from "@orchester/mnemosyne";
+import { schema, type DbClient } from "@orchester/db";
+import { withMnemoTx } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
@@ -34,11 +34,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!parsed.ok) return parsed.response;
 
   const updated = await withMnemoTx(ctx.workspace.id, async (tx) => {
+    const _tx = tx as unknown as DbClient;
     // Clear `auto_pinned_overridden` if set — the user is re-affirming.
     // We don't touch `auto_pinned` (which records the rule + date) so
     // the audit trail of "was once auto-pinned" survives. jsonb '-'
     // operator drops a key by name; default to {} if the column was null.
-    const rows = await tx
+    const rows = await _tx
       .update(schema.mnemoFacts)
       .set({
         pinned: true,

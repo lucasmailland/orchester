@@ -15,7 +15,7 @@
 // RBAC: viewer+.
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
-import { withMnemoTx } from "@orchester/mnemosyne";
+import { withMnemoTx } from "@mnemosyne/core";
 import { getDb } from "@orchester/db";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 

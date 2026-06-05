@@ -23,8 +23,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { and, eq, sql } from "drizzle-orm";
-import { schema } from "@orchester/db";
-import { withMnemoTx } from "@orchester/mnemosyne";
+import { schema, type DbClient } from "@orchester/db";
+import { withMnemoTx } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
@@ -181,7 +181,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (body.metadata !== undefined) set.metadata = body.metadata;
 
   const updated = await withMnemoTx(ctx.workspace.id, async (tx) => {
-    const rows = await tx
+    const _tx = tx as unknown as DbClient;
+    const rows = await _tx
       .update(schema.mnemoFacts)
       .set(set)
       .where(and(eq(schema.mnemoFacts.id, id), eq(schema.mnemoFacts.workspaceId, ctx.workspace.id)))

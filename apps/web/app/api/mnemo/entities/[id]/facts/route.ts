@@ -18,7 +18,7 @@
 // The mnemo_entity row is verified to exist in the workspace before
 // the fact query runs — a tighter 404 than relying on "RLS returns []".
 import { NextResponse } from "next/server";
-import { getEntity, listFactsForEntity, withMnemoTx } from "@orchester/mnemosyne";
+import { getEntity, listFactsForEntity, withMnemoTx } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 
 export const dynamic = "force-dynamic";

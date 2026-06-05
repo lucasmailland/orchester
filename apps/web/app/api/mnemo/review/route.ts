@@ -11,7 +11,7 @@
 // RBAC: editor+ — the queue is an operational concern, not just a
 // viewer surface.
 import { NextResponse } from "next/server";
-import { listReview, withMnemoTx, type ReviewReason } from "@orchester/mnemosyne";
+import { listReview, withMnemoTx, type ReviewReason } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 
 export const dynamic = "force-dynamic";

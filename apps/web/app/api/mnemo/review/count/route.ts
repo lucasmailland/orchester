@@ -15,7 +15,7 @@
 // RBAC: editor+ — same level as GET /api/mnemo/review.
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
-import { withMnemoTx } from "@orchester/mnemosyne";
+import { withMnemoTx } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 
 export const dynamic = "force-dynamic";

@@ -8,8 +8,8 @@
 // We still gate with `requireAuth` (RBAC: editor+).
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
-import { schema } from "@orchester/db";
-import { withMnemoTx } from "@orchester/mnemosyne";
+import { schema, type DbClient } from "@orchester/db";
+import { withMnemoTx } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { logAudit } from "@/lib/audit";
 
@@ -21,7 +21,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const { id } = await params;
 
   const updated = await withMnemoTx(ctx.workspace.id, async (tx) => {
-    const rows = await tx
+    const _tx = tx as unknown as DbClient;
+    const rows = await _tx
       .update(schema.mnemoFacts)
       .set({ status: "active", updatedAt: new Date() })
       .where(and(eq(schema.mnemoFacts.id, id), eq(schema.mnemoFacts.workspaceId, ctx.workspace.id)))
