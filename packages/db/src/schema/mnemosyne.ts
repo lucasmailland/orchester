@@ -317,7 +317,7 @@ export const mnemoRelations = pgTable("mnemo_relation", {
   // synthesized by the system (alias merge, coreference, deterministic
   // dedup). Free text (no enum constraint) so future provenances
   // ('import', 'rule', …) don't require an ALTER TYPE migration —
-  // the application layer in `packages/mnemosyne/src/graph/relation.ts`
+  // the application layer in `@mnemosyne/core` (graph/relation module)
   // is the chokepoint that gates what values land on disk.
   provenance: text("provenance"),
   conversationId: text("conversation_id").references(() => conversations.id, {

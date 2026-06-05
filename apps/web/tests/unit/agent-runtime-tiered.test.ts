@@ -14,7 +14,7 @@
 //
 // We mock `@mnemosyne/core` so the helpers don't reach into a real
 // DB / pgvector index. The shape of each mock matches the public types
-// in `packages/mnemosyne/src/index.ts`.
+// in `@mnemosyne/core`'s public barrel.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
