@@ -16,6 +16,25 @@
 
 import { validateEnv } from "./lib/env";
 
+// ── Mnemosyne v2.0 DI wiring ─────────────────────────────────────────────
+// Register @mnemosyne/core's DB client before any request path runs.
+// Guard against HMR re-registration: setDb() stores on globalThis.__mnemoCoreDb;
+// if it's already set, skip to avoid the "called twice" throw.
+{
+  const g = globalThis as unknown as { __mnemoCoreDb?: unknown };
+  if (!g.__mnemoCoreDb) {
+    const { drizzle } = await import("drizzle-orm/postgres-js");
+    const postgres = (await import("postgres")).default;
+    const { schema: mnemoSchema, setDb } = await import("@mnemosyne/core/db");
+    const url = process.env["DATABASE_URL"];
+    if (!url) throw new Error("[mnemo-di] DATABASE_URL is required");
+    const sql = postgres(url, { max: 5, idle_timeout: 20, connect_timeout: 10, prepare: true });
+    const db = drizzle(sql, { schema: mnemoSchema });
+    setDb(db);
+    console.log("[instrumentation] @mnemosyne/core DI wiring complete");
+  }
+}
+
 // ── Boot-time env validation (audit A6-1) ────────────────────────────────
 try {
   validateEnv();
