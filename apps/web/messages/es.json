@@ -767,7 +767,6 @@
           "responseJson": "JSON estructurado",
           "responseMarkdown": "Markdown",
           "outputSchemaLabel": "JSON Schema (opcional)",
-          "outputSchemaPlaceholder": "{ \"type\": \"object\", \"properties\": { \"score\": { \"type\": \"number\" } } }",
           "variableNamePlaceholder": "nombre",
           "variableValuePlaceholder": "valor",
           "addVariable": "Agregar variable"

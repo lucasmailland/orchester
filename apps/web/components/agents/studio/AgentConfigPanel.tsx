@@ -332,7 +332,12 @@ export function AgentConfigPanel({ value, onChange }: Props) {
               value={value.outputSchema}
               onChange={(e) => onChange({ outputSchema: e.target.value })}
               rows={4}
-              placeholder={t("outputSchemaPlaceholder")}
+              // JSON literal — not run through `t()` because next-intl
+              // parses `{ ... }` as ICU placeholders and throws
+              // INVALID_MESSAGE / MALFORMED_ARGUMENT. The example is
+              // language-agnostic (it's a JSON Schema), so translators
+              // wouldn't translate it anyway.
+              placeholder={'{ "type": "object", "properties": { "score": { "type": "number" } } }'}
               className="w-full rounded-lg border border-line bg-elevated px-2.5 py-1.5 font-mono text-[11px] text-strong placeholder:text-faint outline-none focus:border-violet-500/60"
             />
           </div>
