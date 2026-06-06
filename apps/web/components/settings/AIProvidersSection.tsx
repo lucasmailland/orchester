@@ -100,8 +100,19 @@ export function AIProvidersSection({ workspaceSlug }: AIProvidersSectionProps) {
       .finally(() => setLoading(false));
   }, []);
 
-  const connectedIds = useMemo(() => new Set(rows.map((r) => r.provider)), [rows]);
-  const connected = PROVIDERS.filter((p) => connectedIds.has(p.id));
+  // "Connected" semantics: a row exists AND it's enabled. A row that exists
+  // but has `enabled=false` is a paused/disabled provider — surfaced under
+  // the Connected heading too (the user already configured it) but with a
+  // distinct status badge in the card itself.
+  const connectedIds = useMemo(
+    () => new Set(rows.filter((r) => r.enabled).map((r) => r.provider)),
+    [rows]
+  );
+  const pausedIds = useMemo(
+    () => new Set(rows.filter((r) => !r.enabled).map((r) => r.provider)),
+    [rows]
+  );
+  const connected = PROVIDERS.filter((p) => connectedIds.has(p.id) || pausedIds.has(p.id));
 
   const q = query.trim().toLowerCase();
   const matches = (p: ProviderDef) => {
@@ -414,7 +425,10 @@ function ProviderCard({
     }
   }
 
-  const connected = !!row;
+  // A row that exists but is disabled is "Paused" — distinct from never
+  // having connected (no row at all) AND distinct from a healthy connection.
+  const connected = !!row && row.enabled;
+  const paused = !!row && !row.enabled;
 
   // Impact rows for the ConfirmAction dialog. We do NOT fabricate counts —
   // when the local row knows the model count we surface it; otherwise we
@@ -458,10 +472,10 @@ function ProviderCard({
               <span
                 className={cn(
                   "h-1.5 w-1.5 rounded-full",
-                  connected ? "bg-emerald-400" : "bg-zinc-600/60"
+                  connected ? "bg-emerald-400" : paused ? "bg-amber-400" : "bg-zinc-600/60"
                 )}
               />
-              {connected ? t("connected") : t("notConnected")}
+              {connected ? t("connected") : paused ? t("paused") : t("notConnected")}
               {def.kind === "aggregator" && <span className="text-faint">· {t("aggregator")}</span>}
               {def.kind === "local" && <span className="text-faint">· {t("local")}</span>}
             </div>

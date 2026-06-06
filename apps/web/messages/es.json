@@ -1351,6 +1351,7 @@
         "noMatches": "No hay proveedores que coincidan con la búsqueda.",
         "connected": "Conectado",
         "notConnected": "No conectado",
+        "paused": "Pausado",
         "aggregator": "agregador",
         "local": "local",
         "edit": "Editar",
