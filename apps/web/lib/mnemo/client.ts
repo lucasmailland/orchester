@@ -24,6 +24,27 @@
 import "server-only";
 import { MnemosyneClient } from "@mnemosyne/client-ts";
 
+/**
+ * Whether the dual-mode helpers should call out over HTTP (service)
+ * or run the in-process `@mnemosyne/core` library path (library).
+ *
+ * Centralised here so every helper under `apps/web/lib/mnemo/*.ts`
+ * reads the SAME logic. When `MNEMO_URL` / `MNEMO_API_KEY` setup
+ * changes (e.g. multi-region routing, fallback rules), there's
+ * exactly one place to update.
+ */
+export type MnemoMode = "service" | "library";
+
+/**
+ * Read the active dual-mode at runtime. Service mode is selected
+ * iff BOTH env vars are present and truthy. Anything else (missing
+ * either var, both blank) falls through to library mode — by design,
+ * so a partial deploy can't half-wire the SDK.
+ */
+export function getMnemoMode(): MnemoMode {
+  return process.env["MNEMO_URL"] && process.env["MNEMO_API_KEY"] ? "service" : "library";
+}
+
 let _client: MnemosyneClient | undefined;
 
 /**

@@ -19,12 +19,14 @@
 
 import "server-only";
 import type { AuditResponse } from "@mnemosyne/client-ts";
+import { safeLogError } from "@/lib/safe-log";
+import { getMnemoMode, type MnemoMode } from "@/lib/mnemo/client";
 
-export type MnemoMode = "service" | "library";
-
-export function getMnemoMode(): MnemoMode {
-  return process.env["MNEMO_URL"] && process.env["MNEMO_API_KEY"] ? "service" : "library";
-}
+// Re-export so existing callers keep working while we centralise the
+// mode logic in `@/lib/mnemo/client`. New code should import from
+// there directly.
+export { getMnemoMode };
+export type { MnemoMode };
 
 /**
  * The UndoClient's wider response type — service mode always returns
@@ -52,7 +54,7 @@ export async function listWorkspaceAudit(
       // Service mode failure → graceful degrade. The UndoClient
       // renders an empty-state when `available: false`; the alternative
       // (HTTP 500 surfaced to the user) is uglier.
-      console.error("[mnemo/audit] service mode failed; degrading", e);
+      safeLogError("[mnemo/audit] service mode failed; degrading", e);
       return { mode, data: { items: [], total: 0, available: false } };
     }
   }
@@ -130,7 +132,7 @@ export async function listWorkspaceAudit(
       data: { items, total: items.length, available: true as const },
     };
   } catch (e) {
-    console.error("[mnemo/audit] library mode failed; degrading", e);
+    safeLogError("[mnemo/audit] library mode failed; degrading", e);
     return { mode, data: { items: [], total: 0, available: false } };
   }
 }

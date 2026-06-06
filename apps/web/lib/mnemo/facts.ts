@@ -19,16 +19,14 @@
 import "server-only";
 import type { DbClient } from "@orchester/db";
 import type { ListFactsResponse, PatchFactInput, RestoreFactResponse } from "@mnemosyne/client-ts";
+import { getMnemoMode, type MnemoMode } from "@/lib/mnemo/client";
 
 // ───────────────────────────────────────────────────────────────────
-// Mode detection
+// Mode detection (re-exported from `@/lib/mnemo/client` for compat)
 // ───────────────────────────────────────────────────────────────────
 
-export type MnemoMode = "service" | "library";
-
-export function getMnemoMode(): MnemoMode {
-  return process.env["MNEMO_URL"] && process.env["MNEMO_API_KEY"] ? "service" : "library";
-}
+export { getMnemoMode };
+export type { MnemoMode };
 
 // Lazy SDK helpers — keep the cold-path imports out of library-mode hot
 // paths so the in-process path doesn't pay the HTTP-SDK load cost.

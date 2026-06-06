@@ -414,6 +414,21 @@ docker compose up -d
 - 2026-06-05 — Retired `lib/brain/` legacy surface (`@deprecated` on 5 routes, dead UI deleted, 2 cron schedules silenced).
 - 2026-06-05 — Submodule pin updated to `220c955` (mnemo_decision.confidence migration) + Dockerfile upstream fixes started.
 - 2026-06-05 — Phase 1 closed: 12 upstream commits + 1 SQL fix; smoke E2E green end-to-end. See "Phase 1 complete" section above.
+- 2026-06-05 — **Phase 2 closed.** All migrable orchester routes are dual-mode. Shipped in five tramos:
+  - **Tramo 1** (`5952979` upstream, `ea68ba5` orchester) — 5 reads: entities + episodes.
+  - **Tramo 2** (`4696d34`, `a31b110`) — 5 writes: entities POST/PATCH + review CRUD.
+  - **Tramo 3** (`49cd065`, `45cd4ef`) — 5 endpoints: decisions BOM + audit + recall-debug + export.
+  - **Tramo 4** (`79834a9`, `29d64ed`) — 10 endpoints: facts list/patch/citations + decisions writes + relations CRUD + review enqueue.
+  - **Tramo 5** (`332f5ce`, `13ebc49`) — `GET /v1/facts` extended with FTS + keyset cursor + asOf, plus the remaining 6 orchester facts routes (`GET/PATCH /api/mnemo/facts/[id]`, pin, unpin, forget, citations).
+- 2026-06-05 — **Polish pass:** centralised `getMnemoMode` + `MnemoMode` in `@/lib/mnemo/client`, standardised on `safeLogError`, restored the audit-endpoint unit test to point at the helper (now 7/7 green). `X-Mnemo-Mode` header stamped on every dual-mode response so operators can confirm which path served a request.
+
+**What's intentionally NOT migrated** (15 routes, host-domain by design): `admin/*` (7), `cron-schedules/*` (2), `decisions/[traceId]` (BOM joins host `audit_log`), `health/*` (2), `recall-debug` (kbProvider closure), `recall-unified` (hot path with rate-limit + audit emission), `settings`.
+
+**Open next steps** (post-Phase-2, optional polish):
+- Deploy `@mnemosyne/server` to production and wire `MNEMO_URL` / `MNEMO_API_KEY` on orchester-web (today everything runs in library mode in prod).
+- Smoke E2E that runs the suite with `MNEMO_URL` set and asserts parity with library mode (snapshot diff).
+- Upstream Tramo 6: add `?projection=rich` to `GET /v1/facts/:id` so `getWorkspaceFact` doesn't fall back to `listFacts({limit:500}).find()` in service mode.
+- Upstream Tramo 6: add `metadataPatch` (jsonb merge/delete) to `PATCH /v1/facts/:id` so pin/unpin collapse to one round-trip.
 
 ---
 

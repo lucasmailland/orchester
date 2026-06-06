@@ -31,12 +31,13 @@
 
 import "server-only";
 import type { GraphResponse } from "@mnemosyne/core/graph";
+import { getMnemoMode, type MnemoMode } from "@/lib/mnemo/client";
 
-export type GraphMode = "service" | "library";
-
-export function getMnemoMode(): GraphMode {
-  return process.env["MNEMO_URL"] && process.env["MNEMO_API_KEY"] ? "service" : "library";
-}
+// `GraphMode` was a tramo-1-era local alias — kept as a type alias
+// so existing callers don't break, but new code should use the
+// canonical `MnemoMode` from `@/lib/mnemo/client`.
+export type GraphMode = MnemoMode;
+export { getMnemoMode };
 
 export async function fetchWorkspaceGraph(
   workspaceId: string,

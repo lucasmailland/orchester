@@ -33,12 +33,13 @@ import type {
   MnemoEntity,
   UpdateEntityInput,
 } from "@mnemosyne/client-ts";
+import { getMnemoMode, type MnemoMode } from "@/lib/mnemo/client";
 
-export type MnemoMode = "service" | "library";
-
-export function getMnemoMode(): MnemoMode {
-  return process.env["MNEMO_URL"] && process.env["MNEMO_API_KEY"] ? "service" : "library";
-}
+// Re-export so existing callers keep working while we centralise the
+// mode logic in `@/lib/mnemo/client`. New code should import from
+// there directly.
+export { getMnemoMode };
+export type { MnemoMode };
 
 /**
  * Map a library-shape `MnemoEntity` (Date fields) onto the wire-shape
