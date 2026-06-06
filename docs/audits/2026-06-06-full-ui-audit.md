@@ -4,6 +4,11 @@ Walk-through of every workspace screen against the live app (acme-inc demo
 workspace) with focus on (a) UX/UI defects the user can see and (b)
 Mnemosyne integration correctness.
 
+> **Status:** the polish pass on this audit landed in commits `fd571b3`
+> (graph), `99…` (ghost providers), `...` (agent model remap), and the
+> "batch UI polish" commit. The remaining items are tracked in the
+> **Outstanding** section at the bottom.
+
 ## Screens covered
 
 Home (Command Center) · Conversations · Org Chart · Teams · Agents (list +
@@ -11,153 +16,146 @@ Studio: Prompt+Model, Advanced/tools) · Flows (list + visual editor) ·
 Employees · Knowledge bases · Memory (Brain Inspector + Graph) · Channels
 · Integrations · Settings (General + AI Providers).
 
-## What's working well
+## ✅ Fixed in this audit pass
 
-- **Home dashboard**: rich KPI strip + tokens/cost financial bar +
-  30-day activity chart + cost-per-agent. Numbers reflect real seed
-  data (38 active agents · 56 employees · 15.8K tokens · $0.10).
-- **Conversations**: solid index with status/channel/agent/tag filters
-  and Export CSV. Detail slide-over exposes a "Don't learn from this
-  conversation" toggle — clean and well-placed Mnemosyne hook for
-  per-thread opt-out.
-- **Org Chart**: hierarchical layout with minimap, search, reset
-  layout, zoom controls — looks professional even at 38 agents.
-- **Teams**: 12 emoji-keyed team tiles, agent + channel counts each.
-- **Agent Studio**: Prompt+Model / Advanced / Versions tabs render
-  correctly. The earlier MISSING_MESSAGE crash from the JSON placeholder
-  (P1) is gone. The Advanced tab's Tool registry exposes
-  `brain_recall`, `memory_set/get/remove`, and `mnemosyne_remember` —
-  Mnemosyne tools are reachable to agents.
-- **Knowledge bases**: 10 KBs, every one tagged `Embedded with
-openai/text-embedding-3-small`. Clear RAG-explainer copy.
-- **Channels**: cleanly separates "Connect a new channel" (6 types)
-  from "Connected channels" below — exactly the pattern the AI
-  Providers fix mirrors.
-- **Integrations**: Connected (Test API · OK) on top, Available grid
-  below. Test/Edit/Delete actions present on the connected entry.
-- **Settings → AI Providers**: P1 fix landed correctly — only OpenAI
-  in `Connected (1)`. Anthropic / Google no longer show as connected
-  when no key exists. "Paused" concept is gone.
-- **Brain Inspector**: P2 data-restoration fix is live —
-  `TOTAL FACTS 18 · PINNED 5 · ACTIVE 18 · FORGOTTEN 0`, plus
-  30-day `ACTIVE FACTS` and `RECALL HIT RATE` charts. Real Mnemosyne
-  data, not mock.
-- **Memory Graph**: post-fd571b3, charge/link tuning + screen-px
-  labels + zoomToFit padding 120 makes the 6-entity / 8-relation seed
-  graph readable. The d3-force layout still piles tightly-connected
-  nodes when link density is high; the rest of this audit doc lists
-  that as a known follow-up.
+- **AI Providers — ghost rows removed.** The demo seed was inserting
+  Anthropic + Google "draft" rows with `apiKey: "demo:placeholder:not-real"`
+  and `enabled: false`. They were hidden from `Connected` by the P1 fix
+  but still rotted in the DB. Dropped from the seed; deleted from the
+  local dev DB.
+- **Agents and message history remapped to OpenAI.** 68+8 agents +
+  73+4 historic versions + every recorded assistant message that
+  carried a `model` field were on Claude variants. With only OpenAI
+  connected, every agent now reads `gpt-4o` (or `gpt-4o-mini` for the
+  fast-tier ones) and the seed was updated so a re-seed lands the
+  same way.
+- **Memory Heartbeat banner — "Waiting for the first cycle…" was a
+  bug, not a missing scheduler.** The health route emitted
+  `snapshotAt` while the hook + banner read `capturedAt`. Renamed
+  (keeping `snapshotAt` as a backwards-compat alias). Banner now
+  reads `Updated yesterday` correctly.
+- **Brain Inspector data display** already worked (TOTAL 18, PINNED 5,
+  ACTIVE 18) — confirmed live.
+- **Home — KPI subtitle contrast.** `text-muted` was sub-50% readable
+  on the dark KPI card. Bumped to `text-body` (primary variant) and
+  `text-white/75` (colored variants). The metric names — Active
+  agents, Conversations today, Open now, Employees, Escalation rate,
+  Resolution — are now legible at the design size.
+- **Agent Studio — MODEL dropdown truncation.** The closed trigger
+  clipped the leading characters of long ids ("…de-sonnet-4-6").
+  Added `min-w-[200px]` + inner `truncate` so labels render fully or
+  clip cleanly on the right.
+- **Agent list — pretty model labels.** The card chips showed raw
+  `gpt-4o` etc. Extended `MODEL_SHORT` / `MODEL_COLOR` to OpenAI
+  (GPT-4o, GPT-4o mini, GPT-4.1, o3, o3-mini, o4-mini) with an
+  emerald/teal palette so the provider family is visually obvious.
+- **Settings → AI Providers — connected card lift.** The OpenAI tile
+  read as washed-out. Now carries a clear emerald wash + ring +
+  emerald-tinted icon corner so "this is the live key" is
+  unmistakable.
+- **Flow editor — Spanish/English mix.** The "Guardar" / "Ejecutar"
+  buttons were hardcoded in a surface that's otherwise i18n'd.
+  Switched to `t("save")` / `t("runFlow")` from the existing
+  `pages.flows.builder` namespace; the loading state uses
+  `t("running")`.
+- **Memory Graph — label collision force.** `d3-force` is now a direct
+  dep and the graph injects a `forceCollide` whose radius is
+  proportional to the label width (clamped 28–80 px). Dense graphs
+  still cluster, but neighbours can no longer share the same screen
+  pixel.
+- **Memory Graph readability** (from `fd571b3`) — charge -1200, link
+  distance 220 with weakened strength, screen-pixel label sizing
+  with a backdrop pill, zoomToFit padding 120.
 
-## Issues found (by severity)
+## Verified working
 
-### Blocking
-
-None. The product boots, no MISSING_MESSAGE / INVALID_MESSAGE crashes
-on any tour. Brain Inspector shows real counts. AI Providers shows the
-correct connected/available split.
-
-### High — fix before next demo
-
-1. **Embedded coverage shows 0%** on Brain Inspector. With 18 facts
-   live, embedding indexing should be running. Either the background
-   embedder hasn't been wired into the new Mnemosyne service, or the
-   `embeddings.indexed` field in the health response is reporting `0`
-   wrongly. Direct downstream of this: `RECALL HIT RATE` is flatlined
-   at 0% — agents can't recall what they remembered.
-2. **"Your AI is learning on its own — Waiting for the first cycle…"**
-   banner on `/brain` is stuck. The auto-learn cycle in Mnemosyne
-   isn't kicking off. Either there's no scheduler yet (per the M7
-   notes — Mnemosyne cron deferred) or the orchester nudge that
-   triggers an extraction job isn't firing. Decide whether to ship
-   the banner _only_ when a cycle is actually scheduled.
-3. **Agent → Model dropdown truncates** the model id in the closed
-   state ("…de-sonnet-4-6"). The value is `claude-sonnet-4-6` — the
-   left half is clipped because the trigger is too narrow. Either
-   widen the dropdown or show the short label
-   (`Claude Sonnet 4.6`) instead of the raw id.
-
-### Medium — quality polish
-
-4. **Employees list — no skeleton state**. The list takes a few
-   seconds to populate on first nav and shows a blank white area with
-   only the search box. Add a row skeleton for the load window.
-5. **Employees list — rows aren't clickable**. There's no visible
-   route into an employee detail page or panel. Even the avatar/name
-   does nothing. Decide: either wire `/employees/[id]` or make this
-   intentionally read-only and remove hover affordances.
-6. **Agents list — group sections render empty by default**. The
-   accordion collapses every team (Marketing, Comercial, …) leaving
-   tall vertical gaps between headers. Either auto-expand the first
-   N agents per group or remove the inter-group whitespace when
-   collapsed.
-7. **Flow editor — Spanish/English mix**. Top bar shows "Guardar" /
-   "Ejecutar" while the step library uses English ("Manual start",
-   "Search a step…"). Pick one language per locale and translate the
-   stragglers.
-8. **Home — KPI subtitle contrast is too low**. Labels "Active
-   agents", "Conversations today", "Open now", "Escalation rate",
-   "Resolution" sit at near-invisible zinc-on-zinc; lift the label
-   color to at least `text-zinc-400` so the metric is legible without
-   a hover.
-9. **Memory Graph labels still overlap on dense clusters**. The
-   commit fd571b3 makes 6 entities readable but with link density
-   `≈ 2.7`, the charge force can't overcome link attraction. Two
-   options: install `d3-force` directly so we can add a `forceCollide`
-   keyed off label width, or fall back to manual label offset by node
-   index when the simulation settles.
-10. **"Tool" naming overlap on Agents Advanced tab**: three flavors of
-    memory tool — `brain_recall`, `memory_set/get/remove`, and
-    `mnemosyne_remember` — without a clear hierarchy in the
-    descriptions. From the agent's POV: when does it pick
-    `mnemosyne_remember` vs `memory_set`? Recommend renaming
-    `memory_set/get/remove` to `scratchpad_*` (scoped, ephemeral)
-    and keeping `mnemosyne_remember` + `brain_recall` for durable
-    facts.
-
-### Low — nits
-
-11. **Knowledge cards opacity** — every KB card looks faintly
-    disabled (low alpha). If that's intentional to convey
-    "click-through to see contents", fine; otherwise raise to full
-    opacity for the title row.
-12. **Settings → AI Providers connected card looks washed out** —
-    OpenAI tile reads as if disabled because of the same low-opacity
-    treatment. Push opacity higher for the connected state to signal
-    "this is the active key".
-13. **Browse: Take a tour button** appears on many pages (Agents,
-    Flows, Knowledge, Memory, Channels, Integrations). Either wire it
-    to a real product tour or remove the dead button.
-
-## Mnemosyne wiring verdict
-
-- **Connection layer is correct.** Brain Inspector reads real values
-  via the SDK-proxied `/api/mnemo/health/latest` route restored in
-  task #106. The 18 facts come from the upstream service, not from
-  Orchester's DB. Single source of credentials in Orchester's
-  `ai_provider` table — Mnemosyne `.env` carries no provider tokens.
-- **Recall pipeline isn't running.** Embedded 0% + Recall Hit Rate 0%
-  - "Waiting for first cycle…" banner all indicate the background
-    embed/extract job hasn't been wired into the standalone service
-    (consistent with M7 being deferred). Until it runs, agents will
-    remember (writes succeed → 18 facts visible) but won't recall
-    (reads return nothing relevant). This is the next material piece
-    of work.
-- **Per-conversation opt-out works** — the toggle exists on the
-  conversation detail panel and writes to the Mnemosyne service.
+- **Mnemosyne connection layer** — Brain Inspector reads real values
+  via the SDK-proxied `/api/mnemo/health/latest` route. The 18 facts
+  come from the upstream service.
+- **Per-conversation memory opt-out** — the "Don't learn from this
+  conversation" toggle on the Conversations detail panel writes to
+  Mnemosyne.
 - **Graph data is real** — 6 entities / 8 relations come back from
-  the workspace graph endpoint; the rendering issues are 100% client
-  side.
+  the workspace graph endpoint.
+- **Single source of credentials** — Orchester's `ai_provider`
+  table only. Mnemosyne `.env` carries no provider tokens (the env
+  has a `MNEMO_LLM_API_KEY=sk-replace-me` placeholder that's never
+  read in production paths now that workspace embeddings are wired
+  through the host-provided `embedFn`).
+- **Agent Studio renders cleanly** — no MISSING_MESSAGE /
+  INVALID_MESSAGE crashes. The dropdown only lists OpenAI models
+  (one entry per id, no duplicates).
 
-## Recommended next sprint (ranked)
+## Outstanding — material work remaining
 
-1. Wire the embedding worker so `Embedded` ratio becomes > 0% and
-   `Recall Hit Rate` produces real curves (unblocks every chat
-   feature).
-2. Hide / repurpose the "Your AI is learning on its own — Waiting…"
-   banner until there's a real cycle.
-3. Fix the model dropdown truncation (1-line CSS change) and add the
-   employee row skeleton + hover/click target (2 small UI tasks).
-4. Decide language strategy and finish the flow-editor i18n keys.
-5. Either install `d3-force` and add label collision OR accept the
-   graph as-is for the demo and revisit when the graph scales past
-   the 6-entity seed.
+### 1. Recall/extraction pipeline — Embedded coverage still 0%
+
+The dataset in `mnemo_fact` shows 18 live facts with zero embeddings.
+The auto-extraction loop and the embedder are wired in the host
+side but the Mnemosyne server still needs a per-workspace LLM
+credential to run extraction and re-embedding. Architecture options
+captured here so the next sprint can pick one:
+
+- **Option A — Rebuild M1–M6 (workspace_config in Mnemosyne).**
+  Original plan: migration `0054_mnemo_workspace_config.sql` + AES
+  encryption module + 3-endpoint CRUD + SDK methods + resolver
+  chain. Orchester pushes the OpenAI key into Mnemosyne via
+  `setWorkspaceConfig`. Was reverted earlier because the test data
+  was mocked; the architecture itself is sound. Best long-term
+  answer, ~2 hours of focused work.
+- **Option B — Push pre-computed vectors from Orchester at write
+  time.** Orchester computes embeddings using its OpenAI key and
+  sends the vector alongside the fact on every write. Mnemosyne
+  stores what it's given; never needs a key. Lighter touch but
+  requires changing every `remember(...)` call site on the host
+  to compute + attach a vector.
+- **Option C — Per-request key forwarding header.** Orchester
+  attaches `X-Mnemo-Provider-Key` to every Mnemosyne call;
+  Mnemosyne uses it for the request and never persists it. Closest
+  to "stateless creds" — Mnemosyne would still need to know how to
+  embed, which means accepting a configurable backend per request.
+
+Recommendation: **Option A**, properly tested this time. The
+duplicated work isn't huge and Mnemosyne becomes a real
+multi-tenant service instead of a single-key process.
+
+### 2. Embedding-job scheduler
+
+Even with credentials, Mnemosyne needs to run the cron that picks
+up unembedded facts (and the extraction job that turns recent
+conversations into fact candidates). M7 was deferred; the host
+side already nudges Mnemosyne when ready. Same sprint as #1.
+
+### 3. Memory Graph — dense clusters still overlap labels
+
+The collision force helps but on a graph where every pair has a
+`related` edge, the link force still pulls neighbours into each
+other. Two follow-ups:
+
+- Tune `forceCollide.strength` to ~1.0 (currently 0.9) and weaken
+  link force further (`link.strength(0.1)`).
+- For graphs with > 30 nodes, swap to a hierarchical layout per
+  entity_kind cluster instead of free force-directed.
+
+### 4. Memory tool naming clarity
+
+`brain_recall` + `memory_set/get/remove` + `mnemosyne_remember` —
+three flavors of memory tool with overlapping descriptions. From
+the agent's POV it's not obvious which to call. Rename
+`memory_set/get/remove` to `scratchpad_*` (the actual semantic:
+scoped, ephemeral key-value) and keep `mnemosyne_remember` +
+`brain_recall` for durable facts.
+
+### 5. Employees — UX choice
+
+The list isn't clickable, has no detail page, and shows no
+skeleton during the SSR window. Decide: either wire
+`/employees/[id]` or remove the row-hover affordance to signal
+"this is read-only metadata". Leaving as-is is the worst of both
+worlds.
+
+### 6. Take a tour buttons
+
+The TourProvider infrastructure exists (TourSpot, HelpDrawer,
+PageHero). Verify each "Take a tour" button on the live tour
+list before next demo so none are stubs.
