@@ -4777,42 +4777,15 @@ async function main() {
     });
   }
 
-  // Anthropic + Google as draft rows (don't overwrite if already there).
-  for (const { provider, models, status } of [
-    { provider: "anthropic", models: anthropicModels, status: "ok" },
-    { provider: "google", models: googleModels, status: "not_tested" },
-  ] as const) {
-    const existing = await db
-      .select({ id: schema.aiProviders.id })
-      .from(schema.aiProviders)
-      .where(
-        and(eq(schema.aiProviders.workspaceId, wsId), eq(schema.aiProviders.provider, provider))
-      )
-      .limit(1);
-    if (existing[0]) {
-      await db
-        .update(schema.aiProviders)
-        .set({
-          modelsJson: models,
-          lastTestedAt: hoursAgo(provider === "anthropic" ? 4 : 168),
-          lastTestStatus: status,
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.aiProviders.id, existing[0].id));
-    } else {
-      await db.insert(schema.aiProviders).values({
-        id: createId(),
-        workspaceId: wsId,
-        provider,
-        // Draft placeholder — never decrypted because enabled=false
-        apiKey: "demo:placeholder:not-real",
-        enabled: false,
-        modelsJson: models,
-        lastTestedAt: hoursAgo(provider === "anthropic" ? 4 : 168),
-        lastTestStatus: status,
-      });
-    }
-  }
+  // NOTE: do NOT seed Anthropic / Google draft rows. The owner only
+  // connects OpenAI in this demo; any other provider must be added by
+  // the user explicitly. Placeholder rows confuse the model picker
+  // and the AI Providers page even with `enabled=false`. The
+  // catalog list of supported providers lives in
+  // `apps/web/lib/ai/catalog/providers.ts` and is enough to show
+  // them as "Available" without persisting fake credentials.
+  void anthropicModels;
+  void googleModels;
 
   // ── 11c. Agent versions — prompt history for the "Versions" tab ─────────
   // Each agent gets 2-3 historical snapshots, so the Agent detail UI shows
@@ -5042,13 +5015,6 @@ async function main() {
       meta: { from: "team", to: "enterprise" },
     },
     {
-      action: "provider.connected",
-      targetType: "ai_provider",
-      targetId: "prov_anthropic_demo",
-      hoursAgo: 6,
-      meta: { provider: "anthropic" },
-    },
-    {
       action: "provider.key_rotated",
       targetType: "ai_provider",
       targetId: "prov_openai_demo",
@@ -5127,7 +5093,7 @@ async function main() {
   console.log(`  • ${runIndex} flow runs + ${stepCount} flow_run_steps (inspector mockup)`);
   console.log(`  • ${chunkCountTotal} knowledge chunks (doc detail preview)`);
   console.log("  • 10 conversation labels");
-  console.log("  • 3 ai_providers (openai active, anthropic + google drafts)");
+  console.log("  • 1 ai_provider (openai only; user adds the rest)");
   console.log(`  • ${agentVersionCount} agent_versions + ${flowVersionCount} flow_versions`);
   console.log(`  • ${auditEvents.length} audit log entries (activity feed)`);
   console.log("");
