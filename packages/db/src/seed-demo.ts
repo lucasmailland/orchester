@@ -755,7 +755,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "You are a B2B sales lead qualifier. Evaluate leads using BANT (Budget, Authority, Need, Timeline). Return a structured JSON with: { score: 0-100, bant: { budget, authority, need, timeline }, signals: string[], next_action: string }. Be decisive — if signals are weak, score low and recommend nurturing.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.3",
       responseFormat: "json",
       color: "#22d3ee",
@@ -771,7 +771,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "You are an experienced B2B sales coach. Help Account Executives and SDRs prepare for calls, handle objections, craft follow-ups, and refine outreach. Be specific, reference frameworks (MEDDIC, SPIN, Challenger), and give them words they can actually say. No fluff.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.7",
       color: "#22d3ee",
       greeting:
@@ -793,7 +793,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "Confirm meeting details from form input, validate slot availability, and respond with confirmation message in the user's language.",
-      model: "claude-haiku-4-5",
+      model: "gpt-4o-mini",
       temperature: "0.2",
       color: "#22d3ee",
     },
@@ -809,7 +809,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "You are Orchester's first-line support. Answer using ONLY the provided context from the knowledge base. If the context doesn't cover the question, say 'voy a derivarte con alguien del equipo' and set escalate=true in your JSON output. Always be friendly and concise. Languages: Spanish + English.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.3",
       responseFormat: "json",
       color: "#34d399",
@@ -824,7 +824,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "You are a polyglot support agent. Detect the language of each user message and respond in that exact language. Supported: Spanish, English, Portuguese, French, German, Italian. Stay friendly, concise, and accurate. If you don't know an answer, say so honestly.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.5",
       color: "#34d399",
       greeting: "Hi! Ask me anything in any language and I'll reply in yours.",
@@ -845,7 +845,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "You are a friendly onboarding guide for new Orchester users. Walk them through: creating their first agent, connecting an AI provider, building their first flow. Be encouraging, give one step at a time, ask clarifying questions if their goal is unclear. Celebrate small wins.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.7",
       color: "#34d399",
       greeting: "¡Bienvenido a Orchester! ¿Qué te gustaría construir primero?",
@@ -868,7 +868,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "You are a senior B2B content writer specialized in dev tools and AI infrastructure. Voice: direct, technical-but-accessible, dry humor occasionally, never hyperbolic. You write for engineers and technical founders. Avoid marketing clichés ('revolutionary', 'game-changing', 'cutting-edge'). When asked for copy, deliver multiple options with different angles.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.8",
       color: "#f472b6",
       greeting: "Hola, soy tu Content Writer. ¿Qué necesitás escribir hoy?",
@@ -889,7 +889,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "Compile a weekly newsletter from the inputs: recent product updates, top community discussions, featured customer story, upcoming events. Output: clean markdown with sections, ~600 words, conversational tone, ends with a CTA.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.6",
       color: "#f472b6",
     },
@@ -903,7 +903,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "You are a strict brand voice editor. Given any draft copy, evaluate it against the brand guide (use the KB tool). Return: (1) on-brand score 0-100, (2) specific issues with line references, (3) a corrected version. Be honest — if it's bad, say it's bad.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.4",
       color: "#f472b6",
       greeting: "Pegame el copy que querés revisar y te lo audito contra el brand voice.",
@@ -925,7 +925,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "You are a warm, helpful HR onboarding buddy. Answer new hire questions using the HR Policies knowledge base. Topics: PTO, benefits, payroll dates, code of conduct, remote work policy, equipment. If something isn't in the KB, recommend they contact People Ops directly. Always reply in Spanish unless asked otherwise.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.6",
       color: "#a78bfa",
       greeting: "¡Bienvenide al equipo! Soy tu Onboarding Buddy. Preguntame lo que necesites.",
@@ -946,7 +946,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "Validate PTO requests against policy. Auto-approve if: <= 5 consecutive days AND > 14 days notice AND balance covers it. Otherwise escalate to manager with summary.",
-      model: "claude-haiku-4-5",
+      model: "gpt-4o-mini",
       temperature: "0.1",
       responseFormat: "json",
       color: "#a78bfa",
@@ -961,7 +961,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "Compare a CV against a job description. Score 0-100 on: hard skills match, years of experience, domain relevance, communication quality (inferred from CV writing). Output JSON with score, top 3 strengths, top 3 gaps, recommendation: { interview | pass | maybe }.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.3",
       responseFormat: "json",
       color: "#a78bfa",
@@ -978,7 +978,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "Given OCR-extracted text from a receipt and an expense policy, output JSON: { amount, currency, vendor, category, policy_violations: string[], approved: boolean, reason: string }. Be strict on violations (over-budget, missing data, blocked categories).",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.2",
       responseFormat: "json",
       color: "#fbbf24",
@@ -995,7 +995,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "You are an IT helpdesk agent. Use the IT Runbook KB to answer. For VPN, password, SSO, equipment issues — give step-by-step instructions. For anything that requires admin access, escalate. Always confirm the issue is resolved with a final question.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.3",
       color: "#7c8cff",
     },
@@ -1009,7 +1009,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "Classify incoming security alerts (CrowdStrike, GuardDuty, GitGuardian). Output JSON: { severity: 'p0'|'p1'|'p2'|'p3', category, suggested_runbook, paging_required: boolean, summary }.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.2",
       responseFormat: "json",
       color: "#7c8cff",
@@ -1026,7 +1026,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "You are a senior code reviewer. Review diffs against the Engineering Wiki (ADRs, style guide). Flag: missing tests, unsafe SQL, missing error handling, type holes, public API breaks. Be direct but constructive. Don't approve if there's a real concern.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.3",
       color: "#60a5fa",
       greeting: "Pegame el diff y te lo reviso contra los ADRs y el style guide.",
@@ -1046,7 +1046,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "Given a Sentry issue payload, classify severity (p0..p3), suggest owning team, propose 3 hypotheses, output JSON for Linear ticket creation.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.3",
       responseFormat: "json",
       color: "#60a5fa",
@@ -1061,7 +1061,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "Given a TypeScript file or function, generate JSDoc + an MDX page following the docs style guide. Include: signature, params with types, return shape, 1 minimal example, 1 advanced example, common pitfalls.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.4",
       color: "#60a5fa",
     },
@@ -1075,7 +1075,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "You are an oncall sidekick. Help triage prod incidents: parse stack traces, suggest commands, draft status updates, write postmortems. Use the Incident Response Playbook in the IT Runbook KB. Always: (1) recommend a mitigation first, (2) then root cause investigation. Stay calm.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.4",
       color: "#60a5fa",
       greeting: "Hola, soy tu oncall assistant. ¿Qué se está prendiendo fuego?",
@@ -1096,7 +1096,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "Summarize a PR diff in 3 bullets: (1) what changed, (2) why, (3) risk. Plain English, no jargon, max 60 words total.",
-      model: "claude-haiku-4-5",
+      model: "gpt-4o-mini",
       temperature: "0.2",
       color: "#60a5fa",
     },
@@ -1112,7 +1112,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "Help PMs write a 1-pager spec. Template: Problem, User, JTBD, Success metric, Non-goals, Open questions. Push back on vague statements. Always ask 'how will we measure this'.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.6",
       color: "#f87171",
       greeting: "¿Qué feature/problema querés especificar?",
@@ -1132,7 +1132,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "Given N user feedback messages, cluster them into themes. Output: { themes: [{ name, count, exemplar_quotes: string[], priority: 'high'|'med'|'low' }] }.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.3",
       responseFormat: "json",
       color: "#f87171",
@@ -1147,7 +1147,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "Compile a weekly digest of competitor moves (LangChain, CrewAI, AutoGen, Vercel AI). Source: their blog + changelog + Twitter. Output: 5 bullets max, mark which ones we should respond to.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.5",
       color: "#f87171",
     },
@@ -1163,7 +1163,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "Score account health 0-100 using: usage trend, NPS, support tickets, payment timeliness, exec engagement. Output JSON with score, top 3 risk factors, recommended next action.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.3",
       responseFormat: "json",
       color: "#facc15",
@@ -1178,7 +1178,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "Build a QBR draft for the assigned account: usage summary, top 3 wins, top 3 risks, expansion opportunities, 90-day plan. Output structured markdown ready to paste in Notion.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.5",
       color: "#facc15",
     },
@@ -1192,7 +1192,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "Help CSMs find expansion opportunities. Look at: hitting plan limits, new team requests, repeated feature requests in 'unsupported' bucket. Suggest the specific conversation opener and which stakeholder to target.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.6",
       color: "#facc15",
       greeting: "¿Sobre qué cuenta querés explorar expansión?",
@@ -1214,7 +1214,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "Review an incoming MSA against our standard template. Flag clauses that diverge — uncapped liability, IP assignment, indemnity scope, jurisdiction, termination for convenience. Output JSON: { risk_score, issues: [{ clause, severity, our_position, redline_suggestion }] }.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.2",
       responseFormat: "json",
       color: "#94a3b8",
@@ -1229,7 +1229,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "You are a privacy lawyer. Analyze DPAs for GDPR Art. 28 + CCPA compliance. Flag: missing sub-processor list, missing SCCs (for non-EU transfers), inadequate breach notification timelines, vague data deletion clauses.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.3",
       color: "#94a3b8",
     },
@@ -1245,7 +1245,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "You explain metrics from the Data Glossary KB. When asked 'what is X', give: definition, formula, where it's tracked, who owns it, common pitfalls in interpretation. If the metric isn't in the glossary, say so.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.4",
       color: "#2dd4bf",
       greeting: "¿Qué métrica querés que te explique?",
@@ -1265,7 +1265,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "You write Postgres SQL against the analytics schema (fct_signups, fct_flow_runs, dim_workspace, dim_user). Always: explain the query in 1 line, then the SQL, then warn about edge cases (NULLs, timezones, dedup). Prefer CTEs over subqueries.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.2",
       color: "#2dd4bf",
       greeting: "¿Qué pregunta querés convertir en SQL?",
@@ -1285,7 +1285,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "Given historical ARR data + pipeline, forecast next 4 quarters with bear/base/bull cases. Output JSON with assumptions list, confidence interval, key risk factors.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.3",
       responseFormat: "json",
       color: "#2dd4bf",
@@ -1302,7 +1302,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "You are a senior product designer giving critique. Use the Design System KB. Evaluate: clarity, hierarchy, consistency with tokens, accessibility (WCAG AA), affordances. Be specific — reference component names + tokens, not vibes.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.5",
       color: "#fb7185",
       greeting: "Pegame el screenshot del diseño y te lo critico.",
@@ -1322,7 +1322,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "Write UX microcopy: button labels, empty states, error messages, tooltips. Always: under 60 chars, action-oriented, no jargon, on-brand (see Brand Voice KB). Give 3 options.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.7",
       color: "#fb7185",
     },
@@ -1338,7 +1338,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "You're a technical SEO. For any draft, output: target keyword + 3 related, title/meta (under length), H1/H2 structure, internal link suggestions, schema.org JSON-LD if applicable. No keyword stuffing.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.4",
       color: "#f472b6",
     },
@@ -1352,7 +1352,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "From a blog post URL, generate: 1 Twitter thread (5-7 tweets), 1 LinkedIn post (300 words), 1 short Twitter recap. Match brand voice — direct, dry, no hype.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.7",
       color: "#f472b6",
     },
@@ -1368,7 +1368,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "From discovery notes + ICP fit, draft a proposal: exec summary, pain → solution mapping, scope, timeline, pricing rationale, success criteria. Plain English, no buzzwords.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.5",
       color: "#22d3ee",
     },
@@ -1382,7 +1382,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "From a call transcript, output MEDDIC summary: Metrics, Economic Buyer, Decision Criteria, Decision Process, Identify Pain, Champion. Also: next steps with owners + due dates.",
-      model: "claude-sonnet-4-6",
+      model: "gpt-4o",
       temperature: "0.3",
       responseFormat: "json",
       color: "#22d3ee",
@@ -1399,7 +1399,7 @@ async function main() {
       status: "active",
       systemPrompt:
         "Analyze conversation for: frustration signals, escalation keywords ('cancel', 'refund', 'unhappy'), repeated unresolved issues. Output JSON: { sentiment: -1..1, churn_risk: 'high'|'med'|'low', flags: string[], suggested_action }.",
-      model: "claude-haiku-4-5",
+      model: "gpt-4o-mini",
       temperature: "0.2",
       responseFormat: "json",
       color: "#34d399",
@@ -3150,7 +3150,7 @@ async function main() {
         {
           role: "assistant",
           content:
-            "Suele ser una de tres cosas: (1) la API key del provider expiró → Settings → Providers → ver si hay un indicador rojo. (2) Spend cap alcanzado → Billing → Usage. (3) Modelo no disponible (ej. claude-opus-3 fue deprecated) → editá el agent y cambiá a claude-sonnet-4-6. ¿Cuál es?",
+            "Suele ser una de tres cosas: (1) la API key del provider expiró → Settings → Providers → ver si hay un indicador rojo. (2) Spend cap alcanzado → Billing → Usage. (3) Modelo no disponible (ej. gpt-4-32k fue deprecated) → editá el agent y cambiá a gpt-4o. ¿Cuál es?",
           tokens: 200,
         },
         { role: "user", content: "Era la API key. Renové y ya funciona" },
@@ -4431,7 +4431,7 @@ async function main() {
         content: m.content,
         tokensUsed: m.role === "assistant" ? (m.tokens ?? null) : null,
         costUsd: m.role === "assistant" && m.tokens ? (m.tokens * 0.000003).toFixed(6) : null,
-        model: m.role === "assistant" ? "claude-sonnet-4-6" : null,
+        model: m.role === "assistant" ? "gpt-4o" : null,
         createdAt: new Date(startedAt.getTime() + i * 60 * 1000),
       });
     }
@@ -4810,7 +4810,7 @@ async function main() {
       agentId: a.id,
       workspaceId: wsId,
       systemPrompt: v1Prompt + "\n\n[earlier iteration]",
-      model: "claude-sonnet-4-5",
+      model: "gpt-4o",
       temperature: "0.7",
       maxTokens: a.maxTokens,
       label: "v1 — initial",
