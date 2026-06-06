@@ -373,25 +373,23 @@ async function buildConversationContext(
   try {
     const lastUserMsg = [...fullHistory].reverse().find((m) => m.role === "user");
     if (lastUserMsg?.content) {
-      // Migrated 2026-06-05 from legacy `searchBrain` (lib/brain/recall.ts,
-      // backed by `brain_fact`) to `recallUnified` (@mnemosyne/core,
-      // backed by `mnemo_fact`). Hit shape is flat now — no `h.fact` wrap.
-      const { recallUnified } = await import("@/lib/dead-mnemo-stubs");
-      const hits = await recallUnified({
-        workspaceId,
+      // Phase 3: recall goes through @mnemosyne/server via the SDK.
+      // `RecallHit.content` is the fact statement, `score` blends
+      // memory + KB similarity, and `attribution` carries the kind +
+      // subject the host renders.
+      const { getMnemoClient } = await import("@/lib/mnemo/client");
+      const client = getMnemoClient();
+      const { hits } = await client.recall({
         query: String(lastUserMsg.content).slice(0, 500),
         topK: 3,
         agentId: agent.id,
       });
       if (hits.length > 0) {
-        // UnifiedRecallHit puts the fact fields under `metadata` (kind,
-        // subject, …). `content` is the statement text. `score` blends
-        // memory + KB so we use it as the confidence proxy.
         const lines = hits
           .map((h) => {
-            const meta = h.metadata as { kind?: string; subject?: string } | undefined;
-            const kind = meta?.kind ?? "fact";
-            const subject = meta?.subject ?? "—";
+            const attr = (h.attribution ?? {}) as { kind?: string; subject?: string };
+            const kind = attr.kind ?? "fact";
+            const subject = attr.subject ?? "—";
             return `- [${kind}] ${subject}: ${h.content} (score ${(h.score * 100).toFixed(0)}%)`;
           })
           .join("\n");
@@ -601,21 +599,9 @@ export async function handleInbound(
   }
   const result = await withWorkspaceTx(workspaceId, (tx) => runConversationalTurn(res.ctx, tx));
 
-  // Brain Core (sub-spec 2): fire-and-forget extraction after the turn
-  // commits. Singleton-key per conversation collapses concurrent triggers.
-  void (async () => {
-    try {
-      const { enqueueBrainExtract } = await import("@/lib/brain/extract-job");
-      await enqueueBrainExtract({
-        workspaceId,
-        conversationId: result.conversationId,
-        agentId: res.ctx.agent.id,
-        messageCount: res.ctx.baseMessageCount + 2, // user + assistant just persisted
-      });
-    } catch {
-      /* extraction is fire-and-forget — never fail the turn */
-    }
-  })();
+  // Phase 3 — host-side brain extraction retired. Mnemosyne service
+  // ingests turns via its own pipeline; orchester no longer enqueues
+  // extraction jobs here.
 
   return result;
 }

@@ -1,32 +1,23 @@
 // GET /api/mnemo/decisions/[traceId] — Memory Inspector "Decision BOM"
 // endpoint. Joins audit + trust + policy + trace into one record.
 //
-// The traceId comes from /api/mnemo/recall-debug which stashes it in
-// `audit_log.meta.traceId`. We pull every audit row whose meta carries
-// that traceId — that gives us the audit slice. Trace events come from
-// the inspector.recall_debug meta payload itself. Policy snapshot is
-// the live STAGE_CAP_BY_TIER + a small set of env flags. Trust
-// snapshot is computed from the workspace's fact count.
+// HYBRID by design: the `audit_log` is host-domain (orchester DB,
+// holds the rows that pin the BOM together). The fact count and the
+// trace-event payload come from @mnemosyne/server via the SDK. The
+// host composes the response — there is no equivalent endpoint in the
+// SDK because the source data lives in two places.
 //
-// If no audit row matches the traceId we return {available: false}
-// instead of 404 so the UI shows a "BOM expired or unavailable" state.
-// Audit rows age out per the retention policy.
+// Kill switch: MNEMO_DECISION_BOM=false disables the endpoint entirely.
 //
 // SCOPE: viewer+ (same RBAC tier as recall-debug).
-// RLS: workspace_id is bound to the route context, never read from
-// user input. Fact-count query runs through withMnemoTx.
+// RLS: workspace_id is bound to the route context, never user input.
 
 import "server-only";
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
-import {
-  composeBOM,
-  completenessScore,
-  withMnemoTx,
-  type RecallMetricEvent,
-} from "@/lib/dead-mnemo-stubs";
 import { getDb } from "@orchester/db";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { getMnemoClient } from "@/lib/mnemo/client";
 import { safeLogError } from "@/lib/safe-log";
 
 export const dynamic = "force-dynamic";
@@ -34,8 +25,8 @@ export const dynamic = "force-dynamic";
 /** AGT parity: ±5s window around decisionAt. */
 const BOM_WINDOW_MS = 5_000;
 
-/** Env flags surfaced into the policy snapshot. Keep this list short
- *  — the BOM is downloaded by humans and noisy flags hurt readability. */
+/** Env flags surfaced into the policy snapshot. Keep this list short —
+ *  the BOM is downloaded by humans and noisy flags hurt readability. */
 const TRACKED_FLAGS = [
   "MNEMO_REJECT_POISONING",
   "MNEMO_TRUST_DECAY",
@@ -55,10 +46,6 @@ interface AuditRow {
 }
 
 export async function GET(_req: Request, context: { params: Promise<{ traceId: string }> }) {
-  // Kill-switch: MNEMO_DECISION_BOM=false disables the endpoint entirely.
-  // Omit or set to "true" to enable (default ON — consistent with the
-  // other AGT-borrow flags). Returns graceful-degrade shape so the UI
-  // shows "BOM unavailable" rather than an error toast.
   if (process.env["MNEMO_DECISION_BOM"] === "false") {
     return NextResponse.json({ available: false, reason: "feature_disabled" });
   }
@@ -107,21 +94,18 @@ export async function GET(_req: Request, context: { params: Promise<{ traceId: s
       ORDER BY seq ASC
     `)) as unknown as AuditRow[];
 
-    // Step 3: trust slice — fact count for the workspace.
-    const factCount = await withMnemoTx(ctx.workspace.id, async (tx) => {
-      const r = (await tx.execute(sql`
-        SELECT count(*)::int AS c
-        FROM mnemo_fact
-        WHERE workspace_id = ${ctx.workspace.id}
-          AND status = 'active'
-      `)) as unknown as Array<{ c: number }>;
-      return r[0]?.c ?? 0;
-    });
+    // Step 3: trust slice — fact count for the workspace via the SDK.
+    let factCount = 0;
+    try {
+      const client = getMnemoClient();
+      const { total } = await client.listFacts({ limit: 1 });
+      factCount = total;
+    } catch (e) {
+      safeLogError("[mnemo/decisions] fact count fetch failed:", e);
+    }
 
     // Step 4: trace slice — pulled straight from seed meta.
-    const traceEvents = (
-      Array.isArray(seed.meta["events"]) ? (seed.meta["events"] as RecallMetricEvent[]) : []
-    ) as RecallMetricEvent[];
+    const traceEvents = Array.isArray(seed.meta["events"]) ? seed.meta["events"] : [];
     const outcome = {
       hits: typeof seed.meta["hits"] === "number" ? (seed.meta["hits"] as number) : 0,
       totalMs: typeof seed.meta["totalMs"] === "number" ? (seed.meta["totalMs"] as number) : 0,
@@ -134,10 +118,24 @@ export async function GET(_req: Request, context: { params: Promise<{ traceId: s
       if (v !== undefined) flags[k] = v;
     }
 
-    const bom = composeBOM({
+    // Compose BOM inline. The legacy host-side `composeBOM` helper was
+    // a thin object builder; we replicate its output shape here so the
+    // Inspector UI sees the same fields. `completeness` is a heuristic
+    // 0..1 score that scales with how many slices are populated.
+    const slices = {
+      identity: true,
+      auditEntries: auditRows.length > 0,
+      traceEvents: traceEvents.length > 0,
+      factCount: factCount > 0,
+      flags: Object.keys(flags).length > 0,
+    };
+    const sliceCount = Object.values(slices).filter(Boolean).length;
+    const completeness = sliceCount / Object.keys(slices).length;
+
+    const bom = {
       traceId,
       workspaceId: ctx.workspace.id,
-      decisionAt,
+      decisionAt: decisionAt.toISOString(),
       identity: {
         userId: ctx.user.id,
         agentId: typeof seed.meta["agentId"] === "string" ? (seed.meta["agentId"] as string) : null,
@@ -148,24 +146,20 @@ export async function GET(_req: Request, context: { params: Promise<{ traceId: s
       traceEvents,
       auditEntries: auditRows.map((r) => ({
         id: r.id,
-        seq: BigInt(r.seq),
+        seq: r.seq,
         action: r.action,
         actorUserId: r.actor_user_id,
         actorKind: r.actor_kind,
         targetType: r.target_type,
         targetId: r.target_id,
         meta: r.meta,
-        createdAt: new Date(r.created_at),
+        createdAt: r.created_at.toISOString(),
       })),
       windowMs: BOM_WINDOW_MS,
       outcome,
-    });
+    };
 
-    return NextResponse.json({
-      available: true,
-      bom,
-      completeness: completenessScore(bom),
-    });
+    return NextResponse.json({ available: true, bom, completeness });
   } catch (e) {
     safeLogError("[mnemo/decisions] BOM compose failed:", e);
     return NextResponse.json({ available: false, reason: "internal_error" }, { status: 200 });

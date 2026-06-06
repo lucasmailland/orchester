@@ -556,22 +556,23 @@ export async function executeTool(
   if (name === "brain_recall") {
     const query = String(input.query ?? "");
     if (!query) throw new Error("query required");
-    // Migrated 2026-06-05: searchBrain (legacy brain_fact recall) →
-    // recallUnified (@mnemosyne/core, mnemo_fact). UnifiedRecallHit
-    // has a flat shape with the fact metadata under `metadata`.
-    const { recallUnified } = await import("@/lib/dead-mnemo-stubs");
-    const hits = await recallUnified({
-      workspaceId: ctx.workspaceId,
+    // Phase 3: recall goes through the @mnemosyne/server SDK. The
+    // wire shape is `RecallHit[]` — `content` is the fact statement,
+    // `score` blends memory + KB similarity, and `attribution` carries
+    // the kind/subject the agent renders.
+    const { getMnemoClient } = await import("@/lib/mnemo/client");
+    const client = getMnemoClient();
+    const { hits } = await client.recall({
       query,
       topK: Math.min(Number(input.topK ?? 5), 20),
       ...(ctx.agentId ? { agentId: ctx.agentId } : {}),
     });
     return {
       hits: hits.map((h) => {
-        const meta = h.metadata as { kind?: string; subject?: string } | undefined;
+        const attr = (h.attribution ?? {}) as { kind?: string; subject?: string };
         return {
-          kind: meta?.kind ?? "fact",
-          subject: meta?.subject ?? "",
+          kind: attr.kind ?? "fact",
+          subject: attr.subject ?? "",
           statement: h.content,
           score: Number(h.score.toFixed(3)),
         };

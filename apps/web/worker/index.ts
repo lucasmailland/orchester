@@ -30,19 +30,6 @@ import {
   JOB_WORKSPACE_HARD_DELETE,
   JOB_GDPR_EXPORT,
   JOB_GDPR_EXPORT_WATCHDOG,
-  JOB_BRAIN_EXTRACT,
-  JOB_MNEMO_EMBED_FACT,
-  JOB_MNEMO_EMBED_BATCH,
-  JOB_MNEMO_SUMMARY,
-  JOB_MNEMO_HEALTH,
-  JOB_MNEMO_DEDUP,
-  JOB_MNEMO_PRUNE,
-  JOB_MNEMO_REVIEW_SWEEP,
-  JOB_MNEMO_AUTO_PIN,
-  JOB_MNEMO_CONSOLIDATION,
-  JOB_MNEMO_SWEEPER,
-  JOB_MNEMO_EPISODE_BACKFILL,
-  JOB_MNEMO_ORG_CONSOLIDATION,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
@@ -52,24 +39,14 @@ import { runVerifyAllChains } from "../lib/audit/verify-job";
 import { runHardDeleteCron } from "../lib/tenant/hard-delete-job";
 import { runExportJob } from "../lib/gdpr/export-job";
 import { runExportWatchdog } from "../lib/gdpr/watchdog";
-import { runBrainExtractJob, type BrainExtractPayload } from "../lib/brain/extract-job";
-import { runEmbedFactJob, runEmbedBatchSweep, type EmbedFactPayload } from "./embed-batch-job";
-import { summaryJobHandler, type SummaryJobPayload } from "./summary-job";
-import { healthJobHandler, type HealthJobPayload } from "./health-job";
-import { runDedupSweep } from "./dedup-job";
-import { runPruneSweep } from "./prune-job";
-import { runReviewSweep } from "./review-sweep-job";
-import { runAutoPin } from "./auto-pin-job";
-import { runConsolidationSweep } from "./consolidation-job";
-import { backfillWorkspaceEpisodes } from "./episode-backfill-job";
-import { runOrgConsolidation } from "./org-consolidation-job";
-// v2 — episode-backfill cron enumerates active workspaces via a
-// service-role tx, so we need both `getDb` (raw connection for the
-// listing) and the `sql` tag for the SELECT.
-import { getDb } from "@orchester/db";
-import { sql } from "drizzle-orm";
-import { safeLogError } from "../lib/safe-log";
-import { runSweeperBatch, type SweeperPayload } from "./mnemo-sweeper-job";
+
+// All mnemo extraction / embedding / consolidation / dedup / prune /
+// review-sweep / auto-pin / summary / health / sweeper crons used to
+// run from this worker against the local `mnemo_*` tables. After Phase
+// 3 of the service-extraction plan (2026-06-05) they live inside
+// @mnemosyne/server and are scheduled by its own internal cron
+// infrastructure (mnemo_cron_schedule table). Orchester no longer
+// needs to enqueue or handle them.
 
 interface FlowRunJob {
   runId: string;
@@ -87,18 +64,6 @@ interface WebhookDeliverJob {
 
 async function main(): Promise<void> {
   console.log("[worker] booting…");
-
-  // ── @mnemosyne/core DI wiring ─────────────────────────────────
-  // The library no longer owns its DB connection; every entrypoint
-  // must register Orchester's pool via setDb() before any
-  // withMnemoTx / searchMnemo / recallUnified call. The Next.js
-  // process does this in instrumentation-node.ts; the worker
-  // process is a separate Node bundle (worker/.dist/worker.mjs)
-  // that never loads that hook, so we must wire here too.
-  // Missing this call crashes every mnemo cron + the brain-extract
-  // job on first tick with "No DB client registered".
-  const { wireMnemoDb } = await import("../lib/mnemo/wire-di");
-  if (await wireMnemoDb()) console.log("[worker] @mnemosyne/core DI wiring complete");
 
   // ── v1.6 G1-1: pre-create every queue row BEFORE any handler ────
   // Without this, the first admin enqueue (e.g. POST
@@ -204,197 +169,21 @@ async function main(): Promise<void> {
   });
   await schedule(JOB_GDPR_EXPORT_WATCHDOG, "*/15 * * * *");
 
-  // ─── Brain Core extraction (sub-spec 2). One handler per pod;
-  // pg-boss singletonKey collapses concurrent enqueues for the same
-  // conversation. retryLimit=1 set at enqueue site.
-  await registerWorker<BrainExtractPayload>(JOB_BRAIN_EXTRACT, async (job) => {
-    await runBrainExtractJob(job.data);
-  });
-
-  // Brain Core legacy compaction/decay handlers were retired on
-  // 2026-06-05 along with `lib/brain/compaction.ts` and
-  // `lib/brain/decay.ts`. The `brain_fact` table is no longer being
-  // written to by any live code path (the agent-runtime, the
-  // Inspector UI, and the agent-tools all target `mnemo_fact` via
-  // @mnemosyne/core). If a long-tail consumer ever re-enqueues
-  // `JOB_BRAIN_COMPACTION` or `JOB_BRAIN_DECAY` the message will be
-  // dead-lettered by pg-boss — there's no handler to dispatch to and
-  // there's no daily schedule either. See
-  // docs/superpowers/plans/2026-06-05-mnemosyne-service-extraction.md
-  // for the broader retirement plan.
-
-  // ─── Mnemosyne async batch embedding (v1.1 cost optimization) ──────
-  // `mnemo.embed.fact` is the per-fact eager handler — pg-boss picks
-  // these up as they're enqueued by `createFactAsync`. The handler
-  // immediately drains pending fact embeddings for the workspace in a
-  // single batched API call (BATCH_SIZE=100), so a single enqueue
-  // typically embeds many co-pending facts in one shot.
+  // ─── Mnemo workers retired (Phase 3 service-extraction, 2026-06-05) ─
+  // Every JOB_MNEMO_* handler used to live here:
+  //   - JOB_BRAIN_EXTRACT, JOB_MNEMO_EMBED_*, JOB_MNEMO_SUMMARY,
+  //     JOB_MNEMO_HEALTH, JOB_MNEMO_DEDUP, JOB_MNEMO_PRUNE,
+  //     JOB_MNEMO_REVIEW_SWEEP, JOB_MNEMO_AUTO_PIN,
+  //     JOB_MNEMO_CONSOLIDATION, JOB_MNEMO_ORG_CONSOLIDATION,
+  //     JOB_MNEMO_EPISODE_BACKFILL, JOB_MNEMO_SWEEPER
+  // They are now scheduled and executed by @mnemosyne/server's own
+  // cron infrastructure (see mnemo_cron_schedule + the cron module
+  // inside packages/core). Orchester is a pure SDK consumer — it
+  // never needs to enqueue or handle these.
   //
-  // `mnemo.embed.batch` is the periodic safety net (every minute):
-  // scans for unembedded facts across all workspaces and flushes them
-  // in batches. Covers facts whose `createFactAsync` enqueue failed
-  // (orphan), or that landed during a worker outage. Recall via FTS
-  // continues to work in the interim — no user-visible degradation.
-  await registerWorker<EmbedFactPayload>(JOB_MNEMO_EMBED_FACT, async (job) => {
-    await runEmbedFactJob(job.data);
-  });
-  await registerWorker(JOB_MNEMO_EMBED_BATCH, async () => {
-    await runEmbedBatchSweep();
-  });
-  await schedule(JOB_MNEMO_EMBED_BATCH, "*/1 * * * *");
-
-  // ─── Mnemosyne v1.1 Layer 1 summary refresh (daily cron) ──────────
-  // Walks every workspace that produced facts in the last 7 days,
-  // pre-distills a fresh per-(workspace,agent,user) summary, and
-  // caches it in `mnemo_summary` with a 24h TTL. The foreground turn
-  // hits the cache instead of paying for an LLM round-trip.
-  //
-  // Idempotent and degrades gracefully — workspaces without an LLM
-  // configured get a heuristic summary written (still saves the
-  // foreground turn from doing the heuristic work itself).
-  //
-  // 05:00 UTC stagger keeps it away from compaction/decay/audit.
-  await registerWorker<SummaryJobPayload>(JOB_MNEMO_SUMMARY, async (job) => {
-    await summaryJobHandler(job);
-  });
-  await schedule(JOB_MNEMO_SUMMARY, "0 5 * * *");
-
-  // ─── Mnemosyne v1.2 health snapshot (daily drift detection) ─────────
-  // Walks every workspace with at least one fact and computes a
-  // `mnemo_health` row — fact counts, embedding coverage, recall
-  // hit-rate, contradictions, extraction backlog. Pure SQL aggregates,
-  // no LLM calls. Snapshot is the data source for the future Memory
-  // Inspector dashboard (v1.3).
-  //
-  // 06:00 UTC stagger keeps it after summary refresh (05:00) so the
-  // snapshot captures the freshest summary state.
-  await registerWorker<HealthJobPayload>(JOB_MNEMO_HEALTH, async (job) => {
-    await healthJobHandler(job);
-  });
-  await schedule(JOB_MNEMO_HEALTH, "0 6 * * *");
-
-  // ─── Mnemosyne v1.2 janitor: weekly memory self-maintenance ─────────
-  // dedup (Sunday 03:00 UTC): semantic merge of near-duplicate facts.
-  //   Walks workspaces with embedded facts, clusters by cosine >= 0.92,
-  //   archives duplicates into mnemo_fact_archive with archive_reason
-  //   = 'merged'. Folds hit_count + source_message_ids into the primary.
-  // prune (Sunday 03:30 UTC): archive inactive low-relevance facts.
-  //   Walks workspaces, finds active facts where hit_count = 0,
-  //   age > 90 days, relevance < 0.1, NOT pinned. Archives with
-  //   archive_reason = 'pruned_inactive'.
-  // Both are idempotent — re-runs find nothing to do. Stagger keeps
-  // dedup before prune so dedup doesn't accidentally re-archive a row
-  // prune has already moved.
-  await registerWorker(JOB_MNEMO_DEDUP, async () => {
-    await runDedupSweep();
-  });
-  await schedule(JOB_MNEMO_DEDUP, "0 3 * * 0");
-
-  await registerWorker(JOB_MNEMO_PRUNE, async () => {
-    await runPruneSweep();
-  });
-  await schedule(JOB_MNEMO_PRUNE, "30 3 * * 0");
-
-  // ─── Mnemosyne v1.3 active-learning crons (daily) ──────────────────
-  // review.sweep (04:00 UTC): scans for low-confidence (< 0.5)
-  // unpinned facts not already in the queue and enqueues them with
-  // reason='low_confidence'. Cap 50/workspace/run. Dedup against
-  // 'contradiction' rows is handled inside enqueueReview.
-  await registerWorker(JOB_MNEMO_REVIEW_SWEEP, async () => {
-    await runReviewSweep();
-  });
-  await schedule(JOB_MNEMO_REVIEW_SWEEP, "0 4 * * *");
-
-  // auto-pin (04:30 UTC): evaluates the pure rule set in
-  // `decideAutoPin` and pins matching rows, stamping
-  // metadata.auto_pinned = { rule, at }. Skips rows where the user
-  // previously unpinned (metadata.auto_pinned_overridden = true).
-  // Stagger after review.sweep so the queued low-confidence rows
-  // aren't competing with the auto-pin pass.
-  await registerWorker(JOB_MNEMO_AUTO_PIN, async () => {
-    await runAutoPin();
-  });
-  await schedule(JOB_MNEMO_AUTO_PIN, "30 4 * * *");
-
-  // ─── Mnemosyne v1.4 REM-style consolidation (weekly cron) ──────────
-  // Sunday 02:00 UTC — BEFORE the janitor's dedup pass at 03:00. Walks
-  // every workspace with embedded facts, clusters related facts (same
-  // subject + kind, cosine >= 0.75, size >= 4), asks the cheap-tier
-  // LLM to write a one-sentence summary that supersedes them, and
-  // stamps `derived_from` edges from members to the summary. The
-  // originals stay `status='active'` (findable); the summary becomes
-  // the canonical recall hit. Graceful: workspaces without an LLM
-  // configured are skipped silently.
-  //
-  // Stagger before dedup so dedup doesn't accidentally collapse a
-  // freshly-created summary with one of its members.
-  await registerWorker(JOB_MNEMO_CONSOLIDATION, async () => {
-    await runConsolidationSweep();
-  });
-  await schedule(JOB_MNEMO_CONSOLIDATION, "0 2 * * 0");
-
-  // ─── Mnemosyne v2 — Cross-workspace (org-level) consolidation ────────
-  // Sunday 02:30 UTC — AFTER the per-workspace pass at 02:00 (so each
-  // workspace's local clusters have settled) and BEFORE the janitor's
-  // dedup at 03:00. Gated by MNEMO_ENABLE_CROSS_WORKSPACE_CONSOLIDATION
-  // env var; the cron logs "disabled" and returns when the flag isn't
-  // literally "true" so the wire is always exercised in production.
-  await registerWorker(JOB_MNEMO_ORG_CONSOLIDATION, async () => {
-    await runOrgConsolidation();
-  });
-  await schedule(JOB_MNEMO_ORG_CONSOLIDATION, "30 2 * * 0");
-
-  // ─── Mnemosyne v2 — Episode-id backfill (migrations 0048 + 0051) ────
-  // Daily 04:15 UTC — well outside the consolidation/janitor windows.
-  // Stamps every mnemo_fact row where episode_id IS NULL with a
-  // deterministic synthetic episode id. With the post-K migration
-  // 0051 NOT-NULL flip already in place, the live extraction path
-  // never produces NULLs anymore — this cron exists for safety net
-  // against any edge case (raw INSERTs in tests, manual SQL, etc.)
-  // and to clean up legacy rows post-migration on freshly-deployed
-  // instances.
-  await registerWorker(JOB_MNEMO_EPISODE_BACKFILL, async () => {
-    // Pull every active workspace and run the backfill per-workspace.
-    // The handler self-throttles via the per-workspace cap so a large
-    // tenant doesn't dominate the run.
-    const wsRows = (await getDb().execute(
-      sql`SELECT id FROM workspace WHERE status = 'active' ORDER BY id`
-    )) as unknown as Array<{ id: string }>;
-    for (const ws of wsRows) {
-      try {
-        await backfillWorkspaceEpisodes(ws.id);
-      } catch (e) {
-        safeLogError(`[episode-backfill] workspace ${ws.id} failed:`, e);
-      }
-    }
-  });
-  await schedule(JOB_MNEMO_EPISODE_BACKFILL, "15 4 * * *");
-
-  // ─── Mnemosyne v1.1 #20 — message-grain backfill sweeper ────────────
-  // Sunday 01:00 UTC — BEFORE the consolidation pass at 02:00. Walks
-  // brain_extraction_job rows whose state='skipped' and skip_reason is
-  // a prefilter-class reason (no_indicator, no_content_tokens, …). For
-  // each such conversation it re-runs `shouldExtractBackfill()` — a
-  // more permissive variant that drops the POSITIVE_INDICATORS gate —
-  // and re-enqueues qualifying conversations for a fresh LLM extraction.
-  //
-  // Cursor-resumable: the handler self-re-enqueues with an updated
-  // cursor after each BATCH_SIZE=100 batch so large workspaces are
-  // swept incrementally without hitting the job timeout.
-  await registerWorker<SweeperPayload>(JOB_MNEMO_SWEEPER, async (job) => {
-    const stats = await runSweeperBatch(job.data);
-    if (stats.conversationsScanned > 0) {
-      console.log(
-        `[worker] mnemo.sweeper ` +
-          `scanned=${stats.conversationsScanned} ` +
-          `reenqueued=${stats.conversationsReenqueued} ` +
-          `skipped=${stats.conversationsSkipped} ` +
-          `hasMore=${stats.hasMore}`
-      );
-    }
-  });
-  // Weekly cron kick-starts the sweep (cursor=null = scan from beginning).
-  await schedule(JOB_MNEMO_SWEEPER, "0 1 * * 0", { cursor: null } satisfies SweeperPayload);
+  // Stale pg-boss messages from pre-Phase-3 deployments will land in
+  // queues with no handler and be dead-lettered. That's intentional;
+  // the queue rows can be cleaned up at the next maintenance window.
 
   console.log("[worker] ready, waiting for jobs…");
 }

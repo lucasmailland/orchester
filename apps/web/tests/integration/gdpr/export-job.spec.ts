@@ -154,7 +154,6 @@ describe("runExportJob (filesystem adapter)", () => {
     const { entries, parsed } = await unzipToJson(buf);
     expect(entries.sort()).toEqual([
       "agents.json",
-      "brain.json",
       "conversations.json",
       "knowledge.json",
       "messages.json",

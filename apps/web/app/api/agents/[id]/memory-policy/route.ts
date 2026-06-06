@@ -19,7 +19,7 @@ import {
   DEFAULT_AGENT_MEMORY_POLICY,
   parseAgentMemoryPolicy,
   type AgentMemoryPolicy,
-} from "@/lib/dead-mnemo-stubs";
+} from "@/lib/policy/agent-memory";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";

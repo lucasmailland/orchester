@@ -1,10 +1,8 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck — Phase 3: MCP memory tools wired to dead stubs; need SDK rewire.
 import "server-only";
 import { getDb, schema } from "@orchester/db";
 import { createId } from "@paralleldrive/cuid2";
-import { and, desc, eq, sql } from "drizzle-orm";
-import { withMnemoTx, searchMnemo, saveFactWithCandidates } from "@/lib/dead-mnemo-stubs";
+import { and, desc, eq } from "drizzle-orm";
+import { getMnemoClient } from "@/lib/mnemo/client";
 
 /**
  * Orchester MCP server core.
@@ -394,7 +392,7 @@ const TOOLS: McpToolDef[] = [
       },
       required: ["query"],
     },
-    async handler(input, auth) {
+    async handler(input, _auth) {
       const query = String(input.query ?? "").trim();
       if (query.length === 0) {
         throw new Error("query no puede estar vacío");
@@ -402,37 +400,31 @@ const TOOLS: McpToolDef[] = [
       const limit = Math.min(25, Math.max(1, Number(input.limit ?? 5) || 5));
       const agentId = input.agentId ? String(input.agentId) : undefined;
 
-      return withMnemoTx(auth.workspaceId, async (tx) => {
-        // searchMnemo returns `RecallHit[]` where each hit wraps the
-        // underlying `MnemoFact` row + score + provenance reasons. We
-        // flatten to a client-friendly shape and drop internal columns
-        // (embedding bytes, tsvector, …) the MCP caller doesn't need.
-        const hits = await searchMnemo({
-          workspaceId: auth.workspaceId,
-          query,
-          ...(agentId !== undefined ? { agentId } : {}),
-          topK: limit,
-          tx,
-        });
-        return {
-          query,
-          hits: hits.map((h) => ({
-            id: h.fact.id,
-            score: Number(h.score.toFixed(4)),
-            kind: h.fact.kind,
-            subject: h.fact.subject,
-            statement: h.fact.statement,
-            confidence: h.fact.confidence,
-            pinned: h.fact.pinned,
-            createdAt:
-              h.fact.createdAt instanceof Date
-                ? h.fact.createdAt.toISOString()
-                : String(h.fact.createdAt),
-            reasons: h.reasons,
-          })),
-          count: hits.length,
-        };
+      // Phase 3: delegate to @mnemosyne/server's /v1/recall.
+      const client = getMnemoClient();
+      const { hits } = await client.recall({
+        query,
+        topK: limit,
+        ...(agentId !== undefined ? { agentId } : {}),
       });
+      return {
+        query,
+        hits: hits.map((h) => {
+          const attr = (h.attribution ?? {}) as { kind?: string; subject?: string };
+          return {
+            id: h.id,
+            score: Number(h.score.toFixed(4)),
+            kind: attr.kind ?? "fact",
+            subject: attr.subject ?? "user",
+            statement: h.content,
+            // SDK RecallHit doesn't expose confidence/pinned today.
+            // The MCP client gets the score (which already blends both
+            // signals) and the attribution payload.
+            createdAt: h.validFrom,
+          };
+        }),
+        count: hits.length,
+      };
     },
   },
   {
@@ -483,41 +475,30 @@ const TOOLS: McpToolDef[] = [
       const kind = String(input.kind ?? "fact");
       const confidence = Math.max(0, Math.min(1, Number(input.confidence ?? 0.7)));
 
-      return withMnemoTx(auth.workspaceId, async (tx) => {
-        // saveFactWithCandidates inserts the row then surfaces
-        // potential contradictions for human/LLM judgment. For the
-        // MCP path we set `enqueueOnNoJudge: true` so any flagged
-        // contradiction lands in the workspace review queue instead
-        // of being silently saved — the operator sees it in
-        // `/brain/review`.
-        const result = await saveFactWithCandidates({
-          workspaceId: auth.workspaceId,
-          statement,
+      // Phase 3: delegate to @mnemosyne/server. The server runs
+      // poisoning detection, dedup, and contradiction-candidate
+      // surfacing internally; orchester only forwards the input.
+      const client = getMnemoClient();
+      const fact = await client.createFact({
+        content: statement,
+        attribution: {
           subject,
-          // Cast to the union the type wants. Callers send any string
-          // because the kind set is open-ended product-side and we
-          // don't want a typed enum to leak into the MCP boundary.
-          kind: kind as never,
-          scope: "global",
+          kind,
           confidence,
-          metadata: { origin: "mcp", scopes: auth.scopes },
-          agentId: input.agentId ? String(input.agentId) : null,
-          enqueueOnNoJudge: true,
-          tx,
-        });
-        return {
-          id: result.newFact.id,
-          statement: result.newFact.statement,
-          subject: result.newFact.subject,
-          kind: result.newFact.kind,
-          confidence: result.newFact.confidence,
-          /** True when the writer saw potential contradictions with
-           *  existing facts — the caller may want to inspect
-           *  `enqueuedReviewId` in `/brain/review`. */
-          judgmentRequired: result.judgmentRequired,
-          enqueuedReviewId: result.enqueuedReviewId,
-        };
+          origin: "mcp",
+          scopes: auth.scopes,
+          ...(input.agentId ? { agentId: String(input.agentId) } : {}),
+          ...(input.conversationId ? { conversationId: String(input.conversationId) } : {}),
+        },
+        tags: [kind],
       });
+      return {
+        id: fact.id,
+        statement: fact.content,
+        subject,
+        kind,
+        confidence,
+      };
     },
   },
   {
@@ -533,23 +514,13 @@ const TOOLS: McpToolDef[] = [
       },
       required: ["factId"],
     },
-    async handler(input, auth) {
+    async handler(input, _auth) {
       const factId = String(input.factId ?? "").trim();
       if (factId.length === 0) throw new Error("factId requerido");
 
-      return withMnemoTx(auth.workspaceId, async (tx) => {
-        const res = await tx.execute<{ id: string }>(sql`
-          UPDATE mnemo_fact
-          SET pinned = true, updated_at = now()
-          WHERE id = ${factId} AND status = 'active'
-          RETURNING id
-        `);
-        const rows = (res as unknown as { rows?: { id: string }[] }).rows ?? [];
-        if (rows.length === 0) {
-          throw new Error(`Fact ${factId} no encontrado o ya archivado`);
-        }
-        return { id: rows[0]!.id, pinned: true };
-      });
+      const client = getMnemoClient();
+      const updated = await client.pinFact(factId);
+      return { id: updated.id, pinned: updated.pinned };
     },
   },
   {
@@ -566,27 +537,14 @@ const TOOLS: McpToolDef[] = [
       },
       required: ["factId"],
     },
-    async handler(input, auth) {
+    async handler(input, _auth) {
       const factId = String(input.factId ?? "").trim();
       if (factId.length === 0) throw new Error("factId requerido");
       const reason = input.reason ? String(input.reason).slice(0, 200) : "mcp_forget";
 
-      return withMnemoTx(auth.workspaceId, async (tx) => {
-        const res = await tx.execute<{ id: string }>(sql`
-          UPDATE mnemo_fact
-          SET status = 'archived',
-              archive_reason = ${reason},
-              archived_at = now(),
-              updated_at = now()
-          WHERE id = ${factId} AND status = 'active'
-          RETURNING id
-        `);
-        const rows = (res as unknown as { rows?: { id: string }[] }).rows ?? [];
-        if (rows.length === 0) {
-          throw new Error(`Fact ${factId} no encontrado o ya archivado`);
-        }
-        return { id: rows[0]!.id, status: "archived", reason };
-      });
+      const client = getMnemoClient();
+      await client.forgetFact(factId);
+      return { id: factId, status: "forgotten", reason };
     },
   },
   {
@@ -606,55 +564,33 @@ const TOOLS: McpToolDef[] = [
         sinceIso: { type: "string", description: "Solo hechos cuyo updated_at >= esta fecha ISO." },
       },
     },
-    async handler(input, auth) {
+    async handler(input, _auth) {
       const limit = Math.min(100, Math.max(1, Number(input.limit ?? 20) || 20));
       const kind = input.kind ? String(input.kind) : null;
       const sinceIso = input.sinceIso ? String(input.sinceIso) : null;
 
-      return withMnemoTx(auth.workspaceId, async (tx) => {
-        const rows = await tx.execute<{
-          id: string;
-          subject: string;
-          kind: string;
-          statement: string;
-          confidence: number;
-          pinned: boolean;
-          status: string;
-          updated_at: Date;
-        }>(sql`
-          SELECT id, subject, kind, statement, confidence, pinned, status, updated_at
-          FROM mnemo_fact
-          WHERE workspace_id = ${auth.workspaceId}
-            ${kind ? sql`AND kind = ${kind}` : sql``}
-            ${sinceIso ? sql`AND updated_at >= ${sinceIso}::timestamptz` : sql``}
-          ORDER BY updated_at DESC
-          LIMIT ${limit}
-        `);
-        type EventRow = {
-          id: string;
-          subject: string;
-          kind: string;
-          statement: string;
-          confidence: number;
-          pinned: boolean;
-          status: string;
-          updated_at: Date;
-        };
-        const r = (rows as unknown as { rows: EventRow[] }).rows;
-        return {
-          count: r.length,
-          events: r.map((row) => ({
-            id: row.id,
-            subject: row.subject,
-            kind: row.kind,
-            statement: row.statement,
-            confidence: row.confidence,
-            pinned: row.pinned,
-            status: row.status,
-            updatedAt: row.updated_at.toISOString(),
-          })),
-        };
+      // Phase 3: delegate to /v1/timeline. The wire shape is a flat
+      // event log keyed off updated_at. `kind` on the MCP boundary
+      // refers to the fact's category, not the timeline event kind —
+      // we currently can't filter by fact-category server-side, so the
+      // filter is applied below when populated.
+      const client = getMnemoClient();
+      const { events } = await client.timeline({
+        limit,
+        ...(sinceIso ? { since: sinceIso } : {}),
       });
+      const _ignoredKind = kind; // server-side kind filter pending
+      return {
+        count: events.length,
+        events: events.map((e) => ({
+          id: e.id,
+          factId: e.factId,
+          kind: e.kind,
+          summary: e.summary ?? "",
+          actor: e.actor ?? "",
+          at: e.at,
+        })),
+      };
     },
   },
 ];

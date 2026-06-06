@@ -16,18 +16,10 @@
 
 import { validateEnv } from "./lib/env";
 
-// ── Mnemosyne v2.0 DI wiring ─────────────────────────────────────────────
-// Register @mnemosyne/core's DB client before any request path runs.
-// Delegates to the shared wireMnemoDb() helper so the worker entrypoint
-// (worker/index.ts) and test fixtures (tests/fixtures/db.ts) call the
-// same code path — single source of truth prevents "I forgot one
-// entrypoint" bugs (regression: worker process used to crash on first
-// cron tick because only the Next.js process called setDb).
-{
-  const { wireMnemoDb } = await import("./lib/mnemo/wire-di");
-  const wired = await wireMnemoDb();
-  if (wired) console.log("[instrumentation] @mnemosyne/core DI wiring complete");
-}
+// Phase 3 — @mnemosyne/core DI wiring removed. Memory operations go
+// through the SDK to a running @mnemosyne/server, which manages its
+// own DB pool. Orchester's instrumentation now only validates env
+// vars and registers the cluster-cache listener.
 
 // ── Boot-time env validation (audit A6-1) ────────────────────────────────
 try {

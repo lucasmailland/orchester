@@ -1,41 +1,31 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck — Phase 3: this module's mnemo-recall + summary call paths
-// are stubbed via dead-mnemo-stubs and throw at runtime. The host-side
-// logic (LLM calls, policy fetch, streaming) still runs; the recall/
-// summary branches need to be rewired to the SDK before they're exercised.
+// Agent runtime — Phase 3 (HTTP-only memory).
+//
+// Recall + remember go through @mnemosyne/server via the SDK. The host
+// keeps everything else: LLM call, tool dispatch, agent loadup, policy
+// load, prompt-injection guardrails, profile cache.
 import "server-only";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
-import {
-  MEMORY_PROTOCOL_V1,
-  MEMORY_RECALL_GUIDANCE,
-  applyPolicyToRecall,
-  recallUnified,
-  renderFactsCompact,
-  getOrComputeSummary,
-  shouldTriggerRecall,
-  makeCohereRerank,
-  type AgentMemoryPolicy,
-  type UnifiedRecallHit,
-  type RecallUnifiedInput,
-  type RerankFn,
-  type UserProfileSummary,
-  type TriggerDecision,
-} from "@/lib/dead-mnemo-stubs";
 import { llmCall, type ChatMessage } from "./llm-call";
 import { executeTool, getToolDefinitions, type ToolCall } from "./tools";
 import { assertWithinSpend } from "./cost-alerts";
 import { recordAiUsage } from "./ai/run";
 import { calculateChatCostUsd } from "./pricing";
 import { safeLogError } from "./safe-log";
-import { recordMetric } from "./observability";
-import { getAgentMemoryPolicy } from "./policy/agent-memory";
-import { getMnemoSettings } from "./settings/mnemo";
-import { makeKbChunkProvider } from "./recall-unified";
+import { getAgentMemoryPolicy, type AgentMemoryPolicy } from "./policy/agent-memory";
+import { getMnemoClient } from "@/lib/mnemo/client";
 import {
   handleMnemosyneRemember,
   type MnemosyneRememberContext,
 } from "./agent-tools/mnemosyne-remember";
+
+/** Memory Protocol version — kept as a constant for the system prompt
+ *  hint that tells the model "you have a remember tool, here's how". */
+const MEMORY_PROTOCOL_V1 = "1.0.0";
+const MEMORY_RECALL_GUIDANCE =
+  "If a fact relevant to the user appears below in <recalled-memory>, " +
+  "treat it as established context. If new durable facts emerge in this turn, " +
+  "call the `mnemosyne_remember` tool with kind/subject/statement.";
 
 /**
  * Optional `tx?: WsDb` follows the project-wide pattern (see
@@ -102,54 +92,7 @@ function interpolate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{([^}]+)\}\}/g, (_, k: string) => vars[k.trim()] ?? "");
 }
 
-/* ───────────────── Mnemosyne v1.6 — local lexical reranker ───────────────── */
-
-// v2 — `makeLocalLexicalRerank` now lives in `@mnemosyne/core` as
-// `defaultRerank` and is wired automatically by `searchMnemo` when the
-// caller doesn't supply a reranker. The host-local copy was deleted in
-// favor of the package version (byte-identical migration). We still
-// import it explicitly below to keep the "Cohere when keyed, local
-// otherwise" branch in this file unambiguous — if a future refactor
-// lets us forward UNDEFINED to the package and rely on the default,
-// drop this import and the `else { rerankFn = makeLocalLexicalRerank() }`
-// branch in the same pass.
-import { makeLocalLexicalRerank } from "@/lib/dead-mnemo-stubs";
-
-/* ───────────────── Mnemosyne v1.4 — unified recall wiring ───────────────── */
-
-/**
- * Helper: convert a `UnifiedRecallHit` for the `memory` source back into
- * a shape `renderFactsCompact` can consume. The unified hit drops the
- * full `MnemoFact` row by design (the merged scoring layer doesn't
- * carry storage internals across to KB hits) so we reconstruct the
- * minimal field set the renderer needs.
- *
- * The renderer accepts `Partial<MnemoFact>` shapes in practice — it
- * only reads `kind`, `subject`, `statement`, `confidence`, `pinned`,
- * `memoryType`. We mirror those from the unified hit's `metadata`.
- */
-type RenderableFactShape = {
-  id: string;
-  kind: string;
-  subject: string;
-  statement: string;
-  confidence: number;
-  pinned: boolean;
-  memoryType: string;
-};
-
-function unifiedMemoryToRenderable(hit: UnifiedRecallHit): RenderableFactShape {
-  const m = hit.metadata as Record<string, unknown>;
-  return {
-    id: hit.id,
-    kind: typeof m.kind === "string" ? m.kind : "other",
-    subject: typeof m.subject === "string" ? m.subject : "user",
-    statement: hit.content,
-    confidence: 0.8,
-    pinned: m.pinned === true,
-    memoryType: typeof m.memoryType === "string" ? m.memoryType : "semantic",
-  };
-}
+/* ───────────────── Recall wiring (Phase 3 — HTTP SDK) ───────────────── */
 
 /**
  * Defensive escape for the KB `source` attribute. The doc title is
@@ -160,6 +103,15 @@ function unifiedMemoryToRenderable(hit: UnifiedRecallHit): RenderableFactShape {
  */
 function sanitizeKbSource(s: string): string {
   return s.replace(/[^a-z0-9 .\-_]/gi, "_").slice(0, 80) || "untitled";
+}
+
+/** Light heuristic — skip recall on short greetings / acknowledgements
+ *  to avoid burning a round-trip on a turn where memory wouldn't help. */
+function shouldTriggerRecall(input: { userTurn: string }): boolean {
+  const t = input.userTurn.trim().toLowerCase();
+  if (t.length < 6) return false;
+  if (/^(hi|hey|hello|ok|okay|thanks|gracias|hola|chau)\b/.test(t)) return false;
+  return true;
 }
 
 export interface BuildRecallBlockInput {
@@ -214,232 +166,77 @@ export interface BuildRecallBlockInput {
  * the agent turn.
  */
 export async function buildRecallBlock(input: BuildRecallBlockInput): Promise<string> {
-  let trigger: TriggerDecision;
-  try {
-    trigger = shouldTriggerRecall({ userTurn: input.userTurn, history: input.history });
-  } catch (e) {
-    safeLogError("[agent-runtime] shouldTriggerRecall threw:", e);
-    trigger = { trigger: true, reason: "trigger-error", confidence: 0 };
-  }
-  if (!trigger.trigger) return "";
   if (!input.userTurn) return "";
+  if (!shouldTriggerRecall({ userTurn: input.userTurn })) return "";
 
-  // ── Load policy + settings in parallel. Both are defensive — they
-  // return safe defaults on any failure, so the unwrap below is plain.
-  const [policy, settings] = await Promise.all([
-    getAgentMemoryPolicy({
-      workspaceId: input.workspaceId,
-      agentId: input.agentId,
-      ...(input.tx ? { tx: input.tx } : {}),
-    }),
-    getMnemoSettings(input.workspaceId, input.tx),
-  ]);
-
-  // ── v1.6 defaults flip: HyDE / rerank / graph default ON. The
-  // disable_* kill-switches let an operator opt OUT per-workspace.
-  // The legacy `enable_hyde=true` flag is preserved on the settings
-  // shape (back-compat read) but it's a no-op now — the disable_*
-  // flag is the only way to flip the feature off.
-  const hyde = !settings.disableHyde;
-  const rerankEnabled = !settings.disableRerank;
-  const graph = !settings.disableGraph;
-
-  // ── Build the reranker. v1.6: Cohere when an API key is present
-  // (best quality), local lexical otherwise so we ALWAYS get some
-  // rerank signal. makeCohereRerank already falls back to noopRerank
-  // on network failure so a flaky upstream can never crash recall.
-  let rerankFn: RerankFn | undefined;
-  if (rerankEnabled) {
-    const apiKey = process.env.COHERE_API_KEY;
-    if (apiKey) {
-      try {
-        rerankFn = makeCohereRerank(apiKey, {
-          ...(settings.rerankModel ? { model: settings.rerankModel } : {}),
-          onError: (err) => safeLogError("[agent-runtime] cohere rerank failed:", err),
-        });
-      } catch (e) {
-        safeLogError("[agent-runtime] makeCohereRerank threw:", e);
-        rerankFn = makeLocalLexicalRerank();
-      }
-    } else {
-      // No paid provider configured — fall back to the local lexical
-      // reranker. It's pure-TS, deterministic, and slightly better
-      // than identity for short fact statements (the BM25-ish term
-      // overlap reorders strong matches above weak ones).
-      rerankFn = makeLocalLexicalRerank();
-    }
-  }
-
-  // ── KB provider — only when the caller passed a kbId. The unified
-  // path degrades to memory-only gracefully when kbProvider is absent.
-  const kbProvider = input.kbId ? makeKbChunkProvider(input.kbId) : null;
-
-  // ── Compose unified-recall input. Every opt-in goes here; the policy
-  // helper then narrows scope based on the agent's read_scopes.
-  //
-  // v1.1 — `onMetric` instruments every stage of the mnemosyne recall
-  // pipeline (pointer_lookup, first_stage, drawer_grep, rerank,
-  // prune, diversity, graph_expand, total). Forwarded to the shared
-  // `recordMetric` sink which routes to Sentry distributions when
-  // SENTRY_DSN is set, or structured-logs otherwise. Per-stage
-  // metrics use `mnemo.recall.<stage>.duration_ms` /
-  // `mnemo.recall.<stage>.count` / `mnemo.recall.<stage>.top_score`;
-  // dashboards key on these names. Tagged with `workspace_id` so
-  // multi-tenant grouping in the metric backend works out of the box.
-  const baseInput: RecallUnifiedInput = {
+  // Load policy (defensive — never throws, returns DEFAULT on failure).
+  // The mnemosyne server applies its own scope filtering based on the
+  // API key's workspace_id; the host policy here is for orchester's
+  // own narrowing on top.
+  const policy: AgentMemoryPolicy = await getAgentMemoryPolicy({
     workspaceId: input.workspaceId,
-    query: input.userTurn,
     agentId: input.agentId,
-    history: input.history,
-    topK: 5,
-    enableContextualize: true,
-    enableHyDE: hyde,
-    expandGraph: graph,
-    onMetric: (event) => {
-      const tags: Record<string, string | number> = {
-        workspace_id: event.workspaceId,
-        stage: event.stage,
-      };
-      if (event.extra) {
-        for (const [k, v] of Object.entries(event.extra)) {
-          // recordMetric tags are flat string|number; coerce booleans
-          // to "true"/"false" so per-tag cardinality stays bounded.
-          tags[k] = typeof v === "boolean" ? String(v) : v;
-        }
-      }
-      if (event.durationMs !== undefined) {
-        recordMetric(`mnemo.recall.${event.stage}.duration_ms`, event.durationMs, tags);
-      }
-      if (event.count !== undefined) {
-        recordMetric(`mnemo.recall.${event.stage}.count`, event.count, tags);
-      }
-      if (event.topScore !== undefined) {
-        recordMetric(`mnemo.recall.${event.stage}.top_score`, event.topScore, tags);
-      }
-    },
-    ...(rerankFn ? { rerank: rerankFn } : {}),
-    ...(kbProvider ? { kbProvider } : {}),
-    ...(input.actorId ? { actorId: input.actorId } : {}),
-  };
+    ...(input.tx ? { tx: input.tx } : {}),
+  });
 
-  // applyPolicyToRecall narrows scope from the policy's read_scopes.
-  // recallUnified forwards its searchMnemo input untouched, so we apply
-  // policy to the underlying SearchMnemoInput shape — the unified
-  // wrapper supports `scope` as a passthrough.
-  const filtered = applyRecallPolicyDefensive(policy, baseInput);
-
-  let hits: UnifiedRecallHit[] = [];
+  // Pull recall hits from the mnemosyne service. The server runs HyDE,
+  // rerank, graph expansion, and policy-shaped filtering internally —
+  // orchester just provides the query and renders the results.
+  const client = getMnemoClient();
+  let hits: Awaited<ReturnType<typeof client.recall>>["hits"] = [];
   try {
-    // Note on graph expansion: recallUnified delegates to searchMnemo
-    // which honors `expandGraph` from `SearchMnemoInput`. The unified
-    // shape doesn't currently surface that field directly, but the
-    // underlying searchMnemo call inherits its defaults — `expandGraph`
-    // ships as opt-in at the searchMnemo layer in v1.4. We pass it via
-    // the recallUnified input where supported.
-    hits = await recallUnified(filtered);
+    const resp = await client.recall({
+      query: input.userTurn,
+      topK: 5,
+      ...(input.agentId ? { agentId: input.agentId } : {}),
+      ...(input.actorId ? { actorId: input.actorId } : {}),
+      ...(policy.read_scopes.length > 0 ? { readScopes: policy.read_scopes } : {}),
+    });
+    hits = resp.hits;
   } catch (e) {
-    safeLogError("[agent-runtime] recallUnified failed:", e);
+    safeLogError("[agent-runtime] recall failed:", e);
     return "";
   }
   if (hits.length === 0) return "";
 
-  // ── Render: split by source.
-  const memoryHits = hits.filter((h) => h.source === "memory");
-  const kbHits = hits.filter((h) => h.source === "kb");
-
+  // Single block — the SDK's RecallHit doesn't distinguish memory vs KB
+  // sources on the wire today. KB-sourced hits expose their doc title
+  // through `attribution.docTitle` when present; we degrade to a memory
+  // block when it isn't.
   const blocks: string[] = [];
-
-  // Memory block — reuse the existing compact renderer for k:v structure.
-  if (memoryHits.length > 0) {
-    try {
-      const facts = memoryHits.map(unifiedMemoryToRenderable);
-      const rendered = renderFactsCompact(
-        facts as unknown as Parameters<typeof renderFactsCompact>[0],
-        { maxTokensApprox: 150, format: "structured" }
-      );
-      if (rendered) {
-        blocks.push(`<recalled-memory>\n${rendered}\n</recalled-memory>`);
-      }
-    } catch (e) {
-      safeLogError("[agent-runtime] renderFactsCompact failed:", e);
-      // Don't bail — KB hits might still render.
+  const memoryLines: string[] = [];
+  for (const h of hits) {
+    const attr = (h.attribution ?? {}) as { kind?: string; subject?: string; docTitle?: string };
+    if (typeof attr.docTitle === "string") {
+      const safe = sanitizeKbSource(attr.docTitle);
+      const wrapped = redactPii(h.content);
+      blocks.push(`<kb source="${safe}">\n${wrapped}\n</kb>`);
+    } else {
+      const kind = attr.kind ?? "fact";
+      const subject = attr.subject ?? "user";
+      memoryLines.push(`- [${kind}] ${subject}: ${h.content}`);
     }
   }
-
-  // KB block — one <kb> element per hit so the model can cite per-chunk.
-  // The content is wrapped by `wrapUntrusted` so prompt-injection
-  // payloads embedded in upstream docs don't escape the data frame.
-  for (const h of kbHits) {
-    const m = h.metadata as Record<string, unknown>;
-    const title = typeof m.docTitle === "string" ? m.docTitle : "untitled";
-    const safe = sanitizeKbSource(title);
-    const wrapped = redactPii(h.content);
-    blocks.push(`<kb source="${safe}">\n${wrapped}\n</kb>`);
+  if (memoryLines.length > 0) {
+    blocks.unshift(`<recalled-memory>\n${memoryLines.join("\n")}\n</recalled-memory>`);
   }
 
-  if (blocks.length === 0) return "";
   return `\n${blocks.join("\n")}`;
 }
 
 /**
- * Defensive wrapper around `applyPolicyToRecall`. The package helper is
- * pure (no IO) so it doesn't realistically throw — but a future v2.0
- * adding tighter enforcement might surface validation errors here, and
- * we want recall to keep working unmodified in that case.
+ * Profile block — retired in Phase 3. Mnemosyne no longer exposes a
+ * pre-computed summary endpoint; the recall block above already
+ * surfaces the highest-affinity facts, so a dedicated profile block
+ * would be redundant. Kept as an inert function so the runAgent caller
+ * doesn't need to branch on its presence.
  */
-function applyRecallPolicyDefensive(
-  policy: AgentMemoryPolicy,
-  input: RecallUnifiedInput
-): RecallUnifiedInput {
-  try {
-    // The package helper signature accepts a SearchMnemoInput — the
-    // unified shape is a strict superset for the fields the helper
-    // reads (`scope`, `scopeRef`), so the cast is safe.
-    return applyPolicyToRecall(
-      policy,
-      input as unknown as Parameters<typeof applyPolicyToRecall>[1]
-    ) as unknown as RecallUnifiedInput;
-  } catch (e) {
-    safeLogError("[agent-runtime] applyPolicyToRecall threw:", e);
-    return input;
-  }
-}
-
-/**
- * Build the profile summary block. Pulled from B1's pre-computed
- * `getOrComputeSummary` (cheap read path — the cron does the heavy work).
- * Returns "" on cold-start (no facts yet → null) or any failure.
- *
- * The summary is part of the CACHED prefix, so it pays a one-time cost
- * to be included on first turn of the 5min window and ~10% on every
- * subsequent turn that hits the cache.
- *
- * `getOrComputeSummary` opens its own `withMnemoTx` when no tx is
- * passed; we deliberately do NOT thread `p.tx` through here because the
- * agent's outer workspace tx is a Drizzle-typed handle that doesn't
- * always match mnemosyne's `Tx` shape. Letting the summary call open its
- * own short tx is safe (read+upsert on `mnemo_summary` only).
- */
-export async function buildProfileBlock(input: {
+async function buildProfileBlock(_input: {
   workspaceId: string;
   agentId: string;
   userId?: string;
 }): Promise<string> {
-  let summary: UserProfileSummary | null = null;
-  try {
-    summary = await getOrComputeSummary({
-      workspaceId: input.workspaceId,
-      agentId: input.agentId,
-      ...(input.userId && { userId: input.userId }),
-      // No `llm` / `model` — the read path uses heuristic fallback when
-      // the row is fresh enough. The daily cron does the LLM distillation.
-    });
-  } catch (e) {
-    safeLogError("[agent-runtime] getOrComputeSummary failed:", e);
-    return "";
-  }
-  if (!summary?.rawText) return "";
-  return `\n<user-profile freshness="${summary.freshness}">\n${summary.rawText}\n</user-profile>`;
+  return "";
 }
 
 /* ───────────────── Prompt-injection guardrails (L1) ───────────────── */

@@ -200,65 +200,12 @@ export async function shutdownQueue(): Promise<void> {
 export const JOB_FLOW_RUN = "flow:run";
 export const JOB_FLOW_REAP = "flow:reap";
 export const JOB_KB_INGEST = "kb:ingest";
-export const JOB_BRAIN_EXTRACT = "brain:extract";
-export const JOB_BRAIN_COMPACTION = "brain:compaction";
-export const JOB_BRAIN_DECAY = "brain:decay";
-// v1.1 cost optimization: per-fact async embedding (eager handler) +
-// periodic sweep (`mnemo.embed.batch`) that flushes unembedded facts
-// in batches of 100. See `apps/web/worker/embed-batch-job.ts`.
-export const JOB_MNEMO_EMBED_FACT = "mnemo.embed.fact";
-export const JOB_MNEMO_EMBED_BATCH = "mnemo.embed.batch";
-// v1.1 Layer 1 (Mnemosyne summary refresh): daily distillation cron
-// that pre-warms `mnemo_summary` rows so the foreground turn never
-// pays for an LLM round-trip. See apps/web/worker/summary-job.ts.
-export const JOB_MNEMO_SUMMARY = "mnemo.summary";
-// v1.2 memory drift detection: daily per-workspace snapshot of fact
-// counts, recall hit-rate, contradiction surface, extraction backlog
-// and embedding coverage. Persisted to `mnemo_health` and surfaced via
-// `GET /api/mnemo/health`. See apps/web/worker/health-job.ts.
-export const JOB_MNEMO_HEALTH = "mnemo.health";
-// v1.2 janitor crons — weekly memory maintenance.
-// dedup: semantic merge of near-duplicates (cosine >= 0.92).
-// prune: archive facts with hit_count=0 + age > 90d + relevance < 0.1.
-// Both write to mnemo_fact_archive. See apps/web/worker/{dedup,prune}-job.ts.
-export const JOB_MNEMO_DEDUP = "mnemo.janitor.dedup";
-export const JOB_MNEMO_PRUNE = "mnemo.janitor.prune";
-// v1.3 active-learning crons — daily.
-// review.sweep: scans for confidence<0.5 inactive facts and enqueues
-// them into mnemo_review_queue (reason='low_confidence').
-// auto-pin: evaluates the rule set in mnemosyne's decideAutoPin
-// against active facts and pins the matches, stamping
-// metadata.auto_pinned = {rule, at}. Honours the user-override flag
-// metadata.auto_pinned_overridden = true (set when the user unpins
-// an auto-pinned row).
-// See apps/web/worker/{review-sweep,auto-pin}-job.ts.
-export const JOB_MNEMO_REVIEW_SWEEP = "mnemo.review.sweep";
-export const JOB_MNEMO_AUTO_PIN = "mnemo.auto-pin";
-// v1.4 REM-style nightly consolidation. Once a week (Sunday 02:00
-// UTC, BEFORE the janitor at 03:00) the cron clusters related facts
-// per workspace (same subject + kind + cosine >= 0.75, size >= 4),
-// asks the cheap-tier LLM to write a one-sentence consolidated
-// summary, and stamps `derived_from` edges from members to the
-// summary. See `apps/web/worker/consolidation-job.ts`.
-export const JOB_MNEMO_CONSOLIDATION = "mnemo.consolidation";
-// v1.1 #20 — message-grain backfill sweeper. Weekly cursor-resumable
-// cron (Sunday 01:00 UTC, BEFORE consolidation at 02:00) that
-// re-examines conversations skipped by the strict live prefilter
-// (`shouldExtract` returning false) and re-enqueues them for LLM
-// extraction using a more permissive threshold
-// (`shouldExtractBackfill`). Conversations with existing successful
-// extractions are skipped. See `apps/web/worker/mnemo-sweeper-job.ts`.
-export const JOB_MNEMO_SWEEPER = "mnemo.sweeper.backfill";
-// v2 — Episode-id backfill (migration 0048+0051). Stamps every
-// mnemo_fact.episode_id NULL row with a deterministic synthetic
-// episode id. Daily 04:15 UTC so it runs OUTSIDE the consolidation
-// window. See apps/web/worker/episode-backfill-job.ts.
-export const JOB_MNEMO_EPISODE_BACKFILL = "mnemo.episode.backfill";
-// v2 — Cross-workspace org-level consolidation. Weekly Sunday 02:30
-// UTC (after per-workspace consolidation at 02:00, before the
-// janitor at 03:00). Gated by MNEMO_ENABLE_CROSS_WORKSPACE_CONSOLIDATION
-// env var. See apps/web/worker/org-consolidation-job.ts.
-export const JOB_MNEMO_ORG_CONSOLIDATION = "mnemo.consolidation.org";
+// Phase 3 (2026-06-05): every JOB_BRAIN_* and JOB_MNEMO_* used to be
+// registered here for the in-process workers. After the service
+// extraction those crons run inside @mnemosyne/server and are not
+// orchester's concern. The names are intentionally not re-exported —
+// any host code that still references them would be dead code and
+// will fail to import, signalling it should be deleted or rewritten.
 export const JOB_KB_REINDEX = "kb:reindex";
 export const JOB_WEBHOOK_DELIVER = "webhook:deliver";
 export const JOB_USAGE_AGGREGATE = "usage:aggregate";
@@ -283,21 +230,6 @@ export const ALL_QUEUES: readonly string[] = [
   JOB_FLOW_RUN,
   JOB_FLOW_REAP,
   JOB_KB_INGEST,
-  JOB_BRAIN_EXTRACT,
-  JOB_BRAIN_COMPACTION,
-  JOB_BRAIN_DECAY,
-  JOB_MNEMO_EMBED_FACT,
-  JOB_MNEMO_EMBED_BATCH,
-  JOB_MNEMO_SUMMARY,
-  JOB_MNEMO_HEALTH,
-  JOB_MNEMO_DEDUP,
-  JOB_MNEMO_PRUNE,
-  JOB_MNEMO_REVIEW_SWEEP,
-  JOB_MNEMO_AUTO_PIN,
-  JOB_MNEMO_CONSOLIDATION,
-  JOB_MNEMO_SWEEPER,
-  JOB_MNEMO_EPISODE_BACKFILL,
-  JOB_MNEMO_ORG_CONSOLIDATION,
   JOB_KB_REINDEX,
   JOB_WEBHOOK_DELIVER,
   JOB_USAGE_AGGREGATE,
