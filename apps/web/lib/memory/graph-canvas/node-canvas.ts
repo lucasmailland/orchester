@@ -4,8 +4,8 @@
 
 import type { GraphNodeKind, GraphEntityKind } from "./types";
 
-export const NODE_RADIUS_MIN = 8;
-export const NODE_RADIUS_MAX = 28;
+export const NODE_RADIUS_MIN = 6;
+export const NODE_RADIUS_MAX = 18;
 
 export function nodeRadius(mentionCount: number, maxMentionCount: number): number {
   if (maxMentionCount === 0) return NODE_RADIUS_MIN;
@@ -72,12 +72,44 @@ export function drawNode(
       _drawCircle(ctx, x, y, r, color);
   }
 
-  if (globalScale >= 0.7) {
-    const fontSize = Math.max(8, 12 / globalScale);
+  if (globalScale >= 0.3) {
+    // Labels render in CANVAS COORDINATE space, but they must remain a
+    // constant SCREEN size as the viewport zooms. The transform from
+    // coord → screen is the `globalScale` multiplier, so to render an
+    // 11-screen-pixel label we draw 11 / globalScale in coord space.
+    const screenPx = 11;
+    const fontSize = Math.min(28, Math.max(6, screenPx / globalScale));
     ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, Inter, sans-serif`;
     ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const textWidth = ctx.measureText(label).width;
+    const padX = fontSize * 0.45;
+    const padY = fontSize * 0.25;
+    const labelY = y + r + fontSize * 0.9 + 4;
+    // Backdrop pill keeps the label legible when neighbouring nodes
+    // crowd the label band — without it, dense clusters look like
+    // text soup.
+    ctx.fillStyle = "rgba(8, 8, 12, 0.78)";
+    ctx.beginPath();
+    const w = textWidth + padX * 2;
+    const h = fontSize + padY * 2;
+    const rx = Math.min(h / 2, 6);
+    const sx = x - w / 2;
+    const sy = labelY - h / 2;
+    ctx.moveTo(sx + rx, sy);
+    ctx.lineTo(sx + w - rx, sy);
+    ctx.arcTo(sx + w, sy, sx + w, sy + rx, rx);
+    ctx.lineTo(sx + w, sy + h - rx);
+    ctx.arcTo(sx + w, sy + h, sx + w - rx, sy + h, rx);
+    ctx.lineTo(sx + rx, sy + h);
+    ctx.arcTo(sx, sy + h, sx, sy + h - rx, rx);
+    ctx.lineTo(sx, sy + rx);
+    ctx.arcTo(sx, sy, sx + rx, sy, rx);
+    ctx.closePath();
+    ctx.fill();
     ctx.fillStyle = "#fafafa";
-    ctx.fillText(label, x, y + r + fontSize + 2);
+    ctx.fillText(label, x, labelY);
+    ctx.textBaseline = "alphabetic";
   }
 
   if (selected) {
@@ -102,12 +134,12 @@ function _drawAura(
   memoryStrength: number,
   now: number
 ): void {
-  const baseOpacity = (memoryStrength / 5.0) * 0.18;
+  const baseOpacity = (memoryStrength / 5.0) * 0.14;
   if (baseOpacity < 0.01) return;
   const pulse = Math.sin((now / 2000) * Math.PI) * 0.2 + 0.8;
   for (const [ring_r, opMult] of [
-    [r + 8, 1.0],
-    [r + 18, 0.5],
+    [r + 4, 1.0],
+    [r + 9, 0.5],
   ] as [number, number][]) {
     ctx.beginPath();
     ctx.arc(x, y, ring_r, 0, 2 * Math.PI);

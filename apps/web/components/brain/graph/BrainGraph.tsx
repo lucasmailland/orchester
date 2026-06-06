@@ -42,6 +42,15 @@ export function BrainGraph() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
+  // Imperative handle on the ForceGraph instance so we can call
+  // `zoomToFit` after the d3-force simulation settles AND tune the
+  // d3-force parameters (charge/link distance). The ref type is
+  // intentionally loose — react-force-graph's strict ForceGraphMethods
+  // type doesn't survive the `dynamic()` barrel used to ship the
+  // canvas bundle client-only.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fgRef = useRef<any>(null);
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -59,6 +68,31 @@ export function BrainGraph() {
     }),
     [graphData, filteredNodeIds, filteredEdgeIds]
   );
+
+  // Tune d3-force after each (re)render of the graph data so layout
+  // stays readable. Defaults are very tight (linkDistance≈30,
+  // charge≈-30) which produces the "all-overlapped-in-one-corner"
+  // rendering reported in the live audit. The numbers below are
+  // tuned for 6–60 entities and degrade gracefully as the workspace
+  // grows.
+  useEffect(() => {
+    const fg = fgRef.current;
+    if (!fg || typeof fg.d3Force !== "function") return;
+    // Stronger repulsion + longer links so labels (which extend
+    // ~50px below each node) don't end up colliding with the next
+    // node's body. react-force-graph bundles d3-force internally,
+    // so we can't easily inject a new collision force from
+    // userland — instead we lean on charge/link to do the work.
+    const charge = fg.d3Force("charge");
+    if (charge && typeof charge.strength === "function") charge.strength(-1200);
+    const link = fg.d3Force("link");
+    if (link && typeof link.distance === "function") link.distance(220);
+    // Weaken the link pull so charge wins and tightly-connected
+    // clusters don't collapse on top of each other. d3 default is
+    // ~1 / nodeDegree; we clamp lower to give breathing room.
+    if (link && typeof link.strength === "function") link.strength(0.2);
+    if (typeof fg.d3ReheatSimulation === "function") fg.d3ReheatSimulation();
+  }, [filteredGraphData]);
 
   // Status bar reflects the FILTERED view, not the full server payload, so the
   // counts track the chips/slider/search the operator has applied.
@@ -167,6 +201,7 @@ export function BrainGraph() {
       <BrainGraphViewToggle is3D={is3D} onChange={setIs3D} />
 
       <ForceGraph
+        ref={fgRef}
         graphData={filteredGraphData}
         onNodeClick={handleNodeClick}
         onBackgroundClick={handleBackgroundClick}
@@ -174,6 +209,18 @@ export function BrainGraph() {
         nodeId="id"
         linkSource="source"
         linkTarget="target"
+        // Once the d3-force simulation settles, auto-fit the viewport
+        // so EVERY node is visible with a small padding. Without this
+        // the first render dumps the layout wherever d3 happened to
+        // place it on tick 0 — which on small graphs is a tight pile.
+        onEngineStop={() => {
+          // Padding 120 keeps small graphs (6–10 nodes) at a sensible
+          // zoom — without it the auto-fit slams the viewport so close
+          // that the labels feel oversized relative to the canvas.
+          fgRef.current?.zoomToFit?.(400, 120);
+        }}
+        cooldownTicks={120}
+        warmupTicks={40}
         {...(is3D
           ? {
               nodeColor: (n: unknown) => {
