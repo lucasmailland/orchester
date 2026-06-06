@@ -4,6 +4,14 @@
 import { render, cleanup } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// next-intl is not exercised by anything we assert on; the registry
+// surface is the contract. Stub `useTranslations` to a passthrough so
+// the component can mount without a NextIntlClientProvider wrapper.
+// Mirrors the pattern in TourProvider.test.tsx.
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 import {
   TourSpot,
   __resetTourSpotRegistryForTests,

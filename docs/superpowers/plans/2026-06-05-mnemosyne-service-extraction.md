@@ -421,14 +421,33 @@ docker compose up -d
   - **Tramo 4** (`79834a9`, `29d64ed`) — 10 endpoints: facts list/patch/citations + decisions writes + relations CRUD + review enqueue.
   - **Tramo 5** (`332f5ce`, `13ebc49`) — `GET /v1/facts` extended with FTS + keyset cursor + asOf, plus the remaining 6 orchester facts routes (`GET/PATCH /api/mnemo/facts/[id]`, pin, unpin, forget, citations).
 - 2026-06-05 — **Polish pass:** centralised `getMnemoMode` + `MnemoMode` in `@/lib/mnemo/client`, standardised on `safeLogError`, restored the audit-endpoint unit test to point at the helper (now 7/7 green). `X-Mnemo-Mode` header stamped on every dual-mode response so operators can confirm which path served a request.
+- 2026-06-05 — **Phase A boot complete (self-hosted).** Mnemosyne stack running locally via `vendor/mnemosyne/docker/docker-compose.yml`:
+  - `mnemosyne-postgres` (pgvector/pgvector:pg17, port 55434, vol `mnemosyne-pgdata`) — 17 mnemo_* tables migrated (33/33 migrations applied)
+  - `mnemosyne-server` (Hono + @mnemosyne/core, port 3939) — `/healthz` returns 200
+  - First API key minted: `mns_live_mvdjrcqv45tzwf6nh358cs0w` (workspace `ws_orchester`, label `orchester-local`)
+  - `MNEMO_URL=http://localhost:3939` + `MNEMO_API_KEY=...` set in `apps/web/.env.local` — orchester now routes the 17 dual-mode endpoints through HTTP service mode
+  - Smoke E2E (curl) verified on `/v1/facts`, `/v1/entities`, `/v1/review`, `/v1/graph` — all 200, empty workspace as expected
+  - Stack is 100% self-hosted, open source (pgvector + Hono), no third-party SaaS
 
 **What's intentionally NOT migrated** (15 routes, host-domain by design): `admin/*` (7), `cron-schedules/*` (2), `decisions/[traceId]` (BOM joins host `audit_log`), `health/*` (2), `recall-debug` (kbProvider closure), `recall-unified` (hot path with rate-limit + audit emission), `settings`.
 
-**Open next steps** (post-Phase-2, optional polish):
-- Deploy `@mnemosyne/server` to production and wire `MNEMO_URL` / `MNEMO_API_KEY` on orchester-web (today everything runs in library mode in prod).
-- Smoke E2E that runs the suite with `MNEMO_URL` set and asserts parity with library mode (snapshot diff).
-- Upstream Tramo 6: add `?projection=rich` to `GET /v1/facts/:id` so `getWorkspaceFact` doesn't fall back to `listFacts({limit:500}).find()` in service mode.
-- Upstream Tramo 6: add `metadataPatch` (jsonb merge/delete) to `PATCH /v1/facts/:id` so pin/unpin collapse to one round-trip.
+**Operating the stack:**
+```bash
+cd vendor/mnemosyne/docker
+docker compose up -d                # start (postgres + migrate + server)
+docker compose logs -f server       # tail server logs
+docker compose exec server \
+  node scripts/create-api-key.cjs --workspace ws_orchester --label "<env>"  # mint new key
+docker compose down                 # stop (data persisted in mnemosyne-pgdata volume)
+docker compose down -v              # stop + wipe data (irreversible)
+```
+
+**Open next steps** (Phase 3 → Phase 4, the multi-week conservative path):
+- **Week 1**: Run orchester in dual-mode with `MNEMO_URL` set. Every dual-mode helper goes through HTTP. Library mode still available as fallback. Observe X-Mnemo-Mode logs.
+- **Week 2-3**: Build the Phase 3 data-migration script (`apps/web/scripts/mnemo-data-migrate.ts`): export from orchester DB's `mnemo_*` tables → import into mnemosyne service's `mnemo_*` tables. Includes dry-run + row-count assertion + rollback.
+- **Week 4-5**: Cut over the OTHER ~25 files that still import `@mnemosyne/core` directly (agent-runtime, recall-unified, mcp/server, 10 workers, 5 host-domain routes, brain extractors). Each becomes a service-mode caller.
+- **Week 6+**: Phase 4 — drop `@mnemosyne/core` peer dep from orchester; final migration drops `mnemo_*` tables from orchester's Postgres.
+- **Upstream Tramo 6** (independent polish): `GET /v1/facts/:id?projection=rich` + `PATCH /v1/facts/:id` `metadataPatch`.
 
 ---
 

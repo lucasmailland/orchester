@@ -104,6 +104,9 @@ const ALLOWLIST = new Set<string>([
   // HMAC-signed GDPR export download — the token carries the storage
   // key + expiry, verified constant-time. No session needed.
   "exports/[token]/route.ts",
+  // Compass "What's new" — public CHANGELOG passthrough. The CHANGELOG
+  // ships in the repo, no DB access, no per-workspace data path.
+  "compass/whats-new/route.ts",
 ]);
 
 /**

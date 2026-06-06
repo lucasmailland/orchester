@@ -16,6 +16,10 @@ export default defineConfig({
     // without masking actual hangs.
     hookTimeout: 60_000,
     testTimeout: 60_000,
+    // Playwright e2e specs (under __tests__/e2e/) are a Playwright runner
+    // concern, not vitest's. Excluding them here keeps `vitest run` clean
+    // without disabling their normal Playwright workflow.
+    exclude: ["node_modules/**", "dist/**", ".next/**", "**/__tests__/e2e/**"],
   },
   resolve: {
     alias: {
