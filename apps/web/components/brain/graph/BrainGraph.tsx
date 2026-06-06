@@ -9,8 +9,8 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 // Client-safe subpath — canvas/types only, never the server DB query (which
 // would drag the Postgres driver into this client bundle).
-import { drawNode, drawEdge, nodeRadius, ENTITY_KIND_COLOR } from "@/lib/brain/graph-canvas";
-import type { GraphNode } from "@/lib/brain/graph-canvas";
+import { drawNode, drawEdge, nodeRadius, ENTITY_KIND_COLOR } from "@/lib/memory/graph-canvas";
+import type { GraphNode } from "@/lib/memory/graph-canvas";
 import { useBrainGraph } from "@/lib/hooks/use-brain-graph";
 import { useGraphFilters } from "@/lib/hooks/use-graph-filters";
 import { BrainGraphFilters } from "./BrainGraphFilters";

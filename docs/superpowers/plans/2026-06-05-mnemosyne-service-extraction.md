@@ -1,5 +1,11 @@
 # Mnemosyne Service Extraction — Implementation Plan
 
+> **STATUS: ✅ DONE (2026-06-05)** — All phases shipped. Orchester runs zero
+> `@mnemosyne/core` code; every memory operation flows through the
+> `@mnemosyne/client-ts` SDK to a self-hosted `@mnemosyne/server`
+> (Docker, pgvector). 9k+ lines of legacy in-process code removed in
+> the final surgical cleanup commit. Tests: 342 passing.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Date:** 2026-06-05

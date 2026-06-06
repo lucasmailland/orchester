@@ -4,8 +4,8 @@ import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { X, Target, ArrowRight } from "lucide-react";
 import { Button } from "@heroui/react";
-import type { GraphNode } from "@/lib/brain/graph-canvas";
-import { ENTITY_KIND_COLOR } from "@/lib/brain/graph-canvas";
+import type { GraphNode } from "@/lib/memory/graph-canvas";
+import { ENTITY_KIND_COLOR } from "@/lib/memory/graph-canvas";
 
 const KIND_ICONS: Record<string, string> = {
   person: "●",
