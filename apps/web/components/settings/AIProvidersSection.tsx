@@ -100,19 +100,18 @@ export function AIProvidersSection({ workspaceSlug }: AIProvidersSectionProps) {
       .finally(() => setLoading(false));
   }, []);
 
-  // "Connected" semantics: a row exists AND it's enabled. A row that exists
-  // but has `enabled=false` is a paused/disabled provider — surfaced under
-  // the Connected heading too (the user already configured it) but with a
-  // distinct status badge in the card itself.
+  // "Connected" semantics: only providers with an enabled row are
+  // considered connected. A disabled row carries no value for the user
+  // (they can't chat with it, can't recall through it) so it does NOT
+  // surface under the Connected heading. The provider goes back to the
+  // "Available" list below; the previously-saved row stays in the DB
+  // until the user explicitly connects again (re-enable) or removes it
+  // via the edit panel.
   const connectedIds = useMemo(
     () => new Set(rows.filter((r) => r.enabled).map((r) => r.provider)),
     [rows]
   );
-  const pausedIds = useMemo(
-    () => new Set(rows.filter((r) => !r.enabled).map((r) => r.provider)),
-    [rows]
-  );
-  const connected = PROVIDERS.filter((p) => connectedIds.has(p.id) || pausedIds.has(p.id));
+  const connected = PROVIDERS.filter((p) => connectedIds.has(p.id));
 
   const q = query.trim().toLowerCase();
   const matches = (p: ProviderDef) => {
@@ -425,10 +424,10 @@ function ProviderCard({
     }
   }
 
-  // A row that exists but is disabled is "Paused" — distinct from never
-  // having connected (no row at all) AND distinct from a healthy connection.
+  // Only an enabled row counts as connected. A disabled row is shown in
+  // the "Available" grid below as if no row existed; the Connect action
+  // re-enables it (and prompts the user to refresh the key if needed).
   const connected = !!row && row.enabled;
-  const paused = !!row && !row.enabled;
 
   // Impact rows for the ConfirmAction dialog. We do NOT fabricate counts —
   // when the local row knows the model count we surface it; otherwise we
@@ -472,10 +471,10 @@ function ProviderCard({
               <span
                 className={cn(
                   "h-1.5 w-1.5 rounded-full",
-                  connected ? "bg-emerald-400" : paused ? "bg-amber-400" : "bg-zinc-600/60"
+                  connected ? "bg-emerald-400" : "bg-zinc-600/60"
                 )}
               />
-              {connected ? t("connected") : paused ? t("paused") : t("notConnected")}
+              {connected ? t("connected") : t("notConnected")}
               {def.kind === "aggregator" && <span className="text-faint">· {t("aggregator")}</span>}
               {def.kind === "local" && <span className="text-faint">· {t("local")}</span>}
             </div>
