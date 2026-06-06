@@ -1,6 +1,6 @@
 # ADR-016 — Brain Core recall: hybrid scoring
 
-Date: 2026-05-24 · Status: Accepted
+Date: 2026-05-24 · Status: Superseded by ADR-020 (Mnemosyne) on 2026-05-24, fully retired on 2026-06-05 (Phase 3 cut-over)
 
 ## Context
 

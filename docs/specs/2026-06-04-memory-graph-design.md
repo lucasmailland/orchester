@@ -1,8 +1,30 @@
 # Memory Graph — Design Spec
 
-**Date:** 2026-06-04  
-**Status:** Approved  
+**Date:** 2026-06-04
+**Status:** ✅ SHIPPED — implementation live in production
 **Author:** Claude + Lucas Mailland
+
+> **Implementation note (post Phase 3, 2026-06-05).** This spec was
+> written when `@mnemosyne/core` was an in-process workspace package.
+> The feature shipped as described, then the cut-over to the
+> standalone `@mnemosyne/server` HTTP service moved the graph module
+> upstream. Current locations:
+>
+> - **Graph module (framework-agnostic):**
+>   `vendor/mnemosyne/packages/core/src/graph/` (consumed via the
+>   `@mnemosyne/client-ts` SDK, which exposes the same `GraphResponse`
+>   shape this spec defines).
+> - **API route:**
+>   `apps/web/app/api/workspaces/[slug]/brain/graph/route.ts`
+>   (delegates to `lib/mnemo/graph.fetchWorkspaceGraph()`, which calls
+>   `client.graph()`).
+> - **React adapter:** `apps/web/components/brain/graph/*` and
+>   `apps/web/lib/memory/graph-canvas/*` (renamed from `lib/brain/`
+>   during Phase 3 cleanup).
+>
+> The visual contract (entity-kind shape/color table, edge styles,
+> Memory Aura, filter UX) is preserved verbatim — the cut-over only
+> changed where the data comes from, not what the user sees.
 
 ---
 

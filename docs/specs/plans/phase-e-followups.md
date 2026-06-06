@@ -1,5 +1,10 @@
 # Phase E follow-ups
 
+> **STATUS: ✅ CLOSED.** All 26 follow-up items are either **Shipped**
+> in `tenant-hardening-v1.2` or marked **Won't fix** with a documented
+> rationale. Zero items remain in the **Open** column. Kept as
+> historical context for the Phase E migration.
+
 State after `tenant-hardening-v1.2`. Items are tracked across three
 columns: **Shipped** (already in main), **Open** (still to do), and
 **Won't fix** (explicitly out of scope).
