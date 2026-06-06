@@ -66,13 +66,13 @@ describe("getMnemoClient()", () => {
   it("throws fail-loud when MNEMO_URL is missing", async () => {
     process.env["MNEMO_API_KEY"] = "mns_live_test_dummy";
     const mod = await import("@/lib/mnemo/client");
-    expect(() => mod.getMnemoClient()).toThrow(/MNEMO_URL and MNEMO_API_KEY must be set/);
+    expect(() => mod.getMnemoClient()).toThrow(/MNEMO_URL and MNEMO_API_KEY are required/);
   });
 
   it("throws fail-loud when MNEMO_API_KEY is missing", async () => {
     process.env["MNEMO_URL"] = "http://localhost:3939";
     const mod = await import("@/lib/mnemo/client");
-    expect(() => mod.getMnemoClient()).toThrow(/MNEMO_URL and MNEMO_API_KEY must be set/);
+    expect(() => mod.getMnemoClient()).toThrow(/MNEMO_URL and MNEMO_API_KEY are required/);
   });
 
   it("constructs and returns the same singleton across calls", async () => {
