@@ -7,7 +7,7 @@ import { useMemo } from "react";
 import useSWR from "swr";
 import { useParams } from "next/navigation";
 // Client-safe subpath — pulls ONLY types/canvas, never the server DB query.
-import type { GraphResponse, GraphNode, GraphEdge } from "@mnemosyne/core/graph";
+import type { GraphResponse, GraphNode, GraphEdge } from "@/lib/brain/graph-canvas";
 
 export interface ForceGraphData {
   nodes: (GraphNode & { val: number })[];

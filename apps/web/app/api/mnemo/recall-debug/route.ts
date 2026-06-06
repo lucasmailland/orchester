@@ -40,7 +40,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
-import { recallUnified, withMnemoTx, type RecallMetricEvent } from "@mnemosyne/core";
+import { recallUnified, withMnemoTx, type RecallMetricEvent } from "@/lib/dead-mnemo-stubs";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { makeKbChunkProvider } from "@/lib/recall-unified";

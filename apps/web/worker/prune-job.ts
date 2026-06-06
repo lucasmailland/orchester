@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck — Phase 3 dead worker. Prune logic lives in mnemosyne-server.
 // apps/web/worker/prune-job.ts
 //
 // Mnemosyne v1.2 — "The Janitor": weekly inactive-fact prune cron.
@@ -23,7 +25,7 @@
 // which this file deliberately never names).
 import "server-only";
 import { sql } from "drizzle-orm";
-import { findPruneCandidates, pruneFacts, withMnemoTx, type Tx } from "@mnemosyne/core";
+import { findPruneCandidates, pruneFacts, withMnemoTx, type Tx } from "@/lib/dead-mnemo-stubs";
 import { safeLogError } from "@/lib/safe-log";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 import { CRON_JOBS, shouldRunForWorkspace, markRanForWorkspace } from "@/lib/mnemo/cron-policy";

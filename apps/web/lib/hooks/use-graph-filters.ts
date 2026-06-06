@@ -5,7 +5,7 @@
 import { useState, useMemo, useCallback } from "react";
 // Client-safe subpath — types only here, but import from /graph so this module
 // never transitively references the server DB query layer.
-import type { GraphNode, GraphEdge } from "@mnemosyne/core/graph";
+import type { GraphNode, GraphEdge } from "@/lib/brain/graph-canvas";
 
 export const ALL_NODE_KINDS = [
   "person",

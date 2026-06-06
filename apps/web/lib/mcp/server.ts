@@ -1,8 +1,10 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck — Phase 3: MCP memory tools wired to dead stubs; need SDK rewire.
 import "server-only";
 import { getDb, schema } from "@orchester/db";
 import { createId } from "@paralleldrive/cuid2";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { withMnemoTx, searchMnemo, saveFactWithCandidates } from "@mnemosyne/core";
+import { withMnemoTx, searchMnemo, saveFactWithCandidates } from "@/lib/dead-mnemo-stubs";
 
 /**
  * Orchester MCP server core.

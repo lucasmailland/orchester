@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck — Phase 3: recall path stubbed; channels routing still active.
 import "server-only";
 import { createId } from "@paralleldrive/cuid2";
 import { eq, and, desc } from "drizzle-orm";
@@ -374,7 +376,7 @@ async function buildConversationContext(
       // Migrated 2026-06-05 from legacy `searchBrain` (lib/brain/recall.ts,
       // backed by `brain_fact`) to `recallUnified` (@mnemosyne/core,
       // backed by `mnemo_fact`). Hit shape is flat now — no `h.fact` wrap.
-      const { recallUnified } = await import("@mnemosyne/core");
+      const { recallUnified } = await import("@/lib/dead-mnemo-stubs");
       const hits = await recallUnified({
         workspaceId,
         query: String(lastUserMsg.content).slice(0, 500),

@@ -11,7 +11,7 @@ import {
   syntheticEpisodeIdForMessageTurn,
   syntheticEpisodeIdForDocument,
   syntheticEpisodeIdForDay,
-} from "@mnemosyne/core";
+} from "@/lib/dead-mnemo-stubs";
 
 // ── Verificación del contrato que asume el backfill cron ────────────────────
 //

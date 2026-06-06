@@ -2,11 +2,9 @@
 //
 // Singleton @mnemosyne/client-ts accessor for the server runtime.
 //
-// Phase 2 of the mnemosyne-service-extraction plan migrates each
-// in-process call to `@mnemosyne/core` over to an HTTP call against the
-// `@mnemosyne/server` instance pointed to by `MNEMO_URL`. This helper
-// is the single entry point — every route, worker, and library that
-// reaches the SDK MUST go through `getMnemoClient()` so we:
+// Post Phase 3/4: orchester talks to mnemosyne EXCLUSIVELY over HTTP.
+// There is no in-process library fallback. Every route, worker, and
+// library that reaches the SDK MUST go through `getMnemoClient()` so we:
 //
 //   1. Construct the underlying `MnemosyneClient` exactly once per
 //      process (the SDK keeps an internal fetch keep-alive agent that
@@ -16,34 +14,23 @@
 //   3. Have one place to swap the implementation (e.g. for an
 //      in-process mock during the migration, or for a different
 //      transport later).
-//
-// Until Phase 3 of the plan (data migration) completes, the in-process
-// `@mnemosyne/core` path stays available as a fallback — the 17 routes
-// migrated in tramos 1-5 pick HTTP when `MNEMO_URL`+`MNEMO_API_KEY` are
-// set, library otherwise. Removing the library fallback entirely is
-// gated on Phase 3+4 of the plan (data migration + drop tables).
 import "server-only";
 import { MnemosyneClient } from "@mnemosyne/client-ts";
 
 /**
- * Whether the dual-mode helpers should call out over HTTP (service)
- * or run the in-process `@mnemosyne/core` library path (library).
- *
- * Centralised here so every helper under `apps/web/lib/mnemo/*.ts`
- * reads the SAME logic. When `MNEMO_URL` / `MNEMO_API_KEY` setup
- * changes (e.g. multi-region routing, fallback rules), there's
- * exactly one place to update.
+ * Observability label kept as a singleton "service" so the
+ * `X-Mnemo-Mode` response header keeps its operational signal. The
+ * legacy `library` value was retired when @mnemosyne/core was
+ * removed from orchester's runtime — every request is now HTTP.
  */
-export type MnemoMode = "service" | "library";
+export type MnemoMode = "service";
 
 /**
- * Read the active dual-mode at runtime. Service mode is selected
- * iff BOTH env vars are present and truthy. Anything else (missing
- * either var, both blank) falls through to library mode — by design,
- * so a partial deploy can't half-wire the SDK.
+ * Always `"service"` now. Kept as a function (not a constant) so
+ * existing call sites stay unchanged.
  */
 export function getMnemoMode(): MnemoMode {
-  return process.env["MNEMO_URL"] && process.env["MNEMO_API_KEY"] ? "service" : "library";
+  return "service";
 }
 
 let _client: MnemosyneClient | undefined;
@@ -51,8 +38,7 @@ let _client: MnemosyneClient | undefined;
 /**
  * Returns the shared MnemosyneClient instance, constructing it on
  * first call. Throws at boot if `MNEMO_URL` or `MNEMO_API_KEY` is
- * missing — service-mode callers should only call this after checking
- * `getMnemoMode() === "service"`.
+ * missing — orchester REQUIRES a configured Mnemosyne service to run.
  */
 export function getMnemoClient(): MnemosyneClient {
   if (_client) return _client;
@@ -62,10 +48,11 @@ export function getMnemoClient(): MnemosyneClient {
 
   if (!url || !apiKey) {
     throw new Error(
-      "[mnemosyne/client] MNEMO_URL and MNEMO_API_KEY must be set to use the HTTP SDK. " +
-        "Point this at a running @mnemosyne/server — self-host with " +
-        "`docker compose up -d` in vendor/mnemosyne/docker, or pull a " +
-        "release image from ghcr.io/lucasmailland/mnemosyne-server."
+      "[mnemosyne/client] MNEMO_URL and MNEMO_API_KEY are required. " +
+        "Orchester no longer ships an in-process memory engine — point it at " +
+        "a running @mnemosyne/server (self-host with `docker compose up -d` " +
+        "in vendor/mnemosyne/docker, or pull a release image from " +
+        "ghcr.io/lucasmailland/mnemosyne-server)."
     );
   }
 

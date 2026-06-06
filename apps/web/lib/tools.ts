@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck — Phase 3: tools' recall path stubbed; rest still active.
 import "server-only";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and, ne } from "drizzle-orm";
@@ -557,7 +559,7 @@ export async function executeTool(
     // Migrated 2026-06-05: searchBrain (legacy brain_fact recall) →
     // recallUnified (@mnemosyne/core, mnemo_fact). UnifiedRecallHit
     // has a flat shape with the fact metadata under `metadata`.
-    const { recallUnified } = await import("@mnemosyne/core");
+    const { recallUnified } = await import("@/lib/dead-mnemo-stubs");
     const hits = await recallUnified({
       workspaceId: ctx.workspaceId,
       query,

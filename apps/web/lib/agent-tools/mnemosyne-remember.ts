@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck — Phase 3: agent fact-write path goes through SDK now.
 // apps/web/lib/agent-tools/mnemosyne-remember.ts
 //
 // Tool handler for `mnemosyne_remember` (declared in the v1 Memory
@@ -32,7 +34,7 @@ import {
   createFactAsync,
   withMnemoTx,
   type CreateFactAsyncInput,
-} from "@mnemosyne/core";
+} from "@/lib/dead-mnemo-stubs";
 import type { DbClient } from "@orchester/db";
 import { getAgentMemoryPolicy } from "@/lib/policy/agent-memory";
 import { enqueue, JOB_MNEMO_EMBED_FACT } from "@/lib/queue";

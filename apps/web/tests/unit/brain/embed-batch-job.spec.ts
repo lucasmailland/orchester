@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck — Phase 3 dead test (covers the legacy library path).
 // apps/web/tests/unit/brain/embed-batch-job.spec.ts
 //
 // Unit-level coverage for the constants + payload contract surface

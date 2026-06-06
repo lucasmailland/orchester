@@ -1,6 +1,6 @@
 "use client";
 import { useTranslations } from "next-intl";
-import { ENTITY_KIND_COLOR } from "@mnemosyne/core/graph";
+import { ENTITY_KIND_COLOR } from "@/lib/brain/graph-canvas";
 
 const NODE_LEGEND_KINDS = ["person", "organization", "project", "concept", "episode"] as const;
 

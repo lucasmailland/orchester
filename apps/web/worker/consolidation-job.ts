@@ -37,7 +37,7 @@ import {
   withMnemoTx,
   type ConsolidationCluster,
   type Tx,
-} from "@mnemosyne/core";
+} from "@/lib/dead-mnemo-stubs";
 import { llmCall } from "@/lib/llm-call";
 import { assertWithinSpend } from "@/lib/cost-alerts";
 import { recordAiUsage } from "@/lib/ai/run";

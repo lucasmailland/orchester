@@ -21,7 +21,7 @@
 import "server-only";
 import { sql } from "drizzle-orm";
 import { getDb } from "@orchester/db";
-import { getOrComputeSummary, type UserProfileSummary } from "@mnemosyne/core";
+import { getOrComputeSummary, type UserProfileSummary } from "@/lib/dead-mnemo-stubs";
 import { llmCall } from "@/lib/llm-call";
 import { assertWithinSpend } from "@/lib/cost-alerts";
 import { recordAiUsage } from "@/lib/ai/run";

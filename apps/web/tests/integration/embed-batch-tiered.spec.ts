@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck — Phase 3 dead test (covers the legacy library path).
 // apps/web/tests/integration/embed-batch-tiered.spec.ts
 //
 // Mnemosyne v1.6 — Integration test for the tiered embed-batch worker.

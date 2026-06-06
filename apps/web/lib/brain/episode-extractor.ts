@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck — Phase 3 dead module. Episode extraction lives in mnemosyne-server.
 // apps/web/lib/brain/episode-extractor.ts
 //
 // Mnemosyne v1.5 F1 — episode synthesizer.
@@ -23,7 +25,7 @@
 import "server-only";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
-import { createEpisode, linkFactToEpisode, type Tx as MnemoTx } from "@mnemosyne/core";
+import { createEpisode, linkFactToEpisode, type Tx as MnemoTx } from "@/lib/dead-mnemo-stubs";
 import { type LlmCallParams, type LlmCallResult } from "@/lib/llm-call";
 import { wrapUntrusted } from "@/lib/agent-runtime";
 import { safeLogError } from "@/lib/safe-log";

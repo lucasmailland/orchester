@@ -6,7 +6,7 @@
 // each "Run recall" click is an explicit fire, not a cached query.
 
 import { useCallback, useState } from "react";
-import type { RecallMetricEvent, UnifiedRecallHit } from "@mnemosyne/core";
+import type { RecallMetricEvent, UnifiedRecallHit } from "@/lib/dead-mnemo-stubs";
 
 export interface RecallDebugInput {
   query: string;

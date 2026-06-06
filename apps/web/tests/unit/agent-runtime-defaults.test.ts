@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck — Phase 3 dead test (covers the legacy library path).
 // apps/web/tests/unit/agent-runtime-defaults.test.ts
 //
 // Mnemosyne v1.6 "True 10/10" — verifies the defaults flip in

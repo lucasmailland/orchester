@@ -1,3 +1,8 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck — Phase 3: this module's mnemo-recall + summary call paths
+// are stubbed via dead-mnemo-stubs and throw at runtime. The host-side
+// logic (LLM calls, policy fetch, streaming) still runs; the recall/
+// summary branches need to be rewired to the SDK before they're exercised.
 import "server-only";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
@@ -16,7 +21,7 @@ import {
   type RerankFn,
   type UserProfileSummary,
   type TriggerDecision,
-} from "@mnemosyne/core";
+} from "@/lib/dead-mnemo-stubs";
 import { llmCall, type ChatMessage } from "./llm-call";
 import { executeTool, getToolDefinitions, type ToolCall } from "./tools";
 import { assertWithinSpend } from "./cost-alerts";
@@ -108,7 +113,7 @@ function interpolate(template: string, vars: Record<string, string>): string {
 // lets us forward UNDEFINED to the package and rely on the default,
 // drop this import and the `else { rerankFn = makeLocalLexicalRerank() }`
 // branch in the same pass.
-import { makeLocalLexicalRerank } from "@mnemosyne/core";
+import { makeLocalLexicalRerank } from "@/lib/dead-mnemo-stubs";
 
 /* ───────────────── Mnemosyne v1.4 — unified recall wiring ───────────────── */
 

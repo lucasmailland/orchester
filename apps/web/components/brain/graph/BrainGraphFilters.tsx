@@ -1,7 +1,7 @@
 "use client";
 import { Search } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { ENTITY_KIND_COLOR, EDGE_STYLES } from "@mnemosyne/core/graph";
+import { ENTITY_KIND_COLOR, EDGE_STYLES } from "@/lib/brain/graph-canvas";
 import { ALL_NODE_KINDS, ALL_EDGE_TYPES } from "@/lib/hooks/use-graph-filters";
 import type { GraphFiltersState } from "@/lib/hooks/use-graph-filters";
 

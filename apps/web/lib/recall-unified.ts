@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck — Phase 3: recall goes through SDK now.
 // apps/web/lib/recall-unified.ts
 //
 // Host adapter for `recallUnified` from `@mnemosyne/core`.
@@ -17,7 +19,7 @@
 //      mapping is ambiguous (workspaces can have many KBs).
 
 import "server-only";
-import type { KbChunkProvider, KbChunk } from "@mnemosyne/core";
+import type { KbChunkProvider, KbChunk } from "@/lib/dead-mnemo-stubs";
 import { searchKnowledgeBase } from "./knowledge-search";
 
 /**

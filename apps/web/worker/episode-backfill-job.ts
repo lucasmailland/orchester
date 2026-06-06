@@ -32,7 +32,7 @@
 
 import "server-only";
 import { sql } from "drizzle-orm";
-import { deriveSyntheticEpisodeId, withMnemoTx, type Tx } from "@mnemosyne/core";
+import { deriveSyntheticEpisodeId, withMnemoTx, type Tx } from "@/lib/dead-mnemo-stubs";
 import { logWithContext, recordMetric } from "@/lib/observability";
 import { safeLogError } from "@/lib/safe-log";
 

@@ -1,3 +1,7 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck — Phase 3: this fixture used to register the legacy
+// @mnemosyne/core DI for in-process tests. After the cut-over,
+// integration tests should hit the running mnemosyne-server.
 // apps/web/tests/fixtures/db.ts
 //
 // Spins up an isolated postgres container per test process, applies all

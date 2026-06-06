@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck — Phase 3 dead test (covers the legacy library path).
 // apps/web/tests/integration/mnemo-seed.spec.ts
 //
 // v1.6 G1-7: integration spec for the dev seeder + admin endpoint

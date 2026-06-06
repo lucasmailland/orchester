@@ -22,7 +22,7 @@ import {
   withMnemoTx,
   type HealthSnapshot,
   type Tx,
-} from "@mnemosyne/core";
+} from "@/lib/dead-mnemo-stubs";
 import { safeLogError } from "@/lib/safe-log";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 import { CRON_JOBS, shouldRunForWorkspace, markRanForWorkspace } from "@/lib/mnemo/cron-policy";

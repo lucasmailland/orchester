@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck — Phase 3 dead test (covers the legacy library path).
 // apps/web/tests/unit/brain/episode-extractor.spec.ts
 //
 // Mnemosyne v1.5 F1 — verifies the episode synthesizer.

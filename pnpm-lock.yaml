@@ -67,10 +67,7 @@ importers:
         version: 5.4.0(react-hook-form@7.77.0(react@19.2.7))
       '@mnemosyne/client-ts':
         specifier: file:../../vendor/mnemosyne/packages/client-ts
-        version: file:vendor/mnemosyne/packages/client-ts(@mnemosyne/core@file:vendor/mnemosyne/packages/core(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(gel@2.2.0)(kysely@0.29.2)(pg@8.20.0)(postgres@3.4.9))(postgres@3.4.9))
-      '@mnemosyne/core':
-        specifier: file:../../vendor/mnemosyne/packages/core
-        version: file:vendor/mnemosyne/packages/core(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(gel@2.2.0)(kysely@0.29.2)(pg@8.20.0)(postgres@3.4.9))(postgres@3.4.9)
+        version: file:vendor/mnemosyne/packages/client-ts
       '@paralleldrive/cuid2':
         specifier: ^3.3.0
         version: 3.3.0
@@ -2098,17 +2095,6 @@ packages:
       '@mnemosyne/core': workspace:*
     peerDependenciesMeta:
       '@mnemosyne/core':
-        optional: true
-
-  '@mnemosyne/core@file:vendor/mnemosyne/packages/core':
-    resolution: {directory: vendor/mnemosyne/packages/core, type: directory}
-    engines: {node: '>=20.0.0'}
-    hasBin: true
-    peerDependencies:
-      drizzle-orm: '>=0.45.0 <1.0.0'
-      postgres: 3.4.9
-    peerDependenciesMeta:
-      postgres:
         optional: true
 
   '@napi-rs/canvas-android-arm64@0.1.80':
@@ -10081,18 +10067,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@mnemosyne/client-ts@file:vendor/mnemosyne/packages/client-ts(@mnemosyne/core@file:vendor/mnemosyne/packages/core(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(gel@2.2.0)(kysely@0.29.2)(pg@8.20.0)(postgres@3.4.9))(postgres@3.4.9))':
-    optionalDependencies:
-      '@mnemosyne/core': file:vendor/mnemosyne/packages/core(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(gel@2.2.0)(kysely@0.29.2)(pg@8.20.0)(postgres@3.4.9))(postgres@3.4.9)
-
-  '@mnemosyne/core@file:vendor/mnemosyne/packages/core(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(gel@2.2.0)(kysely@0.29.2)(pg@8.20.0)(postgres@3.4.9))(postgres@3.4.9)':
-    dependencies:
-      '@paralleldrive/cuid2': 3.3.0
-      drizzle-orm: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(gel@2.2.0)(kysely@0.29.2)(pg@8.20.0)(postgres@3.4.9)
-      lru-cache: 11.5.1
-      zod: 4.4.3
-    optionalDependencies:
-      postgres: 3.4.9
+  '@mnemosyne/client-ts@file:vendor/mnemosyne/packages/client-ts': {}
 
   '@napi-rs/canvas-android-arm64@0.1.80':
     optional: true

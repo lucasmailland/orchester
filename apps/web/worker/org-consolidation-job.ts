@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck — Phase 3 dead worker. Org-level consolidation lives in mnemosyne-server.
 // apps/web/worker/org-consolidation-job.ts
 //
 // Mnemosyne v2 — Org-level (cross-workspace) consolidation cron.
@@ -34,8 +36,8 @@
 import "server-only";
 import { sql } from "drizzle-orm";
 import { withCrossTenantAdmin, type CrossTenantTx } from "@/lib/tenant/cron";
-import { clusterCrossWorkspace, type CrossWorkspaceFactInput } from "@mnemosyne/core";
-import { redactPIIWithCategories } from "@mnemosyne/core";
+import { clusterCrossWorkspace, type CrossWorkspaceFactInput } from "@/lib/dead-mnemo-stubs";
+import { redactPIIWithCategories } from "@/lib/dead-mnemo-stubs";
 import { logWithContext, recordMetric } from "@/lib/observability";
 import { safeLogError } from "@/lib/safe-log";
 import { createId } from "@paralleldrive/cuid2";

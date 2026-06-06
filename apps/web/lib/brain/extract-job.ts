@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck — Phase 3 dead module. Episode/fact extraction lives in mnemosyne-server.
 // apps/web/lib/brain/extract-job.ts
 //
 // pg-boss handler for JOB_BRAIN_EXTRACT. Loads the conversation slice,
@@ -39,13 +41,13 @@ import {
   type EntityCandidate,
   type EntityLlmCallFn,
   type MnemoEntity,
-} from "@mnemosyne/core";
+} from "@/lib/dead-mnemo-stubs";
 import { resolveSmallTierModel } from "./model-resolve";
 import { extractFacts } from "./extract";
 // v2.1 — warm-up gate. Skips extraction on workspaces that haven't
 // crossed the activity threshold yet. See lib/mnemo/warm-up.ts.
 import { checkWarmUp } from "@/lib/mnemo/warm-up";
-import { shouldExtract } from "@mnemosyne/core";
+import { shouldExtract } from "@/lib/dead-mnemo-stubs";
 import { withBrainTx } from "./store";
 import { extractEpisode } from "./episode-extractor";
 import { llmCall } from "@/lib/llm-call";

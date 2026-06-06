@@ -29,7 +29,7 @@
 // script enforces that pairing.
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { recallUnified, withMnemoTx } from "@mnemosyne/core";
+import { recallUnified, withMnemoTx } from "@/lib/dead-mnemo-stubs";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { makeKbChunkProvider } from "@/lib/recall-unified";

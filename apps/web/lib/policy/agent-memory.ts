@@ -31,7 +31,7 @@ import {
   DEFAULT_AGENT_MEMORY_POLICY,
   parseAgentMemoryPolicy,
   type AgentMemoryPolicy,
-} from "@mnemosyne/core";
+} from "@/lib/dead-mnemo-stubs";
 import { safeLogError } from "@/lib/safe-log";
 
 type WsDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
