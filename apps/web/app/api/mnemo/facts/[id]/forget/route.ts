@@ -5,15 +5,19 @@
 // removed from recall (the recall layer filters on status='active').
 // Use the matching `/restore` route to bring it back.
 //
+// Tramo 5 dual-mode: dispatch via `lib/mnemo/facts.forgetWorkspaceFact`.
+// Service mode uses upstream `forgetFact` (which ALSO closes the
+// bitemporal interval — `valid_to = now()`); library mode keeps the
+// legacy semantics of flipping status only. The UI treats both
+// identically (status='forgotten' → "Forgotten" badge).
+//
 // RBAC: editor+.
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
-import { schema, type DbClient } from "@orchester/db";
-import { withMnemoTx } from "@mnemosyne/core";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
+import { forgetWorkspaceFact } from "@/lib/mnemo/facts";
 
 export const dynamic = "force-dynamic";
 
@@ -26,29 +30,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const parsed = await parseBody(req, forgetBodySchema);
   if (!parsed.ok) return parsed.response;
 
-  const updated = await withMnemoTx(ctx.workspace.id, async (tx) => {
-    const _tx = tx as unknown as DbClient;
-    // Schema bridge: withMnemoTx types tx against @mnemosyne/core's schema, but this
-    // file uses @orchester/db's schema objects. Drizzle's fluent builder (.update/.set/.where)
-    // uses SQL column name strings, not schema identity, so generated SQL is identical.
-    // Safe for fluent builder only — never use db.query.* on _tx. See instrumentation-node.ts.
-    const rows = await _tx
-      .update(schema.mnemoFacts)
-      .set({ status: "forgotten", updatedAt: new Date() })
-      .where(and(eq(schema.mnemoFacts.id, id), eq(schema.mnemoFacts.workspaceId, ctx.workspace.id)))
-      .returning({
-        id: schema.mnemoFacts.id,
-        status: schema.mnemoFacts.status,
-      });
-    return rows[0] ?? null;
-  });
-  if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const result = await forgetWorkspaceFact(ctx.workspace.id, id);
+  if (!result.data) {
+    const r = NextResponse.json({ error: "Not found" }, { status: 404 });
+    r.headers.set("X-Mnemo-Mode", result.mode);
+    return r;
+  }
   await logAudit({
     workspaceId: ctx.workspace.id,
     userId: ctx.user.id,
     action: "mnemo.fact.forget",
     resource: "mnemo_fact",
-    resourceId: updated.id,
+    resourceId: result.data.id,
   });
-  return NextResponse.json(updated);
+  const r = NextResponse.json(result.data);
+  r.headers.set("X-Mnemo-Mode", result.mode);
+  return r;
 }
