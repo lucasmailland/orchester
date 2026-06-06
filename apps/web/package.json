@@ -33,7 +33,6 @@
     "test:smoke": "DOMAIN=${DOMAIN:-http://localhost:3333} bash ../../scripts/smoke-test.sh"
   },
   "dependencies": {
-    "@mnemosyne/client-ts": "file:../../vendor/mnemosyne/packages/client-ts",
     "@aws-sdk/client-s3": "^3.1059.0",
     "@aws-sdk/lib-storage": "^3.1059.0",
     "@aws-sdk/s3-request-presigner": "^3.1059.0",
@@ -42,6 +41,7 @@
     "@formulajs/formulajs": "^4.6.0",
     "@heroui/react": "^2.7.6",
     "@hookform/resolvers": "^5.4.0",
+    "@mnemosyne/client-ts": "file:../../vendor/mnemosyne/packages/client-ts",
     "@paralleldrive/cuid2": "^3.3.0",
     "@xyflow/react": "^12.11.0",
     "archiver": "^7.0.1",
@@ -49,6 +49,7 @@
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "d3-force": "^3.0.0",
     "drizzle-orm": "^0.45.2",
     "framer-motion": "^11.15.0",
     "geist": "^1.7.2",
@@ -84,6 +85,7 @@
     "@testing-library/react": "^16.1.0",
     "@types/archiver": "^7.0.0",
     "@types/canvas-confetti": "^1.9.0",
+    "@types/d3-force": "^3.0.10",
     "@types/node": "^22.19.19",
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19.2.16",

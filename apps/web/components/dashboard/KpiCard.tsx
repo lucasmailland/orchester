@@ -68,10 +68,15 @@ export function KpiCard({ label, value, icon, color = "primary", className }: Kp
   // variants de color tienen fondo saturado oscuro → texto blanco fijo (OK en
   // ambos temas).
   const isPrimary = color === "primary";
-  const labelCls = isPrimary ? "text-muted" : "text-white/60";
+  // The label text used to be `text-muted` on dark — visually
+  // sub-50% contrast against the dark KPI card and effectively
+  // unreadable at the 11px the design uses. Bump to `text-body`
+  // so the KPI name is legible alongside its number without the
+  // operator having to lean in.
+  const labelCls = isPrimary ? "text-body" : "text-white/75";
   const iconCls = isPrimary ? "text-violet-600 dark:text-violet-400" : "text-white/80";
   const valueCls = isPrimary ? "text-strong" : "text-white";
-  const liveCls = isPrimary ? "text-faint" : "text-white/40";
+  const liveCls = isPrimary ? "text-muted" : "text-white/55";
 
   return (
     <motion.div

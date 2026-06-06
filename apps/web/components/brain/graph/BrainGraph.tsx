@@ -78,20 +78,38 @@ export function BrainGraph() {
   useEffect(() => {
     const fg = fgRef.current;
     if (!fg || typeof fg.d3Force !== "function") return;
-    // Stronger repulsion + longer links so labels (which extend
-    // ~50px below each node) don't end up colliding with the next
-    // node's body. react-force-graph bundles d3-force internally,
-    // so we can't easily inject a new collision force from
-    // userland — instead we lean on charge/link to do the work.
+
+    // 1. Stronger repulsion + longer, looser links so the cluster
+    //    spreads instead of collapsing onto itself.
     const charge = fg.d3Force("charge");
     if (charge && typeof charge.strength === "function") charge.strength(-1200);
     const link = fg.d3Force("link");
     if (link && typeof link.distance === "function") link.distance(220);
-    // Weaken the link pull so charge wins and tightly-connected
-    // clusters don't collapse on top of each other. d3 default is
-    // ~1 / nodeDegree; we clamp lower to give breathing room.
     if (link && typeof link.strength === "function") link.strength(0.2);
-    if (typeof fg.d3ReheatSimulation === "function") fg.d3ReheatSimulation();
+
+    // 2. Inject a collision force whose radius accounts for the LABEL
+    //    width — not just the node shape — so dense graphs don't end
+    //    up with overlapping text. We approximate label width from
+    //    the character count and clamp into a sane range.
+    void import("d3-force").then(({ forceCollide }) => {
+      // The simulation nodes carry a `label` field at runtime even
+      // though d3's `SimulationNodeDatum` declares only the layout
+      // attributes (x/y/vx/vy). Cast the radius accessor through
+      // `any` so we can read the label without re-declaring the
+      // datum type for d3.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const collide = forceCollide((node: any) => {
+        const labelChars = String(node?.label ?? "").length;
+        const labelHalfWidth = Math.max(28, Math.min(80, labelChars * 3.5));
+        const nodeR = 18;
+        return labelHalfWidth + nodeR;
+      }).strength(0.9);
+      // react-force-graph's exposed d3Force erases its parameter
+      // type after the `dynamic()` boundary — cast to satisfy it.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fg.d3Force("collide", collide as any);
+      if (typeof fg.d3ReheatSimulation === "function") fg.d3ReheatSimulation();
+    });
   }, [filteredGraphData]);
 
   // Status bar reflects the FILTERED view, not the full server payload, so the

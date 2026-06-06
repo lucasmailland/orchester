@@ -456,13 +456,25 @@ function ProviderCard({
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       className={cn(
-        "rounded-2xl border bg-card p-4",
-        connected ? "border-emerald-500/30" : "border-line"
+        "rounded-2xl border p-4 transition-colors",
+        // Lift the connected state with a faint emerald wash + ring +
+        // higher-elevation background so it visually anchors as "this
+        // is the live key" rather than reading as muted/disabled.
+        connected
+          ? "border-emerald-500/50 bg-emerald-500/10 ring-1 ring-emerald-500/20"
+          : "border-line bg-card"
       )}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400">
+          <div
+            className={cn(
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+              connected
+                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                : "bg-violet-500/10 text-violet-600 dark:text-violet-400"
+            )}
+          >
             <Sparkles className="h-4 w-4" />
           </div>
           <div className="min-w-0">

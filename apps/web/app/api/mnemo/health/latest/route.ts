@@ -38,17 +38,25 @@ export async function GET() {
       lastWriteAt: string | null;
       embeddings: { indexed: number; pending: number };
     };
+    const factsLive = h.factsLive ?? 0;
+    const factsClosed = h.factsClosed ?? 0;
     return NextResponse.json({
       workspaceId: h.workspaceId,
-      factCountTotal: (h.factsLive ?? 0) + (h.factsClosed ?? 0),
-      factCountActive: h.factsLive ?? 0,
-      factCountForgotten: h.factsClosed ?? 0,
+      // `capturedAt` is what the hook + the MemoryHeartbeat banner read.
+      // We previously emitted `snapshotAt` here, which is why the banner
+      // got stuck on "Waiting for the first cycle…" even with 18 facts:
+      // the field name didn't match. Keep `snapshotAt` as an alias for
+      // backwards compatibility with any cached client bundles.
+      capturedAt: h.lastWriteAt ?? new Date().toISOString(),
+      snapshotAt: h.lastWriteAt ?? new Date().toISOString(),
+      factCountTotal: factsLive + factsClosed,
+      factCountActive: factsLive,
+      factCountForgotten: factsClosed,
       factCountPinned: h.pinnedCount ?? 0,
       factCountEmbedded: h.embeddings?.indexed ?? 0,
       factCountEmbeddingsPending: h.embeddings?.pending ?? 0,
       lastRecallAt: h.lastRecallAt,
       lastWriteAt: h.lastWriteAt,
-      snapshotAt: h.lastWriteAt ?? new Date().toISOString(),
     });
   } catch (e) {
     safeLogError("[mnemo/health/latest] SDK call failed:", e);

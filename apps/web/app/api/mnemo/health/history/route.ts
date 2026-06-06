@@ -34,17 +34,21 @@ export async function GET() {
       lastWriteAt: string | null;
       embeddings: { indexed: number; pending: number };
     };
+    const factsLive = h.factsLive ?? 0;
+    const factsClosed = h.factsClosed ?? 0;
+    const at = h.lastWriteAt ?? new Date().toISOString();
     const snapshot = {
       workspaceId: h.workspaceId,
-      factCountTotal: (h.factsLive ?? 0) + (h.factsClosed ?? 0),
-      factCountActive: h.factsLive ?? 0,
-      factCountForgotten: h.factsClosed ?? 0,
+      capturedAt: at,
+      snapshotAt: at,
+      factCountTotal: factsLive + factsClosed,
+      factCountActive: factsLive,
+      factCountForgotten: factsClosed,
       factCountPinned: h.pinnedCount ?? 0,
       factCountEmbedded: h.embeddings?.indexed ?? 0,
       factCountEmbeddingsPending: h.embeddings?.pending ?? 0,
       lastRecallAt: h.lastRecallAt,
       lastWriteAt: h.lastWriteAt,
-      snapshotAt: h.lastWriteAt ?? new Date().toISOString(),
     };
     // The hook accepts both shapes; this `{ days, snapshots }` form
     // is the v1.3 contract and the natural extension when real

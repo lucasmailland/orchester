@@ -632,7 +632,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               ) : (
                 <Save className="h-3.5 w-3.5" />
               )}{" "}
-              Guardar
+              {t("save")}
             </button>
             <button
               type="button"
@@ -645,7 +645,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               ) : (
                 <Play className="h-3.5 w-3.5" />
               )}{" "}
-              Ejecutar
+              {running ? t("running") : t("runFlow")}
             </button>
           </div>
         </div>

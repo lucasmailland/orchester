@@ -81,13 +81,17 @@ export function ModelPicker({ value, onChange }: Props) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between rounded-xl border border-line bg-elevated px-3.5 py-2.5 text-sm text-strong hover:bg-elevated"
+        className="flex w-full min-w-[200px] items-center justify-between gap-2 rounded-xl border border-line bg-elevated px-3.5 py-2.5 text-sm text-strong hover:bg-elevated"
       >
-        <span className="flex items-center gap-2">
+        <span className="flex min-w-0 items-center gap-2">
           {selected ? TIER_ICON[selected.tier] : null}
-          {selected ? selected.name : value || t("pickModel")}
+          {/* truncate so a long id never visually cuts off the leading
+              characters (e.g. ‘…de-sonnet-4-6’ for claude-sonnet-4-6).
+              `min-w-0` on the parent lets the truncate kick in instead
+              of stretching the dropdown trigger off-screen. */}
+          <span className="truncate">{selected ? selected.name : value || t("pickModel")}</span>
         </span>
-        <ChevronDown className="h-4 w-4 text-muted" />
+        <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
       </button>
       {open && (
         <div className="absolute z-50 mt-1.5 max-h-72 w-full overflow-y-auto rounded-xl border border-line bg-surface shadow-xl">

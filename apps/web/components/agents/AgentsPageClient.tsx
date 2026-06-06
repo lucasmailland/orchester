@@ -43,24 +43,49 @@ const STATUS_CONFIG = {
   },
 };
 
+// Pretty labels for every model we can land in this workspace. Falls
+// back to the raw id when we don't recognise it (defensive — providers
+// expose new models faster than we can update this table).
 const MODEL_SHORT: Record<string, string> = {
+  // Anthropic
   "claude-sonnet-4-6": "Sonnet 4.6",
   "claude-opus-4-7": "Opus 4.7",
   "claude-haiku-4-5": "Haiku 4.5",
   "claude-haiku-4-5-20251001": "Haiku 4.5",
+  // OpenAI
+  "gpt-4o": "GPT-4o",
+  "gpt-4o-mini": "GPT-4o mini",
+  "gpt-4.1": "GPT-4.1",
+  "gpt-4-turbo": "GPT-4 Turbo",
+  o3: "o3",
+  "o3-mini": "o3-mini",
+  "o4-mini": "o4-mini",
 };
 
 const MODEL_COLOR: Record<string, string> = {
+  // Anthropic — violet family
   "claude-sonnet-4-6": "#8b5cf6",
   "claude-opus-4-7": "#6d28d9",
   "claude-haiku-4-5": "#a78bfa",
   "claude-haiku-4-5-20251001": "#a78bfa",
+  // OpenAI — teal family
+  "gpt-4o": "#10b981",
+  "gpt-4o-mini": "#34d399",
+  "gpt-4.1": "#059669",
+  "gpt-4-turbo": "#059669",
+  o3: "#0d9488",
+  "o3-mini": "#2dd4bf",
+  "o4-mini": "#14b8a6",
 };
 
 function getModelColor(model: string) {
+  // Anthropic tiers
   if (model.includes("opus")) return "#6d28d9";
   if (model.includes("haiku")) return "#a78bfa";
   if (model.includes("sonnet")) return "#8b5cf6";
+  // OpenAI tiers — gpt-4o/o3/o4 → teal/emerald
+  if (model.startsWith("o3") || model.startsWith("o4")) return "#0d9488";
+  if (model.startsWith("gpt")) return "#10b981";
   return MODEL_COLOR[model] ?? "#94a3b8";
 }
 
