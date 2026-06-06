@@ -17,10 +17,11 @@
 //      in-process mock during the migration, or for a different
 //      transport later).
 //
-// Until every Phase 2 callsite has been migrated, this module is
-// imported lazily by the routes that already use the SDK; the
-// in-process `@mnemosyne/core` path stays the canonical runtime so
-// nothing breaks if `MNEMO_URL` isn't set in a given environment.
+// Until Phase 3 of the plan (data migration) completes, the in-process
+// `@mnemosyne/core` path stays available as a fallback — the 17 routes
+// migrated in tramos 1-5 pick HTTP when `MNEMO_URL`+`MNEMO_API_KEY` are
+// set, library otherwise. Removing the library fallback entirely is
+// gated on Phase 3+4 of the plan (data migration + drop tables).
 import "server-only";
 import { MnemosyneClient } from "@mnemosyne/client-ts";
 
@@ -50,8 +51,8 @@ let _client: MnemosyneClient | undefined;
 /**
  * Returns the shared MnemosyneClient instance, constructing it on
  * first call. Throws at boot if `MNEMO_URL` or `MNEMO_API_KEY` is
- * missing — Phase 2 migrations should only land in environments that
- * have the server configured.
+ * missing — service-mode callers should only call this after checking
+ * `getMnemoMode() === "service"`.
  */
 export function getMnemoClient(): MnemosyneClient {
   if (_client) return _client;
@@ -62,8 +63,9 @@ export function getMnemoClient(): MnemosyneClient {
   if (!url || !apiKey) {
     throw new Error(
       "[mnemosyne/client] MNEMO_URL and MNEMO_API_KEY must be set to use the HTTP SDK. " +
-        "Phase 1 brings up the service at vendor/mnemosyne/docker — see " +
-        "docs/superpowers/plans/2026-06-05-mnemosyne-service-extraction.md."
+        "Point this at a running @mnemosyne/server — self-host with " +
+        "`docker compose up -d` in vendor/mnemosyne/docker, or pull a " +
+        "release image from ghcr.io/lucasmailland/mnemosyne-server."
     );
   }
 
