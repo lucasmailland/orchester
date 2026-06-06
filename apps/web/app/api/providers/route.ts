@@ -8,6 +8,7 @@ import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { encrypt, maskKey, decrypt } from "@/lib/encryption";
 import { logAudit } from "@/lib/audit";
 import { parseBody } from "@/lib/validation";
+import { syncProviderToMnemosyne } from "@/lib/mnemo/provision";
 
 const connectProviderSchema = z.object({
   provider: z.string().min(1, "provider and apiKey required"),
@@ -116,6 +117,15 @@ export async function POST(req: Request) {
       resourceId: row.id,
       after: { provider: row.provider, apiKeyMasked: maskKey(apiKey.trim()) },
     });
+    // Auto-provision into Mnemosyne so memory operations use this key
+    // for embeddings + future crons. Fire-and-forget; failure here
+    // never breaks the host save.
+    void syncProviderToMnemosyne({
+      workspaceId: ctx.workspace.id,
+      provider: row.provider,
+      apiKey: apiKey.trim(),
+      baseUrl: endpoint ?? null,
+    });
     return NextResponse.json({ id: row.id, provider: row.provider });
   }
   const inserted = await db
@@ -137,6 +147,13 @@ export async function POST(req: Request) {
     resource: "ai_provider",
     resourceId: row.id,
     after: { provider: row.provider, apiKeyMasked: maskKey(apiKey.trim()) },
+  });
+  // Auto-provision into Mnemosyne. Fire-and-forget — see UPDATE branch.
+  void syncProviderToMnemosyne({
+    workspaceId: ctx.workspace.id,
+    provider: row.provider,
+    apiKey: apiKey.trim(),
+    baseUrl: endpoint ?? null,
   });
   return NextResponse.json({ id: row.id, provider: row.provider }, { status: 201 });
 }
