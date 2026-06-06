@@ -373,13 +373,13 @@ async function buildConversationContext(
   try {
     const lastUserMsg = [...fullHistory].reverse().find((m) => m.role === "user");
     if (lastUserMsg?.content) {
-      // Phase 3: recall goes through @mnemosyne/server via the SDK.
+      // Recall via `recallForWorkspace`: embeds host-side with the
+      // workspace's `ai_provider` row, forwards `vector` to the SDK.
       // `RecallHit.content` is the fact statement, `score` blends
-      // memory + KB similarity, and `attribution` carries the kind +
-      // subject the host renders.
-      const { getMnemoClient } = await import("@/lib/mnemo/client");
-      const client = getMnemoClient();
-      const { hits } = await client.recall({
+      // memory + KB similarity, `attribution` carries the kind/subject.
+      const { recallForWorkspace } = await import("@/lib/mnemo/recall");
+      const { hits } = await recallForWorkspace({
+        workspaceId,
         query: String(lastUserMsg.content).slice(0, 500),
         topK: 3,
         agentId: agent.id,

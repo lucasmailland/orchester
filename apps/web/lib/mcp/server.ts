@@ -393,7 +393,7 @@ const TOOLS: McpToolDef[] = [
       },
       required: ["query"],
     },
-    async handler(input, _auth) {
+    async handler(input, auth) {
       const query = String(input.query ?? "").trim();
       if (query.length === 0) {
         throw new Error("query no puede estar vacío");
@@ -401,9 +401,12 @@ const TOOLS: McpToolDef[] = [
       const limit = Math.min(25, Math.max(1, Number(input.limit ?? 5) || 5));
       const agentId = input.agentId ? String(input.agentId) : undefined;
 
-      // Phase 3: delegate to @mnemosyne/server's /v1/recall.
-      const client = getMnemoClient();
-      const { hits } = await client.recall({
+      // Recall via `recallForWorkspace`: embeds host-side with the
+      // workspace's `ai_provider` row, forwards `vector` to the SDK
+      // (mnemosyne server skips its own embedding pass).
+      const { recallForWorkspace } = await import("@/lib/mnemo/recall");
+      const { hits } = await recallForWorkspace({
+        workspaceId: auth.workspaceId,
         query,
         topK: limit,
         ...(agentId !== undefined ? { agentId } : {}),

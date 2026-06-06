@@ -556,13 +556,14 @@ export async function executeTool(
   if (name === "brain_recall") {
     const query = String(input.query ?? "");
     if (!query) throw new Error("query required");
-    // Phase 3: recall goes through the @mnemosyne/server SDK. The
-    // wire shape is `RecallHit[]` — `content` is the fact statement,
-    // `score` blends memory + KB similarity, and `attribution` carries
-    // the kind/subject the agent renders.
-    const { getMnemoClient } = await import("@/lib/mnemo/client");
-    const client = getMnemoClient();
-    const { hits } = await client.recall({
+    // Recall dispatches via `recallForWorkspace`, which embeds the
+    // query host-side with the workspace's encrypted `ai_provider`
+    // row and forwards the precomputed vector to the mnemosyne SDK.
+    // `RecallHit.content` is the fact statement, `score` blends memory
+    // + KB similarity, and `attribution` carries the kind/subject.
+    const { recallForWorkspace } = await import("@/lib/mnemo/recall");
+    const { hits } = await recallForWorkspace({
+      workspaceId: ctx.workspaceId,
       query,
       topK: Math.min(Number(input.topK ?? 5), 20),
       ...(ctx.agentId ? { agentId: ctx.agentId } : {}),

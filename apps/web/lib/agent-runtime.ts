@@ -13,7 +13,8 @@ import { recordAiUsage } from "./ai/run";
 import { calculateChatCostUsd } from "./pricing";
 import { safeLogError } from "./safe-log";
 import { getAgentMemoryPolicy, type AgentMemoryPolicy } from "./policy/agent-memory";
-import { getMnemoClient } from "@/lib/mnemo/client";
+import type { RecallResponse } from "@mnemosyne/client-ts";
+import { recallForWorkspace } from "@/lib/mnemo/recall";
 import {
   handleMnemosyneRemember,
   type MnemosyneRememberContext,
@@ -152,9 +153,10 @@ export interface BuildRecallBlockInput {
  *      the only way to opt OUT).
  *   4. Apply policy via `applyPolicyToRecall` (narrows scope when the
  *      policy is workspace-only).
- *   5. Call `client.recall()` (mnemosyne SDK) and render: KB hits as
- *      `<kb source="...">` blocks, memory hits via `renderFactsCompact`
- *      inside `<recalled-memory>`.
+ *   5. Call `recallForWorkspace()` — embeds host-side with the
+ *      workspace's `ai_provider` row, forwards the vector to the
+ *      mnemosyne SDK. Render KB hits as `<kb source="...">` blocks,
+ *      memory hits via `renderFactsCompact` inside `<recalled-memory>`.
  *
  * Cost note: HyDE adds ~1 cheap LLM call per recall-triggering turn.
  * At ~$0.0001/call (Haiku-tier rates) and 10k turns/month per
@@ -179,13 +181,15 @@ export async function buildRecallBlock(input: BuildRecallBlockInput): Promise<st
     ...(input.tx ? { tx: input.tx } : {}),
   });
 
-  // Pull recall hits from the mnemosyne service. The server runs HyDE,
-  // rerank, graph expansion, and policy-shaped filtering internally —
-  // orchester just provides the query and renders the results.
-  const client = getMnemoClient();
-  let hits: Awaited<ReturnType<typeof client.recall>>["hits"] = [];
+  // Pull recall hits from the mnemosyne service. Embedding runs
+  // host-side via the workspace's configured `ai_provider` row
+  // (`recallForWorkspace` reads + decrypts + embeds, then forwards the
+  // `vector` to the SDK). The mnemosyne server runs BM25 + cosine +
+  // rerank + graph expansion + policy-shaped filtering on top.
+  let hits: RecallResponse["hits"] = [];
   try {
-    const resp = await client.recall({
+    const resp = await recallForWorkspace({
+      workspaceId: input.workspaceId,
       query: input.userTurn,
       topK: 5,
       ...(input.agentId ? { agentId: input.agentId } : {}),
