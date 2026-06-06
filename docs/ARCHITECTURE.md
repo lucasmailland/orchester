@@ -17,12 +17,23 @@ orchester/
 │   └── audit-invariants.sh   Structural CI guard
 └── docs/            Public docs: this file, ADRs, runbook, audit playbook
 
-../mnemosyne/        Sibling standalone repo — multi-tenant memory engine
-                     (extraction, recall, consolidation). Consumed by
-                     apps/web via pnpm `file:` link as @mnemosyne/core.
+../mnemosyne/        Sibling standalone repo — multi-tenant memory service
+                     (extraction, recall, consolidation, Memory Graph).
+                     Vendored as a git submodule at vendor/mnemosyne; the
+                     typed SDK `@mnemosyne/client-ts` is the only thing
+                     orchester imports at runtime.
 ```
 
-One Next.js app. One typed-DB package. One widget. The memory engine — `@mnemosyne/core` — lives in a [separate standalone repo](https://github.com/lucasmailland/mnemosyne) and is consumed via the `pnpm` `file:` protocol; see the README's "Local mnemosyne setup" for layout. The worker process lives inside the web app and shares the same code paths — see "Worker" below. `@mnemosyne/core` is intentionally Next-agnostic (no `server-only`, no `@/` aliases) so it remains OSS-extractable.
+One Next.js app. One typed-DB package. One widget. The **memory engine —
+[Mnemosyne](https://github.com/lucasmailland/mnemosyne)** — runs as an
+**independent HTTP service** with its own Postgres + pgvector and is consumed
+from `apps/web` exclusively through the **`@mnemosyne/client-ts` SDK** (one
+URL, one API key). The submodule under `vendor/mnemosyne/` exists so the SDK
+package resolves via `file:` link without a separate npm publish; orchester
+itself never imports `@mnemosyne/core` directly. The worker process is the
+same code bundle started in a different mode (`pnpm worker:dev` / `pnpm
+worker`); schema, types, and helpers are shared at compile time — there is no
+RPC boundary between the API and worker code.
 
 ## Runtime topology
 
@@ -35,36 +46,50 @@ One Next.js app. One typed-DB package. One widget. The memory engine — `@mnemo
                         │   • MCP server (HTTP+stdio)  │
    MCP client ──────►   │   • Public /api/v1/*         │
                         └──────────────────────────────┘
-                                      │
-                                      ▼
-            ┌──────────────────────────────────────────────┐
-            │   Postgres 15+ with pgvector ≥ 0.7           │
-            │   • Application data (Drizzle schema)        │
-            │   • Job queue rows (pg-boss)                 │
-            │   • Vector embeddings (KB + mnemo_fact)      │
-            │   • RLS+FORCE Pattern A on tenant tables     │
-            │   • Advisory locks for quota/spend writes    │
-            └──────────────────────────────────────────────┘
-                                      ▲
-                                      │
-                        ┌──────────────────────────────┐
-                        │   Worker process (pg-boss)   │
-                        │   • Flows + reaper           │
-                        │   • Mnemosyne crons:         │
-                        │     extract, embed, summary, │
-                        │     dedup, prune, decay,     │
-                        │     consolidate, review      │
-                        │   • GDPR export pipeline     │
-                        └──────────────────────────────┘
-                                      │
-                                      ▼
+                              │                  │
+                              ▼                  ▼
+        ┌────────────────────────────┐   ┌──────────────────────────┐
+        │  Postgres 15+ (host)       │   │  Mnemosyne service       │
+        │  • Application data        │   │  • @mnemosyne/server     │
+        │  • Job queue (pg-boss)     │   │  • Hono /v1/* REST        │
+        │  • KB embeddings           │   │  • API-key auth (bcrypt) │
+        │  • RLS+FORCE Pattern A     │   │  • Maintenance crons     │
+        │  • Advisory locks          │   │                          │
+        └────────────────────────────┘   └────────────┬─────────────┘
+                              ▲                       ▼
+                              │             ┌─────────────────────────┐
+                              │             │  Postgres + pgvector    │
+            ┌──────────────────────────┐    │  (mnemosyne-postgres)   │
+            │   Worker process         │    │  • mnemo_fact / entity  │
+            │   (same image, worker    │    │  • mnemo_episode / etc. │
+            │    mode)                 │    │  • halfvec(1536)        │
+            │   • Flows + reaper       │    └─────────────────────────┘
+            │   • GDPR export pipeline │
+            │   • Audit chain verify   │
+            └──────────────────────────┘
+                              │
+                              ▼
                        ┌────────────────────────────────┐
                        │   AI providers (BYO keys)      │
                        │   80+ adapters, 10 capabilities│
                        └────────────────────────────────┘
 ```
 
-The worker is the _same_ process bundle as the web app started in a different mode (`pnpm worker:dev` / `pnpm worker`). Schema, types, and helpers are shared at compile time — there is no RPC boundary between the API and worker code.
+Two Postgres databases, two independent services. The **orchester** DB owns
+application state (users, workspaces, flows, conversations, agents, the KB).
+The **mnemosyne-postgres** DB owns memory state (facts, entities, episodes,
+relations, decisions). The host never reads or writes the mnemo schema
+directly — every memory op round-trips through `@mnemosyne/client-ts` to
+`@mnemosyne/server` (default port `3939`), which scopes the request to the
+caller's API-key workspace and runs every query under `withMnemoTx`. See the
+[Mnemosyne section](#mnemosyne-memory-service) below for the cut.
+
+The worker is the _same_ process bundle as the web app started in a different
+mode. Schema, types, and helpers are shared at compile time — there is no
+RPC boundary between the API and worker code. Mnemosyne crons (dedup, prune,
+consolidate, summary, decay, health, auto-pin, review-sweep) run **inside
+the mnemosyne service**, not in this worker — Phase 3 (2026-06-05) cut them
+over so the host worker only schedules flow + GDPR + audit-chain jobs.
 
 ## Request lifecycle
 
@@ -106,28 +131,40 @@ Read-only requests (list, get) skip steps 5–7 and return inline.
 
 `packages/db/src/schema/` is partitioned by domain:
 
-| File              | Owns                                                                                                                                                                |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `core.ts`         | Users, workspaces, memberships, roles, sessions                                                                                                                     |
-| `auth.ts`         | Better-Auth tables (accounts, verifications, etc.)                                                                                                                  |
-| `workspaces.ts`   | Workspace settings, plans, quotas, audit log                                                                                                                        |
-| `ai-providers.ts` | Provider credentials (encrypted), per-workspace model gating                                                                                                        |
-| `flows.ts`        | Flows, flow versions, flow runs, run telemetry                                                                                                                      |
-| `agent-tools.ts`  | Agent definitions, tool configs, agent memory policy                                                                                                                |
-| `integrations.ts` | Integration accounts and credentials                                                                                                                                |
-| `knowledge.ts`    | KB sources, chunks, embeddings (pgvector columns)                                                                                                                   |
-| `production.ts`   | Webhooks, channels, public API keys                                                                                                                                 |
-| `brain.ts`        | Legacy `brain_fact` + `brain_extraction_job` (grace-period readable; new writes go to `mnemo_*`)                                                                    |
-| `mnemosyne.ts`    | `mnemo_fact`, `mnemo_decision`, `mnemo_episode`, `mnemo_entity`, `mnemo_relation`, `mnemo_query_cache`, `mnemo_summary`, `mnemo_review_queue`, `mnemo_fact_archive` |
-| `gdpr.ts`         | `gdpr_export_jobs` (state machine, signed-URL cache)                                                                                                                |
+| File              | Owns                                                         |
+| ----------------- | ------------------------------------------------------------ |
+| `core.ts`         | Users, workspaces, memberships, roles, sessions              |
+| `auth.ts`         | Better-Auth tables (accounts, verifications, etc.)           |
+| `workspaces.ts`   | Workspace settings, plans, quotas, audit log                 |
+| `ai-providers.ts` | Provider credentials (encrypted), per-workspace model gating |
+| `flows.ts`        | Flows, flow versions, flow runs, run telemetry               |
+| `agent-tools.ts`  | Agent definitions, tool configs, agent memory policy         |
+| `integrations.ts` | Integration accounts and credentials                         |
+| `knowledge.ts`    | KB sources, chunks, embeddings (pgvector columns)            |
+| `production.ts`   | Webhooks, channels, public API keys                          |
+| `gdpr.ts`         | `gdpr_export_jobs` (state machine, signed-URL cache)         |
 
-Migrations live in `packages/db/migrations/` and are produced by `drizzle-kit generate`. Never run `drizzle-kit push` against anything but a throwaway dev DB — the audit playbook documents why. Migrations 0016–0042 grew the memory subsystem; the headline changes:
+Memory state — `mnemo_fact`, `mnemo_decision`, `mnemo_episode`, `mnemo_entity`,
+`mnemo_relation`, `mnemo_query_cache`, `mnemo_summary`, `mnemo_review_queue`,
+`mnemo_fact_archive` — used to live alongside the application tables. **Phase 3
+(2026-06-05) extracted them into the Mnemosyne service's own database**, so
+the host schema no longer carries any `brain_*` or `mnemo_*` tables. The
+remaining `lib/memory/graph-canvas/` module is a pure rendering helper (canvas
+drawing primitives) that has no DB coupling.
 
-- `0016_brain_core` — initial fact store (`brain_fact` + extraction jobs).
-- `0017_mnemosyne_init` — rename + add `valid_from` / `valid_to` (bitemporal columns) and a stored `text_lemmatized` tsvector for FTS recall.
-- `0024_brain_to_mnemo_backfill` — copy live rows; the `brain_*` tables stay readable through the grace period.
-- `0026_mnemosyne_bitemporal_gist` — GiST index on `tstzrange(valid_from, valid_to)` so `asOf` time-travel queries are cheap.
-- `0034`–`0042` — episode + decision + entity tables, attribution column, agent memory policy, `actor_id`, per-actor RLS policy, protocol-version tagging, and `halfvec(1536)` quantization on `mnemo_fact.embedding` (2× storage cut, <0.5% recall delta).
+Migrations live in `packages/db/migrations/` and are produced by `drizzle-kit
+generate` (with hand-rolled `*.sql` files for RLS / policy / role setup).
+Never run `drizzle-kit push` against anything but a throwaway dev DB — the
+audit playbook documents why. The headline series:
+
+- `0007_postgres_roles` — `app_user` role with `NOINHERIT LOGIN` and no
+  `BYPASSRLS`. Cornerstone of Pattern A defense-in-depth (see Tenancy below).
+- `0016`–`0052` — the brain/mnemosyne lifecycle, retained as immutable
+  history. The schemas they create are dropped at the end by
+  `0053_drop_legacy_brain_residue`, so a fresh `pnpm db:migrate` arrives at
+  exactly the production shape with no orphaned tables.
+- `0053_drop_legacy_brain_residue` — final cleanup of the Phase 3 cut-over.
+  Idempotent (`DROP IF EXISTS`) so it's safe to replay on any environment.
 
 ### Tenancy
 
@@ -142,81 +179,79 @@ The structural-invariants guard still enforces that every workspace-scoped query
 - Application filter — first line, catches dev mistakes at code-review time.
 - RLS+FORCE — defence in depth, catches anything the filter missed at the DB layer.
 
-The audit found that the deployed `DATABASE_URL` connects as a role with `rolbypassrls=t`, which silently disables RLS. The fix in `lib/tenant/context.ts` and `@mnemosyne/core`'s `tx.ts` (sibling repo: `mnemosyne/packages/core/src/tx.ts`) is to `SET LOCAL ROLE app_user` at the top of every tx — `app_user` is `NOINHERIT` with no `BYPASSRLS`, so RLS+FORCE actually applies regardless of how the connection was authenticated. The transaction-local scope means the role auto-reverts on commit/rollback and never leaks across pooled connections. See ADR-0010 for the layered remediation.
+The audit found that the deployed `DATABASE_URL` connects as a role with `rolbypassrls=t`, which silently disables RLS. The fix in `lib/tenant/context.ts` is to `SET LOCAL ROLE app_user` at the top of every tx — `app_user` is `NOINHERIT` with no `BYPASSRLS`, so RLS+FORCE actually applies regardless of how the connection was authenticated. The transaction-local scope means the role auto-reverts on commit/rollback and never leaks across pooled connections. See ADR-0010 for the layered remediation. Mnemosyne enforces the same Pattern A in its own DB (`withMnemoTx` inside the service); neither side of the cut-over has a weak link.
 
-Three transaction wrappers, all built on the same pattern:
+Two transaction wrappers on the host side, both built on the same pattern:
 
-| Wrapper                       | Authn check               | GUCs set                                                                      | Use case                                                |
-| ----------------------------- | ------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `withTenantContext`           | session + membership      | `app.workspace_id`, `app.user_id`                                             | User-facing API routes                                  |
-| `withWorkspaceTx`             | none (caller responsible) | `app.workspace_id`                                                            | Webhooks, MCP, worker, flow engine                      |
-| `withMnemoTx` (mnemosyne pkg) | none                      | `app.workspace_id`, optionally `app.actor_id` + `app.enforce_actor_isolation` | Memory reads/writes; per-actor isolation is opt-in v1.6 |
+| Wrapper             | Authn check               | GUCs set                          | Use case                           |
+| ------------------- | ------------------------- | --------------------------------- | ---------------------------------- |
+| `withTenantContext` | session + membership      | `app.workspace_id`, `app.user_id` | User-facing API routes             |
+| `withWorkspaceTx`   | none (caller responsible) | `app.workspace_id`                | Webhooks, MCP, worker, flow engine |
 
-`withMnemoTx` exposes both a legacy `(workspaceId, fn)` form and a v1.6 options form `({ workspaceId, actorId, enforceActorIsolation }, fn)`. When the actor GUCs are set, the RESTRICTIVE policy from migration `0040_mnemosyne_actor_isolation_policy` narrows visible `mnemo_fact` rows to `actor_id IS NULL OR actor_id = $actorId` — so a multi-tenant agent runtime that serves Alice and Bob on the same pooled connection never leaks Bob's private facts into Alice's recall.
+Memory reads/writes used to add a third wrapper, `withMnemoTx`, that ran
+host-side against the local `mnemo_*` tables. Phase 3 retired it: memory ops
+now go over HTTPS to `@mnemosyne/server`, which runs `withMnemoTx` on its own
+DB. The host's API key authenticates the request _and_ pins it to a workspace,
+so the request is workspace-scoped at the service boundary — cross-tenant
+access is impossible regardless of how the host forms the request.
 
-## Mnemosyne (memory engine)
+## Mnemosyne (memory service)
 
-Mnemosyne is the v1.6 GA memory layer. It exposes four cognitive primitives and a recall pipeline the agent runtime injects into every conversational turn.
+Mnemosyne is a **standalone HTTP service** with its own Postgres + pgvector and
+its own bitemporal schema. Orchester is one of its clients. The cut over from
+in-process library to HTTP service landed on 2026-06-05 (Phase 3) — every
+memory operation in `apps/web` now flows through the `@mnemosyne/client-ts`
+SDK, and the host DB carries zero memory tables.
 
-| Primitive    | Table            | Module                                           | What it is                                                                              |
-| ------------ | ---------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| **Fact**     | `mnemo_fact`     | `@mnemosyne/core` · `src/primitives/fact.ts`     | Durable factual knowledge with hybrid recall (semantic + recency + decay + pin)         |
-| **Decision** | `mnemo_decision` | `@mnemosyne/core` · `src/primitives/decision.ts` | Recorded choice + rationale + supersedes link, queryable as facts                       |
-| **Episode**  | `mnemo_episode`  | `@mnemosyne/core` · `src/episode/`               | Timeline event with duration and linked facts; meeting/milestone-shaped data lives here |
-| **Entity**   | `mnemo_entity`   | `@mnemosyne/core` · `src/entity/`                | Canonical person / org / project / concept / place; facts reference it via `entity_id`  |
+For the canonical Mnemosyne spec (cognitive model, primitives, recall
+pipeline, package layout, deployment), see the
+[**Mnemosyne architecture doc**](https://github.com/lucasmailland/mnemosyne/blob/main/docs/architecture.md).
+The rest of this section is the **integration surface**: how orchester talks
+to Mnemosyne, where the SDK boundary falls, and what stays host-domain.
 
-Every primitive ships with `memory_type` (semantic / episodic / procedural / working), `attribution` (user_stated / user_belief / objective_fact / inferred — theory-of-mind discriminator), and `protocol_version` (the Memory Protocol revision the row was extracted under). Facts also carry bitemporal `valid_from` / `valid_to` so historical state is queryable via `searchMnemo({ asOf })`.
+### Integration surface
 
-### Extraction pipeline
+| Concern                                             | Owner     | Where it lives                                                                                           |
+| --------------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------- |
+| `recall()` for every chat turn                      | Mnemosyne | `client.recall()` in `apps/web/lib/agent-runtime.ts`                                                     |
+| Inspector UI (facts / timeline / graph / decisions) | Mnemosyne | SDK calls per route under `apps/web/app/api/mnemo/*`                                                     |
+| Memory Graph rendering                              | Host      | `apps/web/components/brain/graph/*` + `lib/memory/graph-canvas/*` (pure canvas helpers, zero DB)         |
+| Agent memory policy                                 | Host      | `apps/web/lib/policy/agent-memory.ts` — workspace-scoped agent config; not memory data                   |
+| Decision BOM (audit + facts)                        | Hybrid    | `apps/web/app/api/mnemo/decisions/[traceId]/route.ts` — joins host `audit_log` with `client.listFacts()` |
+| Fact extraction pipeline                            | Mnemosyne | The service ingests turns server-side via its own scheduler                                              |
+| Maintenance crons (dedup, prune, etc.)              | Mnemosyne | All retired from `apps/web/worker/`; run inside the service                                              |
+| Workspace API-key for the SDK                       | Host      | `MNEMO_URL` + `MNEMO_API_KEY` env, surfaced via `getMnemoClient()`                                       |
 
-After every conversational turn, the channels router (`apps/web/lib/channels/router.ts:580 handleInbound`) fires `enqueueBrainExtract` as fire-and-forget — the agent reply has already shipped to the user. A `brain:extract` pg-boss job (the name is preserved from the v0.1 Brain Core era — the handler now writes to `mnemo_*` tables) carries the work:
+### Configuration
 
-```mermaid
-flowchart LR
-  Turn[Inbound user turn<br/>handleInbound]
-  Q[(pg-boss<br/>brain:extract)]
-  Job[runBrainExtractJob<br/>lib/brain/extract-job.ts:79]
-  Pre[shouldExtract<br/>prefilter — pure heuristic]
-  LLM[extractFacts<br/>lib/brain/extract.ts:126]
-  Ent[extractEntities<br/>mnemosyne/entity]
-  Save[saveFactWithCandidates<br/>+ findOrCreate entity]
-  Epi[extractEpisode<br/>if ≥ 2 facts]
-  DB[(mnemo_fact<br/>mnemo_entity<br/>mnemo_episode)]
+`apps/web/lib/mnemo/client.ts` exposes a memoized SDK client. The boundary is
+two env vars:
 
-  Turn -->|singletonKey per convId| Q
-  Q --> Job
-  Job --> Pre
-  Pre -->|signal-bearing| LLM
-  Pre -->|greeting / ack| Job
-  LLM --> Ent
-  Ent --> Save
-  Save --> DB
-  Save --> Epi
-  Epi --> DB
+```bash
+MNEMO_URL=http://mnemosyne-server:3939
+MNEMO_API_KEY=mns_live_…
 ```
 
-Notable invariants:
+The key is workspace-scoped on the Mnemosyne side; rotating it means a new
+key on the service + a redeploy on the host. Production runs the Mnemosyne
+service from the bundled Docker stack (`vendor/mnemosyne/docker/compose.yaml`)
+or any host that accepts a long-running Node process.
 
-- The `shouldExtract` prefilter (`@mnemosyne/core` · `src/extraction/prefilter.ts:104`) is pure code and skips ~80% of turns (greetings, acks, smalltalk) before any LLM is touched — the dominant per-turn extraction-cost win.
-- The job runs inside `withCrossTenantAdmin` so the cross-workspace message read is satisfied, then opens `withMnemoTx(workspaceId, …)` for every `saveFactWithCandidates` call. Each fact's `actor_id` is set from `conversation.employeeId`; workspace-shared facts pass `null`.
-- The extraction model is the workspace's configured cheap tier via `resolveSmallTierModel` (`lib/brain/model-resolve.ts`). Hardcoded provider strings are forbidden by Mnemosyne Charter §25 and enforced by the audit invariants.
-- Provider health is sampled per call via `recordProviderResult`; when the rolling window trips the circuit breaker, the job is **deferred** (`state='deferred_provider_outage'`) and re-enqueued with `startAfter` so the conversation isn't lost during an outage.
-- The `memory_learning_paused` flag on `conversation` is the forward gate for sensitivity — when true, the job short-circuits to `state='skipped_sensitivity'` with no LLM call.
+### Recall on the chat turn
 
-### Recall pipeline (injection into the agent system prompt)
-
-`apps/web/lib/agent-runtime.ts` is the only entry point that runs an agent for a chat turn. The system prompt it builds for every conversational turn is the concatenation of a **cached prefix** (identity + Memory Protocol + distilled user-profile summary) and a **dynamic suffix** (the live recall block). The Anthropic prompt-cache boundary is set at the exact character offset where the cached prefix ends, so the static portion is billed at ~10% on cache hits.
+`apps/web/lib/agent-runtime.ts` is the only entry point that runs an agent
+for a chat turn. The system prompt it builds is the concatenation of a
+**cached prefix** (identity + Memory Protocol + distilled user-profile
+summary) and a **dynamic suffix** (the live recall block). The Anthropic
+prompt-cache boundary is set at the exact character offset where the cached
+prefix ends, so the static portion is billed at ~10% on cache hits.
 
 ```mermaid
 flowchart LR
   Turn[Conversational turn<br/>agent-runtime.ts]
-  Profile[buildProfileBlock<br/>getOrComputeSummary<br/>mnemo_summary]
+  Profile[buildProfileBlock]
   Trigger[shouldTriggerRecall<br/>pure heuristic]
-  Build[buildRecallBlock]
-  HyDE[prepareQuery<br/>contextualize + HyDE]
-  Search[searchMnemo<br/>L1 LRU + L3 mnemo_query_cache<br/>FTS or pgvector hybrid]
-  Rerank[Cohere or local lexical rerank]
-  Graph[1-hop expandGraph<br/>via mnemo_relation]
+  SDK[client.recall&#40;&#41;<br/>@mnemosyne/client-ts]
   Render[renderFactsCompact<br/>+ wrapUntrusted]
   Prompt[System prompt =<br/>identity ‖ protocol ‖ profile ‖ recall]
   LLM[llmCall + tool loop]
@@ -225,50 +260,43 @@ flowchart LR
   Profile --> Prompt
   Turn --> Trigger
   Trigger -->|skip on ack/greeting| Prompt
-  Trigger -->|references past context| Build
-  Build --> HyDE
-  HyDE --> Search
-  Search --> Rerank
-  Rerank --> Graph
-  Graph --> Render
+  Trigger -->|references past context| SDK
+  SDK --> Render
   Render --> Prompt
   Prompt --> LLM
 ```
 
-The pipeline reads top-to-bottom (`apps/web/lib/agent-runtime.ts:295 buildRecallBlock`):
+1. **`shouldTriggerRecall`** (pure heuristic, no IO) — skips on greetings /
+   acks. Saves ~50% of recall calls on noisy workspaces.
+2. **`buildProfileBlock`** distills a short user-profile snippet from the
+   Mnemosyne summary endpoint when available, otherwise empty string.
+3. **`client.recall()`** runs the full hybrid pipeline server-side (BM25 +
+   dense vectors + graph expansion + cross-encoder rerank — see the
+   [Mnemosyne spec](https://github.com/lucasmailland/mnemosyne/blob/main/docs/architecture.md#6-the-hybrid-recall-pipeline)).
+   Hits return as ranked `RecallHit`s. Memory and KB are blended on the
+   service side; the host adapter splits them again so they render as
+   `<recalled-memory>` (facts) vs `<kb source="…">` blocks respectively.
+4. **Render** wraps both inside `<untrusted_context>` and the system prompt
+   carries `UNTRUSTED_CONTENT_GUARDRAIL` so prompt-injection payloads
+   embedded in retrieved data are treated as data, not instructions.
 
-1. **`shouldTriggerRecall`** (heuristic, no IO) — skips on greetings/acks; runs on anything that looks like it references past context. Saves ~50% of recall calls on noisy workspaces.
-2. **Policy + settings** load in parallel (`getAgentMemoryPolicy`, `getMnemoSettings`). Both return safe defaults on failure — recall is optimisation, never a hard dependency.
-3. **Query preparation** — when history ≥ 2 turns, `prepareQuery` contextualizes the user turn (resolves "it"/"the same thing") and produces a HyDE (Hypothetical Document Embedding) rewrite. Both transforms are LLM-backed and opt-in; v1.6 flips them ON by default with a per-workspace `mnemo.disable_hyde` kill switch.
-4. **Hybrid retrieval (`searchMnemo`)** runs over three cache layers:
-   - **L1** — in-process workspace LRU (60 s TTL, ~5K entries, keyed on `(workspaceId, queryHash, scope, scopeRef, topK, agentId)`).
-   - **L2** — embedding LRU lives inside `embedMnemo`, workspace-keyed.
-   - **L3** — `mnemo_query_cache` table — cross-pod semantic cache. A query whose embedding has cosine ≥ 0.95 against a row created in the last 5 min short-circuits the full pipeline. Skipped when `asOf` is set (time travel must hit the live SQL).
-   - Mode A (no embedding provider) falls back to `text_lemmatized` GIN FTS; Mode B/C uses pgvector cosine (`halfvec` since migration 0042) plus the blended hybrid score.
-5. **Cross-encoder rerank** — Cohere when `COHERE_API_KEY` is set, otherwise the BM25-ish local lexical reranker (`makeLocalLexicalRerank`). Identity rerank is a regression — there is always _some_ rerank signal in v1.6.
-6. **Post-recall pruning** — drop facts with cosine > 0.88 against an already-kept fact (kills near-duplicates), then hard-cap to `maxResults` (default 3 in v1.6, down from 5 — prompt-injection studies showed 3 focused facts beat 5 noisy ones).
-7. **1-hop graph expansion** — when `expandGraph` is on, walk `mnemo_relation` edges (`derived_from`, `supersedes`, `part_of`, `member_of`, `scoped`, `related`) from the top hits and let a strong neighbor crowd out a weaker direct hit before the final cap.
-8. **Render** — memory hits via `renderFactsCompact` inside `<recalled-memory>`, KB hits as one `<kb source="…">` element per hit. Both are wrapped in `<untrusted_context>` and the system prompt carries `UNTRUSTED_CONTENT_GUARDRAIL` so prompt-injection payloads embedded in the retrieved data are treated as data, not instructions.
+Every layer is wrapped in `try / catch` — a slow or unreachable Mnemosyne
+service degrades the turn to memory-less behaviour, never breaks it.
 
-Each stage is wrapped in `try / catch` — a flaky reranker, KB provider, or policy load never breaks the turn; recall degrades to whatever's available.
+### Inspector + Memory Graph
 
-### Consolidation crons
+The Brain Inspector is a UI shell over the SDK. Every route under
+`apps/web/app/api/mnemo/*` is a thin dispatch layer: parse + RBAC + call the
+SDK + audit. The full list (facts list + patch + pin/unpin/forget + citations,
+entities CRUD, episodes list, decisions list + BOM, relations CRUD, review
+queue, audit, export, graph, timeline) is in
+[`apps/web/app/api/mnemo/`](../apps/web/app/api/mnemo/).
 
-The worker process schedules the maintenance crons that keep the fact store healthy. All of them open `withMnemoTx(workspaceId, …)` and are budget-gated against the workspace AI spend cap.
-
-| Job (`apps/web/lib/queue.ts`) | Schedule      | Handler                       | Purpose                                                                                  |
-| ----------------------------- | ------------- | ----------------------------- | ---------------------------------------------------------------------------------------- |
-| `JOB_MNEMO_EMBED_BATCH`       | `*/1 * * * *` | `worker/embed-batch-job.ts`   | Fill `embedding = NULL` rows in batched API calls (`createFactAsync` defers cost)        |
-| `JOB_MNEMO_SUMMARY`           | `0 5 * * *`   | `worker/summary-job.ts`       | Distill user-profile summary into `mnemo_summary` for the cached system-prompt prefix    |
-| `JOB_MNEMO_HEALTH`            | `0 6 * * *`   | `worker/health-job.ts`        | Per-workspace memory-drift snapshot (recall hit rate, embedding coverage, backlog)       |
-| `JOB_MNEMO_DEDUP`             | `0 3 * * 0`   | `worker/dedup-job.ts`         | Semantic dedup; archive losers into `mnemo_fact_archive`                                 |
-| `JOB_MNEMO_PRUNE`             | `30 3 * * 0`  | `worker/prune-job.ts`         | Drop inactive facts past the grace window                                                |
-| `JOB_MNEMO_REVIEW_SWEEP`      | `0 4 * * *`   | `worker/review-sweep-job.ts`  | Queue low-confidence facts for human triage in `mnemo_review_queue`                      |
-| `JOB_MNEMO_AUTO_PIN`          | `30 4 * * *`  | `worker/auto-pin-job.ts`      | Apply pure auto-pin rules (`decideAutoPin`) to high-recall facts                         |
-| `JOB_MNEMO_CONSOLIDATION`     | `0 2 * * 0`   | `worker/consolidation-job.ts` | REM-style: cluster related facts, ask the cheap LLM for a one-sentence supersede summary |
-| `JOB_BRAIN_DECAY`             | `0 4 * * *`   | `lib/brain/decay.ts`          | Exponential decay of `relevance` (true half-life, H=30 d, pinned facts exempt)           |
-
-Consolidation runs BEFORE the dedup sweep on Sunday so the janitor sees a stable graph (the new summary has diverged enough from its members not to be collapsed back).
+The Memory Graph is the one place orchester carries non-trivial Mnemosyne
+logic: `apps/web/components/brain/graph/*` and
+`apps/web/lib/memory/graph-canvas/*` render the graph payload that
+`client.graph()` returns. The renderer is pure canvas (browser-only, zero
+DB), the data shape is pinned by `GraphResponse` in the SDK type surface.
 
 ## AI catalog
 
@@ -292,9 +320,8 @@ sequenceDiagram
   participant Router as channels/router.ts
   participant Tx1 as withWorkspaceTx#40;resolve#41;
   participant Agent as agent-runtime.ts
-  participant Mnemo as @mnemosyne/core
+  participant Mnemo as Mnemosyne SDK<br/>@mnemosyne/client-ts
   participant Tx2 as withWorkspaceTx#40;persist#41;
-  participant Q as pg-boss
   participant DB as Postgres
 
   Client->>Router: inbound message
@@ -302,15 +329,17 @@ sequenceDiagram
   Tx1->>DB: channel, agent, conversation lookup<br/>+ user message insert
   Tx1-->>Router: ConvCtx
   Router->>Agent: runConversationalTurn(ctx, tx)
-  Agent->>Mnemo: buildProfileBlock + buildRecallBlock
-  Mnemo-->>Agent: recall snippet
+  Agent->>Mnemo: client.recall&#40;&#41; (hybrid pipeline server-side)
+  Mnemo-->>Agent: ranked RecallHit[]
   Agent->>Agent: llmCall + tool loop<br/>(maxTurns, AbortSignal)
   Agent-->>Router: assistant reply
   Router->>Tx2: persistAssistantTurn
   Tx2->>DB: assistant msg + usage_event
-  Router-)Q: enqueueBrainExtract (fire-and-forget)
   Router-->>Client: OutboundResponse
 ```
+
+Mnemosyne ingests the turn server-side via its own scheduler — orchester no
+longer enqueues a host-side extraction job after the turn commits.
 
 Two short transactions instead of one long one: the LLM tool-use loop runs outside of any open txn so a slow upstream provider doesn't hold a pool connection. The streaming variant goes one step further — `llmStream` yields between `resolveInbound` and `persistAssistantTurn` so each phase owns its own tx (drizzle / postgres-js does not support transactions that cross async generator yields).
 
@@ -415,8 +444,8 @@ Both run inside the same transaction as the write they gate, under an advisory l
 
 The summary version. Detailed threat model and remediation history live in [`AUDIT_PLAYBOOK.md`](AUDIT_PLAYBOOK.md).
 
-- **Multi-tenancy** — every workspace-scoped query carries `workspaceId`. Enforced structurally by the invariants guard and at the DB layer by RLS+FORCE Pattern A. The deployed `app_user` role lacks `BYPASSRLS`; `withTenantContext` / `withWorkspaceTx` / `withMnemoTx` `SET LOCAL ROLE app_user` to defend against connecting as an elevated role.
-- **Per-actor isolation** — `withMnemoTx` v1.6 options set `app.actor_id` + `app.enforce_actor_isolation`; the RESTRICTIVE policy from migration 0040 narrows visible `mnemo_fact` rows so a multi-tenant agent on one DB connection cannot read another end-user's private facts.
+- **Multi-tenancy** — every workspace-scoped query carries `workspaceId`. Enforced structurally by the invariants guard and at the DB layer by RLS+FORCE Pattern A. The deployed `app_user` role lacks `BYPASSRLS`; `withTenantContext` / `withWorkspaceTx` `SET LOCAL ROLE app_user` to defend against connecting as an elevated role.
+- **Memory isolation** — every SDK call carries a workspace-scoped API key; Mnemosyne resolves the workspace server-side and enforces the same Pattern A inside its own DB. Per-actor isolation (one shared connection serving Alice and Bob without cross-leaks) is supported by Mnemosyne and configured per workspace in its service.
 - **Prompt injection** — retrieved memory + KB content is wrapped in `<untrusted_context>` and the system prompt carries `UNTRUSTED_CONTENT_GUARDRAIL` instructing the model to treat it as data. `wrapUntrusted` sanitises the `source` attribute so the markup itself can't be broken out of.
 - **Code execution** — code-node uses `node:vm`. Per-workspace gate, hard timeout, restricted globals. Not claimed as a sandbox against a determined attacker.
 - **Outbound network** — `lib/net-guard.ts` validates URLs before HTTP-node dispatch (no private IP ranges, no localhost, no metadata endpoints) to mitigate SSRF.
@@ -461,13 +490,13 @@ The worker MUST be a long-running process — it polls. Serverless functions don
 
 - Strict TypeScript. `any` is rejected in PR review.
 - No default exports for cross-module functions.
-- Server-only modules import `"server-only"` so a mis-import surfaces at build time. `@mnemosyne/core` is the exception: it stays package-clean (no `server-only`, no `@/` aliases) so the host app guards server-only execution at its own boundary.
+- Server-only modules import `"server-only"` so a mis-import surfaces at build time. The `@mnemosyne/client-ts` SDK is allowed to cross either side (it's transport, not server-only data) but the convention is to import it from server modules only.
 - Public API responses go through `lib/api-response.ts` — direct `Response.json(...)` in routes is rejected by review.
 - Per-module tests colocated as `*.test.ts`.
 
 ## Testing
 
-- **Unit + integration** — Vitest. Run `pnpm --filter @orchester/web test`. 80+ specs cover the flow engine, RBAC, providers, copilot tools, spreadsheet, encryption, plus the full Mnemosyne suite which now lives in the sibling repo (`mnemosyne/packages/core/tests/`) — run it from there with `pnpm --filter @mnemosyne/core test`.
+- **Unit + integration** — Vitest. Run `pnpm --filter @orchester/web exec vitest run`. **351 specs, 0 skipped** (post Phase 3), covering the flow engine, RBAC, providers, copilot tools, spreadsheet, encryption, tenant resolver, channels router, GDPR export, audit chain, and Mnemosyne integration surface (mocked SDK + the live decisions BOM hybrid). The Mnemosyne service's own test suite lives in `vendor/mnemosyne/` — run it from there with `pnpm --filter @mnemosyne/core test`.
 - **Structural invariants** — `scripts/audit-invariants.sh` (also runs in CI). Checks:
   - Every mutating route has zod validation.
   - Every mutating route has an `assertCan` call.
@@ -483,4 +512,6 @@ The worker MUST be a long-running process — it polls. Serverless functions don
 - [`docs/dependency-licenses.md`](dependency-licenses.md) — license inventory for the dependency tree.
 - [`docs/UI-DESIGN-SYSTEM.md`](UI-DESIGN-SYSTEM.md) — studio UI tokens and components.
 - [`docs/adr/`](adr/) — architecture decision records (ADR-0010 covers the `app_user` role-downgrade).
-- [`docs/specs/2026-05-24-mnemosyne-design.md`](specs/2026-05-24-mnemosyne-design.md) — Mnemosyne design spec, source of truth for the memory subsystem.
+- [Mnemosyne architecture](https://github.com/lucasmailland/mnemosyne/blob/main/docs/architecture.md) — the canonical spec for the memory service (cognitive model, primitives, recall pipeline, packages, deployment).
+- [`docs/specs/2026-06-04-memory-graph-design.md`](specs/2026-06-04-memory-graph-design.md) — Memory Graph view design (✅ shipped).
+- [`docs/specs/2026-05-23-tenant-hardening-design.md`](specs/2026-05-23-tenant-hardening-design.md) — Pattern A multi-tenant hardening.
