@@ -12,17 +12,14 @@
 //                  separate PATCH call provides the audit trail.
 //   'forgotten'  — cascade to mnemo_fact.status='forgotten' so the
 //                  fact leaves the recall pool. Atomic with the
-//                  resolve write (same tx in lib mode, same wire call
-//                  in service mode).
+//                  resolve write (the mnemosyne server performs the
+//                  cascade in a single transaction).
 //   'dismissed'  — no cascade; the reviewer chose "don't show me
 //                  this again". The fact remains as-is.
 //
-// As of the service-extraction Phase 2 (tramo 2), the handler
-// delegates to `resolveWorkspaceReview()` (service vs library picked
-// at runtime). The cascade contract is preserved exactly — service
-// mode does it server-side; library mode does it inline. The wire
-// response carries `cascaded` so the audit log captures it
-// deterministically.
+// The handler delegates to `resolveWorkspaceReview()`, which dispatches
+// through the @mnemosyne/server SDK. The response carries `cascaded`
+// so the audit log captures it deterministically.
 //
 // RBAC: editor+.
 import { NextResponse } from "next/server";

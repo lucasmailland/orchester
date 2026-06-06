@@ -20,8 +20,6 @@ import "server-only";
 import type { ListFactsResponse, PatchFactInput, RestoreFactResponse } from "@mnemosyne/client-ts";
 import { getMnemoMode, getMnemoClient, type MnemoMode } from "@/lib/mnemo/client";
 
-// Re-exports kept for source compatibility with callers that imported
-// the local copies during dual-mode.
 export { getMnemoMode };
 export type { MnemoMode };
 

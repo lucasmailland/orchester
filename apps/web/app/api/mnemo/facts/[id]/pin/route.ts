@@ -11,10 +11,9 @@
 // because the user has now explicitly chosen "pinned" again. The
 // auto-pin cron is free to re-affirm later if its rules still match.
 //
-// Tramo 5 dual-mode: dispatch via `lib/mnemo/facts.pinWorkspaceFact`.
-// In service mode that's a GET (read current metadata) + PATCH (write
-// pinned + computed metadata); in library mode it's the original
-// single drizzle update with the inline jsonb '-' operator.
+// Dispatches via `lib/mnemo/facts.pinWorkspaceFact`, which issues a
+// GET (read current metadata) + PATCH (write pinned + computed
+// metadata) through the @mnemosyne/server SDK.
 //
 // RBAC: editor+.
 import { NextResponse } from "next/server";

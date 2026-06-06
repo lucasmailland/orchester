@@ -356,10 +356,11 @@ const TOOLS: McpToolDef[] = [
   //     mid-conversation that didn't come from a chat turn)
   //   - audit / curate the memory: pin important ones, forget the rest
   //
-  // Every tool runs through `withMnemoTx` so the workspace_id GUC is
-  // set and RLS+FORCE Pattern A enforces tenant isolation — a client
-  // with an API key for workspace A can NEVER read or mutate memory
-  // in workspace B even if they craft a request that names a fact id
+  // Every tool dispatches through the @mnemosyne/client-ts SDK, which
+  // sends the workspace's API key on every request. The mnemosyne
+  // server scopes every operation to that workspace, so a client with
+  // an API key for workspace A can NEVER read or mutate memory in
+  // workspace B even if they craft a request that names a fact id
   // belonging to the other tenant.
   //
   // Tool naming follows the MCP convention `<domain>_<verb>` and the
@@ -575,11 +576,12 @@ const TOOLS: McpToolDef[] = [
       // we currently can't filter by fact-category server-side, so the
       // filter is applied below when populated.
       const client = getMnemoClient();
+      // TODO(mnemosyne): wire kind filter once the SDK exposes it.
+      void kind;
       const { events } = await client.timeline({
         limit,
         ...(sinceIso ? { since: sinceIso } : {}),
       });
-      const _ignoredKind = kind; // server-side kind filter pending
       return {
         count: events.length,
         events: events.map((e) => ({

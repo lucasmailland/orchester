@@ -8,21 +8,14 @@
 // entity-detail page in the inspector: "show me everything this
 // person/org/project has been mentioned in".
 //
-// As of the service-extraction Phase 2 (tramo 1), the handler
-// delegates to `listWorkspaceEntityFacts()` which picks the data
-// source at runtime (service vs library). `X-Mnemo-Mode` surfaces
-// which path served the request.
+// The handler delegates to `listWorkspaceEntityFacts()`, which calls
+// the @mnemosyne/server SDK.
 //
 // Returns active facts only — forgotten/merged facts stay hidden from
 // the entity-detail view; the global facts route has the "show
 // forgotten" toggle.
 //
 // RBAC: viewer+.
-// RLS (library mode): read goes through `withMnemoTx(workspace.id,
-// ...)` so `app.workspace_id` is set and the role is downgraded to
-// app_user. The mnemo_entity row is verified to exist in the workspace
-// before the fact query runs — a tighter 404 than relying on "RLS
-// returns []".
 import { NextResponse } from "next/server";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { listWorkspaceEntityFacts } from "@/lib/mnemo/entities";

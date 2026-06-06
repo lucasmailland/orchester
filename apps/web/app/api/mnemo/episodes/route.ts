@@ -10,18 +10,12 @@
 //   ?topic=string    (single-topic filter via GIN-indexed `topics`)
 //   ?limit=50        (default 50, max 200)
 //
-// As of the service-extraction Phase 2 (tramo 1), the handler
-// delegates to `listWorkspaceEpisodes()` which picks the data source
-// at runtime (service vs library). `X-Mnemo-Mode` surfaces which path
-// served the request.
+// The handler delegates to `listWorkspaceEpisodes()`, which calls
+// the @mnemosyne/server SDK. The mnemosyne service scopes every
+// episode lookup to the API-key workspace, so cross-tenant reads
+// are impossible at the service boundary.
 //
 // RBAC: member+ (same as the rest of the read-side Inspector surface).
-//
-// RLS (library mode): the read goes through `withMnemoTx(workspace.id,
-// ...)` so the `app.workspace_id` GUC is set and the tx runs as
-// `app_user` — the FORCE policies on mnemo_episode (migration 0034)
-// prevent any cross-tenant leakage even if the connection role has
-// BYPASSRLS.
 import { NextResponse } from "next/server";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { listWorkspaceEpisodes } from "@/lib/mnemo/episodes";

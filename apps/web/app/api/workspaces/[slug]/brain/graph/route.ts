@@ -1,18 +1,9 @@
-// GET /api/workspaces/[slug]/brain/graph — Memory Graph for the Brain Inspector.
+// GET /api/workspaces/[slug]/brain/graph — Memory Graph for the
+// Brain Inspector.
 //
-// Phase 2 of the mnemosyne-service-extraction plan landed the
-// `GET /v1/graph` upstream endpoint and the matching `client.graph()`
-// SDK method. This handler now picks the data source at runtime via
-// `fetchWorkspaceGraph()`:
-//   - if `MNEMO_URL` + `MNEMO_API_KEY` are set, it goes over HTTP
-//     against @mnemosyne/server (the canonical Phase 2 path);
-//   - otherwise it falls back to the in-process `buildGraphQuery`
-//     (legacy library mode — kept for environments where the
-//     standalone service isn't running yet, e.g. solo-dev or CI
-//     without docker compose).
-//
-// Both paths return the same `GraphResponse` shape, so the React hook
-// in lib/hooks/use-brain-graph.ts is unchanged.
+// Delegates to `fetchWorkspaceGraph()`, which calls `client.graph()`
+// on the @mnemosyne/server SDK. The returned `GraphResponse` matches
+// what the React hook in lib/hooks/use-brain-graph.ts expects.
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { resolveBySlug } from "@/lib/tenant/resolve";

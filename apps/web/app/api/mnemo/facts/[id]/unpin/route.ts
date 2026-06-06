@@ -6,10 +6,9 @@
 // this unpin stamps `metadata.auto_pinned_overridden = true` so the
 // daily auto-pin cron won't re-pin it. The user's choice wins.
 //
-// Tramo 5 dual-mode: dispatch via `lib/mnemo/facts.unpinWorkspaceFact`.
-// Service mode reads metadata via GET → conditionally stamps the
-// override flag → PATCH; library mode keeps the original inline
-// CASE/jsonb expression so it runs in a single round-trip.
+// Dispatches via `lib/mnemo/facts.unpinWorkspaceFact`: reads metadata
+// via the SDK, conditionally stamps the override flag, then PATCHes
+// back through the @mnemosyne/server SDK.
 //
 // RBAC: editor+.
 import { NextResponse } from "next/server";

@@ -91,10 +91,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   // Sanity check: if the patch sets `canonicalId`, verify the target
   // entity exists in this workspace and isn't the row being patched.
-  // The check happens on the orchester side regardless of mode — in
-  // service mode it's a getEntity round-trip; in library mode it's a
-  // 1-row select. Both produce the same 400 contract so any caller
-  // that depended on the message text keeps working.
+  // The check happens host-side via a getEntity SDK call so any 400
+  // produced here surfaces with a stable contract.
   if (body.canonicalId !== undefined && body.canonicalId !== null) {
     if (body.canonicalId === id) {
       // An entity cannot be its own canonical (that's just the

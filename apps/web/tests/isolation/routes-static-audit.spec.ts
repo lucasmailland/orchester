@@ -62,9 +62,6 @@ const API_ROOT = join(__dirname, "..", "..", "app", "api");
 //   - resolveBySlug / checkMembership: `lib/tenant/resolve.ts` +
 //     `lib/tenant/membership.ts` — used by the workspace-switcher
 //     endpoint.
-//   - withMnemoTx: `@mnemosyne/core` — Mnemosyne's own
-//     transaction helper that sets `app.workspace_id` for the
-//     mnemosyne sub-schema.
 const TENANT_HELPERS = [
   "withTenantContext",
   "withWorkspaceTx",
@@ -78,7 +75,6 @@ const TENANT_HELPERS = [
   "authenticateApiKey",
   "resolveBySlug",
   "checkMembership",
-  "withMnemoTx",
 ];
 
 // Routes that legitimately don't scope by workspace. Paths are relative

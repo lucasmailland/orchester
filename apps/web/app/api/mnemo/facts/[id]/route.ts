@@ -12,9 +12,9 @@
 // hit_count, …) flow through their own dedicated routes
 // (pin/unpin/forget/restore) or are system-owned.
 //
-// Tramo 5 dual-mode: the dual-mode work lives in
-// `lib/mnemo/facts.getWorkspaceFact / patchWorkspaceFact`. This route
-// stays thin — parsing, validation, RBAC, audit.
+// SDK round-trip lives in `lib/mnemo/facts.getWorkspaceFact /
+// patchWorkspaceFact`. This route stays thin — parsing, validation,
+// RBAC, audit.
 //
 // RBAC: GET viewer+, PATCH editor+.
 import { NextResponse } from "next/server";

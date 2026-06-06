@@ -152,9 +152,9 @@ export interface BuildRecallBlockInput {
  *      the only way to opt OUT).
  *   4. Apply policy via `applyPolicyToRecall` (narrows scope when the
  *      policy is workspace-only).
- *   5. Call `recallUnified` and render: KB hits as `<kb source="...">`
- *      blocks, memory hits via `renderFactsCompact` inside
- *      `<recalled-memory>`.
+ *   5. Call `client.recall()` (mnemosyne SDK) and render: KB hits as
+ *      `<kb source="...">` blocks, memory hits via `renderFactsCompact`
+ *      inside `<recalled-memory>`.
  *
  * Cost note: HyDE adds ~1 cheap LLM call per recall-triggering turn.
  * At ~$0.0001/call (Haiku-tier rates) and 10k turns/month per

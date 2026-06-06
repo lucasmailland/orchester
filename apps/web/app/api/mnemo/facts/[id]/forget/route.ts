@@ -5,11 +5,10 @@
 // removed from recall (the recall layer filters on status='active').
 // Use the matching `/restore` route to bring it back.
 //
-// Tramo 5 dual-mode: dispatch via `lib/mnemo/facts.forgetWorkspaceFact`.
-// Service mode uses upstream `forgetFact` (which ALSO closes the
-// bitemporal interval — `valid_to = now()`); library mode keeps the
-// legacy semantics of flipping status only. The UI treats both
-// identically (status='forgotten' → "Forgotten" badge).
+// Dispatches via `lib/mnemo/facts.forgetWorkspaceFact`, which calls
+// the SDK's `forgetFact` — flips status to 'forgotten' AND closes
+// the bitemporal interval (`valid_to = now()`) in a single
+// server-side transaction.
 //
 // RBAC: editor+.
 import { NextResponse } from "next/server";

@@ -15,11 +15,6 @@ vi.mock("@/lib/auth-guards", () => ({
   }),
   isAuthContext: (x: unknown) => !(x instanceof Response),
 }));
-vi.mock("@mnemosyne/core", () => ({
-  composeBOM: vi.fn(),
-  completenessScore: vi.fn(() => 1),
-  withMnemoTx: vi.fn(),
-}));
 vi.mock("@orchester/db", () => ({ getDb: vi.fn() }));
 vi.mock("@/lib/safe-log", () => ({ safeLogError: vi.fn() }));
 

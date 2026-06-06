@@ -1,16 +1,11 @@
 // apps/web/app/api/mnemo/facts/route.ts
 //
-// GET /api/mnemo/facts — paginated, filterable fact list for the v1.3
-// Memory Inspector UI. Dual-mode (tramo 5): the upstream
-// `@mnemosyne/server` now exposes FTS, keyset cursor, sortBy/order and
-// bitemporal `asOf` — when `MNEMO_URL` is set we go through the SDK;
-// otherwise we fall back to the inline raw-SQL path the route used to
-// run (identical behaviour, same RLS plan).
-//
-// All routing/parsing/RBAC stays here; the dual-mode work lives in
-// `lib/mnemo/facts.listWorkspaceFacts`. The response shape (items,
-// nextCursor, total) is unchanged from the legacy route so the
-// Inspector UI doesn't need to know which mode is active.
+// GET /api/mnemo/facts — paginated, filterable fact list for the
+// Memory Inspector UI. Routing/parsing/RBAC live here; the SDK
+// round-trip to @mnemosyne/server lives in
+// `lib/mnemo/facts.listWorkspaceFacts`. Supports FTS, keyset cursor,
+// sortBy/order and bitemporal `asOf`. Response shape: `{items,
+// nextCursor, total}`.
 import { NextResponse } from "next/server";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { listWorkspaceFacts } from "@/lib/mnemo/facts";

@@ -2,8 +2,7 @@
 //
 // GET /api/mnemo/facts/[id]/citations — return the source messages
 // that produced this fact. Hybrid by design: the source-message-id
-// list comes from the mnemo side (in service mode through the SDK,
-// in library mode through a raw query), then orchester JOINs its
+// list comes from the @mnemosyne/server SDK, then orchester JOINs its
 // own `message` + `conversation` tables host-side to materialise the
 // actual citation rows (role, content, conversation id, timestamps).
 //

@@ -1,31 +1,16 @@
 // apps/web/app/api/mnemo/entities/route.ts
 //
-// Mnemosyne v1.6 G2 — entity browser surface.
+// Entity browser surface.
 //
 //   GET  /api/mnemo/entities       — list entities (kind / q / limit).
 //   POST /api/mnemo/entities       — manual create (editor+).
 //
-// As of the service-extraction Phase 2 (tramo 1), GET delegates to
-// `listWorkspaceEntities()` which picks the data source at runtime:
-//   - service mode (preferred): HTTPS round-trip to @mnemosyne/server
-//     via `client.listEntities()`, when `MNEMO_URL` + `MNEMO_API_KEY`
-//     are set;
-//   - library mode (legacy fallback): in-process via `listEntities()`
-//     under `withMnemoTx(workspace.id)`.
-//
-// POST stays on the in-process path — writes haven't shipped upstream
-// yet (tramo 2 ships them). RBAC + RLS semantics are preserved
-// verbatim either way.
-//
-// The `X-Mnemo-Mode` response header surfaces which path served GET
-// — strictly operational, lets `curl -I` confirm a deploy is using
-// the service path.
+// Both verbs delegate to `listWorkspaceEntities()` /
+// `createWorkspaceEntity()`, which round-trip to the @mnemosyne/server
+// SDK. The mnemosyne service scopes everything by API-key workspace,
+// so cross-tenant access is impossible at the service boundary.
 //
 // RBAC: viewer+ for GET, editor+ for POST.
-// RLS: writes go through `withMnemoTx(workspace.id, ...)` so
-// `app.workspace_id` is set and the role is downgraded to app_user
-// — the FORCE policies on mnemo_entity (migration 0039) prevent
-// cross-tenant leakage even if the connection role has BYPASSRLS.
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import type { EntityKind } from "@mnemosyne/client-ts";

@@ -37,10 +37,8 @@
 //   { items: ChangeEntry[], total: number, available: true|false }
 //
 // `available: false` is the graceful-degrade contract — when the
-// underlying query fails, the UI shows a friendly "coming soon"
-// empty state instead of an error banner. The helper preserves this
-// in BOTH modes (service mode catches HTTP errors; library mode
-// catches DB errors).
+// underlying SDK call fails, the UI shows a friendly "coming soon"
+// empty state instead of an error banner.
 
 import "server-only";
 import { NextResponse } from "next/server";
