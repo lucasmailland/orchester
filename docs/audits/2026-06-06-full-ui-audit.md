@@ -88,71 +88,60 @@ Employees · Knowledge bases · Memory (Brain Inspector + Graph) · Channels
 
 ## Outstanding — material work remaining
 
-### 1. Recall/extraction pipeline — Embedded coverage still 0%
+### 1. ✅ Recall pipeline — Embedded coverage went 0% → 100%
 
-The dataset in `mnemo_fact` shows 18 live facts with zero embeddings.
-The auto-extraction loop and the embedder are wired in the host
-side but the Mnemosyne server still needs a per-workspace LLM
-credential to run extraction and re-embedding. Architecture options
-captured here so the next sprint can pick one:
+Backfill landed via `apps/web/scripts/backfill-mnemo-embeddings.ts`.
+The script reads Orchester's OpenAI key (AES-256-GCM decrypt inlined
+to keep tsx clean of `server-only`), pulls every fact where
+`embedding IS NULL` from Mnemosyne Postgres, batches calls to
+`/v1/embeddings`, and writes the halfvec(1536) +
+`embedding_model` + `embedding_version` back into `mnemo_fact`.
+Bitemporal interval, statement, attribution untouched. Re-runs are
+idempotent.
 
-- **Option A — Rebuild M1–M6 (workspace_config in Mnemosyne).**
-  Original plan: migration `0054_mnemo_workspace_config.sql` + AES
-  encryption module + 3-endpoint CRUD + SDK methods + resolver
-  chain. Orchester pushes the OpenAI key into Mnemosyne via
-  `setWorkspaceConfig`. Was reverted earlier because the test data
-  was mocked; the architecture itself is sound. Best long-term
-  answer, ~2 hours of focused work.
-- **Option B — Push pre-computed vectors from Orchester at write
-  time.** Orchester computes embeddings using its OpenAI key and
-  sends the vector alongside the fact on every write. Mnemosyne
-  stores what it's given; never needs a key. Lighter touch but
-  requires changing every `remember(...)` call site on the host
-  to compute + attach a vector.
-- **Option C — Per-request key forwarding header.** Orchester
-  attaches `X-Mnemo-Provider-Key` to every Mnemosyne call;
-  Mnemosyne uses it for the request and never persists it. Closest
-  to "stateless creds" — Mnemosyne would still need to know how to
-  embed, which means accepting a configurable backend per request.
+Local dev DB: 18/18 facts embedded for `acme-inc`. Brain Inspector
+shows **Embedded 100%**, the Heartbeat banner says "Updated just
+now", and `RECALL HIT RATE` will start moving as soon as new
+conversations exercise the recall path.
 
-Recommendation: **Option A**, properly tested this time. The
-duplicated work isn't huge and Mnemosyne becomes a real
-multi-tenant service instead of a single-key process.
+The cron / scheduled "auto-extract from recent conversations" job
+remains the next sprint (see #2 below); the host-side `embedFn` is
+already wired so any new fact written through Orchester's worker is
+embedded inline.
 
-### 2. Embedding-job scheduler
+### 2. Embedding-job scheduler (deferred)
 
-Even with credentials, Mnemosyne needs to run the cron that picks
-up unembedded facts (and the extraction job that turns recent
-conversations into fact candidates). M7 was deferred; the host
-side already nudges Mnemosyne when ready. Same sprint as #1.
+For continuous extraction (new facts from new conversations) the
+Mnemosyne service needs a cron. M7 was deferred and intentionally so
+— Orchester's worker already covers the synchronous "embed-on-
+write" path. The cron is only required when the auto-extraction loop
+is turned on, which is a separate product decision.
 
-### 3. Memory Graph — dense clusters still overlap labels
+### 3. ✅ Memory Graph — collision force tuned
 
-The collision force helps but on a graph where every pair has a
-`related` edge, the link force still pulls neighbours into each
-other. Two follow-ups:
+`forceCollide.strength = 1.0` + `link.strength = 0.1` so spread
+wins on dense seeds. On the 6-entity / 8-relations test graph the
+nodes still sit close because every pair shares a `related` edge,
+but the labels no longer overlap pixel-for-pixel. For graphs > 30
+nodes a hierarchical layout per `entity_kind` is the next step.
 
-- Tune `forceCollide.strength` to ~1.0 (currently 0.9) and weaken
-  link force further (`link.strength(0.1)`).
-- For graphs with > 30 nodes, swap to a hierarchical layout per
-  entity_kind cluster instead of free force-directed.
+### 4. ✅ Memory tool naming clarity
 
-### 4. Memory tool naming clarity
+Tool ids unchanged (renaming would break every existing agent
+config) but the descriptions in `lib/tools.ts` now each begin with
+a one-word category — `SCRATCHPAD`, `BRAIN` — and explicitly point
+to the right alternative for the inverse use case
+(`memory_set` says "for free-form durable facts, use
+`mnemosyne_remember`"; `brain_recall` says "for scratchpad
+retrieval, use `memory_get`"). Agents picking the wrong tool now
+get a corrective hint inside the descriptions themselves.
 
-`brain_recall` + `memory_set/get/remove` + `mnemosyne_remember` —
-three flavors of memory tool with overlapping descriptions. From
-the agent's POV it's not obvious which to call. Rename
-`memory_set/get/remove` to `scratchpad_*` (the actual semantic:
-scoped, ephemeral key-value) and keep `mnemosyne_remember` +
-`brain_recall` for durable facts.
+### 5. ✅ Employees — row affordance dropped
 
-### 5. Employees — UX choice
-
-The list isn't clickable, has no detail page, and shows no
-skeleton during the SSR window. Decide: either wire
-`/employees/[id]` or remove the row-hover affordance to signal
-"this is read-only metadata". Leaving as-is is the worst of both
-worlds.
+The pseudo-hover background on each row promised a drill-in that
+doesn't exist. Removed; the budget pill is now the only
+interactive surface on the page. When `/employees/[id]` is built
+the affordance can come back together with the route.
 
 ### 6. Take a tour buttons
 
