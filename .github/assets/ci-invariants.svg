@@ -119,16 +119,25 @@
     <text x="60" y="66" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9.5" fill="#bbf7d0">4/4 pass</text>
   </g>
 
-  <!-- merge blocked (bottom: any check fails) -->
-  <line x1="450" y1="322" x2="1050" y2="430" stroke="#ef4444" stroke-width="1.4" fill="none" stroke-dasharray="4 4" marker-end="url(#ci-arrow-fail)" opacity="0.8"/>
-  <text x="730" y="395" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#fca5a5">any check fails →</text>
+  <!-- merge blocked — routed BELOW all 4 check cards as an L-shaped
+       polyline so the red failure path doesn't visually intersect
+       any of the cyan success cards. The bend at the bottom-right
+       reads naturally: failure exits the gate, drops below, walks
+       right under the checks, then turns up into the red outcome. -->
+  <path d="M 450 360 L 450 478 L 1020 478 L 1050 446"
+        stroke="#ef4444" stroke-width="1.4" fill="none"
+        stroke-dasharray="4 4" marker-end="url(#ci-arrow-fail)"
+        opacity="0.85"/>
+  <text x="720" y="470" text-anchor="middle"
+        font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+        font-size="10.5" fill="#fca5a5">any check fails →</text>
 
-  <g transform="translate(1050, 410)" filter="url(#ci-shadow)">
+  <g transform="translate(1050, 420)" filter="url(#ci-shadow)">
     <rect width="120" height="60" rx="14" fill="#3f0d0d" stroke="#ef4444" stroke-width="1.6"/>
     <text x="60" y="28" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="13" font-weight="700" fill="#fca5a5">✗ CI blocks</text>
     <text x="60" y="46" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="13" font-weight="700" fill="#fca5a5">merge</text>
   </g>
 
   <!-- Bottom strap: subtle tagline -->
-  <text x="600" y="496" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#6e7c9c">structural · enforced by grep · not by reviewer attention</text>
+  <text x="600" y="516" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#6e7c9c">structural · enforced by grep · not by reviewer attention</text>
 </svg>

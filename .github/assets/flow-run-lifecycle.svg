@@ -32,51 +32,50 @@
          then the loop restarts. Lifeline lifelines breathe gently to
          suggest live processes. -->
     <style><![CDATA[
-      @keyframes f-draw {
-        0%   { stroke-dashoffset: 240; opacity: 0; }
-        8%   { opacity: 1; }
-        40%  { stroke-dashoffset: 0;   opacity: 1; }
-        90%  { opacity: 1; }
-        100% { stroke-dashoffset: 0;   opacity: 0.5; }
+      @keyframes f-flow {
+        from { stroke-dashoffset: 16; }
+        to   { stroke-dashoffset: 0; }
+      }
+      @keyframes f-highlight {
+        0%, 90%, 100% { stroke-width: 1.5; opacity: 0.55; }
+        4%, 12%       { stroke-width: 2.6; opacity: 1; }
       }
       @keyframes f-pulse-lifeline {
         0%, 100% { opacity: 0.35; }
         50%      { opacity: 0.7; }
       }
-      @keyframes f-pulse-header {
-        0%, 100% { filter: drop-shadow(0 0 0   rgba(138, 152, 255, 0)); }
-        50%      { filter: drop-shadow(0 0 8px rgba(138, 152, 255, 0.45)); }
-      }
 
-      /* Each arrow has a draw-in animation that runs once per ~9.6s
-         cycle, with a delay matching its position in the sequence so
-         the diagram visibly walks through the protocol over time. */
+      /* Every arrow stays VISIBLY drawn at its full extent — marching
+         dashes give it "data is moving along this wire" energy.
+         A second `f-highlight` animation overlays a short bright
+         pulse in narrative order so the protocol still walks
+         through itself over the 9.6s cycle, but the diagram remains
+         readable as a static snapshot. */
       .f-arrow {
-        stroke-dasharray: 240;
-        stroke-dashoffset: 240;
-        animation: f-draw 9.6s ease-in-out infinite;
+        stroke-dasharray: 5 5;
+        animation:
+          f-flow 1.6s linear infinite,
+          f-highlight 9.6s ease-in-out infinite;
       }
-      .f-arrow-1 { animation-delay: 0s;    }
-      .f-arrow-2 { animation-delay: 0.6s;  }
-      .f-arrow-3 { animation-delay: 1.2s;  }
-      .f-arrow-4 { animation-delay: 2.4s;  }
-      .f-arrow-5 { animation-delay: 3.0s;  }
-      .f-arrow-6 { animation-delay: 4.2s;  }
-      .f-arrow-7 { animation-delay: 5.0s;  }
-      .f-arrow-8 { animation-delay: 5.8s;  }
-      .f-arrow-9 { animation-delay: 6.6s;  }
+      .f-arrow-1 { animation-delay: 0s,    0s;    }
+      .f-arrow-2 { animation-delay: 0.2s,  0.6s;  }
+      .f-arrow-3 { animation-delay: 0.4s,  1.2s;  }
+      .f-arrow-4 { animation-delay: 0.6s,  2.4s;  }
+      .f-arrow-5 { animation-delay: 0.8s,  3.0s;  }
+      .f-arrow-6 { animation-delay: 1.0s,  4.2s;  }
+      .f-arrow-7 { animation-delay: 1.2s,  5.0s;  }
+      .f-arrow-8 { animation-delay: 1.4s,  5.8s;  }
+      .f-arrow-9 { animation-delay: 1.6s,  6.6s;  }
 
       .f-lifeline { animation: f-pulse-lifeline 3.4s ease-in-out infinite; }
-      .f-header   { animation: f-pulse-header   3.4s ease-in-out infinite; }
 
       @media (prefers-reduced-motion: reduce) {
         .f-arrow {
           stroke-dasharray: none;
-          stroke-dashoffset: 0;
           animation: none;
           opacity: 1;
         }
-        .f-lifeline, .f-header { animation: none; }
+        .f-lifeline { animation: none; }
       }
     ]]></style>
   </defs>
