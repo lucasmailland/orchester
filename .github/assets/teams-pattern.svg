@@ -1,19 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" width="1200" height="600" role="img" aria-label="Orchester teams pattern: an orchestrator running claude-opus-4 receives every message, classifies intent and delegates to one of three specialists — sales, support, or ops.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" width="1200" height="620" role="img" aria-label="Orchester teams pattern: an orchestrator running claude-opus-4 receives every message, classifies intent and delegates to one of three specialists — sales, support, or ops.">
   <title>Teams, not lone agents</title>
-  <desc>An orchestrator card sits at the top, labeled "Orchestrator · claude-opus-4 · classifies intent · delegates · emits delegation audit event". Three coloured branches fan out into Sales (cyan), Support (violet), and Ops (emerald) specialist cards. Each specialist owns its tools, persona, model — and nothing else.</desc>
+  <desc>An orchestrator card at the top dispatches to three specialists below via a Y-shaped tree: a vertical trunk drops from the orchestrator to a junction node, and three coloured branches fan out diagonally to Sales (cyan), Support (violet), and Ops (emerald). Each specialist owns its tools, persona and model — and nothing else.</desc>
 
   <defs>
-    <linearGradient id="t-edge-cyan" x1="0%" y1="0%" x2="0%" y2="100%">
+    <linearGradient id="t-edge-trunk" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%"   stop-color="#8a98ff" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#a5b4fc" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="t-edge-cyan" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#a5b4fc" stop-opacity="0.95"/>
       <stop offset="100%" stop-color="#22d3ee" stop-opacity="0.95"/>
     </linearGradient>
     <linearGradient id="t-edge-violet" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%"   stop-color="#8a98ff" stop-opacity="0.95"/>
+      <stop offset="0%"   stop-color="#a5b4fc" stop-opacity="0.95"/>
       <stop offset="100%" stop-color="#a78bfa" stop-opacity="0.95"/>
     </linearGradient>
     <linearGradient id="t-edge-emerald" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%"   stop-color="#8a98ff" stop-opacity="0.95"/>
+      <stop offset="0%"   stop-color="#a5b4fc" stop-opacity="0.95"/>
       <stop offset="100%" stop-color="#34d399" stop-opacity="0.95"/>
     </linearGradient>
     <filter id="t-shadow" x="-10%" y="-10%" width="120%" height="120%">
@@ -25,34 +29,38 @@
     <pattern id="t-grid" x="0" y="0" width="36" height="36" patternUnits="userSpaceOnUse">
       <path d="M 36 0 L 0 0 0 36" fill="none" stroke="#1a2440" stroke-width="0.5" stroke-opacity="0.45"/>
     </pattern>
-    <marker id="t-arrow-cyan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <marker id="t-arrow-cyan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#22d3ee"/>
     </marker>
-    <marker id="t-arrow-violet" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <marker id="t-arrow-violet" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#a78bfa"/>
     </marker>
-    <marker id="t-arrow-emerald" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <marker id="t-arrow-emerald" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#34d399"/>
     </marker>
     <style><![CDATA[
-      /* All visibility (stroke-dasharray, opacity) lives on the SVG
-         attributes so the diagram stays designed even when the host
-         strips embedded CSS — GitHub's <img> renderer in particular.
-         CSS here only ADDS motion: marching dashes on every branch,
-         pulse on the indicator dots, glow breathing on each card,
-         and a "delegation packet" that travels Orchestrator → each
-         specialist in sequence over a 6s cycle. */
-      @keyframes t-pulse {
+      /* Visibility (stroke-dasharray, opacity) lives on SVG attributes so
+         the diagram stays designed even when the host strips embedded CSS
+         (GitHub's <img> renderer in particular). CSS only ADDS motion. */
+
+      @keyframes t-pulse-dot {
         0%, 100% { opacity: 0.55; transform: scale(1); }
         50%      { opacity: 1;    transform: scale(1.25); }
       }
-      @keyframes t-flow {
+      @keyframes t-march {
         from { stroke-dashoffset: 28; }
         to   { stroke-dashoffset: 0; }
+      }
+      @keyframes t-draw-trunk {
+        0%, 100% { stroke-dasharray: 8 8; }
       }
       @keyframes t-glow-orch {
         0%, 100% { filter: drop-shadow(0 0 0   rgba(138, 152, 255, 0)); }
         50%      { filter: drop-shadow(0 0 22px rgba(138, 152, 255, 0.6)); }
+      }
+      @keyframes t-glow-junction {
+        0%, 100% { opacity: 0.5; transform: scale(1); }
+        50%      { opacity: 1;   transform: scale(1.35); }
       }
       @keyframes t-glow-cyan {
         0%, 100% { filter: drop-shadow(0 0 0   rgba(34, 211, 238, 0)); }
@@ -66,112 +74,138 @@
         0%, 100% { filter: drop-shadow(0 0 0   rgba(52, 211, 153, 0)); }
         50%      { filter: drop-shadow(0 0 16px rgba(52, 211, 153, 0.55)); }
       }
-      /* Delegation packet — small circle that travels along each
-         branch in narrative order. Uses offsetPath / offsetDistance
-         in modern browsers; falls back to opacity-only animation
-         everywhere else (graceful degradation, no breakage). */
-      @keyframes t-packet-cyan {
-        0%, 12%  { opacity: 0; offset-distance: 0%; }
-        14%      { opacity: 1; }
-        30%      { opacity: 1; offset-distance: 100%; }
-        32%, 100%{ opacity: 0; offset-distance: 100%; }
-      }
-      @keyframes t-packet-violet {
-        0%, 32%  { opacity: 0; offset-distance: 0%; }
-        34%      { opacity: 1; }
-        50%      { opacity: 1; offset-distance: 100%; }
-        52%, 100%{ opacity: 0; offset-distance: 100%; }
-      }
-      @keyframes t-packet-emerald {
-        0%, 52%  { opacity: 0; offset-distance: 0%; }
-        54%      { opacity: 1; }
-        70%      { opacity: 1; offset-distance: 100%; }
-        72%, 100%{ opacity: 0; offset-distance: 100%; }
-      }
-      .t-pulse-a, .t-pulse-b, .t-pulse-c, .t-pulse-d {
+
+      /* Dotted indicators on each card breathe out of phase */
+      .t-dot-orch, .t-dot-a, .t-dot-b, .t-dot-c {
         transform-origin: center; transform-box: fill-box;
-        animation: t-pulse 2.6s ease-in-out infinite;
+        animation: t-pulse-dot 2.6s ease-in-out infinite;
       }
-      .t-pulse-b { animation-delay: 0.5s; }
-      .t-pulse-c { animation-delay: 1.0s; }
-      .t-pulse-d { animation-delay: 1.5s; }
-      .t-flow { animation: t-flow 1.6s linear infinite; }
-      .t-orch-glow    { animation: t-glow-orch    3s ease-in-out infinite; }
+      .t-dot-a { animation-delay: 0.5s; }
+      .t-dot-b { animation-delay: 1.0s; }
+      .t-dot-c { animation-delay: 1.5s; }
+
+      /* Trunk + branches march dashes downwards in a continuous flow.
+         Same speed for all four so they read as one piped current. */
+      .t-line { animation: t-march 1.4s linear infinite; }
+
+      /* Junction node (where trunk meets the three branches) pulses
+         brighter than the lines so the "split" reads at a glance. */
+      .t-junction { transform-origin: center; transform-box: fill-box;
+                    animation: t-glow-junction 1.8s ease-in-out infinite; }
+
+      /* Card glows */
+      .t-orch-glow    { animation: t-glow-orch    3s   ease-in-out infinite; }
       .t-cyan-glow    { animation: t-glow-cyan    3.4s ease-in-out infinite; }
       .t-violet-glow  { animation: t-glow-violet  3.4s ease-in-out infinite 0.5s; }
       .t-emerald-glow { animation: t-glow-emerald 3.4s ease-in-out infinite 1s; }
+
+      /* Delegation packets — small bright circles that travel from the
+         junction to each specialist in narrative order over a 6s loop.
+         Sales fires at 0–25%, Support at 30–50%, Ops at 55–75% — then
+         a beat of rest before the loop restarts.
+         Uses offset-path: graceful fallback to invisible when not
+         supported (no broken layout, just no packet). */
+      @keyframes t-packet-cyan {
+        0%, 4%   { opacity: 0; offset-distance: 0%; }
+        6%       { opacity: 1; }
+        25%      { opacity: 1; offset-distance: 100%; }
+        28%, 100%{ opacity: 0; offset-distance: 100%; }
+      }
+      @keyframes t-packet-violet {
+        0%, 30%  { opacity: 0; offset-distance: 0%; }
+        32%      { opacity: 1; }
+        50%      { opacity: 1; offset-distance: 100%; }
+        53%, 100%{ opacity: 0; offset-distance: 100%; }
+      }
+      @keyframes t-packet-emerald {
+        0%, 55%  { opacity: 0; offset-distance: 0%; }
+        57%      { opacity: 1; }
+        75%      { opacity: 1; offset-distance: 100%; }
+        78%, 100%{ opacity: 0; offset-distance: 100%; }
+      }
       .t-packet-cyan {
-        offset-path: path("M 600 220 C 600 286, 280 286, 280 344");
+        offset-path: path("M 600 290 C 600 320, 280 320, 280 340");
         animation: t-packet-cyan 6s ease-in-out infinite;
       }
       .t-packet-violet {
-        offset-path: path("M 600 220 L 600 344");
+        offset-path: path("M 600 290 L 600 340");
         animation: t-packet-violet 6s ease-in-out infinite;
       }
       .t-packet-emerald {
-        offset-path: path("M 600 220 C 600 286, 920 286, 920 344");
+        offset-path: path("M 600 290 C 600 320, 920 320, 920 340");
         animation: t-packet-emerald 6s ease-in-out infinite;
       }
+
       @media (prefers-reduced-motion: reduce) {
-        .t-pulse-a, .t-pulse-b, .t-pulse-c, .t-pulse-d,
-        .t-flow,
+        .t-dot-orch, .t-dot-a, .t-dot-b, .t-dot-c,
+        .t-line, .t-junction,
         .t-orch-glow, .t-cyan-glow, .t-violet-glow, .t-emerald-glow,
         .t-packet-cyan, .t-packet-violet, .t-packet-emerald {
           animation: none;
         }
-        .t-packet-cyan, .t-packet-violet, .t-packet-emerald {
-          opacity: 0;
-        }
+        .t-packet-cyan, .t-packet-violet, .t-packet-emerald { opacity: 0; }
       }
     ]]></style>
   </defs>
 
-  <rect width="1200" height="600" fill="#0a1020"/>
-  <rect width="1200" height="600" fill="url(#t-grid)"/>
-  <rect x="24" y="24" width="1152" height="552" rx="16" fill="none" stroke="#1f2c4a" stroke-width="1" stroke-opacity="0.7"/>
+  <rect width="1200" height="620" fill="#0a1020"/>
+  <rect width="1200" height="620" fill="url(#t-grid)"/>
+  <rect x="24" y="24" width="1152" height="572" rx="16" fill="none" stroke="#1f2c4a" stroke-width="1" stroke-opacity="0.7"/>
 
   <!-- Header -->
   <text x="60" y="60" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" letter-spacing="0.22em" fill="#6e7c9c">TEAM TOPOLOGY · ORCHESTRATOR DELEGATES TO SPECIALISTS</text>
 
-  <!-- ============ BRANCHES (drawn under nodes so they connect cleanly) ============
-       Each branch is a cubic curve from the bottom-centre of the Orchestrator
-       card (600, 220) to the top-centre of the matching specialist card
-       (170, 350), (600, 350), (1030, 350). Coloured per destination so the
-       delegation reads at a glance without verbose labels in the middle. -->
-  <!-- Branch to Sales (left, cyan) -->
-  <path class="t-flow"
-        d="M 600 220 C 600 286, 280 286, 280 344"
-        stroke="url(#t-edge-cyan)" stroke-width="2.4" fill="none"
-        stroke-dasharray="7 6" opacity="0.95"
+  <!-- ============ TREE WIRING (drawn first, lives UNDER nodes) ============
+       Y-shape: visible trunk drops from Orchestrator (y=220) down to a
+       junction at (600, 290). Three branches fan out from there to each
+       specialist's top (y=340). Branches are short S-curves so they read
+       as deliberate paths, not as a horizontal divider. -->
+
+  <!-- 1) Vertical trunk: Orchestrator (600, 220) → Junction (600, 290) -->
+  <line class="t-line"
+        x1="600" y1="220" x2="600" y2="290"
+        stroke="url(#t-edge-trunk)" stroke-width="3" fill="none"
+        stroke-dasharray="8 6" opacity="0.95"/>
+
+  <!-- 2) Branches diverge from the junction -->
+  <!-- Sales branch (left, cyan) -->
+  <path class="t-line"
+        d="M 600 290 C 600 320, 280 320, 280 340"
+        stroke="url(#t-edge-cyan)" stroke-width="2.8" fill="none"
+        stroke-dasharray="8 6" opacity="0.95"
         marker-end="url(#t-arrow-cyan)"/>
-  <!-- Branch to Support (centre, violet) -->
-  <line class="t-flow"
-        x1="600" y1="220" x2="600" y2="344"
-        stroke="url(#t-edge-violet)" stroke-width="2.4" fill="none"
-        stroke-dasharray="7 6" opacity="0.95"
+  <!-- Support branch (centre, violet) -->
+  <line class="t-line"
+        x1="600" y1="290" x2="600" y2="340"
+        stroke="url(#t-edge-violet)" stroke-width="2.8" fill="none"
+        stroke-dasharray="8 6" opacity="0.95"
         marker-end="url(#t-arrow-violet)"/>
-  <!-- Branch to Ops (right, emerald) -->
-  <path class="t-flow"
-        d="M 600 220 C 600 286, 920 286, 920 344"
-        stroke="url(#t-edge-emerald)" stroke-width="2.4" fill="none"
-        stroke-dasharray="7 6" opacity="0.95"
+  <!-- Ops branch (right, emerald) -->
+  <path class="t-line"
+        d="M 600 290 C 600 320, 920 320, 920 340"
+        stroke="url(#t-edge-emerald)" stroke-width="2.8" fill="none"
+        stroke-dasharray="8 6" opacity="0.95"
         marker-end="url(#t-arrow-emerald)"/>
 
-  <!-- Single delegation label at the centre branch — the verb applies to
-       all three paths, so saying it once is cleaner than three labels
-       fighting for the same vertical band. -->
-  <rect x="556" y="266" width="88" height="22" rx="11"
-        fill="#0a1020" fill-opacity="0.92" stroke="#1f2c4a" stroke-width="1"/>
-  <text x="600" y="281" text-anchor="middle"
+  <!-- 3) Junction node — the visual "split" point. Sits on top of the
+       trunk → branches transition so it reads as a real fork. -->
+  <circle cx="600" cy="290" r="9" fill="#0f1729" stroke="#a5b4fc" stroke-width="2"/>
+  <circle class="t-junction" cx="600" cy="290" r="14" fill="none" stroke="#a5b4fc" stroke-width="1.2" opacity="0.55"/>
+
+  <!-- 4) Single label ON the junction → keeps the verb visible without
+       crowding the three branches below. -->
+  <rect x="638" y="278" width="92" height="24" rx="12"
+        fill="#0a1020" fill-opacity="0.95" stroke="#2a3a5e" stroke-width="1"/>
+  <text x="684" y="294" text-anchor="middle"
         font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
-        font-size="10.5" font-weight="700" fill="#a5b4fc">delegate ▼</text>
+        font-size="11" font-weight="700" fill="#a5b4fc">delegate ▾</text>
 
   <!-- ============ ORCHESTRATOR (top centre) ============ -->
   <g transform="translate(420, 100)" filter="url(#t-shadow)">
     <rect class="t-orch-glow"
           width="360" height="120" rx="18"
           fill="#0f1729" stroke="#8a98ff" stroke-width="2" stroke-opacity="0.9"/>
-    <circle class="t-pulse-a" cx="32" cy="32" r="7" fill="#8a98ff"/>
+    <circle class="t-dot-orch" cx="32" cy="32" r="7" fill="#8a98ff"/>
     <circle cx="32" cy="32" r="11" fill="none" stroke="#8a98ff" stroke-width="0.8" opacity="0.5"/>
     <text x="54" y="38" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="19" font-weight="700" fill="#f4f7fc">Orchestrator</text>
     <text x="54" y="62" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12.5" fill="#a5b4fc">claude-opus-4</text>
@@ -179,14 +213,14 @@
     <text x="54" y="104" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#8b9bc7">emits delegation audit event</text>
   </g>
 
-  <!-- ============ SPECIALISTS (bottom row) ============ -->
+  <!-- ============ SPECIALISTS (bottom row, centred on 280 / 600 / 920) ============ -->
 
-  <!-- Sales (left, cyan) — centred on x=280, width 220 so it sits at 170-390 -->
-  <g transform="translate(170, 350)" filter="url(#t-shadow)">
+  <!-- Sales (cyan) -->
+  <g transform="translate(170, 340)" filter="url(#t-shadow)">
     <rect class="t-cyan-glow"
           width="220" height="160" rx="16"
           fill="#0b1322" stroke="#22d3ee" stroke-width="1.8" stroke-opacity="0.9"/>
-    <circle class="t-pulse-b" cx="26" cy="30" r="7" fill="#22d3ee"/>
+    <circle class="t-dot-a" cx="26" cy="30" r="7" fill="#22d3ee"/>
     <circle cx="26" cy="30" r="11" fill="none" stroke="#22d3ee" stroke-width="0.8" opacity="0.5"/>
     <text x="48" y="36" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="18" font-weight="700" fill="#f4f7fc">Sales</text>
     <text x="48" y="58" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11.5" fill="#67e8f9">specialist</text>
@@ -196,12 +230,12 @@
     <text x="16" y="142" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#6e7c9c">+ nothing else</text>
   </g>
 
-  <!-- Support (centre, violet) — centred on x=600, width 220 → 490-710 -->
-  <g transform="translate(490, 350)" filter="url(#t-shadow)">
+  <!-- Support (violet) -->
+  <g transform="translate(490, 340)" filter="url(#t-shadow)">
     <rect class="t-violet-glow"
           width="220" height="160" rx="16"
           fill="#1a1224" stroke="#a78bfa" stroke-width="1.8" stroke-opacity="0.9"/>
-    <circle class="t-pulse-c" cx="26" cy="30" r="7" fill="#a78bfa"/>
+    <circle class="t-dot-b" cx="26" cy="30" r="7" fill="#a78bfa"/>
     <circle cx="26" cy="30" r="11" fill="none" stroke="#a78bfa" stroke-width="0.8" opacity="0.5"/>
     <text x="48" y="36" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="18" font-weight="700" fill="#f4f7fc">Support</text>
     <text x="48" y="58" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11.5" fill="#c4b5fd">specialist</text>
@@ -211,12 +245,12 @@
     <text x="16" y="142" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#6e7c9c">+ nothing else</text>
   </g>
 
-  <!-- Ops (right, emerald) — centred on x=920, width 220 → 810-1030 -->
-  <g transform="translate(810, 350)" filter="url(#t-shadow)">
+  <!-- Ops (emerald) -->
+  <g transform="translate(810, 340)" filter="url(#t-shadow)">
     <rect class="t-emerald-glow"
           width="220" height="160" rx="16"
           fill="#052e16" stroke="#34d399" stroke-width="1.8" stroke-opacity="0.9"/>
-    <circle class="t-pulse-d" cx="26" cy="30" r="7" fill="#34d399"/>
+    <circle class="t-dot-c" cx="26" cy="30" r="7" fill="#34d399"/>
     <circle cx="26" cy="30" r="11" fill="none" stroke="#34d399" stroke-width="0.8" opacity="0.5"/>
     <text x="48" y="36" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="18" font-weight="700" fill="#f4f7fc">Ops</text>
     <text x="48" y="58" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11.5" fill="#6ee7b7">specialist</text>
@@ -226,15 +260,11 @@
     <text x="16" y="142" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#6e7c9c">+ nothing else</text>
   </g>
 
-  <!-- ============ DELEGATION PACKETS — travelling along each branch in sequence ============
-       Each packet is a small bright circle that walks Orchestrator → specialist
-       on a 6s loop, with per-branch delays so the diagram visibly walks through
-       sales (0–30%), support (32–50%), ops (52–70%). Falls back gracefully to
-       hidden when offset-path isn't supported. -->
-  <circle class="t-packet-cyan"    r="5" fill="#22d3ee" opacity="0"/>
-  <circle class="t-packet-violet"  r="5" fill="#a78bfa" opacity="0"/>
-  <circle class="t-packet-emerald" r="5" fill="#34d399" opacity="0"/>
+  <!-- ============ DELEGATION PACKETS — travel each branch in sequence ============ -->
+  <circle class="t-packet-cyan"    r="5.5" fill="#22d3ee" opacity="0"/>
+  <circle class="t-packet-violet"  r="5.5" fill="#a78bfa" opacity="0"/>
+  <circle class="t-packet-emerald" r="5.5" fill="#34d399" opacity="0"/>
 
   <!-- Footer tagline -->
-  <text x="600" y="552" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6e7c9c">a single agent isn't an AI system · it's a chatbot</text>
+  <text x="600" y="566" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6e7c9c">a single agent isn't an AI system · it's a chatbot</text>
 </svg>
