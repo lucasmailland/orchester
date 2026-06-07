@@ -175,7 +175,7 @@ const BUILTINS: Record<string, ToolDefinition> = {
   memory_set: {
     name: "memory_set",
     description:
-      "Save a fact you want to remember. Choose scope: 'global' (always known), 'employee' (about the current user), or 'conversation' (only this thread). Use this whenever the user shares a preference, a name, or a stable fact.",
+      "SCRATCHPAD storage — save a short key→value note scoped to global/employee/conversation/team. Use for QUICK, KEY-BASED lookups ('preferred_language' → 'es'). For free-form durable facts, knowledge-graph entities, or anything you want to RECALL by similarity later, use `mnemosyne_remember` instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -192,7 +192,7 @@ const BUILTINS: Record<string, ToolDefinition> = {
   memory_get: {
     name: "memory_get",
     description:
-      "Retrieve previously saved facts. Returns the data bag for a given scope. Use to recall what you know before answering.",
+      "SCRATCHPAD lookup — return the full key→value bag for a given scope. Use when you saved with `memory_set` and need to read it back. For semantic retrieval over durable facts, use `brain_recall`.",
     inputSchema: {
       type: "object",
       properties: {
@@ -204,7 +204,7 @@ const BUILTINS: Record<string, ToolDefinition> = {
   brain_recall: {
     name: "brain_recall",
     description:
-      "Search the workspace's brain for relevant facts about the conversation participants. Returns ranked facts by semantic similarity, recency, and frequency. Use this before answering to surface durable preferences, traits, prior commitments.",
+      "Semantic search over DURABLE facts in the workspace brain (stored via `mnemosyne_remember`). Returns the top-K facts ranked by vector similarity + recency + recall frequency. Call this BEFORE answering to surface preferences, traits, prior commitments. For scratchpad key-value retrieval, use `memory_get` instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -220,7 +220,7 @@ const BUILTINS: Record<string, ToolDefinition> = {
   memory_remove: {
     name: "memory_remove",
     description:
-      "Forget a previously saved fact. Pass `key` to remove a single key, or omit `key` to clear the entire scope's bag.",
+      "SCRATCHPAD eviction — delete a single key or the entire bag for a scope. Use only for entries written with `memory_set`. Durable facts saved through `mnemosyne_remember` are closed via the brain's bitemporal model and shouldn't be reached from this tool.",
     inputSchema: {
       type: "object",
       properties: {
@@ -238,7 +238,7 @@ const BUILTINS: Record<string, ToolDefinition> = {
   mnemosyne_remember: {
     name: "mnemosyne_remember",
     description:
-      "Save a durable fact about the user, their company, or the conversation. Use for preferences, traits, decisions, events, or learned facts. The fact is persisted, embedded for semantic recall, and surfaced on future turns. Sensitive PII may be auto-downgraded to private-to-this-agent scope per workspace policy.",
+      "BRAIN write — persist a durable, free-form fact about the user, their company, or the conversation. The fact is embedded for semantic search via `brain_recall` and surfaced on future turns. Use for preferences, traits, decisions, events, learned facts — anything you'd want recalled by meaning rather than a key. For ephemeral key→value scratchpad notes, use `memory_set` instead.",
     inputSchema: {
       type: "object",
       properties: {

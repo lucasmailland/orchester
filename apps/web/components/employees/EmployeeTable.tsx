@@ -99,7 +99,11 @@ export function EmployeeTable({ employees: initial, labels }: EmployeeTableProps
               key={emp.id}
               variants={staggerItem}
               className={cn(
-                "flex items-center gap-4 px-4 py-3 bg-card hover:bg-card transition-colors",
+                // Rows are intentionally non-interactive: the only
+                // affordance is the budget pill on the right. A hover
+                // background on the whole row historically promised a
+                // drill-in that doesn't exist yet, so we drop it.
+                "flex items-center gap-4 bg-card px-4 py-3",
                 idx < filtered.length - 1 && "border-b border-line"
               )}
             >

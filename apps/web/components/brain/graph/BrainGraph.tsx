@@ -85,7 +85,11 @@ export function BrainGraph() {
     if (charge && typeof charge.strength === "function") charge.strength(-1200);
     const link = fg.d3Force("link");
     if (link && typeof link.distance === "function") link.distance(220);
-    if (link && typeof link.strength === "function") link.strength(0.2);
+    // Drop link strength further so the collision force can do its
+    // job. With 0.2 the cluster still pulled neighbours into each
+    // other on dense seeds; 0.1 leaves the spring just strong enough
+    // to keep edges attached without overriding label spacing.
+    if (link && typeof link.strength === "function") link.strength(0.1);
 
     // 2. Inject a collision force whose radius accounts for the LABEL
     //    width — not just the node shape — so dense graphs don't end
@@ -103,7 +107,7 @@ export function BrainGraph() {
         const labelHalfWidth = Math.max(28, Math.min(80, labelChars * 3.5));
         const nodeR = 18;
         return labelHalfWidth + nodeR;
-      }).strength(0.9);
+      }).strength(1.0);
       // react-force-graph's exposed d3Force erases its parameter
       // type after the `dynamic()` boundary — cast to satisfy it.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
