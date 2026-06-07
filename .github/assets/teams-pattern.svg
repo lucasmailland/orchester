@@ -93,9 +93,9 @@
   <line x1="240" y1="290" x2="960" y2="290" stroke="#3b4a7a" stroke-width="1.4" stroke-opacity="0.6"/>
 
   <!-- 3 vertical drops into the 3 specialists -->
-  <line class="t-flow" x1="240" y1="290" x2="240" y2="340" stroke="url(#t-edge)" stroke-width="1.6" fill="none" marker-end="url(#t-arrow)"/>
-  <line class="t-flow" x1="600" y1="290" x2="600" y2="340" stroke="url(#t-edge)" stroke-width="1.6" fill="none" marker-end="url(#t-arrow)"/>
-  <line class="t-flow" x1="960" y1="290" x2="960" y2="340" stroke="url(#t-edge)" stroke-width="1.6" fill="none" marker-end="url(#t-arrow)"/>
+  <line class="t-flow" x1="240" y1="290" x2="240" y2="340" stroke="url(#t-edge)" stroke-width="1.6" fill="none" marker-end="url(#t-arrow)" stroke-dasharray="5 5"/>
+  <line class="t-flow" x1="600" y1="290" x2="600" y2="340" stroke="url(#t-edge)" stroke-width="1.6" fill="none" marker-end="url(#t-arrow)" stroke-dasharray="5 5"/>
+  <line class="t-flow" x1="960" y1="290" x2="960" y2="340" stroke="url(#t-edge)" stroke-width="1.6" fill="none" marker-end="url(#t-arrow)" stroke-dasharray="5 5"/>
 
   <!-- Sales specialist (left) -->
   <g transform="translate(120, 348)" filter="url(#t-shadow)">

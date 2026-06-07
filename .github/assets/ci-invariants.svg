@@ -66,7 +66,7 @@
   </g>
 
   <!-- PR → Gate -->
-  <line class="ci-flow" x1="240" y1="270" x2="335" y2="270" stroke="url(#ci-edge)" stroke-width="1.6" fill="none" marker-end="url(#ci-arrow)"/>
+  <line class="ci-flow" x1="240" y1="270" x2="335" y2="270" stroke="url(#ci-edge)" stroke-width="1.6" fill="none" marker-end="url(#ci-arrow)" stroke-dasharray="5 5"/>
 
   <!-- Gate (centre) — audit-invariants.sh -->
   <g transform="translate(340, 218)">
@@ -78,10 +78,10 @@
   </g>
 
   <!-- Gate → 4 checks (right column) -->
-  <line class="ci-flow" x1="560" y1="240" x2="700" y2="120" stroke="url(#ci-edge)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow)"/>
-  <line class="ci-flow" x1="560" y1="258" x2="700" y2="210" stroke="url(#ci-edge)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow)"/>
-  <line class="ci-flow" x1="560" y1="282" x2="700" y2="300" stroke="url(#ci-edge)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow)"/>
-  <line class="ci-flow" x1="560" y1="300" x2="700" y2="390" stroke="url(#ci-edge)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow)"/>
+  <line class="ci-flow" x1="560" y1="240" x2="700" y2="120" stroke="url(#ci-edge)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow)" stroke-dasharray="5 5"/>
+  <line class="ci-flow" x1="560" y1="258" x2="700" y2="210" stroke="url(#ci-edge)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow)" stroke-dasharray="5 5"/>
+  <line class="ci-flow" x1="560" y1="282" x2="700" y2="300" stroke="url(#ci-edge)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow)" stroke-dasharray="5 5"/>
+  <line class="ci-flow" x1="560" y1="300" x2="700" y2="390" stroke="url(#ci-edge)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow)" stroke-dasharray="5 5"/>
 
   <!-- 4 invariant check cards -->
   <g transform="translate(700, 96)" filter="url(#ci-shadow)">
@@ -106,10 +106,10 @@
   </g>
 
   <!-- 4 checks → MERGE ALLOWED (top-right) and FAIL (bottom-right) -->
-  <line class="ci-flow" x1="980" y1="124" x2="1060" y2="180" stroke="url(#ci-edge-pass)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow-pass)"/>
-  <line class="ci-flow" x1="980" y1="214" x2="1060" y2="190" stroke="url(#ci-edge-pass)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow-pass)"/>
-  <line class="ci-flow" x1="980" y1="304" x2="1060" y2="200" stroke="url(#ci-edge-pass)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow-pass)"/>
-  <line class="ci-flow" x1="980" y1="394" x2="1060" y2="210" stroke="url(#ci-edge-pass)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow-pass)"/>
+  <line class="ci-flow" x1="980" y1="124" x2="1060" y2="180" stroke="url(#ci-edge-pass)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow-pass)" stroke-dasharray="5 5"/>
+  <line class="ci-flow" x1="980" y1="214" x2="1060" y2="190" stroke="url(#ci-edge-pass)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow-pass)" stroke-dasharray="5 5"/>
+  <line class="ci-flow" x1="980" y1="304" x2="1060" y2="200" stroke="url(#ci-edge-pass)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow-pass)" stroke-dasharray="5 5"/>
+  <line class="ci-flow" x1="980" y1="394" x2="1060" y2="210" stroke="url(#ci-edge-pass)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow-pass)" stroke-dasharray="5 5"/>
 
   <!-- merge allowed -->
   <g transform="translate(1050, 154)" filter="url(#ci-shadow)">

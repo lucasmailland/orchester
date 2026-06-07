@@ -83,7 +83,7 @@
     <text x="14" y="74" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#a4b1cb">cron · MCP call</text>
   </g>
 
-  <line class="fp-flow" x1="230" y1="230" x2="288" y2="230" stroke="url(#fp-edge)" stroke-width="1.6" fill="none" marker-end="url(#fp-arrow)"/>
+  <line class="fp-flow" x1="230" y1="230" x2="288" y2="230" stroke="url(#fp-edge)" stroke-width="1.6" fill="none" marker-end="url(#fp-arrow)" stroke-dasharray="5 5"/>
 
   <!-- Classify intent (centre-left, pulsing) -->
   <g transform="translate(292, 188)" filter="url(#fp-shadow)">
@@ -96,8 +96,8 @@
   </g>
 
   <!-- Fork: Classify → Search KB (top) and Call API (bottom) -->
-  <line class="fp-flow" x1="482" y1="216" x2="588" y2="120" stroke="url(#fp-edge-kb)" stroke-width="1.6" fill="none" marker-end="url(#fp-arrow-kb)"/>
-  <line class="fp-flow" x1="482" y1="246" x2="588" y2="340" stroke="url(#fp-edge-api)" stroke-width="1.6" fill="none" marker-end="url(#fp-arrow-api)"/>
+  <line class="fp-flow" x1="482" y1="216" x2="588" y2="120" stroke="url(#fp-edge-kb)" stroke-width="1.6" fill="none" marker-end="url(#fp-arrow-kb)" stroke-dasharray="5 5"/>
+  <line class="fp-flow" x1="482" y1="246" x2="588" y2="340" stroke="url(#fp-edge-api)" stroke-width="1.6" fill="none" marker-end="url(#fp-arrow-api)" stroke-dasharray="5 5"/>
 
   <!-- Search KB (top branch) -->
   <g transform="translate(592, 88)" filter="url(#fp-shadow)">
@@ -118,8 +118,8 @@
   </g>
 
   <!-- Merge: both branches converge into Reply -->
-  <line class="fp-flow" x1="808" y1="120" x2="934" y2="206" stroke="url(#fp-edge-kb)" stroke-width="1.6" fill="none" marker-end="url(#fp-arrow-kb)"/>
-  <line class="fp-flow" x1="808" y1="340" x2="934" y2="254" stroke="url(#fp-edge-api)" stroke-width="1.6" fill="none" marker-end="url(#fp-arrow-api)"/>
+  <line class="fp-flow" x1="808" y1="120" x2="934" y2="206" stroke="url(#fp-edge-kb)" stroke-width="1.6" fill="none" marker-end="url(#fp-arrow-kb)" stroke-dasharray="5 5"/>
+  <line class="fp-flow" x1="808" y1="340" x2="934" y2="254" stroke="url(#fp-edge-api)" stroke-width="1.6" fill="none" marker-end="url(#fp-arrow-api)" stroke-dasharray="5 5"/>
 
   <!-- Reply (right, glowing as final output) -->
   <g transform="translate(938, 188)" filter="url(#fp-shadow)">

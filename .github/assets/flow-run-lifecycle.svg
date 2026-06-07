@@ -32,27 +32,24 @@
          then the loop restarts. Lifeline lifelines breathe gently to
          suggest live processes. -->
     <style><![CDATA[
+      /* All visibility (stroke-dasharray, opacity, stroke-width) lives
+         on the SVG attributes themselves so the diagram looks great
+         even when the host environment strips CSS — notably GitHub's
+         README renderer, which doesn't always honour embedded styles
+         on <img>-loaded SVGs. CSS here only ADDS motion. */
       @keyframes f-flow {
         from { stroke-dashoffset: 16; }
         to   { stroke-dashoffset: 0; }
       }
       @keyframes f-highlight {
-        0%, 90%, 100% { stroke-width: 1.5; opacity: 0.55; }
-        4%, 12%       { stroke-width: 2.6; opacity: 1; }
+        0%, 90%, 100% { stroke-width: 1.8; opacity: 0.9; }
+        4%, 12%       { stroke-width: 3.0; opacity: 1; }
       }
       @keyframes f-pulse-lifeline {
         0%, 100% { opacity: 0.35; }
         50%      { opacity: 0.7; }
       }
-
-      /* Every arrow stays VISIBLY drawn at its full extent — marching
-         dashes give it "data is moving along this wire" energy.
-         A second `f-highlight` animation overlays a short bright
-         pulse in narrative order so the protocol still walks
-         through itself over the 9.6s cycle, but the diagram remains
-         readable as a static snapshot. */
       .f-arrow {
-        stroke-dasharray: 5 5;
         animation:
           f-flow 1.6s linear infinite,
           f-highlight 9.6s ease-in-out infinite;
@@ -66,16 +63,9 @@
       .f-arrow-7 { animation-delay: 1.2s,  5.0s;  }
       .f-arrow-8 { animation-delay: 1.4s,  5.8s;  }
       .f-arrow-9 { animation-delay: 1.6s,  6.6s;  }
-
       .f-lifeline { animation: f-pulse-lifeline 3.4s ease-in-out infinite; }
-
       @media (prefers-reduced-motion: reduce) {
-        .f-arrow {
-          stroke-dasharray: none;
-          animation: none;
-          opacity: 1;
-        }
-        .f-lifeline { animation: none; }
+        .f-arrow, .f-lifeline { animation: none; }
       }
     ]]></style>
   </defs>
@@ -124,15 +114,15 @@
     <text x="78" y="138" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" letter-spacing="0.18em" fill="#a5b4fc">PHASE 1 · ENQUEUE  ·  sub-50 ms · synchronous</text>
 
     <line class="f-arrow f-arrow-1" x1="190" y1="160" x2="408" y2="160"
-          stroke="#8a98ff" stroke-width="1.5" fill="none" marker-end="url(#f-arrow)"/>
+          stroke="#8a98ff" stroke-width="1.5" fill="none" stroke-dasharray="5 5" opacity="0.9" marker-end="url(#f-arrow)"/>
     <text x="200" y="153" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#c7d2fe">POST /api/flows/:id/run</text>
 
     <line class="f-arrow f-arrow-2" x1="410" y1="186" x2="628" y2="186"
-          stroke="#22d3ee" stroke-width="1.5" fill="none" marker-end="url(#f-arrow-cyan)"/>
+          stroke="#22d3ee" stroke-width="1.5" fill="none" stroke-dasharray="5 5" opacity="0.9" marker-end="url(#f-arrow-cyan)"/>
     <text x="420" y="179" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#a5f3fc">advisory lock + quota + enqueue</text>
 
     <line class="f-arrow f-arrow-3" x1="408" y1="216" x2="192" y2="216"
-          stroke="#8a98ff" stroke-width="1.5" fill="none" marker-end="url(#f-arrow)"/>
+          stroke="#8a98ff" stroke-width="1.5" fill="none" stroke-dasharray="5 5" opacity="0.9" marker-end="url(#f-arrow)"/>
     <text x="210" y="209" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#c7d2fe">202 Accepted · runId</text>
   </g>
 
@@ -142,11 +132,11 @@
     <text x="78" y="278" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" letter-spacing="0.18em" fill="#67e8f9">PHASE 2 · STREAM  ·  server-sent events  ·  no polling, no websockets</text>
 
     <line class="f-arrow f-arrow-4" x1="190" y1="302" x2="408" y2="302"
-          stroke="#22d3ee" stroke-width="1.5" fill="none" marker-end="url(#f-arrow-cyan)"/>
+          stroke="#22d3ee" stroke-width="1.5" fill="none" stroke-dasharray="5 5" opacity="0.9" marker-end="url(#f-arrow-cyan)"/>
     <text x="200" y="295" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#a5f3fc">GET /api/flows/runs/:runId  (SSE)</text>
 
     <line class="f-arrow f-arrow-5" x1="408" y1="322" x2="192" y2="322"
-          stroke="#22d3ee" stroke-width="1.5" fill="none" marker-end="url(#f-arrow-cyan)"/>
+          stroke="#22d3ee" stroke-width="1.5" fill="none" stroke-dasharray="5 5" opacity="0.9" marker-end="url(#f-arrow-cyan)"/>
     <text x="220" y="315" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#a5f3fc">stream  node_started · node_done · llm_token</text>
   </g>
 
@@ -156,19 +146,19 @@
     <text x="78" y="370" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" letter-spacing="0.18em" fill="#fcd34d">PHASE 3 · EXECUTE  ·  async, in the worker</text>
 
     <line class="f-arrow f-arrow-6" x1="850" y1="392" x2="632" y2="392"
-          stroke="#fbbf24" stroke-width="1.5" fill="none" marker-end="url(#f-arrow-amber)"/>
+          stroke="#fbbf24" stroke-width="1.5" fill="none" stroke-dasharray="5 5" opacity="0.9" marker-end="url(#f-arrow-amber)"/>
     <text x="650" y="385" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#fef3c7">claim job · SKIP LOCKED</text>
 
     <line class="f-arrow f-arrow-7" x1="850" y1="418" x2="1068" y2="418"
-          stroke="#fbbf24" stroke-width="1.5" fill="none" marker-end="url(#f-arrow-amber)"/>
+          stroke="#fbbf24" stroke-width="1.5" fill="none" stroke-dasharray="5 5" opacity="0.9" marker-end="url(#f-arrow-amber)"/>
     <text x="858" y="411" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#fef3c7">llmCall · metered · AbortSignal</text>
 
     <line class="f-arrow f-arrow-8" x1="1068" y1="444" x2="852" y2="444"
-          stroke="#fbbf24" stroke-width="1.5" fill="none" marker-end="url(#f-arrow-amber)"/>
+          stroke="#fbbf24" stroke-width="1.5" fill="none" stroke-dasharray="5 5" opacity="0.9" marker-end="url(#f-arrow-amber)"/>
     <text x="864" y="437" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#fef3c7">tokens · usage</text>
 
     <line class="f-arrow f-arrow-9" x1="850" y1="470" x2="632" y2="470"
-          stroke="#fbbf24" stroke-width="1.5" fill="none" marker-end="url(#f-arrow-amber)"/>
+          stroke="#fbbf24" stroke-width="1.5" fill="none" stroke-dasharray="5 5" opacity="0.9" marker-end="url(#f-arrow-amber)"/>
     <text x="650" y="463" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#fef3c7">usage_event · flow_run.status = done</text>
   </g>
 </svg>

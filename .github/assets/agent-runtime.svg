@@ -71,7 +71,7 @@
     <text x="78" y="54" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#a4b1cb">streamed in</text>
   </g>
 
-  <line class="r-flow" x1="216" y1="270" x2="278" y2="270" stroke="url(#r-edge)" stroke-width="1.6" fill="none" marker-end="url(#r-arrow)"/>
+  <line class="r-flow" x1="216" y1="270" x2="278" y2="270" stroke="url(#r-edge)" stroke-width="1.6" fill="none" marker-end="url(#r-arrow)" stroke-dasharray="5 5"/>
 
   <!-- Agent runtime container -->
   <g transform="translate(284, 96)">
@@ -114,15 +114,15 @@
 
     <!-- Wiring inside the runtime -->
     <!-- Context → LLM -->
-    <line class="r-flow" x1="200" y1="190" x2="238" y2="190" stroke="url(#r-edge)" stroke-width="1.4" fill="none" marker-end="url(#r-arrow)"/>
+    <line class="r-flow" x1="200" y1="190" x2="238" y2="190" stroke="url(#r-edge)" stroke-width="1.4" fill="none" marker-end="url(#r-arrow)" stroke-dasharray="5 5"/>
     <!-- LLM → Tools (tool call) -->
-    <line class="r-flow-loop" x1="380" y1="160" x2="448" y2="110" stroke="url(#r-edge-tool)" stroke-width="1.4" fill="none" marker-end="url(#r-arrow-tool)"/>
+    <line class="r-flow-loop" x1="380" y1="160" x2="448" y2="110" stroke="url(#r-edge-tool)" stroke-width="1.4" fill="none" marker-end="url(#r-arrow-tool)" stroke-dasharray="5 5"/>
     <text x="380" y="138" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#fde68a">tool call</text>
     <!-- Tools → LLM (result) -->
-    <line class="r-flow-loop" x1="448" y1="138" x2="380" y2="188" stroke="url(#r-edge-tool)" stroke-width="1.4" fill="none" marker-end="url(#r-arrow-tool)"/>
+    <line class="r-flow-loop" x1="448" y1="138" x2="380" y2="188" stroke="url(#r-edge-tool)" stroke-width="1.4" fill="none" marker-end="url(#r-arrow-tool)" stroke-dasharray="5 5"/>
     <text x="390" y="178" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#fde68a">result</text>
     <!-- LLM → Output -->
-    <line class="r-flow" x1="380" y1="226" x2="448" y2="276" stroke="url(#r-edge)" stroke-width="1.4" fill="none" marker-end="url(#r-arrow-out)"/>
+    <line class="r-flow" x1="380" y1="226" x2="448" y2="276" stroke="url(#r-edge)" stroke-width="1.4" fill="none" marker-end="url(#r-arrow-out)" stroke-dasharray="5 5"/>
     <text x="380" y="262" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#d8b4fe">final</text>
 
     <!-- Loop hint label -->
@@ -130,8 +130,8 @@
   </g>
 
   <!-- Right outputs: Memory + Streamed response -->
-  <line class="r-flow" x1="914" y1="320" x2="996" y2="220" stroke="url(#r-edge)" stroke-width="1.6" fill="none" marker-end="url(#r-arrow-out)"/>
-  <line class="r-flow" x1="914" y1="340" x2="996" y2="380" stroke="url(#r-edge)" stroke-width="1.6" fill="none" marker-end="url(#r-arrow-out)"/>
+  <line class="r-flow" x1="914" y1="320" x2="996" y2="220" stroke="url(#r-edge)" stroke-width="1.6" fill="none" marker-end="url(#r-arrow-out)" stroke-dasharray="5 5"/>
+  <line class="r-flow" x1="914" y1="340" x2="996" y2="380" stroke="url(#r-edge)" stroke-width="1.6" fill="none" marker-end="url(#r-arrow-out)" stroke-dasharray="5 5"/>
 
   <g transform="translate(996, 174)" filter="url(#r-shadow)">
     <rect width="160" height="86" rx="14" fill="#0b1322" stroke="#22d3ee" stroke-width="1.4" stroke-opacity="0.8"/>
