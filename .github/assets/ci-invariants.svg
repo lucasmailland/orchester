@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 540" width="1200" height="540" role="img" aria-label="Orchester CI invariants: every pull request runs four structural checks before merge is allowed">
+  <title>Structural invariants enforced in CI</title>
+  <desc>A pull request feeds into audit-invariants.sh which runs four structural checks: every mutating route has zod plus assertCan, every workspace query carries workspaceId, every llmCall is metered and spend-capped, and every executeFlow has AbortSignal threaded. If all four pass, merge is allowed. If any check fails, CI blocks the merge.</desc>
+
+  <defs>
+    <linearGradient id="ci-edge" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#22d3ee" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#8a98ff" stop-opacity="0.9"/>
+    </linearGradient>
+    <linearGradient id="ci-edge-pass" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#22d3ee" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#34d399" stop-opacity="0.9"/>
+    </linearGradient>
+    <filter id="ci-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+      <feOffset dx="0" dy="2" result="o"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.32"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="ci-grid" x="0" y="0" width="36" height="36" patternUnits="userSpaceOnUse">
+      <path d="M 36 0 L 0 0 0 36" fill="none" stroke="#1a2440" stroke-width="0.5" stroke-opacity="0.45"/>
+    </pattern>
+    <marker id="ci-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8a98ff"/>
+    </marker>
+    <marker id="ci-arrow-pass" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#34d399"/>
+    </marker>
+    <marker id="ci-arrow-fail" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444"/>
+    </marker>
+    <style><![CDATA[
+      @keyframes ci-flow {
+        from { stroke-dashoffset: 24; }
+        to   { stroke-dashoffset: 0; }
+      }
+      @keyframes ci-pulse-gate {
+        0%, 100% { filter: drop-shadow(0 0 0   rgba(251, 191, 36, 0)); }
+        50%      { filter: drop-shadow(0 0 14px rgba(251, 191, 36, 0.55)); }
+      }
+      @keyframes ci-pulse-pass {
+        0%, 100% { filter: drop-shadow(0 0 0   rgba(52, 211, 153, 0)); }
+        50%      { filter: drop-shadow(0 0 16px rgba(52, 211, 153, 0.6)); }
+      }
+      .ci-flow      { stroke-dasharray: 6 6; animation: ci-flow 1.8s linear infinite; }
+      .ci-pulse-gate { animation: ci-pulse-gate 3s ease-in-out infinite; }
+      .ci-pulse-pass { animation: ci-pulse-pass 3.2s ease-in-out infinite; }
+      @media (prefers-reduced-motion: reduce) {
+        .ci-flow, .ci-pulse-gate, .ci-pulse-pass { animation: none; }
+      }
+    ]]></style>
+  </defs>
+
+  <rect width="1200" height="540" fill="#0a1020"/>
+  <rect width="1200" height="540" fill="url(#ci-grid)"/>
+  <rect x="24" y="24" width="1152" height="492" rx="16" fill="none" stroke="#1f2c4a" stroke-width="1" stroke-opacity="0.7"/>
+
+  <text x="60" y="60" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" letter-spacing="0.22em" fill="#6e7c9c">STRUCTURAL INVARIANTS · ENFORCED IN CI · NOT BY REVIEW</text>
+
+  <!-- PR entry node (left) -->
+  <g transform="translate(60, 230)" filter="url(#ci-shadow)">
+    <rect width="180" height="80" rx="14" fill="#0f1729" stroke="#94a3b8" stroke-width="1.4"/>
+    <text x="90" y="38" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="14" font-weight="600" fill="#f4f7fc">Pull request</text>
+    <text x="90" y="58" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#a4b1cb">opened or updated</text>
+  </g>
+
+  <!-- PR → Gate -->
+  <line class="ci-flow" x1="240" y1="270" x2="335" y2="270" stroke="url(#ci-edge)" stroke-width="1.6" fill="none" marker-end="url(#ci-arrow)"/>
+
+  <!-- Gate (centre) — audit-invariants.sh -->
+  <g transform="translate(340, 218)">
+    <rect class="ci-pulse-gate" width="220" height="104" rx="14" fill="#1a1d2e" stroke="#fbbf24" stroke-width="1.6" stroke-opacity="0.8"/>
+    <text x="110" y="34" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="14" font-weight="700" fill="#fcd34d">audit-invariants.sh</text>
+    <text x="110" y="56" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#fde68a">runs on every PR</text>
+    <text x="110" y="76" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#fde68a">4 grep-based checks</text>
+    <text x="110" y="94" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#fde68a">~2s · blocking</text>
+  </g>
+
+  <!-- Gate → 4 checks (right column) -->
+  <line class="ci-flow" x1="560" y1="240" x2="700" y2="120" stroke="url(#ci-edge)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow)"/>
+  <line class="ci-flow" x1="560" y1="258" x2="700" y2="210" stroke="url(#ci-edge)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow)"/>
+  <line class="ci-flow" x1="560" y1="282" x2="700" y2="300" stroke="url(#ci-edge)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow)"/>
+  <line class="ci-flow" x1="560" y1="300" x2="700" y2="390" stroke="url(#ci-edge)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow)"/>
+
+  <!-- 4 invariant check cards -->
+  <g transform="translate(700, 96)" filter="url(#ci-shadow)">
+    <rect width="280" height="56" rx="10" fill="#0f1729" stroke="#22d3ee" stroke-width="1" stroke-opacity="0.65"/>
+    <text x="14" y="22" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" fill="#67e8f9">✓ ZOD + ASSERTCAN</text>
+    <text x="14" y="42" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="11.5" fill="#cbd5e1">on every mutating route</text>
+  </g>
+  <g transform="translate(700, 186)" filter="url(#ci-shadow)">
+    <rect width="280" height="56" rx="10" fill="#0f1729" stroke="#22d3ee" stroke-width="1" stroke-opacity="0.65"/>
+    <text x="14" y="22" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" fill="#67e8f9">✓ WORKSPACE PREDICATE</text>
+    <text x="14" y="42" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="11.5" fill="#cbd5e1">on every workspace query</text>
+  </g>
+  <g transform="translate(700, 276)" filter="url(#ci-shadow)">
+    <rect width="280" height="56" rx="10" fill="#0f1729" stroke="#22d3ee" stroke-width="1" stroke-opacity="0.65"/>
+    <text x="14" y="22" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" fill="#67e8f9">✓ LLMCALL METERED</text>
+    <text x="14" y="42" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="11.5" fill="#cbd5e1">+ spend-capped before exec</text>
+  </g>
+  <g transform="translate(700, 366)" filter="url(#ci-shadow)">
+    <rect width="280" height="56" rx="10" fill="#0f1729" stroke="#22d3ee" stroke-width="1" stroke-opacity="0.65"/>
+    <text x="14" y="22" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" fill="#67e8f9">✓ ABORTSIGNAL THREADING</text>
+    <text x="14" y="42" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="11.5" fill="#cbd5e1">end-to-end through executeFlow</text>
+  </g>
+
+  <!-- 4 checks → MERGE ALLOWED (top-right) and FAIL (bottom-right) -->
+  <line class="ci-flow" x1="980" y1="124" x2="1060" y2="180" stroke="url(#ci-edge-pass)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow-pass)"/>
+  <line class="ci-flow" x1="980" y1="214" x2="1060" y2="190" stroke="url(#ci-edge-pass)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow-pass)"/>
+  <line class="ci-flow" x1="980" y1="304" x2="1060" y2="200" stroke="url(#ci-edge-pass)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow-pass)"/>
+  <line class="ci-flow" x1="980" y1="394" x2="1060" y2="210" stroke="url(#ci-edge-pass)" stroke-width="1.4" fill="none" marker-end="url(#ci-arrow-pass)"/>
+
+  <!-- merge allowed -->
+  <g transform="translate(1050, 154)" filter="url(#ci-shadow)">
+    <rect class="ci-pulse-pass" width="120" height="72" rx="14" fill="#052e16" stroke="#22c55e" stroke-width="1.8"/>
+    <text x="60" y="32" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="13" font-weight="700" fill="#86efac">✓ merge</text>
+    <text x="60" y="50" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="13" font-weight="700" fill="#86efac">allowed</text>
+    <text x="60" y="66" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9.5" fill="#bbf7d0">4/4 pass</text>
+  </g>
+
+  <!-- merge blocked (bottom: any check fails) -->
+  <line x1="450" y1="322" x2="1050" y2="430" stroke="#ef4444" stroke-width="1.4" fill="none" stroke-dasharray="4 4" marker-end="url(#ci-arrow-fail)" opacity="0.8"/>
+  <text x="730" y="395" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#fca5a5">any check fails →</text>
+
+  <g transform="translate(1050, 410)" filter="url(#ci-shadow)">
+    <rect width="120" height="60" rx="14" fill="#3f0d0d" stroke="#ef4444" stroke-width="1.6"/>
+    <text x="60" y="28" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="13" font-weight="700" fill="#fca5a5">✗ CI blocks</text>
+    <text x="60" y="46" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="13" font-weight="700" fill="#fca5a5">merge</text>
+  </g>
+
+  <!-- Bottom strap: subtle tagline -->
+  <text x="600" y="496" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#6e7c9c">structural · enforced by grep · not by reviewer attention</text>
+</svg>

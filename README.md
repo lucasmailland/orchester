@@ -237,98 +237,13 @@ A built-in MCP server (HTTP + stdio, read+write) so Claude Desktop, Cursor, and 
 
 ## 🏛️ Architecture
 
-```mermaid
-flowchart TB
-    subgraph clients["&nbsp;<b>🌐 Clients</b>&nbsp;"]
-        direction LR
-        B["Browser<br/><sub>Studio UI</sub>"]
-        M["MCP client<br/><sub>Claude Desktop · Cursor</sub>"]
-        E["Embeds<br/><sub>Slack · Telegram · Web widget</sub>"]
-    end
-
-    subgraph app["&nbsp;<b>⚡ Next.js 15 · single deployable</b>&nbsp;"]
-        direction LR
-        UI["Studio<br/><sub>React + HeroUI</sub>"]
-        API["REST + SSE API<br/><sub>zod · RBAC · advisory locks</sub>"]
-        MCP["MCP server<br/><sub>HTTP · stdio</sub>"]
-        PUB["Public /api/v1/*<br/><sub>API keys</sub>"]
-    end
-
-    W["⚙️ Worker<br/><sub>pg-boss consumer · same image, different mode</sub>"]
-
-    subgraph DB["&nbsp;<b>🐘 Postgres 15 + pgvector · only required dependency</b>&nbsp;"]
-        direction LR
-        D1[("Application<br/>data")]
-        D2[("Job queue<br/>pg-boss")]
-        D3[("Vector<br/>embeddings")]
-    end
-
-    subgraph AI["&nbsp;<b>🤖 AI providers · BYO keys · encrypted at rest</b>&nbsp;"]
-        direction LR
-        P1["Chat<br/><sub>OpenAI · Anthropic · Google · xAI · Mistral · …</sub>"]
-        P2["Media<br/><sub>Replicate · fal · ElevenLabs · Stability · …</sub>"]
-    end
-
-    B --> UI
-    UI --> API
-    M --> MCP
-    E --> PUB
-    API -- writes --> D1
-    MCP -- reads/writes --> D1
-    PUB -- reads/writes --> D1
-    API -- enqueue --> D2
-    W -- claim --> D2
-    W -- execute --> AI
-    W -- telemetry --> D1
-    API -. "SSE stream" .- UI
-
-    classDef appBox fill:#0f1729,stroke:#7c8cff,color:#f1f5f9,stroke-width:1.5px
-    classDef dbBox fill:#0b1322,stroke:#22d3ee,color:#cbd5e1,stroke-width:1.5px
-    classDef extBox fill:#1a1224,stroke:#a78bfa,color:#cbd5e1,stroke-width:1.5px
-    classDef workerBox fill:#1a1d2e,stroke:#fbbf24,color:#f1f5f9,stroke-width:1.5px,stroke-dasharray:4
-    class UI,API,MCP,PUB appBox
-    class D1,D2,D3 dbBox
-    class P1,P2 extBox
-    class W workerBox
-```
+<p align="center"><a href=".github/assets/architecture-topology.svg"><img src=".github/assets/architecture-topology.svg" alt="Orchester architecture: five-tier topology — clients → Next.js 15 deployable → worker + Postgres (only required dependency) → 80+ AI providers with BYO keys, encrypted at rest." width="100%"></a></p>
 
 <div align="center"><sub><b>One Next.js app. One Postgres. One worker. That's the entire required topology.</b><br/>Optional add-ons (Redis, S3) layer in without replacing the default path — see <a href="docs/adr/0003-postgres-as-only-dependency.md">ADR 0003</a>.</sub></div>
 
 ### Anatomy of a flow run
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant C as Client
-    participant API as Next.js API
-    participant DB as Postgres
-    participant W as Worker
-    participant AI as AI provider
-
-    Note over C,DB: Phase 1 — Enqueue (synchronous, sub-50ms)
-    C->>API: POST /api/flows/:id/run
-    API->>API: zod · auth · assertCan
-    API->>DB: pg_advisory_xact_lock(workspaceId)
-    API->>DB: check plan quota + spend cap
-    API->>DB: enqueue flow_run
-    API-->>C: 202 Accepted · runId
-
-    Note over C,W: Phase 2 — Stream (server-sent events)
-    C->>API: GET /api/flows/runs/:runId
-    API-->>C: stream node_started, node_done, ...
-
-    Note over W,AI: Phase 3 — Execute (async, in worker)
-    W->>DB: claim job (SKIP LOCKED)
-    loop For each node in the DAG
-        W->>AI: invoke (with AbortSignal)
-        AI-->>W: response
-        W->>DB: usage_event (cost, tokens)
-        W->>DB: telemetry event
-    end
-    W->>DB: flow_run.status = succeeded
-
-    API-->>C: stream flow_completed
-```
+<p align="center"><a href=".github/assets/flow-run-lifecycle.svg"><img src=".github/assets/flow-run-lifecycle.svg" alt="Flow run lifecycle sequence: enqueue (sub-50ms), stream (SSE), execute (async in worker) across client, Next.js API, Postgres, worker and AI provider." width="100%"></a></p>
 
 ### Multi-tenant safety is structural, not procedural
 
@@ -336,54 +251,13 @@ Most multi-tenant breaches happen the same way: a developer writes `db.query.flo
 
 **We don't rely on review for this.** We grep-enforce it in CI — every PR runs four structural checks before merge is allowed:
 
-```mermaid
-flowchart LR
-    PR(["📬 Pull request"]) --> CI{{"<b>audit-invariants.sh</b><br/>runs in CI"}}
-
-    CI --> C1["✓ Every mutating route<br/>has zod + assertCan"]
-    CI --> C2["✓ Every workspace query<br/>carries workspaceId"]
-    CI --> C3["✓ Every llmCall is metered<br/>+ spend-capped"]
-    CI --> C4["✓ Every executeFlow has<br/>AbortSignal threaded"]
-
-    C1 --> PASS(["<b>✓ merge allowed</b>"])
-    C2 --> PASS
-    C3 --> PASS
-    C4 --> PASS
-
-    CI -- any check fails --> FAIL(["<b>✗ CI blocks merge</b>"])
-
-    style PR fill:#1e293b,stroke:#94a3b8,color:#f1f5f9
-    style CI fill:#1e293b,stroke:#fbbf24,color:#f1f5f9,stroke-width:2px
-    style PASS fill:#052e16,stroke:#22c55e,color:#f1f5f9,stroke-width:2.5px
-    style FAIL fill:#3f0d0d,stroke:#ef4444,color:#f1f5f9,stroke-width:2.5px
-    style C1 fill:#0f1729,stroke:#22d3ee,color:#cbd5e1
-    style C2 fill:#0f1729,stroke:#22d3ee,color:#cbd5e1
-    style C3 fill:#0f1729,stroke:#22d3ee,color:#cbd5e1
-    style C4 fill:#0f1729,stroke:#22d3ee,color:#cbd5e1
-```
+<p align="center"><a href=".github/assets/ci-invariants.svg"><img src=".github/assets/ci-invariants.svg" alt="CI invariants: every PR runs audit-invariants.sh — zod + assertCan, workspace predicate, llmCall metered, AbortSignal threading. All four must pass before merge is allowed." width="100%"></a></p>
 
 Full reasoning in [`docs/AUDIT_PLAYBOOK.md`](docs/AUDIT_PLAYBOOK.md). The decision to enforce at the application layer (not Postgres RLS) is documented in [ADR 0005](docs/adr/0005-app-layer-tenancy.md).
 
 ### How an agent thinks
 
-```mermaid
-flowchart LR
-    IN(["📥 User message"]) --> CTX
-    subgraph runtime["&nbsp;<b>🧠 Agent runtime</b>&nbsp;"]
-        direction TB
-        CTX["Context assembly<br/><sub>memory + KB + tools schema</sub>"] --> LLM
-        LLM["Model adapter<br/><sub>capability=chat · streamable</sub>"]
-        LLM -- "tool call" --> TOOLS["Tools<br/><sub>HTTP · KB search · SQL · custom</sub>"]
-        TOOLS -- "result" --> LLM
-        LLM -- "final" --> OUT
-        OUT["Structured output<br/><sub>zod-validated</sub>"]
-    end
-    OUT --> MEM[("📚 Memory<br/><sub>compacted async</sub>")]
-    OUT --> RES(["📤 Response · streamed"])
-
-    classDef hl fill:#0f1729,stroke:#7c8cff,color:#f1f5f9
-    class CTX,LLM,TOOLS,OUT hl
-```
+<p align="center"><a href=".github/assets/agent-runtime.svg"><img src=".github/assets/agent-runtime.svg" alt="Agent runtime loop: user message → context assembly (memory + KB + tools schema) → model adapter ↔ tools loop → structured output → memory (async) and streamed response." width="100%"></a></p>
 
 The model adapter is _interchangeable_. Swapping `gpt-5` for `claude-sonnet-4` or `gemini-3` is a settings change — not a refactor. See [`docs/ARCHITECTURE.md § AI catalog`](docs/ARCHITECTURE.md#ai-catalog).
 

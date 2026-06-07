@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 540" width="1200" height="540" role="img" aria-label="Orchester agent runtime: user message → context assembly → model adapter with tool loop → structured output → memory and streamed response">
+  <title>Agent runtime loop</title>
+  <desc>Left-to-right diagram. A user message enters the agent runtime. Context assembly gathers memory, knowledge-base hits and the tools schema, then hands them to a streamable model adapter. The model can call tools (HTTP, KB search, SQL, custom) and receive their results in a loop before producing a zod-validated structured output. The output is both compacted into memory asynchronously and streamed back to the user.</desc>
+
+  <defs>
+    <linearGradient id="r-edge" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#22d3ee" stop-opacity="0.9"/>
+      <stop offset="50%"  stop-color="#8a98ff" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#c084fc" stop-opacity="0.9"/>
+    </linearGradient>
+    <linearGradient id="r-edge-tool" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#fbbf24" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#8a98ff" stop-opacity="0.9"/>
+    </linearGradient>
+    <filter id="r-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+      <feOffset dx="0" dy="2" result="o"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.32"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="r-grid" x="0" y="0" width="36" height="36" patternUnits="userSpaceOnUse">
+      <path d="M 36 0 L 0 0 0 36" fill="none" stroke="#1a2440" stroke-width="0.5" stroke-opacity="0.45"/>
+    </pattern>
+    <marker id="r-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8a98ff"/>
+    </marker>
+    <marker id="r-arrow-tool" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#fbbf24"/>
+    </marker>
+    <marker id="r-arrow-out" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#c084fc"/>
+    </marker>
+    <style><![CDATA[
+      @keyframes r-flow {
+        from { stroke-dashoffset: 24; }
+        to   { stroke-dashoffset: 0; }
+      }
+      @keyframes r-flow-fast {
+        from { stroke-dashoffset: 16; }
+        to   { stroke-dashoffset: 0; }
+      }
+      @keyframes r-pulse-llm {
+        0%, 100% { filter: drop-shadow(0 0 0   rgba(138, 152, 255, 0)); }
+        50%      { filter: drop-shadow(0 0 14px rgba(138, 152, 255, 0.6)); }
+      }
+      @keyframes r-pulse-tool {
+        0%, 100% { filter: drop-shadow(0 0 0   rgba(251, 191, 36, 0)); }
+        50%      { filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.5)); }
+      }
+      .r-flow       { stroke-dasharray: 6 6; animation: r-flow 1.8s linear infinite; }
+      .r-flow-loop  { stroke-dasharray: 4 4; animation: r-flow-fast 0.9s linear infinite; }
+      .r-pulse-llm  { animation: r-pulse-llm  3.2s ease-in-out infinite; }
+      .r-pulse-tool { animation: r-pulse-tool 2.8s ease-in-out infinite; }
+      @media (prefers-reduced-motion: reduce) {
+        .r-flow, .r-flow-loop, .r-pulse-llm, .r-pulse-tool { animation: none; }
+      }
+    ]]></style>
+  </defs>
+
+  <rect width="1200" height="540" fill="#0a1020"/>
+  <rect width="1200" height="540" fill="url(#r-grid)"/>
+  <rect x="24" y="24" width="1152" height="492" rx="16" fill="none" stroke="#1f2c4a" stroke-width="1" stroke-opacity="0.7"/>
+
+  <text x="60" y="60" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" letter-spacing="0.22em" fill="#6e7c9c">AGENT RUNTIME · CONTEXT → MODEL ↔ TOOLS → OUTPUT</text>
+
+  <!-- Input — user message (left) -->
+  <g transform="translate(60, 234)" filter="url(#r-shadow)">
+    <rect width="156" height="72" rx="14" fill="#0f1729" stroke="#94a3b8" stroke-width="1.4"/>
+    <text x="78" y="34" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="13" font-weight="600" fill="#f4f7fc">User message</text>
+    <text x="78" y="54" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#a4b1cb">streamed in</text>
+  </g>
+
+  <line class="r-flow" x1="216" y1="270" x2="278" y2="270" stroke="url(#r-edge)" stroke-width="1.6" fill="none" marker-end="url(#r-arrow)"/>
+
+  <!-- Agent runtime container -->
+  <g transform="translate(284, 96)">
+    <rect width="630" height="370" rx="18" fill="#0f1729" fill-opacity="0.35" stroke="#7c8cff" stroke-width="1.4" stroke-opacity="0.55"/>
+    <text x="20" y="32" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" letter-spacing="0.22em" fill="#a5b4fc">AGENT RUNTIME</text>
+
+    <!-- Context assembly -->
+    <g transform="translate(30, 152)" filter="url(#r-shadow)">
+      <rect width="170" height="76" rx="12" fill="#1c2440" stroke="#7c8cff" stroke-width="1" stroke-opacity="0.7"/>
+      <text x="14" y="22" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="12.5" font-weight="700" fill="#f4f7fc">Context assembly</text>
+      <text x="14" y="42" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#cbd5e1">memory · KB hits</text>
+      <text x="14" y="58" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#cbd5e1">+ tools schema</text>
+    </g>
+
+    <!-- Model adapter (LLM) - centre, pulsing -->
+    <g transform="translate(240, 142)">
+      <rect class="r-pulse-llm" width="170" height="96" rx="14" fill="#0f1729" stroke="#8a98ff" stroke-width="1.6" stroke-opacity="0.85"/>
+      <text x="14" y="24" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="13" font-weight="700" fill="#c7d2fe">Model adapter</text>
+      <text x="14" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#a5b4fc">capability=chat</text>
+      <text x="14" y="60" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#a5b4fc">streamable · metered</text>
+      <text x="14" y="78" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#a5b4fc">spend-capped</text>
+    </g>
+
+    <!-- Tools - top right inside runtime -->
+    <g transform="translate(450, 56)" filter="url(#r-shadow)">
+      <rect class="r-pulse-tool" width="160" height="92" rx="14" fill="#1a1d2e" stroke="#fbbf24" stroke-width="1.4" stroke-opacity="0.85" stroke-dasharray="0"/>
+      <text x="14" y="22" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="13" font-weight="700" fill="#fcd34d">Tools</text>
+      <text x="14" y="42" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#fde68a">HTTP · KB search</text>
+      <text x="14" y="58" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#fde68a">SQL · custom</text>
+      <text x="14" y="76" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#fde68a">zod-validated</text>
+    </g>
+
+    <!-- Structured output -->
+    <g transform="translate(450, 244)" filter="url(#r-shadow)">
+      <rect width="160" height="76" rx="12" fill="#1c2440" stroke="#c084fc" stroke-width="1.2" stroke-opacity="0.8"/>
+      <text x="14" y="22" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="12.5" font-weight="700" fill="#e9d5ff">Structured output</text>
+      <text x="14" y="42" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#d8b4fe">zod-validated</text>
+      <text x="14" y="58" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#d8b4fe">+ usage_event</text>
+    </g>
+
+    <!-- Wiring inside the runtime -->
+    <!-- Context → LLM -->
+    <line class="r-flow" x1="200" y1="190" x2="238" y2="190" stroke="url(#r-edge)" stroke-width="1.4" fill="none" marker-end="url(#r-arrow)"/>
+    <!-- LLM → Tools (tool call) -->
+    <line class="r-flow-loop" x1="380" y1="160" x2="448" y2="110" stroke="url(#r-edge-tool)" stroke-width="1.4" fill="none" marker-end="url(#r-arrow-tool)"/>
+    <text x="380" y="138" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#fde68a">tool call</text>
+    <!-- Tools → LLM (result) -->
+    <line class="r-flow-loop" x1="448" y1="138" x2="380" y2="188" stroke="url(#r-edge-tool)" stroke-width="1.4" fill="none" marker-end="url(#r-arrow-tool)"/>
+    <text x="390" y="178" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#fde68a">result</text>
+    <!-- LLM → Output -->
+    <line class="r-flow" x1="380" y1="226" x2="448" y2="276" stroke="url(#r-edge)" stroke-width="1.4" fill="none" marker-end="url(#r-arrow-out)"/>
+    <text x="380" y="262" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#d8b4fe">final</text>
+
+    <!-- Loop hint label -->
+    <text x="498" y="180" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9.5" fill="#fef3c7">↻ loop until final</text>
+  </g>
+
+  <!-- Right outputs: Memory + Streamed response -->
+  <line class="r-flow" x1="914" y1="320" x2="996" y2="220" stroke="url(#r-edge)" stroke-width="1.6" fill="none" marker-end="url(#r-arrow-out)"/>
+  <line class="r-flow" x1="914" y1="340" x2="996" y2="380" stroke="url(#r-edge)" stroke-width="1.6" fill="none" marker-end="url(#r-arrow-out)"/>
+
+  <g transform="translate(996, 174)" filter="url(#r-shadow)">
+    <rect width="160" height="86" rx="14" fill="#0b1322" stroke="#22d3ee" stroke-width="1.4" stroke-opacity="0.8"/>
+    <text x="14" y="24" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="13" font-weight="700" fill="#67e8f9">Memory</text>
+    <text x="14" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#a5f3fc">Mnemosyne · remember()</text>
+    <text x="14" y="62" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#a5f3fc">async · compacted</text>
+    <text x="14" y="78" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#a5f3fc">bitemporal</text>
+  </g>
+
+  <g transform="translate(996, 354)" filter="url(#r-shadow)">
+    <rect width="160" height="76" rx="14" fill="#0f1729" stroke="#c084fc" stroke-width="1.4" stroke-opacity="0.85"/>
+    <text x="14" y="24" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="13" font-weight="700" fill="#e9d5ff">Response</text>
+    <text x="14" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#d8b4fe">streamed back</text>
+    <text x="14" y="60" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#d8b4fe">SSE · token by token</text>
+  </g>
+</svg>

@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" width="1200" height="760" role="img" aria-label="Orchester runtime topology: clients → Next.js app + worker → Postgres + AI providers">
+  <title>Orchester runtime topology</title>
+  <desc>Five-tier diagram. Top tier: clients (browser, MCP clients, channels, webhooks). Second tier: a single Next.js 15 deployable that hosts Studio, REST+SSE API, MCP server, and public v1 API. Third tier: a worker that shares the same image, claims jobs via pg-boss SKIP LOCKED. Fourth tier: Postgres 15 + pgvector — the only required dependency, holding application data, the job queue, and vector embeddings. Fifth tier: 80+ AI provider adapters with BYO encrypted keys.</desc>
+
+  <defs>
+    <linearGradient id="o-edge-down" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#22d3ee" stop-opacity="0.9"/>
+      <stop offset="50%"  stop-color="#8a98ff" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#c084fc" stop-opacity="0.9"/>
+    </linearGradient>
+    <linearGradient id="o-edge-cool" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#34d399" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#22d3ee" stop-opacity="0.7"/>
+    </linearGradient>
+    <filter id="o-card-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
+      <feOffset dx="0" dy="2" result="offsetblur"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.32"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="o-grid" x="0" y="0" width="36" height="36" patternUnits="userSpaceOnUse">
+      <path d="M 36 0 L 0 0 0 36" fill="none" stroke="#1a2440" stroke-width="0.5" stroke-opacity="0.45"/>
+    </pattern>
+    <marker id="o-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8a98ff"/>
+    </marker>
+
+    <!-- Inline CSS animations. Triggered automatically once the SVG
+         renders, no JS hook needed. We honour prefers-reduced-motion
+         so visitors who asked the OS to calm animations down don't
+         see the pulses or marching arrows. -->
+    <style><![CDATA[
+      @keyframes o-pulse {
+        0%, 100% { opacity: 0.55; transform: scale(1); }
+        50%      { opacity: 1;    transform: scale(1.18); }
+      }
+      @keyframes o-flow {
+        from { stroke-dashoffset: 24; }
+        to   { stroke-dashoffset: 0; }
+      }
+      @keyframes o-glow {
+        0%, 100% { filter: drop-shadow(0 0 0   rgba(34, 211, 238, 0)); }
+        50%      { filter: drop-shadow(0 0 14px rgba(34, 211, 238, 0.55)); }
+      }
+      @keyframes o-glow-violet {
+        0%, 100% { filter: drop-shadow(0 0 0   rgba(167, 139, 250, 0)); }
+        50%      { filter: drop-shadow(0 0 12px rgba(167, 139, 250, 0.45)); }
+      }
+
+      /* Pulsing indicator dots on every tier-1 client card. Each one
+         gets a slight delay so they breathe out of phase — a more
+         "alive system" feel than them blinking in unison. */
+      .o-pulse-1 { transform-origin: center; transform-box: fill-box;
+                   animation: o-pulse 2.6s ease-in-out infinite; }
+      .o-pulse-2 { transform-origin: center; transform-box: fill-box;
+                   animation: o-pulse 2.6s ease-in-out infinite 0.4s; }
+      .o-pulse-3 { transform-origin: center; transform-box: fill-box;
+                   animation: o-pulse 2.6s ease-in-out infinite 0.8s; }
+      .o-pulse-4 { transform-origin: center; transform-box: fill-box;
+                   animation: o-pulse 2.6s ease-in-out infinite 1.2s; }
+
+      /* Marching-arrows flow along every connecting line. The
+         dasharray defines a 6px dash + 6px gap; animating the offset
+         makes the dashes "march" along the path, which reads as
+         dataflow. */
+      .o-flow {
+        stroke-dasharray: 6 6;
+        animation: o-flow 1.6s linear infinite;
+      }
+      .o-flow-slow {
+        stroke-dasharray: 6 6;
+        animation: o-flow 2.6s linear infinite;
+      }
+
+      /* The Postgres box is the visual centre of the diagram — it
+         gets a gentle cyan halo to reinforce "this is the one
+         required dependency". Same trick for the AI providers card
+         in violet so the BYO-keys story stays visible. */
+      .o-postgres-glow { animation: o-glow 3.2s ease-in-out infinite; }
+      .o-providers-glow { animation: o-glow-violet 3.6s ease-in-out infinite; }
+
+      @media (prefers-reduced-motion: reduce) {
+        .o-pulse-1, .o-pulse-2, .o-pulse-3, .o-pulse-4,
+        .o-flow, .o-flow-slow,
+        .o-postgres-glow, .o-providers-glow {
+          animation: none;
+        }
+      }
+    ]]></style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="760" fill="#0a1020"/>
+  <rect width="1200" height="760" fill="url(#o-grid)"/>
+  <rect x="24" y="24" width="1152" height="712" rx="16" fill="none" stroke="#1f2c4a" stroke-width="1" stroke-opacity="0.7"/>
+
+  <!-- ============ TIER 1: Clients ============ -->
+  <g>
+    <text x="60" y="76" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" letter-spacing="0.22em" fill="#6e7c9c">01 · CLIENTS</text>
+    <rect x="60" y="92" width="1080" height="86" rx="12" fill="none" stroke="#1f2c4a" stroke-width="1" stroke-opacity="0.6" stroke-dasharray="4 4"/>
+
+    <g transform="translate(110, 108)" filter="url(#o-card-shadow)">
+      <rect width="240" height="54" rx="10" fill="#0f1729" stroke="#2a3a5e" stroke-width="1"/>
+      <circle class="o-pulse-1" cx="22" cy="20" r="5" fill="#8a98ff"/>
+      <circle cx="22" cy="20" r="9" fill="none" stroke="#8a98ff" stroke-width="0.8" opacity="0.55"/>
+      <text x="42" y="24" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="14" font-weight="600" fill="#f4f7fc">Browser · Studio UI</text>
+      <text x="42" y="42" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#a4b1cb">React 19 · streaming SSE</text>
+    </g>
+
+    <g transform="translate(370, 108)" filter="url(#o-card-shadow)">
+      <rect width="240" height="54" rx="10" fill="#0f1729" stroke="#2a3a5e" stroke-width="1"/>
+      <circle class="o-pulse-2" cx="22" cy="20" r="5" fill="#22d3ee"/>
+      <circle cx="22" cy="20" r="9" fill="none" stroke="#22d3ee" stroke-width="0.8" opacity="0.55"/>
+      <text x="42" y="24" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="14" font-weight="600" fill="#f4f7fc">AI clients · MCP</text>
+      <text x="42" y="42" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#a4b1cb">Claude Desktop · Cursor</text>
+    </g>
+
+    <g transform="translate(630, 108)" filter="url(#o-card-shadow)">
+      <rect width="240" height="54" rx="10" fill="#0f1729" stroke="#2a3a5e" stroke-width="1"/>
+      <circle class="o-pulse-3" cx="22" cy="20" r="5" fill="#34d399"/>
+      <circle cx="22" cy="20" r="9" fill="none" stroke="#34d399" stroke-width="0.8" opacity="0.55"/>
+      <text x="42" y="24" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="14" font-weight="600" fill="#f4f7fc">Channels · embeds</text>
+      <text x="42" y="42" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#a4b1cb">Slack · Telegram · widget</text>
+    </g>
+
+    <g transform="translate(890, 108)" filter="url(#o-card-shadow)">
+      <rect width="200" height="54" rx="10" fill="#0f1729" stroke="#2a3a5e" stroke-width="1"/>
+      <circle class="o-pulse-4" cx="22" cy="20" r="5" fill="#c084fc"/>
+      <circle cx="22" cy="20" r="9" fill="none" stroke="#c084fc" stroke-width="0.8" opacity="0.55"/>
+      <text x="42" y="24" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="14" font-weight="600" fill="#f4f7fc">Public API v1</text>
+      <text x="42" y="42" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#a4b1cb">API keys · webhooks</text>
+    </g>
+  </g>
+
+  <!-- arrows tier 1 → tier 2 -->
+  <g stroke="url(#o-edge-down)" stroke-width="1.4" fill="none" marker-end="url(#o-arrow)" class="o-flow">
+    <line x1="230" y1="166" x2="230" y2="220"/>
+    <line x1="490" y1="166" x2="490" y2="220"/>
+    <line x1="750" y1="166" x2="750" y2="220"/>
+    <line x1="990" y1="166" x2="990" y2="220"/>
+  </g>
+
+  <!-- ============ TIER 2: Next.js single deployable ============ -->
+  <g>
+    <text x="60" y="210" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" letter-spacing="0.22em" fill="#6e7c9c">02 · NEXT.JS 15 · UN SOLO DEPLOY</text>
+    <rect x="60" y="226" width="1080" height="120" rx="12" fill="#0f1729" stroke="#7c8cff" stroke-width="1.4" stroke-opacity="0.55"/>
+    <text x="80" y="250" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="13" font-weight="700" fill="#a5b4fc">Studio · REST + SSE · MCP server · Pública v1</text>
+    <text x="80" y="270" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#8b9bc7">App Router · server components · zod · RBAC · advisory locks · idempotency keys</text>
+
+    <g transform="translate(80, 282)">
+      <rect width="220" height="52" rx="8" fill="#1c2440" stroke="#7c8cff" stroke-opacity="0.45" stroke-width="1"/>
+      <text x="14" y="22" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="12.5" font-weight="600" fill="#f4f7fc">Studio</text>
+      <text x="14" y="40" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#a4b1cb">React + HeroUI</text>
+    </g>
+    <g transform="translate(330, 282)">
+      <rect width="220" height="52" rx="8" fill="#1c2440" stroke="#7c8cff" stroke-opacity="0.45" stroke-width="1"/>
+      <text x="14" y="22" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="12.5" font-weight="600" fill="#f4f7fc">REST + SSE</text>
+      <text x="14" y="40" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#a4b1cb">zod · RBAC · streaming</text>
+    </g>
+    <g transform="translate(580, 282)">
+      <rect width="220" height="52" rx="8" fill="#1c2440" stroke="#7c8cff" stroke-opacity="0.45" stroke-width="1"/>
+      <text x="14" y="22" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="12.5" font-weight="600" fill="#f4f7fc">MCP server</text>
+      <text x="14" y="40" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#a4b1cb">HTTP · stdio</text>
+    </g>
+    <g transform="translate(830, 282)">
+      <rect width="290" height="52" rx="8" fill="#1c2440" stroke="#7c8cff" stroke-opacity="0.45" stroke-width="1"/>
+      <text x="14" y="22" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="12.5" font-weight="600" fill="#f4f7fc">Public /api/v1/*</text>
+      <text x="14" y="40" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#a4b1cb">API keys · per-key rate limits</text>
+    </g>
+  </g>
+
+  <!-- arrows tier 2 → worker + DB -->
+  <g stroke="url(#o-edge-down)" stroke-width="1.4" fill="none" marker-end="url(#o-arrow)" class="o-flow">
+    <line x1="320" y1="346" x2="320" y2="410"/>
+    <line x1="880" y1="346" x2="880" y2="410"/>
+  </g>
+  <!-- Label "enqueue" on arrow -->
+  <text x="332" y="385" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#a4b1cb">enqueue (pg-boss)</text>
+  <text x="892" y="385" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#a4b1cb">writes / reads</text>
+
+  <!-- ============ TIER 3: Worker (left) + DB (right) ============ -->
+  <g>
+    <!-- Worker card -->
+    <text x="60" y="430" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" letter-spacing="0.22em" fill="#6e7c9c">03 · WORKER · MISMA IMAGEN</text>
+    <rect x="60" y="446" width="520" height="120" rx="12" fill="#1a1d2e" stroke="#fbbf24" stroke-width="1.4" stroke-opacity="0.55" stroke-dasharray="4 4"/>
+    <text x="80" y="470" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="13" font-weight="700" fill="#fcd34d">pg-boss consumer</text>
+    <text x="80" y="488" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#fde68a">SKIP LOCKED claims · backoff exponencial · idempotency keys</text>
+    <text x="80" y="506" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#fde68a">AbortSignal threading · llmCall metereado · usage_event por nodo</text>
+    <g transform="translate(80, 518)">
+      <rect width="200" height="34" rx="8" fill="#0f1729" stroke="#fbbf24" stroke-opacity="0.5" stroke-width="1"/>
+      <text x="14" y="22" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#fef3c7">claim → execute → telemetry</text>
+    </g>
+    <g transform="translate(300, 518)">
+      <rect width="260" height="34" rx="8" fill="#0f1729" stroke="#fbbf24" stroke-opacity="0.5" stroke-width="1"/>
+      <text x="14" y="22" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#fef3c7">withFlowTx · per-phase commit</text>
+    </g>
+
+    <!-- DB card -->
+    <text x="620" y="430" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" letter-spacing="0.22em" fill="#6e7c9c">04 · POSTGRES 15 · ÚNICA DEPENDENCIA</text>
+    <rect class="o-postgres-glow" x="620" y="446" width="500" height="120" rx="12" fill="#0b1322" stroke="#22d3ee" stroke-width="1.4" stroke-opacity="0.55"/>
+    <text x="640" y="470" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="13" font-weight="700" fill="#67e8f9">Postgres + pgvector</text>
+    <text x="640" y="488" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#a5f3fc">datos de app · cola de jobs · vector embeddings · RLS + FORCE</text>
+    <g transform="translate(640, 502)">
+      <rect width="140" height="50" rx="8" fill="#0a1020" stroke="#22d3ee" stroke-opacity="0.45" stroke-width="1"/>
+      <text x="14" y="22" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="12" font-weight="600" fill="#f4f7fc">Application data</text>
+      <text x="14" y="38" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#a4b1cb">tenant-scoped · RLS</text>
+    </g>
+    <g transform="translate(790, 502)">
+      <rect width="140" height="50" rx="8" fill="#0a1020" stroke="#22d3ee" stroke-opacity="0.45" stroke-width="1"/>
+      <text x="14" y="22" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="12" font-weight="600" fill="#f4f7fc">Job queue</text>
+      <text x="14" y="38" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#a4b1cb">pg-boss · SKIP LOCKED</text>
+    </g>
+    <g transform="translate(940, 502)">
+      <rect width="160" height="50" rx="8" fill="#0a1020" stroke="#22d3ee" stroke-opacity="0.45" stroke-width="1"/>
+      <text x="14" y="22" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="12" font-weight="600" fill="#f4f7fc">Vector + memory</text>
+      <text x="14" y="38" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#a4b1cb">pgvector · halfvec</text>
+    </g>
+  </g>
+
+  <!-- Worker → DB (claim) -->
+  <g stroke="url(#o-edge-cool)" stroke-width="1.4" fill="none" marker-end="url(#o-arrow)" class="o-flow-slow">
+    <path d="M 580 506 L 620 506" />
+  </g>
+  <text x="586" y="498" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#a4b1cb">claim / write</text>
+
+  <!-- arrows tier 3 → AI providers -->
+  <g stroke="url(#o-edge-down)" stroke-width="1.4" fill="none" marker-end="url(#o-arrow)" class="o-flow">
+    <line x1="320" y1="566" x2="320" y2="624"/>
+  </g>
+  <text x="332" y="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10.5" fill="#a4b1cb">execute · BYO keys</text>
+
+  <!-- ============ TIER 4: AI providers ============ -->
+  <g>
+    <text x="60" y="644" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" letter-spacing="0.22em" fill="#6e7c9c">05 · 80+ AI PROVIDERS · BYO KEYS · ENCRYPTED AT REST</text>
+    <rect class="o-providers-glow" x="60" y="660" width="1080" height="62" rx="12" fill="#1a1224" stroke="#a78bfa" stroke-width="1.4" stroke-opacity="0.55"/>
+    <g transform="translate(80, 670)">
+      <rect width="260" height="42" rx="8" fill="#0f0a1c" stroke="#a78bfa" stroke-opacity="0.45" stroke-width="1"/>
+      <text x="14" y="18" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="12" font-weight="600" fill="#f4f7fc">Chat</text>
+      <text x="14" y="34" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#d8b4fe">OpenAI · Anthropic · Google · xAI · Mistral · …</text>
+    </g>
+    <g transform="translate(360, 670)">
+      <rect width="260" height="42" rx="8" fill="#0f0a1c" stroke="#a78bfa" stroke-opacity="0.45" stroke-width="1"/>
+      <text x="14" y="18" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="12" font-weight="600" fill="#f4f7fc">Embeddings</text>
+      <text x="14" y="34" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#d8b4fe">OpenAI · Cohere · Voyage · Ollama · …</text>
+    </g>
+    <g transform="translate(640, 670)">
+      <rect width="240" height="42" rx="8" fill="#0f0a1c" stroke="#a78bfa" stroke-opacity="0.45" stroke-width="1"/>
+      <text x="14" y="18" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="12" font-weight="600" fill="#f4f7fc">Rerank</text>
+      <text x="14" y="34" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#d8b4fe">Cohere · cross-encoder local</text>
+    </g>
+    <g transform="translate(900, 670)">
+      <rect width="220" height="42" rx="8" fill="#0f0a1c" stroke="#a78bfa" stroke-opacity="0.45" stroke-width="1"/>
+      <text x="14" y="18" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Inter, sans-serif" font-size="12" font-weight="600" fill="#f4f7fc">Media</text>
+      <text x="14" y="34" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#d8b4fe">Replicate · fal · ElevenLabs · …</text>
+    </g>
+  </g>
+</svg>

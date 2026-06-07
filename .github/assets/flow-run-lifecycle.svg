@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 540" width="1200" height="540" role="img" aria-label="Orchester flow run lifecycle: enqueue, stream, execute phases across client, API, Postgres, worker and AI provider">
+  <title>Orchester flow run lifecycle</title>
+  <desc>Sequence diagram showing the three phases of a flow run. Phase 1 enqueue: client posts to the Next.js API, which validates, locks, and enqueues a job before returning 202 with a runId. Phase 2 stream: the client opens an SSE connection that emits node_started, node_done and llm_token events. Phase 3 execute: the worker claims the job under SKIP LOCKED, walks the DAG, dispatches metered llmCalls to AI providers, writes usage_event rows and flips flow_run.status when done.</desc>
+
+  <defs>
+    <linearGradient id="f-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#22d3ee" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#8a98ff" stop-opacity="0.85"/>
+    </linearGradient>
+    <filter id="f-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+      <feOffset dx="0" dy="2" result="offsetblur"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.32"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="f-grid" x="0" y="0" width="36" height="36" patternUnits="userSpaceOnUse">
+      <path d="M 36 0 L 0 0 0 36" fill="none" stroke="#1a2440" stroke-width="0.5" stroke-opacity="0.45"/>
+    </pattern>
+    <marker id="f-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8a98ff"/>
+    </marker>
+    <marker id="f-arrow-cyan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#22d3ee"/>
+    </marker>
+    <marker id="f-arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#fbbf24"/>
+    </marker>
+
+    <!-- Inline animations. The sequence diagram tells a story across
+         time — each arrow gets a "draw-in" reveal in narrative order,
+         then the loop restarts. Lifeline lifelines breathe gently to
+         suggest live processes. -->
+    <style><![CDATA[
+      @keyframes f-draw {
+        0%   { stroke-dashoffset: 240; opacity: 0; }
+        8%   { opacity: 1; }
+        40%  { stroke-dashoffset: 0;   opacity: 1; }
+        90%  { opacity: 1; }
+        100% { stroke-dashoffset: 0;   opacity: 0.5; }
+      }
+      @keyframes f-pulse-lifeline {
+        0%, 100% { opacity: 0.35; }
+        50%      { opacity: 0.7; }
+      }
+      @keyframes f-pulse-header {
+        0%, 100% { filter: drop-shadow(0 0 0   rgba(138, 152, 255, 0)); }
+        50%      { filter: drop-shadow(0 0 8px rgba(138, 152, 255, 0.45)); }
+      }
+
+      /* Each arrow has a draw-in animation that runs once per ~9.6s
+         cycle, with a delay matching its position in the sequence so
+         the diagram visibly walks through the protocol over time. */
+      .f-arrow {
+        stroke-dasharray: 240;
+        stroke-dashoffset: 240;
+        animation: f-draw 9.6s ease-in-out infinite;
+      }
+      .f-arrow-1 { animation-delay: 0s;    }
+      .f-arrow-2 { animation-delay: 0.6s;  }
+      .f-arrow-3 { animation-delay: 1.2s;  }
+      .f-arrow-4 { animation-delay: 2.4s;  }
+      .f-arrow-5 { animation-delay: 3.0s;  }
+      .f-arrow-6 { animation-delay: 4.2s;  }
+      .f-arrow-7 { animation-delay: 5.0s;  }
+      .f-arrow-8 { animation-delay: 5.8s;  }
+      .f-arrow-9 { animation-delay: 6.6s;  }
+
+      .f-lifeline { animation: f-pulse-lifeline 3.4s ease-in-out infinite; }
+      .f-header   { animation: f-pulse-header   3.4s ease-in-out infinite; }
+
+      @media (prefers-reduced-motion: reduce) {
+        .f-arrow {
+          stroke-dasharray: none;
+          stroke-dashoffset: 0;
+          animation: none;
+          opacity: 1;
+        }
+        .f-lifeline, .f-header { animation: none; }
+      }
+    ]]></style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="540" fill="#0a1020"/>
+  <rect width="1200" height="540" fill="url(#f-grid)"/>
+  <rect x="24" y="24" width="1152" height="492" rx="16" fill="none" stroke="#1f2c4a" stroke-width="1" stroke-opacity="0.7"/>
+
+  <!-- Column headers / lifelines -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" letter-spacing="0.18em" fill="#a4b1cb">
+    <g transform="translate(120, 60)" filter="url(#f-shadow)">
+      <rect width="140" height="36" rx="8" fill="#0f1729" stroke="#2a3a5e"/>
+      <text x="70" y="22" text-anchor="middle">CLIENT</text>
+    </g>
+    <g transform="translate(330, 60)" filter="url(#f-shadow)">
+      <rect width="160" height="36" rx="8" fill="#0f1729" stroke="#7c8cff"/>
+      <text x="80" y="22" text-anchor="middle" fill="#a5b4fc">NEXT.JS API</text>
+    </g>
+    <g transform="translate(560, 60)" filter="url(#f-shadow)">
+      <rect width="140" height="36" rx="8" fill="#0b1322" stroke="#22d3ee"/>
+      <text x="70" y="22" text-anchor="middle" fill="#67e8f9">POSTGRES</text>
+    </g>
+    <g transform="translate(770, 60)" filter="url(#f-shadow)">
+      <rect width="160" height="36" rx="8" fill="#1a1d2e" stroke="#fbbf24" stroke-dasharray="4 4"/>
+      <text x="80" y="22" text-anchor="middle" fill="#fcd34d">WORKER</text>
+    </g>
+    <g transform="translate(1000, 60)" filter="url(#f-shadow)">
+      <rect width="140" height="36" rx="8" fill="#1a1224" stroke="#a78bfa"/>
+      <text x="70" y="22" text-anchor="middle" fill="#d8b4fe">AI PROVIDER</text>
+    </g>
+  </g>
+
+  <!-- Lifelines -->
+  <g stroke="#1f2c4a" stroke-width="1" stroke-dasharray="4 4" class="f-lifeline">
+    <line x1="190" y1="100" x2="190" y2="496"/>
+    <line x1="410" y1="100" x2="410" y2="496"/>
+    <line x1="630" y1="100" x2="630" y2="496"/>
+    <line x1="850" y1="100" x2="850" y2="496"/>
+    <line x1="1070" y1="100" x2="1070" y2="496"/>
+  </g>
+
+  <!-- Phase 1 — Enqueue band -->
+  <g>
+    <rect x="60" y="116" width="1080" height="124" rx="12" fill="#0f1729" fill-opacity="0.35" stroke="#7c8cff" stroke-opacity="0.35" stroke-dasharray="4 4"/>
+    <text x="78" y="138" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" letter-spacing="0.18em" fill="#a5b4fc">PHASE 1 · ENQUEUE  ·  sub-50 ms · synchronous</text>
+
+    <line class="f-arrow f-arrow-1" x1="190" y1="160" x2="408" y2="160"
+          stroke="#8a98ff" stroke-width="1.5" fill="none" marker-end="url(#f-arrow)"/>
+    <text x="200" y="153" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#c7d2fe">POST /api/flows/:id/run</text>
+
+    <line class="f-arrow f-arrow-2" x1="410" y1="186" x2="628" y2="186"
+          stroke="#22d3ee" stroke-width="1.5" fill="none" marker-end="url(#f-arrow-cyan)"/>
+    <text x="420" y="179" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#a5f3fc">advisory lock + quota + enqueue</text>
+
+    <line class="f-arrow f-arrow-3" x1="408" y1="216" x2="192" y2="216"
+          stroke="#8a98ff" stroke-width="1.5" fill="none" marker-end="url(#f-arrow)"/>
+    <text x="210" y="209" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#c7d2fe">202 Accepted · runId</text>
+  </g>
+
+  <!-- Phase 2 — Stream band -->
+  <g>
+    <rect x="60" y="256" width="1080" height="76" rx="12" fill="#0b1322" fill-opacity="0.4" stroke="#22d3ee" stroke-opacity="0.35" stroke-dasharray="4 4"/>
+    <text x="78" y="278" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" letter-spacing="0.18em" fill="#67e8f9">PHASE 2 · STREAM  ·  server-sent events  ·  no polling, no websockets</text>
+
+    <line class="f-arrow f-arrow-4" x1="190" y1="302" x2="408" y2="302"
+          stroke="#22d3ee" stroke-width="1.5" fill="none" marker-end="url(#f-arrow-cyan)"/>
+    <text x="200" y="295" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#a5f3fc">GET /api/flows/runs/:runId  (SSE)</text>
+
+    <line class="f-arrow f-arrow-5" x1="408" y1="322" x2="192" y2="322"
+          stroke="#22d3ee" stroke-width="1.5" fill="none" marker-end="url(#f-arrow-cyan)"/>
+    <text x="220" y="315" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#a5f3fc">stream  node_started · node_done · llm_token</text>
+  </g>
+
+  <!-- Phase 3 — Execute band -->
+  <g>
+    <rect x="60" y="348" width="1080" height="148" rx="12" fill="#1a1d2e" fill-opacity="0.4" stroke="#fbbf24" stroke-opacity="0.32" stroke-dasharray="4 4"/>
+    <text x="78" y="370" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" letter-spacing="0.18em" fill="#fcd34d">PHASE 3 · EXECUTE  ·  async, in the worker</text>
+
+    <line class="f-arrow f-arrow-6" x1="850" y1="392" x2="632" y2="392"
+          stroke="#fbbf24" stroke-width="1.5" fill="none" marker-end="url(#f-arrow-amber)"/>
+    <text x="650" y="385" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#fef3c7">claim job · SKIP LOCKED</text>
+
+    <line class="f-arrow f-arrow-7" x1="850" y1="418" x2="1068" y2="418"
+          stroke="#fbbf24" stroke-width="1.5" fill="none" marker-end="url(#f-arrow-amber)"/>
+    <text x="858" y="411" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#fef3c7">llmCall · metered · AbortSignal</text>
+
+    <line class="f-arrow f-arrow-8" x1="1068" y1="444" x2="852" y2="444"
+          stroke="#fbbf24" stroke-width="1.5" fill="none" marker-end="url(#f-arrow-amber)"/>
+    <text x="864" y="437" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#fef3c7">tokens · usage</text>
+
+    <line class="f-arrow f-arrow-9" x1="850" y1="470" x2="632" y2="470"
+          stroke="#fbbf24" stroke-width="1.5" fill="none" marker-end="url(#f-arrow-amber)"/>
+    <text x="650" y="463" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#fef3c7">usage_event · flow_run.status = done</text>
+  </g>
+</svg>

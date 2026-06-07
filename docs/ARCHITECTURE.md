@@ -96,6 +96,24 @@ over so the host worker only schedules flow + GDPR + audit-chain jobs.
 A representative POST `/api/flows/:id/run` request. The diagram is end-to-end; the steps below annotate each hop with its module.
 
 ```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "primaryColor": "#0f1729",
+    "primaryTextColor": "#f4f7fc",
+    "primaryBorderColor": "#8a98ff",
+    "lineColor": "#22d3ee",
+    "secondaryColor": "#1c2440",
+    "tertiaryColor": "#0a1020",
+    "noteBkgColor": "#0b1322",
+    "noteTextColor": "#a4b1cb",
+    "noteBorderColor": "#2a3a5e",
+    "edgeLabelBackground": "#0f1729",
+    "clusterBkg": "#0b1322",
+    "clusterBorder": "#2a3a5e",
+    "fontFamily": "ui-sans-serif, -apple-system, Segoe UI, Inter, sans-serif"
+  }
+}}%%
 flowchart LR
   Client[Browser / API client]
   Edge[Edge middleware<br/>apps/web/middleware.ts]
@@ -247,6 +265,24 @@ prompt-cache boundary is set at the exact character offset where the cached
 prefix ends, so the static portion is billed at ~10% on cache hits.
 
 ```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "primaryColor": "#0f1729",
+    "primaryTextColor": "#f4f7fc",
+    "primaryBorderColor": "#8a98ff",
+    "lineColor": "#22d3ee",
+    "secondaryColor": "#1c2440",
+    "tertiaryColor": "#0a1020",
+    "noteBkgColor": "#0b1322",
+    "noteTextColor": "#a4b1cb",
+    "noteBorderColor": "#2a3a5e",
+    "edgeLabelBackground": "#0f1729",
+    "clusterBkg": "#0b1322",
+    "clusterBorder": "#2a3a5e",
+    "fontFamily": "ui-sans-serif, -apple-system, Segoe UI, Inter, sans-serif"
+  }
+}}%%
 flowchart LR
   Turn[Conversational turn<br/>agent-runtime.ts]
   Profile[buildProfileBlock]
@@ -315,6 +351,24 @@ Costs are computed from token usage × catalog price and written to `usage_event
 `lib/channels/router.ts handleInbound` and `handleInboundStream` are the entry points for inbound messages from Slack, Telegram, the embeddable widget, and the public REST API. The flow is the same for both — streaming only changes where the txn boundaries fall.
 
 ```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "primaryColor": "#0f1729",
+    "primaryTextColor": "#f4f7fc",
+    "primaryBorderColor": "#8a98ff",
+    "lineColor": "#22d3ee",
+    "secondaryColor": "#1c2440",
+    "tertiaryColor": "#0a1020",
+    "noteBkgColor": "#0b1322",
+    "noteTextColor": "#a4b1cb",
+    "noteBorderColor": "#2a3a5e",
+    "edgeLabelBackground": "#0f1729",
+    "clusterBkg": "#0b1322",
+    "clusterBorder": "#2a3a5e",
+    "fontFamily": "ui-sans-serif, -apple-system, Segoe UI, Inter, sans-serif"
+  }
+}}%%
 sequenceDiagram
   participant Client
   participant Router as channels/router.ts
@@ -381,6 +435,24 @@ The worker shares code with the web app, so adding a new job type means: new han
 Phase F.5 (post-2026-05-26) replaced the in-memory `Buffer.concat` archive builder with a true streaming pipeline. `archiver` writes straight into the storage adapter — peak worker memory is bounded by archiver's deflate buffer plus a single multipart part (5–10 MB on S3) instead of the full archive, so multi-GB tenant exports no longer SIGKILL the worker.
 
 ```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "primaryColor": "#0f1729",
+    "primaryTextColor": "#f4f7fc",
+    "primaryBorderColor": "#8a98ff",
+    "lineColor": "#22d3ee",
+    "secondaryColor": "#1c2440",
+    "tertiaryColor": "#0a1020",
+    "noteBkgColor": "#0b1322",
+    "noteTextColor": "#a4b1cb",
+    "noteBorderColor": "#2a3a5e",
+    "edgeLabelBackground": "#0f1729",
+    "clusterBkg": "#0b1322",
+    "clusterBorder": "#2a3a5e",
+    "fontFamily": "ui-sans-serif, -apple-system, Segoe UI, Inter, sans-serif"
+  }
+}}%%
 flowchart LR
   Req[POST /api/workspaces/:slug/export]
   Q[(pg-boss<br/>gdpr:export)]
