@@ -68,20 +68,7 @@ We're not chasing feature parity with hosted clouds. We're chasing the **substra
 
 The mental model of Orchester is **teams** — not the standard "one big agent with a giant prompt" pattern that breaks at the first edge case.
 
-```
-              ┌─ Orchestrator ─────────┐
-              │  claude-opus-4         │
-              │  decides who handles   │
-              │  what, when, with what │
-              └──────────┬─────────────┘
-                         │
-        ┌────────────────┼────────────────┐
-        │                │                │
-   ┌────▼─────┐    ┌─────▼─────┐    ┌─────▼─────┐
-   │  Sales   │    │  Support  │    │   Ops     │
-   │ specialist│    │ specialist│    │ specialist│
-   └──────────┘    └───────────┘    └───────────┘
-```
+<p align="center"><a href=".github/assets/teams-pattern.svg"><img src=".github/assets/teams-pattern.svg" alt="Teams pattern: an Orchestrator running claude-opus-4 classifies every message and delegates to one of three specialists (Sales, Support, Ops), each scoped to its own tools, persona and model." width="100%"></a></p>
 
 The **Orchestrator** receives every message, classifies intent, and delegates to a **Specialist**. Specialists are focused: they know their tools, their persona, their model — and nothing else. When something goes wrong, you can tell _which_ specialist did _what_ and why, because the orchestrator emitted a `delegation` audit event with full context.
 
@@ -128,13 +115,7 @@ const support = await orchester.agent({
 
 Wire triggers, branches, loops and retries on a canvas. Typed state, bounded loops, retry policies per node. Best for onboarding, lead routing, multi-step workflows — anything QA needs to sign off on.
 
-```
-   ┌─ Trigger
-   └─► Classify intent
-        ├─► Search KB ──┐
-        └─► Call API ───┤
-                        └─► Reply
-```
+<p align="center"><a href=".github/assets/flow-pattern.svg"><img src=".github/assets/flow-pattern.svg" alt="Visual Flow agent pattern: trigger fires, classifier picks intent, search KB and call API run in parallel, results converge into a single reply." width="100%"></a></p>
 
 </td>
 </tr>
