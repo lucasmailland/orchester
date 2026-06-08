@@ -33,9 +33,9 @@
     "test:smoke": "DOMAIN=${DOMAIN:-http://localhost:3333} bash ../../scripts/smoke-test.sh"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1059.0",
-    "@aws-sdk/lib-storage": "^3.1059.0",
-    "@aws-sdk/s3-request-presigner": "^3.1059.0",
+    "@aws-sdk/client-s3": "^3.1063.0",
+    "@aws-sdk/lib-storage": "^3.1063.0",
+    "@aws-sdk/s3-request-presigner": "^3.1063.0",
     "@better-fetch/fetch": "^1.1.21",
     "@dagrejs/dagre": "^3.0.0",
     "@formulajs/formulajs": "^4.6.0",
@@ -66,7 +66,7 @@
     "react-dom": "^19.2.7",
     "react-force-graph-2d": "^1.29.1",
     "react-force-graph-3d": "^1.29.1",
-    "react-hook-form": "^7.77.0",
+    "react-hook-form": "^7.78.0",
     "recharts": "^3.8.1",
     "resend": "^6.12.4",
     "server-only": "^0.0.1",
@@ -86,11 +86,11 @@
     "@types/archiver": "^7.0.0",
     "@types/canvas-confetti": "^1.9.0",
     "@types/d3-force": "^3.0.10",
-    "@types/node": "^22.19.19",
+    "@types/node": "^22.19.20",
     "@types/pdf-parse": "^1.1.5",
-    "@types/react": "^19.2.16",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.0.2",
-    "@types/yauzl": "^2.10.3",
+    "@types/yauzl": "^3.3.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "esbuild": "^0.28.0",
@@ -100,10 +100,10 @@
     "jsdom": "^25.0.1",
     "postcss": "^8.5.15",
     "tailwindcss": "^3.4.17",
-    "testcontainers": "^12.0.0",
+    "testcontainers": "^12.0.1",
     "tsx": "^4.22.4",
     "typescript": "^5.7.2",
-    "vitest": "^4.1.0",
-    "yauzl": "^3.3.2"
+    "vitest": "^4.1.8",
+    "yauzl": "^3.4.0"
   }
 }
