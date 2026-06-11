@@ -359,6 +359,17 @@
         "potentiating": "↑ potentiating",
         "focusLocal": "Focus local graph",
         "viewFacts": "View all facts"
+      },
+      "showFilters": "Show filters",
+      "hideFilters": "Hide filters",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "zoomFit": "Fit to view",
+      "tooltip": {
+        "mentions": "{count} mentions",
+        "connections": "{count} connections",
+        "hint": "Click to inspect · double-click to focus · drag to pin",
+        "pinned": "Pinned · right-click to release"
       }
     }
   },

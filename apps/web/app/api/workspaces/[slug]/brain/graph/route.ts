@@ -39,14 +39,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   }
 
   // `focus` is validated both here (defence in depth) and on the
-  // server side. Entity IDs are cuid2-based with a `ment_` prefix
-  // (e.g. ment_<24 lowercase alphanumeric chars>). Anything that
-  // doesn't match the pattern is rejected before we touch the data
-  // path — this stops a stray param from reaching either the
-  // in-process `buildGraphQuery` or the HTTP `?focus=` query string.
+  // server side. Entity IDs carry a `ment_` prefix followed by either a
+  // 24-char cuid2 (production) or an underscore-separated slug (seed
+  // data, e.g. ment_seed_tvlds3k6_acme). Anything else is rejected
+  // before we touch the data path — this stops a stray param from
+  // reaching either the in-process `buildGraphQuery` or the HTTP
+  // `?focus=` query string.
   const url = new URL(req.url);
   const focusParam = url.searchParams.get("focus");
-  if (focusParam && !/^ment_[a-z0-9]{24}$/.test(focusParam)) {
+  if (focusParam && !/^ment_[a-z0-9_]{1,64}$/.test(focusParam)) {
     return NextResponse.json({ error: "invalid_focus_param" }, { status: 400 });
   }
 

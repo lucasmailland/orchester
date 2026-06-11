@@ -359,6 +359,17 @@
         "potentiating": "↑ potencializando",
         "focusLocal": "Focar grafo local",
         "viewFacts": "Ver todos os fatos"
+      },
+      "showFilters": "Mostrar filtros",
+      "hideFilters": "Ocultar filtros",
+      "zoomIn": "Aproximar",
+      "zoomOut": "Afastar",
+      "zoomFit": "Ajustar à tela",
+      "tooltip": {
+        "mentions": "{count} menções",
+        "connections": "{count} conexões",
+        "hint": "Clique para inspecionar · duplo clique para focar · arraste para fixar",
+        "pinned": "Fixado · clique direito para soltar"
       }
     }
   },

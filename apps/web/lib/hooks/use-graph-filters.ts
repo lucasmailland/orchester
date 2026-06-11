@@ -39,6 +39,10 @@ export interface GraphFiltersState {
   visibleEdgeTypes: Set<string>;
   minMemoryStrength: number;
   searchQuery: string;
+  /** Nodes matching the search query. Empty set = no active search.
+   *  Search HIGHLIGHTS rather than filters — hiding non-matches destroys
+   *  the context that makes a match meaningful. */
+  searchMatchIds: Set<string>;
   toggleNodeKind: (kind: string) => void;
   toggleEdgeType: (type: string) => void;
   setMinMemoryStrength: (v: number) => void;
@@ -56,15 +60,19 @@ export function useGraphFilters(nodes: GraphNode[], edges: GraphEdge[]): GraphFi
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredNodes = useMemo(() => {
-    const q = searchQuery.toLowerCase();
     return nodes.filter((n) => {
       const kind = n.entityKind ?? n.kind;
       if (!visibleNodeKinds.has(kind)) return false;
       if (n.avgMemoryStrength < minMemoryStrength) return false;
-      if (q && !n.label.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [nodes, visibleNodeKinds, minMemoryStrength, searchQuery]);
+  }, [nodes, visibleNodeKinds, minMemoryStrength]);
+
+  const searchMatchIds = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return new Set<string>();
+    return new Set(filteredNodes.filter((n) => n.label.toLowerCase().includes(q)).map((n) => n.id));
+  }, [filteredNodes, searchQuery]);
 
   const filteredNodeIds = useMemo(() => new Set(filteredNodes.map((n) => n.id)), [filteredNodes]);
 
@@ -115,6 +123,7 @@ export function useGraphFilters(nodes: GraphNode[], edges: GraphEdge[]): GraphFi
     visibleEdgeTypes,
     minMemoryStrength,
     searchQuery,
+    searchMatchIds,
     toggleNodeKind,
     toggleEdgeType,
     setMinMemoryStrength,

@@ -18,7 +18,7 @@ export {
   NODE_RADIUS_MAX,
   type NodeDrawOptions,
 } from "./node-canvas";
-export { drawEdge, EDGE_STYLES, type EdgeDrawOptions } from "./edge-canvas";
+export { drawEdge, EDGE_STYLES, type EdgeDrawOptions, type EdgeStyle } from "./edge-canvas";
 export { defaultForceConfig, type ForceConfig } from "./layout";
 export type {
   GraphNode,

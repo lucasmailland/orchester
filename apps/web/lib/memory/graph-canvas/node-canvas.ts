@@ -4,8 +4,8 @@
 
 import type { GraphNodeKind, GraphEntityKind } from "./types";
 
-export const NODE_RADIUS_MIN = 6;
-export const NODE_RADIUS_MAX = 18;
+export const NODE_RADIUS_MIN = 8;
+export const NODE_RADIUS_MAX = 26;
 
 export function nodeRadius(mentionCount: number, maxMentionCount: number): number {
   if (maxMentionCount === 0) return NODE_RADIUS_MIN;
@@ -36,6 +36,12 @@ export interface NodeDrawOptions {
   kind: GraphNodeKind;
   entityKind?: GraphEntityKind;
   globalScale: number;
+  /** Hover/search focus is elsewhere — ghost the node and hide its label. */
+  dimmed?: boolean;
+  /** Pointer is on this node — glow + thicker stroke. */
+  hovered?: boolean;
+  /** Node matches the active search query — persistent highlight ring. */
+  searchHit?: boolean;
 }
 
 export function drawNode(
@@ -43,34 +49,45 @@ export function drawNode(
   opts: NodeDrawOptions,
   now = Date.now()
 ): void {
-  const { x, y, r, color, selected, memoryStrength, label, kind, entityKind, globalScale } = opts;
+  const {
+    x,
+    y,
+    r,
+    color,
+    selected,
+    memoryStrength,
+    label,
+    kind,
+    entityKind,
+    globalScale,
+    dimmed,
+    hovered,
+    searchHit,
+  } = opts;
 
   ctx.save();
 
+  if (dimmed) {
+    // Ghosted shape only — no aura, no label. Drawing the body at ~12%
+    // keeps the overall graph silhouette while the user inspects a
+    // neighbourhood (Obsidian-style focus dimming).
+    ctx.globalAlpha = 0.12;
+    _drawShape(ctx, x, y, r, color, entityKind ?? kind);
+    ctx.restore();
+    return;
+  }
+
   _drawAura(ctx, x, y, r, color, memoryStrength, now);
 
-  const resolvedKind = entityKind ?? kind;
-  switch (resolvedKind) {
-    case "person":
-      _drawCircle(ctx, x, y, r, color);
-      break;
-    case "organization":
-      _drawHexagon(ctx, x, y, r, color);
-      break;
-    case "project":
-    case "episode":
-      _drawRoundedRect(ctx, x, y, r, color);
-      break;
-    case "concept":
-    case "decision":
-      _drawDiamond(ctx, x, y, r, color);
-      break;
-    case "place":
-      _drawPentagon(ctx, x, y, r, color);
-      break;
-    default:
-      _drawCircle(ctx, x, y, r, color);
+  // Hover glow under the shape — canvas shadow gives a cheap halo that
+  // reads instantly without an extra render pass.
+  if (hovered || selected) {
+    ctx.shadowColor = color;
+    ctx.shadowBlur = hovered ? 22 : 14;
   }
+
+  _drawShape(ctx, x, y, r, color, entityKind ?? kind, hovered ? 0.35 : undefined);
+  ctx.shadowBlur = 0;
 
   if (globalScale >= 0.3) {
     // Labels render in CANVAS COORDINATE space, but they must remain a
@@ -122,7 +139,51 @@ export function drawNode(
     ctx.setLineDash([]);
   }
 
+  if (searchHit) {
+    // Solid amber ring — persists while the query is active so matches stay
+    // findable even after the pointer moves away.
+    ctx.beginPath();
+    ctx.arc(x, y, r + 4, 0, 2 * Math.PI);
+    ctx.strokeStyle = "#fbbf24";
+    ctx.lineWidth = 2 / globalScale;
+    ctx.globalAlpha = 0.9;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
   ctx.restore();
+}
+
+function _drawShape(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  color: string,
+  resolvedKind: string,
+  fillOpacity?: number
+): void {
+  switch (resolvedKind) {
+    case "person":
+      _drawCircle(ctx, x, y, r, color, fillOpacity);
+      break;
+    case "organization":
+      _drawHexagon(ctx, x, y, r, color, fillOpacity);
+      break;
+    case "project":
+    case "episode":
+      _drawRoundedRect(ctx, x, y, r, color, fillOpacity);
+      break;
+    case "concept":
+    case "decision":
+      _drawDiamond(ctx, x, y, r, color, fillOpacity);
+      break;
+    case "place":
+      _drawPentagon(ctx, x, y, r, color, fillOpacity);
+      break;
+    default:
+      _drawCircle(ctx, x, y, r, color, fillOpacity);
+  }
 }
 
 function _drawAura(
@@ -171,12 +232,13 @@ function _drawCircle(
   x: number,
   y: number,
   r: number,
-  color: string
+  color: string,
+  fillOpacity?: number
 ): void {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, 2 * Math.PI);
   ctx.closePath();
-  ctx.fillStyle = _withAlpha(color, FILL_OPACITY);
+  ctx.fillStyle = _withAlpha(color, fillOpacity ?? FILL_OPACITY);
   ctx.fill();
   ctx.strokeStyle = color;
   ctx.lineWidth = 1.5;
@@ -188,7 +250,8 @@ function _drawHexagon(
   x: number,
   y: number,
   r: number,
-  color: string
+  color: string,
+  fillOpacity?: number
 ): void {
   ctx.beginPath();
   for (let i = 0; i < 6; i++) {
@@ -199,7 +262,7 @@ function _drawHexagon(
     else ctx.lineTo(px, py);
   }
   ctx.closePath();
-  ctx.fillStyle = _withAlpha(color, FILL_OPACITY);
+  ctx.fillStyle = _withAlpha(color, fillOpacity ?? FILL_OPACITY);
   ctx.fill();
   ctx.strokeStyle = color;
   ctx.lineWidth = 1.5;
@@ -211,7 +274,8 @@ function _drawRoundedRect(
   x: number,
   y: number,
   r: number,
-  color: string
+  color: string,
+  fillOpacity?: number
 ): void {
   const w = r * 2.2;
   const h = r * 1.6;
@@ -229,7 +293,7 @@ function _drawRoundedRect(
   ctx.lineTo(sx, sy + rx);
   ctx.arcTo(sx, sy, sx + rx, sy, rx);
   ctx.closePath();
-  ctx.fillStyle = _withAlpha(color, FILL_OPACITY);
+  ctx.fillStyle = _withAlpha(color, fillOpacity ?? FILL_OPACITY);
   ctx.fill();
   ctx.strokeStyle = color;
   ctx.lineWidth = 1.5;
@@ -241,7 +305,8 @@ function _drawDiamond(
   x: number,
   y: number,
   r: number,
-  color: string
+  color: string,
+  fillOpacity?: number
 ): void {
   ctx.beginPath();
   ctx.moveTo(x, y - r);
@@ -249,7 +314,7 @@ function _drawDiamond(
   ctx.lineTo(x, y + r);
   ctx.lineTo(x - r, y);
   ctx.closePath();
-  ctx.fillStyle = _withAlpha(color, FILL_OPACITY);
+  ctx.fillStyle = _withAlpha(color, fillOpacity ?? FILL_OPACITY);
   ctx.fill();
   ctx.strokeStyle = color;
   ctx.lineWidth = 1.5;
@@ -261,7 +326,8 @@ function _drawPentagon(
   x: number,
   y: number,
   r: number,
-  color: string
+  color: string,
+  fillOpacity?: number
 ): void {
   ctx.beginPath();
   for (let i = 0; i < 5; i++) {
@@ -272,7 +338,7 @@ function _drawPentagon(
     else ctx.lineTo(px, py);
   }
   ctx.closePath();
-  ctx.fillStyle = _withAlpha(color, FILL_OPACITY);
+  ctx.fillStyle = _withAlpha(color, fillOpacity ?? FILL_OPACITY);
   ctx.fill();
   ctx.strokeStyle = color;
   ctx.lineWidth = 1.5;

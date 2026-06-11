@@ -1,5 +1,6 @@
 "use client";
-import { Search } from "lucide-react";
+import { useState } from "react";
+import { Search, SlidersHorizontal, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { ENTITY_KIND_COLOR, EDGE_STYLES } from "@/lib/memory/graph-canvas";
 import { ALL_NODE_KINDS, ALL_EDGE_TYPES } from "@/lib/hooks/use-graph-filters";
@@ -23,11 +24,50 @@ interface Props {
 
 export function BrainGraphFilters({ filters }: Props) {
   const t = useTranslations("brain.graph");
+  const [collapsed, setCollapsed] = useState(false);
+
+  // Count of non-default filters so the collapsed chip can signal "filters
+  // active" without expanding.
+  const activeCount =
+    ALL_NODE_KINDS.length -
+    filters.visibleNodeKinds.size +
+    (ALL_EDGE_TYPES.length - filters.visibleEdgeTypes.size) +
+    (filters.minMemoryStrength > 0 ? 1 : 0) +
+    (filters.searchQuery.trim() ? 1 : 0);
+
+  if (collapsed) {
+    return (
+      <button
+        onClick={() => setCollapsed(false)}
+        aria-label={t("showFilters")}
+        title={t("showFilters")}
+        className="absolute top-4 left-4 z-10 flex items-center gap-1.5 bg-[#111113f2] backdrop-blur-md border border-zinc-800 rounded-xl px-3 py-2 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 transition-colors"
+      >
+        <SlidersHorizontal className="h-4 w-4" />
+        {activeCount > 0 && (
+          <span className="text-[10px] font-bold bg-violet-600 text-white rounded-full h-4 min-w-4 px-1 inline-flex items-center justify-center">
+            {activeCount}
+          </span>
+        )}
+      </button>
+    );
+  }
+
   return (
     <div className="absolute top-4 left-4 z-10 w-44 bg-[#111113f2] backdrop-blur-md border border-zinc-800 rounded-xl p-3.5">
-      <p className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 mb-2.5">
-        {t("filter")}
-      </p>
+      <div className="flex items-center justify-between mb-2.5">
+        <p className="text-[10px] font-bold tracking-widest uppercase text-zinc-500">
+          {t("filter")}
+        </p>
+        <button
+          onClick={() => setCollapsed(true)}
+          aria-label={t("hideFilters")}
+          title={t("hideFilters")}
+          className="text-zinc-600 hover:text-zinc-300 transition-colors -mr-1 -mt-1 p-1"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
 
       {/* Search */}
       <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-md px-2 py-1 mb-3">
