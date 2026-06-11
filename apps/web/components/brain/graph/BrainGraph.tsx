@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { forceCollide } from "d3-force";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 // Client-safe subpath — canvas/types only, never the server DB query (which
@@ -51,6 +52,43 @@ export function BrainGraph() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fgRef = useRef<any>(null);
 
+  // Apply d3-force tuning to the given instance. Called both from the
+  // callback ref (first mount of the dynamic component) and from the
+  // filteredGraphData effect (new simulation on every data change).
+  // Keeping the logic in one place avoids drift between the two call sites.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const setupForces = useCallback((fg: any) => {
+    if (!fg || typeof fg.d3Force !== "function") return;
+    const charge = fg.d3Force("charge");
+    if (charge && typeof charge.strength === "function") charge.strength(-1200);
+    const link = fg.d3Force("link");
+    if (link && typeof link.distance === "function") link.distance(220);
+    if (link && typeof link.strength === "function") link.strength(0.1);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const collide = forceCollide((node: any) => {
+      const labelHalfWidth = Math.max(28, Math.min(80, String(node?.label ?? "").length * 3.5));
+      return labelHalfWidth + 18;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }).strength(1.0) as any;
+    fg.d3Force("collide", collide);
+    if (typeof fg.d3ReheatSimulation === "function") fg.d3ReheatSimulation();
+  }, []);
+
+  // Callback ref — fires the moment the dynamic ForceGraph component
+  // mounts (i.e. after the dynamic() import resolves). A plain useRef
+  // stays null until after the first useEffect run, meaning the force
+  // tuning effect exits early and the simulation runs all warmup +
+  // cooldown ticks with d3 defaults (charge=-30, link=30) → collapsed
+  // cluster. The callback ref guarantees forces are set before tick 1.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleFgRef = useCallback(
+    (instance: any) => {
+      fgRef.current = instance;
+      if (instance) setupForces(instance);
+    },
+    [setupForces]
+  );
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -69,52 +107,13 @@ export function BrainGraph() {
     [graphData, filteredNodeIds, filteredEdgeIds]
   );
 
-  // Tune d3-force after each (re)render of the graph data so layout
-  // stays readable. Defaults are very tight (linkDistance≈30,
-  // charge≈-30) which produces the "all-overlapped-in-one-corner"
-  // rendering reported in the live audit. The numbers below are
-  // tuned for 6–60 entities and degrade gracefully as the workspace
-  // grows.
+  // Re-tune whenever the graph data changes — react-force-graph creates
+  // a fresh simulation on every graphData prop change, so forces must
+  // be re-applied each time. The first-mount case is handled by the
+  // handleFgRef callback above.
   useEffect(() => {
-    const fg = fgRef.current;
-    if (!fg || typeof fg.d3Force !== "function") return;
-
-    // 1. Stronger repulsion + longer, looser links so the cluster
-    //    spreads instead of collapsing onto itself.
-    const charge = fg.d3Force("charge");
-    if (charge && typeof charge.strength === "function") charge.strength(-1200);
-    const link = fg.d3Force("link");
-    if (link && typeof link.distance === "function") link.distance(220);
-    // Drop link strength further so the collision force can do its
-    // job. With 0.2 the cluster still pulled neighbours into each
-    // other on dense seeds; 0.1 leaves the spring just strong enough
-    // to keep edges attached without overriding label spacing.
-    if (link && typeof link.strength === "function") link.strength(0.1);
-
-    // 2. Inject a collision force whose radius accounts for the LABEL
-    //    width — not just the node shape — so dense graphs don't end
-    //    up with overlapping text. We approximate label width from
-    //    the character count and clamp into a sane range.
-    void import("d3-force").then(({ forceCollide }) => {
-      // The simulation nodes carry a `label` field at runtime even
-      // though d3's `SimulationNodeDatum` declares only the layout
-      // attributes (x/y/vx/vy). Cast the radius accessor through
-      // `any` so we can read the label without re-declaring the
-      // datum type for d3.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const collide = forceCollide((node: any) => {
-        const labelChars = String(node?.label ?? "").length;
-        const labelHalfWidth = Math.max(28, Math.min(80, labelChars * 3.5));
-        const nodeR = 18;
-        return labelHalfWidth + nodeR;
-      }).strength(1.0);
-      // react-force-graph's exposed d3Force erases its parameter
-      // type after the `dynamic()` boundary — cast to satisfy it.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      fg.d3Force("collide", collide as any);
-      if (typeof fg.d3ReheatSimulation === "function") fg.d3ReheatSimulation();
-    });
-  }, [filteredGraphData]);
+    setupForces(fgRef.current);
+  }, [filteredGraphData, setupForces]);
 
   // Status bar reflects the FILTERED view, not the full server payload, so the
   // counts track the chips/slider/search the operator has applied.
@@ -223,7 +222,8 @@ export function BrainGraph() {
       <BrainGraphViewToggle is3D={is3D} onChange={setIs3D} />
 
       <ForceGraph
-        ref={fgRef}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ref={handleFgRef as any}
         graphData={filteredGraphData}
         onNodeClick={handleNodeClick}
         onBackgroundClick={handleBackgroundClick}
@@ -242,7 +242,7 @@ export function BrainGraph() {
           fgRef.current?.zoomToFit?.(400, 120);
         }}
         cooldownTicks={120}
-        warmupTicks={40}
+        warmupTicks={0}
         {...(is3D
           ? {
               nodeColor: (n: unknown) => {
