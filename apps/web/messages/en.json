@@ -360,7 +360,11 @@
         "focusLocal": "Focus local graph",
         "viewFacts": "View all facts",
         "mentions": "Mentions",
-        "connections": "Connections"
+        "connections": "Connections",
+        "memories": "Memories",
+        "noFacts": "No memories linked yet",
+        "loadingFacts": "Loading memories…",
+        "factsError": "Couldn't load memories"
       },
       "showFilters": "Show filters",
       "hideFilters": "Hide filters",

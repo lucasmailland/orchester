@@ -2,10 +2,11 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { X, Target, ArrowRight } from "lucide-react";
+import { X, Target, ArrowRight, Pin } from "lucide-react";
 import { Button } from "@heroui/react";
 import type { GraphNode } from "@/lib/memory/graph-canvas";
 import { ENTITY_KIND_COLOR } from "@/lib/memory/graph-canvas";
+import { useEntityFacts } from "@/lib/hooks/use-entity-facts";
 
 const KIND_ICONS: Record<string, string> = {
   person: "●",
@@ -34,6 +35,14 @@ export function BrainGraphNodeDetail({ node, degree, onClose }: Props) {
   const kind = node?.entityKind ?? node?.kind ?? "other";
   const color = ENTITY_KIND_COLOR[kind] ?? "#52525b";
   const strengthPct = Math.round(((node?.avgMemoryStrength ?? 0) / 5.0) * 100);
+
+  // The real memory content. Only entities carry linked facts —
+  // episode/decision nodes pause the fetch (null key).
+  const {
+    facts,
+    isLoading: factsLoading,
+    error: factsError,
+  } = useEntityFacts(node?.kind === "entity" ? node.id : null);
 
   return (
     <div
@@ -118,6 +127,57 @@ export function BrainGraphNodeDetail({ node, degree, onClose }: Props) {
                 </div>
               ))}
             </div>
+
+            {/* Memories — the actual fact statements linked to this entity.
+                This is the content the node REPRESENTS; without it the panel
+                is just metadata about an invisible thing. */}
+            {node.kind === "entity" && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                  {t("detail.memories")}
+                  {facts.length > 0 && (
+                    <span className="ml-1.5 text-zinc-600 normal-case tracking-normal tabular-nums">
+                      {facts.length}
+                    </span>
+                  )}
+                </p>
+                {factsLoading && (
+                  <p className="text-xs text-zinc-600 animate-pulse">{t("detail.loadingFacts")}</p>
+                )}
+                {factsError != null && (
+                  <p className="text-xs text-red-400/80">{t("detail.factsError")}</p>
+                )}
+                {!factsLoading && factsError == null && facts.length === 0 && (
+                  <p className="text-xs text-zinc-600">{t("detail.noFacts")}</p>
+                )}
+                <div className="space-y-1.5">
+                  {facts.map((f) => (
+                    <div
+                      key={f.id}
+                      className="bg-zinc-900/60 border border-zinc-800/60 rounded-lg px-2.5 py-2 hover:border-zinc-700/80 transition-colors"
+                    >
+                      <p className="text-xs text-zinc-300 leading-relaxed">{f.statement}</p>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span
+                          className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-px rounded border"
+                          style={{
+                            color,
+                            borderColor: `${color}30`,
+                            backgroundColor: `${color}10`,
+                          }}
+                        >
+                          {f.kind}
+                        </span>
+                        <span className="text-[10px] text-zinc-600 tabular-nums">
+                          {Math.round(f.confidence * 100)}%
+                        </span>
+                        {f.pinned && <Pin className="h-2.5 w-2.5 text-amber-400" />}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="space-y-2 pt-1">

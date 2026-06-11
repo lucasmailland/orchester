@@ -360,7 +360,11 @@
         "focusLocal": "Focar grafo local",
         "viewFacts": "Ver todos os fatos",
         "mentions": "Menções",
-        "connections": "Conexões"
+        "connections": "Conexões",
+        "memories": "Memórias",
+        "noFacts": "Ainda não há memórias vinculadas",
+        "loadingFacts": "Carregando memórias…",
+        "factsError": "Não foi possível carregar as memórias"
       },
       "showFilters": "Mostrar filtros",
       "hideFilters": "Ocultar filtros",
