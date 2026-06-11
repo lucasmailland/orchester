@@ -126,7 +126,6 @@ export function BrainGraph() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }).strength(1.0) as any;
     fg.d3Force("collide", collide);
-    if (typeof fg.d3ReheatSimulation === "function") fg.d3ReheatSimulation();
   }, []);
 
   // Callback ref — fires the moment the dynamic ForceGraph component
