@@ -8,6 +8,8 @@ interface Props {
   onChange: (v: boolean) => void;
 }
 
+// NOT self-positioned: BrainGraph wraps this in a container that slides left
+// when the node-detail panel opens, so the toggle never gets covered.
 export function BrainGraphViewToggle({ is3D, onChange }: Props) {
   const t = useTranslations("brain.graph");
   // 3D (WebGL force layout) is heavy and awkward on touch devices, so it's
@@ -29,7 +31,7 @@ export function BrainGraphViewToggle({ is3D, onChange }: Props) {
     <div
       role="group"
       aria-label={t("viewMode")}
-      className="absolute top-4 right-4 z-10 flex bg-[#111113f2] border border-zinc-800 rounded-lg overflow-hidden backdrop-blur-md"
+      className="flex bg-[#0c0c10]/90 border border-zinc-800/80 rounded-xl p-0.5 gap-0.5 backdrop-blur-xl shadow-lg shadow-black/40"
     >
       {(["2D", "3D"] as const).map((label) => {
         const wants3D = label === "3D";
@@ -42,8 +44,12 @@ export function BrainGraphViewToggle({ is3D, onChange }: Props) {
             disabled={disabled}
             aria-pressed={active}
             title={disabled ? `${label} · ${t("viewMode")}` : label}
-            className="px-3.5 py-1.5 text-xs font-semibold transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-            style={active ? { background: "#7c3aed", color: "white" } : { color: "#71717a" }}
+            className="px-3.5 py-1 text-xs font-semibold rounded-[10px] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            style={
+              active
+                ? { background: "#7c3aed", color: "white", boxShadow: "0 0 12px #7c3aed66" }
+                : { color: "#71717a" }
+            }
           >
             {wants3D ? t("toggle3d") : t("toggle2d")}
           </button>

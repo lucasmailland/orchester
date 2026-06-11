@@ -358,7 +358,9 @@
         "activeFacts": "{count} active facts",
         "potentiating": "↑ potentiating",
         "focusLocal": "Focus local graph",
-        "viewFacts": "View all facts"
+        "viewFacts": "View all facts",
+        "mentions": "Mentions",
+        "connections": "Connections"
       },
       "showFilters": "Show filters",
       "hideFilters": "Hide filters",
@@ -370,7 +372,19 @@
         "connections": "{count} connections",
         "hint": "Click to inspect · double-click to focus · drag to pin",
         "pinned": "Pinned · right-click to release"
-      }
+      },
+      "resetFilters": "Reset filters",
+      "clearSearch": "Clear search",
+      "matches": "{count} matches",
+      "visibleOf": "{visible}/{total} visible",
+      "noMatchesTitle": "Nothing matches your filters",
+      "noMatchesDesc": "Loosen the filters or reset them to see the graph again.",
+      "fullscreen": "Fullscreen",
+      "exitFullscreen": "Exit fullscreen",
+      "hint3d": "Drag to rotate · scroll to zoom · right-drag to pan",
+      "statusBarFiltered": "{entities} of {total} entities · {relations} relations",
+      "all": "All",
+      "none": "None"
     }
   },
   "dashboard": {

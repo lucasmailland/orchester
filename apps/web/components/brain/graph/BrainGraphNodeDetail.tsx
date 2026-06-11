@@ -20,10 +20,12 @@ const KIND_ICONS: Record<string, string> = {
 
 interface Props {
   node: GraphNode | null;
+  /** Visible-graph degree of the node — computed by BrainGraph's adjacency. */
+  degree: number;
   onClose: () => void;
 }
 
-export function BrainGraphNodeDetail({ node, onClose }: Props) {
+export function BrainGraphNodeDetail({ node, degree, onClose }: Props) {
   const t = useTranslations("brain.graph");
   const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "en";
@@ -36,13 +38,23 @@ export function BrainGraphNodeDetail({ node, onClose }: Props) {
   return (
     <div
       aria-hidden={!isOpen}
-      className="absolute top-0 right-0 bottom-0 w-[272px] bg-[#111113] border-l border-zinc-800 z-20 overflow-y-auto transition-transform duration-200 ease-out"
-      style={{ transform: isOpen ? "translateX(0)" : "translateX(100%)" }}
+      className="absolute top-4 right-4 bottom-4 w-72 bg-[#0c0c10]/95 backdrop-blur-xl border border-zinc-800/80 rounded-2xl shadow-2xl shadow-black/60 z-20 overflow-y-auto transition-all duration-200 ease-out"
+      style={{
+        transform: isOpen ? "translateX(0)" : "translateX(110%)",
+        opacity: isOpen ? 1 : 0,
+        pointerEvents: isOpen ? "auto" : "none",
+      }}
     >
       {node && (
         <>
-          {/* Header */}
-          <div className="p-4 border-b border-zinc-800/60 sticky top-0 bg-[#111113] z-10">
+          {/* Header — tinted with the entity's color so the panel visually
+              belongs to the node that opened it. */}
+          <div
+            className="p-4 border-b border-zinc-800/60 sticky top-0 z-10 rounded-t-2xl backdrop-blur-xl"
+            style={{
+              background: `linear-gradient(180deg, ${color}14, transparent 90%), #0c0c10f2`,
+            }}
+          >
             <button
               aria-label="Close"
               onClick={onClose}
@@ -51,7 +63,7 @@ export function BrainGraphNodeDetail({ node, onClose }: Props) {
               <X className="h-4 w-4" />
             </button>
             <div
-              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold border mb-2"
+              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold border mb-2"
               style={{ borderColor: `${color}40`, backgroundColor: `${color}18`, color }}
             >
               <span>{KIND_ICONS[kind]}</span>
@@ -77,21 +89,34 @@ export function BrainGraphNodeDetail({ node, onClose }: Props) {
                 />
               </div>
               <div className="flex justify-between text-[11px] text-zinc-400">
-                <span>{node.avgMemoryStrength.toFixed(1)} / 5.0</span>
+                <span className="tabular-nums">{node.avgMemoryStrength.toFixed(1)} / 5.0</span>
                 {node.avgMemoryStrength > 3 && (
                   <span className="text-violet-400">{t("detail.potentiating")}</span>
                 )}
               </div>
             </div>
 
-            {/* Fact count */}
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
-                {t("detail.facts")}
-              </p>
-              <p className="text-sm text-zinc-300">
-                {t("detail.activeFacts", { count: node.factCount })}
-              </p>
+            {/* Stats grid: facts / mentions / connections */}
+            <div className="grid grid-cols-3 gap-2">
+              {(
+                [
+                  { label: t("detail.facts"), value: node.factCount },
+                  { label: t("detail.mentions"), value: node.mentionCount },
+                  { label: t("detail.connections"), value: degree },
+                ] as const
+              ).map(({ label, value }) => (
+                <div
+                  key={label}
+                  className="bg-zinc-900/60 border border-zinc-800/60 rounded-xl px-2 py-2 text-center"
+                >
+                  <p className="text-base font-bold text-zinc-100 tabular-nums leading-tight">
+                    {value}
+                  </p>
+                  <p className="text-[9px] uppercase tracking-wider text-zinc-500 mt-0.5">
+                    {label}
+                  </p>
+                </div>
+              ))}
             </div>
 
             {/* Actions */}
@@ -103,7 +128,7 @@ export function BrainGraphNodeDetail({ node, onClose }: Props) {
                   size="sm"
                   variant="flat"
                   startContent={<Target className="h-3.5 w-3.5" />}
-                  className="w-full justify-start bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-violet-700 hover:text-violet-300 transition-colors"
+                  className="w-full justify-start bg-zinc-800/80 border border-zinc-700/80 text-zinc-300 hover:border-violet-600 hover:text-violet-300 transition-colors"
                 >
                   {t("detail.focusLocal")}
                 </Button>
@@ -114,7 +139,7 @@ export function BrainGraphNodeDetail({ node, onClose }: Props) {
                 size="sm"
                 variant="flat"
                 startContent={<ArrowRight className="h-3.5 w-3.5" />}
-                className="w-full justify-start bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-violet-700 hover:text-violet-300 transition-colors"
+                className="w-full justify-start bg-zinc-800/80 border border-zinc-700/80 text-zinc-300 hover:border-violet-600 hover:text-violet-300 transition-colors"
               >
                 {t("detail.viewFacts")}
               </Button>

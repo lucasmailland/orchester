@@ -358,7 +358,9 @@
         "activeFacts": "{count} hechos activos",
         "potentiating": "↑ potenciando",
         "focusLocal": "Enfocar grafo local",
-        "viewFacts": "Ver todos los hechos"
+        "viewFacts": "Ver todos los hechos",
+        "mentions": "Menciones",
+        "connections": "Conexiones"
       },
       "showFilters": "Mostrar filtros",
       "hideFilters": "Ocultar filtros",
@@ -370,7 +372,19 @@
         "connections": "{count} conexiones",
         "hint": "Clic para inspeccionar · doble clic para enfocar · arrastrá para fijar",
         "pinned": "Fijado · clic derecho para soltar"
-      }
+      },
+      "resetFilters": "Restablecer filtros",
+      "clearSearch": "Limpiar búsqueda",
+      "matches": "{count} coincidencias",
+      "visibleOf": "{visible}/{total} visibles",
+      "noMatchesTitle": "Nada coincide con tus filtros",
+      "noMatchesDesc": "Aflojá los filtros o restablecelos para volver a ver el grafo.",
+      "fullscreen": "Pantalla completa",
+      "exitFullscreen": "Salir de pantalla completa",
+      "hint3d": "Arrastrá para rotar · scroll para zoom · clic derecho para desplazar",
+      "statusBarFiltered": "{entities} de {total} entidades · {relations} relaciones",
+      "all": "Todos",
+      "none": "Ninguno"
     }
   },
   "dashboard": {

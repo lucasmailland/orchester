@@ -18,7 +18,7 @@ import dynamic from "next/dynamic";
 import { forceCollide } from "d3-force";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { Maximize2, Minimize2, RotateCcw, Scan, ZoomIn, ZoomOut } from "lucide-react";
 // Client-safe subpath — canvas/types only, never the server DB query (which
 // would drag the Postgres driver into this client bundle).
 import {
@@ -42,7 +42,8 @@ const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), { ssr: false 
 const ForceGraph3D = dynamic(() => import("react-force-graph-3d"), { ssr: false });
 
 // Runtime node as the force engine sees it: layout coords + optional pin.
-type SimNode = GraphNode & { x: number; y: number; fx?: number; fy?: number };
+// `z` only exists in 3D mode.
+type SimNode = GraphNode & { x: number; y: number; z?: number; fx?: number; fy?: number };
 
 export function BrainGraph() {
   const t = useTranslations("brain.graph");
@@ -61,6 +62,34 @@ export function BrainGraph() {
   const [is3D, setIs3D] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+
+  // three-spritetext touches `document` at construction time, so it's loaded
+  // lazily on the client — never during SSR. Until it resolves, 3D renders
+  // unlabeled spheres (one frame, in practice).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [SpriteTextCls, setSpriteTextCls] = useState<any>(null);
+  useEffect(() => {
+    let alive = true;
+    void import("three-spritetext").then((m) => {
+      if (alive) setSpriteTextCls(() => m.default);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(document.fullscreenElement != null);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  const toggleFullscreen = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void el.requestFullscreen?.();
+  }, []);
 
   // Hover state drives Obsidian-style neighbourhood dimming + the tooltip.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -131,6 +160,11 @@ export function BrainGraph() {
     cleanupRef.current = null;
     if (!el) return;
     const measure = () => {
+      // In fullscreen the container IS the viewport — use its own height.
+      if (document.fullscreenElement === el) {
+        setDimensions({ width: el.clientWidth, height: el.clientHeight });
+        return;
+      }
       const top = el.getBoundingClientRect().top;
       setDimensions({
         width: el.clientWidth,
@@ -208,10 +242,16 @@ export function BrainGraph() {
   }, [hoverNode, neighborsById]);
 
   // Status bar reflects the FILTERED view, not the full server payload, so the
-  // counts track the chips/slider/search the operator has applied.
+  // counts track the chips/slider/search the operator has applied. When the
+  // two diverge it switches to "X of Y" so a partial view is never mistaken
+  // for the whole graph.
   const visibleEntityCount = useMemo(
     () => filteredGraphData.nodes.filter((n) => n.kind === "entity").length,
     [filteredGraphData]
+  );
+  const totalEntityCount = useMemo(
+    () => (data?.nodes ?? []).filter((n) => n.kind === "entity").length,
+    [data]
   );
   const visibleRelationCount = filteredGraphData.links.length;
 
@@ -328,7 +368,8 @@ export function BrainGraph() {
     const fg = fgRef.current;
     if (node && fg && typeof fg.graph2ScreenCoords === "function") {
       const n = node as unknown as SimNode;
-      const p = fg.graph2ScreenCoords(n.x, n.y);
+      // 3D variant takes (x, y, z); the extra arg is harmless in 2D.
+      const p = fg.graph2ScreenCoords(n.x, n.y, n.z ?? 0);
       setTooltipPos({ x: p.x, y: p.y });
     } else {
       setTooltipPos(null);
@@ -381,13 +422,42 @@ export function BrainGraph() {
 
   const zoomBy = useCallback((factor: number) => {
     const fg = fgRef.current;
-    if (!fg || typeof fg.zoom !== "function") return;
-    fg.zoom(fg.zoom() * factor, 250);
+    if (!fg) return;
+    if (typeof fg.zoom === "function") {
+      fg.zoom(fg.zoom() * factor, 250);
+      return;
+    }
+    // 3D exposes no zoom() — dolly the camera toward/away from the origin
+    // (the default look-at target) instead.
+    if (typeof fg.cameraPosition === "function") {
+      const pos = fg.cameraPosition();
+      const k = 1 / factor;
+      fg.cameraPosition({ x: pos.x * k, y: pos.y * k, z: pos.z * k }, undefined, 300);
+    }
   }, []);
 
   const zoomFit = useCallback(() => {
     fgRef.current?.zoomToFit?.(400, 100);
   }, []);
+
+  // 3D node labels — a text sprite parented under each sphere
+  // (nodeThreeObjectExtend keeps the stock sphere). Memoised so hover
+  // re-renders don't rebuild the whole Three.js scene.
+  const nodeThreeObject = useCallback(
+    (n: unknown) => {
+      const node = n as GraphNode;
+      const sprite = new SpriteTextCls(node.label);
+      sprite.color = "#d4d4d8";
+      sprite.textHeight = 7;
+      sprite.material.depthWrite = false; // never occlude spheres behind it
+      // Stock sphere radius = nodeRelSize(6) * cbrt(nodeVal); hang the label
+      // just below it.
+      const r3 = 6 * Math.cbrt((radiusFor(node) / 4) ** 2);
+      sprite.position.y = -(r3 + 7);
+      return sprite;
+    },
+    [SpriteTextCls, radiusFor]
+  );
 
   if (isLoading) {
     return (
@@ -415,12 +485,24 @@ export function BrainGraph() {
   }
 
   const ForceGraph = is3D ? ForceGraph3D : ForceGraph2D;
-  const hoverTooltipNode = !is3D && hoverNode && tooltipPos ? (hoverNode as SimNode) : null;
+  const hoverTooltipNode = hoverNode && tooltipPos ? (hoverNode as SimNode) : null;
+  // The node-detail panel floats at right-4 with width 288px — every control
+  // anchored to the right edge slides left while it's open so nothing is
+  // ever buried underneath it.
+  const ctrlRight = selectedNode ? 320 : 16;
+  // The shell's floating help button lives at the bottom-right corner; the
+  // status pill starts further left so the two never stack.
+  const statusRight = selectedNode ? 320 : 64;
 
   return (
     <div ref={handleContainerRef} className="flex-1 relative overflow-hidden bg-[#050507]">
       <BrainGraphFilters filters={filters} />
-      <BrainGraphViewToggle is3D={is3D} onChange={setIs3D} />
+      <div
+        className="absolute top-4 z-10 transition-[right] duration-200 ease-out"
+        style={{ right: ctrlRight }}
+      >
+        <BrainGraphViewToggle is3D={is3D} onChange={setIs3D} />
+      </div>
 
       <ForceGraph
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -458,15 +540,14 @@ export function BrainGraph() {
                 const r = radiusFor(n as GraphNode);
                 return (r / 4) ** 2;
               },
-              nodeLabel: (n: unknown) => {
-                const node = n as GraphNode;
-                const kind = node.entityKind ?? node.kind;
-                const color = ENTITY_KIND_COLOR[kind] ?? "#52525b";
-                return `<div style="background:#111113ee;border:1px solid #27272a;border-radius:8px;padding:6px 10px;font-size:12px;color:#e4e4e7">
-                  <div style="font-weight:600">${node.label}</div>
-                  <div style="color:${color};font-size:10px;text-transform:uppercase;letter-spacing:0.05em">${kind}</div>
-                </div>`;
-              },
+              // Our HTML tooltip (below) covers hover info — the stock
+              // nodeLabel tooltip would double it up.
+              nodeLabel: () => "",
+              showNavInfo: false,
+              ...(SpriteTextCls ? { nodeThreeObject, nodeThreeObjectExtend: true } : {}),
+              // Larger spheres than the stock 4 — at zoomToFit distance the
+              // default reads as scattered dust.
+              nodeRelSize: 6,
               nodeOpacity: 0.9,
               linkColor: (l: unknown) => {
                 const relation = (l as { relation?: string }).relation ?? "related";
@@ -499,7 +580,24 @@ export function BrainGraph() {
         height={dimensions.height}
       />
 
-      {/* Hover tooltip — entity card pinned next to the hovered node (2D). */}
+      {/* Filters hid everything — say so instead of presenting a void. */}
+      {filteredGraphData.nodes.length === 0 && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+          <div className="pointer-events-auto text-center bg-[#0c0c10]/90 backdrop-blur-xl border border-zinc-800/80 rounded-2xl px-8 py-6 shadow-2xl shadow-black/50 max-w-xs">
+            <p className="text-sm font-semibold text-zinc-200">{t("noMatchesTitle")}</p>
+            <p className="text-xs text-zinc-500 mt-1 leading-relaxed">{t("noMatchesDesc")}</p>
+            <button
+              onClick={filters.resetAll}
+              className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold bg-violet-600 hover:bg-violet-500 text-white rounded-lg px-4 py-2 transition-colors"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              {t("resetFilters")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Hover tooltip — entity card pinned next to the hovered node. */}
       {hoverTooltipNode && tooltipPos && (
         <div
           className="absolute z-20 pointer-events-none max-w-60 bg-[#111113f5] border border-zinc-800 rounded-lg px-3 py-2 backdrop-blur shadow-xl"
@@ -538,13 +636,21 @@ export function BrainGraph() {
         </div>
       )}
 
-      {/* Zoom controls */}
-      <div className="absolute bottom-16 right-4 z-10 flex flex-col gap-1">
+      {/* View controls — zoom, fit, fullscreen. Slides clear of the detail panel. */}
+      <div
+        className="absolute bottom-16 z-10 flex flex-col gap-0.5 bg-[#0c0c10]/90 backdrop-blur-xl border border-zinc-800/80 rounded-xl p-1 shadow-lg shadow-black/40 transition-[right] duration-200 ease-out"
+        style={{ right: ctrlRight }}
+      >
         {(
           [
             { icon: ZoomIn, label: t("zoomIn"), onClick: () => zoomBy(1.5) },
             { icon: ZoomOut, label: t("zoomOut"), onClick: () => zoomBy(1 / 1.5) },
-            { icon: Maximize2, label: t("zoomFit"), onClick: zoomFit },
+            { icon: Scan, label: t("zoomFit"), onClick: zoomFit },
+            {
+              icon: isFullscreen ? Minimize2 : Maximize2,
+              label: isFullscreen ? t("exitFullscreen") : t("fullscreen"),
+              onClick: toggleFullscreen,
+            },
           ] as const
         ).map(({ icon: Icon, label, onClick }) => (
           <button
@@ -552,19 +658,32 @@ export function BrainGraph() {
             onClick={onClick}
             aria-label={label}
             title={label}
-            className="h-8 w-8 inline-flex items-center justify-center bg-[#111113cc] border border-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-100 hover:border-zinc-600 transition-colors backdrop-blur"
+            className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 transition-colors"
           >
             <Icon className="h-4 w-4" />
           </button>
         ))}
       </div>
 
-      <BrainGraphLegend />
+      <BrainGraphLegend is3D={is3D} />
 
-      <BrainGraphNodeDetail node={selectedNode} onClose={() => setSelectedNode(null)} />
+      <BrainGraphNodeDetail
+        node={selectedNode}
+        degree={selectedNode ? (degreeById.get(selectedNode.id) ?? 0) : 0}
+        onClose={() => setSelectedNode(null)}
+      />
 
-      <div className="absolute bottom-4 right-14 z-10 text-xs text-zinc-500 bg-[#111113cc] border border-zinc-800 rounded px-2.5 py-1 backdrop-blur">
-        {t("statusBar", { entities: visibleEntityCount, relations: visibleRelationCount })}
+      <div
+        className="absolute bottom-4 z-10 text-xs text-zinc-500 bg-[#0c0c10]/90 border border-zinc-800/80 rounded-lg px-2.5 py-1 backdrop-blur-xl tabular-nums transition-[right] duration-200 ease-out"
+        style={{ right: statusRight }}
+      >
+        {visibleEntityCount < totalEntityCount
+          ? t("statusBarFiltered", {
+              entities: visibleEntityCount,
+              total: totalEntityCount,
+              relations: visibleRelationCount,
+            })
+          : t("statusBar", { entities: visibleEntityCount, relations: visibleRelationCount })}
       </div>
     </div>
   );
