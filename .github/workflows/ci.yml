@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           # Scan submodules too — vendor/mnemosyne is third-party-style code
@@ -55,7 +55,7 @@ jobs:
       ENCRYPTION_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         # submodules:recursive pulls in vendor/mnemosyne (pinned to the SHA
         # tracked in .gitmodules / the parent tree). Without this, the
         # bootstrap step below can't find the submodule.
