@@ -134,8 +134,8 @@ export function BrainGraph() {
   // tuning effect exits early and the simulation runs all warmup +
   // cooldown ticks with d3 defaults (charge=-30, link=30) → collapsed
   // cluster. The callback ref guarantees forces are set before tick 1.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleFgRef = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (instance: any) => {
       fgRef.current = instance;
       if (instance) setupForces(instance);
