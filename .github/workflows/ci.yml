@@ -22,7 +22,7 @@ jobs:
           # Scan submodules too — vendor/mnemosyne is third-party-style code
           # that should still be vetted for committed secrets.
           submodules: recursive
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@v3
         with:
           config-path: .gitleaks.toml
 
