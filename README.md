@@ -370,7 +370,8 @@ cp .env.example .env                   # then set:
 #   DATABASE_URL=postgres://orchester:orchester@localhost:55432/orchester
 #   BETTER_AUTH_SECRET=$(openssl rand -hex 32)
 #   ENCRYPTION_SECRET=$(openssl rand -hex 32)
-#   MNEMO_URL=http://localhost:3000  +  MNEMO_API_KEY=mns_live_...
+#   MNEMO_URL=http://localhost:3939  +  MNEMO_API_KEY=mns_live_...
+#   (the bundled docker stack publishes on :3000 by default — match your server)
 
 pnpm --filter @orchester/db migrate    # apply schema
 
