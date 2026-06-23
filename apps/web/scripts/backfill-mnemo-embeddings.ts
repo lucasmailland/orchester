@@ -30,7 +30,7 @@ import crypto from "node:crypto";
 dotenv({ path: new URL("../.env", import.meta.url).pathname });
 dotenv({ path: new URL("../.env.local", import.meta.url).pathname });
 
-const MNEMO_DSN = process.env.MNEMO_DB_URL ?? "postgresql://mnemo:mnemo@localhost:55435/mnemo";
+const MNEMO_DSN = process.env.MNEMO_DB_URL ?? "postgresql://mnemo:mnemo@localhost:55434/mnemo";
 const ORCH_DSN =
   process.env.DATABASE_URL ?? "postgresql://orchester:orchester@localhost:5432/orchester";
 const EMBED_MODEL = process.env.MNEMO_EMBED_MODEL ?? "text-embedding-3-small";

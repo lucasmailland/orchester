@@ -44,7 +44,7 @@ docker compose up -d
 pnpm install && pnpm db:migrate && pnpm dev
 ```
 
-Open `http://localhost:3000`, log in with the seeded `demo@orchester.dev` account, and you'll have a workspace with a 3-agent team pre-wired to a flow. **Postgres and Redis are the only deps.**
+Open `http://localhost:3333`, log in with the seeded `demo@orchester.dev` account, and you'll have a workspace with a 3-agent team pre-wired to a flow. **Postgres and Redis are the only deps.**
 
 > Full setup, BYO keys, multi-tenant config and production hardening live in [**`docs/QUICKSTART.md`**](docs/QUICKSTART.md).
 
