@@ -353,21 +353,24 @@ The agent space has split in two: **frameworks you import** into your code (Lang
 > **Requires:** Node 22, pnpm 9, Postgres 15+ with `pgvector`.
 
 ```bash
-# 1. Clone Orchester + sibling mnemosyne (see "Local mnemosyne setup" below)
-git clone https://github.com/lucasmailland/orchester.git
-git clone https://github.com/lucasmailland/mnemosyne.git
-cd mnemosyne && pnpm install && pnpm --filter @mnemosyne/core build && cd ..
-
-# 2. Install Orchester
+# 1. Clone Orchester with its mnemosyne submodule (vendor/mnemosyne)
+git clone --recurse-submodules https://github.com/lucasmailland/orchester.git
 cd orchester
+
+# 2. Install — `pnpm install` runs scripts/bootstrap-vendor.sh, which builds
+#    the @mnemosyne/client-ts SDK from the submodule automatically.
 pnpm install
 
 docker compose up -d postgres          # local Postgres + pgvector
+
+# Mnemosyne memory server (REQUIRED — Orchester is HTTP-only):
+cd vendor/mnemosyne/docker && docker compose up -d && cd ../../..
 
 cp .env.example .env                   # then set:
 #   DATABASE_URL=postgres://orchester:orchester@localhost:55432/orchester
 #   BETTER_AUTH_SECRET=$(openssl rand -hex 32)
 #   ENCRYPTION_SECRET=$(openssl rand -hex 32)
+#   MNEMO_URL=http://localhost:3000  +  MNEMO_API_KEY=mns_live_...
 
 pnpm --filter @orchester/db migrate    # apply schema
 
@@ -379,11 +382,12 @@ Open `http://localhost:3333`, sign up, and you're in. The studio walks you throu
 
 ### Local mnemosyne setup
 
-The Brain engine lives in a separate repo — [`@mnemosyne/core`](https://github.com/lucasmailland/mnemosyne) — and Orchester consumes it via the `pnpm` `file:` protocol declared in `apps/web/package.json`. A few things to know:
+Orchester vendors mnemosyne as a **git submodule** at `vendor/mnemosyne`, pinned to a specific commit, and talks to the engine **exclusively over HTTP** through the typed [`@mnemosyne/client-ts`](https://github.com/lucasmailland/mnemosyne) SDK — declared as a `file:` dependency in `apps/web/package.json`. A few things to know:
 
-- The sibling repo **must** be checked out at `../mnemosyne` relative to `orchester/` (i.e. they share a parent directory). The standalone repo's `dist/` is gitignored, so after a fresh clone you must run `pnpm install && pnpm --filter @mnemosyne/core build` inside `mnemosyne/` **before** running `pnpm install` in `orchester/`.
-- Override the default sibling location with the `MNEMO_REPO_PATH` env var (absolute path). This is used by `scripts/audit-invariants.sh` and other tooling that needs to resolve the standalone repo from a non-standard layout.
-- Rebuild `@mnemosyne/core` (`pnpm --filter @mnemosyne/core build` inside the sibling repo) any time you pull or modify it — Orchester picks up the new `dist/` on the next `pnpm install` or dev-server restart.
+- Clone with `--recurse-submodules` (or run `git submodule update --init --recursive` after a plain clone) so `vendor/mnemosyne` is populated.
+- `pnpm install` runs `scripts/bootstrap-vendor.sh` (via the `prepare` script), which builds the SDK from the submodule **in isolation** — its own `pnpm install` so the submodule's TypeScript 6 toolchain never bleeds into Orchester's. The built `dist/` is gitignored; the bootstrap is idempotent and rebuilds when the submodule's sources change.
+- The engine itself runs as a **separate service**. Bring one up locally with `cd vendor/mnemosyne/docker && docker compose up -d`, then set `MNEMO_URL` + `MNEMO_API_KEY` in `.env` — Orchester throws at boot without them.
+- To update mnemosyne: `git submodule update --remote vendor/mnemosyne`, re-run `pnpm install` (rebuilds the SDK), then commit the new submodule pointer. `MNEMO_REPO_PATH` overrides where `scripts/audit-invariants.sh` looks for the engine sources if you keep a separate checkout.
 
 > [!TIP]
 > `make help` lists every common task. `make ci` runs everything CI runs — typecheck, vitest, prettier check, invariants guard.

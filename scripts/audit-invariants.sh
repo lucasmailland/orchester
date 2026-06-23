@@ -30,11 +30,12 @@ fail() {
 ok() { printf '\033[32m✓\033[0m %s\n' "$1"; }
 
 WEB=apps/web
-# Mnemosyne lives in a standalone repo (@mnemosyne/core) as of 2026-06.
-# Override with MNEMO_REPO_PATH=/path/to/mnemosyne if checked out elsewhere.
-# If the path doesn't exist (CI without sibling checkout), the mnemo block
-# below skips gracefully.
-MNEMO="${MNEMO_REPO_PATH:-../mnemosyne/packages/core}/src"
+# Mnemosyne is vendored as a git submodule at vendor/mnemosyne; its source
+# tree (incl. packages/core/src) is present even though orchester only builds
+# the client-ts SDK. Override with MNEMO_REPO_PATH=/path/to/mnemosyne if
+# checked out elsewhere. If the path doesn't exist, the mnemo block below
+# skips gracefully.
+MNEMO="${MNEMO_REPO_PATH:-vendor/mnemosyne/packages/core}/src"
 
 # Exclude .next/standalone build artifacts and the llm-call file itself
 # (which defines llmCall/llmStream and naturally doesn't call them).
@@ -64,9 +65,9 @@ done
 # Audit 2026-05-24 (mnemosyne v1 final, §1.f) flagged that this script only
 # covered apps/web, so any future llmCall/llmStream landing inside
 # the mnemosyne sources would silently skip the spend-cap + metering gate.
-# As of 2026-06 mnemosyne lives in a standalone repo (@mnemosyne/core); we
-# audit its sources only if the sibling checkout is present (override via
-# MNEMO_REPO_PATH). When extraction/judge adapters start calling the LLM,
+# Mnemosyne is vendored as a submodule at vendor/mnemosyne; we audit its
+# sources only if present (override the path via MNEMO_REPO_PATH). When
+# extraction/judge adapters start calling the LLM,
 # they MUST pair every call with assertWithinSpend + recordAiUsage in the
 # same file. No exclusions: every *.ts file under the mnemosyne src dir
 # that names llmCall(/llmStream( is in scope.
