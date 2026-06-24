@@ -1,3 +1,4 @@
+/// <reference types="node" />
 /**
  * End-to-end recall smoke — proves the external memory pipeline works.
  *
