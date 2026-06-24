@@ -1,3 +1,4 @@
+/// <reference types="node" />
 /**
  * End-to-end recall smoke — proves the external memory pipeline works.
  *
@@ -19,7 +20,8 @@ const ORCH_DSN =
   process.env.DATABASE_URL ?? "postgresql://orchester:orchester@localhost:5432/orchester";
 const MNEMO_URL = process.env.MNEMO_URL ?? "http://localhost:3939";
 const MNEMO_API_KEY = process.env.MNEMO_API_KEY ?? "";
-const WS_ID = process.env.SMOKE_WS_ID ?? "tvlds3k623us6sz7zp2ek6gh";
+const WS_ID = process.env["SMOKE_WS_ID"];
+if (!WS_ID) throw new Error("Set SMOKE_WS_ID env var to the workspace UUID bound to MNEMO_API_KEY");
 const EMBED_MODEL = process.env.MNEMO_EMBED_MODEL ?? "text-embedding-3-small";
 
 const ALGO = "aes-256-gcm";
