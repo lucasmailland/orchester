@@ -2,18 +2,17 @@
 //
 // Singleton @mnemosyne/client-ts accessor for the server runtime.
 //
-// Post Phase 3/4: orchester talks to mnemosyne EXCLUSIVELY over HTTP.
-// There is no in-process library fallback. Every route, worker, and
-// library that reaches the SDK MUST go through `getMnemoClient()` so we:
+// Orchester talks to mnemosyne EXCLUSIVELY over HTTP — there is no
+// in-process library fallback. Every route, worker, and library that
+// reaches the SDK MUST go through `getMnemoClient()` so we:
 //
 //   1. Construct the underlying `MnemosyneClient` exactly once per
 //      process (the SDK keeps an internal fetch keep-alive agent that
 //      we don't want to re-create per request).
 //   2. Fail loudly at boot if the environment isn't configured, instead
 //      of producing a half-wired client that 401s on every call.
-//   3. Have one place to swap the implementation (e.g. for an
-//      in-process mock during the migration, or for a different
-//      transport later).
+//   3. Have one place to swap the transport for tests (inject a stub
+//      via `_setMnemoClientForTests`) without touching call sites.
 import "server-only";
 import { MnemosyneClient } from "@mnemosyne/client-ts";
 
