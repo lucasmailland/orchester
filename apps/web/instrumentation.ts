@@ -67,6 +67,20 @@ export async function register(): Promise<void> {
     );
   }
 
+  // ── Mnemosyne auto-bootstrap ─────────────────────────────────────────────────
+  // On first boot (mnemosyne has no API keys yet), registers MNEMO_API_KEY so
+  // the operator doesn't need to manually provision it inside mnemosyne.
+  // Idempotent: skipped when mnemosyne already has keys.
+  try {
+    const { bootstrapMnemo } = await import("./lib/mnemo/bootstrap");
+    await bootstrapMnemo();
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!msg.includes("Cannot find module") && !msg.includes("MODULE_NOT_FOUND")) {
+      console.warn("[instrumentation] mnemo bootstrap error:", e);
+    }
+  }
+
   // ── Defense-in-depth layer 2 (audit P0, 2026-05-24): fail-closed if the
   // deployed DATABASE_URL points at a SUPERUSER / BYPASSRLS role. Layer 1
   // (SET LOCAL ROLE app_user inside tx wrappers) covers the request path,
