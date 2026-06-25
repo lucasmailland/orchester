@@ -28,6 +28,15 @@ const RELATION_LINE: Record<string, { color?: string; type?: "solid" | "dashed";
     member_of: { color: "#5dcaa5", width: 1.1 },
   };
 
+// ECharts graph series has no zoom() method; programmatic zoom is done by
+// multiplying series[0].zoom and re-applying it.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function zoomEChartsBy(chart: any, factor: number) {
+  const opt = chart.getOption?.();
+  const cur = opt?.series?.[0]?.zoom ?? 1;
+  chart.setOption({ series: [{ zoom: Math.max(0.2, Math.min(5, cur * factor)) }] });
+}
+
 export interface BrainGraphEChartsProps {
   nodes: GraphNode[];
   links: { id: string; source: string; target: string; relation?: string; confidence?: number }[];
@@ -40,6 +49,12 @@ export interface BrainGraphEChartsProps {
   height: number;
   onNodeClick: (node: GraphNode) => void;
   onNodeHover: (node: GraphNode | null, clientX?: number, clientY?: number) => void;
+  // Toolbar zoom/fit dispatch — BrainGraph fills this with the live instance's
+  // imperative controls so the shared +/−/fit buttons drive whichever renderer
+  // is active (each library has its own zoom API).
+  controlsRef?: {
+    current: { zoomIn: () => void; zoomOut: () => void; fit: () => void } | null;
+  };
 }
 
 export function BrainGraphECharts({
@@ -54,6 +69,7 @@ export function BrainGraphECharts({
   height,
   onNodeClick,
   onNodeHover,
+  controlsRef,
 }: BrainGraphEChartsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -89,11 +105,19 @@ export function BrainGraphECharts({
         onHoverRef.current(n ?? null, p?.event?.event?.clientX, p?.event?.event?.clientY);
       });
       chart.on("mouseout", () => onHoverRef.current(null));
+      if (controlsRef) {
+        controlsRef.current = {
+          zoomIn: () => zoomEChartsBy(chart, 1.3),
+          zoomOut: () => zoomEChartsBy(chart, 1 / 1.3),
+          fit: () => chart.setOption({ series: [{ zoom: 1 }] }),
+        };
+      }
       // Trigger the first paint now that the instance exists.
       setData();
     });
     return () => {
       disposed = true;
+      if (controlsRef) controlsRef.current = null;
       chartRef.current?.dispose?.();
       chartRef.current = null;
     };
@@ -156,7 +180,9 @@ export function BrainGraphECharts({
             edgeLength: [70, 200],
             gravity: 0.04,
             friction: 0.5,
-            layoutAnimation: true,
+            // Settle once, then stop — continuous animation made nodes drift
+            // forever, so they were hard to click. Drag still re-positions.
+            layoutAnimation: false,
           },
           label: { show: true, color: "#cbd2e0", fontSize: 10, position: "right" },
           // Edges inherit the source node's colour — reads as energy flowing

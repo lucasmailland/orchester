@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -96,7 +96,12 @@ export function BrainInspectorClient() {
     [searchParams, router, locale, ws]
   );
 
-  const [filters, setFilters] = useState<FactsFilters>(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState<FactsFilters>(() => {
+    // Deep-link from the graph's "view all facts" action: `?q=<entity>` opens
+    // the Inspector pre-filtered to that entity's facts.
+    const q = searchParams?.get("q");
+    return q ? { ...DEFAULT_FILTERS, q } : DEFAULT_FILTERS;
+  });
   const filtersWithAsOf = useMemo<FactsFilters>(() => ({ ...filters, asOf }), [filters, asOf]);
   // True when the user has narrowed the list (anything beyond the
   // default "status:active" filter). The empty-state CTA hides under
@@ -112,6 +117,20 @@ export function BrainInspectorClient() {
       ) || filters.status !== DEFAULT_FILTERS.status,
     [filters]
   );
+
+  // Deep-link from the graph ("Ver todos los hechos" → ?q=<entity>): scroll
+  // straight to the filtered facts list so the operator lands on the answer,
+  // not the dashboard header at the top of the page.
+  const factsAnchorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!searchParams?.get("q")) return;
+    const id = setTimeout(() => {
+      factsAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [editing, setEditing] = useState<Fact | null>(null);
   // ConfirmAction state for the destructive "forget" verb. The dialog
   // shows the user the exact statement, scope, and reversibility of the
@@ -421,7 +440,7 @@ export function BrainInspectorClient() {
         titleKey="compass.tours.brainInspector.step3.title"
         bodyKey="compass.tours.brainInspector.step3.body"
       >
-        <div>
+        <div ref={factsAnchorRef} style={{ scrollMarginTop: "1rem" }}>
           <FactFilters value={filters} onChange={setFilters} />
         </div>
       </TourSpot>

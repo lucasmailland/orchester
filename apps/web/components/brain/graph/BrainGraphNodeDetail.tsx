@@ -1,12 +1,14 @@
 "use client";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { X, Target, ArrowRight, Pin } from "lucide-react";
+import { X, Target, Pin, ChevronDown, ArrowRight } from "lucide-react";
 import { Button } from "@heroui/react";
 import type { GraphNode } from "@/lib/memory/graph-canvas";
 import { ENTITY_KIND_COLOR } from "@/lib/memory/graph-canvas";
 import { useEntityFacts } from "@/lib/hooks/use-entity-facts";
+import { CitationsList } from "@/components/brain/CitationsList";
 
 const KIND_ICONS: Record<string, string> = {
   person: "●",
@@ -36,13 +38,47 @@ export function BrainGraphNodeDetail({ node, degree, onClose }: Props) {
   const color = ENTITY_KIND_COLOR[kind] ?? "#52525b";
   const strengthPct = Math.round(((node?.avgMemoryStrength ?? 0) / 5.0) * 100);
 
-  // The real memory content. Only entities carry linked facts —
-  // episode/decision nodes pause the fetch (null key).
+  // Facts can be many per entity, so the drawer reveals them in pages instead
+  // of one eternal scroll. We fetch a generous batch once (cheap for small
+  // entities — the API returns only what exists, capped at FACTS_FETCH_CAP)
+  // and paginate the REVEAL on the client. Resets when switching nodes.
+  const FACTS_PAGE = 8;
+  const FACTS_FETCH_CAP = 200;
+  const [visibleCount, setVisibleCount] = useState(FACTS_PAGE);
+  useEffect(() => {
+    setVisibleCount(FACTS_PAGE);
+  }, [node?.id]);
+
+  // Click a fact card to expand its sources/citations inline (accordion — one
+  // open at a time). Reset when switching nodes.
+  const [expandedFactId, setExpandedFactId] = useState<string | null>(null);
+  useEffect(() => {
+    setExpandedFactId(null);
+  }, [node?.id]);
+
+  // Only entities carry linked facts — episode/decision nodes pause the fetch.
   const {
     facts,
     isLoading: factsLoading,
     error: factsError,
-  } = useEntityFacts(node?.kind === "entity" ? node.id : null);
+  } = useEntityFacts(node?.kind === "entity" ? node.id : null, FACTS_FETCH_CAP);
+
+  // Order by relevance: pinned first, then confidence, then recency. (Per-fact
+  // memory_strength isn't on the wire, so confidence stands in for importance
+  // next to the manual pin.)
+  const sortedFacts = useMemo(
+    () =>
+      [...facts].sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        if (b.confidence !== a.confidence) return b.confidence - a.confidence;
+        return b.updatedAt.localeCompare(a.updatedAt);
+      }),
+    [facts]
+  );
+  const shownFacts = sortedFacts.slice(0, visibleCount);
+  const totalFacts = node?.factCount ?? sortedFacts.length;
+  const canRevealMore = visibleCount < sortedFacts.length;
+  const beyondFetch = totalFacts > sortedFacts.length;
 
   return (
     <div
@@ -135,9 +171,9 @@ export function BrainGraphNodeDetail({ node, degree, onClose }: Props) {
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
                   {t("detail.memories")}
-                  {facts.length > 0 && (
+                  {totalFacts > 0 && (
                     <span className="ml-1.5 text-zinc-600 normal-case tracking-normal tabular-nums">
-                      {facts.length}
+                      {totalFacts}
                     </span>
                   )}
                 </p>
@@ -147,35 +183,99 @@ export function BrainGraphNodeDetail({ node, degree, onClose }: Props) {
                 {factsError != null && (
                   <p className="text-xs text-red-400/80">{t("detail.factsError")}</p>
                 )}
-                {!factsLoading && factsError == null && facts.length === 0 && (
+                {!factsLoading && factsError == null && sortedFacts.length === 0 && (
                   <p className="text-xs text-zinc-600">{t("detail.noFacts")}</p>
                 )}
                 <div className="space-y-1.5">
-                  {facts.map((f) => (
-                    <div
-                      key={f.id}
-                      className="bg-zinc-900/60 border border-zinc-800/60 rounded-lg px-2.5 py-2 hover:border-zinc-700/80 transition-colors"
-                    >
-                      <p className="text-xs text-zinc-300 leading-relaxed">{f.statement}</p>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <span
-                          className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-px rounded border"
-                          style={{
-                            color,
-                            borderColor: `${color}30`,
-                            backgroundColor: `${color}10`,
-                          }}
+                  {shownFacts.map((f) => {
+                    const isExpanded = expandedFactId === f.id;
+                    return (
+                      <div
+                        key={f.id}
+                        className={
+                          "bg-zinc-900/60 border rounded-lg overflow-hidden transition-colors " +
+                          (isExpanded
+                            ? "border-violet-700/50"
+                            : "border-zinc-800/60 hover:border-zinc-700/80")
+                        }
+                      >
+                        {/* Click to expand the fact's sources/citations inline. */}
+                        <button
+                          type="button"
+                          onClick={() => setExpandedFactId(isExpanded ? null : f.id)}
+                          aria-expanded={isExpanded}
+                          className="w-full text-left px-2.5 py-2"
                         >
-                          {f.kind}
-                        </span>
-                        <span className="text-[10px] text-zinc-600 tabular-nums">
-                          {Math.round(f.confidence * 100)}%
-                        </span>
-                        {f.pinned && <Pin className="h-2.5 w-2.5 text-amber-400" />}
+                          <div className="flex items-start gap-1.5">
+                            <p className="flex-1 text-xs text-zinc-300 leading-relaxed">
+                              {f.statement}
+                            </p>
+                            <ChevronDown
+                              className={
+                                "h-3 w-3 mt-0.5 flex-shrink-0 text-zinc-500 transition-transform " +
+                                (isExpanded ? "rotate-180" : "")
+                              }
+                            />
+                          </div>
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <span
+                              className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-px rounded border"
+                              style={{
+                                color,
+                                borderColor: `${color}30`,
+                                backgroundColor: `${color}10`,
+                              }}
+                            >
+                              {f.kind}
+                            </span>
+                            <span className="text-[10px] text-zinc-600 tabular-nums">
+                              {Math.round(f.confidence * 100)}%
+                            </span>
+                            {f.pinned && <Pin className="h-2.5 w-2.5 text-amber-400" />}
+                          </div>
+                        </button>
+                        {isExpanded && (
+                          <div className="border-t border-zinc-800/60 bg-zinc-950/40 px-2.5 py-2">
+                            <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-500 mb-1.5">
+                              {t("detail.sources")}
+                            </p>
+                            <CitationsList factId={f.id} />
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
+                {/* Pagination — reveal another page INLINE (stay in the graph).
+                    Once the fetched batch is exhausted but more exist (huge
+                    entities), hand off to the Inspector's real search. */}
+                {sortedFacts.length > 0 && (canRevealMore || beyondFetch) && (
+                  <div className="mt-2.5 flex items-center justify-between gap-2">
+                    <span className="text-[10px] text-zinc-600 tabular-nums">
+                      {shownFacts.length} / {totalFacts}
+                    </span>
+                    {canRevealMore ? (
+                      <button
+                        onClick={() => setVisibleCount((v) => v + FACTS_PAGE)}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-300 hover:text-violet-200 bg-violet-600/10 hover:bg-violet-600/20 border border-violet-700/40 rounded-lg px-2.5 py-1 transition-colors"
+                      >
+                        <ChevronDown className="h-3 w-3" />
+                        {t("detail.loadMore")}
+                        <span className="opacity-70 tabular-nums">
+                          ({sortedFacts.length - visibleCount})
+                        </span>
+                      </button>
+                    ) : (
+                      <Link
+                        href={`/${locale}/${ws}/brain?q=${encodeURIComponent(node.label)}`}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-400 hover:text-zinc-200 transition-colors"
+                      >
+                        {t("detail.viewFacts")}
+                        <ArrowRight className="h-3 w-3" />
+                      </Link>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -193,16 +293,6 @@ export function BrainGraphNodeDetail({ node, degree, onClose }: Props) {
                   {t("detail.focusLocal")}
                 </Button>
               )}
-              <Button
-                as={Link}
-                href={`/${locale}/${ws}/brain`}
-                size="sm"
-                variant="flat"
-                startContent={<ArrowRight className="h-3.5 w-3.5" />}
-                className="w-full justify-start bg-zinc-800/80 border border-zinc-700/80 text-zinc-300 hover:border-violet-600 hover:text-violet-300 transition-colors"
-              >
-                {t("detail.viewFacts")}
-              </Button>
             </div>
           </div>
         </>

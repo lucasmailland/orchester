@@ -34,9 +34,11 @@ import { useGraphFilters } from "@/lib/hooks/use-graph-filters";
 import { BrainGraphFilters } from "./BrainGraphFilters";
 import { BrainGraphNodeDetail } from "./BrainGraphNodeDetail";
 import { BrainGraphLegend } from "./BrainGraphLegend";
-import { BrainGraphViewToggle } from "./BrainGraphViewToggle";
 import { BrainGraphEmptyState } from "./BrainGraphEmptyState";
 import { BrainGraphECharts } from "./BrainGraphECharts";
+import { BrainGraphCytoscape } from "./BrainGraphCytoscape";
+import { BrainGraphSigma } from "./BrainGraphSigma";
+import { BrainGraphG6 } from "./BrainGraphG6";
 
 // Dynamic imports — react-force-graph bundles WebGL; must be client-only.
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), { ssr: false });
@@ -60,11 +62,15 @@ export function BrainGraph() {
   const { filteredNodeIds, filteredEdgeIds, searchMatchIds, searchQuery } = filters;
 
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
-  const [is3D, setIs3D] = useState(false);
-  // Renderer backend: ECharts (force-directed, native focus-adjacency hover)
-  // vs the hand-rolled react-force-graph canvas. Defaults to ECharts — the
-  // cleaner, more Obsidian-like layout. The 2D/3D toggle is canvas-only.
-  const [renderer, setRenderer] = useState<"echarts" | "canvas">("echarts");
+  // Renderer backend. Defaults to ECharts (clean, Obsidian-like). "3d" is its
+  // own first-class option — the react-force-graph WebGL/Three.js 3D force
+  // graph; "canvas" is the 2D react-force-graph; the rest are 2D libraries.
+  const [renderer, setRenderer] = useState<
+    "echarts" | "canvas" | "cytoscape" | "sigma" | "g6" | "3d"
+  >("echarts");
+  // 3D used to be a Canvas sub-toggle; it's now a renderer of its own. Both
+  // "canvas" and "3d" drive the same react-force-graph instance (2D vs 3D).
+  const is3D = renderer === "3d";
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
@@ -111,6 +117,17 @@ export function BrainGraph() {
   // canvas bundle client-only.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fgRef = useRef<any>(null);
+  // Imperative zoom/fit handle for whichever library renderer (ECharts /
+  // Cytoscape / Sigma / G6) is active; stays null while Canvas is selected.
+  const libControlsRef = useRef<{
+    zoomIn: () => void;
+    zoomOut: () => void;
+    fit: () => void;
+  } | null>(null);
+  // Guards the auto-fit so it runs ONCE per layout, not on every hover. Hover
+  // changes the nodeColor/nodeVal accessors, which re-heats the d3 sim, which
+  // re-fires onEngineStop — and in 3D that re-fit dollies the camera out.
+  const didFitRef = useRef(false);
 
   // Apply d3-force tuning to the given instance. Called both from the
   // callback ref (first mount of the dynamic component) and from the
@@ -204,6 +221,27 @@ export function BrainGraph() {
     [graphData, filteredNodeIds, filteredEdgeIds]
   );
 
+  // react-force-graph (Canvas/3D) MUTATES link.source/.target from id strings
+  // into node OBJECTS in place, on the shared links array. The library
+  // renderers (ECharts/Cytoscape/Sigma/G6) read those as ids, so once the
+  // canvas has run they'd receive `[object Object]` and throw ("nonexistent
+  // source"). Normalise to string ids (handling both shapes) for the library
+  // renderers; memoised so they don't re-layout every render. Canvas/3D keep
+  // using the raw (mutable) filteredGraphData.links.
+  const normalizedLinks = useMemo(
+    () =>
+      filteredGraphData.links.map((l) => {
+        const s = l.source as unknown as string | { id: string } | null;
+        const t = l.target as unknown as string | { id: string } | null;
+        return {
+          ...l,
+          source: s && typeof s === "object" ? s.id : (s as string),
+          target: t && typeof t === "object" ? t.id : (t as string),
+        };
+      }),
+    [filteredGraphData.links]
+  );
+
   // Re-tune whenever the graph data changes — react-force-graph creates
   // a fresh simulation on every graphData prop change, so forces must
   // be re-applied each time. The first-mount case is handled by the
@@ -211,6 +249,12 @@ export function BrainGraph() {
   useEffect(() => {
     setupForces(fgRef.current);
   }, [filteredGraphData, setupForces]);
+
+  // Re-arm the one-shot auto-fit whenever the graph data or the 2D/3D mode
+  // changes, so a genuinely new layout still gets fitted exactly once.
+  useEffect(() => {
+    didFitRef.current = false;
+  }, [filteredGraphData, is3D]);
 
   // Adjacency + degree, derived from the VISIBLE links. The force engine
   // mutates link.source/.target from id strings into node objects after the
@@ -246,6 +290,16 @@ export function BrainGraph() {
   const radiusFor = useCallback(
     (n: GraphNode) => nodeRadius(n.mentionCount + (degreeById.get(n.id) ?? 0) * 2, maxSizeVal),
     [degreeById, maxSizeVal]
+  );
+
+  // 3D sphere volume (memoised so hovering — which re-renders — doesn't hand
+  // react-force-graph a fresh nodeVal accessor and re-heat the simulation).
+  const nodeVal3D = useCallback(
+    (n: unknown) => {
+      const r = radiusFor(n as GraphNode);
+      return (r / 4) ** 2;
+    },
+    [radiusFor]
   );
 
   const searchActive = searchQuery.trim().length > 0;
@@ -435,25 +489,39 @@ export function BrainGraph() {
     ctx.restore();
   }, []);
 
-  const zoomBy = useCallback((factor: number) => {
-    const fg = fgRef.current;
-    if (!fg) return;
-    if (typeof fg.zoom === "function") {
-      fg.zoom(fg.zoom() * factor, 250);
-      return;
-    }
-    // 3D exposes no zoom() — dolly the camera toward/away from the origin
-    // (the default look-at target) instead.
-    if (typeof fg.cameraPosition === "function") {
-      const pos = fg.cameraPosition();
-      const k = 1 / factor;
-      fg.cameraPosition({ x: pos.x * k, y: pos.y * k, z: pos.z * k }, undefined, 300);
-    }
-  }, []);
+  const zoomBy = useCallback(
+    (factor: number) => {
+      // Library renderers (ECharts/Cytoscape/Sigma/G6) expose their own zoom
+      // via libControlsRef; only Canvas drives the react-force-graph instance.
+      if (renderer !== "canvas" && renderer !== "3d") {
+        if (factor >= 1) libControlsRef.current?.zoomIn();
+        else libControlsRef.current?.zoomOut();
+        return;
+      }
+      const fg = fgRef.current;
+      if (!fg) return;
+      if (typeof fg.zoom === "function") {
+        fg.zoom(fg.zoom() * factor, 250);
+        return;
+      }
+      // 3D exposes no zoom() — dolly the camera toward/away from the origin
+      // (the default look-at target) instead.
+      if (typeof fg.cameraPosition === "function") {
+        const pos = fg.cameraPosition();
+        const k = 1 / factor;
+        fg.cameraPosition({ x: pos.x * k, y: pos.y * k, z: pos.z * k }, undefined, 300);
+      }
+    },
+    [renderer]
+  );
 
   const zoomFit = useCallback(() => {
+    if (renderer !== "canvas" && renderer !== "3d") {
+      libControlsRef.current?.fit();
+      return;
+    }
     fgRef.current?.zoomToFit?.(400, 100);
-  }, []);
+  }, [renderer]);
 
   // 3D node labels — a text sprite parented under each sphere
   // (nodeThreeObjectExtend keeps the stock sphere). Memoised so hover
@@ -509,6 +577,32 @@ export function BrainGraph() {
   // status pill starts further left so the two never stack.
   const statusRight = selectedNode ? 320 : 64;
 
+  // Shared props for the four library renderers (ECharts / Cytoscape / Sigma /
+  // G6) — they expose the same interface and are interchangeable behind the
+  // toggle. Canvas (react-force-graph) takes a different shape and stays inline.
+  const libGraphProps = {
+    nodes: filteredGraphData.nodes,
+    links: normalizedLinks,
+    degreeById,
+    maxSizeVal,
+    selectedId: selectedNode?.id ?? null,
+    searchMatchIds,
+    searchActive,
+    width: dimensions.width,
+    height: dimensions.height,
+    onNodeClick: (n: GraphNode) => setSelectedNode(n),
+    onNodeHover: (n: GraphNode | null, cx?: number, cy?: number) => {
+      setHoverNode(n);
+      if (n && cx != null && cy != null && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setTooltipPos({ x: cx - rect.left, y: cy - rect.top });
+      } else {
+        setTooltipPos(null);
+      }
+    },
+    controlsRef: libControlsRef,
+  };
+
   return (
     <div ref={handleContainerRef} className="flex-1 relative overflow-hidden bg-[#050507]">
       <BrainGraphFilters filters={filters} />
@@ -517,44 +611,38 @@ export function BrainGraph() {
         style={{ right: ctrlRight }}
       >
         <div className="flex rounded-lg bg-[#0c0c10]/90 backdrop-blur-xl border border-zinc-800/80 p-0.5 text-xs font-semibold shadow-lg shadow-black/40">
-          {(["echarts", "canvas"] as const).map((r) => (
+          {(
+            [
+              ["echarts", "ECharts"],
+              ["cytoscape", "Cytoscape"],
+              ["sigma", "Sigma"],
+              ["g6", "G6"],
+              ["canvas", "Canvas"],
+              ["3d", "3D"],
+            ] as const
+          ).map(([r, lbl]) => (
             <button
               key={r}
               onClick={() => setRenderer(r)}
               className={
-                "px-2.5 py-1 rounded-md transition-colors " +
+                "px-2 py-1 rounded-md transition-colors " +
                 (renderer === r ? "bg-violet-600 text-white" : "text-zinc-400 hover:text-zinc-100")
               }
             >
-              {r === "echarts" ? "ECharts" : "Canvas"}
+              {lbl}
             </button>
           ))}
         </div>
-        {renderer === "canvas" && <BrainGraphViewToggle is3D={is3D} onChange={setIs3D} />}
       </div>
 
-      {renderer === "echarts" ? (
-        <BrainGraphECharts
-          nodes={filteredGraphData.nodes}
-          links={filteredGraphData.links}
-          degreeById={degreeById}
-          maxSizeVal={maxSizeVal}
-          selectedId={selectedNode?.id ?? null}
-          searchMatchIds={searchMatchIds}
-          searchActive={searchActive}
-          width={dimensions.width}
-          height={dimensions.height}
-          onNodeClick={(n) => setSelectedNode(n)}
-          onNodeHover={(n, cx, cy) => {
-            setHoverNode(n);
-            if (n && cx != null && cy != null && containerRef.current) {
-              const rect = containerRef.current.getBoundingClientRect();
-              setTooltipPos({ x: cx - rect.left, y: cy - rect.top });
-            } else {
-              setTooltipPos(null);
-            }
-          }}
-        />
+      {renderer === "cytoscape" ? (
+        <BrainGraphCytoscape {...libGraphProps} />
+      ) : renderer === "sigma" ? (
+        <BrainGraphSigma {...libGraphProps} />
+      ) : renderer === "g6" ? (
+        <BrainGraphG6 {...libGraphProps} />
+      ) : renderer === "echarts" ? (
+        <BrainGraphECharts {...libGraphProps} />
       ) : (
         <ForceGraph
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -574,6 +662,12 @@ export function BrainGraph() {
           // the first render dumps the layout wherever d3 happened to
           // place it on tick 0 — which on small graphs is a tight pile.
           onEngineStop={() => {
+            // Auto-fit ONCE per layout. react-force-graph re-fires this on
+            // every sim re-heat (hover changes the nodeColor/nodeVal accessors
+            // → re-heat), and a re-fit in 3D dollies the camera away from the
+            // node you're inspecting. The manual fit button still works.
+            if (didFitRef.current) return;
+            didFitRef.current = true;
             fgRef.current?.zoomToFit?.(400, 100);
           }}
           cooldownTicks={120}
@@ -588,10 +682,7 @@ export function BrainGraph() {
                   return base;
                 },
                 // Sphere volume tracks the same importance metric as 2D radius.
-                nodeVal: (n: unknown) => {
-                  const r = radiusFor(n as GraphNode);
-                  return (r / 4) ** 2;
-                },
+                nodeVal: nodeVal3D,
                 // Our HTML tooltip (below) covers hover info — the stock
                 // nodeLabel tooltip would double it up.
                 nodeLabel: () => "",

@@ -28,10 +28,12 @@ async function fetcher(url: string): Promise<EntityFactsResponse> {
   return res.json() as Promise<EntityFactsResponse>;
 }
 
-/** Pass null to pause (e.g. episode/decision nodes have no entity facts). */
-export function useEntityFacts(entityId: string | null) {
+/** Pass null to pause (e.g. episode/decision nodes have no entity facts).
+ *  `limit` is capped server-side at 500 — the detail panel asks for 25 by
+ *  default and bumps it when the user expands "view all facts" inline. */
+export function useEntityFacts(entityId: string | null, limit = 25) {
   const url = entityId
-    ? `/api/mnemo/entities/${encodeURIComponent(entityId)}/facts?limit=25`
+    ? `/api/mnemo/entities/${encodeURIComponent(entityId)}/facts?limit=${limit}`
     : null;
   const { data, error, isLoading } = useSWR<EntityFactsResponse>(url, fetcher, {
     revalidateOnFocus: false,
