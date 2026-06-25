@@ -36,6 +36,7 @@ import { BrainGraphNodeDetail } from "./BrainGraphNodeDetail";
 import { BrainGraphLegend } from "./BrainGraphLegend";
 import { BrainGraphViewToggle } from "./BrainGraphViewToggle";
 import { BrainGraphEmptyState } from "./BrainGraphEmptyState";
+import { BrainGraphECharts } from "./BrainGraphECharts";
 
 // Dynamic imports — react-force-graph bundles WebGL; must be client-only.
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), { ssr: false });
@@ -60,6 +61,10 @@ export function BrainGraph() {
 
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [is3D, setIs3D] = useState(false);
+  // Renderer backend: ECharts (force-directed, native focus-adjacency hover)
+  // vs the hand-rolled react-force-graph canvas. Defaults to ECharts — the
+  // cleaner, more Obsidian-like layout. The 2D/3D toggle is canvas-only.
+  const [renderer, setRenderer] = useState<"echarts" | "canvas">("echarts");
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
@@ -114,18 +119,29 @@ export function BrainGraph() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const setupForces = useCallback((fg: any) => {
     if (!fg || typeof fg.d3Force !== "function") return;
-    const charge = fg.d3Force("charge");
-    if (charge && typeof charge.strength === "function") charge.strength(-1200);
-    const link = fg.d3Force("link");
-    if (link && typeof link.distance === "function") link.distance(220);
-    if (link && typeof link.strength === "function") link.strength(0.1);
+    // Repulsion scales with graph size so the layout stays airy as memory
+    // grows — a fixed charge collapses into a tight ball past ~25 nodes
+    // (every leaf gets pulled toward the high-degree hubs). ~-3000 at 30.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const collide = forceCollide((node: any) => {
-      const labelHalfWidth = Math.max(28, Math.min(80, String(node?.label ?? "").length * 3.5));
-      return labelHalfWidth + 18;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    }).strength(1.0) as any;
-    fg.d3Force("collide", collide);
+    const nodeCount = Math.max(1, (fg.graphData?.() as any)?.nodes?.length ?? 30);
+    const charge = fg.d3Force("charge");
+    if (charge && typeof charge.strength === "function") charge.strength(-(900 + nodeCount * 70));
+    if (charge && typeof charge.distanceMax === "function") charge.distanceMax(1600);
+    const link = fg.d3Force("link");
+    if (link && typeof link.distance === "function") link.distance(130);
+    if (link && typeof link.strength === "function") link.strength(0.07);
+    // Label-aware collision: reserve the full label box (not just the node
+    // dot) so text never overlaps a neighbour, even at fit-zoom. iterations(2)
+    // resolves the tighter packing the bigger radius demands.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const collideForce = forceCollide((node: any) => {
+      const labelHalfWidth = Math.max(36, Math.min(130, String(node?.label ?? "").length * 4.4));
+      return labelHalfWidth + 28;
+    })
+      .strength(1)
+      .iterations(2);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fg.d3Force("collide", collideForce as any);
   }, []);
 
   // Callback ref — fires the moment the dynamic ForceGraph component
@@ -497,87 +513,125 @@ export function BrainGraph() {
     <div ref={handleContainerRef} className="flex-1 relative overflow-hidden bg-[#050507]">
       <BrainGraphFilters filters={filters} />
       <div
-        className="absolute top-4 z-10 transition-[right] duration-200 ease-out"
+        className="absolute top-4 z-10 flex items-center gap-2 transition-[right] duration-200 ease-out"
         style={{ right: ctrlRight }}
       >
-        <BrainGraphViewToggle is3D={is3D} onChange={setIs3D} />
+        <div className="flex rounded-lg bg-[#0c0c10]/90 backdrop-blur-xl border border-zinc-800/80 p-0.5 text-xs font-semibold shadow-lg shadow-black/40">
+          {(["echarts", "canvas"] as const).map((r) => (
+            <button
+              key={r}
+              onClick={() => setRenderer(r)}
+              className={
+                "px-2.5 py-1 rounded-md transition-colors " +
+                (renderer === r ? "bg-violet-600 text-white" : "text-zinc-400 hover:text-zinc-100")
+              }
+            >
+              {r === "echarts" ? "ECharts" : "Canvas"}
+            </button>
+          ))}
+        </div>
+        {renderer === "canvas" && <BrainGraphViewToggle is3D={is3D} onChange={setIs3D} />}
       </div>
 
-      <ForceGraph
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ref={handleFgRef as any}
-        graphData={filteredGraphData}
-        onNodeClick={handleNodeClick}
-        onNodeHover={handleNodeHover}
-        onNodeDragEnd={handleNodeDragEnd}
-        onNodeRightClick={handleNodeRightClick}
-        onBackgroundClick={handleBackgroundClick}
-        backgroundColor="#050507"
-        nodeId="id"
-        linkSource="source"
-        linkTarget="target"
-        // Once the d3-force simulation settles, auto-fit the viewport
-        // so EVERY node is visible with a small padding. Without this
-        // the first render dumps the layout wherever d3 happened to
-        // place it on tick 0 — which on small graphs is a tight pile.
-        onEngineStop={() => {
-          fgRef.current?.zoomToFit?.(400, 100);
-        }}
-        cooldownTicks={120}
-        warmupTicks={0}
-        {...(is3D
-          ? {
-              nodeColor: (n: unknown) => {
-                const node = n as GraphNode;
-                const base = ENTITY_KIND_COLOR[node.entityKind ?? node.kind] ?? "#52525b";
-                if (hoverNeighborhood && !hoverNeighborhood.has(node.id)) return `${base}20`;
-                if (searchActive && !searchMatchIds.has(node.id)) return `${base}30`;
-                return base;
-              },
-              // Sphere volume tracks the same importance metric as 2D radius.
-              nodeVal: (n: unknown) => {
-                const r = radiusFor(n as GraphNode);
-                return (r / 4) ** 2;
-              },
-              // Our HTML tooltip (below) covers hover info — the stock
-              // nodeLabel tooltip would double it up.
-              nodeLabel: () => "",
-              showNavInfo: false,
-              ...(SpriteTextCls ? { nodeThreeObject, nodeThreeObjectExtend: true } : {}),
-              // Larger spheres than the stock 4 — at zoomToFit distance the
-              // default reads as scattered dust.
-              nodeRelSize: 6,
-              nodeOpacity: 0.9,
-              linkColor: (l: unknown) => {
-                const relation = (l as { relation?: string }).relation ?? "related";
-                const style =
-                  (EDGE_STYLES as Record<string, EdgeStyle>)[relation] ?? EDGE_STYLES.related;
-                return style.color;
-              },
-              linkOpacity: 0.4,
-              linkWidth: (l: unknown) => 0.5 + ((l as { confidence?: number }).confidence ?? 0.7),
-              linkDirectionalArrowLength: 3.5,
-              linkDirectionalArrowRelPos: 1,
-              // Slow particle drift along edges — makes the 3D graph read as a
-              // living memory web rather than a static wireframe.
-              linkDirectionalParticles: 2,
-              linkDirectionalParticleWidth: 1.6,
-              linkDirectionalParticleSpeed: (l: unknown) =>
-                ((l as { confidence?: number }).confidence ?? 0.7) * 0.006,
+      {renderer === "echarts" ? (
+        <BrainGraphECharts
+          nodes={filteredGraphData.nodes}
+          links={filteredGraphData.links}
+          degreeById={degreeById}
+          maxSizeVal={maxSizeVal}
+          selectedId={selectedNode?.id ?? null}
+          searchMatchIds={searchMatchIds}
+          searchActive={searchActive}
+          width={dimensions.width}
+          height={dimensions.height}
+          onNodeClick={(n) => setSelectedNode(n)}
+          onNodeHover={(n, cx, cy) => {
+            setHoverNode(n);
+            if (n && cx != null && cy != null && containerRef.current) {
+              const rect = containerRef.current.getBoundingClientRect();
+              setTooltipPos({ x: cx - rect.left, y: cy - rect.top });
+            } else {
+              setTooltipPos(null);
             }
-          : {
-              nodeCanvasObject,
-              nodeCanvasObjectMode: () => "replace" as const,
-              nodePointerAreaPaint,
-              linkCanvasObject,
-              linkCanvasObjectMode: () => "replace" as const,
-              onLinkHover: (link: Record<string, unknown> | null) => setHoverLink(link ?? null),
-              linkHoverPrecision: 6,
-              onRenderFramePre: renderBackdrop,
-            })}
-        width={dimensions.width}
-        height={dimensions.height}
-      />
+          }}
+        />
+      ) : (
+        <ForceGraph
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ref={handleFgRef as any}
+          graphData={filteredGraphData}
+          onNodeClick={handleNodeClick}
+          onNodeHover={handleNodeHover}
+          onNodeDragEnd={handleNodeDragEnd}
+          onNodeRightClick={handleNodeRightClick}
+          onBackgroundClick={handleBackgroundClick}
+          backgroundColor="#050507"
+          nodeId="id"
+          linkSource="source"
+          linkTarget="target"
+          // Once the d3-force simulation settles, auto-fit the viewport
+          // so EVERY node is visible with a small padding. Without this
+          // the first render dumps the layout wherever d3 happened to
+          // place it on tick 0 — which on small graphs is a tight pile.
+          onEngineStop={() => {
+            fgRef.current?.zoomToFit?.(400, 100);
+          }}
+          cooldownTicks={120}
+          warmupTicks={0}
+          {...(is3D
+            ? {
+                nodeColor: (n: unknown) => {
+                  const node = n as GraphNode;
+                  const base = ENTITY_KIND_COLOR[node.entityKind ?? node.kind] ?? "#52525b";
+                  if (hoverNeighborhood && !hoverNeighborhood.has(node.id)) return `${base}20`;
+                  if (searchActive && !searchMatchIds.has(node.id)) return `${base}30`;
+                  return base;
+                },
+                // Sphere volume tracks the same importance metric as 2D radius.
+                nodeVal: (n: unknown) => {
+                  const r = radiusFor(n as GraphNode);
+                  return (r / 4) ** 2;
+                },
+                // Our HTML tooltip (below) covers hover info — the stock
+                // nodeLabel tooltip would double it up.
+                nodeLabel: () => "",
+                showNavInfo: false,
+                ...(SpriteTextCls ? { nodeThreeObject, nodeThreeObjectExtend: true } : {}),
+                // Larger spheres than the stock 4 — at zoomToFit distance the
+                // default reads as scattered dust.
+                nodeRelSize: 6,
+                nodeOpacity: 0.9,
+                linkColor: (l: unknown) => {
+                  const relation = (l as { relation?: string }).relation ?? "related";
+                  const style =
+                    (EDGE_STYLES as Record<string, EdgeStyle>)[relation] ?? EDGE_STYLES.related;
+                  return style.color;
+                },
+                linkOpacity: 0.4,
+                linkWidth: (l: unknown) => 0.5 + ((l as { confidence?: number }).confidence ?? 0.7),
+                linkDirectionalArrowLength: 3.5,
+                linkDirectionalArrowRelPos: 1,
+                // Slow particle drift along edges — makes the 3D graph read as a
+                // living memory web rather than a static wireframe.
+                linkDirectionalParticles: 2,
+                linkDirectionalParticleWidth: 1.6,
+                linkDirectionalParticleSpeed: (l: unknown) =>
+                  ((l as { confidence?: number }).confidence ?? 0.7) * 0.006,
+              }
+            : {
+                nodeCanvasObject,
+                nodeCanvasObjectMode: () => "replace" as const,
+                nodePointerAreaPaint,
+                linkCanvasObject,
+                linkCanvasObjectMode: () => "replace" as const,
+                onLinkHover: (link: Record<string, unknown> | null) => setHoverLink(link ?? null),
+                linkHoverPrecision: 6,
+                onRenderFramePre: renderBackdrop,
+              })}
+          width={dimensions.width}
+          height={dimensions.height}
+        />
+      )}
 
       {/* Filters hid everything — say so instead of presenting a void. */}
       {filteredGraphData.nodes.length === 0 && (

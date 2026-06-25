@@ -89,7 +89,14 @@ export function drawNode(
   _drawShape(ctx, x, y, r, color, entityKind ?? kind, hovered ? 0.35 : undefined);
   ctx.shadowBlur = 0;
 
-  if (globalScale >= 0.3) {
+  // Declutter on zoom-out (Obsidian-style): important nodes (bigger r, i.e.
+  // hubs by mentions+degree) keep their label at low zoom; minor nodes only
+  // reveal theirs as the viewport zooms in. The hovered/selected/search-hit
+  // node always shows its label so focus interactions stay readable. Without
+  // this, all N labels paint at every zoom and dense graphs become text-soup.
+  const forceLabel = hovered === true || selected === true || searchHit === true;
+  const labelThreshold = r >= 17 ? 0.16 : r >= 11 ? 0.4 : 0.78;
+  if (forceLabel || globalScale >= labelThreshold) {
     // Labels render in CANVAS COORDINATE space, but they must remain a
     // constant SCREEN size as the viewport zooms. The transform from
     // coord → screen is the `globalScale` multiplier, so to render an
