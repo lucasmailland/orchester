@@ -6,6 +6,60 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 Releases are produced by [release-please](https://github.com/googleapis/release-please) from Conventional Commit messages on `main`.
 
+## [0.0.1](https://github.com/lucasmailland/orchester/compare/v0.0.1...v0.0.1) (2026-06-26)
+
+
+### Added
+
+* **brain-graph:** functional + visual overhaul of graph controls ([e085964](https://github.com/lucasmailland/orchester/commit/e085964fef81bed029bae035ba32e6cd2e464fb4))
+* **brain-graph:** Obsidian-level graph interactions for 2D and 3D ([a83c006](https://github.com/lucasmailland/orchester/commit/a83c006751da111f2305dacc84a6662e08137273))
+* **brain-graph:** show real memory content per node + bump mnemosyne ([7701ad1](https://github.com/lucasmailland/orchester/commit/7701ad1b284ba437bad38caaf8d8969d1bdd3bda))
+* **brain:** add Cytoscape/Sigma/G6/3D renderers + drawer pagination & fact sources ([44393aa](https://github.com/lucasmailland/orchester/commit/44393aabd72302f8dfb9085369a8e209e7993334))
+* **brain:** add ECharts graph renderer with Obsidian-style interactions ([7570e25](https://github.com/lucasmailland/orchester/commit/7570e251f2b17e6a8f59be31bb011e2acd0d1c4a))
+* **brain:** backfill mnemo embeddings + finish audit outstanding items ([ddcb1ed](https://github.com/lucasmailland/orchester/commit/ddcb1edfa017e50dc13b6223cc8aa88dfc72280a))
+* **brain:** focus-exit banner, conversation detail page, session spec ([892f70d](https://github.com/lucasmailland/orchester/commit/892f70d58e5ba46bbafe565d2a359a9bd01992cd))
+* **brain:** graphology analytics + ECharts scalability; drop Cytoscape/Sigma/G6 ([111d7eb](https://github.com/lucasmailland/orchester/commit/111d7ebd13bb4b8830fe048951ae5f4b709e915b))
+* **brain:** implement Memory Ops admin routes (fix 404s) ([bb2e394](https://github.com/lucasmailland/orchester/commit/bb2e394d007d2f0b3e870a65790ff0ca80deece5))
+* **mnemo:** auto-bootstrap mnemosyne API key on first connection ([f278769](https://github.com/lucasmailland/orchester/commit/f2787698f7da167d0af31bf8f99338a924b284ce))
+* **mnemo:** auto-provision workspace LLM config on AI provider save ([a534f32](https://github.com/lucasmailland/orchester/commit/a534f3226a18d7414d9c95f44603a901812fe7bd))
+* **mnemo:** forward workspace-embedded vector to recall — no LLM in mnemosyne env ([072262d](https://github.com/lucasmailland/orchester/commit/072262d0753ebec6ccdbbf4ef8af3711cc14ec14))
+* **mnemo:** Phase 3 — cut @mnemosyne/core from orchester runtime ([68ec07b](https://github.com/lucasmailland/orchester/commit/68ec07bf6f89da21cf600586e909d87e32f9dff6))
+* orchester fully connected to mnemosyne v3 ([7969052](https://github.com/lucasmailland/orchester/commit/7969052b9f43c7bd39e7c5bb6bcb4ed4e2e94dd6))
+* **scripts:** idempotent mnemo workspace+key provisioning ([fd2b4aa](https://github.com/lucasmailland/orchester/commit/fd2b4aac8cca91106dcfc21130f493b9c57d275d))
+
+
+### Fixed
+
+* **agent-studio:** JSON sample placeholder crashed with INVALID_MESSAGE ([4936b76](https://github.com/lucasmailland/orchester/commit/4936b76840dd382610b9359fd234e446c5724d2b))
+* **brain-graph:** relocate eslint-disable to cover the actual any line ([de3284e](https://github.com/lucasmailland/orchester/commit/de3284ebad6bcc180d6aab00698f4462275af216))
+* **brain-graph:** remove d3ReheatSimulation call that crashes 3D mode ([7b558be](https://github.com/lucasmailland/orchester/commit/7b558be228412d964c7134624e392346cfe4af77))
+* **brain-graph:** resolve node collapse bug with callback ref ([2969d7a](https://github.com/lucasmailland/orchester/commit/2969d7a7fb19f0e9e8e82da78fa3bbde11d3d2d3))
+* **brain:** wire AI Providers tri-state + restore mnemo health routes ([daafac7](https://github.com/lucasmailland/orchester/commit/daafac7bdc51c99a763e0965773c2d5841c18d48))
+* **memory/graph:** readable layout for small graphs (≤10 entities) ([fd571b3](https://github.com/lucasmailland/orchester/commit/fd571b37105c6ab1b82cdc7d1f796c494f9a276e))
+* **seed:** don't insert anthropic/google placeholder provider rows ([9dec173](https://github.com/lucasmailland/orchester/commit/9dec173b44acf4e0fe390f94f65e093cd950373b))
+* **seed:** seed every agent + message + version with an OpenAI model ([8059d68](https://github.com/lucasmailland/orchester/commit/8059d68630b63a76dd79df0477635f19455ffb54))
+* **settings/providers:** remove 'Paused' concept — disabled rows go to Available ([01369c9](https://github.com/lucasmailland/orchester/commit/01369c98aa241f9c064867063b6627b509fa7cdb))
+* **ui:** batch polish — heartbeat banner, KPI contrast, model labels, provider card lift ([b4c443a](https://github.com/lucasmailland/orchester/commit/b4c443af3c8fa7b8ca605f7150ed273eeab60262))
+
+
+### Documentation
+
+* **architecture:** rewrite ARCHITECTURE.md to Phase-3 reality ([517b8f5](https://github.com/lucasmailland/orchester/commit/517b8f5c5c0e9eed395f113e2cb4bd52e5e61714))
+* **audit:** close out — Embedded 0% → 100%, all outstanding items handled ([d48d10b](https://github.com/lucasmailland/orchester/commit/d48d10b5cd98431d0fcb40825e4e9cec6f9f45c0))
+* **audit:** full UI walk-through 2026-06-06 ([74bbe3c](https://github.com/lucasmailland/orchester/commit/74bbe3c03324789565b403b7a9951a833275d274))
+* **audit:** mark fixed items from the 2026-06-06 polish pass ([c08ee37](https://github.com/lucasmailland/orchester/commit/c08ee37e5e53c2898a0c011f7dbf4df3b2f4170a))
+* **brain:** correct stale commit/status refs in session spec ([36c2f82](https://github.com/lucasmailland/orchester/commit/36c2f8295302b3df82681bf619854aa39b373246))
+* **cleanup:** purge ~320KB of legacy specs + mark superseded ADRs/plans ([ceaf70e](https://github.com/lucasmailland/orchester/commit/ceaf70edb97bf94089a3ef464d5326d4a4efb36a))
+* **diagrams:** fix flow-run invisible-arrows bug + ci-invariants overlap ([e5ac198](https://github.com/lucasmailland/orchester/commit/e5ac19818d8fa05a50ba5e9d8cc965665df14b1d))
+* **diagrams:** rebuild teams-pattern SVG with direct branches + delegation packets ([8c73992](https://github.com/lucasmailland/orchester/commit/8c739928bf0dfd55b757903f56b2b35dce3452b7))
+* **diagrams:** static visibility hotfix for GitHub-embedded SVGs ([3e957e7](https://github.com/lucasmailland/orchester/commit/3e957e70014903d6a6a9e36dca786b078e017b7b))
+* **diagrams:** Y-tree teams diagram — visible trunk, junction, diagonal branches ([e4f8399](https://github.com/lucasmailland/orchester/commit/e4f8399a0eeb733f11570d0e1e569e4a10d4cad0))
+* **mnemo:** clarify Phase 2/3 status in lib/mnemo/client.ts ([534a869](https://github.com/lucasmailland/orchester/commit/534a869b6a65583149a746a8bd8890be59dd1b63))
+* **mnemo:** remove stale library-fallback comments, require SMOKE_WS_ID env var ([489fc70](https://github.com/lucasmailland/orchester/commit/489fc70228ae8ea341a69c72fba515f20c5ac0e6))
+* **mnemosyne:** use :3939 in env/readme + refresh stale CI comment ([cb54ee7](https://github.com/lucasmailland/orchester/commit/cb54ee79d05ca4a70a166f890d4a7dc1a2768fe5))
+* **readme:** replace remaining ASCII diagrams with animated SVGs ([4b41fb6](https://github.com/lucasmailland/orchester/commit/4b41fb60a1cb187f80222123855bbdf405f1373b))
+* replace ugly default-mermaid renders with custom SVGs + themed mermaid ([9f49125](https://github.com/lucasmailland/orchester/commit/9f4912541a43f9f0d14c9d71c1159911674a7501))
+
 ## [0.0.1](https://github.com/lucasmailland/orchester/compare/v0.0.1...v0.0.1) (2026-06-07)
 
 
