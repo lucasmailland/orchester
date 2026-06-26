@@ -373,6 +373,11 @@
       "zoomIn": "Zoom in",
       "zoomOut": "Zoom out",
       "zoomFit": "Fit to view",
+      "colorBy": {
+        "kind": "Type",
+        "community": "Community",
+        "hint": "Colour nodes by entity type or by detected community"
+      },
       "tooltip": {
         "mentions": "{count} mentions",
         "connections": "{count} connections",

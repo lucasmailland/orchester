@@ -36,9 +36,7 @@ import { BrainGraphNodeDetail } from "./BrainGraphNodeDetail";
 import { BrainGraphLegend } from "./BrainGraphLegend";
 import { BrainGraphEmptyState } from "./BrainGraphEmptyState";
 import { BrainGraphECharts } from "./BrainGraphECharts";
-import { BrainGraphCytoscape } from "./BrainGraphCytoscape";
-import { BrainGraphSigma } from "./BrainGraphSigma";
-import { BrainGraphG6 } from "./BrainGraphG6";
+import { computeGraphAnalytics } from "@/lib/memory/graph-analytics";
 
 // Dynamic imports — react-force-graph bundles WebGL; must be client-only.
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), { ssr: false });
@@ -62,15 +60,14 @@ export function BrainGraph() {
   const { filteredNodeIds, filteredEdgeIds, searchMatchIds, searchQuery } = filters;
 
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
-  // Renderer backend. Defaults to ECharts (clean, Obsidian-like). "3d" is its
-  // own first-class option — the react-force-graph WebGL/Three.js 3D force
-  // graph; "canvas" is the 2D react-force-graph; the rest are 2D libraries.
-  const [renderer, setRenderer] = useState<
-    "echarts" | "canvas" | "cytoscape" | "sigma" | "g6" | "3d"
-  >("echarts");
-  // 3D used to be a Canvas sub-toggle; it's now a renderer of its own. Both
-  // "canvas" and "3d" drive the same react-force-graph instance (2D vs 3D).
+  // Renderer backend — two kept after the audit: ECharts (2D, polished +
+  // graphology analytics) and 3D (react-force-graph-3d / Three.js).
+  const [renderer, setRenderer] = useState<"echarts" | "3d">("echarts");
+  // is3D drives the react-force-graph instance (the 3D force graph).
   const is3D = renderer === "3d";
+  // ECharts colour encoding: by entity type, or by Louvain community (from the
+  // analytics layer). Only surfaced for the ECharts renderer.
+  const [colorMode, setColorMode] = useState<"kind" | "community">("kind");
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
@@ -117,8 +114,8 @@ export function BrainGraph() {
   // canvas bundle client-only.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fgRef = useRef<any>(null);
-  // Imperative zoom/fit handle for whichever library renderer (ECharts /
-  // Cytoscape / Sigma / G6) is active; stays null while Canvas is selected.
+  // Imperative zoom/fit handle for the ECharts renderer; stays null in 3D
+  // (which drives the react-force-graph camera via fgRef instead).
   const libControlsRef = useRef<{
     zoomIn: () => void;
     zoomOut: () => void;
@@ -240,6 +237,15 @@ export function BrainGraph() {
         };
       }),
     [filteredGraphData.links]
+  );
+
+  // Structural analytics over the VISIBLE graph: Louvain communities + PageRank
+  // centrality. Drives ECharts node sizing (real importance) and the "colour by
+  // community" mode. Runs on the same string-normalised links the renderer
+  // consumes; memoised so it only recomputes when the visible graph changes.
+  const analytics = useMemo(
+    () => computeGraphAnalytics(filteredGraphData.nodes, normalizedLinks),
+    [filteredGraphData.nodes, normalizedLinks]
   );
 
   // Re-tune whenever the graph data changes — react-force-graph creates
@@ -491,9 +497,9 @@ export function BrainGraph() {
 
   const zoomBy = useCallback(
     (factor: number) => {
-      // Library renderers (ECharts/Cytoscape/Sigma/G6) expose their own zoom
-      // via libControlsRef; only Canvas drives the react-force-graph instance.
-      if (renderer !== "canvas" && renderer !== "3d") {
+      // ECharts exposes its own zoom via libControlsRef; 3D drives the
+      // react-force-graph camera below.
+      if (renderer !== "3d") {
         if (factor >= 1) libControlsRef.current?.zoomIn();
         else libControlsRef.current?.zoomOut();
         return;
@@ -516,7 +522,7 @@ export function BrainGraph() {
   );
 
   const zoomFit = useCallback(() => {
-    if (renderer !== "canvas" && renderer !== "3d") {
+    if (renderer !== "3d") {
       libControlsRef.current?.fit();
       return;
     }
@@ -577,9 +583,8 @@ export function BrainGraph() {
   // status pill starts further left so the two never stack.
   const statusRight = selectedNode ? 320 : 64;
 
-  // Shared props for the four library renderers (ECharts / Cytoscape / Sigma /
-  // G6) — they expose the same interface and are interchangeable behind the
-  // toggle. Canvas (react-force-graph) takes a different shape and stays inline.
+  // Props for the ECharts renderer. The 3D renderer (react-force-graph-3d)
+  // takes a different shape and stays inline below.
   const libGraphProps = {
     nodes: filteredGraphData.nodes,
     links: normalizedLinks,
@@ -588,6 +593,8 @@ export function BrainGraph() {
     selectedId: selectedNode?.id ?? null,
     searchMatchIds,
     searchActive,
+    analytics,
+    colorMode,
     width: dimensions.width,
     height: dimensions.height,
     onNodeClick: (n: GraphNode) => setSelectedNode(n),
@@ -614,10 +621,6 @@ export function BrainGraph() {
           {(
             [
               ["echarts", "ECharts"],
-              ["cytoscape", "Cytoscape"],
-              ["sigma", "Sigma"],
-              ["g6", "G6"],
-              ["canvas", "Canvas"],
               ["3d", "3D"],
             ] as const
           ).map(([r, lbl]) => (
@@ -633,15 +636,33 @@ export function BrainGraph() {
             </button>
           ))}
         </div>
+        {renderer === "echarts" && (
+          <div className="flex rounded-lg bg-[#0c0c10]/90 backdrop-blur-xl border border-zinc-800/80 p-0.5 text-xs font-semibold shadow-lg shadow-black/40">
+            {(
+              [
+                ["kind", t("colorBy.kind")],
+                ["community", t("colorBy.community")],
+              ] as const
+            ).map(([m, lbl]) => (
+              <button
+                key={m}
+                onClick={() => setColorMode(m)}
+                title={t("colorBy.hint")}
+                className={
+                  "px-2 py-1 rounded-md transition-colors " +
+                  (colorMode === m
+                    ? "bg-violet-600 text-white"
+                    : "text-zinc-400 hover:text-zinc-100")
+                }
+              >
+                {lbl}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {renderer === "cytoscape" ? (
-        <BrainGraphCytoscape {...libGraphProps} />
-      ) : renderer === "sigma" ? (
-        <BrainGraphSigma {...libGraphProps} />
-      ) : renderer === "g6" ? (
-        <BrainGraphG6 {...libGraphProps} />
-      ) : renderer === "echarts" ? (
+      {renderer === "echarts" ? (
         <BrainGraphECharts {...libGraphProps} />
       ) : (
         <ForceGraph

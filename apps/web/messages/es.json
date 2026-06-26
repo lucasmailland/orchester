@@ -373,6 +373,11 @@
       "zoomIn": "Acercar",
       "zoomOut": "Alejar",
       "zoomFit": "Ajustar vista",
+      "colorBy": {
+        "kind": "Tipo",
+        "community": "Comunidad",
+        "hint": "Colorear nodos por tipo de entidad o por comunidad detectada"
+      },
       "tooltip": {
         "mentions": "{count} menciones",
         "connections": "{count} conexiones",

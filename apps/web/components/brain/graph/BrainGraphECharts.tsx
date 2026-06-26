@@ -12,9 +12,11 @@
 // canvas renderer hand-rolls. echarts is ~1MB so it is dynamically
 // imported, client-only, exactly like react-force-graph.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ENTITY_KIND_COLOR } from "@/lib/memory/graph-canvas";
 import type { GraphNode } from "@/lib/memory/graph-canvas";
+import { communityColor } from "@/lib/memory/graph-analytics";
+import type { GraphAnalytics } from "@/lib/memory/graph-analytics";
 
 // Edge styling by relation kind. `related` (the common case) is intentionally
 // absent so those edges inherit the source node's colour from the series —
@@ -27,6 +29,11 @@ const RELATION_LINE: Record<string, { color?: string; type?: "solid" | "dashed";
     part_of: { color: "#5dcaa5", width: 1.1 },
     member_of: { color: "#5dcaa5", width: 1.1 },
   };
+
+// Above this many visible nodes, render only the top-N most central (PageRank)
+// so the force layout stays readable and responsive. Selection + search hits
+// are always kept on top of the cap.
+const NODE_CAP = 350;
 
 // ECharts graph series has no zoom() method; programmatic zoom is done by
 // multiplying series[0].zoom and re-applying it.
@@ -45,6 +52,10 @@ export interface BrainGraphEChartsProps {
   selectedId: string | null;
   searchMatchIds: Set<string>;
   searchActive: boolean;
+  // Optional structural analytics (communities + centrality). When present,
+  // node size tracks PageRank and `colorMode: "community"` becomes meaningful.
+  analytics?: GraphAnalytics;
+  colorMode?: "kind" | "community";
   width: number;
   height: number;
   onNodeClick: (node: GraphNode) => void;
@@ -65,6 +76,8 @@ export function BrainGraphECharts({
   selectedId,
   searchMatchIds,
   searchActive,
+  analytics,
+  colorMode = "kind",
   width,
   height,
   onNodeClick,
@@ -74,6 +87,10 @@ export function BrainGraphECharts({
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chartRef = useRef<any>(null);
+  // Top-N cap notice (null = showing everything). capKeyRef dedupes the
+  // setState so re-layouts at the same ratio don't churn React.
+  const [capInfo, setCapInfo] = useState<{ shown: number; total: number } | null>(null);
+  const capKeyRef = useRef<string>("");
 
   // Latest-value refs so the (once-bound) ECharts event handlers never read a
   // stale closure of the data/callbacks.
@@ -131,16 +148,48 @@ export function BrainGraphECharts({
     const chart = chartRef.current;
     if (!chart) return;
     const max = Math.max(1, maxSizeVal);
-    const data = nodes.map((n) => {
+
+    // Scalability cap: past NODE_CAP visible nodes, render only the most
+    // central (PageRank) so the force layout stays legible and fast. The
+    // selected node and any search hits are always kept, regardless of rank.
+    let visibleNodes = nodes;
+    if (analytics && nodes.length > NODE_CAP) {
+      const keep = new Set(analytics.ranked.slice(0, NODE_CAP));
+      if (selectedId) keep.add(selectedId);
+      if (searchActive) searchMatchIds.forEach((id) => keep.add(id));
+      visibleNodes = nodes.filter((n) => keep.has(n.id));
+    }
+    const visibleIds = new Set(visibleNodes.map((n) => n.id));
+
+    // Surface the cap to the user (overlay badge). Mirror to state only when the
+    // ratio changes so relayouts at the same ratio don't churn React.
+    const capKey =
+      visibleNodes.length < nodes.length ? `${visibleNodes.length}/${nodes.length}` : "";
+    if (capKey !== capKeyRef.current) {
+      capKeyRef.current = capKey;
+      setCapInfo(capKey ? { shown: visibleNodes.length, total: nodes.length } : null);
+    }
+
+    const data = visibleNodes.map((n) => {
+      const a = analytics?.byId.get(n.id);
       const val = n.mentionCount + (degreeById.get(n.id) ?? 0) * 2;
-      const color = ENTITY_KIND_COLOR[n.entityKind ?? n.kind] ?? "#52525b";
+      // Colour by entity type (default) or by Louvain community.
+      const color =
+        colorMode === "community" && a
+          ? communityColor(a.community)
+          : (ENTITY_KIND_COLOR[n.entityKind ?? n.kind] ?? "#52525b");
+      // Size by PageRank centrality when available (sqrt spreads the long tail
+      // so mid-tier nodes stay visible); else fall back to mentions+degree.
+      const symbolSize = a ? 9 + Math.sqrt(a.centrality) * 38 : 12 + (val / max) * 34;
+      // Hubs keep their label at rest; leaves reveal on hover via emphasis.
+      const labelShow = a ? a.centrality >= 0.28 : val >= max * 0.22;
       const isMatch = searchActive && searchMatchIds.has(n.id);
       const isSel = selectedId === n.id;
       return {
         id: n.id,
         name: n.label,
         value: val,
-        symbolSize: 12 + (val / max) * 34,
+        symbolSize,
         itemStyle: {
           color,
           shadowBlur: isSel ? 26 : 14,
@@ -149,19 +198,19 @@ export function BrainGraphECharts({
           borderWidth: isSel ? 2.5 : isMatch ? 2 : 0.6,
           opacity: searchActive && !isMatch ? 0.28 : 1,
         },
-        // Hubs keep their label at rest; everything else reveals on hover via
-        // the emphasis state. Mirrors Obsidian's declutter-by-importance.
-        label: { show: val >= max * 0.22 },
+        label: { show: labelShow },
       };
     });
-    const linkData = links.map((l) => {
-      const style = RELATION_LINE[l.relation ?? "related"];
-      return {
-        source: l.source,
-        target: l.target,
-        lineStyle: { width: 0.6 + (l.confidence ?? 0.7), ...(style ?? {}) },
-      };
-    });
+    const linkData = links
+      .filter((l) => visibleIds.has(l.source) && visibleIds.has(l.target))
+      .map((l) => {
+        const style = RELATION_LINE[l.relation ?? "related"];
+        return {
+          source: l.source,
+          target: l.target,
+          lineStyle: { width: 0.6 + (l.confidence ?? 0.7), ...(style ?? {}) },
+        };
+      });
     chart.setOption({
       backgroundColor: "transparent",
       tooltip: { show: false },
@@ -176,7 +225,7 @@ export function BrainGraphECharts({
           // Repulsion scales with node count so the layout stays airy as the
           // memory grows instead of collapsing into a ball.
           force: {
-            repulsion: Math.max(220, 130 + nodes.length * 11),
+            repulsion: Math.max(220, 130 + visibleNodes.length * 11),
             edgeLength: [70, 200],
             gravity: 0.04,
             friction: 0.5,
@@ -216,6 +265,8 @@ export function BrainGraphECharts({
     searchMatchIds,
     maxSizeVal,
     degreeById,
+    analytics,
+    colorMode,
   ]);
 
   // Keep the canvas sized to the container.
@@ -223,5 +274,14 @@ export function BrainGraphECharts({
     chartRef.current?.resize?.({ width, height });
   }, [width, height]);
 
-  return <div ref={containerRef} style={{ width, height }} className="bg-[#050507]" />;
+  return (
+    <div ref={containerRef} style={{ width, height }} className="relative bg-[#050507]">
+      {capInfo && (
+        <div className="pointer-events-none absolute bottom-4 left-4 z-10 flex items-center gap-1.5 rounded-lg border border-zinc-800/80 bg-[#0c0c10]/90 px-2.5 py-1 text-[11px] text-zinc-400 backdrop-blur-xl tabular-nums">
+          <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
+          {capInfo.shown} / {capInfo.total}
+        </div>
+      )}
+    </div>
+  );
 }
