@@ -378,6 +378,10 @@
         "community": "Comunidade",
         "hint": "Colorir nós por tipo de entidade ou por comunidade detectada"
       },
+      "focus": {
+        "title": "Grafo local",
+        "exit": "Ver grafo completo"
+      },
       "tooltip": {
         "mentions": "{count} menções",
         "connections": "{count} conexões",

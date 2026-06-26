@@ -18,7 +18,7 @@ import dynamic from "next/dynamic";
 import { forceCollide } from "d3-force";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Maximize2, Minimize2, RotateCcw, Scan, ZoomIn, ZoomOut } from "lucide-react";
+import { Maximize2, Minimize2, RotateCcw, Scan, Target, X, ZoomIn, ZoomOut } from "lucide-react";
 // Client-safe subpath — canvas/types only, never the server DB query (which
 // would drag the Postgres driver into this client bundle).
 import {
@@ -582,6 +582,9 @@ export function BrainGraph() {
   // The shell's floating help button lives at the bottom-right corner; the
   // status pill starts further left so the two never stack.
   const statusRight = selectedNode ? 320 : 64;
+  // When ?focus=<id> is active the graph shows only that entity's 1-hop
+  // neighbourhood; surface the focused node so the exit banner can name it.
+  const focusNode = focusEntityId ? (data?.nodes ?? []).find((n) => n.id === focusEntityId) : null;
 
   // Props for the ECharts renderer. The 3D renderer (react-force-graph-3d)
   // takes a different shape and stays inline below.
@@ -661,6 +664,28 @@ export function BrainGraph() {
           </div>
         )}
       </div>
+
+      {/* Focus-mode banner — entering local-graph mode is a navigation
+          (?focus=<id>), so without this the only way back is the browser
+          back button. Gives a clear, discoverable exit. */}
+      {focusEntityId && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 rounded-lg border border-violet-700/50 bg-[#0c0c10]/90 px-3 py-1.5 text-xs shadow-lg shadow-black/40 backdrop-blur-xl">
+          <Target className="h-3.5 w-3.5 text-violet-400" />
+          <span className="text-zinc-300">
+            {t("focus.title")}
+            {focusNode?.label && (
+              <span className="font-semibold text-zinc-100"> · {focusNode.label}</span>
+            )}
+          </span>
+          <button
+            onClick={() => router.push(`/${locale}/${ws}/brain/graph`)}
+            className="ml-1 inline-flex items-center gap-1 rounded-md bg-violet-600 px-2 py-0.5 font-semibold text-white transition-colors hover:bg-violet-500"
+          >
+            <X className="h-3 w-3" />
+            {t("focus.exit")}
+          </button>
+        </div>
+      )}
 
       {renderer === "echarts" ? (
         <BrainGraphECharts {...libGraphProps} />

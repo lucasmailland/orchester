@@ -378,6 +378,10 @@
         "community": "Community",
         "hint": "Colour nodes by entity type or by detected community"
       },
+      "focus": {
+        "title": "Local graph",
+        "exit": "View full graph"
+      },
       "tooltip": {
         "mentions": "{count} mentions",
         "connections": "{count} connections",
