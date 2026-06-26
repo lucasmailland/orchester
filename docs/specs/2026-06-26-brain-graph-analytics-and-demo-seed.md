@@ -1,7 +1,7 @@
 # Brain Graph — Analytics Rework, UX Fixes & Rich Demo Seed
 
 > **Status:** Implemented & verified · **Date:** 2026-06-26 · **Scope:** `apps/web` (orchester) + local demo data
-> **Commit (code):** [`111d7eb`](https://github.com/lucasmailland/orchester/commit/111d7eb) on `main` (analytics rework). Focus-exit banner is a follow-up change (see §4).
+> **Commits (code):** [`111d7eb`](https://github.com/lucasmailland/orchester/commit/111d7eb) (analytics rework) + [`892f70d`](https://github.com/lucasmailland/orchester/commit/892f70d) (focus banner, conversation detail page, this spec) — both on `origin/main`.
 > **Related:** `docs/superpowers/plans/2026-06-04-memory-graph.md` (the original graph plan — this spec supersedes its renderer section).
 
 This spec documents the brain-graph work done in the 2026-06-25/26 session: narrowing the renderer set, adding a renderer-agnostic analytics layer (communities + centrality), wiring it into ECharts, a focus-mode exit affordance, and a rich, reversible demo seed that gives every node real descriptions, facts and citation sources.
@@ -79,7 +79,7 @@ Positioned **top-center on its own row (`top-16`)** so it never overlaps the ren
 
 **i18n added** (`es/en/pt`): `brain.graph.colorBy.{kind,community,hint}` and `brain.graph.focus.{title,exit}`.
 
-> Status: implemented + `tsc`/`next lint` green; **uncommitted** at time of writing (lives in the working tree on `main`).
+> Status: implemented + `tsc`/`next lint` green; shipped in `892f70d` on `origin/main`.
 
 ---
 
