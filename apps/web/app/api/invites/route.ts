@@ -17,7 +17,8 @@ const createInviteSchema = z.object({
 
 export async function GET() {
   // workspace_invite is FORCE RLS — needs workspace GUC on the connection.
-  const ctx = await requireAuth();
+  // SEC-15: only admins may enumerate pending invites (they contain email addresses).
+  const ctx = await requireAuth({ minRole: "admin" });
   if (!isAuthContext(ctx)) return ctx;
   const db = getDb();
   const rows = await db.transaction(async (tx) => {
