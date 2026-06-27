@@ -1,4 +1,5 @@
 import "server-only";
+import { lookup } from "node:dns/promises";
 
 /**
  * Guard anti-SSRF para URLs/hosts provistos por el usuario (webhooks salientes,
@@ -55,6 +56,37 @@ export function assertPublicUrl(rawUrl: string): URL {
     throw new Error("Esa URL apunta a un host interno/privado y esta bloqueada por seguridad.");
   }
   return url;
+}
+
+/** Like assertPublicUrl, but ALSO resolves DNS and rejects any IP that is
+ *  private/loopback/link-local/metadata (DNS-rebinding guard). Use for any
+ *  outbound HTTP call whose URL comes from user-supplied data. */
+export async function assertPublicUrlResolved(rawUrl: string): Promise<URL> {
+  const url = assertPublicUrl(rawUrl);
+  const results = await lookup(url.hostname, { all: true });
+  for (const { address } of results) {
+    if (isBlockedHost(address)) {
+      throw new Error("Esa URL resuelve a una IP interna/privada y está bloqueada.");
+    }
+  }
+  return url;
+}
+
+/** fetch() that re-validates the destination URL on every redirect hop.
+ *  Prevents open-redirect chains from bypassing the SSRF guard. */
+export async function safeFetch(rawUrl: string, init?: RequestInit): Promise<Response> {
+  let current = (await assertPublicUrlResolved(rawUrl)).toString();
+  for (let hop = 0; hop < 5; hop++) {
+    const res = await fetch(current, { ...init, redirect: "manual" });
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get("location");
+      if (!loc) return res;
+      current = (await assertPublicUrlResolved(new URL(loc, current).toString())).toString();
+      continue;
+    }
+    return res;
+  }
+  throw new Error("Demasiados redirects");
 }
 
 /** Valida el host de un connection string de Postgres. */

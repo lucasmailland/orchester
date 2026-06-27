@@ -365,8 +365,8 @@ const http: Connector = {
     const baseUrl = config.baseUrl ?? "";
     if (!baseUrl) return { ok: false, error: "Base URL required" };
     try {
-      const { assertPublicUrl } = await import("@/lib/net-guard");
-      assertPublicUrl(baseUrl);
+      const { assertPublicUrlResolved } = await import("@/lib/net-guard");
+      await assertPublicUrlResolved(baseUrl);
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : "URL blocked" };
     }
@@ -399,8 +399,8 @@ const http: Connector = {
         const baseUrl = (config.baseUrl ?? "").replace(/\/$/, "");
         const path = String(input.path ?? "");
         const url = baseUrl + (path.startsWith("/") ? "" : "/") + path;
-        const { assertPublicUrl } = await import("@/lib/net-guard");
-        assertPublicUrl(url);
+        const { assertPublicUrlResolved } = await import("@/lib/net-guard");
+        await assertPublicUrlResolved(url);
         const r = await fetchJson(url, {
           method,
           headers: {

@@ -142,8 +142,8 @@ async function deliver(
 
   // Guard SSRF: no entregar a hosts internos aunque la URL haya quedado guardada.
   try {
-    const { assertPublicUrl } = await import("./net-guard");
-    assertPublicUrl(sub.url);
+    const { assertPublicUrlResolved } = await import("./net-guard");
+    await assertPublicUrlResolved(sub.url);
   } catch (e) {
     await db
       .update(schema.webhookDeliveries)

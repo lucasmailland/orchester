@@ -4,7 +4,7 @@ import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and, inArray, lt, count, sql } from "drizzle-orm";
 import { llmCall } from "./llm-call";
 import { enqueue, JOB_FLOW_RUN } from "./queue";
-import { assertPublicUrl } from "./net-guard";
+import { assertPublicUrlResolved } from "./net-guard";
 import { logWithContext, recordMetric } from "./observability";
 
 /**
@@ -711,7 +711,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     // necesiten llamar servicios internos.
     if (process.env.ALLOW_PRIVATE_HTTP !== "1") {
       try {
-        assertPublicUrl(url);
+        await assertPublicUrlResolved(url);
       } catch (e) {
         throw new Error(
           `La URL no está permitida por seguridad: ${e instanceof Error ? e.message : String(e)}`
