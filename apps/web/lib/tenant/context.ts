@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { getDb } from "@orchester/db";
 import { resolveById } from "./resolve";
 import { checkMembership } from "./membership";
+import { isAccessible } from "./lifecycle";
 import { TenantContextError, type TenantContext } from "./types";
 import { type CrossTenantTx } from "./cron";
 import { getCurrentSession } from "@/lib/workspace";
@@ -61,6 +62,16 @@ export async function withTenantContext<T>(
 
   const member = await checkMembership(session.user.id, workspaceId);
   if (!member) throw new TenantContextError("not_a_member");
+
+  // SEC-13: block suspended/deleted workspaces after membership passes —
+  // we check membership first so an outsider can't distinguish "workspace
+  // suspended" from "not a member" (both are opaque errors from their POV).
+  const access = isAccessible(ws);
+  if (!access.ok) {
+    throw new TenantContextError(
+      access.reason === "deleted" ? "workspace_deleted" : "workspace_suspended"
+    );
+  }
 
   const db = getDb();
   return db.transaction(async (tx) => {
