@@ -1,6 +1,7 @@
 import "server-only";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, count, countDistinct, and, gte, lt, lte, sql, desc } from "drizzle-orm";
+import { calculateCostUsd } from "@/lib/pricing";
 
 /**
  * Optional `tx?: WsDb` follows the project-wide pattern (see
@@ -356,14 +357,6 @@ export interface FullDashboardStats {
   }[];
 }
 
-// Cost per 1K tokens (USD)
-const MODEL_COST_PER_1K: Record<string, number> = {
-  "claude-sonnet-4-6": 0.008,
-  "claude-opus-4-7": 0.045,
-  "claude-haiku-4-5": 0.001,
-  "claude-haiku-4-5-20251001": 0.001,
-};
-
 export interface UsageStats {
   totalTokensMonth: number;
   totalTokensLastMonth: number;
@@ -485,21 +478,17 @@ export async function getUsageStats(workspaceId: string, tx?: WsDb): Promise<Usa
 
   const agentUsage = agentResult.map((r) => {
     const tokens = Number(r.tokens);
-    const costPer1k = MODEL_COST_PER_1K[r.agentModel] ?? 0.008;
     return {
       id: r.agentId,
       name: r.agentName,
       model: r.agentModel,
       conversations: r.conversations,
       tokens,
-      costUsd: Math.round((tokens / 1000) * costPer1k * 100) / 100,
+      costUsd: Math.round(calculateCostUsd(r.agentModel, tokens) * 100) / 100,
     };
   });
 
-  const totalCostMonth = agentUsage.reduce((s, a) => {
-    const costPer1k = MODEL_COST_PER_1K[a.model] ?? 0.008;
-    return s + (a.tokens / 1000) * costPer1k;
-  }, 0);
+  const totalCostMonth = agentUsage.reduce((s, a) => s + calculateCostUsd(a.model, a.tokens), 0);
 
   return {
     totalTokensMonth,
@@ -862,7 +851,6 @@ export async function getFullDashboardStats(
 
   const agentUsage = agentUsageRes.map((r) => {
     const tokens = Number(r.tokens);
-    const costPer1k = MODEL_COST_PER_1K[r.agentModel] ?? 0.008;
     const convs = r.conversations;
     return {
       id: r.agentId,
@@ -871,31 +859,27 @@ export async function getFullDashboardStats(
       status: r.agentStatus,
       conversations: convs,
       tokens,
-      costUsd: Math.round((tokens / 1000) * costPer1k * 100) / 100,
+      costUsd: Math.round(calculateCostUsd(r.agentModel, tokens) * 100) / 100,
       tokensPerConv: convs > 0 ? Math.round(tokens / convs) : 0,
     };
   });
 
-  const totalCostMonth = agentUsage.reduce((s, a) => {
-    const costPer1k = MODEL_COST_PER_1K[a.model] ?? 0.008;
-    return s + (a.tokens / 1000) * costPer1k;
-  }, 0);
+  const totalCostMonth = agentUsage.reduce((s, a) => s + calculateCostUsd(a.model, a.tokens), 0);
 
   const totalCostLastMonth = (() => {
     const lastMonthToks = Number(tokLastMonthRes[0]?.tokens ?? 0);
-    return Math.round((lastMonthToks / 1000) * 0.008 * 100) / 100;
+    return Math.round(calculateCostUsd("", lastMonthToks) * 100) / 100;
   })();
 
   const teamStats = teamStatsRes.map((r) => {
     const tokens = Number(r.tokens);
-    const costPer1k = 0.008;
     return {
       teamId: r.teamId,
       teamName: r.teamName,
       teamColor: r.teamColor,
       conversations: r.conversations,
       tokens,
-      costUsd: Math.round((tokens / 1000) * costPer1k * 100) / 100,
+      costUsd: Math.round(calculateCostUsd("", tokens) * 100) / 100,
     };
   });
 

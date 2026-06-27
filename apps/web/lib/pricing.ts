@@ -104,11 +104,20 @@ const CAPABILITY_PRICE: Record<string, { unit: string; perUnit: number }> = {
   ocr: { unit: "document", perUnit: 0.005 },
 };
 
+const warnedUnknownModel = new Set<string>();
+
 /** Rate blended USD/1k para `model`: catálogo (promedio in/out) → tabla legacy → default. */
 function blendedRate(model: string): number {
   const cat = CATALOG_CHAT_PRICE[model];
   if (cat) return (cat.in + cat.out) / 2;
-  return COST_PER_1K_USD[model] ?? DEFAULT_COST_PER_1K;
+  const legacy = COST_PER_1K_USD[model];
+  if (legacy != null) return legacy;
+  // COST-14: never silently bill an unknown model at the Sonnet default — warn once.
+  if (!warnedUnknownModel.has(model)) {
+    warnedUnknownModel.add(model);
+    console.warn("[pricing] unknown model, using blended default rate:", model);
+  }
+  return DEFAULT_COST_PER_1K;
 }
 
 /** Costo USD para `tokens` consumidos por `model`. Usa fallback si no conoce el model. */
