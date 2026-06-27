@@ -46,17 +46,25 @@ export const workspaces = pgTable("workspace", {
     .references(() => orgs.id, { onDelete: "restrict" }),
 });
 
-export const workspaceMembers = pgTable("workspace_member", {
-  id: text("id").primaryKey(),
-  workspaceId: text("workspace_id")
-    .notNull()
-    .references(() => workspaces.id, { onDelete: "cascade" }),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  role: workspaceMemberRoleEnum("role").notNull().default("viewer"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const workspaceMembers = pgTable(
+  "workspace_member",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: workspaceMemberRoleEnum("role").notNull().default("viewer"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // SEC-3: one membership row per (workspace, user). Prevents duplicate
+    // memberships with conflicting roles; pairs with onConflictDoNothing on accept.
+    uniqueIndex("uniq_workspace_member").on(t.workspaceId, t.userId),
+  ]
+);
 
 /**
  * Preferencias de notificación. Hay 2 niveles:

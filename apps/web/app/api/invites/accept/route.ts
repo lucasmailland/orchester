@@ -44,9 +44,10 @@ export async function POST(req: Request) {
         .where(eq(schema.workspaceInvites.id, invite.id));
       return { kind: "expired" as const };
     }
-    // email check (warning, not blocking — let user accept their own invite even if not exact email)
+    // SEC-3: enforce the recipient email. A token must only be redeemable by the
+    // person it was sent to — otherwise any logged-in user with any token joins.
     if (invite.email.toLowerCase() !== session.user.email.toLowerCase()) {
-      // Soft check — proceed but record a notice
+      return { kind: "email_mismatch" as const };
     }
 
     // Add membership
@@ -73,6 +74,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `Invite ${result.status}` }, { status: 400 });
   if (result.kind === "expired")
     return NextResponse.json({ error: "Invite expired" }, { status: 400 });
+  if (result.kind === "email_mismatch")
+    return NextResponse.json(
+      { error: "This invite was sent to a different email" },
+      { status: 403 }
+    );
 
   return NextResponse.json({ workspaceId: result.workspaceId, role: result.role });
 }
