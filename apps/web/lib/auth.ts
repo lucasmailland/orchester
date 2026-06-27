@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { twoFactor } from "better-auth/plugins";
 import { createDbClient, schema } from "@orchester/db";
+import { resolveAuthSecret } from "@/lib/auth-secret";
 
 function getAuthDb() {
   const url = process.env["DATABASE_URL"];
@@ -10,7 +11,7 @@ function getAuthDb() {
 }
 
 export const auth = betterAuth({
-  secret: process.env["BETTER_AUTH_SECRET"] ?? "dev-secret-change-in-production",
+  secret: resolveAuthSecret(),
   baseURL:
     process.env["BETTER_AUTH_URL"] ?? process.env["NEXT_PUBLIC_APP_URL"] ?? "http://localhost:3001",
   database: drizzleAdapter(getAuthDb(), {
