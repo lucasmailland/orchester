@@ -3,6 +3,7 @@ import { getDb, schema } from "@orchester/db";
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { createBillingPortalSession } from "@/lib/billing/stripe";
+import { handleError } from "@/lib/api-response";
 
 export async function POST() {
   const ctx = await requireAuth({ minRole: "admin" });
@@ -31,9 +32,6 @@ export async function POST() {
     });
     return NextResponse.json({ url: portal.url });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return handleError("[billing/portal]", e, 500);
   }
 }

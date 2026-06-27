@@ -6,6 +6,7 @@ import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
 import { listConnectors } from "@/lib/integrations/registry";
 import { listIntegrations, upsertIntegration } from "@/lib/integrations/store";
+import { handleError } from "@/lib/api-response";
 
 const upsertIntegrationSchema = z.object({
   type: z.string().min(1),
@@ -53,9 +54,6 @@ export async function POST(req: Request) {
     });
     return NextResponse.json(result);
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 400 }
-    );
+    return handleError("[integrations] POST", e, 400);
   }
 }

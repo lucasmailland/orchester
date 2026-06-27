@@ -4,6 +4,7 @@ import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { createCheckoutSession } from "@/lib/billing/stripe";
 import { PLANS, type Plan } from "@/lib/billing/plans";
+import { handleError } from "@/lib/api-response";
 
 const checkoutSchema = z.object({
   plan: z.string().optional(),
@@ -34,9 +35,6 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ url: checkout.url });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return handleError("[billing/checkout]", e, 500);
   }
 }
