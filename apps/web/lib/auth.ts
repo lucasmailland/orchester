@@ -38,6 +38,15 @@ export const auth = betterAuth({
         }
       : {}),
   },
+  session: {
+    // PERF-8: cache the session in a short-lived signed cookie so most
+    // navigations skip the session-table lookup. 5 min is short enough that
+    // revocation/role changes propagate quickly.
+    cookieCache: {
+      enabled: true,
+      maxAge: 5 * 60,
+    },
+  },
   user: {
     additionalFields: {
       onboardingCompleted: {
