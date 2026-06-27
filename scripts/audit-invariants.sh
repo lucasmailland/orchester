@@ -11,7 +11,8 @@
 #   2. Todo `llmCall(` o `llmStream(` debe tener `recordAiUsage` en el mismo
 #      archivo (metering — D4/E2).
 #   3. Toda ruta mutante (POST/PUT/PATCH/DELETE) en `app/api/**/route.ts` debe
-#      tener `requireAuth` (RBAC — RBAC-1) Y `parseBody` (zod — K4).
+#      tener `requireAuth` o `requireAction` (RBAC — RBAC-1) Y `parseBody`
+#      (zod — K4). `requireAction` subsumes `requireAuth` + tenant GUC setup.
 #   4. `executeFlow(` SÓLO debe llamarse desde el worker o desde callers que
 #      explícitamente pasan `signal:` (cancelación bounded — F-B1/F-1).
 #
@@ -108,8 +109,8 @@ while IFS= read -r f; do
   if ! grep -qE '^export async function (POST|PUT|PATCH|DELETE)' "$f"; then continue; fi
   # Skip RBAC exceptions
   if ! echo "$f" | grep -qE "$EXCLUDE_RBAC"; then
-    if ! grep -q "requireAuth" "$f"; then
-      fail "RBAC gate missing in route: $f (add: requireAuth({minRole}))"
+    if ! grep -qE "requireAuth|requireAction" "$f"; then
+      fail "RBAC gate missing in route: $f (add: requireAuth({minRole}) or requireAction({...}))"
     fi
   fi
   # Skip body-validation exceptions
