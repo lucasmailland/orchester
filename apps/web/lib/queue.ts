@@ -199,6 +199,7 @@ export async function shutdownQueue(): Promise<void> {
 
 export const JOB_FLOW_RUN = "flow:run";
 export const JOB_FLOW_REAP = "flow:reap";
+export const JOB_FLOW_SCHEDULE = "flow:schedule";
 export const JOB_KB_INGEST = "kb:ingest";
 // Phase 3 (2026-06-05): every JOB_BRAIN_* and JOB_MNEMO_* used to be
 // registered here for the in-process workers. After the service
@@ -229,6 +230,7 @@ export const JOB_GDPR_EXPORT_WATCHDOG = "gdpr:export:watchdog";
 export const ALL_QUEUES: readonly string[] = [
   JOB_FLOW_RUN,
   JOB_FLOW_REAP,
+  JOB_FLOW_SCHEDULE,
   JOB_KB_INGEST,
   JOB_KB_REINDEX,
   JOB_WEBHOOK_DELIVER,

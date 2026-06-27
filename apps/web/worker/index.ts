@@ -23,6 +23,7 @@ import {
   preCreateAllQueues,
   JOB_FLOW_RUN,
   JOB_FLOW_REAP,
+  JOB_FLOW_SCHEDULE,
   JOB_WEBHOOK_DELIVER,
   JOB_USAGE_AGGREGATE,
   JOB_RETENTION,
@@ -32,6 +33,7 @@ import {
   JOB_GDPR_EXPORT_WATCHDOG,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
+import { runDueSchedules } from "../lib/flows/run-due-schedules";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
 import { purgeOldData } from "../lib/retention";
 import { withCrossTenantAdmin } from "../lib/tenant/cron";
@@ -96,6 +98,15 @@ async function main(): Promise<void> {
     if (n > 0) console.log(`[worker] flow:reap → marcó ${n} run(s) colgados como failed`);
   });
   await schedule(JOB_FLOW_REAP, "*/5 * * * *");
+
+  // ── Scheduled-flow poller (cron, cada 1 min) ────────────────
+  // ORCH-2: selects due flow_schedule rows across all workspaces,
+  // enqueues JOB_FLOW_RUN, advances nextRunAt. Cross-tenant by design.
+  await registerWorker(JOB_FLOW_SCHEDULE, async () => {
+    const n = await runDueSchedules();
+    if (n > 0) console.log(`[worker] flow:schedule → disparó ${n} schedule(s)`);
+  });
+  await schedule(JOB_FLOW_SCHEDULE, "* * * * *");
 
   // ── Webhook dispatch ────────────────────────────────────────
   await registerWorker<WebhookDeliverJob>(
