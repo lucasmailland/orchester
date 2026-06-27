@@ -20,6 +20,14 @@ import {
   type MnemosyneRememberContext,
 } from "./agent-tools/mnemosyne-remember";
 
+// ORCH-5: Honor agent's configured maxTurns (schema default 20) up to a sane
+// ceiling so a misconfigured agent can't spin forever.
+export const MAX_TOOL_ITERATIONS_CEILING = 50;
+export function resolveMaxToolIterations(maxTurns: number | null | undefined): number {
+  const want = maxTurns ?? 20;
+  return Math.max(1, Math.min(MAX_TOOL_ITERATIONS_CEILING, want));
+}
+
 /** Memory Protocol version — kept as a constant for the system prompt
  *  hint that tells the model "you have a remember tool, here's how". */
 const MEMORY_PROTOCOL_V1 = "1.0.0";
@@ -510,7 +518,7 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
   const toolCalls: RunAgentResult["toolCalls"] = [];
   let messages = [...p.messages];
   let totalTokens = 0;
-  const maxToolIterations = Math.min(5, p.agent.maxTurns ?? 5);
+  const maxToolIterations = resolveMaxToolIterations(p.agent.maxTurns);
 
   for (let i = 0; i < maxToolIterations; i++) {
     const callOpts: Parameters<typeof llmCall>[0] = {
