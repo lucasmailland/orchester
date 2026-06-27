@@ -36,46 +36,66 @@ vi.doUnmock("@orchester/db");
 const API_ROOT = join(__dirname, "..", "..", "app", "api");
 
 // Any substring match here counts as "this route scopes by workspace".
-// Most of the codebase routes go through `requireAuth` (which calls
-// `getCurrentWorkspace` under the hood and returns a guaranteed
-// workspace+role); a handful use the lower-level helpers directly.
+// Grouped by strength of tenant isolation:
 //
+//   GUC-setting helpers (set app.workspace_id inside a transaction — these
+//   are the canonical strong-isolation pattern post SEC-2):
+//   - requireAction: `lib/auth-guards.ts` — combines requireAuth + GUC setup
+//     in one call. The standard entry point for all session-backed routes.
 //   - withTenantContext / withWorkspaceTx / requireTenantContext: the
 //     canonical per-transaction tenant-scoped helpers in
 //     `lib/tenant/context.ts`. Set `app.workspace_id` GUC inside a tx.
 //   - withCrossTenantAdmin: `lib/tenant/cron.ts` — bypass-RLS helper used
 //     by webhooks/widget where the workspace is derived from a public
-//     identifier (channel id, secret token, Stripe customer id). The
-//     route MUST still resolve+verify the workspace before doing any
-//     write; the substring is necessary but not sufficient.
-//   - requireAuth / isAuthContext: `lib/auth-guards.ts` — wraps session
-//     + workspace + role check in one call. The most common entry point
-//     for session-backed routes.
-//   - getCurrentWorkspace / getCurrentWorkspaceBySlug: `lib/workspace.ts`
-//     — direct lookups still used by older routes (pre-`requireAuth`).
-//   - getCurrentSession: `lib/workspace.ts` — session-only routes
-//     (`/api/me`, `/api/sessions`, `/api/me/workspaces`) that span all
-//     workspaces a user belongs to. Workspace filter is the user id
-//     (not a single workspace), which is the correct scoping for these.
+//     identifier (channel id, secret token, Stripe customer id).
 //   - authenticateApiKey: `lib/api-auth/key.ts` — the v1 public API and
-//     the MCP server both resolve workspace via API key.
+//     the MCP server both resolve workspace via API key + GUC.
+//
+//   Session helpers (span all workspaces a user owns — correct scoping for
+//   cross-workspace meta-routes):
+//   - requireAuth / isAuthContext: `lib/auth-guards.ts` — wraps session +
+//     workspace + role. Used by routes that haven't migrated to requireAction.
+//   - getCurrentSession: `lib/workspace.ts` — session-only routes
+//     (`/api/me`, `/api/sessions`) that span all workspaces.
+//
+//   Slug-based helpers (resolve workspace from URL slug + membership check;
+//   weaker than GUC-setting but accepted for workspace-admin routes):
 //   - resolveBySlug / checkMembership: `lib/tenant/resolve.ts` +
-//     `lib/tenant/membership.ts` — used by the workspace-switcher
-//     endpoint.
+//     `lib/tenant/membership.ts` — used by `workspaces/[slug]/*` admin
+//     endpoints and `me/active-workspace`.
 const TENANT_HELPERS = [
+  // Strong: GUC-setting (preferred)
+  "requireAction",
   "withTenantContext",
   "withWorkspaceTx",
   "requireTenantContext",
   "withCrossTenantAdmin",
+  "authenticateApiKey",
+  // Session-scoped (cross-workspace meta-routes)
   "requireAuth",
   "isAuthContext",
-  "getCurrentWorkspace",
-  "getCurrentWorkspaceBySlug",
   "getCurrentSession",
-  "authenticateApiKey",
+  // Slug-based (workspace-admin routes)
   "resolveBySlug",
   "checkMembership",
 ];
+
+// Helpers that establish real DB-level tenant context (set app.workspace_id GUC
+// or equivalent). Used by the enforcement gate test below.
+const CONTEXT_HELPERS = [
+  "requireAction",
+  "withTenantContext",
+  "withWorkspaceTx",
+  "requireTenantContext",
+  "withCrossTenantAdmin",
+  "authenticateApiKey",
+];
+
+// Routes that span all workspaces by design (session-scoped, not ws-scoped).
+const SESSION_HELPERS = ["getCurrentSession", "requireAuth", "isAuthContext"];
+
+// Routes that resolve workspace from a URL slug rather than session cookie.
+const SLUG_HELPERS = ["resolveBySlug", "checkMembership"];
 
 // Routes that legitimately don't scope by workspace. Paths are relative
 // to `apps/web/app/api/` and use POSIX separators (the walker
@@ -183,6 +203,38 @@ describe("API route handlers static audit", () => {
       `routes [${violations.join(", ")}] have no tenant-context import — ` +
         `add to the allowlist if intentional, otherwise wire one of: ` +
         `${TENANT_HELPERS.join(", ")}`
+    ).toEqual([]);
+  });
+
+  it("no route relies on getCurrentWorkspace without a GUC-setting context helper", () => {
+    const all = walkRoutes(API_ROOT);
+    const weak: string[] = [];
+
+    for (const abs of all) {
+      const rel = relPosix(abs);
+      if (ALLOWLIST.has(rel)) continue;
+      const src = readFileSync(abs, "utf8");
+
+      const hasContext = CONTEXT_HELPERS.some((h) => src.includes(h));
+      const hasSession = SESSION_HELPERS.some((h) => src.includes(h));
+      const hasSlug = SLUG_HELPERS.some((h) => src.includes(h));
+      const usesWeak =
+        src.includes("getCurrentWorkspace") || src.includes("getCurrentWorkspaceBySlug");
+
+      // Weak pattern: relies on getCurrentWorkspace* without a GUC-setting context.
+      if (usesWeak && !hasContext) {
+        weak.push(rel);
+      }
+      // No scoping at all: no context, no session, no slug.
+      if (!usesWeak && !hasContext && !hasSession && !hasSlug) {
+        weak.push(rel);
+      }
+    }
+
+    expect(
+      weak,
+      `routes still rely on getCurrentWorkspace without requireAction/withTenantContext ` +
+        `(or have no tenant context at all): ${weak.join(", ")}`
     ).toEqual([]);
   });
 });
