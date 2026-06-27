@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
-import { getDb, schema } from "@orchester/db";
+import { schema } from "@orchester/db";
 import { eq, desc } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
-import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { requireAction } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { generateApiKey } from "@/lib/api-auth/key";
 import { logAudit } from "@/lib/audit";
@@ -14,59 +13,63 @@ const createApiKeySchema = z.object({
 });
 
 export async function GET() {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const db = getDb();
-  const rows = await db
-    .select({
-      id: schema.apiKeys.id,
-      name: schema.apiKeys.name,
-      prefix: schema.apiKeys.prefix,
-      scopes: schema.apiKeys.scopes,
-      lastUsedAt: schema.apiKeys.lastUsedAt,
-      revokedAt: schema.apiKeys.revokedAt,
-      createdAt: schema.apiKeys.createdAt,
-    })
-    .from(schema.apiKeys)
-    .where(eq(schema.apiKeys.workspaceId, ws.workspace.id))
-    .orderBy(desc(schema.apiKeys.createdAt));
-  return NextResponse.json(rows);
+  const result = await requireAction({
+    minRole: "admin",
+    run: async ({ ctx, tx }) => {
+      return tx
+        .select({
+          id: schema.apiKeys.id,
+          name: schema.apiKeys.name,
+          prefix: schema.apiKeys.prefix,
+          scopes: schema.apiKeys.scopes,
+          lastUsedAt: schema.apiKeys.lastUsedAt,
+          revokedAt: schema.apiKeys.revokedAt,
+          createdAt: schema.apiKeys.createdAt,
+        })
+        .from(schema.apiKeys)
+        .where(eq(schema.apiKeys.workspaceId, ctx.workspace.id))
+        .orderBy(desc(schema.apiKeys.createdAt));
+    },
+  });
+  if (result instanceof Response) return result;
+  return NextResponse.json(result);
 }
 
 export async function POST(req: Request) {
-  const ctx = await requireAuth({ minRole: "admin" });
-  if (!isAuthContext(ctx)) return ctx;
   const parsed = await parseBody(req, createApiKeySchema);
   if (!parsed.ok) return parsed.response;
   const name = (parsed.data.name ?? "API key").trim();
-  const { plain, hashed, prefix } = generateApiKey();
-  const db = getDb();
-  const inserted = await db
-    .insert(schema.apiKeys)
-    .values({
-      id: createId(),
-      workspaceId: ctx.workspace.id,
-      name,
-      hashedKey: hashed,
-      prefix,
-      createdByUserId: ctx.user.id,
-    })
-    .returning();
-  await logAudit({
-    workspaceId: ctx.workspace.id,
-    userId: ctx.user.id,
-    action: "apikey.create",
-    resource: "api_key",
-    resourceId: inserted[0]?.id,
-  });
-  // Return the plain key ONCE — never stored, never shown again
-  return NextResponse.json(
-    {
-      id: inserted[0]!.id,
-      name: inserted[0]!.name,
-      prefix,
-      key: plain, // <-- shown only here
+
+  const result = await requireAction({
+    minRole: "admin",
+    run: async ({ ctx, user, tx }) => {
+      const { plain, hashed, prefix } = generateApiKey();
+      const inserted = await tx
+        .insert(schema.apiKeys)
+        .values({
+          id: createId(),
+          workspaceId: ctx.workspace.id,
+          name,
+          hashedKey: hashed,
+          prefix,
+          createdByUserId: user.id,
+        })
+        .returning();
+      await logAudit({
+        workspaceId: ctx.workspace.id,
+        userId: user.id,
+        action: "apikey.create",
+        resource: "api_key",
+        resourceId: inserted[0]?.id,
+      });
+      return {
+        id: inserted[0]!.id,
+        name: inserted[0]!.name,
+        prefix,
+        key: plain, // <-- shown only here
+      };
     },
-    { status: 201 }
-  );
+  });
+  if (result instanceof Response) return result;
+  return NextResponse.json(result, { status: 201 });
 }

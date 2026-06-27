@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentWorkspace } from "@/lib/workspace";
-import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { requireAction } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
 import { listConnectors } from "@/lib/integrations/registry";
@@ -22,38 +21,53 @@ const upsertIntegrationSchema = z.object({
  *   → crea/testea una integración. Devuelve estado de conexión.
  */
 export async function GET() {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const [catalog, configured] = await Promise.all([
-    Promise.resolve(listConnectors()),
-    listIntegrations(ws.workspace.id),
-  ]);
-  return NextResponse.json({ catalog, configured });
+  const result = await requireAction({
+    run: async ({ ctx, tx }) => {
+      const [catalog, configured] = await Promise.all([
+        Promise.resolve(listConnectors()),
+        listIntegrations(ctx.workspace.id, tx),
+      ]);
+      return { catalog, configured };
+    },
+  });
+  if (result instanceof Response) return result;
+  return NextResponse.json(result);
 }
 
 export async function POST(req: Request) {
-  const ctx = await requireAuth({ minRole: "admin" });
-  if (!isAuthContext(ctx)) return ctx;
   const parsed = await parseBody(req, upsertIntegrationSchema);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
-  try {
-    const result = await upsertIntegration({
-      workspaceId: ctx.workspace.id,
-      type: body.type,
-      name: body.name,
-      config: body.config,
-    });
-    await logAudit({
-      workspaceId: ctx.workspace.id,
-      userId: ctx.user.id,
-      action: "integration.connect",
-      resource: "integration",
-      resourceId: result.id,
-      after: { type: body.type, name: body.name },
-    });
-    return NextResponse.json(result);
-  } catch (e) {
-    return handleError("[integrations] POST", e, 400);
-  }
+
+  const result = await requireAction({
+    minRole: "admin",
+    run: async ({ ctx, user, tx }) => {
+      try {
+        const integration = await upsertIntegration(
+          {
+            workspaceId: ctx.workspace.id,
+            type: body.type,
+            name: body.name,
+            config: body.config,
+          },
+          tx
+        );
+        await logAudit({
+          workspaceId: ctx.workspace.id,
+          userId: user.id,
+          action: "integration.connect",
+          resource: "integration",
+          resourceId: integration.id,
+          after: { type: body.type, name: body.name },
+        });
+        return { integration };
+      } catch (e) {
+        return { _handledError: e };
+      }
+    },
+  });
+  if (result instanceof Response) return result;
+  if ("_handledError" in result)
+    return handleError("[integrations] POST", result._handledError, 400);
+  return NextResponse.json(result.integration);
 }

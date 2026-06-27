@@ -71,6 +71,13 @@
       "when": 1782592234410,
       "tag": "0009_agent_memory_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1782593558604,
+      "tag": "0010_conversation_memory_learning_paused",
+      "breakpoints": true
     }
   ]
 }
