@@ -120,7 +120,7 @@ export async function sendTestEvent(
  */
 const WEBHOOK_MAX_FAILURES = Math.max(1, Number(process.env.WEBHOOK_MAX_FAILURES) || 15);
 
-async function deliver(
+export async function deliver(
   sub: { id: string; workspaceId: string; url: string; secret: string; failureCount?: number },
   event: WebhookEvent,
   payload: Record<string, unknown>,
