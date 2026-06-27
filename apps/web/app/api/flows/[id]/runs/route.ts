@@ -1,18 +1,22 @@
 import { NextResponse } from "next/server";
-import { getDb, schema } from "@orchester/db";
+import { schema } from "@orchester/db";
 import { eq, and, desc } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { requireAction } from "@/lib/auth-guards";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.flowRuns)
-    .where(and(eq(schema.flowRuns.flowId, id), eq(schema.flowRuns.workspaceId, ws.workspace.id)))
-    .orderBy(desc(schema.flowRuns.startedAt))
-    .limit(50);
-  return NextResponse.json(rows);
+  const result = await requireAction({
+    run: async ({ ctx, tx }) => {
+      return tx
+        .select()
+        .from(schema.flowRuns)
+        .where(
+          and(eq(schema.flowRuns.flowId, id), eq(schema.flowRuns.workspaceId, ctx.workspace.id))
+        )
+        .orderBy(desc(schema.flowRuns.startedAt))
+        .limit(50);
+    },
+  });
+  if (result instanceof Response) return result;
+  return NextResponse.json(result);
 }

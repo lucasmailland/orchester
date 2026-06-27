@@ -3,8 +3,7 @@ import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
 import { eq, and, desc } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
-import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { requireAction } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { embed } from "@/lib/embeddings";
 import { chunkText, extractTextFromBuffer, isParsable } from "@/lib/chunking";
@@ -19,18 +18,23 @@ const ingestJsonSchema = z.object({
 });
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.knowledgeDocs)
-    .where(
-      and(eq(schema.knowledgeDocs.kbId, id), eq(schema.knowledgeDocs.workspaceId, ws.workspace.id))
-    )
-    .orderBy(desc(schema.knowledgeDocs.createdAt));
-  return NextResponse.json(rows);
+  const result = await requireAction({
+    run: async ({ ctx, tx }) => {
+      return tx
+        .select()
+        .from(schema.knowledgeDocs)
+        .where(
+          and(
+            eq(schema.knowledgeDocs.kbId, id),
+            eq(schema.knowledgeDocs.workspaceId, ctx.workspace.id)
+          )
+        )
+        .orderBy(desc(schema.knowledgeDocs.createdAt));
+    },
+  });
+  if (result instanceof Response) return result;
+  return NextResponse.json(result);
 }
 
 interface IngestPayload {
@@ -54,8 +58,6 @@ interface IngestPayload {
  *   parse → chunk → embed → persist → ready.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ctx = await requireAuth({ minRole: "editor" });
-  if (!isAuthContext(ctx)) return ctx;
   const { id: kbId } = await params;
   const reqContentType = req.headers.get("content-type") ?? "";
 
@@ -91,34 +93,49 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!["text", "url", "file"].includes(payload.source))
     return NextResponse.json({ error: "source must be 'text', 'url' or 'file'" }, { status: 400 });
 
-  const db = getDb();
-  const kbRows = await db
-    .select()
-    .from(schema.knowledgeBases)
-    .where(
-      and(
-        eq(schema.knowledgeBases.id, kbId),
-        eq(schema.knowledgeBases.workspaceId, ctx.workspace.id)
-      )
-    )
-    .limit(1);
-  const kb = kbRows[0];
-  if (!kb) return NextResponse.json({ error: "Knowledge base not found" }, { status: 404 });
+  // Auth + initial KB lookup + doc row creation inside requireAction.
+  // The long embedding pipeline runs after (uses getDb() for status updates).
+  const authResult = await requireAction({
+    minRole: "editor",
+    run: async ({ ctx, tx }) => {
+      const kbRows = await tx
+        .select()
+        .from(schema.knowledgeBases)
+        .where(
+          and(
+            eq(schema.knowledgeBases.id, kbId),
+            eq(schema.knowledgeBases.workspaceId, ctx.workspace.id)
+          )
+        )
+        .limit(1);
+      const kb = kbRows[0];
+      if (!kb) return { _err: "Knowledge base not found", _status: 404 };
 
-  const docId = createId();
-  const initialContentType = detectedFileType ?? payload.contentType ?? "text/plain";
-  await db.insert(schema.knowledgeDocs).values({
-    id: docId,
-    kbId,
-    workspaceId: ctx.workspace.id,
-    title: payload.title.trim(),
-    source: payload.source,
-    url: payload.url ?? null,
-    contentType: initialContentType,
-    byteSize: fileBuffer?.length ?? payload.content?.length ?? 0,
-    status: "parsing",
+      const docId = createId();
+      const initialContentType = detectedFileType ?? payload.contentType ?? "text/plain";
+      await tx.insert(schema.knowledgeDocs).values({
+        id: docId,
+        kbId,
+        workspaceId: ctx.workspace.id,
+        title: payload.title.trim(),
+        source: payload.source,
+        url: payload.url ?? null,
+        contentType: initialContentType,
+        byteSize: fileBuffer?.length ?? payload.content?.length ?? 0,
+        status: "parsing",
+      });
+      return { docId, kb, workspaceId: ctx.workspace.id };
+    },
   });
+  if (authResult instanceof Response) return authResult;
+  if ("_err" in authResult)
+    return NextResponse.json({ error: authResult._err }, { status: authResult._status as number });
 
+  const { docId, kb, workspaceId } = authResult;
+
+  // Embedding pipeline — runs outside the short requireAction transaction.
+  // Uses getDb() for status updates (parsing → embedding → ready/failed).
+  const db = getDb();
   try {
     let text = "";
 
@@ -161,7 +178,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       .where(eq(schema.knowledgeDocs.id, docId));
 
     const { vectors } = await embed(
-      ctx.workspace.id,
+      workspaceId,
       kb.embeddingProvider as "openai" | "google",
       kb.embeddingModel,
       chunks
@@ -171,7 +188,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       id: createId(),
       docId,
       kbId,
-      workspaceId: ctx.workspace.id,
+      workspaceId,
       ordinal: i,
       text: c,
       embedding: vectors[i] ?? null,

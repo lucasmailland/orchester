@@ -2,10 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import crypto from "node:crypto";
-import { getDb, schema } from "@orchester/db";
+import { schema } from "@orchester/db";
 import { eq, desc } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
-import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { requireAction } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
 
@@ -19,52 +18,60 @@ const createChannelSchema = z.object({
 });
 
 export async function GET() {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.channels)
-    .where(eq(schema.channels.workspaceId, ws.workspace.id))
-    .orderBy(desc(schema.channels.updatedAt));
-  // Don't leak credentialsEncrypted
-  return NextResponse.json(
-    rows.map(({ credentialsEncrypted, ...rest }) => ({
-      ...rest,
-      hasCredentials: Boolean(credentialsEncrypted),
-    }))
-  );
+  const result = await requireAction({
+    run: async ({ ctx, tx }) => {
+      const rows = await tx
+        .select()
+        .from(schema.channels)
+        .where(eq(schema.channels.workspaceId, ctx.workspace.id))
+        .orderBy(desc(schema.channels.updatedAt));
+      // Don't leak credentialsEncrypted
+      return rows.map(({ credentialsEncrypted, ...rest }) => ({
+        ...rest,
+        hasCredentials: Boolean(credentialsEncrypted),
+      }));
+    },
+  });
+  if (result instanceof Response) return result;
+  return NextResponse.json(result);
 }
 
 export async function POST(req: Request) {
-  const ctx = await requireAuth({ minRole: "editor" });
-  if (!isAuthContext(ctx)) return ctx;
   const parsed = await parseBody(req, createChannelSchema);
   if (!parsed.ok) return parsed.response;
   const { name, type, agentId, config } = parsed.data;
-  const db = getDb();
-  const inserted = await db
-    .insert(schema.channels)
-    .values({
-      id: createId(),
-      workspaceId: ctx.workspace.id,
-      name: name.trim(),
-      type,
-      status: "inactive",
-      agentId: agentId ?? null,
-      secret: crypto.randomBytes(20).toString("hex"),
-      config: config ?? {},
-    })
-    .returning();
-  const row = inserted[0];
-  if (!row) return NextResponse.json({ error: "Insert failed" }, { status: 500 });
-  await logAudit({
-    workspaceId: ctx.workspace.id,
-    userId: ctx.user.id,
-    action: "channel.create",
-    resource: "channel",
-    resourceId: row.id,
-    after: { name: row.name, type: row.type },
+
+  const result = await requireAction({
+    minRole: "editor",
+    run: async ({ ctx, user, tx }) => {
+      const inserted = await tx
+        .insert(schema.channels)
+        .values({
+          id: createId(),
+          workspaceId: ctx.workspace.id,
+          name: name.trim(),
+          type,
+          status: "inactive",
+          agentId: agentId ?? null,
+          secret: crypto.randomBytes(20).toString("hex"),
+          config: config ?? {},
+        })
+        .returning();
+      const row = inserted[0];
+      if (!row) return { _err: "Insert failed", _status: 500 };
+      await logAudit({
+        workspaceId: ctx.workspace.id,
+        userId: user.id,
+        action: "channel.create",
+        resource: "channel",
+        resourceId: row.id,
+        after: { name: row.name, type: row.type },
+      });
+      return { row };
+    },
   });
-  return NextResponse.json(row, { status: 201 });
+  if (result instanceof Response) return result;
+  if ("_err" in result)
+    return NextResponse.json({ error: result._err }, { status: result._status as number });
+  return NextResponse.json(result.row, { status: 201 });
 }

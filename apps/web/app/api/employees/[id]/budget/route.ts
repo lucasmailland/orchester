@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getDb, schema } from "@orchester/db";
+import { schema } from "@orchester/db";
 import { and, eq } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
-import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { requireAction } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { checkEmployeeBudget } from "@/lib/employee-budget";
 
@@ -16,11 +15,14 @@ const updateBudgetSchema = z.object({
  * Devuelve estado de budget mensual del empleado (gastado, configurado, %)
  */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const status = await checkEmployeeBudget(ws.workspace.id, id);
-  return NextResponse.json(status);
+  const result = await requireAction({
+    run: async ({ ctx }) => {
+      return checkEmployeeBudget(ctx.workspace.id, id);
+    },
+  });
+  if (result instanceof Response) return result;
+  return NextResponse.json(result);
 }
 
 /**
@@ -29,20 +31,29 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
  * Setea o limpia el budget mensual.
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ctx = await requireAuth({ minRole: "admin" });
-  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
   const parsed = await parseBody(req, updateBudgetSchema);
   if (!parsed.ok) return parsed.response;
   const value = parsed.data.monthlyBudgetUsd;
 
-  const db = getDb();
-  const updated = await db
-    .update(schema.employees)
-    .set({ monthlyBudgetUsd: value == null ? null : String(value) })
-    .where(and(eq(schema.employees.id, id), eq(schema.employees.workspaceId, ctx.workspace.id)))
-    .returning({ id: schema.employees.id, monthlyBudgetUsd: schema.employees.monthlyBudgetUsd });
-  const row = updated[0];
-  if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(row);
+  const result = await requireAction({
+    minRole: "admin",
+    run: async ({ ctx, tx }) => {
+      const updated = await tx
+        .update(schema.employees)
+        .set({ monthlyBudgetUsd: value == null ? null : String(value) })
+        .where(and(eq(schema.employees.id, id), eq(schema.employees.workspaceId, ctx.workspace.id)))
+        .returning({
+          id: schema.employees.id,
+          monthlyBudgetUsd: schema.employees.monthlyBudgetUsd,
+        });
+      const row = updated[0];
+      if (!row) return { _err: "Not found", _status: 404 };
+      return { row };
+    },
+  });
+  if (result instanceof Response) return result;
+  if ("_err" in result)
+    return NextResponse.json({ error: result._err }, { status: result._status as number });
+  return NextResponse.json(result.row);
 }

@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getDb, schema } from "@orchester/db";
+import { schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
-import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { requireAction } from "@/lib/auth-guards";
 import { encrypt } from "@/lib/encryption";
 import { telegramSetWebhook, telegramGetMe } from "@/lib/channels/telegram";
 import { slackAuthTest } from "@/lib/channels/slack";
@@ -26,59 +25,77 @@ const updateChannelSchema = z.object({
 });
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.channels)
-    .where(and(eq(schema.channels.id, id), eq(schema.channels.workspaceId, ws.workspace.id)))
-    .limit(1);
-  const row = rows[0];
-  if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  const { credentialsEncrypted, ...rest } = row;
-  return NextResponse.json({ ...rest, hasCredentials: Boolean(credentialsEncrypted) });
+  const result = await requireAction({
+    run: async ({ ctx, tx }) => {
+      const rows = await tx
+        .select()
+        .from(schema.channels)
+        .where(and(eq(schema.channels.id, id), eq(schema.channels.workspaceId, ctx.workspace.id)))
+        .limit(1);
+      const row = rows[0];
+      if (!row) return { _err: "Not found", _status: 404 };
+      const { credentialsEncrypted, ...rest } = row;
+      return { channel: { ...rest, hasCredentials: Boolean(credentialsEncrypted) } };
+    },
+  });
+  if (result instanceof Response) return result;
+  if ("_err" in result)
+    return NextResponse.json({ error: result._err }, { status: result._status as number });
+  return NextResponse.json(result.channel);
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ctx = await requireAuth({ minRole: "editor" });
-  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
   const parsed = await parseBody(req, updateChannelSchema);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
-  const db = getDb();
 
-  const set: Record<string, unknown> = { updatedAt: new Date() };
-  if (body.name !== undefined) set.name = body.name;
-  if (body.status !== undefined) set.status = body.status;
-  if (body.agentId !== undefined) set.agentId = body.agentId || null;
-  if (body.config !== undefined) set.config = body.config;
+  const result = await requireAction({
+    minRole: "editor",
+    run: async ({ ctx, user, tx }) => {
+      const set: Record<string, unknown> = { updatedAt: new Date() };
+      if (body.name !== undefined) set.name = body.name;
+      if (body.status !== undefined) set.status = body.status;
+      if (body.agentId !== undefined) set.agentId = body.agentId || null;
+      if (body.config !== undefined) set.config = body.config;
 
-  // For credentials: accept plaintext, encrypt and store. For Telegram, also auto-config webhook.
-  if (body.credentials !== undefined) {
-    const json = JSON.stringify(body.credentials);
-    set.credentialsEncrypted = encrypt(json);
-  }
+      // For credentials: accept plaintext, encrypt and store. For Telegram, also auto-config webhook.
+      if (body.credentials !== undefined) {
+        const json = JSON.stringify(body.credentials);
+        set.credentialsEncrypted = encrypt(json);
+      }
 
-  const updated = await db
-    .update(schema.channels)
-    .set(set)
-    .where(and(eq(schema.channels.id, id), eq(schema.channels.workspaceId, ctx.workspace.id)))
-    .returning();
-  const row = updated[0];
-  if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      const updated = await tx
+        .update(schema.channels)
+        .set(set)
+        .where(and(eq(schema.channels.id, id), eq(schema.channels.workspaceId, ctx.workspace.id)))
+        .returning();
+      const row = updated[0];
+      if (!row) return { _err: "Not found", _status: 404 };
 
-  // Audit: registramos la actualización SIN credenciales (sólo identificadores).
-  await logAudit({
-    workspaceId: ctx.workspace.id,
-    userId: ctx.user.id,
-    action: "channel.update",
-    resource: "channel",
-    resourceId: row.id,
-    after: { name: row.name, type: row.type, credentialsUpdated: body.credentials !== undefined },
+      // Audit: registramos la actualización SIN credenciales (sólo identificadores).
+      await logAudit({
+        workspaceId: ctx.workspace.id,
+        userId: user.id,
+        action: "channel.update",
+        resource: "channel",
+        resourceId: row.id,
+        after: {
+          name: row.name,
+          type: row.type,
+          credentialsUpdated: body.credentials !== undefined,
+        },
+      });
+
+      return { row };
+    },
   });
+  if (result instanceof Response) return result;
+  if ("_err" in result)
+    return NextResponse.json({ error: result._err }, { status: result._status as number });
+
+  const { row } = result;
 
   // Telegram: auto-register webhook when credentials updated
   if (
@@ -156,30 +173,36 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ctx = await requireAuth({ minRole: "editor" });
-  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
-  const db = getDb();
-  // Snapshot before delete para el audit log.
-  const before = (
-    await db
-      .select({ name: schema.channels.name, type: schema.channels.type })
-      .from(schema.channels)
-      .where(and(eq(schema.channels.id, id), eq(schema.channels.workspaceId, ctx.workspace.id)))
-      .limit(1)
-  )[0];
-  const deleted = await db
-    .delete(schema.channels)
-    .where(and(eq(schema.channels.id, id), eq(schema.channels.workspaceId, ctx.workspace.id)))
-    .returning({ id: schema.channels.id });
-  if (!deleted[0]) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  await logAudit({
-    workspaceId: ctx.workspace.id,
-    userId: ctx.user.id,
-    action: "channel.delete",
-    resource: "channel",
-    resourceId: id,
-    before: before ? { name: before.name, type: before.type } : undefined,
+  const result = await requireAction({
+    minRole: "editor",
+    run: async ({ ctx, user, tx }) => {
+      // Snapshot before delete para el audit log.
+      const before = (
+        await tx
+          .select({ name: schema.channels.name, type: schema.channels.type })
+          .from(schema.channels)
+          .where(and(eq(schema.channels.id, id), eq(schema.channels.workspaceId, ctx.workspace.id)))
+          .limit(1)
+      )[0];
+      const deleted = await tx
+        .delete(schema.channels)
+        .where(and(eq(schema.channels.id, id), eq(schema.channels.workspaceId, ctx.workspace.id)))
+        .returning({ id: schema.channels.id });
+      if (!deleted[0]) return { _err: "Not found", _status: 404 };
+      await logAudit({
+        workspaceId: ctx.workspace.id,
+        userId: user.id,
+        action: "channel.delete",
+        resource: "channel",
+        resourceId: id,
+        before: before ? { name: before.name, type: before.type } : undefined,
+      });
+      return { ok: true };
+    },
   });
-  return NextResponse.json({ ok: true });
+  if (result instanceof Response) return result;
+  if ("_err" in result)
+    return NextResponse.json({ error: result._err }, { status: result._status as number });
+  return NextResponse.json(result);
 }

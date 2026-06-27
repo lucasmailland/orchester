@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
-import { getDb, schema } from "@orchester/db";
+import { schema } from "@orchester/db";
 import { and, eq, isNull, or } from "drizzle-orm";
-import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
+import { requireAction } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 
 const updatePrefSchema = z.object({
@@ -54,54 +54,49 @@ function isKnownKey(k: string): k is Key {
 }
 
 export async function GET() {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "No workspace" }, { status: 404 });
+  const result = await requireAction({
+    run: async ({ ctx, user, tx }) => {
+      // Traemos prefs user-level Y workspace-level en una sola query.
+      const rows = await tx
+        .select()
+        .from(schema.notificationPrefs)
+        .where(
+          and(
+            eq(schema.notificationPrefs.workspaceId, ctx.workspace.id),
+            or(
+              eq(schema.notificationPrefs.userId, user.id),
+              isNull(schema.notificationPrefs.userId)
+            )!
+          )
+        );
 
-  const db = getDb();
-  // Traemos prefs user-level Y workspace-level en una sola query.
-  const rows = await db
-    .select()
-    .from(schema.notificationPrefs)
-    .where(
-      and(
-        eq(schema.notificationPrefs.workspaceId, ws.workspace.id),
-        or(
-          eq(schema.notificationPrefs.userId, session.user.id),
-          isNull(schema.notificationPrefs.userId)
-        )!
-      )
-    );
+      // Resolver: user > workspace > default.
+      const userMap = new Map<string, boolean>();
+      const wsMap = new Map<string, boolean>();
+      for (const r of rows) {
+        if (r.userId === user.id) userMap.set(r.key, r.enabled);
+        else if (r.userId === null) wsMap.set(r.key, r.enabled);
+      }
 
-  // Resolver: user > workspace > default.
-  const userMap = new Map<string, boolean>();
-  const wsMap = new Map<string, boolean>();
-  for (const r of rows) {
-    if (r.userId === session.user.id) userMap.set(r.key, r.enabled);
-    else if (r.userId === null) wsMap.set(r.key, r.enabled);
-  }
+      const prefs = (
+        Object.entries(NOTIFICATION_KEYS) as Array<[Key, (typeof NOTIFICATION_KEYS)[Key]]>
+      ).map(([key, meta]) => {
+        const userVal = userMap.get(key);
+        const wsVal = wsMap.get(key);
+        const enabled = userVal ?? wsVal ?? meta.defaultOn;
+        const source: "user" | "workspace" | "default" =
+          userVal !== undefined ? "user" : wsVal !== undefined ? "workspace" : "default";
+        return { key, label: meta.label, description: meta.description, enabled, source };
+      });
 
-  const prefs = (
-    Object.entries(NOTIFICATION_KEYS) as Array<[Key, (typeof NOTIFICATION_KEYS)[Key]]>
-  ).map(([key, meta]) => {
-    const userVal = userMap.get(key);
-    const wsVal = wsMap.get(key);
-    const enabled = userVal ?? wsVal ?? meta.defaultOn;
-    const source: "user" | "workspace" | "default" =
-      userVal !== undefined ? "user" : wsVal !== undefined ? "workspace" : "default";
-    return { key, label: meta.label, description: meta.description, enabled, source };
+      return { prefs };
+    },
   });
-
-  return NextResponse.json({ prefs });
+  if (result instanceof Response) return result;
+  return NextResponse.json(result);
 }
 
 export async function PATCH(req: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "No workspace" }, { status: 404 });
-
   const parsed = await parseBody(req, updatePrefSchema);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
@@ -112,32 +107,38 @@ export async function PATCH(req: Request) {
     );
   }
 
-  const db = getDb();
-  const existing = await db
-    .select()
-    .from(schema.notificationPrefs)
-    .where(
-      and(
-        eq(schema.notificationPrefs.workspaceId, ws.workspace.id),
-        eq(schema.notificationPrefs.userId, session.user.id),
-        eq(schema.notificationPrefs.key, body.key)
-      )
-    )
-    .limit(1);
+  const result = await requireAction({
+    minRole: "editor",
+    run: async ({ ctx, user, tx }) => {
+      const existing = await tx
+        .select()
+        .from(schema.notificationPrefs)
+        .where(
+          and(
+            eq(schema.notificationPrefs.workspaceId, ctx.workspace.id),
+            eq(schema.notificationPrefs.userId, user.id),
+            eq(schema.notificationPrefs.key, body.key)
+          )
+        )
+        .limit(1);
 
-  if (existing[0]) {
-    await db
-      .update(schema.notificationPrefs)
-      .set({ enabled: body.enabled, updatedAt: new Date() })
-      .where(eq(schema.notificationPrefs.id, existing[0].id));
-  } else {
-    await db.insert(schema.notificationPrefs).values({
-      id: createId(),
-      workspaceId: ws.workspace.id,
-      userId: session.user.id,
-      key: body.key,
-      enabled: body.enabled,
-    });
-  }
-  return NextResponse.json({ ok: true });
+      if (existing[0]) {
+        await tx
+          .update(schema.notificationPrefs)
+          .set({ enabled: body.enabled, updatedAt: new Date() })
+          .where(eq(schema.notificationPrefs.id, existing[0].id));
+      } else {
+        await tx.insert(schema.notificationPrefs).values({
+          id: createId(),
+          workspaceId: ctx.workspace.id,
+          userId: user.id,
+          key: body.key,
+          enabled: body.enabled,
+        });
+      }
+      return { ok: true };
+    },
+  });
+  if (result instanceof Response) return result;
+  return NextResponse.json(result);
 }
