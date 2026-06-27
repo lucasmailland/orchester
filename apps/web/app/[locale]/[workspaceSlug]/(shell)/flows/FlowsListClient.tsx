@@ -232,66 +232,81 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
         </div>
       ) : null}
 
-      {flows.length === 0 && createFlow.phase === "hidden" ? (
-        <EmptyStateForFlows newFlowLabel={t("newFlow")} onCreate={handleStartCreate} />
-      ) : (
-        <TourSpot
-          tourId="flows"
-          step={3}
-          titleKey="compass.tours.flows.step3.title"
-          bodyKey="compass.tours.flows.step3.body"
-        >
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {flows.map((f) => (
-              <motion.button
-                key={f.id}
-                type="button"
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                onClick={() => router.push(`/${locale}/${workspaceSlug}/flows/${f.id}`)}
-                className="rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
-              >
-                <div className="mb-2 flex items-center gap-2">
-                  <Workflow className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-                  <span className="truncate font-medium text-strong">{f.name}</span>
-                </div>
-                <p className="line-clamp-2 text-xs text-muted">{f.description ?? "—"}</p>
-                <div className="mt-3 flex items-center justify-between text-[10px] text-faint">
-                  <span>{t("nodesLabel", { count: f.nodeCount })}</span>
-                  <span className="uppercase tracking-wide">{f.status}</span>
-                </div>
-              </motion.button>
-            ))}
-          </div>
-        </TourSpot>
-      )}
+      {(() => {
+        const nextSteps = (
+          <section aria-labelledby="flows-next-steps-title" className="pt-2">
+            <h2 id="flows-next-steps-title" className="mb-3 text-sm font-semibold text-strong">
+              {t("nextStepsTitle")}
+            </h2>
+            <TourSpot
+              tourId="flows"
+              step={4}
+              titleKey="compass.tours.flows.step4.title"
+              bodyKey="compass.tours.flows.step4.body"
+            >
+              <NextStepGroup>
+                <NextStep
+                  href={`/${locale}/${workspaceSlug}/channels`}
+                  icon={<KeyRound className="h-4 w-4" aria-hidden="true" />}
+                  title={t("nextStepConnectChannel.title")}
+                  body={t("nextStepConnectChannel.body")}
+                />
+                <NextStep
+                  href={`/${locale}/${workspaceSlug}/knowledge`}
+                  icon={<BookOpenText className="h-4 w-4" aria-hidden="true" />}
+                  title={t("nextStepAddKnowledge.title")}
+                  body={t("nextStepAddKnowledge.body")}
+                />
+              </NextStepGroup>
+            </TourSpot>
+          </section>
+        );
 
-      <section aria-labelledby="flows-next-steps-title" className="pt-2">
-        <h2 id="flows-next-steps-title" className="mb-3 text-sm font-semibold text-strong">
-          {t("nextStepsTitle")}
-        </h2>
-        <TourSpot
-          tourId="flows"
-          step={4}
-          titleKey="compass.tours.flows.step4.title"
-          bodyKey="compass.tours.flows.step4.body"
-        >
-          <NextStepGroup>
-            <NextStep
-              href={`/${locale}/${workspaceSlug}/channels`}
-              icon={<KeyRound className="h-4 w-4" aria-hidden="true" />}
-              title={t("nextStepConnectChannel.title")}
-              body={t("nextStepConnectChannel.body")}
-            />
-            <NextStep
-              href={`/${locale}/${workspaceSlug}/knowledge`}
-              icon={<BookOpenText className="h-4 w-4" aria-hidden="true" />}
-              title={t("nextStepAddKnowledge.title")}
-              body={t("nextStepAddKnowledge.body")}
-            />
-          </NextStepGroup>
-        </TourSpot>
-      </section>
+        if (flows.length === 0 && createFlow.phase === "hidden") {
+          // SET-4: show guidance first so a fresh user sees it above the fold.
+          return (
+            <>
+              {nextSteps}
+              <EmptyStateForFlows newFlowLabel={t("newFlow")} onCreate={handleStartCreate} />
+            </>
+          );
+        }
+
+        return (
+          <>
+            <TourSpot
+              tourId="flows"
+              step={3}
+              titleKey="compass.tours.flows.step3.title"
+              bodyKey="compass.tours.flows.step3.body"
+            >
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                {flows.map((f) => (
+                  <motion.button
+                    key={f.id}
+                    type="button"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    onClick={() => router.push(`/${locale}/${workspaceSlug}/flows/${f.id}`)}
+                    className="rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
+                  >
+                    <div className="mb-2 flex items-center gap-2">
+                      <Workflow className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                      <span className="truncate font-medium text-strong">{f.name}</span>
+                    </div>
+                    <p className="line-clamp-2 text-xs text-muted">{f.description ?? "—"}</p>
+                    <div className="mt-3 flex items-center justify-between text-[10px] text-faint">
+                      <span>{t("nodesLabel", { count: f.nodeCount })}</span>
+                      <span className="uppercase tracking-wide">{f.status}</span>
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+            </TourSpot>
+            {nextSteps}
+          </>
+        );
+      })()}
     </div>
   );
 }
