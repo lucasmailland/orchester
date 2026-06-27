@@ -121,9 +121,13 @@ function fmtTime(d: Date) {
   return `${Math.floor(h / 24)}d`;
 }
 
-function pctChange(now: number, prev: number) {
-  if (prev === 0) return null;
-  return Math.round(((now - prev) / prev) * 100);
+// COST-3: cap growth deltas so a tiny prior period doesn't render "+1125%".
+export const PCT_CHANGE_CAP = 999;
+
+export function pctChange(now: number, prev: number): number | "new" | null {
+  if (prev === 0) return now > 0 ? "new" : null;
+  const raw = Math.round(((now - prev) / prev) * 100);
+  return Math.max(-PCT_CHANGE_CAP, Math.min(PCT_CHANGE_CAP, raw));
 }
 
 // ─── atomic components ───────────────────────────────────────────────────────
@@ -159,6 +163,14 @@ function CardHeader({
 function Delta({ now, prev }: { now: number; prev: number }) {
   const pct = pctChange(now, prev);
   if (pct === null) return null;
+  if (pct === "new") {
+    return (
+      <span className="inline-flex items-center gap-0.5 rounded-md bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-violet-600 dark:text-violet-400">
+        <TrendingUp size={9} />
+        NEW
+      </span>
+    );
+  }
   return (
     <span
       className={cn(
@@ -665,8 +677,10 @@ interface Props {
 }
 
 /** Formatea un porcentaje de cambio con signo. Devuelve null si el delta es nulo. */
-function fmtDelta(delta: number | null | undefined): string | null {
-  if (delta == null || !Number.isFinite(delta)) return null;
+function fmtDelta(delta: number | "new" | null | undefined): string | null {
+  if (delta == null) return null;
+  if (delta === "new") return "NEW";
+  if (!Number.isFinite(delta)) return null;
   const rounded = Math.round(delta);
   if (rounded === 0) return "0%";
   return `${rounded > 0 ? "+" : ""}${rounded}%`;
@@ -838,11 +852,13 @@ export function DashboardClient({ stats, workspaceName, locale, workspaceSlug }:
                 {(() => {
                   const txt = fmtDelta(m.delta);
                   if (!txt || m.delta == null) return null;
+                  const isPositive =
+                    m.delta === "new" || (typeof m.delta === "number" && m.delta >= 0);
                   return (
                     <span
                       className={cn(
                         "text-[9px] font-bold",
-                        m.delta >= 0 ? "text-emerald-500" : "text-red-500"
+                        isPositive ? "text-emerald-500" : "text-red-500"
                       )}
                     >
                       {txt}
