@@ -2,6 +2,9 @@ import "server-only";
 import { NextResponse } from "next/server";
 import type { Session } from "better-auth";
 import { getCurrentSession, getCurrentWorkspace } from "./workspace";
+import { withTenantContext } from "./tenant/context";
+import { TenantContextError, type TenantContext } from "./tenant/types";
+import type { CrossTenantTx } from "./tenant/cron";
 
 export type Role = "owner" | "admin" | "editor" | "viewer";
 
@@ -92,4 +95,40 @@ export function satisfiesRole(actual: Role, required: Role): boolean {
 /** Type guard para narrow después de `if (ctx instanceof Response) return ctx`. */
 export function isAuthContext(x: AuthContext | Response): x is AuthContext {
   return !(x instanceof Response);
+}
+
+/**
+ * Tenant-scoped action wrapper for route handlers.
+ *
+ * Combines `requireAuth`'s role gate with `withTenantContext`'s per-tx
+ * `SET LOCAL ROLE app_user` + `app.workspace_id` GUC so every query inside
+ * `run` is automatically tenant-filtered by RLS + FORCE.
+ *
+ * Returns either the callback's value OR an error Response (401/403/404/410/423).
+ * Pattern: `const r = await requireAction({...}); if (r instanceof Response) return r;`
+ */
+export async function requireAction<T>(opts: {
+  minRole?: Role;
+  run: (args: { ctx: TenantContext; user: AuthContext["user"]; tx: CrossTenantTx }) => Promise<T>;
+}): Promise<T | Response> {
+  const auth = await requireAuth(opts.minRole ? { minRole: opts.minRole } : {});
+  if (auth instanceof Response) return auth;
+  try {
+    return await withTenantContext(auth.workspace.id, async (ctx, tx) => {
+      return opts.run({ ctx, user: auth.user, tx });
+    });
+  } catch (e) {
+    if (e instanceof TenantContextError) {
+      const statusMap: Record<string, number> = {
+        no_session: 401,
+        not_a_member: 403,
+        workspace_not_found: 404,
+        workspace_deleted: 410,
+        workspace_suspended: 423,
+        no_tenant_in_request: 400,
+      };
+      return NextResponse.json({ error: e.code }, { status: statusMap[e.code] ?? 500 });
+    }
+    throw e;
+  }
 }

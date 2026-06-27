@@ -4,6 +4,7 @@ import { getDb } from "@orchester/db";
 import { resolveById } from "./resolve";
 import { checkMembership } from "./membership";
 import { TenantContextError, type TenantContext } from "./types";
+import { type CrossTenantTx } from "./cron";
 import { getCurrentSession } from "@/lib/workspace";
 
 /**
@@ -48,7 +49,7 @@ import { getCurrentSession } from "@/lib/workspace";
  */
 export async function withTenantContext<T>(
   workspaceId: string,
-  fn: (ctx: TenantContext) => Promise<T>
+  fn: (ctx: TenantContext, tx: CrossTenantTx) => Promise<T>
 ): Promise<T> {
   if (!workspaceId) throw new TenantContextError("workspace_not_found");
 
@@ -73,7 +74,7 @@ export async function withTenantContext<T>(
     await tx.execute(sql`SELECT set_config('app.workspace_id', ${workspaceId}, true)`);
     await tx.execute(sql`SELECT set_config('app.user_id', ${session.user.id}, true)`);
     const ctx: TenantContext = { workspace: ws, member, role: member.role };
-    return fn(ctx);
+    return fn(ctx, tx as CrossTenantTx);
   });
 }
 

@@ -64,6 +64,13 @@
       "when": 1782591433345,
       "tag": "0008_rls_force",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1782592234410,
+      "tag": "0009_agent_memory_policy",
+      "breakpoints": true
     }
   ]
 }
