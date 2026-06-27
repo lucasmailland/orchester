@@ -11,10 +11,11 @@ import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist
  * a high-impact mutation happens.
  */
 const getCachedDashboard = (workspaceId: string) =>
-  unstable_cache(async () => getFullDashboardStats(workspaceId), ["dashboard", workspaceId], {
-    revalidate: 30,
-    tags: [`dashboard:${workspaceId}`],
-  })();
+  unstable_cache(
+    async () => withWorkspaceTx(workspaceId, (tx) => getFullDashboardStats(workspaceId, tx)),
+    ["dashboard", workspaceId],
+    { revalidate: 30, tags: [`dashboard:${workspaceId}`] }
+  )();
 
 /**
  * Phase L.1: cheap snapshot of the 5 onboarding-checklist booleans.
