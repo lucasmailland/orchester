@@ -16,29 +16,33 @@ const SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
 
 export async function POST(req: Request) {
   const secret = process.env["STRIPE_WEBHOOK_SECRET"];
+  // SEC-5: fail CLOSED — without the secret we cannot verify signatures, so any
+  // anonymous POST would mutate plans. Refuse early before reading the body.
+  if (!secret) {
+    return NextResponse.json({ error: "webhook not configured" }, { status: 501 });
+  }
+
   const sig = req.headers.get("stripe-signature");
   const raw = await req.text();
 
-  if (secret) {
-    if (!sig) return NextResponse.json({ error: "missing signature" }, { status: 400 });
-    // Formato Stripe: t=timestamp,v1=hex_hmac
-    const parts = sig.split(",").reduce<Record<string, string>>((acc, p) => {
-      const [k, v] = p.split("=");
-      if (k && v) acc[k] = v;
-      return acc;
-    }, {});
-    // Anti-replay: rechazá firmas fuera de la ventana de tolerancia.
-    const ts = Number(parts.t);
-    if (!ts || Math.abs(Date.now() / 1000 - ts) > SIGNATURE_TOLERANCE_SECONDS) {
-      return NextResponse.json({ error: "stale signature" }, { status: 401 });
-    }
-    const expected = crypto.createHmac("sha256", secret).update(`${parts.t}.${raw}`).digest("hex");
-    // Comparación en tiempo constante (evita timing attacks).
-    const sigBuf = Buffer.from(parts.v1 ?? "", "hex");
-    const expBuf = Buffer.from(expected, "hex");
-    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
-      return NextResponse.json({ error: "invalid signature" }, { status: 401 });
-    }
+  if (!sig) return NextResponse.json({ error: "missing signature" }, { status: 400 });
+  // Formato Stripe: t=timestamp,v1=hex_hmac
+  const parts = sig.split(",").reduce<Record<string, string>>((acc, p) => {
+    const [k, v] = p.split("=");
+    if (k && v) acc[k] = v;
+    return acc;
+  }, {});
+  // Anti-replay: rechazá firmas fuera de la ventana de tolerancia.
+  const ts = Number(parts.t);
+  if (!ts || Math.abs(Date.now() / 1000 - ts) > SIGNATURE_TOLERANCE_SECONDS) {
+    return NextResponse.json({ error: "stale signature" }, { status: 401 });
+  }
+  const expected = crypto.createHmac("sha256", secret).update(`${parts.t}.${raw}`).digest("hex");
+  // Comparación en tiempo constante (evita timing attacks).
+  const sigBuf = Buffer.from(parts.v1 ?? "", "hex");
+  const expBuf = Buffer.from(expected, "hex");
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+    return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
 
   const event = JSON.parse(raw) as { type: string; data: { object: Record<string, unknown> } };
