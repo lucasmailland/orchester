@@ -6,7 +6,7 @@ import { Input } from "@heroui/react";
 import { Search, DollarSign, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
-import { staggerContainer, staggerItem } from "@/lib/motion";
+import { staggerContainer, staggerItem, useReveal } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 interface Employee {
@@ -35,6 +35,7 @@ interface EmployeeTableProps {
 
 export function EmployeeTable({ employees: initial, labels }: EmployeeTableProps) {
   const t = useTranslations("pages.employees.budget");
+  const reveal = useReveal();
   const [query, setQuery] = useState("");
   const [employees, setEmployees] = useState<Employee[]>(initial);
 
@@ -91,7 +92,7 @@ export function EmployeeTable({ employees: initial, labels }: EmployeeTableProps
         <motion.div
           variants={staggerContainer}
           initial="hidden"
-          animate="visible"
+          animate={reveal}
           className="overflow-hidden rounded-xl border border-line"
         >
           {filtered.map((emp, idx) => (

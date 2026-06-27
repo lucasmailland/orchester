@@ -5,7 +5,7 @@ import { Bot, Radio, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
-import { APPLE_EASE } from "@/lib/motion";
+import { APPLE_EASE, useReveal } from "@/lib/motion";
 
 interface TeamCardProps {
   id: string;
@@ -29,6 +29,7 @@ export function TeamCard({
   workspaceSlug,
 }: TeamCardProps) {
   const t = useTranslations("pages.teams");
+  const reveal = useReveal();
   const color = avatarColor ?? "#7C3AED";
   // `w[0]` returns a single UTF-16 *code unit*. For team names like
   // "🎯 Comercial" the first word is the emoji "🎯" (U+1F3AF), encoded
@@ -48,7 +49,7 @@ export function TeamCard({
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
+      animate={reveal === "visible" ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
       transition={{ duration: 0.35, ease: APPLE_EASE }}
       whileHover={{ y: -3, transition: { duration: 0.18 } }}
     >
