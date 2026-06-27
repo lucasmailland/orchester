@@ -92,6 +92,9 @@ jobs:
       - name: Apply migrations
         run: pnpm --filter @orchester/db migrate
 
+      - name: Assert RLS is reproducible from source (SEC-1)
+        run: psql "$DATABASE_URL" -f packages/db/scripts/assert-rls-reproducible.sql
+
       - name: TypeScript check
         run: pnpm --filter web tsc --noEmit
 
