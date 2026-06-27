@@ -129,12 +129,11 @@ describe("runExportJob (filesystem adapter)", () => {
     }
     expect(job!.state).toBe("completed");
     expect(job!.progress).toBe(100);
-    // signedUrl is now an HMAC-signed token URL pointing at
-    // `/api/exports/[token]` — the worker MUST NOT persist a working
-    // file:// path (so a DB leak doesn't also leak the artefact). The
-    // route verifies the token before streaming the bytes back.
-    expect(job!.signedUrl).toMatch(/^https?:\/\/.+\/api\/exports\/[A-Za-z0-9._%-]+/);
-    expect(job!.signedUrlExpiresAt).toBeInstanceOf(Date);
+    // SEC-9: the worker never persists the signed URL — a DB dump must
+    // not leak 7-day live download links. The URL lives in the email
+    // only; the polling route regenerates it per request from storageKey.
+    expect(job!.signedUrl).toBeNull();
+    expect(job!.signedUrlExpiresAt).toBeNull();
     expect(job!.storageKey).toBe(`${wsA.id}/${jobId}.zip`);
     expect(job!.bytesTotal).not.toBeNull();
     expect(Number(job!.bytesTotal)).toBeGreaterThan(0);

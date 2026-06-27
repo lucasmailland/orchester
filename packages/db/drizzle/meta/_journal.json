@@ -78,6 +78,13 @@
       "when": 1782593558604,
       "tag": "0010_conversation_memory_learning_paused",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1782600000000,
+      "tag": "0011_audit_log_v2",
+      "breakpoints": true
     }
   ]
 }
