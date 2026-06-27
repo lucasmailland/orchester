@@ -8,6 +8,7 @@
 // download. Embeddings are excluded server-side.
 
 import "server-only";
+import type { ExportResponse } from "@mnemosyne/client-ts";
 import { getMnemoMode, getMnemoClient, type MnemoMode } from "@/lib/mnemo/client";
 
 export { getMnemoMode };
@@ -20,12 +21,19 @@ export interface ExportPayload {
   citations: Array<Record<string, unknown>>;
 }
 
+// The Mnemosyne SDK scopes by API key at construction time, not per request.
+// This adapter forwards workspaceId so the contract is explicit and ready
+// for when the SDK adds per-request workspace scoping.
+type ScopedExportClient = {
+  exportWorkspace(opts: { workspaceId: string }): Promise<ExportResponse>;
+};
+
 export async function exportWorkspaceData(
-  _workspaceId: string
+  workspaceId: string
 ): Promise<{ mode: MnemoMode; data: ExportPayload }> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
-  const resp = await client.exportWorkspace();
+  const client = getMnemoClient() as unknown as ScopedExportClient;
+  const resp = await client.exportWorkspace({ workspaceId });
   return {
     mode,
     data: {
