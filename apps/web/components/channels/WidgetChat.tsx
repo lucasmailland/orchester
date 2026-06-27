@@ -23,7 +23,10 @@ export function WidgetChat({ channelId, color, title, greeting, starters, placeh
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [visitorId, setVisitorId] = useState<string>("");
+  const [lead, setLead] = useState<{ name: string; email: string }>({ name: "", email: "" });
+  const [leadDone, setLeadDone] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lastSeenRef = useRef<string | null>(null);
 
   useEffect(() => {
     let id = "";
@@ -42,6 +45,42 @@ export function WidgetChat({ channelId, color, title, greeting, starters, placeh
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 99999, behavior: "smooth" });
   }, [messages, loading]);
+
+  // CONV-7: rehydrate thread on mount; CONV-2: poll for operator/bot turns.
+  useEffect(() => {
+    if (!visitorId) return;
+    let cancelled = false;
+    const sync = async (initial: boolean) => {
+      try {
+        const qs = new URLSearchParams({ visitorId });
+        if (!initial && lastSeenRef.current) qs.set("since", lastSeenRef.current);
+        const r = await fetch(`/api/widget/${channelId}/messages?${qs}`);
+        if (!r.ok) return;
+        const j = (await r.json()) as {
+          messages: Array<{ role: "user" | "assistant"; content: string; createdAt: string }>;
+        };
+        if (cancelled || j.messages.length === 0) return;
+        lastSeenRef.current = j.messages[j.messages.length - 1]!.createdAt;
+        if (initial) {
+          setMessages(j.messages.map((m) => ({ role: m.role, content: m.content })));
+        } else {
+          setMessages((prev) => [
+            ...prev,
+            ...j.messages.map((m) => ({ role: m.role, content: m.content })),
+          ]);
+        }
+      } catch {
+        /* best-effort */
+      }
+    };
+    void sync(true);
+    const iv = setInterval(() => void sync(false), 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visitorId, channelId]);
 
   async function send(text: string) {
     if (!text.trim() || loading) return;
@@ -84,7 +123,12 @@ export function WidgetChat({ channelId, color, title, greeting, starters, placeh
       const r = await fetch(`/api/widget/${channelId}/stream`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ visitorId, text: text.trim() }),
+        body: JSON.stringify({
+          visitorId,
+          text: text.trim(),
+          ...(lead.name ? { customerName: lead.name } : {}),
+          ...(lead.email ? { customerEmail: lead.email } : {}),
+        }),
       });
       if (!r.ok || !r.body) {
         setLast("Lo siento, hubo un error.");
@@ -197,6 +241,40 @@ export function WidgetChat({ channelId, color, title, greeting, starters, placeh
           <div style={{ fontSize: 11, color: "#71717a", paddingLeft: 4 }}>Escribiendo…</div>
         )}
       </div>
+      {!leadDone && messages.length <= 1 && (
+        <div style={{ padding: "0 14px 8px", display: "flex", flexDirection: "column", gap: 6 }}>
+          <input
+            value={lead.name}
+            onChange={(e) => setLead((l) => ({ ...l, name: e.target.value }))}
+            placeholder="Tu nombre (opcional)"
+            style={{
+              padding: "7px 10px",
+              borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(255,255,255,0.04)",
+              color: "white",
+              fontSize: 12,
+              outline: "none",
+            }}
+          />
+          <input
+            value={lead.email}
+            onChange={(e) => setLead((l) => ({ ...l, email: e.target.value }))}
+            placeholder="Tu email (opcional)"
+            type="email"
+            onBlur={() => setLeadDone(Boolean(lead.name || lead.email))}
+            style={{
+              padding: "7px 10px",
+              borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(255,255,255,0.04)",
+              color: "white",
+              fontSize: 12,
+              outline: "none",
+            }}
+          />
+        </div>
+      )}
       {messages.length <= 1 && starters.length > 0 && (
         <div style={{ padding: "0 14px 8px", display: "flex", flexWrap: "wrap", gap: 6 }}>
           {starters.slice(0, 4).map((s, i) => (
