@@ -232,8 +232,9 @@ export async function runExportJob(jobId: string): Promise<void> {
           state: "completed",
           progress: 100,
           storageKey: key,
-          signedUrl,
-          signedUrlExpiresAt: expiresAt,
+          // SEC-9: never persist the signed URL — a DB dump would leak
+          // 7-day-live download links. Regenerate per request in the
+          // polling route instead. signedUrl is kept in the email only.
           bytesTotal: BigInt(bytesTotal),
           completedAt: new Date(),
           // null = email sent (or stub path), string = surface the
