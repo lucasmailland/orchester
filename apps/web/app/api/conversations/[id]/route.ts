@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { requireAction } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { checkEmployeeBudget } from "@/lib/employee-budget";
+import { dispatchEvent } from "@/lib/webhooks-out";
 
 const updateConversationSchema = z.object({
   status: z.enum(["open", "closed", "escalated"]).optional(),
@@ -84,5 +85,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (result instanceof Response) return result;
   if ("_err" in result)
     return NextResponse.json({ error: result._err }, { status: result._status as number });
-  return NextResponse.json(result.row);
+  const { row } = result;
+  if (body.status === "closed") {
+    void dispatchEvent(row.workspaceId, "conversation.closed", { conversationId: id });
+  }
+  if (body.csat !== undefined) {
+    void dispatchEvent(row.workspaceId, "conversation.csat", {
+      conversationId: id,
+      csat: body.csat,
+    });
+  }
+  return NextResponse.json(row);
 }

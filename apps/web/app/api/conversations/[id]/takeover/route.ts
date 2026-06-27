@@ -3,6 +3,7 @@ import { getDb, schema } from "@orchester/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { logAudit } from "@/lib/audit";
+import { dispatchEvent } from "@/lib/webhooks-out";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireAuth({ minRole: "editor" });
@@ -27,6 +28,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       action: "conversation.takeover",
       resource: "conversation",
       resourceId: id,
+    });
+    void dispatchEvent(ctx.workspace.id, "conversation.escalated", {
+      conversationId: id,
+      assignedToUserId: ctx.user.id,
     });
   }
   return NextResponse.json(updated[0] ?? null);

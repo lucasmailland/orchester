@@ -9,6 +9,7 @@ import { getToolDefinitions, executeTool } from "@/lib/tools";
 import { executeFlow } from "@/lib/flow-engine";
 import { assertWithinSpend } from "@/lib/cost-alerts";
 import { UNTRUSTED_CONTENT_GUARDRAIL, wrapUntrusted } from "@/lib/agent-runtime";
+import { dispatchEvent } from "@/lib/webhooks-out";
 
 export interface InboundMessage {
   channelId: string;
@@ -141,6 +142,11 @@ async function resolveInbound(
       })
       .returning();
     conversation = inserted[0]!;
+    void dispatchEvent(workspaceId, "conversation.created", {
+      conversationId: conversation.id,
+      channelId: channel.id,
+      externalId: msg.externalId,
+    });
   }
 
   const baseMessageCount = conversation.messageCount ?? 0;
@@ -186,6 +192,11 @@ async function resolveInbound(
     .update(schema.conversations)
     .set({ messageCount: baseMessageCount + 1 })
     .where(eq(schema.conversations.id, conversation.id));
+  void dispatchEvent(workspaceId, "message.received", {
+    conversationId: conversation.id,
+    role: "user",
+    text: msg.text,
+  });
 
   // 3.5 If conversation is taken-over by a human, do NOT auto-reply.
   if (conversation.takenOverAt) {
@@ -319,6 +330,12 @@ async function persistAssistantTurn(
     costUsd: String(costUsd),
     agentId: ctx.agent.id,
     metadata: { tokens, model: activeAgent.model },
+  });
+  void dispatchEvent(workspaceId, "agent.responded", {
+    conversationId: conversation.id,
+    agentId: activeAgent.id,
+    tokensUsed: tokens,
+    costUsd: String(costUsd),
   });
 }
 
