@@ -1,0 +1,17 @@
+-- Drop de la tabla muerta `agent_eval`.
+--
+-- `agent_eval` (input / expected_output / expected_tool_calls / last_result /
+-- last_status / last_run_at) anticipaba un harness de evaluación de agentes que
+-- nunca se construyó: 0 referencias en runtime (apps/web, packages, scripts) —
+-- sólo la definición Drizzle y este baseline la mencionaban. El catálogo de
+-- mejoras 2026-06-26 la lista como "feature fantasma" y, a diferencia de su
+-- hermana `agent_tool` (KNOW-1, agendada para cablear al runtime), NO la agenda.
+-- El "Eval harness" del ROADMAP vive en la banda 0.3.x+ ("bigger swings") y es de
+-- diseño más amplio (asserts sobre outputs de flows, golden conversations, runs
+-- de CI), así que se diseñará de cero cuando toque, no sobre esta tabla.
+--
+-- Quitamos el schema muerto para que el schema TS y la DB queden en sync.
+-- `DROP TABLE` se lleva la tabla y, con ella, sus 2 FKs salientes
+-- (`agent_eval_agent_id_agent_id_fk`, `agent_eval_workspace_id_workspace_id_fk`).
+-- Es una tabla hoja —nada la referencia— así que el drop es seguro e idempotente.
+DROP TABLE IF EXISTS "agent_eval" CASCADE;

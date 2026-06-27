@@ -15,6 +15,13 @@
       "when": 1779497000000,
       "tag": "0001_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782537851964,
+      "tag": "0002_drop_agent_eval",
+      "breakpoints": true
     }
   ]
 }
