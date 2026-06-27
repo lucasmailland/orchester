@@ -26,7 +26,7 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: false,
+    requireEmailVerification: true,
   },
   socialProviders: {
     ...(process.env["GOOGLE_CLIENT_ID"] && process.env["GOOGLE_CLIENT_SECRET"]
@@ -39,6 +39,8 @@ export const auth = betterAuth({
       : {}),
   },
   session: {
+    expiresIn: 60 * 60 * 24 * 7, // 7 days
+    updateAge: 60 * 60 * 24, // refresh daily
     // PERF-8: cache the session in a short-lived signed cookie so most
     // navigations skip the session-table lookup. 5 min is short enough that
     // revocation/role changes propagate quickly.
@@ -47,6 +49,14 @@ export const auth = betterAuth({
       maxAge: 5 * 60,
     },
   },
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 30,
+  },
+  trustedOrigins: [
+    process.env["BETTER_AUTH_URL"] ?? process.env["NEXT_PUBLIC_APP_URL"] ?? "http://localhost:3001",
+  ],
   user: {
     additionalFields: {
       onboardingCompleted: {
