@@ -18,7 +18,6 @@ import postgres from "postgres";
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import path from "path";
-import fs from "fs/promises";
 
 let container: StartedTestContainer | null = null;
 let sql: ReturnType<typeof postgres> | null = null;
@@ -90,21 +89,8 @@ export async function setupTestDb(): Promise<{
     migrationsFolder: path.resolve(__dirname, "../../../../packages/db/drizzle"),
   });
 
-  // 2. Apply hand-rolled SQL migrations on top (lifecycle, audit chain,
-  //    RLS helpers, etc.). These don't have a drizzle journal — just run
-  //    every `*.sql` that isn't a `.down.sql` in lexicographic order.
-  const sqlDir = path.resolve(__dirname, "../../../../packages/db/migrations");
-  const files = (await fs.readdir(sqlDir))
-    .filter((f) => f.endsWith(".sql") && !f.endsWith(".down.sql"))
-    .sort();
-  for (const file of files) {
-    const body = await fs.readFile(path.join(sqlDir, file), "utf8");
-    await sql.unsafe(body);
-  }
-
-  // Roles are created by migration 0007_postgres_roles.sql above. No
-  // additional setup needed here — superuser `postgres` bypasses RLS so
-  // tests can read/write freely without explicit role switching.
+  // All migrations live in packages/db/drizzle/ and are applied via the
+  // drizzle migrator above. No separate hand-rolled SQL directory remains.
 
   return { db, sql };
 }

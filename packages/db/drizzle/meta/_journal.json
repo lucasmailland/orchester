@@ -36,6 +36,34 @@
       "when": 1782537960000,
       "tag": "0004_member_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782591162376,
+      "tag": "0005_schema_catchup",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782591430224,
+      "tag": "0006_rls_helpers_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1782591431841,
+      "tag": "0007_rls_enable_policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782591433345,
+      "tag": "0008_rls_force",
+      "breakpoints": true
     }
   ]
 }
