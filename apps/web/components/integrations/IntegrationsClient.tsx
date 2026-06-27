@@ -95,8 +95,13 @@ export function IntegrationsClient() {
 
   async function remove(id: string, name: string) {
     if (!window.confirm(t("deleteConfirm", { name }))) return;
-    await fetch(`/api/integrations/${id}`, { method: "DELETE" });
-    toast.success(t("deleted"));
+    try {
+      const r = await fetch(`/api/integrations/${id}`, { method: "DELETE" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      toast.success(t("deleted"));
+    } catch {
+      toast.error(t("deleteError"));
+    }
     load();
   }
 

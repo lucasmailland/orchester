@@ -525,18 +525,30 @@ function ConversationDrawer({
 
   async function takeOver() {
     setBusy(true);
-    await fetch(`/api/conversations/${conversation.id}/takeover`, { method: "POST" });
-    setBusy(false);
-    toast.success(t("actions.taken"));
-    onUpdated();
+    try {
+      const r = await fetch(`/api/conversations/${conversation.id}/takeover`, { method: "POST" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      toast.success(t("actions.taken"));
+      onUpdated();
+    } catch {
+      toast.error(t("actions.takeoverError"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function release() {
     setBusy(true);
-    await fetch(`/api/conversations/${conversation.id}/takeover`, { method: "DELETE" });
-    setBusy(false);
-    toast.success(t("actions.returned"));
-    onUpdated();
+    try {
+      const r = await fetch(`/api/conversations/${conversation.id}/takeover`, { method: "DELETE" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      toast.success(t("actions.returned"));
+      onUpdated();
+    } catch {
+      toast.error(t("actions.releaseError"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function sendReply() {

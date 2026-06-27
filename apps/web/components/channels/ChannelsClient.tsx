@@ -493,11 +493,16 @@ function ConnectedChannelRow({
 
   async function updateAgent(id: string) {
     setAgentId(id);
-    await fetch(`/api/channels/${channel.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ agentId: id }),
-    });
+    try {
+      const r = await fetch(`/api/channels/${channel.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ agentId: id }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    } catch {
+      toast.error(t("saveError"));
+    }
     router.refresh();
   }
 

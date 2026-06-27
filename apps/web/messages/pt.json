@@ -767,7 +767,9 @@
           "save": "Salvar",
           "saved": "Salvo",
           "saveError": "Erro",
-          "missingFields": "key + value obrigatórios"
+          "missingFields": "key + value obrigatórios",
+          "removed": "Memória removida",
+          "removeError": "Não foi possível remover"
         },
         "config": {
           "kindSectionTitle": "Tipo de agente",
@@ -859,7 +861,10 @@
           "restored": "Versão restaurada",
           "restoreConfirm": "Restaurar esta versão? As mudanças atuais serão perdidas.",
           "current": "Atual",
-          "byline": "por {actor}"
+          "byline": "por {actor}",
+          "saved": "Versão salva",
+          "saveError": "Não foi possível salvar a versão",
+          "restoreError": "Não foi possível restaurar a versão"
         }
       },
       "empty": "Nenhum agente ainda.",
@@ -1107,7 +1112,9 @@
         "taken": "Conversa assumida",
         "returned": "Devolvida ao agente",
         "sent": "Mensagem enviada",
-        "sendError": "Não foi possível enviar"
+        "sendError": "Não foi possível enviar",
+        "takeoverError": "Não foi possível assumir a conversa",
+        "releaseError": "Não foi possível devolver a conversa"
       },
       "drawer": {
         "operator": "Operador",
@@ -1222,7 +1229,8 @@
       "savedButFailed": "Salvo, mas a conexão falhou: {error}",
       "nameLabel": "Nome",
       "saveAndTest": "Salvar e testar",
-      "close": "Fechar"
+      "close": "Fechar",
+      "deleteError": "Não foi possível excluir a integração"
     },
     "usage": {
       "title": "Uso",
@@ -1380,7 +1388,10 @@
         "testWebhookOk": "Evento de teste entregue",
         "testWebhookFailed": "A entrega de teste falhou",
         "addWebhook": "Adicionar webhook",
-        "apiHint": "Use sua API key com"
+        "apiHint": "Use sua API key com",
+        "saveError": "Não foi possível salvar",
+        "deleteError": "Não foi possível excluir",
+        "webhookDeleted": "Webhook excluído"
       },
       "providers": {
         "loading": "Carregando provedores…",
@@ -2706,5 +2717,8 @@
         }
       }
     }
+  },
+  "conversations": {
+    "actions": {}
   }
 }

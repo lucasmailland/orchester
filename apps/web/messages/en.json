@@ -767,7 +767,9 @@
           "save": "Save",
           "saved": "Saved",
           "saveError": "Error",
-          "missingFields": "key + value required"
+          "missingFields": "key + value required",
+          "removed": "Memory removed",
+          "removeError": "Could not remove memory"
         },
         "config": {
           "kindSectionTitle": "Agent kind",
@@ -859,7 +861,10 @@
           "restored": "Version restored",
           "restoreConfirm": "Restore this version? Current changes will be lost.",
           "current": "Current",
-          "byline": "by {actor}"
+          "byline": "by {actor}",
+          "saved": "Version saved",
+          "saveError": "Could not save version",
+          "restoreError": "Could not restore version"
         }
       },
       "empty": "No agents yet.",
@@ -1107,7 +1112,9 @@
         "taken": "Conversation taken",
         "returned": "Returned to agent",
         "sent": "Message sent",
-        "sendError": "Could not send"
+        "sendError": "Could not send",
+        "takeoverError": "Could not take over conversation",
+        "releaseError": "Could not release conversation"
       },
       "drawer": {
         "operator": "Operator",
@@ -1222,7 +1229,8 @@
       "savedButFailed": "Saved, but the connection failed: {error}",
       "nameLabel": "Name",
       "saveAndTest": "Save and test",
-      "close": "Close"
+      "close": "Close",
+      "deleteError": "Could not delete integration"
     },
     "usage": {
       "title": "Usage",
@@ -1379,7 +1387,10 @@
         "testWebhookOk": "Test event delivered",
         "testWebhookFailed": "Test delivery failed",
         "addWebhook": "Add webhook",
-        "apiHint": "Use your API key with"
+        "apiHint": "Use your API key with",
+        "saveError": "Could not save",
+        "deleteError": "Could not delete",
+        "webhookDeleted": "Webhook deleted"
       },
       "providers": {
         "loading": "Loading providers…",
@@ -2706,5 +2717,8 @@
         }
       }
     }
+  },
+  "conversations": {
+    "actions": {}
   }
 }
