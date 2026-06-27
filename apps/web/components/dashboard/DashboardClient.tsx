@@ -924,8 +924,8 @@ export function DashboardClient({ stats, workspaceName, locale, workspaceSlug }:
       {/* ── Row 4: Agent performance table ── */}
       <Card>
         <CardHeader
-          title={t("charts.agentPerformance", { count: stats.agentUsage.length })}
-          sub={t("charts.agentPerformanceSub")}
+          title={t("charts.agentPerformanceTopN", { count: stats.agentUsage.length })}
+          sub={t("charts.agentPerformanceSubOf", { total: stats.activeAgents })}
         />
         <div className="px-5 pb-5">
           <AgentTable data={stats.agentUsage} />

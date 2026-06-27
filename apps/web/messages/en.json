@@ -438,6 +438,8 @@
       "currentMonth": "current month",
       "agentPerformance": "Agent performance · {count} agents",
       "agentPerformanceSub": "current month · ordered by token consumption",
+      "agentPerformanceTopN": "Top {count} agents by usage",
+      "agentPerformanceSubOf": "of {total} active this month",
       "teams": "Teams",
       "peakActivity": "Activity peak",
       "peakActivitySub": "distribution by hour of day",
