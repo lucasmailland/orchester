@@ -140,14 +140,22 @@ export function calculateChatCostUsd(model: string, tokensIn: number, tokensOut:
   return Math.round(usd * 1_000_000) / 1_000_000;
 }
 
+const warnedUnknownCapability = new Set<string>();
+
 /**
  * Costo USD aproximado para una capacidad no-token (image/video/tts/stt/avatar/
  * music/ocr). `units` es la cantidad (imágenes, clips, requests, documentos…).
- * Si la capacidad no está en la tabla, devuelve 0 (best-effort: nunca rompe).
+ * Si la capacidad no está en la tabla, devuelve 0 pero emite un warning (COST-7).
  */
 export function calculateCapabilityCostUsd(capability: string, units: number): number {
   const price = CAPABILITY_PRICE[capability];
-  if (!price) return 0;
+  if (!price) {
+    if (!warnedUnknownCapability.has(capability)) {
+      warnedUnknownCapability.add(capability);
+      console.warn("[pricing] unknown capability, pricing at 0:", capability);
+    }
+    return 0;
+  }
   return Math.round(price.perUnit * Math.max(0, units) * 1_000_000) / 1_000_000;
 }
 

@@ -22,6 +22,13 @@
       "when": 1782537851964,
       "tag": "0002_drop_agent_eval",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1782537900000,
+      "tag": "0003_usage_cost_not_null",
+      "breakpoints": true
     }
   ]
 }

@@ -147,7 +147,7 @@ export const usageEvents = pgTable("usage_event", {
     .references(() => workspaces.id, { onDelete: "cascade" }),
   kind: usageEventKindEnum("kind").notNull(),
   amount: integer("amount").notNull().default(1),
-  costUsd: numeric("cost_usd", { precision: 10, scale: 6 }),
+  costUsd: numeric("cost_usd", { precision: 10, scale: 6 }).notNull().default("0"),
   agentId: text("agent_id"),
   flowId: text("flow_id"),
   metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
