@@ -340,6 +340,56 @@ async function persistAssistantTurn(
 }
 
 /**
+ * COST-5: flush usage for a partial stream (aborted by the client or cut
+ * short by a provider error). Tokens were already consumed upstream, so
+ * the bill + spend cap must see them. No-op when tokens == 0.
+ */
+export async function flushPartialTurn(
+  workspaceId: string,
+  agentId: string,
+  conversationId: string,
+  reply: string,
+  tokens: number
+): Promise<void> {
+  if (tokens <= 0) return;
+  try {
+    await withWorkspaceTx(workspaceId, async (tx) => {
+      const agentRows = await tx
+        .select()
+        .from(schema.agents)
+        .where(and(eq(schema.agents.id, agentId), eq(schema.agents.workspaceId, workspaceId)))
+        .limit(1);
+      const convRows = await tx
+        .select()
+        .from(schema.conversations)
+        .where(eq(schema.conversations.id, conversationId))
+        .limit(1);
+      const agent = agentRows[0];
+      const conversation = convRows[0];
+      if (!agent || !conversation) return;
+      const ctx: ConvCtx = {
+        workspaceId,
+        channel: { id: conversation.channelId } as Channel,
+        agent,
+        conversation,
+        baseMessageCount: conversation.messageCount ?? 0,
+      };
+      await persistAssistantTurn(
+        ctx,
+        agent,
+        conversation,
+        reply || "[respuesta interrumpida]",
+        tokens,
+        tx
+      );
+    });
+  } catch (e) {
+    const { safeLogError } = await import("@/lib/safe-log");
+    safeLogError("[router] flushPartialTurn failed:", e);
+  }
+}
+
+/**
  * Construye history compactada + inyecta memoria. Devuelve los mensajes de
  * chat y el system prompt final para el agente activo.
  */
@@ -734,14 +784,17 @@ export async function* handleInboundStream(
       ...(agent.maxTokens != null && { maxTokens: agent.maxTokens }),
       ...(signal ? { signal } : {}),
     })) {
-      // Si el cliente se desconectó, dejamos de emitir/persistir.
-      if (signal?.aborted) return;
+      if (signal?.aborted) {
+        await flushPartialTurn(wsId, agent.id, conversation.id, reply, tokens);
+        return;
+      }
       if (chunk.type === "text") {
         reply += chunk.delta;
         yield { type: "text", delta: chunk.delta };
       } else if (chunk.type === "done") {
         tokens += chunk.tokensUsed;
       } else if (chunk.type === "error") {
+        await flushPartialTurn(wsId, agent.id, conversation.id, reply, tokens);
         yield { type: "error", error: chunk.error };
         return;
       }
