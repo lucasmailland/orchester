@@ -94,17 +94,26 @@ describe("assertWithinSpend fail-mode", () => {
     await expect(assertWithinSpend("ws_x")).rejects.toBeInstanceOf(SpendGuardError);
   });
 
-  it("fail-OPEN (resolves) on a generic network / timeout error", async () => {
+  it("fail-CLOSED (throws) on a generic network / connection error (COST-6)", async () => {
     const err = Object.assign(new Error("ECONNRESET"), { code: "ECONNRESET" });
     selectMock.mockRejectedValueOnce(err);
 
-    // Should NOT throw — network blip must not take the product down.
-    await expect(assertWithinSpend("ws_x")).resolves.toBeUndefined();
+    // With a cap set, ANY DB error fails CLOSED — a network blip must not
+    // silently disable the only hard money cap.
+    await expect(assertWithinSpend("ws_x")).rejects.toBeInstanceOf(SpendGuardError);
   });
 
-  it("fail-OPEN on a code-less error (e.g. plain Error from a wrapper)", async () => {
+  it("fail-CLOSED (throws) on a code-less error (COST-6)", async () => {
     selectMock.mockRejectedValueOnce(new Error("some opaque failure"));
-    await expect(assertWithinSpend("ws_x")).resolves.toBeUndefined();
+    await expect(assertWithinSpend("ws_x")).rejects.toBeInstanceOf(SpendGuardError);
+  });
+
+  it("fail-CLOSED (throws) when the spend read times out (57014) (COST-6)", async () => {
+    const err = Object.assign(new Error("canceling statement due to statement timeout"), {
+      code: "57014",
+    });
+    selectMock.mockRejectedValueOnce(err);
+    await expect(assertWithinSpend("ws_x")).rejects.toBeInstanceOf(SpendGuardError);
   });
 
   it("happy path: spend under cap → resolves without throwing", async () => {
