@@ -4,6 +4,7 @@ import { schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
 import { handleInbound } from "@/lib/channels/router";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
+import { rateLimit } from "@/lib/rate-limit";
 
 const CORS_HEADERS = {
   "access-control-allow-origin": "*",
@@ -62,6 +63,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ channel
     return NextResponse.json(
       { error: "Channel not found" },
       { status: 404, headers: CORS_HEADERS }
+    );
+  }
+
+  const rl = await rateLimit(`widget-in:${channel.id}`, { capacity: 60, refillPerSec: 1 });
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Rate limited" },
+      {
+        status: 429,
+        headers: {
+          ...CORS_HEADERS,
+          "retry-after": String(Math.ceil((rl.retryAfterMs ?? 1000) / 1000)),
+        },
+      }
     );
   }
 
