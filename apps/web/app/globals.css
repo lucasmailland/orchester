@@ -50,6 +50,14 @@
     text-rendering: optimizeLegibility;
   }
 
+  /* PERF-20: visible keyboard focus everywhere. :focus-visible only shows for
+     keyboard/AT users, so mouse clicks stay clean. */
+  :focus-visible {
+    outline: 2px solid rgb(124 58 237);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
   * {
     scrollbar-width: thin;
     scrollbar-color: rgba(124, 58, 237, 0.18) transparent;
@@ -74,7 +82,7 @@
   .input {
     @apply w-full rounded-lg border border-line bg-elevated px-3 py-2
            text-sm text-strong placeholder:text-faint
-           outline-none transition-all
+           transition-all
            focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30
            disabled:opacity-60 disabled:cursor-not-allowed;
   }
