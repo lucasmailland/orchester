@@ -5,6 +5,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
 import { eq, desc, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { hashApiKey } from "@/lib/api-auth/key";
 import { checkQuota } from "@/lib/billing/quotas";
 import { logAudit } from "@/lib/audit";
 import { parseBody } from "@/lib/validation";
@@ -52,7 +53,9 @@ export async function POST(req: Request) {
   const role = parsed.data.role ?? "editor";
   if (!email || !email.includes("@"))
     return NextResponse.json({ error: "Valid email required" }, { status: 400 });
-  const token = crypto.randomBytes(24).toString("base64url");
+  // SEC-11: never persist the plaintext token — store the sha256 hash instead.
+  // Return the plaintext once in the response/email; it cannot be recovered from the DB.
+  const plainToken = `inv_${crypto.randomBytes(24).toString("base64url")}`;
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
   const db = getDb();
   const invite = await db.transaction(async (tx) => {
@@ -65,7 +68,7 @@ export async function POST(req: Request) {
         workspaceId: ctx.workspace.id,
         email,
         role,
-        token,
+        token: hashApiKey(plainToken),
         invitedByUserId: ctx.user.id,
         expiresAt,
       })
@@ -73,7 +76,7 @@ export async function POST(req: Request) {
     return inserted[0];
   });
 
-  const inviteUrl = `${process.env["NEXT_PUBLIC_APP_URL"] ?? ""}/invite/${token}`;
+  const inviteUrl = `${process.env["NEXT_PUBLIC_APP_URL"] ?? ""}/invite/${plainToken}`;
   // Send email via lib/email if configured (fail silent for self-serve)
   try {
     const { sendEmail } = await import("@/lib/email");
@@ -92,7 +95,10 @@ export async function POST(req: Request) {
     resourceId: invite?.id,
     after: { email, role },
   });
-  return NextResponse.json({ ...invite!, inviteUrl }, { status: 201 });
+  // Return plainToken once — the DB only has the hash, so this is the only chance
+  // the caller has to see the plaintext. Omit the stored hash from the response.
+  const { token: _hash, ...inviteRest } = invite!;
+  return NextResponse.json({ ...inviteRest, token: plainToken, inviteUrl }, { status: 201 });
 }
 
 /**

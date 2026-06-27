@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { getCurrentSession } from "@/lib/workspace";
 import { parseBody } from "@/lib/validation";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
+import { hashApiKey } from "@/lib/api-auth/key";
 
 const acceptInviteSchema = z.object({
   token: z.string().optional(),
@@ -29,10 +30,11 @@ export async function POST(req: Request) {
   // workspace_invite are FORCE RLS, so the lookup, the membership insert
   // and the invite status update all need to bypass tenant scoping.
   const result = await withCrossTenantAdmin("invite.accept", async (tx) => {
+    // SEC-11: token at rest is a sha256 hash; compare hash, never plaintext.
     const rows = await tx
       .select()
       .from(schema.workspaceInvites)
-      .where(eq(schema.workspaceInvites.token, token))
+      .where(eq(schema.workspaceInvites.token, hashApiKey(token)))
       .limit(1);
     const invite = rows[0];
     if (!invite) return { kind: "not_found" as const };

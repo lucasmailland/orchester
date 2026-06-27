@@ -58,6 +58,11 @@ export async function PATCH(req: Request) {
   const result = await requireAction({
     minRole: "admin",
     run: async ({ ctx, user, tx }) => {
+      // SEC-11: self-IDOR guard — admins cannot modify their own membership.
+      if (userId === user.id) {
+        return { _err: "Cannot modify your own membership", _status: 403 };
+      }
+
       // Solo el owner puede crear otros owners.
       if (role === "owner" && ctx.role !== "owner") {
         return { _err: "Only owner can promote to owner", _status: 403 };
@@ -133,6 +138,11 @@ export async function DELETE(req: Request) {
   const result = await requireAction({
     minRole: "admin",
     run: async ({ ctx, user, tx }) => {
+      // SEC-11: self-IDOR guard — admins cannot remove themselves.
+      if (userId === user.id) {
+        return { _err: "Cannot modify your own membership", _status: 403 };
+      }
+
       const target = (
         await tx
           .select()
