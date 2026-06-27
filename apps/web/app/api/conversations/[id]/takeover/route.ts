@@ -33,6 +33,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       conversationId: id,
       assignedToUserId: ctx.user.id,
     });
+    void import("@/lib/notifications/triggers").then((m) =>
+      m.notifyEscalation(ctx.workspace.id, { conversationId: id })
+    );
   }
   return NextResponse.json(updated[0] ?? null);
 }

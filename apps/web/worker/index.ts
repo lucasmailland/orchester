@@ -31,6 +31,7 @@ import {
   JOB_WORKSPACE_HARD_DELETE,
   JOB_GDPR_EXPORT,
   JOB_GDPR_EXPORT_WATCHDOG,
+  JOB_WEEKLY_REPORT,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
 import { runDueSchedules } from "../lib/flows/run-due-schedules";
@@ -179,6 +180,13 @@ async function main(): Promise<void> {
     await runExportWatchdog();
   });
   await schedule(JOB_GDPR_EXPORT_WATCHDOG, "*/15 * * * *");
+
+  // ── Weekly usage report (cron, lunes 08:00 UTC) ─────────────
+  await registerWorker(JOB_WEEKLY_REPORT, async () => {
+    const { runWeeklyReports } = await import("../lib/notifications/weekly");
+    await runWeeklyReports();
+  });
+  await schedule(JOB_WEEKLY_REPORT, "0 8 * * 1");
 
   // ─── Mnemo workers retired (Phase 3 service-extraction, 2026-06-05) ─
   // Every JOB_MNEMO_* handler used to live here:

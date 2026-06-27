@@ -67,7 +67,12 @@ export async function POST(req: Request) {
       .set({ status: "accepted", acceptedAt: new Date() })
       .where(eq(schema.workspaceInvites.id, invite.id));
 
-    return { kind: "ok" as const, workspaceId: invite.workspaceId, role: invite.role };
+    return {
+      kind: "ok" as const,
+      workspaceId: invite.workspaceId,
+      role: invite.role,
+      inviteeEmail: session.user.email,
+    };
   });
 
   if (result.kind === "not_found")
@@ -82,5 +87,8 @@ export async function POST(req: Request) {
       { status: 403 }
     );
 
+  void import("@/lib/notifications/triggers").then((m) =>
+    m.notifyNewMember(result.workspaceId, { email: result.inviteeEmail })
+  );
   return NextResponse.json({ workspaceId: result.workspaceId, role: result.role });
 }

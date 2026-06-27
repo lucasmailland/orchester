@@ -80,6 +80,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const result = await requireAction({
     minRole: "editor",
     run: async ({ ctx, user, tx }) => {
+      const existingRows = await tx
+        .select({ status: schema.agents.status, name: schema.agents.name })
+        .from(schema.agents)
+        .where(and(eq(schema.agents.id, id), eq(schema.agents.workspaceId, ctx.workspace.id)))
+        .limit(1);
+      const existing = existingRows[0];
       const updated = await tx
         .update(schema.agents)
         .set({
@@ -118,6 +124,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         resourceId: agent.id,
         after: { name: agent.name, role: agent.role },
       });
+      if (status && status !== "active" && existing?.status === "active") {
+        void import("@/lib/notifications/triggers").then((m) =>
+          m.notifyAgentDown(ctx.workspace.id, { agentId: id, agentName: agent.name })
+        );
+      }
       return { agent };
     },
   });
