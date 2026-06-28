@@ -11,6 +11,7 @@ interface Run {
   completedAt: string | null;
   triggerSource: string | null;
   error: string | null;
+  resumeToken?: string | null;
 }
 interface Step {
   id: string;
@@ -34,6 +35,7 @@ export function FlowRunsPanel({
   const t = useTranslations("pages.flows.runs");
   const [runs, setRuns] = useState<Run[]>([]);
   const [selected, setSelected] = useState<{ run: Run; steps: Step[] } | null>(null);
+  const [resuming, setResuming] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -45,6 +47,22 @@ export function FlowRunsPanel({
   async function pickRun(r: Run) {
     const detail = await fetch(`/api/flow-runs/${r.id}`).then((x) => x.json());
     setSelected(detail);
+  }
+
+  async function handleResume(decision: "approve" | "reject") {
+    if (!selected?.run.resumeToken) return;
+    setResuming(true);
+    try {
+      await fetch(`/api/flow-runs/${selected.run.id}/resume`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: selected.run.resumeToken, decision }),
+      });
+      const detail = await fetch(`/api/flow-runs/${selected.run.id}`).then((x) => x.json());
+      setSelected(detail);
+    } finally {
+      setResuming(false);
+    }
   }
 
   if (!open) return null;
@@ -88,7 +106,9 @@ export function FlowRunsPanel({
                         ? "text-red-600 dark:text-red-400"
                         : r.status === "running"
                           ? "text-amber-600 dark:text-amber-400"
-                          : "text-muted"
+                          : r.status === "waiting"
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-muted"
                   }
                 >
                   {r.status}
@@ -115,6 +135,26 @@ export function FlowRunsPanel({
             {selected.run.error && (
               <div className="mt-2 rounded border border-red-500/30 bg-red-500/10 p-2 text-red-700 dark:text-red-300">
                 {selected.run.error}
+              </div>
+            )}
+            {selected.run.status === "waiting" && selected.run.resumeToken && (
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  disabled={resuming}
+                  onClick={() => handleResume("approve")}
+                  className="flex-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  Approve
+                </button>
+                <button
+                  type="button"
+                  disabled={resuming}
+                  onClick={() => handleResume("reject")}
+                  className="flex-1 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  Reject
+                </button>
               </div>
             )}
           </div>

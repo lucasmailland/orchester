@@ -99,6 +99,13 @@
       "when": 1782800000000,
       "tag": "0013_mcp_server",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1782900000000,
+      "tag": "0014_wait_human",
+      "breakpoints": true
     }
   ]
 }

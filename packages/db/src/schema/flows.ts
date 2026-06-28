@@ -14,6 +14,7 @@ export const flowRunStatusEnum = pgEnum("flow_run_status", [
   "succeeded",
   "failed",
   "cancelled",
+  "waiting",
 ]);
 export const flowNodeTypeEnum = pgEnum("flow_node_type", [
   "trigger",
@@ -128,6 +129,8 @@ export const flowRuns = pgTable("flow_run", {
   input: jsonb("input").$type<Record<string, unknown>>().default({}),
   output: jsonb("output").$type<Record<string, unknown>>(),
   error: text("error"),
+  resumeToken: text("resume_token"),
+  pendingNodeId: text("pending_node_id"),
   startedAt: timestamp("started_at").notNull().defaultNow(),
   completedAt: timestamp("completed_at"),
 });

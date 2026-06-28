@@ -6,6 +6,15 @@ import { enqueue, JOB_FLOW_RUN } from "./queue";
 import { assertPublicUrlResolved } from "./net-guard";
 import { logWithContext, recordMetric } from "./observability";
 
+/** ORCH-3: sentinel thrown by wait_human handler; caught by executeFlow to
+ *  persist a resume token and return status="waiting" instead of "failed". */
+class WaitHumanSignal extends Error {
+  constructor(public nodeId: string) {
+    super("wait_human");
+    this.name = "WaitHumanSignal";
+  }
+}
+
 /**
  * R2-C: Flow execution writes to tenant tables (flow_runs,
  * flow_run_steps) and reads from many others (agents, knowledge bases,
@@ -386,7 +395,11 @@ export async function executeFlow({
    * para acotar el tiempo de respuesta inline.
    */
   signal?: AbortSignal;
-}): Promise<{ runId: string; status: "succeeded" | "failed" | "cancelled"; error?: string }> {
+}): Promise<{
+  runId: string;
+  status: "succeeded" | "failed" | "cancelled" | "waiting";
+  error?: string;
+}> {
   // R2-C: re-verify flow ownership + create/transition flow_run all under
   // the workspace GUC (FORCE RLS).
   const flow = await withFlowTx(workspaceId, async (tx) => {
@@ -469,6 +482,18 @@ export async function executeFlow({
     });
     return { runId, status: "succeeded" };
   } catch (e) {
+    // ORCH-3: wait_human throws a sentinel — not an error, just a pause.
+    if (e instanceof WaitHumanSignal) {
+      const resumeToken = createId();
+      await withFlowTx(workspaceId, (tx) =>
+        tx
+          .update(schema.flowRuns)
+          .set({ status: "waiting", output: ctx.variables, resumeToken, pendingNodeId: e.nodeId })
+          .where(eq(schema.flowRuns.id, runId))
+      );
+      onEvent?.({ type: "run_finish", status: "succeeded" });
+      return { runId, status: "waiting" };
+    }
     // F-B1/F-1: si la causa fue un abort (cliente desconectado o timeout
     // inline), marcamos `cancelled` (no `failed`) para que las métricas no
     // cuenten esto como un error del flujo en sí.
@@ -565,6 +590,16 @@ async function runFromNode(
       status: "succeeded",
     });
   } catch (e) {
+    // ORCH-3: WaitHumanSignal is a controlled pause, not a step failure.
+    if (e instanceof WaitHumanSignal) {
+      await withFlowTx(workspaceId, (tx) =>
+        tx
+          .update(schema.flowRunSteps)
+          .set({ status: "waiting" as never, completedAt: new Date() })
+          .where(eq(schema.flowRunSteps.id, stepId))
+      );
+      throw e;
+    }
     const msg = e instanceof Error ? e.message : String(e);
     await withFlowTx(workspaceId, (tx) =>
       tx
@@ -1096,14 +1131,15 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     helpers.setOutput({ subRunId: result.runId, mergedKeys: Object.keys(subOut) });
   },
 
-  wait_human: async ({ cfg, ctx, helpers }) => {
+  wait_human: async ({ node, cfg, ctx }) => {
     const msg =
       (cfg.instructions as string) ?? (cfg.message as string) ?? "Se necesita una aprobación";
     ctx.variables["_pendingApproval"] = {
       message: interpolate(msg, ctx.variables),
       assignee: cfg.assignee,
     };
-    helpers.setOutput({ paused: true });
+    // ORCH-3: throw sentinel so executeFlow persists resume token + status=waiting.
+    throw new WaitHumanSignal(node.id);
   },
 };
 
@@ -1147,7 +1183,7 @@ export async function enqueueFlowRun({
   input: Record<string, unknown>;
 }): Promise<{
   runId: string;
-  status: "pending" | "succeeded" | "failed" | "cancelled";
+  status: "pending" | "succeeded" | "failed" | "cancelled" | "waiting";
   error?: string;
 }> {
   const db = getDb();
@@ -1272,4 +1308,91 @@ export async function reapStaleRuns(maxAgeMs = 15 * 60_000, db?: DbOrTx): Promis
     .set({ status: "failed", error: err, completedAt: new Date() })
     .where(and(inArray(schema.flowRunSteps.runId, ids), eq(schema.flowRunSteps.status, "running")));
   return ids.length;
+}
+
+/**
+ * ORCH-3: Resume a paused (waiting) flow run after human approve/reject.
+ * - approve: re-enters the graph at the pending node's children, then closes
+ *   the run as succeeded (or failed if a child node throws).
+ * - reject: marks the run cancelled immediately without running any children.
+ */
+export async function resumeFlow(
+  runId: string,
+  token: string,
+  decision: "approve" | "reject",
+  workspaceId: string
+): Promise<{
+  runId: string;
+  status: "succeeded" | "failed" | "cancelled" | "waiting";
+  error?: string;
+}> {
+  const run = await withFlowTx(workspaceId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(schema.flowRuns)
+      .where(and(eq(schema.flowRuns.id, runId), eq(schema.flowRuns.workspaceId, workspaceId)))
+      .limit(1);
+    return rows[0];
+  });
+  if (!run) throw new Error("Run not found");
+  if (run.status !== "waiting") throw new Error(`Run is not waiting (status=${run.status})`);
+  if (!run.resumeToken || run.resumeToken !== token) throw new Error("Invalid resume token");
+
+  if (decision === "reject") {
+    await withFlowTx(workspaceId, (tx) =>
+      tx
+        .update(schema.flowRuns)
+        .set({
+          status: "cancelled",
+          error: "Rejected by approver",
+          completedAt: new Date(),
+          resumeToken: null,
+        })
+        .where(eq(schema.flowRuns.id, runId))
+    );
+    return { runId, status: "cancelled" };
+  }
+
+  // approve: reload flow, rebuild ctx from saved output, re-enter at pending node's children.
+  const flow = await withFlowTx(
+    workspaceId,
+    async (tx) =>
+      (await tx.select().from(schema.flows).where(eq(schema.flows.id, run.flowId)).limit(1))[0]
+  );
+  if (!flow) throw new Error("Flow not found");
+  const nodes = (flow.nodes ?? []) as FlowNode[];
+  const edges = (flow.edges ?? []) as FlowEdge[];
+  const ctx: RunContext = {
+    variables: { ...((run.output as Record<string, unknown>) ?? {}) },
+    output: {},
+  };
+  const db = getDb();
+  await withFlowTx(workspaceId, (tx) =>
+    tx
+      .update(schema.flowRuns)
+      .set({ status: "running", resumeToken: null })
+      .where(eq(schema.flowRuns.id, runId))
+  );
+  try {
+    const outgoing = edges.filter((ed) => ed.source === run.pendingNodeId);
+    for (const ed of outgoing) {
+      await runFromNode(ed.target, nodes, edges, ctx, runId, workspaceId, db, 0);
+    }
+    await withFlowTx(workspaceId, (tx) =>
+      tx
+        .update(schema.flowRuns)
+        .set({ status: "succeeded", output: ctx.variables, completedAt: new Date() })
+        .where(eq(schema.flowRuns.id, runId))
+    );
+    return { runId, status: "succeeded" };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await withFlowTx(workspaceId, (tx) =>
+      tx
+        .update(schema.flowRuns)
+        .set({ status: "failed", error: msg, completedAt: new Date() })
+        .where(eq(schema.flowRuns.id, runId))
+    );
+    return { runId, status: "failed", error: msg };
+  }
 }
