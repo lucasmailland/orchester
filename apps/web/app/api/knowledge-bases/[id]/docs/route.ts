@@ -177,7 +177,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       .set({ status: "embedding" })
       .where(eq(schema.knowledgeDocs.id, docId));
 
-    const { vectors } = await embed(
+    const { vectors, dims } = await embed(
       workspaceId,
       kb.embeddingProvider as "openai" | "google",
       kb.embeddingModel,
@@ -192,6 +192,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       ordinal: i,
       text: c,
       embedding: vectors[i] ?? null,
+      metadata: { dims, embeddingModel: kb.embeddingModel },
     }));
     if (chunkRows.length > 0) {
       await db.insert(schema.knowledgeChunks).values(chunkRows);

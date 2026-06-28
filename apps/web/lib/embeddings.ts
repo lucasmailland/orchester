@@ -20,6 +20,7 @@ export type EmbeddingProvider = "openai" | "google" | "voyage";
 export interface EmbeddingResult {
   vectors: number[][];
   model: string;
+  dims: number;
   tokensUsed: number;
 }
 
@@ -41,7 +42,7 @@ export async function embed(
   texts: string[],
   tx?: WsDb
 ): Promise<EmbeddingResult> {
-  if (texts.length === 0) return { vectors: [], model, tokensUsed: 0 };
+  if (texts.length === 0) return { vectors: [], model, dims: 1536, tokensUsed: 0 };
 
   // Locate provider key (reuse ai_provider rows configured in Settings)
   const db = tx ?? getDb();
@@ -75,6 +76,7 @@ async function embedOpenAI(
   model: string,
   texts: string[]
 ): Promise<EmbeddingResult> {
+  const wantDims = 1536;
   const r = await fetchWithTimeout(
     "https://api.openai.com/v1/embeddings",
     {
@@ -83,18 +85,17 @@ async function embedOpenAI(
         Authorization: `Bearer ${apiKey}`,
         "content-type": "application/json",
       },
-      body: JSON.stringify({ model, input: texts }),
+      // KNOW-3: request server-side dimensions so the API returns a normalized
+      // 1536-d vector (text-embedding-3-* support `dimensions`). Client-side
+      // .slice() de-normalized the vector and broke cosine ranking.
+      body: JSON.stringify({ model, input: texts, dimensions: wantDims }),
     },
     EMBED_TIMEOUT_MS
   );
   if (!r.ok) throw new Error(`OpenAI embeddings ${r.status}: ${await r.text()}`);
   const j = await r.json();
   const vectors = (j.data ?? []).map((d: { embedding: number[] }) => normalizeTo1536(d.embedding));
-  return {
-    vectors,
-    model,
-    tokensUsed: j.usage?.total_tokens ?? 0,
-  };
+  return { vectors, model, dims: wantDims, tokensUsed: j.usage?.total_tokens ?? 0 };
 }
 
 async function embedGoogle(
@@ -123,11 +124,7 @@ async function embedGoogle(
   if (!r.ok) throw new Error(`Google embeddings ${r.status}: ${await r.text()}`);
   const j = await r.json();
   const vectors = (j.embeddings ?? []).map((e: { values: number[] }) => normalizeTo1536(e.values));
-  return {
-    vectors,
-    model,
-    tokensUsed: 0, // Google doesn't return token count for embeddings
-  };
+  return { vectors, model, dims: 1536, tokensUsed: 0 };
 }
 
 /** Truncate to 1536 or zero-pad. Keeps schema vector(1536) consistent. */

@@ -46,6 +46,26 @@ export async function searchKnowledgeBase(
   const kb = kbs[0];
   if (!kb) throw new Error(`No encontramos la base de conocimiento (${kbId}).`);
 
+  // KNOW-3: guard that chunks were embedded with the same model the query now
+  // uses. Comparing vectors from different models produces meaningless rankings.
+  const sample = await db
+    .select({ metadata: schema.knowledgeChunks.metadata })
+    .from(schema.knowledgeChunks)
+    .where(
+      and(
+        eq(schema.knowledgeChunks.kbId, kbId),
+        eq(schema.knowledgeChunks.workspaceId, workspaceId)
+      )
+    )
+    .limit(1);
+  const storedModel = (sample[0]?.metadata as { embeddingModel?: string } | undefined)
+    ?.embeddingModel;
+  if (storedModel && storedModel !== kb.embeddingModel) {
+    throw new Error(
+      `Embedding model mismatch: chunks embedded with "${storedModel}" but KB now uses "${kb.embeddingModel}". Re-index the knowledge base. (modelo de embedding no coincide)`
+    );
+  }
+
   const { vectors } = await embed(
     workspaceId,
     kb.embeddingProvider as "openai" | "google",
