@@ -98,6 +98,9 @@ jobs:
       - name: TypeScript check
         run: pnpm --filter web tsc --noEmit
 
+      - name: i18n check
+        run: pnpm --filter web i18n:check
+
       - name: Audit invariants (RBAC + zod + spend guard + metering + flow signal)
         run: bash scripts/audit-invariants.sh
 

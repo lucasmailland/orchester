@@ -5,6 +5,20 @@ import { getDb, schema } from "@orchester/db";
 import { and, eq } from "drizzle-orm";
 import { getCurrentSession } from "@/lib/workspace";
 
+// SET-9: the live first-mile wizard MUST flip users.onboarding_completed.
+// Without this the (shell)/layout guard (redirects when the flag is false
+// and the slug resolves to no workspace) can loop a fresh user back to
+// onboarding. The dead duplicate wizard was the only code that set it.
+export async function markOnboardingComplete(): Promise<void> {
+  const session = await getCurrentSession();
+  if (!session) throw new Error("Not authenticated");
+  const db = getDb();
+  await db
+    .update(schema.users)
+    .set({ onboardingCompleted: true, updatedAt: new Date() })
+    .where(eq(schema.users.id, session.user.id));
+}
+
 /**
  * Helpers for the first-mile onboarding wizard.
  *

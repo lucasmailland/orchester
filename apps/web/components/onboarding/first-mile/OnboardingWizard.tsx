@@ -22,6 +22,7 @@ import {
 import {
   ensureWorkspaceAction,
   getSampleWorkspaceSlugAction,
+  markOnboardingComplete,
 } from "@/app/actions/first-mile-onboarding";
 
 interface Props {
@@ -180,8 +181,13 @@ export function OnboardingWizard({ locale, initialStep, workspaceSlug }: Props) 
     advance(4);
   }
 
-  function handleOpenStudio() {
+  async function handleOpenStudio() {
     const target = slug ? `/${locale}/${slug}` : `/${locale}`;
+    try {
+      await markOnboardingComplete();
+    } catch {
+      // Non-fatal: flag update failure doesn't block studio access.
+    }
     router.push(target);
   }
 
