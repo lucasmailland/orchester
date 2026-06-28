@@ -120,6 +120,8 @@ export interface RunContext {
   emit?: FlowEmit;
   /** Signal de cancelación (F-1/F-B1). Si abort, el motor para entre pasos. */
   signal?: AbortSignal;
+  /** ORCH-7: flow ids already on the call stack — used for subflow cycle detection. */
+  ancestorFlowIds?: string[];
 }
 
 export function interpolate(template: string, ctx: Record<string, unknown>): string {
@@ -375,6 +377,7 @@ export async function executeFlow({
   onEvent,
   runId: existingRunId,
   signal,
+  ancestorFlowIds,
 }: {
   flowId: string;
   workspaceId: string;
@@ -395,11 +398,18 @@ export async function executeFlow({
    * para acotar el tiempo de respuesta inline.
    */
   signal?: AbortSignal;
+  /** ORCH-7: ancestor flow ids for cycle detection. Provided by subflow handler. */
+  ancestorFlowIds?: string[];
 }): Promise<{
   runId: string;
   status: "succeeded" | "failed" | "cancelled" | "waiting";
   error?: string;
 }> {
+  // ORCH-7: detect subflow cycles before doing any DB work.
+  if ((ancestorFlowIds ?? []).includes(flowId)) {
+    throw new Error(`Subflow cycle detected: flow ${flowId} is already in the subflow chain.`);
+  }
+
   // R2-C: re-verify flow ownership + create/transition flow_run all under
   // the workspace GUC (FORCE RLS).
   const flow = await withFlowTx(workspaceId, async (tx) => {
@@ -440,6 +450,7 @@ export async function executeFlow({
     output: {},
     ...(onEvent ? { emit: onEvent } : {}),
     ...(signal ? { signal } : {}),
+    ancestorFlowIds: [...(ancestorFlowIds ?? []), flowId],
   };
 
   const nodes = (flow.nodes ?? []) as FlowNode[];
@@ -1119,6 +1130,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       workspaceId,
       triggerSource: `parent_run:${runId}`,
       input: ctx.variables,
+      ancestorFlowIds: ctx.ancestorFlowIds ?? [], // ORCH-7: pass chain for cycle detection
     });
     if (result.status === "failed") throw new Error(`subflow failed: ${result.error}`);
     const subRuns = await db
