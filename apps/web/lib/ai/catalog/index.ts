@@ -17,6 +17,11 @@ export function providersFor(capability: Capability): ProviderDef[] {
   return PROVIDERS.filter((p) => p.capabilities.includes(capability));
 }
 
+/** KNOW-5: Proveedores con un adaptador funcional hoy (implemented=true). */
+export function implementedProviders(): ProviderDef[] {
+  return PROVIDERS.filter((p) => p.implemented);
+}
+
 /** Modelos de una capacidad (todo el catálogo). */
 export function modelsFor(capability: Capability): ModelDef[] {
   return MODELS.filter((x) => x.capability === capability);

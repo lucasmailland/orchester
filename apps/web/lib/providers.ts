@@ -104,7 +104,7 @@ export async function testProviderConnection(
       }));
       return { ok: true, models };
     }
-    return { ok: false, error: "Unknown provider" };
+    return { ok: false, error: "Connection testing isn't available for this provider yet." };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }

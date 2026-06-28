@@ -779,6 +779,28 @@ export const PROVIDERS: ProviderDef[] = [
   },
 ];
 
+// KNOW-5: mark each provider as implemented based on whether its family has a
+// working adapter. `bespoke` has no adapter → false for all bespoke providers.
+const IMPLEMENTED_FAMILIES = new Set<import("./types").Family>([
+  "openai-compatible",
+  "anthropic",
+  "gemini",
+  "openai-images",
+  "google-imagen",
+  "stability",
+  "bfl",
+  "ideogram",
+  "recraft",
+  "replicate",
+  "fal",
+  "elevenlabs",
+  "deepgram",
+  "assemblyai",
+]);
+for (const p of PROVIDERS) {
+  p.implemented = IMPLEMENTED_FAMILIES.has(p.family);
+}
+
 export const PROVIDERS_BY_ID: Record<string, ProviderDef> = Object.fromEntries(
   PROVIDERS.map((p) => [p.id, p])
 );

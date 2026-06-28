@@ -49,6 +49,8 @@ export interface ProviderDef {
   docsUrl?: string;
   /** Pista corta para la UI (de dónde sacar la API key). */
   keyHint?: string;
+  /** KNOW-5: true when a working adapter exists for this provider's family. */
+  implemented?: boolean;
 }
 
 export interface ModelDef {
