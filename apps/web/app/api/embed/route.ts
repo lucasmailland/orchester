@@ -4,10 +4,23 @@
  *
  * Usage:
  *   <script src="https://app.orchester.io/api/embed?c=CHANNEL_ID" async></script>
+ *
+ * Optional params: locale (en|es|pt), position (right|left), color (#rrggbb)
  */
 import { NextResponse } from "next/server";
 
-const SCRIPT = (channelId: string, base: string) => `(function(){
+type Position = "right" | "left";
+
+interface EmbedOpts {
+  locale: string;
+  position: Position;
+  color: string;
+}
+
+function buildScript(channelId: string, base: string, opts: EmbedOpts): string {
+  const side = opts.position;
+  const iframeSrc = `${base}/widget/${channelId}?locale=${encodeURIComponent(opts.locale)}`;
+  return `(function(){
   if (window.__OrchesterMounted) return;
   window.__OrchesterMounted = true;
 
@@ -27,12 +40,12 @@ const SCRIPT = (channelId: string, base: string) => `(function(){
 
   var btn = document.createElement('button');
   btn.setAttribute('aria-label', 'Open chat');
-  btn.style.cssText = 'position:fixed;bottom:20px;right:20px;width:56px;height:56px;border-radius:50%;background:#8b5cf6;color:white;border:none;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,0.18);z-index:2147483646;display:flex;align-items:center;justify-content:center;';
+  btn.style.cssText = 'position:fixed;bottom:20px;${side}:20px;width:56px;height:56px;border-radius:50%;background:${opts.color};color:white;border:none;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,0.18);z-index:2147483646;display:flex;align-items:center;justify-content:center;';
   btn.appendChild(iconSvg);
 
   var iframe = document.createElement('iframe');
-  iframe.src = '${base}/widget/${channelId}';
-  iframe.style.cssText = 'position:fixed;bottom:90px;right:20px;width:380px;max-width:calc(100vw - 40px);height:600px;max-height:calc(100vh - 120px);border:0;border-radius:16px;box-shadow:0 16px 48px rgba(0,0,0,0.22);z-index:2147483647;display:none;background:#0a0a0a;';
+  iframe.src = '${iframeSrc}';
+  iframe.style.cssText = 'position:fixed;bottom:90px;${side}:20px;width:380px;max-width:calc(100vw - 40px);height:600px;max-height:calc(100vh - 120px);border:0;border-radius:16px;box-shadow:0 16px 48px rgba(0,0,0,0.22);z-index:2147483647;display:none;background:#0a0a0a;';
   iframe.setAttribute('allow', 'clipboard-write');
   iframe.title = 'Orchester chat';
 
@@ -52,13 +65,20 @@ const SCRIPT = (channelId: string, base: string) => `(function(){
     toggle: toggle
   };
 })();`;
+}
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const channelId = url.searchParams.get("c") ?? "";
   if (!channelId) return new NextResponse("// missing ?c=channelId", { status: 400 });
+
+  const locale = url.searchParams.get("locale") ?? "es";
+  const rawPos = url.searchParams.get("position") ?? "right";
+  const position: Position = rawPos === "left" ? "left" : "right";
+  const color = url.searchParams.get("color") ?? "#8b5cf6";
+
   const base = `${url.protocol}//${url.host}`;
-  const body = SCRIPT(channelId, base);
+  const body = buildScript(channelId, base, { locale, position, color });
   return new NextResponse(body, {
     status: 200,
     headers: {
