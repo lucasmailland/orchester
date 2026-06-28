@@ -1,10 +1,20 @@
 // app/[locale]/[workspaceSlug]/(shell)/brain/graph/page.tsx
 import { Suspense } from "react";
 import { getTranslations } from "next-intl/server";
+import { getCurrentWorkspaceBySlug } from "@/lib/workspace";
+import { isEnabled } from "@/lib/feature-flags";
 import { BrainGraph } from "@/components/brain/graph/BrainGraph";
 
-export default async function BrainGraphPage() {
+export default async function BrainGraphPage({
+  params,
+}: {
+  params: Promise<{ locale: string; workspaceSlug: string }>;
+}) {
+  const { workspaceSlug } = await params;
   const t = await getTranslations("brain.graph");
+  const ctx = await getCurrentWorkspaceBySlug(workspaceSlug);
+  const allow3d = ctx ? await isEnabled(ctx.workspace.id, "brain_graph_3d") : false;
+
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <Suspense
@@ -14,7 +24,7 @@ export default async function BrainGraphPage() {
           </div>
         }
       >
-        <BrainGraph />
+        <BrainGraph allow3d={allow3d} />
       </Suspense>
     </div>
   );

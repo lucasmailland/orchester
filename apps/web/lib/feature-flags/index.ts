@@ -4,3 +4,4 @@
 export * from "./check";
 export * from "./admin";
 export { invalidateFlag, invalidateAll } from "./cache";
+export * from "./known-flags";

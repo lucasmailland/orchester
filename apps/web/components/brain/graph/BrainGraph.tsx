@@ -46,7 +46,7 @@ const ForceGraph3D = dynamic(() => import("react-force-graph-3d"), { ssr: false 
 // `z` only exists in 3D mode.
 type SimNode = GraphNode & { x: number; y: number; z?: number; fx?: number; fy?: number };
 
-export function BrainGraph() {
+export function BrainGraph({ allow3d = false }: { allow3d?: boolean }) {
   const t = useTranslations("brain.graph");
   const router = useRouter();
   const params = useParams<{ locale: string; workspaceSlug: string }>();
@@ -621,23 +621,22 @@ export function BrainGraph() {
         style={{ right: ctrlRight }}
       >
         <div className="flex rounded-lg bg-[#0c0c10]/90 backdrop-blur-xl border border-zinc-800/80 p-0.5 text-xs font-semibold shadow-lg shadow-black/40">
-          {(
-            [
-              ["echarts", "ECharts"],
-              ["3d", "3D"],
-            ] as const
-          ).map(([r, lbl]) => (
-            <button
-              key={r}
-              onClick={() => setRenderer(r)}
-              className={
-                "px-2 py-1 rounded-md transition-colors " +
-                (renderer === r ? "bg-violet-600 text-white" : "text-zinc-400 hover:text-zinc-100")
-              }
-            >
-              {lbl}
-            </button>
-          ))}
+          {([["echarts", "ECharts"], ...(allow3d ? ([["3d", "3D"]] as const) : [])] as const).map(
+            ([r, lbl]) => (
+              <button
+                key={r}
+                onClick={() => setRenderer(r as "echarts" | "3d")}
+                className={
+                  "px-2 py-1 rounded-md transition-colors " +
+                  (renderer === r
+                    ? "bg-violet-600 text-white"
+                    : "text-zinc-400 hover:text-zinc-100")
+                }
+              >
+                {lbl}
+              </button>
+            )
+          )}
         </div>
         {renderer === "echarts" && (
           <div className="flex rounded-lg bg-[#0c0c10]/90 backdrop-blur-xl border border-zinc-800/80 p-0.5 text-xs font-semibold shadow-lg shadow-black/40">
