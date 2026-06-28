@@ -1,12 +1,10 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { useTranslations } from "next-intl";
 import { ThemeToggle } from "./ThemeToggle";
 import { LanguageSelector } from "./LanguageSelector";
 import { PresentationModeToggle } from "./PresentationModeToggle";
 import { UserMenu } from "./UserMenu";
-import { fadeInDown } from "@/lib/motion";
 import { usePresentationMode } from "@/components/providers/PresentationModeProvider";
 import { cn } from "@/lib/utils";
 
@@ -23,10 +21,7 @@ export function Topbar({ locale: _locale, userName, userEmail, userImage }: Topb
   const t = useTranslations("shell");
 
   return (
-    <motion.header
-      variants={fadeInDown}
-      initial="hidden"
-      animate="visible"
+    <header
       className={cn(
         "flex h-14 shrink-0 items-center justify-between px-5",
         "border-b border-line bg-surface/80 backdrop-blur-md"
@@ -44,16 +39,18 @@ export function Topbar({ locale: _locale, userName, userEmail, userImage }: Topb
           </span>
         </div>
 
-        {isPresenting && (
-          <motion.span
-            initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -8 }}
-            className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-[11px] font-medium text-violet-600 dark:text-violet-400"
-          >
-            {t("presentationMode")}
-          </motion.span>
-        )}
+        <span
+          className={cn(
+            "rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5",
+            "text-[11px] font-medium text-violet-600 dark:text-violet-400",
+            "transition-all duration-200",
+            isPresenting
+              ? "pointer-events-auto max-w-xs opacity-100"
+              : "pointer-events-none max-w-0 overflow-hidden opacity-0"
+          )}
+        >
+          {t("presentationMode")}
+        </span>
       </div>
 
       {/* Right: controls */}
@@ -66,6 +63,6 @@ export function Topbar({ locale: _locale, userName, userEmail, userImage }: Topb
 
         <UserMenu userName={userName} userEmail={userEmail} userImage={userImage} />
       </div>
-    </motion.header>
+    </header>
   );
 }

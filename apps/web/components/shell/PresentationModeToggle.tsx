@@ -2,7 +2,6 @@
 
 import { Button, Tooltip } from "@heroui/react";
 import { Presentation } from "lucide-react";
-import { motion } from "framer-motion";
 import { useTranslations } from "next-intl";
 import { usePresentationMode } from "@/components/providers/PresentationModeProvider";
 import { cn } from "@/lib/utils";
@@ -24,12 +23,7 @@ export function PresentationModeToggle() {
           isPresenting ? "text-fichap-primary" : "text-muted hover:text-strong"
         )}
       >
-        <motion.div
-          animate={{ scale: isPresenting ? [1, 1.2, 1] : 1 }}
-          transition={{ duration: 0.3 }}
-        >
-          <Presentation size={16} />
-        </motion.div>
+        <Presentation size={16} />
       </Button>
     </Tooltip>
   );
