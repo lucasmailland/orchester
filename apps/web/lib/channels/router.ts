@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck — Phase 3: recall path stubbed; channels routing still active.
 import "server-only";
 import { createId } from "@paralleldrive/cuid2";
 import { eq, and, desc } from "drizzle-orm";
@@ -449,7 +447,6 @@ async function buildConversationContext(
         workspaceId,
         query: String(lastUserMsg.content).slice(0, 500),
         topK: 3,
-        agentId: agent.id,
       });
       if (hits.length > 0) {
         const lines = hits
