@@ -5,12 +5,15 @@ import { eq, and } from "drizzle-orm";
 import { requireAction } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
+import { updateKnowledgeBase } from "@/lib/knowledge/kb-store";
 
 const updateKbSchema = z.object({
   name: z.string().optional(),
   description: z.string().nullable().optional(),
   chunkSize: z.number().optional(),
   chunkOverlap: z.number().optional(),
+  embeddingModel: z.string().optional(),
+  embeddingProvider: z.string().optional(),
 });
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -47,24 +50,26 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const result = await requireAction({
     minRole: "editor",
     run: async ({ ctx, tx }) => {
-      const updated = await tx
-        .update(schema.knowledgeBases)
-        .set({
-          ...(body.name !== undefined && { name: body.name }),
-          ...(body.description !== undefined && { description: body.description }),
-          ...(body.chunkSize !== undefined && { chunkSize: body.chunkSize }),
-          ...(body.chunkOverlap !== undefined && { chunkOverlap: body.chunkOverlap }),
-          updatedAt: new Date(),
-        })
+      try {
+        await updateKnowledgeBase(ctx.workspace.id, id, body);
+      } catch (e) {
+        if (e instanceof Error && /re-index/i.test(e.message)) {
+          return { _err: e.message, _status: 409 as const };
+        }
+        throw e;
+      }
+      const rows = await tx
+        .select()
+        .from(schema.knowledgeBases)
         .where(
           and(
             eq(schema.knowledgeBases.id, id),
             eq(schema.knowledgeBases.workspaceId, ctx.workspace.id)
           )
         )
-        .returning();
-      const row = updated[0];
-      if (!row) return { _err: "Not found", _status: 404 };
+        .limit(1);
+      const row = rows[0];
+      if (!row) return { _err: "Not found", _status: 404 as const };
       return { row };
     },
   });

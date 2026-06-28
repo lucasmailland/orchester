@@ -17,21 +17,27 @@ export async function embedWith(
 ): Promise<EmbeddingResult> {
   if (providerId === "google") return googleEmbed(p, cred);
   const url = baseURL ?? cred.endpoint;
-  if (family === "openai-compatible" && url) return openaiEmbed(p, cred, url);
+  if (family === "openai-compatible" && url)
+    return openaiEmbed(p, cred, url, providerId === "openai" ? 1536 : undefined);
   throw new Error(`Embeddings con ${providerId} todavía no implementado.`);
 }
 
 async function openaiEmbed(
   p: EmbeddingParams,
   cred: Cred,
-  baseURL: string
+  baseURL: string,
+  dims?: number
 ): Promise<EmbeddingResult> {
   const r = await fetchWithTimeout(
     `${baseURL.replace(/\/$/, "")}/embeddings`,
     {
       method: "POST",
       headers: { Authorization: `Bearer ${cred.apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({ model: p.model, input: p.input }),
+      body: JSON.stringify({
+        model: p.model,
+        input: p.input,
+        ...(dims != null ? { dimensions: dims } : {}),
+      }),
     },
     EMBED_TIMEOUT_MS
   );
