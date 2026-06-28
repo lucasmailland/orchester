@@ -301,6 +301,43 @@ export function listAllTools(): ToolDefinition[] {
   return Object.values(BUILTINS);
 }
 
+function customToolDefinition(row: {
+  name: string;
+  description: string | null;
+  config: Record<string, unknown>;
+}): ToolDefinition {
+  const params = (row.config?.parameters as Record<string, unknown> | undefined) ?? {
+    type: "object",
+    properties: {},
+  };
+  return {
+    name: row.name,
+    description: row.description ?? `Custom tool ${row.name}`,
+    inputSchema: params,
+  };
+}
+
+/** Workspace-aware tool resolution (KNOW-1). Merges builtin definitions with
+ *  registered agent_tool rows whose id or name is in enabledIds. Builtins win on name collision. */
+export async function getToolDefinitionsForWorkspace(
+  workspaceId: string,
+  enabledIds: string[],
+  tx?: WsDb
+): Promise<ToolDefinition[]> {
+  const builtins = getToolDefinitions(enabledIds);
+  const builtinNames = new Set(builtins.map((b) => b.name));
+  const db = tx ?? getDb();
+  const rows = await db
+    .select()
+    .from(schema.agentTools)
+    .where(eq(schema.agentTools.workspaceId, workspaceId));
+  const custom = rows
+    .filter((r) => enabledIds.includes(r.id) || enabledIds.includes(r.name))
+    .filter((r) => !builtinNames.has(r.name))
+    .map((r) => customToolDefinition(r));
+  return [...builtins, ...custom];
+}
+
 /** Safe shunting-yard arithmetic evaluator (no JS eval). Supports + - * / % ( ). */
 function safeEvalArithmetic(expr: string): number {
   // Tokenize
@@ -628,6 +665,50 @@ export async function executeTool(
       (input.input as Record<string, unknown>) ?? {},
       ctx.tx
     );
+  }
+
+  // KNOW-1: custom workspace tool (agent_tool row). Resolved by name within the workspace.
+  {
+    const db = ctx.tx ?? getDb();
+    const rows = await db
+      .select()
+      .from(schema.agentTools)
+      .where(
+        and(eq(schema.agentTools.workspaceId, ctx.workspaceId), eq(schema.agentTools.name, name))
+      )
+      .limit(1);
+    const row = rows[0];
+    if (row && (row.kind === "http_request" || row.kind === "custom")) {
+      const cfg = row.config as {
+        urlTemplate?: string;
+        method?: string;
+        headers?: Record<string, string>;
+        bodyTemplate?: string;
+      };
+      const tmpl = String(cfg.urlTemplate ?? "");
+      if (!tmpl) throw new Error(`Custom tool ${name} has no urlTemplate`);
+      const url = tmpl.replace(/\{\{([^}]+)\}\}/g, (_, k: string) =>
+        encodeURIComponent(String(input[k.trim()] ?? ""))
+      );
+      assertPublicUrl(url);
+      const method = (cfg.method ?? "GET").toUpperCase();
+      const init: RequestInit = {
+        method,
+        headers: cfg.headers ?? { Accept: "application/json" },
+      };
+      if (method !== "GET" && cfg.bodyTemplate) {
+        init.body = cfg.bodyTemplate.replace(/\{\{([^}]+)\}\}/g, (_, k: string) =>
+          String(input[k.trim()] ?? "")
+        );
+      }
+      const r = await fetchWithTimeout(url, init, HTTP_REQUEST_TIMEOUT_MS);
+      const text = await r.text();
+      let body: unknown = text;
+      try {
+        body = JSON.parse(text);
+      } catch {}
+      return { status: r.status, body };
+    }
   }
 
   if (name === "agent_call") {

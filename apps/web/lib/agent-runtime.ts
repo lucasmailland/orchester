@@ -7,7 +7,7 @@ import "server-only";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { llmCall, type ChatMessage } from "./llm-call";
-import { executeTool, getToolDefinitions, type ToolCall } from "./tools";
+import { executeTool, getToolDefinitionsForWorkspace, type ToolCall } from "./tools";
 import { assertWithinSpend } from "./cost-alerts";
 import { recordAiUsage } from "./ai/run";
 import { calculateChatCostUsd } from "./pricing";
@@ -514,7 +514,10 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
   const cacheBoundary = cachedPrefix.length > 0 ? cachedPrefix.length : undefined;
 
   // Tool-calling loop (currently Anthropic only — others fall through to plain chat)
-  const toolDefs = enabledTools.length > 0 ? getToolDefinitions(enabledTools) : [];
+  const toolDefs =
+    enabledTools.length > 0
+      ? await getToolDefinitionsForWorkspace(p.workspaceId, enabledTools, p.tx)
+      : [];
   const toolCalls: RunAgentResult["toolCalls"] = [];
   let messages = [...p.messages];
   let totalTokens = 0;
