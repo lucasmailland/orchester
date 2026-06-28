@@ -322,9 +322,7 @@ export function ConversationsClient({
             >
               <SelectItem key="widget">{t("channel.widget")}</SelectItem>
               <SelectItem key="telegram">{t("channel.telegram")}</SelectItem>
-              <SelectItem key="whatsapp">{t("channel.whatsapp")}</SelectItem>
-              <SelectItem key="slack">{t("channel.slack")}</SelectItem>
-              <SelectItem key="email">{t("channel.email")}</SelectItem>
+              <SelectItem key="web">{t("channel.web")}</SelectItem>
               <SelectItem key="api">{t("channel.api")}</SelectItem>
             </Select>
             <Select

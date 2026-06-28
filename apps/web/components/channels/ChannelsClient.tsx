@@ -29,6 +29,7 @@ import { TemplatePicker } from "@/components/compass/TemplatePicker";
 import { TourSpot } from "@/components/compass/TourSpot";
 import type { ChannelTemplatePayload, CompassTemplate } from "@/lib/compass/templates";
 import { useTemplateCreateFlow } from "@/lib/compass/use-template-create-flow";
+import { isChannelSupported } from "@/lib/channels/supported";
 
 type ChannelType = "widget" | "telegram" | "slack" | "whatsapp" | "email" | "api" | "web";
 
@@ -57,15 +58,12 @@ const TYPE_ICONS: Record<ChannelType, typeof Globe> = {
   email: Mail,
   api: Webhook,
 };
-const TYPE_SUPPORTED: Record<ChannelType, boolean> = {
-  widget: true,
-  web: true,
-  telegram: true,
-  whatsapp: false,
-  slack: false,
-  email: false,
-  api: true,
-};
+const TYPE_SUPPORTED: Record<ChannelType, boolean> = Object.fromEntries(
+  (["widget", "web", "telegram", "whatsapp", "slack", "email", "api"] as ChannelType[]).map((t) => [
+    t,
+    isChannelSupported(t),
+  ])
+) as Record<ChannelType, boolean>;
 
 export function ChannelsClient({ channels, agents }: { channels: Channel[]; agents: Agent[] }) {
   const router = useRouter();
