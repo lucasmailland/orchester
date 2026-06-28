@@ -499,38 +499,86 @@ async function callGoogle(p: LlmCallParams, apiKey: string): Promise<LlmCallResu
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
     p.model
   )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const contents = p.messages
+    .filter((m) => m.role !== "system")
+    .map((m) => {
+      if (m.role === "tool") {
+        return {
+          role: "user" as const,
+          parts: (m.toolResults ?? []).map((tr) => ({
+            functionResponse: {
+              name: tr.name,
+              response: { result: tr.error ? `Error: ${tr.error}` : (tr.output ?? null) },
+            },
+          })),
+        };
+      }
+      if (m.role === "assistant" && m.toolCalls?.length) {
+        return {
+          role: "model" as const,
+          parts: m.toolCalls.map((tc) => ({
+            functionCall: { name: tc.name, args: tc.input ?? {} },
+          })),
+        };
+      }
+      return {
+        role: m.role === "assistant" ? ("model" as const) : ("user" as const),
+        parts: [{ text: m.content }],
+      };
+    });
+  const body: Record<string, unknown> = {
+    systemInstruction: { parts: [{ text: p.systemPrompt }] },
+    contents,
+    generationConfig: { temperature: p.temperature ?? 0.7, maxOutputTokens: p.maxTokens ?? 1024 },
+  };
+  // KNOW-6: wire functionDeclarations so agents with tools work on Gemini.
+  if (p.tools?.length) {
+    body.tools = [
+      {
+        functionDeclarations: p.tools.map((t) => ({
+          name: t.name,
+          description: t.description,
+          parameters: t.inputSchema,
+        })),
+      },
+    ];
+  }
   const j = await withRetry(async () => {
     const r = await fetchWithTimeout(
       url,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: p.systemPrompt }] },
-          contents: p.messages
-            .filter((m) => m.role !== "tool" && m.role !== "system")
-            .map((m) => ({
-              role: m.role === "assistant" ? "model" : "user",
-              parts: [{ text: m.content }],
-            })),
-          generationConfig: {
-            temperature: p.temperature ?? 0.7,
-            maxOutputTokens: p.maxTokens ?? 1024,
-          },
-        }),
+        body: JSON.stringify(body),
       },
       LLM_TIMEOUT_MS
     );
     if (!r.ok) throw new HttpError(r.status, `Google ${r.status}: ${await r.text()}`);
     return r.json();
   });
-  const content = j.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-  return {
-    content,
+  const parts = (j.candidates?.[0]?.content?.parts ?? []) as Array<{
+    text?: string;
+    functionCall?: { name: string; args?: unknown };
+  }>;
+  const text = parts
+    .filter((x) => typeof x.text === "string")
+    .map((x) => x.text)
+    .join("");
+  const toolCalls: ToolUseBlock[] = parts
+    .filter((x) => x.functionCall)
+    .map((x, i) => ({
+      id: `gemini-${i}-${x.functionCall!.name}`,
+      name: x.functionCall!.name,
+      input: (x.functionCall!.args ?? {}) as Record<string, unknown>,
+    }));
+  const result: LlmCallResult = {
+    content: text,
     tokensUsed:
       (j.usageMetadata?.promptTokenCount ?? 0) + (j.usageMetadata?.candidatesTokenCount ?? 0),
     model: p.model,
   };
+  if (toolCalls.length) result.toolCalls = toolCalls;
+  return result;
 }
 
 async function callAzure(
@@ -541,31 +589,42 @@ async function callAzure(
   if (!endpoint) throw new Error("Azure endpoint not configured");
   const deployment = p.model.replace(/^azure\//, "");
   const url = `${endpoint.replace(/\/$/, "")}/openai/deployments/${deployment}/chat/completions?api-version=2024-02-01`;
-  const messages = p.messages
-    .filter((m) => m.role !== "tool")
-    .map((m) => ({ role: m.role as "user" | "assistant" | "system", content: m.content }));
+  // KNOW-6: reuse toOpenAIMessages/toOpenAITools so tool-calling works on Azure.
+  const body: Record<string, unknown> = {
+    messages: toOpenAIMessages(p),
+    temperature: p.temperature ?? 0.7,
+    max_tokens: p.maxTokens ?? 1024,
+  };
+  const tools = toOpenAITools(p.tools);
+  if (tools) body.tools = tools;
   const j = await withRetry(async () => {
     const r = await fetchWithTimeout(
       url,
       {
         method: "POST",
         headers: { "api-key": apiKey, "content-type": "application/json" },
-        body: JSON.stringify({
-          messages: [{ role: "system", content: p.systemPrompt }, ...messages],
-          temperature: p.temperature ?? 0.7,
-          max_tokens: p.maxTokens ?? 1024,
-        }),
+        body: JSON.stringify(body),
       },
       LLM_TIMEOUT_MS
     );
     if (!r.ok) throw new HttpError(r.status, `Azure ${r.status}: ${await r.text()}`);
     return r.json();
   });
-  return {
-    content: j.choices?.[0]?.message?.content ?? "",
+  const msg = j.choices?.[0]?.message ?? {};
+  const toolCalls: ToolUseBlock[] = (msg.tool_calls ?? []).map(
+    (tc: { id: string; function: { name: string; arguments: string } }) => ({
+      id: tc.id,
+      name: tc.function?.name ?? "",
+      input: (safeJsonParse(tc.function?.arguments ?? "{}") ?? {}) as Record<string, unknown>,
+    })
+  );
+  const result: LlmCallResult = {
+    content: msg.content ?? "",
     tokensUsed: j.usage?.total_tokens ?? 0,
     model: p.model,
   };
+  if (toolCalls.length) result.toolCalls = toolCalls;
+  return result;
 }
 
 /**
