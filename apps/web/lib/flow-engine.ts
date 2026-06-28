@@ -2,7 +2,6 @@ import "server-only";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and, inArray, lt, count, sql } from "drizzle-orm";
-import { llmCall } from "./llm-call";
 import { enqueue, JOB_FLOW_RUN } from "./queue";
 import { assertPublicUrlResolved } from "./net-guard";
 import { logWithContext, recordMetric } from "./observability";
@@ -631,44 +630,29 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
   agent: async ({ cfg, ctx, workspaceId, helpers }) => {
     const agentId = cfg.agentId as string | undefined;
     if (!agentId) throw new Error("Falta elegir el agente en este paso.");
-    // `prompt` (registry) se antepone al mensaje entrante; `message` es el legado.
     const extra = cfg.prompt ? interpolate(cfg.prompt as string, ctx.variables) : "";
     const incoming = interpolate((cfg.message as string) ?? "{{message}}", ctx.variables);
     const userMessage = [extra, incoming].filter((s) => s && s.trim()).join("\n\n") || incoming;
-    // R2-C: agent lookup needs the workspace GUC (FORCE RLS).
-    const agent = await withFlowTx(workspaceId, async (tx) => {
+    // ORCH-4: route through the full runAgent path so a flow-embedded agent gets
+    // tools, memory/recall, responseFormat/JSON validation, the guardrail, and
+    // variable interpolation — identical to the same agent in chat. runAgent
+    // handles assertWithinSpend + recordAiUsage internally; do NOT meter here
+    // to avoid double-counting.
+    const result = await withFlowTx(workspaceId, async (tx) => {
       const aRows = await tx
         .select()
         .from(schema.agents)
         .where(eq(schema.agents.id, agentId))
         .limit(1);
-      return aRows[0];
-    });
-    if (!agent) throw new Error(`agent not found: ${agentId}`);
-    // Este nodo usa `llmCall` directo (no runChat), así que el guard y el
-    // metering se hacen acá explícitamente (D4-1 / E3-1).
-    const { assertWithinSpend } = await import("./cost-alerts");
-    await withFlowTx(workspaceId, (tx) => assertWithinSpend(workspaceId, tx));
-    const result = await withFlowTx(workspaceId, (tx) =>
-      llmCall({
+      const agent = aRows[0];
+      if (!agent) throw new Error(`agent not found: ${agentId}`);
+      const { runAgent } = await import("./agent-runtime");
+      return runAgent({
         workspaceId,
-        model: agent.model,
-        systemPrompt: agent.systemPrompt,
+        agent,
         messages: [{ role: "user", content: userMessage }],
-        temperature: agent.temperature ? Number(agent.temperature) : 0.7,
-        ...(agent.maxTokens != null && { maxTokens: agent.maxTokens }),
         tx,
-      })
-    );
-    const { recordAiUsage } = await import("./ai/run");
-    const { calculateChatCostUsd } = await import("./pricing");
-    await recordAiUsage({
-      workspaceId,
-      capability: "chat",
-      model: result.model,
-      tokensOut: result.tokensUsed,
-      tokensTotal: result.tokensUsed,
-      costUsd: calculateChatCostUsd(result.model, 0, result.tokensUsed),
+      });
     });
     const outputVar = (cfg.outputVar as string) ?? "agentResult";
     ctx.variables[outputVar] = result.content;
