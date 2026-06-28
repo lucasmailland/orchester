@@ -104,8 +104,54 @@ jobs:
       - name: Audit invariants (RBAC + zod + spend guard + metering + flow signal)
         run: bash scripts/audit-invariants.sh
 
-      - name: Tests
-        run: pnpm --filter web vitest run
+      - name: Tests (with coverage thresholds)
+        run: pnpm --filter web test:coverage
+
+      - name: DB package tests
+        run: pnpm --filter @orchester/db test
 
       - name: Build
         run: pnpm --filter web build
+
+  e2e:
+    name: Playwright e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: test
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: orchester
+          POSTGRES_PASSWORD: orchester
+          POSTGRES_DB: orchester
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://orchester:orchester@localhost:5432/orchester
+      BETTER_AUTH_SECRET: ci-test-secret-not-real-32chars-ok
+      BETTER_AUTH_URL: http://localhost:3334
+      NEXT_PUBLIC_APP_URL: http://localhost:3334
+      ENCRYPTION_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Bootstrap vendor submodules
+        run: bash scripts/bootstrap-vendor.sh
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Apply migrations
+        run: pnpm --filter @orchester/db migrate
+      - name: Install Playwright browsers
+        run: pnpm --filter web exec playwright install --with-deps chromium
+      - name: Run e2e
+        run: pnpm --filter web exec playwright test
