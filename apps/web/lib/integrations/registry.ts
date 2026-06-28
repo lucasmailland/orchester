@@ -435,13 +435,43 @@ const googleWorkspace: Connector = {
   async test(config) {
     if (!config.clientId || !config.clientSecret)
       return { ok: false, error: "Missing client ID / secret for the OAuth app." };
-    // Without completing the OAuth flow (consent + tokens) we can't call the APIs.
-    return {
-      ok: false,
-      error: "OAuth app configured. Complete the authorization flow to connect (pending consent).",
-    };
+    if (!config.tokens)
+      return {
+        ok: false,
+        error:
+          "OAuth app configured. Complete the authorization flow to connect (pending consent).",
+      };
+    return { ok: true };
   },
-  actions: {},
+  actions: {
+    calendar_list_events: {
+      description: "List upcoming Google Calendar events from the primary calendar.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          maxResults: { type: "number", description: "Maximum number of events (default 10)" },
+        },
+        required: [],
+      },
+      async run(config, input) {
+        const tokensRaw = config.tokens;
+        const tokens =
+          typeof tokensRaw === "string"
+            ? (JSON.parse(tokensRaw) as { access_token?: string })
+            : (tokensRaw as { access_token?: string } | undefined);
+        const accessToken = tokens?.access_token;
+        if (!accessToken)
+          throw new Error("No access token — complete the authorization flow first");
+        const maxResults = Number(input.maxResults ?? 10);
+        const timeMin = new Date().toISOString();
+        const r = await fetchJson(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=${maxResults}&orderBy=startTime&singleEvents=true&timeMin=${encodeURIComponent(timeMin)}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        return r.json;
+      },
+    },
+  },
 };
 
 const slack: Connector = {

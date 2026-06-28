@@ -25,6 +25,7 @@ export async function loadIntegration(
   name: string;
   config: Record<string, string>;
   enabled: boolean;
+  status: string;
 } | null> {
   const db = tx ?? getDb();
   const row = (
@@ -42,11 +43,18 @@ export async function loadIntegration(
   if (!row) return null;
   let config: Record<string, string> = {};
   try {
-    config = JSON.parse(decrypt(row.configEncrypted));
+    config = JSON.parse(decrypt(row.configEncrypted)) as Record<string, string>;
   } catch {
     /* corrupto → vacío */
   }
-  return { id: row.id, type: row.type, name: row.name, config, enabled: row.enabled };
+  return {
+    id: row.id,
+    type: row.type,
+    name: row.name,
+    config,
+    enabled: row.enabled,
+    status: row.status,
+  };
 }
 
 /** Lista integraciones del workspace SIN credenciales (seguro para UI). */
@@ -200,6 +208,8 @@ export async function runIntegrationAction(
   const loaded = await loadIntegration(workspaceId, integrationId, tx);
   if (!loaded) throw new Error("Integración no encontrada");
   if (!loaded.enabled) throw new Error("Integración deshabilitada");
+  if (loaded.status !== "connected")
+    throw new Error(`La integración no está conectada (status=${loaded.status}). not connected.`);
   const connector = getConnector(loaded.type);
   if (!connector) throw new Error("Connector desconocido");
   const action = connector.actions[actionKey];
