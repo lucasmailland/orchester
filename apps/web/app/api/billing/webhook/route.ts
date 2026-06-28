@@ -9,6 +9,7 @@ import crypto from "node:crypto";
 import { schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
+import { logAudit } from "@/lib/audit";
 
 type Plan = "free" | "starter" | "pro" | "business";
 
@@ -119,6 +120,14 @@ export async function POST(req: Request) {
           cancelAtPeriodEnd,
         })
         .onConflictDoUpdate({ target: schema.workspaceBilling.workspaceId, set });
+      await logAudit({
+        workspaceId,
+        action: "billing.plan_change",
+        resource: "workspace_billing",
+        resourceId: workspaceId,
+        actorKind: "system",
+        after: { plan: resolvedPlan ?? "free", eventType: event.type },
+      });
     });
   } else if (event.type === "customer.subscription.deleted") {
     await withCrossTenantAdmin("billing.stripe_webhook", async (tx) => {
@@ -131,6 +140,14 @@ export async function POST(req: Request) {
           updatedAt: new Date(),
         })
         .where(eq(schema.workspaceBilling.workspaceId, workspaceId));
+      await logAudit({
+        workspaceId,
+        action: "billing.plan_change",
+        resource: "workspace_billing",
+        resourceId: workspaceId,
+        actorKind: "system",
+        after: { plan: "free", eventType: event.type },
+      });
     });
   }
 

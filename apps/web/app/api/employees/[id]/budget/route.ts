@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { requireAction } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { checkEmployeeBudget } from "@/lib/employee-budget";
+import { logAudit } from "@/lib/audit";
 
 const updateBudgetSchema = z.object({
   monthlyBudgetUsd: z.number().nonnegative().nullable(),
@@ -38,7 +39,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const result = await requireAction({
     minRole: "admin",
-    run: async ({ ctx, tx }) => {
+    run: async ({ ctx, user, tx }) => {
       const updated = await tx
         .update(schema.employees)
         .set({ monthlyBudgetUsd: value == null ? null : String(value) })
@@ -49,6 +50,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         });
       const row = updated[0];
       if (!row) return { _err: "Not found", _status: 404 };
+      await logAudit({
+        workspaceId: ctx.workspace.id,
+        userId: user.id,
+        action: "employee.budget_update",
+        resource: "employee",
+        resourceId: id,
+        after: { monthlyBudgetUsd: row.monthlyBudgetUsd },
+      });
       return { row };
     },
   });
