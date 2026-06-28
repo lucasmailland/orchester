@@ -43,7 +43,9 @@ import {
   Redo2,
   LayoutGrid,
   ShieldCheck,
+  GitBranch,
 } from "lucide-react";
+import { ConfirmAction } from "@/components/compass/ConfirmAction";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
@@ -136,6 +138,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const [selected, setSelected] = useState<Node | null>(null);
   const [variables, setVariables] = useState<Record<string, unknown>>(flow.variables ?? {});
   const [varsOpen, setVarsOpen] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
@@ -623,6 +626,14 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             </button>
             <button
               type="button"
+              onClick={() => setVersionsOpen((o) => !o)}
+              className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover"
+              title="Versiones"
+            >
+              <GitBranch className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
               onClick={() => save()}
               disabled={saving}
               className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs hover:bg-hover disabled:opacity-40"
@@ -657,6 +668,9 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               onChange={setVariables}
               onClose={() => setVarsOpen(false)}
             />
+          )}
+          {versionsOpen && (
+            <FlowVersionsPanel flowId={flow.id} onClose={() => setVersionsOpen(false)} />
           )}
           <div
             className="relative flex-1"
@@ -1336,6 +1350,97 @@ function VariablesPanel({
           + agregar variable
         </button>
       </div>
+    </div>
+  );
+}
+
+interface FlowVersion {
+  id: string;
+  label: string | null;
+  createdAt: string;
+}
+
+function FlowVersionsPanel({ flowId, onClose }: { flowId: string; onClose: () => void }) {
+  const [versions, setVersions] = useState<FlowVersion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [restoring, setRestoring] = useState<string | null>(null);
+  const [confirmVersion, setConfirmVersion] = useState<FlowVersion | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/flows/${flowId}/versions`)
+      .then((r) => r.json())
+      .then((data) => setVersions(Array.isArray(data) ? data : []))
+      .catch(() => setVersions([]))
+      .finally(() => setLoading(false));
+  }, [flowId]);
+
+  async function doRestore(vid: string) {
+    setRestoring(vid);
+    try {
+      const r = await fetch(`/api/flows/${flowId}/versions/${vid}/restore`, { method: "POST" });
+      if (r.ok) {
+        toast.success("Versión restaurada");
+        window.location.reload();
+      } else {
+        toast.error("No se pudo restaurar");
+      }
+    } finally {
+      setRestoring(null);
+      setConfirmVersion(null);
+    }
+  }
+
+  return (
+    <div className="absolute left-48 top-0 z-30 flex h-full w-[300px] flex-col border-r border-line bg-surface">
+      <div className="flex items-center justify-between border-b border-line px-4 py-3">
+        <span className="flex items-center gap-2 text-sm text-body">
+          <GitBranch className="h-4 w-4" /> Versiones
+        </span>
+        <button onClick={onClose} type="button" className="text-muted hover:text-body">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-3 text-xs">
+        {loading && <p className="text-muted">Cargando…</p>}
+        {!loading && versions.length === 0 && (
+          <p className="text-muted">Sin versiones guardadas.</p>
+        )}
+        {versions.map((v) => (
+          <div key={v.id} className="mb-2 rounded-lg border border-line bg-card p-2.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate font-medium text-strong">{v.label ?? "Sin etiqueta"}</p>
+                <p className="text-[10px] text-muted">{new Date(v.createdAt).toLocaleString()}</p>
+              </div>
+              <button
+                type="button"
+                disabled={restoring === v.id}
+                onClick={() => setConfirmVersion(v)}
+                className="shrink-0 rounded-md border border-line px-2 py-0.5 text-[10px] text-body hover:bg-hover disabled:opacity-50"
+              >
+                {restoring === v.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Restaurar"}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <ConfirmAction
+        open={confirmVersion !== null}
+        onClose={() => setConfirmVersion(null)}
+        title="¿Restaurar esta versión?"
+        action="Restaurar"
+        impact={
+          confirmVersion
+            ? [
+                { label: "Versión", value: confirmVersion.label ?? "Sin etiqueta" },
+                { label: "Fecha", value: new Date(confirmVersion.createdAt).toLocaleString() },
+              ]
+            : []
+        }
+        onConfirm={() => {
+          if (confirmVersion) doRestore(confirmVersion.id);
+        }}
+      />
     </div>
   );
 }

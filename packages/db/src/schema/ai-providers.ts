@@ -10,7 +10,7 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 import { workspaces } from "./workspaces";
-import { agents } from "./core";
+import { agents, agentResponseFormatEnum } from "./core";
 
 export const aiProviderTypeEnum = pgEnum("ai_provider_type", [
   "anthropic",
@@ -64,6 +64,10 @@ export const agentVersions = pgTable("agent_version", {
   temperature: numeric("temperature", { precision: 3, scale: 2 }),
   maxTokens: integer("max_tokens"),
   label: text("label"),
+  tools: jsonb("tools").$type<string[]>().default([]),
+  variables: jsonb("variables").$type<Record<string, string>>().default({}),
+  responseFormat: agentResponseFormatEnum("response_format").notNull().default("text"),
+  outputSchema: jsonb("output_schema").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
