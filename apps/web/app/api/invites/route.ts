@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
 import { eq, desc, sql } from "drizzle-orm";
-import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { requireAuth, isAuthContext, satisfiesRole, type Role } from "@/lib/auth-guards";
 import { hashApiKey } from "@/lib/api-auth/key";
 import { checkQuota } from "@/lib/billing/quotas";
 import { logAudit } from "@/lib/audit";
@@ -51,7 +51,11 @@ export async function POST(req: Request) {
   const email = String(parsed.data.email ?? "")
     .trim()
     .toLowerCase();
-  const role = parsed.data.role ?? "editor";
+  const requestedRole = parsed.data.role ?? "editor";
+  // SEC-16: an inviter cannot grant a role higher than their own.
+  const role: "admin" | "editor" | "viewer" = satisfiesRole(ctx.role, requestedRole as Role)
+    ? requestedRole
+    : (ctx.role as "admin" | "editor" | "viewer");
   if (!email || !email.includes("@"))
     return NextResponse.json({ error: "Valid email required" }, { status: 400 });
   // SEC-11: never persist the plaintext token — store the sha256 hash instead.

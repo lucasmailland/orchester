@@ -12,8 +12,8 @@ export default async function InvitePage({
   const { token, locale } = await params;
   const session = await getCurrentSession();
   if (!session) {
-    // Redirect to login with callbackUrl
-    redirect(`/${locale}/login?callbackUrl=/${locale}/invite/${token}`);
+    // Redirect to login; LoginForm reads ?return= (not ?callbackUrl=).
+    redirect(`/${locale}/login?return=/${locale}/invite/${token}`);
   }
   const db = getDb();
   const rows = await db
