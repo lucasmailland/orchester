@@ -85,6 +85,13 @@
       "when": 1782600000000,
       "tag": "0011_audit_log_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1782700000000,
+      "tag": "0012_fase2",
+      "breakpoints": true
     }
   ]
 }

@@ -624,7 +624,9 @@
         "flows": "fluxos",
         "active": "ativos",
         "flow": "Flow"
-      }
+      },
+      "loadError": "Não foi possível carregar o organograma.",
+      "retry": "Tentar novamente"
     },
     "teams": {
       "title": "Equipes",

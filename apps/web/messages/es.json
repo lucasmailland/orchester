@@ -624,7 +624,9 @@
         "flows": "flujos",
         "active": "activos",
         "flow": "Flow"
-      }
+      },
+      "loadError": "No se pudo cargar el organigrama.",
+      "retry": "Reintentar"
     },
     "teams": {
       "title": "Equipos",

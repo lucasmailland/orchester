@@ -624,7 +624,9 @@
         "flows": "flows",
         "active": "active",
         "flow": "Flow"
-      }
+      },
+      "loadError": "Could not load the org chart.",
+      "retry": "Retry"
     },
     "teams": {
       "title": "Teams",
