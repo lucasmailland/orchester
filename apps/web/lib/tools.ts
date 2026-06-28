@@ -2,7 +2,7 @@
 // @ts-nocheck — Phase 3: tools' recall path stubbed; rest still active.
 import "server-only";
 import { getDb, schema, type DbClient } from "@orchester/db";
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, ne, inArray } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { assertPublicUrl } from "./net-guard";
 import { fetchWithTimeout } from "./http-util";
@@ -138,6 +138,26 @@ const BUILTINS: Record<string, ToolDefinition> = {
         },
       },
       required: ["agentId", "note"],
+    },
+  },
+  agent_call: {
+    name: "agent_call",
+    description:
+      "Delegate a self-contained sub-task to a specialist teammate and GET ITS ANSWER BACK (request/response). The specialist runs with its own system prompt, tools, memory and response format, then returns text to you — you stay in control of the conversation. Use this to compose a team (orchestrator → specialists). Use `agent_team_list` first to see who you can call. For permanently transferring the conversation, use `agent_handoff` instead.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        agentId: {
+          type: "string",
+          description: "ID of the specialist to delegate to (from agent_team_list).",
+        },
+        task: {
+          type: "string",
+          description:
+            "Self-contained instruction/question for the specialist. Include all context it needs — it does NOT see your conversation history.",
+        },
+      },
+      required: ["agentId", "task"],
     },
   },
   agent_team_list: {
@@ -608,6 +628,54 @@ export async function executeTool(
       (input.input as Record<string, unknown>) ?? {},
       ctx.tx
     );
+  }
+
+  if (name === "agent_call") {
+    if (!ctx.agentId) throw new Error("agent_call requires the calling agent context");
+    const targetAgentId = String(input.agentId ?? "");
+    const task = String(input.task ?? "").trim();
+    if (!targetAgentId) throw new Error("agentId required");
+    if (!task) throw new Error("task required");
+    if (targetAgentId === ctx.agentId) throw new Error("cannot delegate to yourself");
+
+    const db = ctx.tx ?? getDb();
+    const rows = await db
+      .select({
+        id: schema.agents.id,
+        name: schema.agents.name,
+        teamId: schema.agents.teamId,
+        status: schema.agents.status,
+      })
+      .from(schema.agents)
+      .where(
+        and(
+          eq(schema.agents.workspaceId, ctx.workspaceId),
+          inArray(schema.agents.id, [ctx.agentId, targetAgentId])
+        )
+      );
+    const caller = rows.find((r) => r.id === ctx.agentId);
+    const target = rows.find((r) => r.id === targetAgentId);
+    if (!target) throw new Error(`target agent ${targetAgentId} not found in workspace`);
+    if (target.status !== "active") throw new Error(`target agent ${target.name} is not active`);
+    if (caller?.teamId && caller.teamId !== target.teamId) {
+      throw new Error(`agent ${target.name} is not in your team — delegation not allowed`);
+    }
+
+    const { loadAgent, runAgent } = await import("./agent-runtime");
+    const full = await loadAgent(ctx.workspaceId, targetAgentId, ctx.tx);
+    if (!full) throw new Error(`target agent ${targetAgentId} not found`);
+    const result = await runAgent({
+      workspaceId: ctx.workspaceId,
+      agent: full,
+      messages: [{ role: "user", content: task }],
+      ...(ctx.tx ? { tx: ctx.tx } : {}),
+    });
+    return {
+      output: result.content,
+      agentId: targetAgentId,
+      tokensUsed: result.tokensUsed,
+      model: result.model,
+    };
   }
 
   throw new Error(`Unknown tool: ${name}`);
