@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@heroui/react";
-import { Brain, CheckCircle2, MessageSquare, Plug } from "lucide-react";
+import { Brain, CheckCircle2, MessageSquare, Plug, Sparkles } from "lucide-react";
 import { NextStep } from "@/components/compass/NextStep";
+import { notify } from "@/lib/toast";
 
 interface Props {
   agentName: string;
@@ -14,12 +16,29 @@ interface Props {
 }
 
 /**
- * Step 5 — Done. Celebratory but professional card with 3 NextStep follow-ups.
+ * Step 5 — Done. Celebratory but professional card with 3 NextStep follow-ups
+ * plus an optional "Load sample data" shortcut for fresh workspaces.
  */
 export function DoneStep({ agentName, lastMessage, workspaceSlug, locale, onOpenStudio }: Props) {
   const t = useTranslations("compass.onboarding.done");
   const slug = workspaceSlug ?? "";
   const base = slug ? `/${locale}/${slug}` : `/${locale}`;
+  const [seeding, setSeeding] = useState(false);
+  const [seeded, setSeeded] = useState(false);
+
+  async function handleLoadSample() {
+    setSeeding(true);
+    try {
+      const res = await fetch("/api/demo-seed", { method: "POST" });
+      if (!res.ok) throw new Error("seed failed");
+      setSeeded(true);
+      notify.success("Sample data loaded — check your dashboard!");
+    } catch {
+      notify.error("Could not load sample data. Try again.");
+    } finally {
+      setSeeding(false);
+    }
+  }
 
   return (
     <section aria-labelledby="onboarding-done-heading" className="flex flex-col gap-6">
@@ -72,15 +91,30 @@ export function DoneStep({ agentName, lastMessage, workspaceSlug, locale, onOpen
         </div>
       </div>
 
-      <Button
-        type="button"
-        color="primary"
-        size="lg"
-        onPress={onOpenStudio}
-        className="bg-violet-600 font-semibold"
-      >
-        {t("cta")}
-      </Button>
+      <div className="flex flex-col gap-3">
+        {!seeded && (
+          <Button
+            type="button"
+            variant="bordered"
+            size="lg"
+            isLoading={seeding}
+            onPress={handleLoadSample}
+            startContent={!seeding && <Sparkles size={16} />}
+            className="font-semibold"
+          >
+            Load sample data
+          </Button>
+        )}
+        <Button
+          type="button"
+          color="primary"
+          size="lg"
+          onPress={onOpenStudio}
+          className="bg-violet-600 font-semibold"
+        >
+          {t("cta")}
+        </Button>
+      </div>
     </section>
   );
 }
