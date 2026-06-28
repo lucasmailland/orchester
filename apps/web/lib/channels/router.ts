@@ -742,19 +742,158 @@ export async function* handleInboundStream(
   const { workspaceId: wsId, agent, conversation } = ctx;
   const hasTools = (agent.tools?.length ?? 0) > 0;
 
-  // Con tools: fallback al turno bloqueante (loop de tools + handoff) en su
-  // propia txn (single connection durante el loop completo). Emitimos el
-  // resultado como un solo bloque. Persistencia idéntica.
+  // Con tools: loop streaming que emite deltas de texto entre iteraciones de
+  // tool. Cada op de DB usa su propia txn corta (los generators no pueden
+  // suspender con una txn abierta).
   if (hasTools) {
     try {
-      const out = await withWorkspaceTx(wsId, (tx) => runConversationalTurn(ctx, tx));
-      if (out.reply) yield { type: "text", delta: out.reply };
-      yield {
-        type: "done",
-        conversationId: out.conversationId,
-        reply: out.reply,
-        tokensUsed: out.tokensUsed,
-      };
+      const { chatMsgs, systemPrompt } = await withWorkspaceTx(wsId, (tx) =>
+        buildConversationContext(ctx, tx)
+      );
+      const { getRelevantMemories, formatMemoriesAsPromptBlock } = await import("@/lib/memory");
+      let activeAgent = agent;
+      let activeTools = getToolDefinitions(activeAgent.tools ?? []);
+      let activeSystemPrompt = systemPrompt;
+      let conv = conversation;
+      let reply = "";
+      let tokens = 0;
+      let handoffCount = 0;
+      let safetyCounter = 0;
+
+      await assertWithinSpend(wsId);
+
+      outer: while (safetyCounter < 5) {
+        safetyCounter++;
+        const pendingToolCalls: import("@/lib/llm-call").ToolUseBlock[] = [];
+        let iterText = "";
+
+        for await (const chunk of llmStream({
+          workspaceId: wsId,
+          model: activeAgent.model,
+          systemPrompt: activeSystemPrompt,
+          messages: chatMsgs,
+          temperature: activeAgent.temperature ? Number(activeAgent.temperature) : 0.7,
+          ...(activeAgent.maxTokens != null && { maxTokens: activeAgent.maxTokens }),
+          tools: activeTools,
+          ...(signal ? { signal } : {}),
+        })) {
+          if (signal?.aborted) {
+            await flushPartialTurn(wsId, activeAgent.id, conv.id, reply, tokens);
+            return;
+          }
+          if (chunk.type === "text") {
+            iterText += chunk.delta;
+            reply += chunk.delta;
+            yield { type: "text", delta: chunk.delta };
+          } else if (chunk.type === "toolCall") {
+            pendingToolCalls.push(chunk.toolCall);
+          } else if (chunk.type === "done") {
+            tokens += chunk.tokensUsed;
+          } else if (chunk.type === "error") {
+            await flushPartialTurn(wsId, activeAgent.id, conv.id, reply, tokens);
+            yield { type: "error", error: chunk.error };
+            return;
+          }
+        }
+
+        if (pendingToolCalls.length === 0) break;
+
+        chatMsgs.push({ role: "assistant", content: iterText, toolCalls: pendingToolCalls });
+
+        let didHandoff = false;
+        const toolResults = [];
+        for (const tc of pendingToolCalls) {
+          try {
+            const out = await withWorkspaceTx(wsId, (tx) =>
+              executeTool(tc.name, tc.input as Record<string, unknown>, {
+                workspaceId: wsId,
+                tx,
+                variables: (activeAgent.variables as Record<string, string>) ?? {},
+                agentId: activeAgent.id,
+                conversationId: conv.id,
+                ...(conv.employeeId ? { employeeId: conv.employeeId } : {}),
+              })
+            );
+            const wrapped = wrapUntrusted(
+              typeof out === "string" ? out : JSON.stringify(out ?? null),
+              `tool_${tc.name}`
+            );
+            toolResults.push({ id: tc.id, name: tc.name, input: tc.input, output: wrapped });
+            if (tc.name === "agent_handoff" && (out as { ok?: boolean })?.ok) {
+              didHandoff = true;
+            }
+          } catch (e) {
+            toolResults.push({
+              id: tc.id,
+              name: tc.name,
+              input: tc.input,
+              error: e instanceof Error ? e.message : String(e),
+            });
+          }
+        }
+        chatMsgs.push({ role: "tool", content: "", toolResults });
+
+        if (didHandoff) {
+          if (++handoffCount > 2) break outer;
+          const updatedConv = await withWorkspaceTx(wsId, (tx) =>
+            tx
+              .select()
+              .from(schema.conversations)
+              .where(eq(schema.conversations.id, conv.id))
+              .limit(1)
+          );
+          if (updatedConv[0]) conv = updatedConv[0];
+          const newAgentId = conv.agentId;
+          if (newAgentId) {
+            const newAgentRows = await withWorkspaceTx(wsId, (tx) =>
+              tx
+                .select()
+                .from(schema.agents)
+                .where(and(eq(schema.agents.id, newAgentId), eq(schema.agents.workspaceId, wsId)))
+                .limit(1)
+            );
+            if (newAgentRows[0]) {
+              activeAgent = newAgentRows[0];
+              activeTools = getToolDefinitions(activeAgent.tools ?? []);
+              const newMems = await withWorkspaceTx(wsId, (tx) =>
+                getRelevantMemories(
+                  { agentId: activeAgent.id, workspaceId: wsId, conversationId: conv.id },
+                  tx
+                )
+              );
+              activeSystemPrompt =
+                activeAgent.systemPrompt +
+                wrapMemoryBlock(formatMemoriesAsPromptBlock(newMems)) +
+                UNTRUSTED_CONTENT_GUARDRAIL;
+            }
+          }
+        }
+      }
+
+      if (!reply && activeAgent.fallback) {
+        reply = activeAgent.fallback;
+        yield { type: "text", delta: reply };
+      }
+
+      const accessErr = await withWorkspaceTx(wsId, async (tx) => {
+        const wsRows = await tx
+          .select()
+          .from(schema.workspaces)
+          .where(eq(schema.workspaces.id, wsId))
+          .limit(1);
+        const ws = wsRows[0];
+        if (!ws) return "deleted";
+        const { isAccessible } = await import("@/lib/tenant/lifecycle");
+        const access = isAccessible(ws);
+        if (!access.ok) return access.reason ?? "deleted";
+        await persistAssistantTurn(ctx, activeAgent, conv, reply, tokens, tx);
+        return null;
+      });
+      if (accessErr) {
+        yield { type: "error", error: accessErr };
+        return;
+      }
+      yield { type: "done", conversationId: conv.id, reply, tokensUsed: tokens };
     } catch (e) {
       yield { type: "error", error: e instanceof Error ? e.message : String(e) };
     }
