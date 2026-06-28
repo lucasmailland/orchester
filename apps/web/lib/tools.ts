@@ -7,6 +7,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { assertPublicUrl } from "./net-guard";
 import { fetchWithTimeout } from "./http-util";
 import { logAudit } from "./audit";
+import { decrypt } from "./encryption";
 
 /**
  * Optional `tx?: WsDb` follows the project-wide pattern (see
@@ -348,6 +349,48 @@ export async function getToolDefinitionsForWorkspace(
     .filter((r) => enabledIds.includes(r.id) || enabledIds.includes(r.name))
     .filter((r) => !builtinNames.has(r.name))
     .map((r) => customToolDefinition(r));
+
+  // KNOW-7: merge namespaced tools from connected MCP servers.
+  // enabledIds that match "mcp__<serverId>__<tool>" trigger a tools/list call.
+  const mcpEnabledIds = enabledIds.filter((id) => id.startsWith("mcp__"));
+  if (mcpEnabledIds.length > 0) {
+    const serverToolMap = new Map<string, Set<string>>();
+    for (const id of mcpEnabledIds) {
+      const sep = id.indexOf("__", 5); // skip "mcp__" (5 chars), find next __
+      if (sep === -1) continue;
+      const serverId = id.slice(5, sep);
+      const toolName = id.slice(sep + 2);
+      if (!serverToolMap.has(serverId)) serverToolMap.set(serverId, new Set());
+      serverToolMap.get(serverId)!.add(toolName);
+    }
+    const serverIds = [...serverToolMap.keys()];
+    const serverRows = await db
+      .select()
+      .from(schema.mcpServers)
+      .where(
+        and(
+          eq(schema.mcpServers.workspaceId, workspaceId),
+          inArray(schema.mcpServers.id, serverIds)
+        )
+      );
+    const { listRemoteTools } = await import("./mcp/client");
+    for (const server of serverRows) {
+      if (!server.enabled) continue;
+      const authHeader = server.authHeaderEncrypted ? decrypt(server.authHeaderEncrypted) : null;
+      const remoteTools = await listRemoteTools({ url: server.url, authHeader });
+      const requested = serverToolMap.get(server.id)!;
+      for (const t of remoteTools) {
+        if (requested.has(t.name)) {
+          custom.push({
+            name: `mcp__${server.id}__${t.name}`,
+            description: t.description,
+            inputSchema: t.inputSchema,
+          });
+        }
+      }
+    }
+  }
+
   return [...builtins, ...custom];
 }
 
@@ -754,6 +797,32 @@ export async function executeTool(
         body = JSON.parse(text);
       } catch {}
       return { status: r.status, body };
+    }
+  }
+
+  // KNOW-7: proxy MCP tool calls. Name format: mcp__<serverId>__<toolName>
+  if (name.startsWith("mcp__")) {
+    const sep = name.indexOf("__", 5); // skip "mcp__" (5 chars), find next __
+    if (sep !== -1) {
+      const serverId = name.slice(5, sep);
+      const toolName = name.slice(sep + 2);
+      const db = ctx.tx ?? getDb();
+      const serverRows = await db
+        .select()
+        .from(schema.mcpServers)
+        .where(
+          and(
+            eq(schema.mcpServers.workspaceId, ctx.workspaceId),
+            eq(schema.mcpServers.id, serverId)
+          )
+        )
+        .limit(1);
+      const server = serverRows[0];
+      if (!server || !server.enabled)
+        throw new Error(`MCP server ${serverId} not found or disabled`);
+      const authHeader = server.authHeaderEncrypted ? decrypt(server.authHeaderEncrypted) : null;
+      const { callRemoteTool } = await import("./mcp/client");
+      return callRemoteTool({ url: server.url, authHeader }, toolName, input);
     }
   }
 

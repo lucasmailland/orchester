@@ -92,6 +92,13 @@
       "when": 1782700000000,
       "tag": "0012_fase2",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1782800000000,
+      "tag": "0013_mcp_server",
+      "breakpoints": true
     }
   ]
 }
