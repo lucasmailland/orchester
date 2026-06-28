@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   Search,
   X,
@@ -75,18 +75,32 @@ interface Label {
   color: string;
 }
 
-export function ConversationsClient({ agents, labels }: { agents: Agent[]; labels: Label[] }) {
+interface InitialData {
+  rows: Conv[];
+  hasMore: boolean;
+  nextOffset: number | null;
+}
+
+export function ConversationsClient({
+  agents,
+  labels,
+  initialData,
+}: {
+  agents: Agent[];
+  labels: Label[];
+  initialData?: InitialData;
+}) {
   const t = useTranslations("pages.conversations");
   const STATUS_LABEL: Record<string, string> = {
     open: t("status.open"),
     closed: t("status.closed"),
     escalated: t("status.escalated"),
   };
-  const [conversations, setConversations] = useState<Conv[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [conversations, setConversations] = useState<Conv[]>(initialData?.rows ?? []);
+  const [loading, setLoading] = useState(!initialData);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [hasMore, setHasMore] = useState(initialData?.hasMore ?? false);
+  const [nextOffset, setNextOffset] = useState<number | null>(initialData?.nextOffset ?? null);
   const [filters, setFilters] = useState({
     status: "",
     channel: "",
@@ -161,7 +175,14 @@ export function ConversationsClient({ agents, labels }: { agents: Agent[]; label
     setLoadingMore(false);
   }
 
+  const isFirstRender = useRef(true);
   useEffect(() => {
+    // Skip the initial client fetch when the server already sent SSR data.
+    if (isFirstRender.current && initialData) {
+      isFirstRender.current = false;
+      return;
+    }
+    isFirstRender.current = false;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
