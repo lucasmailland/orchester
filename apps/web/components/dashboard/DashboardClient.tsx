@@ -708,7 +708,9 @@ export function DashboardClient({ stats, workspaceName, locale, workspaceSlug }:
       : 0;
   const costData = stats.agentUsage.map((a) => ({ name: a.name, count: a.costUsd }));
   const costColors = Object.fromEntries(stats.agentUsage.map((a) => [a.name, mColor(a.model)]));
-  const sparkData = stats.activityByDay.slice(-14).map((d) => d.conversations);
+  const sparkConvs = stats.activityByDay.slice(-14).map((d) => d.conversations);
+  const sparkTokens = stats.activityByDay.slice(-14).map((d) => d.tokens);
+  const sparkCost = stats.costByDay.slice(-14).map((d) => d.costUsd);
 
   return (
     <div className="space-y-5 pb-8">
@@ -801,6 +803,7 @@ export function DashboardClient({ stats, workspaceName, locale, workspaceSlug }:
               value: fmtT(stats.totalTokensMonth),
               sub: formatted ? `${formatted} vs ${t("kpi.thisMonth")}` : t("metrics.firstMonth"),
               sparkColor: "#8b5cf6",
+              sparkData: sparkTokens,
               delta,
             };
           })(),
@@ -812,6 +815,7 @@ export function DashboardClient({ stats, workspaceName, locale, workspaceSlug }:
               cost: `$${stats.conversationsMonth > 0 ? (stats.totalCostMonth / stats.conversationsMonth).toFixed(3) : "—"}`,
             }),
             sparkColor: "#f59e0b",
+            sparkData: sparkCost,
             delta:
               stats.totalCostLastMonth > 0
                 ? pctChange(stats.totalCostMonth, stats.totalCostLastMonth)
@@ -826,6 +830,7 @@ export function DashboardClient({ stats, workspaceName, locale, workspaceSlug }:
                 ? `${stats.conversationsLastMonth} ${t("metrics.firstMonth")}`
                 : t("metrics.firstMonth"),
             sparkColor: "#06b6d4",
+            sparkData: sparkConvs,
             delta:
               stats.conversationsLastMonth > 0
                 ? pctChange(stats.conversationsMonth, stats.conversationsLastMonth)
@@ -837,6 +842,7 @@ export function DashboardClient({ stats, workspaceName, locale, workspaceSlug }:
             value: fmtDur(stats.avgDurationSeconds),
             sub: t("metrics.tokensPerConv", { tokens: fmtT(stats.avgTokensPerConv) }),
             sparkColor: "#3b82f6",
+            sparkData: sparkConvs,
             delta: null,
           },
         ].map((m) => (
@@ -867,7 +873,7 @@ export function DashboardClient({ stats, workspaceName, locale, workspaceSlug }:
                 })()}
               </div>
             </div>
-            <Sparkline data={sparkData} color={m.sparkColor} />
+            <Sparkline data={m.sparkData} color={m.sparkColor} />
           </Card>
         ))}
       </div>

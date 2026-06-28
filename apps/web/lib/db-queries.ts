@@ -313,6 +313,7 @@ export interface FullDashboardStats {
   avgTokensPerConv: number;
   // Chart series
   activityByDay: { date: string; conversations: number; tokens: number }[];
+  costByDay: { date: string; costUsd: number }[];
   agentUsage: {
     id: string;
     name: string;
@@ -843,6 +844,11 @@ export async function getFullDashboardStats(
     conversations: convMap.get(date) ?? 0,
     tokens: tokMap.get(date) ?? 0,
   }));
+  // Cost-by-day uses empty model string (falls back to avg rate) — same as totalCostLastMonth.
+  const costByDay = toksByDayRes.map((r) => ({
+    date: r.date,
+    costUsd: Math.round(calculateCostUsd("", Number(r.tokens)) * 10_000) / 10_000,
+  }));
 
   const totalTokensMonth = Number(tokMonthRes[0]?.tokens ?? 0);
   const totalTokensLastMonth = Number(tokLastMonthRes[0]?.tokens ?? 0);
@@ -909,6 +915,7 @@ export async function getFullDashboardStats(
     avgTokensPerConv:
       conversationsMonth > 0 ? Math.round(totalTokensMonth / conversationsMonth) : 0,
     activityByDay,
+    costByDay,
     agentUsage,
     channelDistribution: channelDistRes.map((r) => ({ type: r.type ?? "direct", count: r.count })),
     statusDistribution: statusDistRes.map((r) => ({
