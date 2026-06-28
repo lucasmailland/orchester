@@ -706,7 +706,16 @@ export async function executeTool(
       Number(input.topK ?? 5),
       ctx.tx
     );
-    return { results };
+    // KNOW-8: surface heading from chunk metadata so the LLM can cite sections.
+    return {
+      results: results.map((h) => ({
+        text: h.text,
+        docTitle: h.docTitle,
+        score: h.score,
+        ...(h.heading ? { heading: h.heading } : {}),
+        ...(h.page != null ? { page: h.page } : {}),
+      })),
+    };
   }
 
   if (name === "run_integration") {

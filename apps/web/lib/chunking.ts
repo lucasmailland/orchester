@@ -39,6 +39,39 @@ export function chunkText(text: string, chunkSize = 800, chunkOverlap = 100): st
   return chunks.map((c) => c.trim()).filter(Boolean);
 }
 
+/** Chunk with heading metadata for RAG citations (KNOW-8).
+ *  Detects markdown headings (#/##/…) and attaches the nearest preceding one. */
+export function chunkTextWithMeta(
+  text: string,
+  chunkSize = 800,
+  chunkOverlap = 100
+): { text: string; heading?: string }[] {
+  const lines = text.split("\n");
+  let currentHeading: string | undefined;
+  let segmentText = "";
+  const result: { text: string; heading?: string }[] = [];
+
+  function flushSegment() {
+    if (!segmentText.trim()) return;
+    for (const c of chunkText(segmentText, chunkSize, chunkOverlap)) {
+      result.push({ text: c, ...(currentHeading ? { heading: currentHeading } : {}) });
+    }
+    segmentText = "";
+  }
+
+  for (const line of lines) {
+    const headingMatch = line.match(/^#{1,6}\s+(.+)$/);
+    if (headingMatch) {
+      flushSegment();
+      currentHeading = headingMatch[1]!.trim();
+    } else {
+      segmentText += (segmentText ? "\n" : "") + line;
+    }
+  }
+  flushSegment();
+  return result;
+}
+
 /**
  * Convert various input types to plain text. Supports text/*, JSON, markdown,
  * PDF and DOCX. Anything else is rejected with a helpful error.

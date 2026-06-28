@@ -2,7 +2,7 @@ import "server-only";
 import { getDb, schema } from "@orchester/db";
 import { createId } from "@paralleldrive/cuid2";
 import { eq } from "drizzle-orm";
-import { chunkText } from "../chunking";
+import { chunkTextWithMeta } from "../chunking";
 import { embed } from "../embeddings";
 
 export async function embedChunks(
@@ -34,8 +34,10 @@ export async function ingestDoc(docId: string, rawText: string): Promise<void> {
     )[0];
     if (!kb) throw new Error("kb not found");
     if (!rawText.trim()) throw new Error("Empty document content");
-    const chunks = chunkText(rawText, kb.chunkSize, kb.chunkOverlap);
-    if (chunks.length === 0) throw new Error("No chunks produced");
+    // KNOW-8: use chunkTextWithMeta to capture markdown headings for citations.
+    const chunkMetas = chunkTextWithMeta(rawText, kb.chunkSize, kb.chunkOverlap);
+    if (chunkMetas.length === 0) throw new Error("No chunks produced");
+    const chunks = chunkMetas.map((c) => c.text);
     await db
       .update(schema.knowledgeDocs)
       .set({ status: "embedding" })
@@ -46,15 +48,19 @@ export async function ingestDoc(docId: string, rawText: string): Promise<void> {
         `embedding incomplete: got ${vectors.filter(Boolean).length}/${chunks.length} vectors`
       );
     }
-    const rows = chunks.map((c, i) => ({
+    const rows = chunkMetas.map((cm, i) => ({
       id: createId(),
       docId,
       kbId: doc.kbId,
       workspaceId: doc.workspaceId,
       ordinal: i,
-      text: c,
+      text: cm.text,
       embedding: vectors[i]!,
-      metadata: { dims, embeddingModel: kb.embeddingModel },
+      metadata: {
+        dims,
+        embeddingModel: kb.embeddingModel,
+        ...(cm.heading ? { heading: cm.heading } : {}),
+      },
     }));
     await db.insert(schema.knowledgeChunks).values(rows);
     await db
