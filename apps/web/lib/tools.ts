@@ -119,6 +119,19 @@ const BUILTINS: Record<string, ToolDefinition> = {
       required: ["flowId"],
     },
   },
+  web_search: {
+    name: "web_search",
+    description:
+      "Search the public web and return the top results (title, URL, snippet). Use when the user asks about current events, facts you don't know, or anything that needs fresh information. For fetching a known URL, use http_request instead.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Search query in natural language." },
+        count: { type: "number", description: "Number of results (default 5, max 10)." },
+      },
+      required: ["query"],
+    },
+  },
   agent_handoff: {
     name: "agent_handoff",
     description:
@@ -665,6 +678,39 @@ export async function executeTool(
       (input.input as Record<string, unknown>) ?? {},
       ctx.tx
     );
+  }
+
+  if (name === "web_search") {
+    const query = String(input.query ?? "").trim();
+    if (!query) throw new Error("query required");
+    const endpoint = process.env.WEB_SEARCH_ENDPOINT;
+    const apiKey = process.env.WEB_SEARCH_API_KEY;
+    if (!endpoint || !apiKey) {
+      throw new Error(
+        "La búsqueda web no está configurada (WEB_SEARCH_ENDPOINT/WEB_SEARCH_API_KEY). web search is not configured."
+      );
+    }
+    const count = Math.min(10, Math.max(1, Number(input.count ?? 5)));
+    const url = `${endpoint}?q=${encodeURIComponent(query)}&count=${count}`;
+    const r = await fetchWithTimeout(
+      url,
+      { headers: { Accept: "application/json", "X-Subscription-Token": apiKey } },
+      HTTP_REQUEST_TIMEOUT_MS
+    );
+    if (!r.ok) throw new Error(`web_search ${r.status}: ${(await r.text()).slice(0, 120)}`);
+    const j = (await r.json()) as {
+      web?: { results?: Array<{ title?: string; url?: string; description?: string }> };
+      results?: Array<{ title?: string; url?: string; description?: string; snippet?: string }>;
+    };
+    const raw = j.web?.results ?? j.results ?? [];
+    return {
+      results: raw.slice(0, count).map((x) => ({
+        title: x.title ?? "",
+        url: x.url ?? "",
+        snippet:
+          (x as { description?: string }).description ?? (x as { snippet?: string }).snippet ?? "",
+      })),
+    };
   }
 
   // KNOW-1: custom workspace tool (agent_tool row). Resolved by name within the workspace.
