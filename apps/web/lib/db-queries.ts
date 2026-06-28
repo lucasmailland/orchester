@@ -24,6 +24,14 @@ export interface DashboardStats {
 
 export async function getDashboardStats(workspaceId: string, tx?: WsDb): Promise<DashboardStats> {
   const db = tx ?? getDb();
+
+  const [tzRow] = await db
+    .select({ tz: schema.workspaces.timezone })
+    .from(schema.workspaces)
+    .where(eq(schema.workspaces.id, workspaceId))
+    .limit(1);
+  const tz = tzRow?.tz ?? "UTC";
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const thirtyDaysAgo = new Date();
@@ -68,7 +76,7 @@ export async function getDashboardStats(workspaceId: string, tx?: WsDb): Promise
 
     db
       .select({
-        date: sql<string>`date(${schema.conversations.startedAt})`,
+        date: sql<string>`date(${schema.conversations.startedAt} AT TIME ZONE ${tz})`,
         count: count(),
       })
       .from(schema.conversations)
@@ -78,7 +86,7 @@ export async function getDashboardStats(workspaceId: string, tx?: WsDb): Promise
           gte(schema.conversations.startedAt, thirtyDaysAgo)
         )
       )
-      .groupBy(sql`date(${schema.conversations.startedAt})`),
+      .groupBy(sql`date(${schema.conversations.startedAt} AT TIME ZONE ${tz})`),
   ]);
 
   return {
@@ -377,6 +385,14 @@ export interface UsageStats {
 
 export async function getUsageStats(workspaceId: string, tx?: WsDb): Promise<UsageStats> {
   const db = tx ?? getDb();
+
+  const [usTzRow] = await db
+    .select({ tz: schema.workspaces.timezone })
+    .from(schema.workspaces)
+    .where(eq(schema.workspaces.id, workspaceId))
+    .limit(1);
+  const tz = usTzRow?.tz ?? "UTC";
+
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -430,7 +446,7 @@ export async function getUsageStats(workspaceId: string, tx?: WsDb): Promise<Usa
       // Tokens by day (last 30 days)
       db
         .select({
-          date: sql<string>`date(${schema.messages.createdAt})`,
+          date: sql<string>`date(${schema.messages.createdAt} AT TIME ZONE ${tz})`,
           tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)`,
         })
         .from(schema.messages)
@@ -444,8 +460,8 @@ export async function getUsageStats(workspaceId: string, tx?: WsDb): Promise<Usa
             gte(schema.messages.createdAt, thirtyDaysAgo)
           )
         )
-        .groupBy(sql`date(${schema.messages.createdAt})`)
-        .orderBy(sql`date(${schema.messages.createdAt})`),
+        .groupBy(sql`date(${schema.messages.createdAt} AT TIME ZONE ${tz})`)
+        .orderBy(sql`date(${schema.messages.createdAt} AT TIME ZONE ${tz})`),
 
       // Per-agent usage (current month, top 10) — alineado con totalTokensMonth
       // y totalCostMonth para evitar incoherencias en los KPI cards.
@@ -507,6 +523,14 @@ export async function getFullDashboardStats(
   tx?: WsDb
 ): Promise<FullDashboardStats> {
   const db = tx ?? getDb();
+
+  const [wsRow] = await db
+    .select({ tz: schema.workspaces.timezone })
+    .from(schema.workspaces)
+    .where(eq(schema.workspaces.id, workspaceId))
+    .limit(1);
+  const tz = wsRow?.tz ?? "UTC";
+
   const now = new Date();
   // Build all boundary dates using Date.UTC so they're UTC-anchored Date objects
   const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -671,7 +695,10 @@ export async function getFullDashboardStats(
 
     // Conversations by day (30d)
     db
-      .select({ date: sql<string>`date(${schema.conversations.startedAt})`, count: count() })
+      .select({
+        date: sql<string>`date(${schema.conversations.startedAt} AT TIME ZONE ${tz})`,
+        count: count(),
+      })
       .from(schema.conversations)
       .where(
         and(
@@ -679,12 +706,12 @@ export async function getFullDashboardStats(
           gte(schema.conversations.startedAt, thirtyDaysAgo)
         )
       )
-      .groupBy(sql`date(${schema.conversations.startedAt})`),
+      .groupBy(sql`date(${schema.conversations.startedAt} AT TIME ZONE ${tz})`),
 
     // Tokens by day (30d)
     db
       .select({
-        date: sql<string>`date(${schema.messages.createdAt})`,
+        date: sql<string>`date(${schema.messages.createdAt} AT TIME ZONE ${tz})`,
         tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)`,
       })
       .from(schema.messages)
@@ -695,8 +722,8 @@ export async function getFullDashboardStats(
           gte(schema.messages.createdAt, thirtyDaysAgo)
         )
       )
-      .groupBy(sql`date(${schema.messages.createdAt})`)
-      .orderBy(sql`date(${schema.messages.createdAt})`),
+      .groupBy(sql`date(${schema.messages.createdAt} AT TIME ZONE ${tz})`)
+      .orderBy(sql`date(${schema.messages.createdAt} AT TIME ZONE ${tz})`),
 
     // Agent usage (current month, top 12) — alineado con totalTokensMonth/
     // totalCostMonth para que el donut "mes actual" no muestre datos all-time.
@@ -801,7 +828,7 @@ export async function getFullDashboardStats(
     // Hourly distribution (last 30d) – hour of day 0-23
     db
       .select({
-        hour: sql<number>`extract(hour from ${schema.conversations.startedAt})::int`,
+        hour: sql<number>`extract(hour from ${schema.conversations.startedAt} AT TIME ZONE ${tz})::int`,
         count: count(),
       })
       .from(schema.conversations)
@@ -811,8 +838,8 @@ export async function getFullDashboardStats(
           gte(schema.conversations.startedAt, thirtyDaysAgo)
         )
       )
-      .groupBy(sql`extract(hour from ${schema.conversations.startedAt})`)
-      .orderBy(sql`extract(hour from ${schema.conversations.startedAt})`),
+      .groupBy(sql`extract(hour from ${schema.conversations.startedAt} AT TIME ZONE ${tz})`)
+      .orderBy(sql`extract(hour from ${schema.conversations.startedAt} AT TIME ZONE ${tz})`),
 
     // Recent conversations (last 10)
     db
