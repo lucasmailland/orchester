@@ -89,6 +89,16 @@ export const FLOW_NODE_TYPES = [
 
 export type FlowNodeType = (typeof FLOW_NODE_TYPES)[number];
 
+// ORCH-9: bidirectional compile-time assertion — if FLOW_NODE_TYPES and the DB
+// pgEnum tuple drift apart, one of these assignments fails to type-check (tsc
+// / next build catches it; no runtime cost).
+type _EngineType = (typeof FLOW_NODE_TYPES)[number];
+type _DbType = (typeof schema.flowNodeTypeEnum.enumValues)[number];
+const _assertEngineSubsetOfDb: _EngineType extends _DbType ? true : never = true;
+const _assertDbSubsetOfEngine: _DbType extends _EngineType ? true : never = true;
+void _assertEngineSubsetOfDb;
+void _assertDbSubsetOfEngine;
+
 export interface FlowNode {
   id: string;
   type: FlowNodeType;

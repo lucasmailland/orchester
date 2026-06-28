@@ -48,42 +48,13 @@ export const flowNodeTypeEnum = pgEnum("flow_node_type", [
   "end",
 ]);
 
-/**
- * TS-side union of flow node types. Must mirror `flowNodeTypeEnum` above —
- * if you add a type to the enum, add it here. The compiler doesn't enforce
- * this relationship; we keep them aligned by convention.
- */
+/** ORCH-9: single source of truth — derived directly from the pgEnum tuple. */
+export type FlowNodeTypeLiteral = (typeof flowNodeTypeEnum.enumValues)[number];
+
 export interface FlowNodeData {
-  type:
-    | "trigger"
-    | "agent"
-    | "kb_search"
-    | "generate_image"
-    | "embed_text"
-    | "llm_prompt"
-    | "generate_video"
-    | "text_to_speech"
-    | "transcribe"
-    | "rerank"
-    | "generate_avatar"
-    | "generate_music"
-    | "ocr_extract"
-    | "condition"
-    | "switch"
-    | "http"
-    | "integration"
-    | "transform"
-    | "spreadsheet"
-    | "delay"
-    | "notify"
-    | "code"
-    | "loop_for_each"
-    | "parallel"
-    | "try_catch"
-    | "subflow"
-    | "wait_human"
-    | "note"
-    | "end";
+  /** ORCH-9: type is derived from the pgEnum so adding a new node type only
+   *  requires updating the schema migration + the enum above. */
+  type: FlowNodeTypeLiteral;
   label: string;
   config: Record<string, unknown>;
   position: { x: number; y: number };
