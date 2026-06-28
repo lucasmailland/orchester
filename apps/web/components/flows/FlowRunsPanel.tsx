@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { History, X, ChevronRight } from "lucide-react";
+import { History, X, ChevronRight, RotateCcw } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 interface Run {
@@ -36,6 +36,7 @@ export function FlowRunsPanel({
   const [runs, setRuns] = useState<Run[]>([]);
   const [selected, setSelected] = useState<{ run: Run; steps: Step[] } | null>(null);
   const [resuming, setResuming] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -47,6 +48,22 @@ export function FlowRunsPanel({
   async function pickRun(r: Run) {
     const detail = await fetch(`/api/flow-runs/${r.id}`).then((x) => x.json());
     setSelected(detail);
+  }
+
+  async function handleRetry() {
+    setRetrying(true);
+    try {
+      await fetch(`/api/flows/${flowId}/run`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ triggerSource: "retry" }),
+      });
+      const updated = await fetch(`/api/flows/${flowId}/runs`).then((r) => r.json());
+      setRuns(Array.isArray(updated) ? updated : []);
+      setSelected(null);
+    } finally {
+      setRetrying(false);
+    }
   }
 
   async function handleResume(decision: "approve" | "reject") {
@@ -136,6 +153,17 @@ export function FlowRunsPanel({
               <div className="mt-2 rounded border border-red-500/30 bg-red-500/10 p-2 text-red-700 dark:text-red-300">
                 {selected.run.error}
               </div>
+            )}
+            {(selected.run.status === "failed" || selected.run.status === "succeeded") && (
+              <button
+                type="button"
+                disabled={retrying}
+                onClick={handleRetry}
+                className="mt-2 flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1 text-[11px] text-body hover:bg-hover disabled:opacity-50"
+              >
+                <RotateCcw className="h-3 w-3" />
+                {retrying ? "Reintentando…" : "Reintentar"}
+              </button>
             )}
             {selected.run.status === "waiting" && selected.run.resumeToken && (
               <div className="mt-3 flex gap-2">

@@ -88,9 +88,17 @@ export const integration: NodeHandler = async ({ cfg, ctx, workspaceId, helpers 
 };
 
 export const notify: NodeHandler = async ({ cfg, ctx, helpers }) => {
-  helpers.setOutput({
-    to: cfg.to ? interpolate(cfg.to as string, ctx.variables) : undefined,
-    channel: cfg.channel,
-    message: interpolate((cfg.message as string) ?? "", ctx.variables),
-  });
+  const channel = String(cfg.channel ?? "email");
+  const to = cfg.to ? interpolate(cfg.to as string, ctx.variables) : "";
+  const message = interpolate((cfg.message as string) ?? "", ctx.variables);
+  if (channel === "email") {
+    if (!to) throw new Error("notify: missing recipient");
+    const { sendEmail } = await import("@/lib/email");
+    await sendEmail({ to, subject: "Orchester flow notification", text: message });
+    helpers.setOutput({ channel, to, sent: true });
+    return;
+  }
+  // Don't silently echo for channels we can't deliver — fail loudly so a
+  // "notify on failure" step is honest.
+  throw new Error(`notify: channel "${channel}" not supported yet`);
 };
