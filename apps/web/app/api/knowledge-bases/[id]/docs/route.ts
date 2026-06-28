@@ -6,6 +6,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { requireAction } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { extractTextFromBuffer, isParsable } from "@/lib/chunking";
+import { fetchUrlForIngest } from "./url-fetch";
 
 const ingestJsonSchema = z.object({
   title: z.string().optional(),
@@ -145,23 +146,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (payload.source === "text") {
       text = payload.content ?? "";
     } else if (payload.source === "url" && payload.url) {
-      const r = await fetch(payload.url, {
-        headers: { "user-agent": "Orchester KB Ingest/1.0" },
-      });
-      if (!r.ok) throw new Error(`URL returned ${r.status}`);
-      const upstreamCT = r.headers.get("content-type") ?? "";
-      if (upstreamCT.startsWith("application/pdf") || upstreamCT.includes("officedocument")) {
-        const buf = Buffer.from(await r.arrayBuffer());
-        text = await extractTextFromBuffer(buf, upstreamCT.split(";")[0]!);
-      } else {
-        const raw = await r.text();
-        text = raw
-          .replace(/<script[\s\S]*?<\/script>/gi, "")
-          .replace(/<style[\s\S]*?<\/style>/gi, "")
-          .replace(/<[^>]+>/g, " ")
-          .replace(/\s+/g, " ")
-          .trim();
-      }
+      text = await fetchUrlForIngest(payload.url);
     } else if (payload.source === "file" && fileBuffer) {
       const ct = detectedFileType ?? "application/octet-stream";
       if (!isParsable(ct)) {
