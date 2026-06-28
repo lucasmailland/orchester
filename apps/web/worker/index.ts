@@ -24,6 +24,8 @@ import {
   JOB_FLOW_RUN,
   JOB_FLOW_REAP,
   JOB_FLOW_SCHEDULE,
+  JOB_KB_INGEST,
+  JOB_KB_REINDEX,
   JOB_WEBHOOK_DELIVER,
   JOB_USAGE_AGGREGATE,
   JOB_RETENTION,
@@ -108,6 +110,20 @@ async function main(): Promise<void> {
     if (n > 0) console.log(`[worker] flow:schedule → disparó ${n} schedule(s)`);
   });
   await schedule(JOB_FLOW_SCHEDULE, "* * * * *");
+
+  // ── KB ingest + reindex ─────────────────────────────────────────
+  await registerWorker<{ docId: string; rawText: string }>(
+    JOB_KB_INGEST,
+    async (job) => {
+      const { ingestDoc } = await import("../lib/knowledge/ingest");
+      await ingestDoc(job.data.docId, job.data.rawText);
+    },
+    { teamSize: 2, teamConcurrency: 2 }
+  );
+  await registerWorker<{ docId: string; rawText: string }>(JOB_KB_REINDEX, async (job) => {
+    const { ingestDoc } = await import("../lib/knowledge/ingest");
+    await ingestDoc(job.data.docId, job.data.rawText);
+  });
 
   // ── Webhook dispatch ────────────────────────────────────────
   await registerWorker<WebhookDeliverJob>(

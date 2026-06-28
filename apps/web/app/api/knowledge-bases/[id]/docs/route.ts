@@ -5,8 +5,7 @@ import { getDb, schema } from "@orchester/db";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAction } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
-import { embed } from "@/lib/embeddings";
-import { chunkText, extractTextFromBuffer, isParsable } from "@/lib/chunking";
+import { extractTextFromBuffer, isParsable } from "@/lib/chunking";
 
 const ingestJsonSchema = z.object({
   title: z.string().optional(),
@@ -88,6 +87,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
   }
 
+  const MAX = Number(process.env.KB_MAX_DOC_BYTES ?? 10_000_000);
+  if ((fileBuffer?.length ?? payload.content?.length ?? 0) > MAX)
+    return NextResponse.json({ error: "Document too large" }, { status: 413 });
+
   if (!payload.title?.trim())
     return NextResponse.json({ error: "title required" }, { status: 400 });
   if (!["text", "url", "file"].includes(payload.source))
@@ -124,17 +127,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         byteSize: fileBuffer?.length ?? payload.content?.length ?? 0,
         status: "parsing",
       });
-      return { docId, kb, workspaceId: ctx.workspace.id };
+      return { docId };
     },
   });
   if (authResult instanceof Response) return authResult;
   if ("_err" in authResult)
     return NextResponse.json({ error: authResult._err }, { status: authResult._status as number });
 
-  const { docId, kb, workspaceId } = authResult;
+  const { docId } = authResult;
 
-  // Embedding pipeline — runs outside the short requireAction transaction.
-  // Uses getDb() for status updates (parsing → embedding → ready/failed).
+  // Text extraction + enqueue (or inline dev mode).
+  // Status transitions (embedding → ready/failed) are handled by ingestDoc.
   const db = getDb();
   try {
     let text = "";
@@ -169,44 +172,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     if (!text || !text.trim()) throw new Error("Empty document content");
 
-    const chunks = chunkText(text, kb.chunkSize, kb.chunkOverlap);
-    if (chunks.length === 0) throw new Error("No chunks produced");
-
-    await db
-      .update(schema.knowledgeDocs)
-      .set({ status: "embedding" })
-      .where(eq(schema.knowledgeDocs.id, docId));
-
-    const { vectors, dims } = await embed(
-      workspaceId,
-      kb.embeddingProvider as "openai" | "google",
-      kb.embeddingModel,
-      chunks
-    );
-
-    const chunkRows = chunks.map((c, i) => ({
-      id: createId(),
-      docId,
-      kbId,
-      workspaceId,
-      ordinal: i,
-      text: c,
-      embedding: vectors[i] ?? null,
-      metadata: { dims, embeddingModel: kb.embeddingModel },
-    }));
-    if (chunkRows.length > 0) {
-      await db.insert(schema.knowledgeChunks).values(chunkRows);
+    if (process.env.KB_INGEST_INLINE === "1") {
+      const { ingestDoc } = await import("@/lib/knowledge/ingest");
+      await ingestDoc(docId, text);
+      return NextResponse.json({ id: docId, status: "ready" }, { status: 201 });
     }
-
-    await db
-      .update(schema.knowledgeDocs)
-      .set({ status: "ready", chunkCount: chunks.length })
-      .where(eq(schema.knowledgeDocs.id, docId));
-
-    return NextResponse.json(
-      { id: docId, chunkCount: chunks.length, status: "ready" },
-      { status: 201 }
-    );
+    const { enqueue, JOB_KB_INGEST } = await import("@/lib/queue");
+    await enqueue(JOB_KB_INGEST, { docId, rawText: text }, { retryLimit: 3, retryBackoff: true });
+    return NextResponse.json({ id: docId, status: "parsing" }, { status: 202 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await db
