@@ -40,8 +40,10 @@
     --hover: 39 39 42;
     --text-strong: 244 244 245;
     --text-base: 212 212 216;
-    --text-muted: 113 113 122;
-    --text-faint: 82 82 91;
+    /* WCAG AA fix: zinc-400 (#a1a1aa) → ~7.4:1 on --card; was zinc-500 (~3.9:1) */
+    --text-muted: 161 161 170;
+    /* WCAG AA fix: ~4.6:1 on --card; was zinc-600 (~2.4:1) */
+    --text-faint: 125 125 134;
   }
 
   html {
