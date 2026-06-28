@@ -10,6 +10,7 @@ import {
 } from "../llm-call";
 import { defaultIsRetryable } from "../http-util";
 import { resolveModel } from "./catalog";
+import { defaultFallbackChain } from "./routing";
 import { loadCredential } from "./credentials";
 import { generateImageWith } from "./adapters/images";
 import { embedWith } from "./adapters/embeddings";
@@ -106,12 +107,19 @@ export async function recordAiUsage(args: RecordAiUsageArgs): Promise<void> {
  */
 export interface RunChatOpts {
   fallbackModels?: string[];
+  /** KNOW-12: when supplied and fallbackModels is omitted, a same-tier chain is built automatically. */
+  connectedProviderIds?: string[];
 }
 
 export async function runChat(params: LlmCallParams, opts?: RunChatOpts): Promise<LlmCallResult> {
   await assertWithinSpend(params.workspaceId);
 
-  const chain = [params.model, ...(opts?.fallbackModels ?? [])];
+  const fallbacks =
+    opts?.fallbackModels ??
+    (opts?.connectedProviderIds
+      ? defaultFallbackChain(params.model, opts.connectedProviderIds)
+      : []);
+  const chain = [params.model, ...fallbacks];
   let lastErr: unknown;
   for (let i = 0; i < chain.length; i++) {
     const model = chain[i]!;

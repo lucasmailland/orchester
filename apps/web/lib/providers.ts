@@ -19,12 +19,13 @@ const ANTHROPIC: ModelInfo[] = [
 const OPENAI: ModelInfo[] = [
   { id: "gpt-4o", name: "GPT-4o", contextWindow: 128_000, tier: "smart" },
   { id: "gpt-4o-mini", name: "GPT-4o mini", contextWindow: 128_000, tier: "fast" },
-  { id: "o3-mini", name: "o3-mini", contextWindow: 200_000, tier: "powerful" },
+  { id: "o3", name: "o3", contextWindow: 200_000, tier: "powerful" },
+  { id: "o4-mini", name: "o4-mini", contextWindow: 200_000, tier: "fast" },
 ];
 const GOOGLE: ModelInfo[] = [
-  { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", contextWindow: 2_000_000, tier: "powerful" },
-  { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", contextWindow: 1_000_000, tier: "fast" },
-  { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", contextWindow: 1_000_000, tier: "smart" },
+  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", contextWindow: 1_000_000, tier: "powerful" },
+  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", contextWindow: 1_000_000, tier: "smart" },
+  { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", contextWindow: 1_000_000, tier: "fast" },
 ];
 
 /** Test connection by calling the provider's models endpoint. */
