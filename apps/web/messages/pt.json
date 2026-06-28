@@ -707,6 +707,7 @@
       "deleteConfirm": "Excluir",
       "agentDeleted": "Agente excluído",
       "agentDeleteError": "Não foi possível excluir o agente",
+      "openStudioAria": "Abrir studio de {name}",
       "editAria": "Editar {name}",
       "deleteAria": "Excluir {name}",
       "form": {

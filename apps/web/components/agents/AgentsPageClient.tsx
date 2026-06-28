@@ -3,12 +3,11 @@
 import { useState, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { toast } from "sonner";
-import { motion } from "framer-motion";
+import Link from "next/link";
 import { Bot, Plus, Pencil, Trash2, Zap, Filter, Plug, BookOpen } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@heroui/react";
 import { cn } from "@/lib/utils";
-import { staggerContainer, staggerItem, useReveal } from "@/lib/motion";
 import { AgentFormModal, type AgentFormPrefill } from "./AgentFormModal";
 import { TemplatePicker } from "@/components/compass/TemplatePicker";
 import type { AgentTemplatePayload, CompassTemplate } from "@/lib/compass/templates";
@@ -122,7 +121,6 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
   const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "es";
   const ws = params?.workspaceSlug ?? "";
-  const reveal = useReveal();
   // 3-state machine for the "New Agent" flow lives in a shared hook so all
   // four "+ New X" surfaces stay in lockstep. The "Blank" template
   // short-circuits picker → form with no prefill (historical UX). Edit
@@ -204,6 +202,11 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
     router.refresh();
   }
 
+  function announce(msg: string) {
+    const el = document.getElementById("agents-status");
+    if (el) el.textContent = msg;
+  }
+
   async function handleConfirmDelete() {
     if (!deletingAgent) return;
     setDeletePending(true);
@@ -211,10 +214,12 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
       const r = await fetch(`/api/agents/${deletingAgent.id}`, { method: "DELETE" });
       if (r.ok) {
         toast.success(t("agentDeleted"));
+        announce(t("agentDeleted"));
         setDeletingAgent(null);
         router.refresh();
       } else {
         toast.error(t("agentDeleteError"));
+        announce(t("agentDeleteError"));
       }
     } finally {
       setDeletePending(false);
@@ -365,6 +370,9 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
         </div>
       )}
 
+      {/* Screen-reader live region for async status updates */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only" id="agents-status" />
+
       {/* Grouped sections */}
       <TourSpot
         tourId="agents"
@@ -393,32 +401,33 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
               </div>
 
               {/* Agent cards grid */}
-              <motion.div
-                variants={staggerContainer}
-                initial="hidden"
-                animate={reveal}
-                className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
-              >
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" role="list">
                 {group.agents.map((agent) => {
                   const s = STATUS_CONFIG[agent.status];
                   const modelColor = getModelColor(agent.model);
+                  const studioHref = `/${locale}/${ws}/agents/${agent.id}`;
 
                   return (
-                    <motion.div
+                    <article
                       key={agent.id}
-                      variants={staggerItem}
-                      onClick={(e) => {
-                        if ((e.target as HTMLElement).closest("button")) return;
-                        router.push(`/${locale}/${ws}/agents/${agent.id}`);
-                      }}
+                      role="listitem"
+                      aria-label={`${agent.name} — ${agent.role}`}
                       className={cn(
-                        "group relative cursor-pointer overflow-hidden rounded-2xl border border-line bg-card",
+                        "group relative overflow-hidden rounded-2xl border border-line bg-card",
                         "transition-all hover:border-violet-500/30 hover:bg-hover"
                       )}
                     >
+                      {/* Full-card link for keyboard + click navigation */}
+                      <Link
+                        href={studioHref}
+                        className="absolute inset-0 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1"
+                        aria-label={t("openStudioAria", { name: agent.name })}
+                        tabIndex={0}
+                      />
+
                       {/* Left color bar */}
                       <div
-                        className="absolute left-0 inset-y-0 w-[3px]"
+                        className="absolute inset-y-0 left-0 w-[3px]"
                         style={{ backgroundColor: modelColor + "80" }}
                       />
 
@@ -455,12 +464,15 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
                             </div>
                           </div>
 
-                          {/* Actions */}
-                          <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                          {/* Actions — visible on hover AND on keyboard focus within card */}
+                          <div className="relative z-10 flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                             <button
                               type="button"
                               aria-label={t("editAria", { name: agent.name })}
-                              onClick={() => setEditingAgent(agent)}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setEditingAgent(agent);
+                              }}
                               className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-line hover:text-body"
                             >
                               <Pencil size={12} />
@@ -468,7 +480,10 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
                             <button
                               type="button"
                               aria-label={t("deleteAria", { name: agent.name })}
-                              onClick={() => setDeletingAgent(agent)}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setDeletingAgent(agent);
+                              }}
                               className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
                             >
                               <Trash2 size={12} />
@@ -504,10 +519,10 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
                           </span>
                         </div>
                       </div>
-                    </motion.div>
+                    </article>
                   );
                 })}
-              </motion.div>
+              </div>
             </div>
           ))}
         </div>
