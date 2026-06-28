@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { Spinner } from "@heroui/react";
 import type { FlowDTO } from "./FlowBuilder";
+import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 
 /**
  * Client-only dynamic wrapper for FlowBuilder.
@@ -25,5 +26,9 @@ const FlowBuilder = dynamic(() => import("./FlowBuilder").then((m) => m.FlowBuil
 });
 
 export function FlowBuilderLazy({ flow }: { flow: FlowDTO }) {
-  return <FlowBuilder flow={flow} />;
+  return (
+    <ErrorBoundary label="FlowBuilder">
+      <FlowBuilder flow={flow} />
+    </ErrorBoundary>
+  );
 }

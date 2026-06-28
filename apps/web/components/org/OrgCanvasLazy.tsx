@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { Spinner } from "@heroui/react";
+import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 
 /**
  * Client-only dynamic wrapper for OrgCanvas.
@@ -25,5 +26,9 @@ const OrgCanvas = dynamic(() => import("./OrgCanvas").then((m) => m.OrgCanvas), 
 });
 
 export function OrgCanvasLazy() {
-  return <OrgCanvas />;
+  return (
+    <ErrorBoundary label="OrgCanvas">
+      <OrgCanvas />
+    </ErrorBoundary>
+  );
 }

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { RotateCcw, ArrowRight } from "lucide-react";
+import { captureException } from "@/lib/observability";
 
 /**
  * Error boundary scoped to the shell. Because it lives below ShellLayout,
@@ -23,6 +24,7 @@ export default function ShellError({
 
   useEffect(() => {
     console.error("[ShellError]", error);
+    captureException(error, { tags: { boundary: "shell-error" } });
   }, [error]);
 
   return (
