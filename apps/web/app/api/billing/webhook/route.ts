@@ -55,6 +55,22 @@ export async function POST(req: Request) {
 
   if (!workspaceId) return NextResponse.json({ ok: true, ignored: "no workspaceId" });
 
+  // Dedup: persist every processed Stripe event.id so redeliveries are no-ops.
+  const eventId = (event as { id?: string }).id;
+  if (eventId) {
+    const already = await withCrossTenantAdmin("billing.dedup", async (tx) => {
+      const rows = await tx
+        .select()
+        .from(schema.stripeEvents)
+        .where(eq(schema.stripeEvents.id, eventId))
+        .limit(1);
+      if (rows[0]) return true;
+      await tx.insert(schema.stripeEvents).values({ id: eventId, type: event.type, workspaceId });
+      return false;
+    });
+    if (already) return NextResponse.json({ ok: true, deduped: true });
+  }
+
   // priceId → plan pago. "free" es el default del schema (no degradamos a "starter").
   const priceMap: Record<string, Plan> = {};
   if (process.env["STRIPE_PRICE_STARTER"])
@@ -103,6 +119,7 @@ export async function POST(req: Request) {
     if (resolvedPlan) set.plan = resolvedPlan;
     if (priceId) set.stripePriceId = priceId;
     if (periodEnd) set.currentPeriodEnd = periodEnd;
+    set.pastDue = false;
 
     // Stripe webhook is unauthenticated (verified via HMAC above) so the
     // request has no workspace GUC set. workspace_billing has FORCE RLS,
@@ -148,6 +165,16 @@ export async function POST(req: Request) {
         actorKind: "system",
         after: { plan: "free", eventType: event.type },
       });
+    });
+  } else if (
+    event.type === "invoice.payment_failed" ||
+    event.type === "invoice.payment_action_required"
+  ) {
+    await withCrossTenantAdmin("billing.payment_failed", async (tx) => {
+      await tx
+        .update(schema.workspaceBilling)
+        .set({ pastDue: true, updatedAt: new Date() })
+        .where(eq(schema.workspaceBilling.workspaceId, workspaceId));
     });
   }
 
