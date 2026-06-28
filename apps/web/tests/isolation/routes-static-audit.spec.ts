@@ -123,6 +123,8 @@ const ALLOWLIST = new Set<string>([
   // OAuth callback — receives code from provider redirect; workspace is derived
   // from the HMAC-signed state param (verifySigned), not a session cookie.
   "integrations/oauth/[provider]/callback/route.ts",
+  // Static OpenAPI 3.1 spec — public doc, no workspace data, no DB access.
+  "v1/openapi.json/route.ts",
   // Compass "What's new" — public CHANGELOG passthrough. The CHANGELOG
   // ships in the repo, no DB access, no per-workspace data path.
   "compass/whats-new/route.ts",

@@ -364,7 +364,15 @@ export function DevelopersSection() {
         <code className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[10px] text-body">
           /api/v1/flows
         </code>
-        . Rate limit: 60 req/min.
+        . Rate limit: 60 req/min.{" "}
+        <a
+          href="/api/v1/openapi.json"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary underline-offset-2 hover:underline"
+        >
+          OpenAPI spec ↗
+        </a>
       </div>
     </div>
   );
