@@ -11,6 +11,7 @@ import { calculateChatCostUsd } from "@/lib/pricing";
 const copilotSchema = z.object({
   prompt: z.string().optional(),
   apiUrl: z.string().optional(),
+  locale: z.enum(["es", "en", "pt"]).optional(),
   // history y currentGraph son estructuras dinámicas validadas más abajo.
   history: z.array(z.unknown()).optional(),
   currentGraph: z.record(z.string(), z.unknown()).optional(),
@@ -21,6 +22,7 @@ import {
   buildGraphFromSpec,
   type FlowSpec,
 } from "@/lib/flows/copilot-tools";
+import type { Locale } from "@/lib/flows/node-registry";
 
 /**
  * POST /api/flows/[id]/copilot
@@ -38,17 +40,37 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const parsed = await parseBody(req, copilotSchema);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
+  const locale = (body?.locale ?? "es") as Locale;
+  const T = {
+    es: {
+      need: "Contanos qué querés que haga el flujo.",
+      noProvider: "Primero conectá un proveedor de IA en Ajustes para usar el copiloto.",
+      failed: "El copiloto no pudo responder.",
+      more: "¿Podés darme más detalles?",
+      done: "Listo, armé el flujo. Revisalo y ajustá lo que quieras.",
+    },
+    en: {
+      need: "Tell us what you want the flow to do.",
+      noProvider: "Connect an AI provider in Settings first to use the copilot.",
+      failed: "The copilot could not respond.",
+      more: "Could you give me more details?",
+      done: "Done — I built the flow. Review it and tweak whatever you want.",
+    },
+    pt: {
+      need: "Conte o que você quer que o fluxo faça.",
+      noProvider: "Conecte um provedor de IA nas Configurações para usar o copiloto.",
+      failed: "O copiloto não conseguiu responder.",
+      more: "Pode me dar mais detalhes?",
+      done: "Pronto — montei o fluxo. Revise e ajuste o que quiser.",
+    },
+  }[locale];
   const prompt = String(body?.prompt ?? "").trim();
   const apiUrl = body?.apiUrl ? String(body.apiUrl).trim() : "";
-  if (!prompt)
-    return NextResponse.json({ error: "Contanos qué querés que haga el flujo." }, { status: 400 });
+  if (!prompt) return NextResponse.json({ error: T.need }, { status: 400 });
 
   const picked = await pickAvailableModel(ctx.workspace.id);
   if (!picked) {
-    return NextResponse.json(
-      { error: "Primero conectá un proveedor de IA en Ajustes para usar el copiloto." },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: T.noProvider }, { status: 400 });
   }
 
   const history: ChatMessage[] = Array.isArray(body?.history)
@@ -88,17 +110,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     result = await llmCall({
       workspaceId: ctx.workspace.id,
       model: picked.model,
-      systemPrompt: buildSystemPrompt("es"),
+      systemPrompt: buildSystemPrompt(locale),
       messages,
       temperature: 0.2,
       maxTokens: 2048,
       tools: COPILOT_TOOLS,
     });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "El copiloto no pudo responder." },
-      { status: 502 }
-    );
+    return NextResponse.json({ error: e instanceof Error ? e.message : T.failed }, { status: 502 });
   }
 
   // E2-2: metering del copiloto.
@@ -114,7 +133,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const setFlow = result.toolCalls?.find((t) => t.name === "set_flow");
   if (!setFlow) {
     return NextResponse.json({
-      message: result.content || "¿Podés darme más detalles?",
+      message: result.content || T.more,
       graph: null,
       errors: [],
     });
@@ -126,7 +145,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   );
 
   return NextResponse.json({
-    message: result.content || "Listo, armé el flujo. Revisalo y ajustá lo que quieras.",
+    message: result.content || T.done,
     graph: { nodes: built.nodes, edges: built.edges },
     errors: built.errors,
   });

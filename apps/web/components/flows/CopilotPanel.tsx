@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import type { Node, Edge } from "@xyflow/react";
 import { Sparkles, X, Send, Loader2, Link2 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 
 interface ChatMsg {
   role: "user" | "assistant";
@@ -37,6 +37,7 @@ export function CopilotPanel({
   currentGraph: () => { nodes: unknown[]; edges: unknown[] };
 }) {
   const t = useTranslations("pages.flows.copilot");
+  const locale = useLocale();
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [apiUrl, setApiUrl] = useState("");
@@ -77,6 +78,7 @@ export function CopilotPanel({
         body: JSON.stringify({
           prompt: serverPrompt,
           apiUrl: apiUrl.trim() || undefined,
+          locale,
           history: messages,
           currentGraph: currentGraph(),
         }),
