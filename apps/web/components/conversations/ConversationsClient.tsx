@@ -582,10 +582,15 @@ function ConversationDrawer({
     });
     setBusy(false);
     if (r.ok) {
+      const j = (await r.json()) as { ok: boolean; message?: Msg };
       setReply("");
       toast.success(t("actions.sent"));
-      const j = await fetch(`/api/conversations/${conversation.id}`).then((x) => x.json());
-      setMessages(j?.messages ?? []);
+      if (j.message) {
+        setMessages((prev) => [...prev, j.message!]);
+      } else {
+        const data = await fetch(`/api/conversations/${conversation.id}`).then((x) => x.json());
+        setMessages((data as { messages?: Msg[] })?.messages ?? []);
+      }
     } else toast.error(t("actions.sendError"));
   }
 

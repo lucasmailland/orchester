@@ -54,8 +54,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const conv = convs[0];
     if (!conv) return { kind: "not_found" as const };
 
+    const msgId = createId();
     await tx.insert(schema.messages).values({
-      id: createId(),
+      id: msgId,
       conversationId: conv.id,
       role: "assistant",
       content: text,
@@ -76,7 +77,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         .limit(1);
       channel = chs[0];
     }
-    return { kind: "ok" as const, conv, channel };
+    return { kind: "ok" as const, conv, channel, msgId };
   });
 
   if (result.kind === "not_found") {
@@ -114,5 +115,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    message: {
+      id: result.msgId,
+      role: "assistant",
+      content: text,
+      fromOperator: true,
+      createdAt: new Date().toISOString(),
+      costUsd: null,
+      tokensUsed: null,
+      model: null,
+    },
+  });
 }

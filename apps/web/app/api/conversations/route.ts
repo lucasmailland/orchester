@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { schema } from "@orchester/db";
-import { and, desc, eq, gte, like, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, or, sql } from "drizzle-orm";
 import { requireAction } from "@/lib/auth-guards";
 
 /**
@@ -38,9 +38,9 @@ export async function GET(req: Request) {
       if (search) {
         conds.push(
           or(
-            like(schema.conversations.summary, `%${search}%`),
-            like(schema.conversations.customerName, `%${search}%`),
-            like(schema.conversations.customerEmail, `%${search}%`)
+            ilike(schema.conversations.summary, `%${search}%`),
+            ilike(schema.conversations.customerName, `%${search}%`),
+            ilike(schema.conversations.customerEmail, `%${search}%`)
           )!
         );
       }
