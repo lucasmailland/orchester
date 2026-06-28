@@ -58,7 +58,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if (body.name !== undefined) set.name = body.name;
       if (body.status !== undefined) set.status = body.status;
       if (body.agentId !== undefined) set.agentId = body.agentId || null;
-      if (body.config !== undefined) set.config = body.config;
+      if (body.config !== undefined) {
+        const existingRows = await tx
+          .select({ config: schema.channels.config })
+          .from(schema.channels)
+          .where(and(eq(schema.channels.id, id), eq(schema.channels.workspaceId, ctx.workspace.id)))
+          .limit(1);
+        const existing = (existingRows[0]?.config ?? {}) as Record<string, unknown>;
+        set.config = { ...existing, ...body.config };
+      }
 
       // For credentials: accept plaintext, encrypt and store. For Telegram, also auto-config webhook.
       if (body.credentials !== undefined) {

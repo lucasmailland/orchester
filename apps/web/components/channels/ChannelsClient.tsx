@@ -443,6 +443,38 @@ function ConnectedChannelRow({
   const [saving, setSaving] = useState(false);
   const [agentId, setAgentId] = useState(channel.agentId ?? "");
   const [copied, setCopied] = useState<string | null>(null);
+  const cfg = (channel.config ?? {}) as Record<string, unknown>;
+  const [brandColor, setBrandColor] = useState<string>(
+    typeof cfg.color === "string" ? cfg.color : "#8b5cf6"
+  );
+  const [greeting, setGreeting] = useState<string>(
+    typeof cfg.greeting === "string" ? cfg.greeting : ""
+  );
+  const [widgetTitle, setWidgetTitle] = useState<string>(
+    typeof cfg.title === "string" ? cfg.title : ""
+  );
+  const [placeholder, setPlaceholder] = useState<string>(
+    typeof cfg.placeholder === "string" ? cfg.placeholder : ""
+  );
+  const [savingAppearance, setSavingAppearance] = useState(false);
+
+  async function saveAppearance() {
+    setSavingAppearance(true);
+    const r = await fetch(`/api/channels/${channel.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        config: { color: brandColor, greeting, title: widgetTitle, placeholder },
+      }),
+    });
+    setSavingAppearance(false);
+    if (r.ok) {
+      toast.success(t("appearanceSaved"));
+      router.refresh();
+    } else {
+      toast.error(t("saveError"));
+    }
+  }
 
   async function copy(text: string, label: string) {
     await navigator.clipboard.writeText(text);
@@ -599,6 +631,72 @@ function ConnectedChannelRow({
                   code: (chunks) => <code>{chunks}</code>,
                 })}
               </p>
+            </div>
+          )}
+
+          {channel.type === "widget" && (
+            <div className="space-y-2 rounded-xl border border-line bg-elevated/50 p-3">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                {t("appearanceTitle")}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] text-muted">{t("colorLabel")}</label>
+                  <div className="mt-1 flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={brandColor}
+                      onChange={(e) => setBrandColor(e.target.value)}
+                      className="h-7 w-7 cursor-pointer rounded border border-line bg-transparent"
+                    />
+                    <input
+                      type="text"
+                      value={brandColor}
+                      onChange={(e) => setBrandColor(e.target.value)}
+                      className="flex-1 rounded-lg border border-line bg-elevated px-2 py-1 font-mono text-[11px] text-strong outline-none"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-muted">{t("titleLabel")}</label>
+                  <input
+                    type="text"
+                    value={widgetTitle}
+                    onChange={(e) => setWidgetTitle(e.target.value)}
+                    placeholder={t("titlePlaceholder")}
+                    className="mt-1 w-full rounded-lg border border-line bg-elevated px-2 py-1 text-[11px] text-strong outline-none"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted">{t("greetingLabel")}</label>
+                <input
+                  type="text"
+                  value={greeting}
+                  onChange={(e) => setGreeting(e.target.value)}
+                  placeholder={t("greetingPlaceholder")}
+                  className="mt-1 w-full rounded-lg border border-line bg-elevated px-2 py-1 text-[11px] text-strong outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted">{t("placeholderLabel")}</label>
+                <input
+                  type="text"
+                  value={placeholder}
+                  onChange={(e) => setPlaceholder(e.target.value)}
+                  placeholder={t("placeholderPlaceholder")}
+                  className="mt-1 w-full rounded-lg border border-line bg-elevated px-2 py-1 text-[11px] text-strong outline-none"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={saveAppearance}
+                disabled={savingAppearance}
+                className="flex items-center gap-1 rounded-lg bg-violet-500 px-3 py-1.5 text-[11px] text-white hover:bg-violet-400 disabled:opacity-40"
+              >
+                {savingAppearance && <Loader2 className="h-3 w-3 animate-spin" />}
+                {t("saveAppearance")}
+              </button>
             </div>
           )}
 
