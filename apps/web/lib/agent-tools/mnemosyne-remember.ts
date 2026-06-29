@@ -7,13 +7,14 @@
 //      orchester's `agent.memory_policy` jsonb).
 //   2. Resolves the requested fact scope against the policy default
 //      (no explicit scope → policy.write_scope_default).
-//   3. POSTs the fact to @mnemosyne/server via the SDK's
-//      `createFact`. The mnemosyne server handles poisoning detection,
-//      embedding enqueue, dedup, and FTS lemmatization internally.
+//   3. POSTs the fact to @mnemosyne/server via the SDK's `remember()`.
+//      This calls POST /memory/remember (v3 cognitive engine path) so
+//      facts land in the mnemosyne schema and are visible to recall.
 //
-// Phase 3: the host-side PII detect + `applyPolicyToWrite` +
-// `createFactAsync` path was retired. The SDK is the canonical write
-// path and the mnemosyne server owns those concerns now.
+// NOTE: previously used `createFact()` which calls POST /v1/facts and
+// writes to the v1 `public.mnemo_fact` table. The v3 recall cascade
+// reads from `mnemosyne.mnemo_fact`, so those facts were invisible to
+// recall. `remember()` writes to the right schema.
 //
 // Failure semantics:
 //   • Policy load NEVER throws (the loader returns DEFAULT on any
@@ -170,27 +171,24 @@ export async function handleMnemosyneRemember(
     ctx.conversationId
   );
 
-  // SDK fact create. Mnemosyne server runs poisoning detection +
-  // dedup + embedding enqueue internally; orchester just hands it the
-  // statement plus attribution metadata.
+  // v3 cognitive write path — lands in mnemosyne schema so v3 recall
+  // can find it. Previously used createFact() → public.mnemo_fact (v1)
+  // which the recall cascade cannot see.
   const client = getMnemoClient();
-  const fact = await client.createFact({
-    content: input.statement,
-    attribution: {
-      kind: input.kind,
-      subject: input.subject,
-      scope,
-      ...(scope === "conversation" && ctx.conversationId ? { scopeRef: ctx.conversationId } : {}),
-      agentId: ctx.agentId,
-      ...(ctx.employeeId ? { actorId: ctx.employeeId } : {}),
-      ...(input.confidence !== undefined ? { confidence: input.confidence } : {}),
-    },
+  const result = await client.remember({
+    statement: input.statement,
+    kind: input.kind,
+    subject: input.subject,
+    scope,
+    ...(scope === "conversation" && ctx.conversationId ? { scopeRef: ctx.conversationId } : {}),
+    agentId: ctx.agentId,
+    ...(input.confidence !== undefined ? { confidence: input.confidence } : {}),
     tags: [input.kind],
   });
 
   return {
     ok: true,
-    factId: fact.id,
+    factId: result.id,
     scope,
     downgraded,
   };
