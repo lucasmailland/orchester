@@ -1,4 +1,3 @@
-import "server-only";
 // `crypto.randomUUID()` está disponible en globalThis (Web Crypto / Node 19+).
 // NO importamos `node:crypto` para que el módulo sea Edge-runtime compatible
 // (instrumentation.ts puede importarlo desde el middleware).
