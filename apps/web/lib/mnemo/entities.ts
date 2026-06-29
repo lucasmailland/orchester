@@ -2,7 +2,7 @@
 //
 // HTTP-only implementation of the workspace's entity browser surface.
 //
-// Five helpers cover the entity endpoints under /v1/entities:
+// Five helpers cover the Mnemosyne entity endpoints (server path /entities):
 //   - listWorkspaceEntities    → GET /api/mnemo/entities
 //   - getWorkspaceEntity       → GET /api/mnemo/entities/[id]
 //   - listWorkspaceEntityFacts → GET /api/mnemo/entities/[id]/facts
