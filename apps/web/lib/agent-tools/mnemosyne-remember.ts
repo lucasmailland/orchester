@@ -16,6 +16,14 @@
 // reads from `mnemosyne.mnemo_fact`, so those facts were invisible to
 // recall. `remember()` writes to the right schema.
 //
+// Embedding strategy: facts are pre-embedded host-side using the workspace's
+// configured AI provider (same path as recall.ts) and the vector is forwarded
+// to the server. This means the mnemosyne server never needs its own LLM
+// credentials — write and query embeddings are always in the same vector
+// space, making recall immediately effective for newly stored facts.
+// If host-side embedding fails (no provider / network error) we fall back
+// to server-side embedding (which requires MNEMO_LLM_API_KEY on the server).
+//
 // Failure semantics:
 //   • Policy load NEVER throws (the loader returns DEFAULT on any
 //     failure). So failures here are only SDK transport / 4xx-5xx.
@@ -26,6 +34,8 @@
 import "server-only";
 import { getMnemoClient } from "@/lib/mnemo/client";
 import { getAgentMemoryPolicy } from "@/lib/policy/agent-memory";
+import { embed } from "@/lib/embeddings";
+import { safeLogError } from "@/lib/safe-log";
 
 const VALID_KINDS = [
   "preference",
@@ -174,6 +184,22 @@ export async function handleMnemosyneRemember(
   // v3 cognitive write path — lands in mnemosyne schema so v3 recall
   // can find it. Previously used createFact() → public.mnemo_fact (v1)
   // which the recall cascade cannot see.
+  //
+  // Pre-embed host-side so the stored vector is in the same space as
+  // query vectors (both use the workspace's OpenAI text-embedding-3-small).
+  // Falls back gracefully: if embedding fails the server still tries its
+  // own embedder (requires MNEMO_LLM_API_KEY on the server).
+  const DEFAULT_EMBED_MODEL = "text-embedding-3-small";
+  let vector: number[] | undefined;
+  try {
+    const { vectors } = await embed(ctx.workspaceId, "openai", DEFAULT_EMBED_MODEL, [
+      input.statement,
+    ]);
+    vector = vectors[0];
+  } catch (e) {
+    safeLogError("[mnemo/remember] host-side embedding skipped:", e);
+  }
+
   const client = getMnemoClient();
   const result = await client.remember({
     statement: input.statement,
@@ -184,6 +210,7 @@ export async function handleMnemosyneRemember(
     agentId: ctx.agentId,
     ...(input.confidence !== undefined ? { confidence: input.confidence } : {}),
     tags: [input.kind],
+    ...(vector ? { vector } : {}),
   });
 
   return {
