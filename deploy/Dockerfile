@@ -24,7 +24,6 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json apps/web/
 COPY packages/db/package.json packages/db/
-COPY packages/mnemosyne/package.json packages/mnemosyne/
 # pnpm `patchedDependencies` (better-auth/kysely-adapter) requires the patch
 # file at install time, otherwise --frozen-lockfile fails.
 COPY patches/ patches/
@@ -40,7 +39,6 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
-COPY --from=deps /app/packages/mnemosyne/node_modules ./packages/mnemosyne/node_modules
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1

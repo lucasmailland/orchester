@@ -1,6 +1,6 @@
 // apps/web/lib/mnemo/client.ts
 //
-// Singleton @mnemosyne/client-ts accessor for the server runtime.
+// Singleton @mnemo-ai/client-ts accessor for the server runtime.
 //
 // Post Phase 3/4: orchester talks to mnemosyne EXCLUSIVELY over HTTP.
 // There is no in-process library fallback. Every route, worker, and
@@ -15,7 +15,7 @@
 //      in-process mock during the migration, or for a different
 //      transport later).
 import "server-only";
-import { MnemosyneClient } from "@mnemosyne/client-ts";
+import { MnemosyneClient } from "@mnemo-ai/client-ts";
 
 /**
  * Observability label kept as a singleton "service" so the

@@ -12,11 +12,11 @@
 // over HTTP.
 //
 // The returned shape matches the canonical `GraphResponse` from
-// @mnemosyne/client-ts. The hook + component in
+// @mnemo-ai/client-ts. The hook + component in
 // apps/web/components/brain/graph/ are unchanged.
 
 import "server-only";
-import type { GraphResponse as ClientGraphResponse } from "@mnemosyne/client-ts";
+import type { GraphResponse as ClientGraphResponse } from "@mnemo-ai/client-ts";
 import { getMnemoMode, getMnemoClient, type MnemoMode } from "@/lib/mnemo/client";
 
 // `GraphMode` was a tramo-1-era local alias — kept as a type alias

@@ -39,7 +39,7 @@ describe("/api/mnemo/audit — UndoClient contract", () => {
     expect(src).toMatch(/available:/);
   });
 
-  it("the helper delegates to the @mnemosyne/client-ts SDK", async () => {
+  it("the helper delegates to the @mnemo-ai/client-ts SDK", async () => {
     const src = await readFile(HELPER_PATH, "utf8");
     // The helper is HTTP-only — it round-trips through getMnemoClient()
     // and calls client.audit({ limit }).

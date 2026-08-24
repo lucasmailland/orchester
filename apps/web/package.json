@@ -41,7 +41,7 @@
     "@formulajs/formulajs": "^4.6.0",
     "@heroui/react": "^2.7.6",
     "@hookform/resolvers": "^5.4.0",
-    "@mnemosyne/client-ts": "file:../../vendor/mnemosyne/packages/client-ts",
+    "@mnemo-ai/client-ts": "^3.6.2",
     "@paralleldrive/cuid2": "^3.3.0",
     "@xyflow/react": "^12.11.0",
     "archiver": "^7.0.1",
