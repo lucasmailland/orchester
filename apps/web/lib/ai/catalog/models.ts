@@ -80,12 +80,28 @@ export const MODELS: ModelDef[] = [
   // throughput isn't supported. Retry with the ID or ARN of an inference profile".
   // Precios: Bedrock es partner-operado y cobra aparte del API directo de
   // Anthropic — ver https://aws.amazon.com/bedrock/pricing/ antes de tocarlos.
+  // Verificados USABLES en la cuenta de Fichap (2026-08-24). opus-4-7 lleva
+  // noSampling: con temperature devuelve 400.
+  m("bedrock", "us.anthropic.claude-opus-4-7", "Claude Opus 4.7 (Bedrock)", "chat", {
+    tier: "powerful",
+    ctx: 200_000,
+    cin: 0.015,
+    cout: 0.075,
+    noSampling: true,
+  }),
+  m("bedrock", "us.anthropic.claude-sonnet-4-6", "Claude Sonnet 4.6 (Bedrock)", "chat", {
+    tier: "smart",
+    ctx: 200_000,
+    cin: 0.003,
+    cout: 0.015,
+  }),
   m("bedrock", "us.anthropic.claude-opus-5", "Claude Opus 5 (Bedrock)", "chat", {
     tier: "powerful",
     ctx: 200_000,
     cin: 0.005,
     cout: 0.025,
     noSampling: true,
+    notes: "Requiere habilitar el acceso al modelo en la consola de Bedrock.",
   }),
   m("bedrock", "us.anthropic.claude-sonnet-5", "Claude Sonnet 5 (Bedrock)", "chat", {
     tier: "smart",
