@@ -20,7 +20,7 @@ import type {
   ResolveReviewResponse,
   ReviewCountResponse,
   ReviewReason,
-} from "@mnemosyne/client-ts";
+} from "@mnemo-ai/client-ts";
 import { getMnemoMode, getMnemoClient, type MnemoMode } from "@/lib/mnemo/client";
 
 export { getMnemoMode };
@@ -66,7 +66,7 @@ export async function resolveWorkspaceReview(
 }> {
   const mode = getMnemoMode();
   const client = getMnemoClient();
-  const { MnemosyneAPIError } = await import("@mnemosyne/client-ts");
+  const { MnemosyneAPIError } = await import("@mnemo-ai/client-ts");
   try {
     const data = await client.resolveReview(reviewId, input);
     return { mode, data, alreadyResolved: false };

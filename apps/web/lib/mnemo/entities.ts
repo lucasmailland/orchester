@@ -22,7 +22,7 @@ import type {
   ListEntitiesResponse,
   MnemoEntity,
   UpdateEntityInput,
-} from "@mnemosyne/client-ts";
+} from "@mnemo-ai/client-ts";
 import { getMnemoMode, getMnemoClient, type MnemoMode } from "@/lib/mnemo/client";
 
 export { getMnemoMode };
@@ -52,7 +52,7 @@ export async function getWorkspaceEntity(
     const data = await client.getEntity(id);
     return { mode, data };
   } catch (e) {
-    const { MnemosyneAPIError } = await import("@mnemosyne/client-ts");
+    const { MnemosyneAPIError } = await import("@mnemo-ai/client-ts");
     if (e instanceof MnemosyneAPIError && e.status === 404) {
       return { mode, data: null };
     }
@@ -71,7 +71,7 @@ export async function listWorkspaceEntityFacts(
     const data = await client.listEntityFacts(id, { limit: opts.limit });
     return { mode, data };
   } catch (e) {
-    const { MnemosyneAPIError } = await import("@mnemosyne/client-ts");
+    const { MnemosyneAPIError } = await import("@mnemo-ai/client-ts");
     if (e instanceof MnemosyneAPIError && e.status === 404) {
       return { mode, data: null };
     }
@@ -100,7 +100,7 @@ export async function updateWorkspaceEntity(
     const data = await client.updateEntity(id, input);
     return { mode, data };
   } catch (e) {
-    const { MnemosyneAPIError } = await import("@mnemosyne/client-ts");
+    const { MnemosyneAPIError } = await import("@mnemo-ai/client-ts");
     if (e instanceof MnemosyneAPIError && e.status === 404) {
       return { mode, data: null };
     }
@@ -114,7 +114,7 @@ export async function workspaceEntityExists(_workspaceId: string, id: string): P
     await client.getEntity(id);
     return true;
   } catch (e) {
-    const { MnemosyneAPIError } = await import("@mnemosyne/client-ts");
+    const { MnemosyneAPIError } = await import("@mnemo-ai/client-ts");
     if (e instanceof MnemosyneAPIError && e.status === 404) return false;
     throw e;
   }

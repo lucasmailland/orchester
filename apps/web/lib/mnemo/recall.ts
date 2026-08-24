@@ -24,7 +24,7 @@
 import "server-only";
 import { embed } from "@/lib/embeddings";
 import { safeLogError } from "@/lib/safe-log";
-import type { RecallInput, RecallResponse } from "@mnemosyne/client-ts";
+import type { RecallInput, RecallResponse } from "@mnemo-ai/client-ts";
 import { getMnemoClient } from "@/lib/mnemo/client";
 
 /** Default embedding model — matches Mnemosyne's `halfvec(1536)` schema. */

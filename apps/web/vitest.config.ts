@@ -28,7 +28,7 @@ export default defineConfig({
       "@orchester/db/schema": path.resolve(__dirname, "../../packages/db/src/schema/index.ts"),
       // @mnemosyne/core has been removed from orchester's runtime.
       // Memory operations go through the HTTP SDK; tests that need to
-      // mock memory mock @mnemosyne/client-ts directly.
+      // mock memory mock @mnemo-ai/client-ts directly.
       "server-only": path.resolve(__dirname, "./__mocks__/server-only.ts"),
     },
   },

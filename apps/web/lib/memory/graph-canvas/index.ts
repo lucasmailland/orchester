@@ -7,7 +7,7 @@
 //
 // They live in orchester because they're UI concerns. The companion
 // data shape (`GraphResponse`, `GraphNode`, `GraphEdge` from
-// `@mnemosyne/client-ts`) still ships from the SDK — these helpers
+// `@mnemo-ai/client-ts`) still ships from the SDK — these helpers
 // just consume that shape and paint.
 
 export {

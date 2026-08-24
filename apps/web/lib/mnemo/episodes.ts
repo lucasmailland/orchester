@@ -10,7 +10,7 @@
 // can stamp `X-Mnemo-Mode` on the response.
 
 import "server-only";
-import type { EpisodeWithLinkedFacts, ListEpisodesResponse } from "@mnemosyne/client-ts";
+import type { EpisodeWithLinkedFacts, ListEpisodesResponse } from "@mnemo-ai/client-ts";
 import { getMnemoMode, getMnemoClient, type MnemoMode } from "@/lib/mnemo/client";
 
 export { getMnemoMode };
@@ -42,7 +42,7 @@ export async function getWorkspaceEpisode(
     const data = await client.getEpisode(id);
     return { mode, data };
   } catch (e) {
-    const { MnemosyneAPIError } = await import("@mnemosyne/client-ts");
+    const { MnemosyneAPIError } = await import("@mnemo-ai/client-ts");
     if (e instanceof MnemosyneAPIError && e.status === 404) {
       return { mode, data: null };
     }

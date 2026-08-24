@@ -1,13 +1,13 @@
 packages:
   - "apps/*"
   - "packages/*"
-  # Note: vendor/mnemosyne is NOT a workspace package — it's a git submodule
-  # that builds itself in isolation (with its own pnpm install) before the
-  # main install runs, keeping its toolchain (TypeScript 6, tsup) out of
-  # orchester's node_modules. apps/web consumes the built SDK artifact via
-  # `file:../../vendor/mnemosyne/packages/client-ts` — orchester talks to
-  # mnemosyne exclusively over HTTP, so only the @mnemosyne/client-ts SDK is
-  # built here, not core. The bootstrap is handled by
-  # scripts/bootstrap-vendor.sh and the CI workflow. When
-  # @mnemosyne/client-ts@3.x publishes to npm, replace `file:…` with a
-  # version range and drop the submodule + bootstrap script.
+  # Mnemosyne used to live here as the `vendor/mnemosyne` git submodule,
+  # bootstrapped in isolation by scripts/bootstrap-vendor.sh. Both are gone:
+  # the SDK now ships on npm as `@mnemo-ai/client-ts` and apps/web depends on
+  # it with a plain version range. The peer-dep bleed-through that motivated
+  # the isolated install (drizzle-orm adapter overload resolution) is moot —
+  # orchester no longer builds mnemosyne, it only consumes a published SDK.
+  #
+  # Orchester talks to mnemosyne exclusively over HTTP (MNEMO_URL +
+  # MNEMO_API_KEY); there is no in-process memory engine. See
+  # apps/web/lib/mnemo/client.ts.
