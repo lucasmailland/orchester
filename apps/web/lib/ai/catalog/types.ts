@@ -67,6 +67,14 @@ export interface ModelDef {
    */
   costPer1kIn?: number;
   costPer1kOut?: number;
+  /**
+   * El modelo RECHAZA los parámetros de sampling (`temperature`, `top_p`,
+   * `top_k`) con un 400. Toda la familia Claude 4.7+ los eliminó: mandarlos
+   * devuelve "`temperature` is deprecated for this model" y la llamada muere.
+   * Verificado contra Bedrock: opus-4-7 con temperature → 400, sin → 200;
+   * sonnet-4-6 los sigue aceptando.
+   */
+  noSampling?: boolean;
   notes?: string;
 }
 
