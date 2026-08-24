@@ -77,6 +77,10 @@ const MANIFEST = [
   ["0038_conversation_sensitivity.sql", "columna conversation.memory_learning_paused"],
   ["0049_org_primitive.sql", "tabla org + columna workspace.org_id"],
   ["0054_pgboss_schema_grant.sql", "GRANT CREATE ON DATABASE — pg-boss crea su propio schema"],
+  // Sin número: ajuste del deploy single-tenant, no historia de upstream.
+  // 0049 deja `org` con FORCE RLS y sólo una política de SELECT, así que ningún
+  // INSERT pasa y crear un workspace da 500. Ver el header del archivo.
+  ["single-tenant-org-rls-off.sql", "apaga RLS en `org` — 0049 la deja sin política de INSERT"],
 ];
 
 const url = process.env["DATABASE_URL"];

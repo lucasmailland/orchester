@@ -1,0 +1,44 @@
+-- packages/db/migrations/single-tenant-org-rls-off.sql
+--
+-- SIN NÚMERO A PROPÓSITO. No es parte de la secuencia de migraciones de upstream:
+-- es un ajuste del deploy single-tenant de Fichap. Que no lleve número evita que
+-- se confunda con historia del repo y que se aplique donde no corresponde.
+-- Sólo lo corre scripts/apply-sql-migrations.mjs, que ya documenta la decisión.
+--
+-- QUÉ ARREGLA
+-- ----------
+-- Crear un workspace devolvía 500. En los logs:
+--
+--     new row violates row-level security policy for table "org"   (42501)
+--     insert into "org" ("id","name","owner_user_id",...) values ($1,$2,$3,...)
+--     at POST /api/workspaces
+--
+-- Causa: 0049_org_primitive.sql (líneas 92-96) habilita RLS **con FORCE** sobre
+-- `org` y crea UNA sola política — `org_read_via_workspace_membership`, y es de
+-- SELECT. En Postgres un INSERT necesita una política con WITH CHECK que lo
+-- cubra; una de SELECT no autoriza nada. Sin política de INSERT y con FORCE,
+-- ningún insert pasa, ni siquiera el del dueño de la tabla. Ninguna otra
+-- migración del repo agrega esa política: se buscó en las 52.
+--
+-- POR QUÉ NO SE VE EN OTROS DEPLOYS
+-- --------------------------------
+-- Un rol superusuario bypassea RLS por completo y nunca lo choca. Esto aparece
+-- SÓLO si la app conecta con un rol restringido — que es justo lo que manda el
+-- ADR-0010 del propio repo (app_user, NOINHERIT, sin BYPASSRLS). El bug se
+-- dispara al seguir su propia guía de seguridad.
+--
+-- POR QUÉ DESACTIVAR Y NO AGREGAR LA POLÍTICA
+-- -------------------------------------------
+-- Para ESTE deploy, `org` era la única tabla con RLS de 45: un residuo
+-- incoherente, porque 0008/0009/0010 quedaron deliberadamente fuera por ser
+-- single-tenant. Desactivarla deja el deploy consistente (0 de 45) en vez de
+-- medio aplicado.
+--
+-- ⚠ EL FIX DE UPSTREAM ES OTRO. Si esto alguna vez sirve a más de una
+--   organización, NO alcanza con revertir esto: hay que agregar a `org` una
+--   política de INSERT (y de UPDATE/DELETE si el producto las necesita), además
+--   de aplicar 0008 + 0009 + 0010. Desactivar RLS acá es correcto sólo mientras
+--   haya un único tenant.
+
+ALTER TABLE org NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE org DISABLE ROW LEVEL SECURITY;
