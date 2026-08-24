@@ -76,6 +76,7 @@ const MANIFEST = [
   ["0036_mnemosyne_agent_memory_policy.sql", "columna agent.memory_policy"],
   ["0038_conversation_sensitivity.sql", "columna conversation.memory_learning_paused"],
   ["0049_org_primitive.sql", "tabla org + columna workspace.org_id"],
+  ["0054_pgboss_schema_grant.sql", "GRANT CREATE ON DATABASE — pg-boss crea su propio schema"],
 ];
 
 const url = process.env["DATABASE_URL"];
