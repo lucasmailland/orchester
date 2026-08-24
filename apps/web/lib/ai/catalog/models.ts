@@ -12,7 +12,14 @@ function m(
   model: string,
   name: string,
   capability: Capability,
-  opts: { tier?: Tier; ctx?: number; notes?: string; cin?: number; cout?: number } = {}
+  opts: {
+    tier?: Tier;
+    ctx?: number;
+    notes?: string;
+    cin?: number;
+    cout?: number;
+    noSampling?: boolean;
+  } = {}
 ): ModelDef {
   const d: ModelDef = { id: `${provider}:${model}`, provider, name, capability };
   if (opts.tier) d.tier = opts.tier;
@@ -20,6 +27,7 @@ function m(
   // cin/cout = USD por 1k tokens (input/output) — pricing A4.
   if (opts.cin != null) d.costPer1kIn = opts.cin;
   if (opts.cout != null) d.costPer1kOut = opts.cout;
+  if (opts.noSampling) d.noSampling = true;
   if (opts.notes) d.notes = opts.notes;
   return d;
 }
@@ -51,6 +59,9 @@ export const MODELS: ModelDef[] = [
     ctx: 200_000,
     cin: 0.015,
     cout: 0.075,
+    // 4.7 eliminó los sampling params. Sin esto la llamada muere con 400 —
+    // el bug existía antes de Bedrock, por el camino directo de Anthropic.
+    noSampling: true,
   }),
   m("anthropic", "claude-sonnet-4-6", "Claude Sonnet 4.6", "chat", {
     tier: "smart",
@@ -64,6 +75,42 @@ export const MODELS: ModelDef[] = [
     cin: 0.0008,
     cout: 0.004,
   }),
+  // Bedrock — los id son INFERENCE PROFILES, con prefijo de región. El id pelado
+  // (`anthropic.claude-…`) devuelve ValidationException: "with on-demand
+  // throughput isn't supported. Retry with the ID or ARN of an inference profile".
+  // Precios: Bedrock es partner-operado y cobra aparte del API directo de
+  // Anthropic — ver https://aws.amazon.com/bedrock/pricing/ antes de tocarlos.
+  m("bedrock", "us.anthropic.claude-opus-5", "Claude Opus 5 (Bedrock)", "chat", {
+    tier: "powerful",
+    ctx: 200_000,
+    cin: 0.005,
+    cout: 0.025,
+    noSampling: true,
+  }),
+  m("bedrock", "us.anthropic.claude-sonnet-5", "Claude Sonnet 5 (Bedrock)", "chat", {
+    tier: "smart",
+    ctx: 200_000,
+    cin: 0.003,
+    cout: 0.015,
+    noSampling: true,
+    // En Bedrock cada modelo se habilita por cuenta vía AWS Marketplace. Sin la
+    // suscripción, InvokeModel devuelve AccessDeniedException pidiendo
+    // aws-marketplace:Subscribe — incluso con credenciales de admin. Si da 403,
+    // habilitar el modelo en la consola de Bedrock antes de sospechar del IAM.
+    notes: "Requiere habilitar el acceso al modelo en la consola de Bedrock.",
+  }),
+  m(
+    "bedrock",
+    "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "Claude Haiku 4.5 (Bedrock)",
+    "chat",
+    {
+      tier: "fast",
+      ctx: 200_000,
+      cin: 0.001,
+      cout: 0.005,
+    }
+  ),
   m("google", "gemini-3-pro-preview", "Gemini 3 Pro", "chat", {
     tier: "powerful",
     ctx: 1_000_000,

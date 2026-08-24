@@ -254,9 +254,15 @@ export const PROVIDERS: ProviderDef[] = [
     name: "Amazon Bedrock",
     family: "bedrock",
     kind: "aggregator",
-    auth: "aws",
-    capabilities: ["chat", "embedding", "image"],
-    keyHint: "AWS keys + región",
+    // Bedrock API Key (`ABSK…`), no credenciales IAM: es un bearer común, así
+    // que entra por el mismo formulario que cualquier otro proveedor — incluido
+    // el del onboarding, que con `auth: "aws"` no lo ofrecía.
+    // La región va en `endpoint` (opcional, default us-east-1); si se deja
+    // vacío no molesta al usuario que sólo quiere pegar una key.
+    auth: "api_key",
+    capabilities: ["chat"],
+    docsUrl: "https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html",
+    keyHint: "Bedrock API Key (ABSK…)",
   },
   {
     id: "google",
