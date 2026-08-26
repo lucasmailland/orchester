@@ -1,4 +1,12 @@
 import "server-only";
+import {
+  odooAuthenticate,
+  odooExecute,
+  htmlFromText,
+  x2manyReplace,
+  TICKET_PRIORITY,
+  type TicketPriority,
+} from "./odoo-client";
 
 /**
  * Registry de integraciones de terceros.
@@ -491,6 +499,254 @@ const slack: Connector = {
   },
 };
 
+const TICKET_FIELDS = [
+  "id",
+  "name",
+  "description",
+  "priority",
+  "stage_id",
+  "team_id",
+  "partner_id",
+  "user_id",
+  "tag_ids",
+  "create_date",
+  "write_date",
+];
+
+function ticketValues(input: Record<string, unknown>): Record<string, unknown> {
+  const values: Record<string, unknown> = {};
+  if (typeof input.name === "string") values.name = input.name;
+
+  // `description` is HTML in Odoo. `description_text` is the escape hatch for
+  // agent-written plain text, which would otherwise lose every line break and
+  // get truncated at the first `<` of a stack trace.
+  if (typeof input.description === "string") values.description = input.description;
+  else if (typeof input.description_text === "string")
+    values.description = htmlFromText(input.description_text);
+
+  if (input.priority !== undefined) {
+    const mapped = TICKET_PRIORITY[input.priority as TicketPriority];
+    if (!mapped) {
+      throw new Error(
+        `Unknown priority "${String(input.priority)}". Use low, medium, high or urgent.`
+      );
+    }
+    values.priority = mapped;
+  }
+
+  if (input.team_id !== undefined) values.team_id = Number(input.team_id);
+  if (input.partner_id !== undefined) values.partner_id = Number(input.partner_id);
+  if (input.stage_id !== undefined) values.stage_id = Number(input.stage_id);
+  if (Array.isArray(input.tag_ids) && input.tag_ids.length > 0) {
+    values.tag_ids = x2manyReplace(input.tag_ids.map(Number));
+  }
+  return values;
+}
+
+const odoo: Connector = {
+  id: "odoo",
+  name: "Odoo",
+  description:
+    "Helpdesk tickets, project tasks and any other Odoo model, over JSON-RPC. Agents can create and update tickets.",
+  category: "productivity",
+  authType: "token",
+  fields: [
+    {
+      key: "baseUrl",
+      label: "Odoo URL",
+      type: "url",
+      placeholder: "https://company.odoo.com",
+      required: true,
+    },
+    {
+      key: "db",
+      label: "Database",
+      type: "text",
+      placeholder: "company",
+      required: true,
+      help: "On Odoo Online this is usually the subdomain.",
+    },
+    {
+      key: "login",
+      label: "User",
+      type: "text",
+      placeholder: "bot@company.com",
+      required: true,
+      help: "The ticket is created as this user. A dedicated bot account keeps the audit trail readable.",
+    },
+    {
+      key: "apiKey",
+      label: "API key",
+      type: "password",
+      placeholder: "Settings > Account Security > New API Key",
+      required: true,
+    },
+  ],
+  async test(config) {
+    try {
+      const uid = await odooAuthenticate(config);
+      return { ok: true, meta: { uid } };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  },
+  actions: {
+    create_ticket: {
+      description:
+        "Create a helpdesk ticket. Use description_text for plain text (it is escaped and line breaks preserved) or description for HTML you already built.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Ticket title — one line." },
+          description_text: { type: "string", description: "Body as plain text." },
+          description: { type: "string", description: "Body as HTML. Overrides description_text." },
+          priority: {
+            type: "string",
+            enum: ["low", "medium", "high", "urgent"],
+            description: "Defaults to Odoo's own default when omitted.",
+          },
+          team_id: { type: "number", description: "Helpdesk team id." },
+          partner_id: { type: "number", description: "Customer (res.partner) id." },
+          tag_ids: {
+            type: "array",
+            items: { type: "number" },
+            description: "Tag ids. Sent as an x2many replace command.",
+          },
+        },
+        required: ["name"],
+      },
+      async run(config, input) {
+        const values = ticketValues(input);
+        if (!values.name) throw new Error("A ticket needs a name.");
+        const ticketId = await odooExecute(config, "helpdesk.ticket", "create", [values]);
+        return { ok: true, ticket_id: ticketId };
+      },
+    },
+
+    update_ticket: {
+      description: "Update fields on an existing helpdesk ticket.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: { type: "number" },
+          name: { type: "string" },
+          description_text: { type: "string" },
+          description: { type: "string" },
+          priority: { type: "string", enum: ["low", "medium", "high", "urgent"] },
+          stage_id: { type: "number" },
+          team_id: { type: "number" },
+          tag_ids: { type: "array", items: { type: "number" } },
+        },
+        required: ["id"],
+      },
+      async run(config, input) {
+        const values = ticketValues(input);
+        if (Object.keys(values).length === 0) throw new Error("Nothing to update.");
+        const ok = await odooExecute(config, "helpdesk.ticket", "write", [
+          [Number(input.id)],
+          values,
+        ]);
+        return { ok: Boolean(ok), ticket_id: Number(input.id) };
+      },
+    },
+
+    get_ticket: {
+      description: "Read one helpdesk ticket by id.",
+      inputSchema: {
+        type: "object",
+        properties: { id: { type: "number" } },
+        required: ["id"],
+      },
+      async run(config, input) {
+        const rows = (await odooExecute(config, "helpdesk.ticket", "read", [[Number(input.id)]], {
+          fields: TICKET_FIELDS,
+        })) as unknown[];
+        return { ticket: rows?.[0] ?? null };
+      },
+    },
+
+    search_tickets: {
+      description:
+        "Search helpdesk tickets by title substring. Use it before creating a ticket to avoid filing a duplicate.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Matched against the ticket title." },
+          limit: { type: "number", description: "Max rows, capped at 100. Defaults to 20." },
+        },
+      },
+      async run(config, input) {
+        const domain: unknown[] = [];
+        if (typeof input.query === "string" && input.query.trim()) {
+          domain.push(["name", "ilike", input.query.trim()]);
+        }
+        const limit = Math.min(Math.max(Number(input.limit ?? 20), 1), 100);
+        const tickets = await odooExecute(config, "helpdesk.ticket", "search_read", [domain], {
+          fields: TICKET_FIELDS,
+          limit,
+        });
+        return { tickets };
+      },
+    },
+
+    post_note: {
+      description:
+        "Post an INTERNAL note on a ticket or task. Internal means the customer never sees it — use it for the full technical report.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          model: {
+            type: "string",
+            description: "helpdesk.ticket or project.task. Defaults to helpdesk.ticket.",
+          },
+          id: { type: "number" },
+          body_text: { type: "string", description: "Note as plain text." },
+          body: { type: "string", description: "Note as HTML. Overrides body_text." },
+        },
+        required: ["id"],
+      },
+      async run(config, input) {
+        const model = String(input.model ?? "helpdesk.ticket");
+        const body =
+          typeof input.body === "string" ? input.body : htmlFromText(String(input.body_text ?? ""));
+        if (!body.trim()) throw new Error("A note needs a body.");
+        const messageId = await odooExecute(config, model, "message_post", [[Number(input.id)]], {
+          body,
+          message_type: "comment",
+          // Without mt_note the message goes out to the customer as an email.
+          subtype_xmlid: "mail.mt_note",
+        });
+        return { ok: true, message_id: messageId };
+      },
+    },
+
+    execute: {
+      description:
+        "Escape hatch — call any model method (execute_kw). Use only when no dedicated action fits.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          model: { type: "string", description: "e.g. project.task" },
+          method: { type: "string", description: "e.g. search_read, create, write" },
+          args: { type: "array", items: {}, description: "Positional arguments." },
+          kwargs: { type: "object", description: "Keyword arguments, e.g. fields or limit." },
+        },
+        required: ["model", "method"],
+      },
+      async run(config, input) {
+        const result = await odooExecute(
+          config,
+          String(input.model),
+          String(input.method),
+          Array.isArray(input.args) ? input.args : [],
+          (input.kwargs as Record<string, unknown>) ?? {}
+        );
+        return { result };
+      },
+    },
+  },
+};
+
 export const CONNECTORS: Record<string, Connector> = {
   stripe,
   notion,
@@ -499,6 +755,7 @@ export const CONNECTORS: Record<string, Connector> = {
   http,
   slack,
   google: googleWorkspace,
+  odoo,
 };
 
 export function getConnector(id: string): Connector | undefined {
