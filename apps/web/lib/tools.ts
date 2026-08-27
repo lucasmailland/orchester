@@ -271,6 +271,85 @@ const BUILTINS: Record<string, ToolDefinition> = {
       required: ["kind", "subject", "statement"],
     },
   },
+
+  // ── Odoo ──────────────────────────────────────────────────────────────────
+  // Estas tres se resuelven contra el connector `odoo` (ver ODOO_TOOLS abajo),
+  // igual que haría `run_integration`. Existen aparte porque `run_integration`
+  // le entrega al modelo `input: {type: "object"}` sin propiedades: el modelo
+  // tiene que adivinar la forma del payload y el nombre de la acción. Acá el
+  // contrato es explícito y el enum de prioridad es inviolable.
+  odoo_create_ticket: {
+    name: "odoo_create_ticket",
+    description:
+      "Create a helpdesk ticket in Odoo. Search first with `odoo_search_tickets` to avoid filing a duplicate. Keep `name` to a single line; put the full report in `description_text`.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Ticket title, one line. E.g. '500s in user-service after 14:20 deploy'.",
+        },
+        description_text: {
+          type: "string",
+          description:
+            "Body as plain text. Escaped and line breaks preserved on the way in — do not send HTML or Markdown.",
+        },
+        priority: {
+          type: "string",
+          enum: ["low", "medium", "high", "urgent"],
+          description: "Omit to let Odoo apply its own default.",
+        },
+        team_id: { type: "number", description: "Helpdesk team id, when known." },
+        tag_ids: {
+          type: "array",
+          items: { type: "number" },
+          description: "Tag ids to apply.",
+        },
+      },
+      required: ["name"],
+    },
+  },
+  odoo_post_note: {
+    name: "odoo_post_note",
+    description:
+      "Post an INTERNAL note on an existing Odoo ticket or task. Internal means the customer never sees it — this is where the full technical analysis goes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        model: {
+          type: "string",
+          enum: ["helpdesk.ticket", "project.task"],
+          description: "Defaults to helpdesk.ticket.",
+        },
+        id: { type: "number", description: "Numeric id of the ticket or task." },
+        body_text: { type: "string", description: "Note as plain text." },
+      },
+      required: ["id", "body_text"],
+    },
+  },
+  odoo_search_tickets: {
+    name: "odoo_search_tickets",
+    description:
+      "Search Odoo helpdesk tickets by title substring. Call this BEFORE creating a ticket: the same incident reported twice is worse than not reported at all.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Matched against the ticket title." },
+        limit: { type: "number", description: "Max rows, capped at 100. Defaults to 20." },
+      },
+    },
+  },
+};
+
+/**
+ * Tools tipadas que delegan en una acción de un connector. El modelo ve el
+ * schema de la tool; la credencial y la validación viven server-side, igual
+ * que en `run_integration`.
+ */
+const CONNECTOR_TOOLS: Record<string, { integrationId: string; action: string }> = {
+  odoo_create_ticket: { integrationId: "odoo", action: "create_ticket" },
+  odoo_post_note: { integrationId: "odoo", action: "post_note" },
+  odoo_search_tickets: { integrationId: "odoo", action: "search_tickets" },
 };
 
 export function getToolDefinitions(enabledIds: string[]): ToolDefinition[] {
@@ -606,6 +685,18 @@ export async function executeTool(
       integrationId,
       action,
       (input.input as Record<string, unknown>) ?? {},
+      ctx.tx
+    );
+  }
+
+  const connectorTool = CONNECTOR_TOOLS[name];
+  if (connectorTool) {
+    const { runIntegrationAction } = await import("@/lib/integrations/store");
+    return runIntegrationAction(
+      ctx.workspaceId,
+      connectorTool.integrationId,
+      connectorTool.action,
+      input,
       ctx.tx
     );
   }
