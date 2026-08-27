@@ -339,6 +339,60 @@ const BUILTINS: Record<string, ToolDefinition> = {
       },
     },
   },
+
+  // ── New Relic ─────────────────────────────────────────────────────────────
+  // Contexto que un payload de alerta no trae. Las tres queries son fijas: un
+  // resultado reproducible entre corridas vale más que la flexibilidad de
+  // dejar que el modelo escriba NRQL.
+  newrelic_get_errors: {
+    name: "newrelic_get_errors",
+    description:
+      "Top errors for an application in a recent window, grouped by class and message. Start here when an alert names a service but not a cause.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        app_name: {
+          type: "string",
+          description: "APM application name exactly as New Relic reports it, e.g. user-service.",
+        },
+        since_minutes: {
+          type: "number",
+          description: "Window in minutes, capped at 1440. Defaults to 30.",
+        },
+        limit: { type: "number", description: "Max rows, capped at 100." },
+      },
+      required: ["app_name"],
+    },
+  },
+  newrelic_get_logs_for_trace: {
+    name: "newrelic_get_logs_for_trace",
+    description:
+      "Log lines for one distributed trace, oldest first. Use the `trace_id` carried by the alert payload — this is how a single failing request is reconstructed end to end.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        trace_id: {
+          type: "string",
+          description: "The trace id from the alert payload or from a log line.",
+        },
+        limit: { type: "number", description: "Max rows, capped at 100." },
+      },
+      required: ["trace_id"],
+    },
+  },
+  newrelic_get_deployments: {
+    name: "newrelic_get_deployments",
+    description:
+      "Recent deployments for an application. Check this before blaming code: a spike that starts right after a rollout is usually the rollout.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        app_name: { type: "string" },
+        limit: { type: "number" },
+      },
+      required: ["app_name"],
+    },
+  },
 };
 
 /**
@@ -350,6 +404,9 @@ const CONNECTOR_TOOLS: Record<string, { integrationId: string; action: string }>
   odoo_create_ticket: { integrationId: "odoo", action: "create_ticket" },
   odoo_post_note: { integrationId: "odoo", action: "post_note" },
   odoo_search_tickets: { integrationId: "odoo", action: "search_tickets" },
+  newrelic_get_errors: { integrationId: "newrelic", action: "get_errors" },
+  newrelic_get_logs_for_trace: { integrationId: "newrelic", action: "get_logs_for_trace" },
+  newrelic_get_deployments: { integrationId: "newrelic", action: "get_deployments" },
 };
 
 export function getToolDefinitions(enabledIds: string[]): ToolDefinition[] {

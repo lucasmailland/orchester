@@ -7,6 +7,14 @@ import {
   TICKET_PRIORITY,
   type TicketPriority,
 } from "./odoo-client";
+import {
+  nerdgraph,
+  runNrql,
+  looksLikeUserKey,
+  buildErrorsQuery,
+  buildTraceLogsQuery,
+  buildDeploymentsQuery,
+} from "./newrelic-client";
 
 /**
  * Registry de integraciones de terceros.
@@ -747,6 +755,134 @@ const odoo: Connector = {
   },
 };
 
+const newrelic: Connector = {
+  id: "newrelic",
+  name: "New Relic",
+  description:
+    "Query errors, logs and deployments over NerdGraph. Agents can pull the context an alert payload does not carry.",
+  category: "data",
+  authType: "token",
+  fields: [
+    {
+      key: "accountId",
+      label: "Account ID",
+      type: "text",
+      placeholder: "1234567",
+      required: true,
+    },
+    {
+      key: "apiKey",
+      label: "User key",
+      type: "password",
+      placeholder: "NRAK-…",
+      required: true,
+      help: "A User key (NRAK-…), not the license key that feeds the APM agent — NerdGraph rejects the latter.",
+    },
+    {
+      key: "endpoint",
+      label: "Endpoint",
+      type: "url",
+      placeholder: "https://api.newrelic.com/graphql",
+      required: false,
+      help: "Only for EU accounts: https://api.eu.newrelic.com/graphql",
+    },
+  ],
+  async test(config) {
+    try {
+      await nerdgraph(config, "{ actor { user { id } } }");
+      return { ok: true };
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      // The most common setup mistake by far, and the API's own message never
+      // names it.
+      const hint = looksLikeUserKey(config.apiKey ?? "")
+        ? ""
+        : " — that key does not look like a User key (NRAK-…). The license key that feeds the APM agent does not work with NerdGraph.";
+      return { ok: false, error: `${message}${hint}` };
+    }
+  },
+  actions: {
+    get_errors: {
+      description:
+        "Top errors for an application in a recent window, grouped by class and message.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          app_name: { type: "string", description: "APM application name, e.g. user-service." },
+          since_minutes: { type: "number", description: "Window in minutes. Max 1440." },
+          limit: { type: "number", description: "Max rows. Max 100." },
+        },
+        required: ["app_name"],
+      },
+      async run(config, input) {
+        const errors = await runNrql(
+          config,
+          buildErrorsQuery(
+            String(input.app_name),
+            Number(input.since_minutes ?? 30),
+            Number(input.limit ?? 20)
+          )
+        );
+        return { errors };
+      },
+    },
+
+    get_logs_for_trace: {
+      description:
+        "Log lines for one distributed trace, oldest first. Use the trace_id carried by the alert payload.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          trace_id: { type: "string" },
+          limit: { type: "number", description: "Max rows. Max 100." },
+        },
+        required: ["trace_id"],
+      },
+      async run(config, input) {
+        const logs = await runNrql(
+          config,
+          buildTraceLogsQuery(String(input.trace_id), Number(input.limit ?? 100))
+        );
+        return { logs };
+      },
+    },
+
+    get_deployments: {
+      description:
+        "Recent deployments for an application. A spike that starts right after one is usually the rollout.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          app_name: { type: "string" },
+          limit: { type: "number" },
+        },
+        required: ["app_name"],
+      },
+      async run(config, input) {
+        const deployments = await runNrql(
+          config,
+          buildDeploymentsQuery(String(input.app_name), Number(input.limit ?? 5))
+        );
+        return { deployments };
+      },
+    },
+
+    nrql: {
+      description:
+        "Run an arbitrary NRQL query. Use it when no dedicated action fits; prefer the dedicated ones, whose queries are fixed and therefore reproducible.",
+      inputSchema: {
+        type: "object",
+        properties: { query: { type: "string", description: "A complete NRQL statement." } },
+        required: ["query"],
+      },
+      async run(config, input) {
+        const results = await runNrql(config, String(input.query));
+        return { results };
+      },
+    },
+  },
+};
+
 export const CONNECTORS: Record<string, Connector> = {
   stripe,
   notion,
@@ -756,6 +892,7 @@ export const CONNECTORS: Record<string, Connector> = {
   slack,
   google: googleWorkspace,
   odoo,
+  newrelic,
 };
 
 export function getConnector(id: string): Connector | undefined {
