@@ -19,8 +19,16 @@
  *     muted background) so "start from scratch" feels like the safe default.
  *   - Tags render as Compass-style chips, not pills with colors. The point
  *     is orientation, not decoration.
- *   - Esc closes. Click outside closes. Click a card calls onSelect and
- *     closes immediately — no extra confirmation.
+ *   - Esc closes. Click outside closes. Click a card calls onSelect — no
+ *     extra confirmation — and the parent decides what comes next.
+ *
+ * Why picking does not call onClose
+ * ---------------------------------
+ * Every caller passes `onClose={createFlow.closeAll}` and moves to the form
+ * inside onSelect. Calling onClose right after onSelect batched both state
+ * updates, closeAll ran last, and the form never opened: picking any template
+ * — Blank included — just closed the modal. The picker is shown while
+ * `phase === "picker"`, so it disappears on its own once the parent moves on.
  *
  * Why not HeroUI Modal
  * --------------------
@@ -139,9 +147,8 @@ export function TemplatePicker<K extends TemplateKind>({
   const handlePick = useCallback(
     (template: CompassTemplate<TemplatePayloadFor<K>>) => {
       onSelect(template);
-      onClose();
     },
-    [onSelect, onClose]
+    [onSelect]
   );
 
   if (!isOpen) return null;
