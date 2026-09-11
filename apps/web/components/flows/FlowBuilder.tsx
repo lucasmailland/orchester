@@ -30,6 +30,7 @@ import { autoLayout } from "@/lib/flows/layout";
 import { validateFlow, type ValidationIssue } from "@/lib/flows/validate";
 import { buildGraphFromSpec } from "@/lib/flows/copilot-tools";
 import { FLOW_TEMPLATES, type FlowTemplate } from "@/lib/flows/templates";
+import { runInputsNeeded } from "@/lib/flows/run-inputs";
 import {
   Save,
   Play,
@@ -376,8 +377,15 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     for (const [k, v] of Object.entries(variables)) {
       seed[k] = typeof v === "string" ? v : JSON.stringify(v);
     }
+    // Also ask for what the steps read but the flow does not declare, e.g.
+    // `message` for an Agent step without a prompt of its own.
+    const draft: Record<string, unknown> = { ...variables };
+    for (const key of runInputsNeeded(nodes, variables)) {
+      if (!(key in seed)) seed[key] = "";
+      if (!(key in draft)) draft[key] = "";
+    }
     setRunFields(seed);
-    setRunInputDraft(JSON.stringify(Object.keys(variables).length > 0 ? variables : {}, null, 2));
+    setRunInputDraft(JSON.stringify(draft, null, 2));
     setRunInputError(null);
     setRunJsonMode(false);
     setRunModalOpen(true);
