@@ -43,7 +43,16 @@ COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
-RUN pnpm --filter @orchester/web build
+# `next build` imports every route while "Collecting page data", and
+# lib/auth.ts throws at import time when DATABASE_URL is unset. Nothing
+# connects to the database during the build, so a placeholder is enough.
+# It is scoped to this RUN rather than set with ENV, so it never becomes part
+# of the image. Without it the build only passed when the context happened to
+# carry a developer's apps/web/.env.local — .dockerignore excludes .env.local
+# at the root only, not under apps/web — which is not a build anyone can
+# reproduce from a clean checkout.
+RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build \
+    pnpm --filter @orchester/web build
 # Pre-build the worker bundle inside the builder stage where the full
 # workspace TS source + esbuild + node_modules are available. The runner
 # stage only carries the resulting `.dist/worker.mjs` — no esbuild, no
