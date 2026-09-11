@@ -45,7 +45,10 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           id: "hay",
           nodeId: "condition",
           label: "¿Ya existe uno?",
-          config: { expression: "{{similares.length}} > 0" },
+          // search_tickets answers { tickets }, and the integration node
+          // stores that object under outputVar as-is — hence `.tickets`.
+          // The engine expects left/op/right, not a free-form expression.
+          config: { left: "{{similares.tickets.length}}", op: ">", right: "0" },
         },
         {
           // Camino del duplicado: el caso igual queda registrado, como nota
@@ -58,7 +61,7 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
             integrationId: "odoo::post_note",
             input: {
               model: "helpdesk.ticket",
-              id: "{{similares.0.id}}",
+              id: "{{similares.tickets.0.id}}",
               body_text:
                 "Reportado también desde el chatbot de soporte.\n\nCategoría: {{category}}\nReporta: {{reporter.username}} (empresa {{reporter.companyId}})\nAfectado: {{affectedColleagueName}}\n\n{{description_text}}",
             },
@@ -90,8 +93,10 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
       edges: [
         { source: "t", target: "buscar" },
         { source: "buscar", target: "hay" },
-        { source: "hay", target: "nota" },
-        { source: "hay", target: "crear" },
+        // The engine only follows the edge whose sourceHandle matches the
+        // condition's result; an edge without one is never taken.
+        { source: "hay", target: "nota", sourceHandle: "true" },
+        { source: "hay", target: "crear", sourceHandle: "false" },
       ],
     },
   },
