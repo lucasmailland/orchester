@@ -45,7 +45,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 # `next build` imports every route while "Collecting page data", and
 # lib/auth.ts throws at import time when DATABASE_URL is unset. Nothing
-# connects to the database during the build, so a placeholder is enough.
+# needs the database during the build — cluster-cache attempts a LISTEN,
+# logs ECONNREFUSED and carries on — so a placeholder is enough.
 # It is scoped to this RUN rather than set with ENV, so it never becomes part
 # of the image. Without it the build only passed when the context happened to
 # carry a developer's apps/web/.env.local — .dockerignore excludes .env.local
