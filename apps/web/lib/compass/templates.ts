@@ -10,10 +10,14 @@
  * is structure and payloads only — no user-facing strings.
  */
 
+import { specToStoredGraph } from "@/lib/flows/normalize";
+
 /**
  * Mirrors the `type` enum on `schema.channels` (apps/web/app/api/channels).
  * Kept inline rather than imported because the schema package doesn't export
- * a named ChannelType union, and this keeps the registry zero-dep.
+ * a named ChannelType union. (The registry is no longer zero-dep: flow
+ * templates are built from the node registry, so they can only reference
+ * steps the editor actually has.)
  */
 export type ChannelType = "widget" | "web" | "telegram" | "slack" | "whatsapp" | "email" | "api";
 
@@ -249,6 +253,11 @@ const AGENT_TEMPLATES: CompassTemplate<AgentTemplatePayload>[] = [
 // Flow templates
 // -------------------------------------------------------------------------
 
+// Built with specToStoredGraph from real registry steps. These used to be
+// { type, data: { label } } nodes with types the editor never had (tool,
+// branch, handoff): every flow created from them crashed the editor on open.
+// Fields a template cannot know — which agent, knowledge base, URL or token —
+// are left empty, and the editor flags each one as "le falta completar".
 const FLOW_TEMPLATES: CompassTemplate<FlowTemplatePayload>[] = [
   {
     id: "blank",
@@ -257,19 +266,8 @@ const FLOW_TEMPLATES: CompassTemplate<FlowTemplatePayload>[] = [
     descriptionKey: "blank.description",
     iconName: "Sparkles",
     blank: true,
-    payload: {
-      name: "",
-      nodes: [
-        {
-          id: "trigger-1",
-          type: "trigger",
-          position: { x: 120, y: 120 },
-          data: { label: "Trigger" },
-        },
-      ],
-      edges: [],
-      variables: {},
-    },
+    // Picking Blank opens the empty canvas with the editor's start guide.
+    payload: { name: "", nodes: [], edges: [], variables: {} },
   },
   {
     id: "lead-qualification",
@@ -281,22 +279,35 @@ const FLOW_TEMPLATES: CompassTemplate<FlowTemplatePayload>[] = [
     payload: {
       name: "Lead Qualification",
       description: "Webhook intake, enrichment, qualifier agent, branch on score.",
-      nodes: [
-        { id: "n1", type: "trigger", position: { x: 80, y: 160 }, data: { label: "Webhook" } },
-        { id: "n2", type: "tool", position: { x: 320, y: 160 }, data: { label: "Enrich contact" } },
-        {
-          id: "n3",
-          type: "agent",
-          position: { x: 560, y: 160 },
-          data: { label: "Qualifier agent" },
-        },
-        { id: "n4", type: "branch", position: { x: 800, y: 160 }, data: { label: "Score >= 6?" } },
-      ],
-      edges: [
-        { id: "e1", source: "n1", target: "n2" },
-        { id: "e2", source: "n2", target: "n3" },
-        { id: "e3", source: "n3", target: "n4" },
-      ],
+      ...specToStoredGraph({
+        nodes: [
+          { id: "n1", nodeId: "trigger_webhook", label: "Webhook" },
+          { id: "n2", nodeId: "http", label: "Enrich contact", config: { method: "GET", url: "" } },
+          {
+            id: "n3",
+            nodeId: "agent",
+            label: "Qualifier agent",
+            config: {
+              agentId: "",
+              // The step leaves its reply in {{agentResult}} as text, so the
+              // condition below can only compare a bare number.
+              prompt:
+                "Score this lead from 1 to 10 for fit and buying intent. Reply with the number only.\n\nLead: {{name}} <{{email}}>, {{company}}\nEnrichment: {{httpResult}}",
+            },
+          },
+          {
+            id: "n4",
+            nodeId: "condition",
+            label: "Score >= 6?",
+            config: { left: "{{agentResult}}", op: ">=", right: "{{scoreThreshold}}" },
+          },
+        ],
+        edges: [
+          { source: "n1", target: "n2" },
+          { source: "n2", target: "n3" },
+          { source: "n3", target: "n4" },
+        ],
+      }),
       variables: { scoreThreshold: 6 },
     },
   },
@@ -309,36 +320,54 @@ const FLOW_TEMPLATES: CompassTemplate<FlowTemplatePayload>[] = [
     tagsKey: "support-triage.tags",
     payload: {
       name: "Support Triage",
-      description: "Inbound message, KB search, agent answers, escalates if confidence is low.",
-      nodes: [
-        {
-          id: "n1",
-          type: "trigger",
-          position: { x: 80, y: 160 },
-          data: { label: "Inbound message" },
-        },
-        { id: "n2", type: "tool", position: { x: 320, y: 160 }, data: { label: "Search KB" } },
-        { id: "n3", type: "agent", position: { x: 560, y: 160 }, data: { label: "Support agent" } },
-        {
-          id: "n4",
-          type: "branch",
-          position: { x: 800, y: 160 },
-          data: { label: "Confidence ok?" },
-        },
-        {
-          id: "n5",
-          type: "handoff",
-          position: { x: 1040, y: 260 },
-          data: { label: "Escalate to human" },
-        },
-      ],
-      edges: [
-        { id: "e1", source: "n1", target: "n2" },
-        { id: "e2", source: "n2", target: "n3" },
-        { id: "e3", source: "n3", target: "n4" },
-        { id: "e4", source: "n4", target: "n5" },
-      ],
-      variables: { minConfidence: 0.7 },
+      description:
+        "Inbound message, knowledge base search, the agent answers and hands off to a person when it can't.",
+      ...specToStoredGraph({
+        nodes: [
+          { id: "n1", nodeId: "trigger_message", label: "Inbound message" },
+          {
+            id: "n2",
+            nodeId: "kb_search",
+            label: "Search KB",
+            config: { kbId: "", query: "{{message}}", topK: 3 },
+          },
+          {
+            id: "n3",
+            nodeId: "agent",
+            label: "Support agent",
+            config: {
+              agentId: "",
+              // An agent step returns text, not a confidence score, so the old
+              // "minConfidence" had nothing to compare against. An explicit
+              // signal is something the condition can actually evaluate.
+              prompt:
+                "Answer the customer using only these knowledge base excerpts. If they do not contain the answer, reply with exactly ESCALATE.\n\n{{knowledge}}",
+            },
+          },
+          {
+            id: "n4",
+            nodeId: "condition",
+            label: "Needs a person?",
+            config: { left: "{{agentResult}}", op: "contains", right: "ESCALATE" },
+          },
+          {
+            id: "n5",
+            nodeId: "wait_human",
+            label: "Escalate to human",
+            config: {
+              instructions:
+                "The agent could not answer from the knowledge base. Reply to the customer: {{message}}",
+            },
+          },
+        ],
+        edges: [
+          { source: "n1", target: "n2" },
+          { source: "n2", target: "n3" },
+          { source: "n3", target: "n4" },
+          { source: "n4", target: "n5", sourceHandle: "true" },
+        ],
+      }),
+      variables: {},
     },
   },
   {
@@ -351,23 +380,44 @@ const FLOW_TEMPLATES: CompassTemplate<FlowTemplatePayload>[] = [
     payload: {
       name: "Newsletter Compile",
       description: "Scheduled pull of updates, agent writes the issue, sends it.",
-      nodes: [
-        {
-          id: "n1",
-          type: "trigger",
-          position: { x: 80, y: 160 },
-          data: { label: "Schedule (weekly)" },
-        },
-        { id: "n2", type: "tool", position: { x: 320, y: 160 }, data: { label: "Fetch updates" } },
-        { id: "n3", type: "agent", position: { x: 560, y: 160 }, data: { label: "Writer agent" } },
-        { id: "n4", type: "tool", position: { x: 800, y: 160 }, data: { label: "Send email" } },
-      ],
-      edges: [
-        { id: "e1", source: "n1", target: "n2" },
-        { id: "e2", source: "n2", target: "n3" },
-        { id: "e3", source: "n3", target: "n4" },
-      ],
-      variables: { cadence: "weekly" },
+      ...specToStoredGraph({
+        nodes: [
+          {
+            id: "n1",
+            nodeId: "trigger_schedule",
+            label: "Schedule (weekly)",
+            config: { cron: "0 9 * * 1" },
+          },
+          { id: "n2", nodeId: "http", label: "Fetch updates", config: { method: "GET", url: "" } },
+          {
+            id: "n3",
+            nodeId: "agent",
+            label: "Writer agent",
+            config: {
+              agentId: "",
+              prompt:
+                "Write this week's newsletter issue from these updates. Keep it short and scannable.\n\n{{httpResult}}",
+            },
+          },
+          {
+            // Not the "Notify" step: that one only records its output and sends
+            // nothing. Resend actually delivers the email.
+            id: "n4",
+            nodeId: "integration",
+            label: "Send email",
+            config: {
+              integrationId: "resend::send_email",
+              input: { to: "", subject: "This week's update", text: "{{agentResult}}" },
+            },
+          },
+        ],
+        edges: [
+          { source: "n1", target: "n2" },
+          { source: "n2", target: "n3" },
+          { source: "n3", target: "n4" },
+        ],
+      }),
+      variables: {},
     },
   },
   {
@@ -380,27 +430,58 @@ const FLOW_TEMPLATES: CompassTemplate<FlowTemplatePayload>[] = [
     payload: {
       name: "PR Review Bot",
       description: "GitHub webhook, fetch diff, review agent, post comment.",
-      nodes: [
-        {
-          id: "n1",
-          type: "trigger",
-          position: { x: 80, y: 160 },
-          data: { label: "GitHub PR webhook" },
-        },
-        { id: "n2", type: "tool", position: { x: 320, y: 160 }, data: { label: "Fetch diff" } },
-        { id: "n3", type: "agent", position: { x: 560, y: 160 }, data: { label: "Review agent" } },
-        {
-          id: "n4",
-          type: "tool",
-          position: { x: 800, y: 160 },
-          data: { label: "Post PR comment" },
-        },
-      ],
-      edges: [
-        { id: "e1", source: "n1", target: "n2" },
-        { id: "e2", source: "n2", target: "n3" },
-        { id: "e3", source: "n3", target: "n4" },
-      ],
+      ...specToStoredGraph({
+        nodes: [
+          { id: "n1", nodeId: "trigger_webhook", label: "GitHub PR webhook" },
+          {
+            // The API URL with a diff Accept header, not diff_url: diff_url does
+            // not answer for private repositories. Headers are not
+            // interpolated, so the token is typed in here.
+            id: "n2",
+            nodeId: "http",
+            label: "Fetch diff",
+            config: {
+              method: "GET",
+              url: "{{pull_request.url}}",
+              headers: {
+                Accept: "application/vnd.github.diff",
+                Authorization: "Bearer REPLACE_WITH_A_GITHUB_TOKEN",
+              },
+            },
+          },
+          {
+            id: "n3",
+            nodeId: "agent",
+            label: "Review agent",
+            config: {
+              agentId: "",
+              // The http body is interpolated as plain text, so a free-form
+              // review with quotes or line breaks would not be valid JSON.
+              prompt:
+                'Review this pull request diff. Point out bugs, risky changes and missing tests. Reply only with a JSON object like {"body": "your review in Markdown"}, escaped as valid JSON.\n\n{{httpResult}}',
+            },
+          },
+          {
+            id: "n4",
+            nodeId: "http",
+            label: "Post PR comment",
+            config: {
+              method: "POST",
+              url: "{{pull_request.comments_url}}",
+              headers: {
+                Accept: "application/vnd.github+json",
+                Authorization: "Bearer REPLACE_WITH_A_GITHUB_TOKEN",
+              },
+              body: "{{agentResult}}",
+            },
+          },
+        ],
+        edges: [
+          { source: "n1", target: "n2" },
+          { source: "n2", target: "n3" },
+          { source: "n3", target: "n4" },
+        ],
+      }),
       variables: {},
     },
   },
