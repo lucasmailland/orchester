@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { FLOW_TEMPLATES } from "./templates";
 import { buildGraphFromSpec } from "./copilot-tools";
 import { evaluateCondition, deepInterpolate } from "@/lib/flow-engine";
+import { getConnector } from "@/lib/integrations/registry";
 
 type Condition = Parameters<typeof evaluateCondition>[0];
 
@@ -36,6 +37,20 @@ describe("FLOW_TEMPLATES", () => {
         // an edge without one is never taken.
         const handles = out.edges.filter((e) => e.source === cond.id).map((e) => e.sourceHandle);
         expect(handles.every((h) => h === "true" || h === "false")).toBe(true);
+      }
+    }
+  );
+});
+
+describe("FLOW_TEMPLATES integrations", () => {
+  it.each(FLOW_TEMPLATES.map((t) => [t.id]))(
+    "%s names each integration as an existing connector::action",
+    (id) => {
+      // A template cannot know a workspace's integration row ids, so it names
+      // the connector type; the store resolves it to that workspace's row.
+      for (const node of build(id).nodes.filter((n) => n.type === "integration")) {
+        const [type, action] = String(node.data.config.integrationId).split("::");
+        expect(getConnector(type!)?.actions[action!], `${type}::${action}`).toBeDefined();
       }
     }
   );
