@@ -1,11 +1,11 @@
 // apps/web/tests/unit/mnemo-client.test.ts
 //
-// Phase 2 scaffolding smoke. Verifies the @mnemosyne/client-ts SDK is
+// Phase 2 scaffolding smoke. Verifies the @mnemo-ai/client-ts SDK is
 // reachable from the host bundle and that `getMnemoClient()` enforces
 // its env-var contract (boot-time fail-loud, never silent).
 //
 // Once Phase 2 routes start landing, each one gets its own test that
-// mocks the HTTP transport via vi.mock("@mnemosyne/client-ts"). This
+// mocks the HTTP transport via vi.mock("@mnemo-ai/client-ts"). This
 // file deliberately exercises the REAL SDK import path so a future
 // breakage in the submodule build (or in the file: dep wiring) is
 // caught here before downstream tests get confused by transitive
@@ -13,9 +13,9 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-describe("@mnemosyne/client-ts SDK is importable", () => {
+describe("@mnemo-ai/client-ts SDK is importable", () => {
   it("exports MnemosyneClient as a constructable class", async () => {
-    const sdk = await import("@mnemosyne/client-ts");
+    const sdk = await import("@mnemo-ai/client-ts");
     expect(sdk).toHaveProperty("MnemosyneClient");
     expect(typeof sdk.MnemosyneClient).toBe("function");
     // Construct with the canonical minimal options. The SDK does NOT
@@ -29,7 +29,7 @@ describe("@mnemosyne/client-ts SDK is importable", () => {
   });
 
   it("exposes the error types the route handlers will catch on", async () => {
-    const sdk = await import("@mnemosyne/client-ts");
+    const sdk = await import("@mnemo-ai/client-ts");
     // These are documented in vendor/mnemosyne/packages/client-ts/src/index.ts
     // as part of the stable public surface; missing means the SDK was
     // built from an unexpected source tree.

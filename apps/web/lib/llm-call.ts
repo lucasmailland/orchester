@@ -240,7 +240,10 @@ async function llmCallInner(p: LlmCallParams): Promise<LlmCallResult> {
   if (resolved.provider.id === "azure_openai") return callAzure(params, apiKey, endpoint);
   switch (resolved.provider.family) {
     case "anthropic":
-      return callAnthropic(params, apiKey);
+      return callAnthropic(params, apiKey, resolved.noSampling);
+    case "bedrock":
+      // `endpoint` es opcional acá: sin él se usa us-east-1. Ver bedrockBaseUrl().
+      return callBedrock(params, apiKey, endpoint, resolved.noSampling);
     case "gemini":
       return callGoogle(params, apiKey);
     case "openai-compatible": {
@@ -288,9 +291,13 @@ export function buildAnthropicSystem(
   ];
 }
 
-async function callAnthropic(p: LlmCallParams, apiKey: string): Promise<LlmCallResult> {
-  // Build messages, encoding tool calls and tool results in Anthropic's content-block format
-  const anthropicMessages = p.messages
+/**
+ * Encode our ChatMessage[] into Anthropic's content-block format.
+ * Compartido por el API directo y por Bedrock: los dos hablan el mismo formato
+ * de mensajes.
+ */
+function toAnthropicMessages(p: LlmCallParams) {
+  return p.messages
     .filter((m) => m.role !== "system")
     .map((m) => {
       if (m.role === "tool") {
@@ -317,22 +324,16 @@ async function callAnthropic(p: LlmCallParams, apiKey: string): Promise<LlmCallR
       }
       return { role: m.role, content: m.content };
     });
+}
 
-  const body: Record<string, unknown> = {
-    model: p.model,
-    max_tokens: p.maxTokens ?? 1024,
-    temperature: p.temperature ?? 0.7,
-    system: buildAnthropicSystem(p.systemPrompt, p.systemPromptCacheBoundary),
-    messages: anthropicMessages,
-  };
-
-  if (p.tools && p.tools.length > 0) {
-    body.tools = p.tools.map((t) => ({
-      name: t.name,
-      description: t.description,
-      input_schema: t.inputSchema,
-    }));
-  }
+async function callAnthropic(
+  p: LlmCallParams,
+  apiKey: string,
+  noSampling = false
+): Promise<LlmCallResult> {
+  const body = buildAnthropicBody(p, toAnthropicMessages(p), noSampling);
+  // El API directo lleva el modelo en el body.
+  body.model = p.model;
 
   const j = await withRetry(async () => {
     const r = await fetchWithTimeout(
@@ -352,7 +353,47 @@ async function callAnthropic(p: LlmCallParams, apiKey: string): Promise<LlmCallR
     return r.json();
   });
 
-  // Extract text + tool_use blocks from response content
+  return parseAnthropicResult(j, p.model);
+}
+
+/**
+ * Cuerpo compartido por el API directo de Anthropic y por Bedrock.
+ *
+ * Los dos hablan el formato Messages y difieren SÓLO en cómo se selecciona el
+ * modelo: el directo lo manda en el body como `model`; Bedrock lo lleva en la
+ * URL y en su lugar exige `anthropic_version`. Todo lo demás —system con cache
+ * boundary, tools, max_tokens, temperature— es idéntico, así que vive acá y no
+ * duplicado en cada caller.
+ */
+function buildAnthropicBody(
+  p: LlmCallParams,
+  messages: unknown[],
+  noSampling = false
+): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    max_tokens: p.maxTokens ?? 1024,
+    system: buildAnthropicSystem(p.systemPrompt, p.systemPromptCacheBoundary),
+    messages,
+  };
+
+  // `temperature` sólo si el modelo la acepta. Toda la familia Claude 4.7+ la
+  // eliminó y responde 400 "`temperature` is deprecated for this model" — no la
+  // ignora, falla la llamada entera. El catálogo marca cuáles con `noSampling`.
+  if (!noSampling) body.temperature = p.temperature ?? 0.7;
+
+  if (p.tools && p.tools.length > 0) {
+    body.tools = p.tools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.inputSchema,
+    }));
+  }
+
+  return body;
+}
+
+/** Decodifica una respuesta del formato Messages de Anthropic a LlmCallResult. */
+function parseAnthropicResult(j: AnthropicResponse, model: string): LlmCallResult {
   const blocks = (j.content ?? []) as Array<{
     type: string;
     text?: string;
@@ -371,7 +412,7 @@ async function callAnthropic(p: LlmCallParams, apiKey: string): Promise<LlmCallR
   const result: LlmCallResult = {
     content: text,
     tokensUsed: (j.usage?.input_tokens ?? 0) + (j.usage?.output_tokens ?? 0),
-    model: p.model,
+    model,
     // v2.1 — cache observability. When the provider doesn't return
     // cache fields they collapse to 0 and the caller sees
     // `cacheReadTokens === 0` (no win this turn). The structural
@@ -380,16 +421,88 @@ async function callAnthropic(p: LlmCallParams, apiKey: string): Promise<LlmCallR
     // from "this provider doesn't support prompt cache."
     cacheUsage: {
       inputTokens: j.usage?.input_tokens ?? 0,
-      cacheCreationTokens:
-        (j.usage as { cache_creation_input_tokens?: number } | undefined)
-          ?.cache_creation_input_tokens ?? 0,
-      cacheReadTokens:
-        (j.usage as { cache_read_input_tokens?: number } | undefined)?.cache_read_input_tokens ?? 0,
+      cacheCreationTokens: j.usage?.cache_creation_input_tokens ?? 0,
+      cacheReadTokens: j.usage?.cache_read_input_tokens ?? 0,
       outputTokens: j.usage?.output_tokens ?? 0,
     },
   };
   if (toolCalls.length > 0) result.toolCalls = toolCalls;
   return result;
+}
+
+/** Forma de la respuesta del formato Messages (directo y Bedrock son iguales). */
+interface AnthropicResponse {
+  content?: Array<{ type: string; text?: string; id?: string; name?: string; input?: unknown }>;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_creation_input_tokens?: number;
+    cache_read_input_tokens?: number;
+  };
+}
+
+/** Base URL de bedrock-runtime para una región. */
+function bedrockBaseUrl(endpoint?: string | null): string {
+  // `endpoint` acepta las dos formas que un operador escribiría: una URL
+  // completa (para un VPC endpoint propio) o sólo la región.
+  const e = endpoint?.trim().replace(/\/$/, "");
+  if (!e) return "https://bedrock-runtime.us-east-1.amazonaws.com";
+  if (e.startsWith("http://") || e.startsWith("https://")) return e;
+  return `https://bedrock-runtime.${e}.amazonaws.com`;
+}
+
+/**
+ * Chat vía Amazon Bedrock, autenticado con una **Bedrock API Key**
+ * (`Authorization: Bearer ABSK…`) — no con credenciales IAM.
+ *
+ * Por qué API Key y no IAM: firmar SigV4 exige `@aws-sdk/client-bedrock-runtime`,
+ * una dependencia pesada que este repo no tiene y que sólo se usaría acá. La
+ * Bedrock API Key es un simple bearer, así que Bedrock entra como cualquier otro
+ * proveedor de `auth: "api_key"` — incluido el formulario del onboarding, que
+ * antes no lo ofrecía justamente porque estaba declarado como `auth: "aws"`.
+ *
+ * Dos diferencias con el API directo, ambas verificadas contra el servicio real:
+ *
+ *  1. El modelo va en la URL, no en el body, y en su lugar el body exige
+ *     `anthropic_version: "bedrock-2023-05-31"`.
+ *  2. Los model id son **inference profiles** con prefijo de región
+ *     (`us.anthropic.claude-opus-5`), no el id pelado. Invocar
+ *     `anthropic.claude-…` directo devuelve ValidationException:
+ *     "Invocation of model ID … with on-demand throughput isn't supported.
+ *      Retry your request with the ID or ARN of an inference profile".
+ */
+async function callBedrock(
+  p: LlmCallParams,
+  apiKey: string,
+  endpoint?: string | null,
+  noSampling = false
+): Promise<LlmCallResult> {
+  const body = buildAnthropicBody(p, toAnthropicMessages(p), noSampling);
+  body.anthropic_version = "bedrock-2023-05-31";
+
+  // El id lleva `:` y `.` (ej. `us.anthropic.claude-haiku-4-5-20251001-v1:0`),
+  // así que va escapado o el `:` rompe el path.
+  const url = `${bedrockBaseUrl(endpoint)}/model/${encodeURIComponent(p.model)}/invoke`;
+
+  const j = await withRetry(async () => {
+    const r = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${apiKey}`,
+          "content-type": "application/json",
+          accept: "application/json",
+        },
+        body: JSON.stringify(body),
+      },
+      LLM_TIMEOUT_MS
+    );
+    if (!r.ok) throw new HttpError(r.status, `Bedrock ${r.status}: ${await r.text()}`);
+    return r.json();
+  });
+
+  return parseAnthropicResult(j, p.model);
 }
 
 /** Encode our ChatMessage[] into OpenAI Chat Completions format (with tools). */

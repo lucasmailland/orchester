@@ -1,7 +1,7 @@
 // apps/web/lib/mnemo/facts.ts
 //
 // HTTP-only implementation of the orchester `/api/mnemo/facts*` route
-// family. Every helper here delegates to @mnemosyne/client-ts — the
+// family. Every helper here delegates to @mnemo-ai/client-ts — the
 // in-process @mnemosyne/core path was retired with Phase 3.
 //
 // Surfaces:
@@ -17,7 +17,7 @@
 //                                    JOIN host-side)
 
 import "server-only";
-import type { ListFactsResponse, PatchFactInput, RestoreFactResponse } from "@mnemosyne/client-ts";
+import type { ListFactsResponse, PatchFactInput, RestoreFactResponse } from "@mnemo-ai/client-ts";
 import { getMnemoMode, getMnemoClient, type MnemoMode } from "@/lib/mnemo/client";
 
 export { getMnemoMode };
@@ -26,7 +26,7 @@ export type { MnemoMode };
 // Lazy SDK error import — keep the cold-path imports out of the hot
 // list/get paths so the typical request doesn't pay the load cost.
 async function getMnemoApiError() {
-  const { MnemosyneAPIError } = await import("@mnemosyne/client-ts");
+  const { MnemosyneAPIError } = await import("@mnemo-ai/client-ts");
   return MnemosyneAPIError;
 }
 

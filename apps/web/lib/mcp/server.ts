@@ -356,7 +356,7 @@ const TOOLS: McpToolDef[] = [
   //     mid-conversation that didn't come from a chat turn)
   //   - audit / curate the memory: pin important ones, forget the rest
   //
-  // Every tool dispatches through the @mnemosyne/client-ts SDK, which
+  // Every tool dispatches through the @mnemo-ai/client-ts SDK, which
   // sends the workspace's API key on every request. The mnemosyne
   // server scopes every operation to that workspace, so a client with
   // an API key for workspace A can NEVER read or mutate memory in

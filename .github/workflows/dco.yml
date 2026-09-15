@@ -26,6 +26,10 @@ jobs:
     name: DCO sign-off
     runs-on: ubuntu-latest
     steps:
-      - uses: christophebedard/dco-check@v1.4.2
+      # v1.4.2 was never published; 0.5.1 is the latest tag. The script reads
+      # the PR's commits through the API, so it needs the token.
+      - uses: christophebedard/dco-check@0.5.1
         with:
-          quiet: false
+          args: "--verbose"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -21,6 +21,16 @@ interface ProviderGroup {
 interface Props {
   value: string;
   onChange: (v: string) => void;
+  /**
+   * When `value` is not served by any connected provider, switch to its
+   * equivalent on one that is (`claude-sonnet-4-6` →
+   * `bedrock:us.anthropic.claude-sonnet-4-6`), or to the first available model.
+   *
+   * Off by default on purpose: in the agent editor it would silently change an
+   * existing agent's model on the next save. It belongs where the value is a
+   * preloaded default nobody chose — the create modal and its templates.
+   */
+  fallbackToAvailable?: boolean;
 }
 
 const TIER_ICON: Record<string, ReactNode> = {
@@ -29,7 +39,7 @@ const TIER_ICON: Record<string, ReactNode> = {
   powerful: <Rocket className="h-3.5 w-3.5" />,
 };
 
-export function ModelPicker({ value, onChange }: Props) {
+export function ModelPicker({ value, onChange, fallbackToAvailable = false }: Props) {
   const t = useTranslations("pages.agents.studio.modelPicker");
   const [groups, setGroups] = useState<ProviderGroup[]>([]);
   const [providerName, setProviderName] = useState<Record<string, string>>({});
@@ -73,6 +83,14 @@ export function ModelPicker({ value, onChange }: Props) {
       )
       .catch(() => setGroups([]));
   }, []);
+
+  useEffect(() => {
+    if (!fallbackToAvailable) return;
+    const available = groups.flatMap((g) => g.models);
+    if (available.length === 0 || available.some((m) => m.id === value)) return;
+    const replacement = equivalentModel(available, value) ?? available[0]!;
+    onChange(replacement.id);
+  }, [fallbackToAvailable, groups, value, onChange]);
 
   const selected = groups.flatMap((g) => g.models).find((m) => m.id === value) ?? null;
 
@@ -135,4 +153,18 @@ export function ModelPicker({ value, onChange }: Props) {
       )}
     </div>
   );
+}
+
+/**
+ * The same model served by another provider: its id ends with the requested
+ * one, right after a provider or region separator. The boundary check keeps
+ * "4-6" from matching every model that happens to end in it.
+ */
+function equivalentModel(models: Model[], requested: string): Model | undefined {
+  if (!requested) return undefined;
+  return models.find((m) => {
+    if (!m.id.endsWith(requested) || m.id === requested) return false;
+    const before = m.id.charAt(m.id.length - requested.length - 1);
+    return before === "." || before === ":" || before === "/";
+  });
 }

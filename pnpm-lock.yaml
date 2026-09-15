@@ -65,9 +65,9 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.4.0
         version: 5.4.0(react-hook-form@7.77.0(react@19.2.7))
-      '@mnemosyne/client-ts':
-        specifier: file:../../vendor/mnemosyne/packages/client-ts
-        version: file:vendor/mnemosyne/packages/client-ts
+      '@mnemo-ai/client-ts':
+        specifier: ^3.6.2
+        version: 3.6.2
       '@paralleldrive/cuid2':
         specifier: ^3.3.0
         version: 3.3.0
@@ -2112,13 +2112,13 @@ packages:
   '@kwsites/file-exists@1.1.1':
     resolution: {integrity: sha512-m9/5YGR18lIwxSFDwfE3oA7bWuq9kdau6ugN4H2rJeyhFQZcG9AgSHkQtSD15a8WvTgfz9aikZMrKPHvbpqFiw==}
 
-  '@mnemosyne/client-ts@file:vendor/mnemosyne/packages/client-ts':
-    resolution: {directory: vendor/mnemosyne/packages/client-ts, type: directory}
+  '@mnemo-ai/client-ts@3.6.2':
+    resolution: {integrity: sha512-zq/+f2FZiCiPuAjGHO6+lPBLx5+JdRzMCP/T3jPIi/yFpmrr87hw5OFgPTHMhZEDrbsoV+kPtxEUpjWQYd4tPw==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
-      '@mnemosyne/core': workspace:*
+      '@mnemo-ai/core': 3.6.0-alpha.0
     peerDependenciesMeta:
-      '@mnemosyne/core':
+      '@mnemo-ai/core':
         optional: true
 
   '@napi-rs/canvas-android-arm64@0.1.80':
@@ -10158,7 +10158,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@mnemosyne/client-ts@file:vendor/mnemosyne/packages/client-ts': {}
+  '@mnemo-ai/client-ts@3.6.2': {}
 
   '@napi-rs/canvas-android-arm64@0.1.80':
     optional: true

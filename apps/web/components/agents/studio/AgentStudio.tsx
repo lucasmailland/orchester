@@ -120,7 +120,14 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
       toast.success(t("agentSaved"));
       router.refresh();
     } else {
-      toast.error(t("saveError"));
+      // The API explains what was rejected; a bare "Couldn't save" left no way
+      // to tell a validation error from a network one.
+      const body = (await r.json().catch(() => null)) as {
+        issues?: string[];
+        error?: string;
+      } | null;
+      const detail = body?.issues?.[0] ?? body?.error;
+      toast.error(detail ? `${t("saveError")}: ${detail}` : t("saveError"));
     }
   }
 

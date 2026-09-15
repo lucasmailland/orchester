@@ -50,11 +50,26 @@ export async function register(): Promise<void> {
   // In development webpack mode (`next dev` without --turbopack), the
   // webpackIgnore hint causes webpack NOT to emit instrumentation-node.js to
   // .next/server/, so the runtime import fails with MODULE_NOT_FOUND. We
-  // degrade gracefully in dev/test: log a warning and continue. In production
-  // (`next build` with standalone output), the output-file tracer picks up
-  // the file through the dependency graph and copies it correctly.
+  // degrade gracefully in dev/test: log a warning and continue.
+  //
+  // In PRODUCTION the module is emitted by scripts/build-instrumentation.mjs,
+  // which corre después de `next build` (ver el script `build`). Antes se creía
+  // que "the output-file tracer picks up the file through the dependency graph":
+  // no lo hace. `webpackIgnore: true` saca el módulo del grafo — es literalmente
+  // su función — así que el tracer no tiene nada que seguir. El módulo no se
+  // emitía nunca, el catch de abajo re-lanzaba en prod, y el hook fallaba en
+  // CADA request: 500 en todo, con el contenedor "Ready" pero unhealthy.
+  //
+  // La extensión `.mjs` del specifier NO es opcional. Este import lo resuelve
+  // Node como ESM, y ESM no autocompleta extensiones (eso es CommonJS). Sin
+  // ella el error es `Cannot find module '…/instrumentation-node'` — sin
+  // extensión — aunque el archivo .js esté ahí al lado.
   try {
-    await import(/* webpackIgnore: true */ "./instrumentation-node");
+    // Specifier por variable, no literal: TypeScript mapearía "./x.mjs" a
+    // "./x.mts" y el fuente es .ts. Con una variable no lo resuelve, y webpack
+    // tampoco lo analiza estáticamente (que es lo que ya buscaba webpackIgnore).
+    const nodeInstrumentation = "./instrumentation-node.mjs";
+    await import(/* webpackIgnore: true */ nodeInstrumentation);
   } catch (e: unknown) {
     if (process.env["NODE_ENV"] === "production") throw e;
     const msg = e instanceof Error ? e.message : String(e);
@@ -94,7 +109,8 @@ export async function register(): Promise<void> {
   // emit db-role-check.js in dev, so the import fails with MODULE_NOT_FOUND.
   // We catch and warn rather than crashing the dev server.
   try {
-    const { assertSafeDbRole } = await import(/* webpackIgnore: true */ "./lib/db-role-check");
+    const dbRoleCheck = "./lib/db-role-check.mjs";
+    const { assertSafeDbRole } = await import(/* webpackIgnore: true */ dbRoleCheck);
     if (process.env["NODE_ENV"] === "production") {
       // In prod we WANT a thrown error to propagate — failed boot is the
       // intended behaviour, signals to the orchestrator to mark the deploy

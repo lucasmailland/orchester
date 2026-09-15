@@ -1,35 +1,11 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
+import { updateAgentSchema } from "@/lib/agents/schemas";
 import { logAudit } from "@/lib/audit";
-
-const updateAgentSchema = z.object({
-  name: z.string().trim().min(1, "Name is required"),
-  role: z.string().trim().min(1, "Role is required"),
-  systemPrompt: z.string().optional(),
-  model: z.string().optional(),
-  status: z.enum(["active", "inactive", "draft"]).optional(),
-  teamId: z.string().nullable().optional(),
-  temperature: z.union([z.number(), z.string()]).optional(),
-  maxTokens: z.number().optional(),
-  kind: z.enum(["conversational", "flow"]).optional(),
-  flowId: z.string().nullable().optional(),
-  tools: z.array(z.string()).optional(),
-  variables: z.record(z.string(), z.string()).optional(),
-  greeting: z.string().nullable().optional(),
-  fallback: z.string().nullable().optional(),
-  starters: z.array(z.string()).optional(),
-  avatarUrl: z.string().nullable().optional(),
-  color: z.string().optional(),
-  maxTurns: z.number().optional(),
-  responseFormat: z.enum(["text", "json", "markdown"]).optional(),
-  // outputSchema es un JSON Schema arbitrario definido por el usuario.
-  outputSchema: z.record(z.string(), z.unknown()).optional(),
-});
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const workspace = await getCurrentWorkspace();

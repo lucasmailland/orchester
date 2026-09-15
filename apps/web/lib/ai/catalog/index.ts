@@ -37,6 +37,8 @@ export interface ResolvedModel {
   /** id del modelo SIN el prefijo de proveedor (lo que espera la API del proveedor). */
   model: string;
   modelId: string;
+  /** El modelo rechaza sampling params — ver ModelDef.noSampling. */
+  noSampling?: boolean;
 }
 
 /**
@@ -53,6 +55,7 @@ export function resolveModel(modelId: string): ResolvedModel | null {
       capability: known.capability,
       model: stripPrefix(modelId, known.provider),
       modelId,
+      ...(known.noSampling ? { noSampling: true } : {}),
     };
   }
   // Formato provider:model aunque el modelo no esté en el catálogo (agregadores, ids libres).

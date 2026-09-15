@@ -16,7 +16,7 @@
 // shows an empty-state instead of a 500 toast.
 
 import "server-only";
-import type { AuditResponse } from "@mnemosyne/client-ts";
+import type { AuditResponse } from "@mnemo-ai/client-ts";
 import { safeLogError } from "@/lib/safe-log";
 import { getMnemoMode, getMnemoClient, type MnemoMode } from "@/lib/mnemo/client";
 

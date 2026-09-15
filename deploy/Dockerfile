@@ -24,7 +24,6 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json apps/web/
 COPY packages/db/package.json packages/db/
-COPY packages/mnemosyne/package.json packages/mnemosyne/
 # pnpm `patchedDependencies` (better-auth/kysely-adapter) requires the patch
 # file at install time, otherwise --frozen-lockfile fails.
 COPY patches/ patches/
@@ -40,12 +39,21 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
-COPY --from=deps /app/packages/mnemosyne/node_modules ./packages/mnemosyne/node_modules
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
-RUN pnpm --filter @orchester/web build
+# `next build` imports every route while "Collecting page data", and
+# lib/auth.ts throws at import time when DATABASE_URL is unset. Nothing
+# needs the database during the build — cluster-cache attempts a LISTEN,
+# logs ECONNREFUSED and carries on — so a placeholder is enough.
+# It is scoped to this RUN rather than set with ENV, so it never becomes part
+# of the image. Without it the build only passed when the context happened to
+# carry a developer's apps/web/.env.local — .dockerignore excludes .env.local
+# at the root only, not under apps/web — which is not a build anyone can
+# reproduce from a clean checkout.
+RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build \
+    pnpm --filter @orchester/web build
 # Pre-build the worker bundle inside the builder stage where the full
 # workspace TS source + esbuild + node_modules are available. The runner
 # stage only carries the resulting `.dist/worker.mjs` — no esbuild, no

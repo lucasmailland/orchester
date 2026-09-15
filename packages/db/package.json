@@ -21,7 +21,9 @@
   },
   "scripts": {
     "generate": "drizzle-kit generate",
-    "migrate": "drizzle-kit migrate",
+    "migrate": "drizzle-kit migrate && node scripts/apply-sql-migrations.mjs",
+    "migrate:drizzle": "drizzle-kit migrate",
+    "migrate:sql": "node scripts/apply-sql-migrations.mjs",
     "//push": "LOCAL DEV ONLY — never run in prod/CI. Use generate+migrate for reviewable, versioned schema changes.",
     "push": "drizzle-kit push",
     "studio": "drizzle-kit studio",

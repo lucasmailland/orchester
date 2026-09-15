@@ -13,7 +13,7 @@ import { recordAiUsage } from "./ai/run";
 import { calculateChatCostUsd } from "./pricing";
 import { safeLogError } from "./safe-log";
 import { getAgentMemoryPolicy, type AgentMemoryPolicy } from "./policy/agent-memory";
-import type { RecallResponse } from "@mnemosyne/client-ts";
+import type { RecallResponse } from "@mnemo-ai/client-ts";
 import { recallForWorkspace } from "@/lib/mnemo/recall";
 import {
   handleMnemosyneRemember,

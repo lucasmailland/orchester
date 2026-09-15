@@ -16,7 +16,7 @@
 // RBAC: editor+ — the queue is an operational concern, not just a
 // viewer surface.
 import { NextResponse } from "next/server";
-import type { ReviewReason } from "@mnemosyne/client-ts";
+import type { ReviewReason } from "@mnemo-ai/client-ts";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { listWorkspaceReview } from "@/lib/mnemo/review";
 

@@ -5,12 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const MODELS = [
-  { value: "claude-sonnet-4-6", label: "Sonnet 4.6" },
-  { value: "claude-opus-4-7", label: "Opus 4.7" },
-  { value: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
-];
+import { ModelPicker } from "@/components/agents/studio/ModelPicker";
 
 const STATUSES = [
   { value: "draft", label: "Draft" },
@@ -260,21 +255,20 @@ export function AgentFormModal({
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label htmlFor={modelId} className="text-xs font-medium text-muted">
+                      <p id={modelId} className="text-xs font-medium text-muted">
                         {labels.modelLabel}
-                      </label>
-                      <select
-                        id={modelId}
+                      </p>
+                      {/* The fixed list offered Anthropic-native ids only, so an
+                          agent created in a workspace connected through Bedrock
+                          failed with "Provider anthropic not configured". The
+                          picker lists what the connected providers serve; on
+                          create it also swaps a preloaded default for one that
+                          runs. Editing keeps the stored model untouched. */}
+                      <ModelPicker
                         value={model}
-                        onChange={(e) => setModel(e.target.value)}
-                        className={cn(inputClass, "cursor-pointer")}
-                      >
-                        {MODELS.map((m) => (
-                          <option key={m.value} value={m.value} className="bg-surface">
-                            {m.label}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={setModel}
+                        fallbackToAvailable={!isEdit}
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <label htmlFor={statusId} className="text-xs font-medium text-muted">

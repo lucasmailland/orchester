@@ -6,6 +6,7 @@ import { getCurrentWorkspace } from "@/lib/workspace";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
+import { normalizeFlowNodes, normalizeFlowEdges } from "@/lib/flows/normalize";
 
 const updateFlowSchema = z.object({
   name: z.string().optional(),
@@ -52,8 +53,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       ...(status !== undefined && { status }),
       ...(trigger !== undefined && { trigger }),
       ...(triggerConfig !== undefined && { triggerConfig }),
-      ...(nodes !== undefined && { nodes: nodes as never }),
-      ...(edges !== undefined && { edges: edges as never }),
+      ...(nodes !== undefined && { nodes: normalizeFlowNodes(nodes) as never }),
+      ...(edges !== undefined && { edges: normalizeFlowEdges(edges) as never }),
       ...(variables !== undefined && { variables }),
       ...(enabled !== undefined && { enabled }),
       updatedAt: new Date(),

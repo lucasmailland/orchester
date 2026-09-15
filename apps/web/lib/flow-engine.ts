@@ -114,6 +114,30 @@ export interface RunContext {
   signal?: AbortSignal;
 }
 
+/**
+ * The user message an Agent step sends to its model.
+ *
+ * `prompt` (registry) goes before the incoming message; `message` is the
+ * legacy field and defaults to `{{message}}`. When both come out empty the
+ * step fails here instead of calling the provider: Bedrock answers
+ * "user messages must have non-empty content", which says nothing about which
+ * step or which input is missing.
+ */
+export function buildAgentUserMessage(
+  cfg: Record<string, unknown>,
+  variables: Record<string, unknown>
+): string {
+  const extra = cfg.prompt ? interpolate(cfg.prompt as string, variables) : "";
+  const incoming = interpolate((cfg.message as string) ?? "{{message}}", variables);
+  const message = [extra, incoming].filter((part) => part && part.trim()).join("\n\n");
+  if (!message.trim()) {
+    throw new Error(
+      "El paso Agent no recibió ningún mensaje: `message` está vacío. Si el flujo arranca a mano, completá `message` al ejecutarlo, o escribí un Prompt en el paso."
+    );
+  }
+  return message;
+}
+
 export function interpolate(template: string, ctx: Record<string, unknown>): string {
   if (typeof template !== "string") return "";
   return template.replace(/\{\{([^}]+)\}\}/g, (_, path: string) => {
@@ -126,7 +150,11 @@ export function interpolate(template: string, ctx: Record<string, unknown>): str
         return "";
       }
     }
-    return v == null ? "" : String(v);
+    if (v == null) return "";
+    // Objects and arrays as JSON: an http step parses JSON responses and
+    // kb_search leaves an array of results, and String() turned both into the
+    // literal "[object Object]" inside prompts and request bodies.
+    return typeof v === "object" ? JSON.stringify(v) : String(v);
   });
 }
 
@@ -632,9 +660,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     const agentId = cfg.agentId as string | undefined;
     if (!agentId) throw new Error("Falta elegir el agente en este paso.");
     // `prompt` (registry) se antepone al mensaje entrante; `message` es el legado.
-    const extra = cfg.prompt ? interpolate(cfg.prompt as string, ctx.variables) : "";
-    const incoming = interpolate((cfg.message as string) ?? "{{message}}", ctx.variables);
-    const userMessage = [extra, incoming].filter((s) => s && s.trim()).join("\n\n") || incoming;
+    const userMessage = buildAgentUserMessage(cfg, ctx.variables);
     // R2-C: agent lookup needs the workspace GUC (FORCE RLS).
     const agent = await withFlowTx(workspaceId, async (tx) => {
       const aRows = await tx
