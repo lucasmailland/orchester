@@ -1,5 +1,6 @@
 # Husky pre-commit — fast checks before the commit lands.
-# Skip with `git commit -n` if you really must (you usually mustn't).
+# Don't skip it with `git commit -n` / `--no-verify`: the secret scan below is the
+# only check that runs before a commit exists (see AGENTS.md).
 
 # 1. Scan staged changes for secrets before anything rewrites them. The repo is
 #    public: a committed secret is a leaked secret (see AGENTS.md). CI runs
