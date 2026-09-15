@@ -4,6 +4,7 @@ import { getDb, schema, type DbClient } from "@orchester/db";
 import { and, eq } from "drizzle-orm";
 import { encrypt, decrypt } from "@/lib/encryption";
 import { getConnector } from "./registry";
+import { resolveIntegrationRef } from "./resolve";
 
 /**
  * Optional `tx?: WsDb` follows the project-wide pattern (see
@@ -197,7 +198,22 @@ export async function runIntegrationAction(
   input: Record<string, unknown>,
   tx?: WsDb
 ): Promise<unknown> {
-  const loaded = await loadIntegration(workspaceId, integrationId, tx);
+  let loaded = await loadIntegration(workspaceId, integrationId, tx);
+  if (!loaded) {
+    // Not a row id: templates name the connector type ("odoo") because they
+    // cannot know this workspace's rows. Resolve it only if unambiguous.
+    const resolved = resolveIntegrationRef(await listIntegrations(workspaceId, tx), integrationId);
+    if (!resolved.ok) {
+      if (resolved.reason === "ambiguous") {
+        throw new Error(
+          `Hay ${resolved.count} integraciones de tipo "${integrationId}" habilitadas: elegí cuál usar en el paso.`
+        );
+      }
+      if (resolved.reason === "disabled") throw new Error("Integración deshabilitada");
+      throw new Error("Integración no encontrada");
+    }
+    loaded = await loadIntegration(workspaceId, resolved.id, tx);
+  }
   if (!loaded) throw new Error("Integración no encontrada");
   if (!loaded.enabled) throw new Error("Integración deshabilitada");
   const connector = getConnector(loaded.type);
