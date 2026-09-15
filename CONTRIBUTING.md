@@ -94,6 +94,16 @@ Subjects in lowercase, imperative ("add", not "added"). Wrap the body at ~72 cha
 
 Code, identifiers and PR descriptions in **English**. User-facing UI copy is in **Spanish** by default (this is a Spanish-speaking-led project) and translated via `apps/web/messages/`. Docs are in **English**.
 
+### Secrets (mandatory)
+
+This repository is public: **never commit secrets**, in any file. That includes API keys, tokens, passwords, private keys, credentialed connection strings, `.env` values and identifiers of a real deployment (internal hosts, account IDs, real emails). Plans, specs, test fixtures, CI `env` blocks and pasted logs count too — that is where past findings came from.
+
+- Read configuration from environment variables and document it in `.env.example` with placeholders only.
+- The pre-commit hook scans staged changes with [gitleaks](https://github.com/gitleaks/gitleaks). Install it (`brew install gitleaks`) and don't skip the hook with `--no-verify`.
+- If a secret lands in a commit, **revoke or rotate it first**; deleting it in a later commit doesn't remove it from the history. Then tell a maintainer.
+
+The same rules, written for AI coding agents, live in [`AGENTS.md`](AGENTS.md).
+
 ### Security-sensitive areas
 
 These have `@maintainer` CODEOWNERS review required:
