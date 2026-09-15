@@ -2436,7 +2436,7 @@
       "flow": {
         "blank": {
           "label": "Blank flow",
-          "description": "Empty canvas with a single Trigger node so you can wire your own logic."
+          "description": "Empty canvas with a guide to choose a trigger and your first steps."
         },
         "lead-qualification": {
           "label": "Lead Qualification",
@@ -2445,7 +2445,7 @@
         },
         "support-triage": {
           "label": "Support Triage",
-          "description": "Inbound message, KB search, agent answers, escalates if confidence is low.",
+          "description": "Inbound message, knowledge base search, the agent answers and hands off to a person when it can't.",
           "tags": ["customer support", "RAG"]
         },
         "newsletter-compile": {

@@ -2436,7 +2436,7 @@
       "flow": {
         "blank": {
           "label": "Flow en blanco",
-          "description": "Canvas vacío con un único nodo Trigger para que armes tu propia lógica."
+          "description": "Canvas vacío con una guía para elegir el disparador y los primeros pasos."
         },
         "lead-qualification": {
           "label": "Calificación de leads",
@@ -2445,7 +2445,7 @@
         },
         "support-triage": {
           "label": "Triage de soporte",
-          "description": "Mensaje entrante, búsqueda en KB, agente responde, escala si la confianza es baja.",
+          "description": "Mensaje entrante, búsqueda en la base de conocimiento, el agente responde y deriva a una persona cuando no puede.",
           "tags": ["soporte", "RAG"]
         },
         "newsletter-compile": {
