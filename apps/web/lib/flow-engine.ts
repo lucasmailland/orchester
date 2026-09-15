@@ -150,7 +150,11 @@ export function interpolate(template: string, ctx: Record<string, unknown>): str
         return "";
       }
     }
-    return v == null ? "" : String(v);
+    if (v == null) return "";
+    // Objects and arrays as JSON: an http step parses JSON responses and
+    // kb_search leaves an array of results, and String() turned both into the
+    // literal "[object Object]" inside prompts and request bodies.
+    return typeof v === "object" ? JSON.stringify(v) : String(v);
   });
 }
 
