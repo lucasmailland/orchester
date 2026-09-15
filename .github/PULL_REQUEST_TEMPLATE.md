@@ -16,6 +16,7 @@ The CI runs all three automatically and will block the merge if any fail.
 ## Related issue / discussion
 
 <!-- "Closes #123" — or link to a Discussion if it's a proposal. -->
+
 Closes #
 
 ## Type of change
@@ -38,6 +39,7 @@ Closes #
 ## Checklist
 
 - [ ] My commits are **signed off** (`git commit -s`)
+- [ ] No secrets or real deployment identifiers in any file, including plans, fixtures and logs (see `AGENTS.md`)
 - [ ] Tests pass locally: `pnpm --filter @orchester/web exec vitest run`
 - [ ] Type-check passes: `pnpm --filter @orchester/web exec tsc --noEmit`
 - [ ] Invariants guard passes: `bash scripts/audit-invariants.sh`

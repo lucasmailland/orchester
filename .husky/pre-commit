@@ -1,8 +1,31 @@
 # Husky pre-commit — fast checks before the commit lands.
-# Skip with `git commit -n` if you really must (you usually mustn't).
+# Don't skip it with `git commit -n` / `--no-verify`: the secret scan below is the
+# only check that runs before a commit exists (see AGENTS.md).
 
-# 1. Format staged files with prettier (via lint-staged).
+# 1. Scan staged changes for secrets before anything rewrites them. The repo is
+#    public: a committed secret is a leaked secret (see AGENTS.md). CI runs
+#    gitleaks too, but only after the commit already exists.
+if command -v gitleaks >/dev/null 2>&1; then
+  # `gitleaks git` replaced `protect` in 8.19; keep older installs working.
+  if gitleaks git --help >/dev/null 2>&1; then
+    set -- git --staged
+  else
+    set -- protect --staged
+  fi
+  if ! gitleaks "$@" --redact --no-banner --config .gitleaks.toml; then
+    echo ""
+    echo "[pre-commit] gitleaks found a possible secret in the staged changes."
+    echo "[pre-commit] Remove it and read it from an env var instead. If it is a false"
+    echo "[pre-commit] positive, add its fingerprint to .gitleaksignore with a reason."
+    exit 1
+  fi
+else
+  echo "[pre-commit] WARNING: gitleaks is not installed, so staged changes were NOT scanned"
+  echo "[pre-commit] for secrets. Install it: brew install gitleaks"
+fi
+
+# 2. Format staged files with prettier (via lint-staged).
 pnpm exec lint-staged
 
-# 2. Run the structural invariants guard (fails on missing RBAC / spend / etc.).
+# 3. Run the structural invariants guard (fails on missing RBAC / spend / etc.).
 bash scripts/audit-invariants.sh
