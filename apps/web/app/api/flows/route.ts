@@ -8,6 +8,7 @@ import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
 import { checkQuota } from "@/lib/billing/quotas";
+import { normalizeFlowNodes, normalizeFlowEdges } from "@/lib/flows/normalize";
 
 const createFlowSchema = z.object({
   name: z.string().trim().min(1, "name required"),
@@ -86,6 +87,12 @@ export async function POST(req: Request) {
 
   // Sin template, el flujo arranca vacío: así el builder muestra el estado guiado
   // con plantillas y disparadores para empezar (el usuario elige cómo arrancar).
+
+  // Whatever the source — a Compass template, a stored template or an API
+  // client — store only a graph the editor can open. The raw seed used to be
+  // stored as-is, and a flow in the wrong shape crashed the editor every time.
+  initialNodes = normalizeFlowNodes(initialNodes);
+  initialEdges = normalizeFlowEdges(initialEdges);
 
   const inserted = await db
     .insert(schema.flows)

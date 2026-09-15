@@ -31,6 +31,7 @@ import { validateFlow, type ValidationIssue } from "@/lib/flows/validate";
 import { buildGraphFromSpec } from "@/lib/flows/copilot-tools";
 import { FLOW_TEMPLATES, type FlowTemplate } from "@/lib/flows/templates";
 import { runInputsNeeded } from "@/lib/flows/run-inputs";
+import { normalizeFlowNodes, normalizeFlowEdges } from "@/lib/flows/normalize";
 import {
   Save,
   Play,
@@ -118,8 +119,10 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const rawLocale = useLocale();
   const LOCALE: Locale =
     rawLocale === "es" || rawLocale === "pt" || rawLocale === "en" ? (rawLocale as Locale) : "es";
+  // Normalized on open, so a flow stored in an older shape opens instead of
+  // crashing the editor (and is saved back in the current shape).
   const [nodes, setNodes] = useState<Node[]>(
-    flow.nodes.map((n) => ({
+    normalizeFlowNodes(flow.nodes).map((n) => ({
       id: n.id,
       type: n.type,
       position: n.position,
@@ -127,7 +130,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     }))
   );
   const [edges, setEdges] = useState<Edge[]>(
-    flow.edges.map((e) => {
+    normalizeFlowEdges(flow.edges).map((e) => {
       const edge: Edge = { id: e.id, source: e.source, target: e.target };
       if (e.sourceHandle) edge.sourceHandle = e.sourceHandle;
       if (e.label) edge.label = e.label;
@@ -1246,10 +1249,10 @@ function describeGraph(nodes: Node[], edges: Edge[]): string {
   return `Pasos:\n${lines.join("\n")}\n\nConexiones:\n${conns.join("\n") || "(ninguna)"}`;
 }
 
-function subtitleFor(n: { type: string; config: Record<string, unknown> }): string {
-  if (n.type === "agent" && n.config.agentId)
+function subtitleFor(n: { type: string; config?: Record<string, unknown> | undefined }): string {
+  if (n.type === "agent" && n.config?.agentId)
     return `agentId: ${(n.config.agentId as string).slice(0, 8)}`;
-  if (n.type === "http" && n.config.url) return String(n.config.url).slice(0, 32);
+  if (n.type === "http" && n.config?.url) return String(n.config.url).slice(0, 32);
   return "";
 }
 
