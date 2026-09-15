@@ -1,0 +1,15 @@
+# Findings gitleaks reports on this repository's history that are not live secrets.
+# Format: <commit>:<file>:<rule>:<line>. Every entry needs a reason; a real
+# secret must be revoked before it is ever listed here.
+
+# ENCRYPTION_SECRET in the CI workflow env: the sequential test value
+# 0123456789abcdef..., used only by the CI Postgres job.
+f35480baa0ee9d331ec4db2ab8b6522d7e76d03b:.github/workflows/ci.yml:generic-api-key:39
+43b1ba9838ce8a584f9f29ee1c9400cacc242963:.github/workflows/ci.yml:generic-api-key:136
+
+# Fake OpenAI-style key inside a PII-detection test example in a plan document.
+4b44c42501ade317b468a04a9c995c9f31adbd8c:docs/specs/plans/2026-05-24-mnemosyne-implementation-plan.md:openai-key:3754
+
+# Mnemosyne API key for a local development workspace, pasted into a plan
+# document. Revoked on 2026-09-15; it stays in the history.
+12c91a04c8ad7ee9a3798b46f3e47016fbb60548:docs/superpowers/plans/2026-06-05-mnemosyne-service-extraction.md:generic-api-key:427
