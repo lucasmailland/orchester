@@ -32,6 +32,7 @@ import { buildGraphFromSpec } from "@/lib/flows/copilot-tools";
 import { FLOW_TEMPLATES, type FlowTemplate } from "@/lib/flows/templates";
 import { runInputsNeeded } from "@/lib/flows/run-inputs";
 import { normalizeFlowNodes, normalizeFlowEdges } from "@/lib/flows/normalize";
+import { buildFlowPayload, flowSignature } from "@/lib/flows/payload";
 import {
   Save,
   Play,
@@ -228,7 +229,10 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     "idle"
   );
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const skipNextAutoSaveRef = useRef(true); // skip on first render
+  // Signature of the graph as it is stored. Auto-save compares against it so
+  // that state changes which don't alter the payload (React Flow measuring and
+  // selecting nodes on mount) don't rewrite the flow. null until first render.
+  const savedSignatureRef = useRef<string | null>(null);
   const dirtyRef = useRef(false);
 
   const onNodesChange = useCallback(
@@ -275,22 +279,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   }
 
   const buildPayload = useCallback(
-    () => ({
-      nodes: nodes.map((n) => ({
-        id: n.id,
-        type: n.type,
-        label: (n.data as { label: string }).label,
-        config: (n.data as { config?: Record<string, unknown> }).config ?? {},
-        position: n.position,
-      })),
-      edges: edges.map((e) => {
-        const out: Record<string, unknown> = { id: e.id, source: e.source, target: e.target };
-        if (e.sourceHandle) out.sourceHandle = e.sourceHandle;
-        if (typeof e.label === "string") out.label = e.label;
-        return out;
-      }),
-      variables,
-    }),
+    () => buildFlowPayload(nodes, edges, variables),
     [nodes, edges, variables]
   );
 
@@ -298,13 +287,16 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     if (!silent) setSaving(true);
     if (silent) setAutoSaveStatus("saving");
     setFeedback(null);
+    const payload = buildPayload();
+    const signature = flowSignature(payload);
     const r = await fetch(`/api/flows/${flow.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(buildPayload()),
+      body: JSON.stringify(payload),
     });
     if (!silent) setSaving(false);
     if (r.ok) {
+      savedSignatureRef.current = signature;
       dirtyRef.current = false;
       if (silent) setAutoSaveStatus("saved");
       else toast.success(t("saved"));
@@ -314,10 +306,16 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     }
   }
 
-  // Auto-save with 2s debounce after any change
+  // Auto-save with 2s debounce after any change that alters the stored flow
   useEffect(() => {
-    if (skipNextAutoSaveRef.current) {
-      skipNextAutoSaveRef.current = false;
+    const signature = flowSignature(buildFlowPayload(nodes, edges, variables));
+    if (savedSignatureRef.current === null) {
+      // First render: this is what the server already has.
+      savedSignatureRef.current = signature;
+      return;
+    }
+    if (signature === savedSignatureRef.current) {
+      dirtyRef.current = false;
       return;
     }
     dirtyRef.current = true;
@@ -369,7 +367,12 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     if (didTidyRef.current) return;
     didTidyRef.current = true;
     if (nodes.length > 1 && hasOverlap(nodes)) {
-      setNodes((nds) => layoutGraph(nds, edges));
+      const tidied = layoutGraph(nodes, edges);
+      // Tidying is cosmetic and nobody asked for it: take it as the saved
+      // state so it doesn't auto-save on its own. A later real edit stores the
+      // tidied positions along with it.
+      savedSignatureRef.current = flowSignature(buildFlowPayload(tidied, edges, variables));
+      setNodes(tidied);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
