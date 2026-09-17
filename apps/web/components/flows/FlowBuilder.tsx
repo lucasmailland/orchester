@@ -20,7 +20,13 @@ import {
 import "@xyflow/react/dist/style.css";
 import { createId } from "@paralleldrive/cuid2";
 import { RegistryNode } from "./nodes/RegistryNode";
-import { ConditionNode, TryCatchNode, LoopNode, SwitchNode } from "./nodes/BranchNode";
+import {
+  ConditionNode,
+  TryCatchNode,
+  LoopNode,
+  SwitchNode,
+  ParallelNode,
+} from "./nodes/BranchNode";
 import { FlowRunsPanel } from "./FlowRunsPanel";
 import { InspectorForm } from "./inspector/InspectorForm";
 import { NodePalette } from "./NodePalette";
@@ -63,7 +69,7 @@ const nodeTypes = {
   notify: RegistryNode,
   code: RegistryNode,
   loop_for_each: LoopNode,
-  parallel: RegistryNode,
+  parallel: ParallelNode,
   try_catch: TryCatchNode,
   subflow: RegistryNode,
   wait_human: RegistryNode,

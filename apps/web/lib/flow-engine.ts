@@ -1153,15 +1153,16 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
   },
 
   parallel: async ({ edges, node, nodes, ctx, runId, workspaceId, db, depth, helpers }) => {
-    const branchEdges = edges.filter((e) => e.source === node.id);
-    // B7: fan-out acotado. Antes era `Promise.all` sobre TODAS las ramas a la
-    // vez (concurrencia ilimitada hacia providers/DB). Mismo orden de resultados
-    // y misma semántica de error (el primer fallo se propaga).
+    // Every outgoing edge except `done` is a branch. `done` runs once, after
+    // all branches, through runFromNode's normal handle routing.
+    const branchEdges = edges.filter((e) => e.source === node.id && e.sourceHandle !== "done");
+    // B7: fan-out acotado. Mismo orden de resultados y misma semántica de error
+    // (el primer fallo se propaga, y `done` no corre).
     await mapWithConcurrency(branchEdges, FLOW_MAX_FANOUT, (ed) =>
       runFromNode(ed.target, nodes, edges, ctx, runId, workspaceId, db, depth + 1)
     );
     helpers.setOutput({ branches: branchEdges.length });
-    helpers.skipChildren();
+    helpers.setHandle("done");
   },
 
   try_catch: async ({ cfg, edges, node, nodes, ctx, runId, workspaceId, db, depth, helpers }) => {
@@ -1175,11 +1176,14 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       const err = e instanceof Error ? e.message : String(e);
       ctx.variables[(cfg.errorVar as string) ?? "error"] = err;
       if (catchEdge) {
+        // A throwing catch branch propagates, and `done` does not run.
         await runFromNode(catchEdge.target, nodes, edges, ctx, runId, workspaceId, db, depth + 1);
       }
       helpers.setOutput({ caught: true, error: err });
     }
-    helpers.skipChildren();
+    // Only `done` edges continue; `try`/`catch` edges were handled above and
+    // edges without a handle stay ignored, as before.
+    helpers.setHandle("done");
   },
 
   subflow: async ({ cfg, ctx, workspaceId, runId, db, helpers }) => {
