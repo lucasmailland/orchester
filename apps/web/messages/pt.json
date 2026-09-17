@@ -2263,6 +2263,16 @@
       "firstFlowTipTitle": "Dica para o seu primeiro fluxo",
       "nodesLabel": "{count, plural, one {# passo} other {# passos}}",
       "statusLabel": "Status",
+      "groups": {
+        "active": "Ativos · {count}",
+        "paused": "Pausados · {count}",
+        "draft": "Rascunhos · {count}"
+      },
+      "statuses": {
+        "active": "Ativo",
+        "paused": "Pausado",
+        "draft": "Rascunho"
+      },
       "neverRun": "Sem execuções",
       "lastRunLabel": "Última execução",
       "nextStepsTitle": "O que fazer agora",
