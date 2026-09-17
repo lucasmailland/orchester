@@ -49,3 +49,15 @@ describe("node-registry", () => {
     }
   });
 });
+
+it("explains retry safety and final HTTP failures in Spanish", () => {
+  expect(getNodeDef("integration")?.fields.find((f) => f.key === "retry")?.help).toBe(
+    "Reintenta cuando falla la acción. Los reintentos repiten la acción: asegurate de que sea seguro repetirla."
+  );
+  expect(getNodeDef("http")?.fields.find((f) => f.key === "retry")?.help).toBe(
+    "Reintenta ante errores de red y respuestas 429 o 5xx. Reemplaza maxAttempts cuando está configurado. Los reintentos repiten la llamada: asegurate de que sea seguro repetirla."
+  );
+  expect(getNodeDef("http")?.fields.find((f) => f.key === "failOnStatus")?.help).toBe(
+    "Hace fallar el paso cuando la respuesta final no es 2xx."
+  );
+});

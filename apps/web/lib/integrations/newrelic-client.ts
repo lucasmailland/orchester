@@ -1,4 +1,6 @@
 import "server-only";
+import { nrqlEscape } from "@/lib/text/escape";
+export { nrqlEscape };
 
 /**
  * New Relic NerdGraph client.
@@ -23,14 +25,6 @@ export interface NewRelicCredentials {
   accountId: string;
   apiKey: string;
   endpoint?: string;
-}
-
-/**
- * Escapes a value for embedding inside single quotes in NRQL. NRQL escapes with
- * a backslash, same as SQL string literals in most dialects.
- */
-export function nrqlEscape(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
 
 function clamp(value: number, min: number, max: number, fallback: number): number {

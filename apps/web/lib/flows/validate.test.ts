@@ -45,6 +45,39 @@ describe("validateFlow", () => {
   });
 });
 
+describe("documentation warnings", () => {
+  const trigger = { id: "t", type: "trigger", data: { nodeId: "trigger_manual", config: {} } };
+  const step = (purpose?: string) => ({
+    id: "s",
+    type: "transform",
+    data: { nodeId: "transform", config: { template: "{}" }, ...(purpose ? { purpose } : {}) },
+  });
+  const edges = [{ id: "e", source: "t", target: "s" }];
+
+  it("warns about a missing spec and a step without purpose, only when docs are checked", () => {
+    expect(
+      validateFlow([trigger, step()], edges).some((i) => /documentación|propósito/.test(i.message))
+    ).toBe(false);
+    const issues = validateFlow([trigger, step()], edges, "es", { spec: null });
+    expect(
+      issues
+        .filter((i) => i.level === "warning")
+        .map((i) => i.message)
+        .join(" ")
+    ).toMatch(/documentación/);
+    expect(issues.some((i) => i.nodeId === "s" && /propósito/.test(i.message))).toBe(true);
+    expect(
+      issues.every((i) => i.level === "warning" || !/documentación|propósito/.test(i.message))
+    ).toBe(true);
+  });
+  it("is quiet when spec and purposes are present", () => {
+    const issues = validateFlow([trigger, step("Build the payload")], edges, "es", {
+      spec: "## Purpose",
+    });
+    expect(issues.some((i) => /documentación|propósito/.test(i.message))).toBe(false);
+  });
+});
+
 describe("autoLayout", () => {
   it("places nodes in increasing columns by depth", () => {
     const out = autoLayout(

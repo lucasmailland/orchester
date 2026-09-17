@@ -55,6 +55,21 @@ describe("resolveValue", () => {
   });
 });
 
+describe("interpolation filters in the engine", () => {
+  it("interpolate applies filters", () => {
+    expect(interpolate("NR-{{id | slice:0:4}}", { id: "abcdefgh" })).toBe("NR-abcd");
+  });
+  it("resolveValue keeps the filtered value's type", () => {
+    expect(resolveValue("{{at | addMinutes:1}}", { at: 0 })).toBe(60_000);
+  });
+  it("templates without filters behave exactly as before", () => {
+    expect(interpolate("{{user.email}}", { user: { email: "x@y" } })).toBe("x@y");
+    expect(interpolate("Hello {{missing}}", {})).toBe("Hello ");
+    expect(resolveValue("{{missing}}", {})).toBeUndefined();
+    expect(interpolate("{{o}}", { o: { a: 1 } })).toBe('{"a":1}');
+  });
+});
+
 describe("deepInterpolate", () => {
   it("interpolates nested object/array values keeping types", () => {
     const out = deepInterpolate(

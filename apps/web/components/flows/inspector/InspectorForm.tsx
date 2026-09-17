@@ -6,6 +6,7 @@ import { Trash2, ChevronDown, HelpCircle, Lightbulb } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { getNodeDef, type Locale } from "@/lib/flows/node-registry";
 import { getNodeDocs } from "@/lib/flows/node-docs";
+import { PURPOSE_MAX } from "@/lib/flows/normalize";
 import { SpreadsheetField } from "./SpreadsheetField";
 import { ModelPicker } from "@/components/ai/ModelPicker";
 import type { FieldDef } from "@/lib/flows/field-types";
@@ -44,16 +45,22 @@ export function InspectorForm({ node, locale, onChange, onDelete, availableData 
     );
   }
 
-  const data = node.data as { label?: string; nodeId?: string; config?: Record<string, unknown> };
+  const data = node.data as {
+    label?: string;
+    nodeId?: string;
+    config?: Record<string, unknown>;
+    purpose?: string;
+  };
   const def = getNodeDef(String(data.nodeId ?? node.type ?? ""));
   const config = data.config ?? {};
 
-  function update(patch: { label?: string; config?: Record<string, unknown> }) {
+  function update(patch: { label?: string; purpose?: string; config?: Record<string, unknown> }) {
     onChange({
       ...node!,
       data: {
         ...data,
         ...(patch.label !== undefined ? { label: patch.label } : {}),
+        ...(patch.purpose !== undefined ? { purpose: patch.purpose } : {}),
         config: { ...config, ...(patch.config ?? {}) },
       },
     });
@@ -113,6 +120,16 @@ export function InspectorForm({ node, locale, onChange, onDelete, availableData 
       <input
         value={String(data.label ?? "")}
         onChange={(e) => update({ label: e.target.value })}
+        className="mb-3 w-full rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-strong outline-none focus:border-violet-500/60"
+      />
+
+      {/* Para qué está el paso: una línea, para que el flujo se lea sin abrirlo. */}
+      <FieldLabel label={t("purposeLabel")} help={t("purposeHelp")} />
+      <input
+        value={String(data.purpose ?? "")}
+        maxLength={PURPOSE_MAX}
+        onChange={(e) => update({ purpose: e.target.value.replace(/[\r\n]+/g, " ") })}
+        placeholder={t("purposePlaceholder")}
         className="mb-3 w-full rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-strong outline-none focus:border-violet-500/60"
       />
 

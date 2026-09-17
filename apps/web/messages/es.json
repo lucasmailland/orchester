@@ -971,7 +971,8 @@
         "runNoFieldsHint": "Hacé clic en \"Ejecutar\" para correrlo. Si querés, agregá variables al flujo desde el botón de variables.",
         "runJsonLabel": "Datos (JSON)",
         "cancel": "Cancelar",
-        "runButton": "Ejecutar"
+        "runButton": "Ejecutar",
+        "documentation": "Documentación"
       },
       "inspector": {
         "deleteNodeAria": "Eliminar nodo",
@@ -988,7 +989,18 @@
         "cronHourly": "Cada hora",
         "cronDaily": "Todos los días a las 9",
         "cronWeekly": "Cada lunes a las 9",
-        "cronMonthly": "El día 1 de cada mes"
+        "cronMonthly": "El día 1 de cada mes",
+        "purposeLabel": "Para qué está este paso",
+        "purposeHelp": "Una línea. Ayuda a personas y agentes a entender el flujo sin abrir cada paso.",
+        "purposePlaceholder": "Ej.: busca la tarea del incidente en Odoo"
+      },
+      "docs": {
+        "title": "Documentación del flujo",
+        "edit": "Editar",
+        "preview": "Vista previa",
+        "close": "Cerrar",
+        "useTemplate": "Usar plantilla",
+        "placeholder": "Qué hace este flujo, qué lo dispara, qué escribe afuera y qué pasa si falla."
       }
     },
     "knowledge": {

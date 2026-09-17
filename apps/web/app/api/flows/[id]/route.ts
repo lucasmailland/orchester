@@ -2,15 +2,16 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
+import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
-import { normalizeFlowNodes, normalizeFlowEdges } from "@/lib/flows/normalize";
+import { getFlow, updateFlow, serviceErrorResponse } from "@/lib/flows/service";
 
 const updateFlowSchema = z.object({
   name: z.string().optional(),
   description: z.string().nullable().optional(),
+  spec: z.string().nullable().optional(),
   status: z.enum(["draft", "active", "paused"]).optional(),
   trigger: z.enum(["manual", "webhook", "schedule", "conversation"]).optional(),
   // Configs y grafo del flujo son JSON dinámico: no los sobre-restringimos.
@@ -25,15 +26,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const ws = await getCurrentWorkspace();
   if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.flows)
-    .where(and(eq(schema.flows.id, id), eq(schema.flows.workspaceId, ws.workspace.id)))
-    .limit(1);
-  const row = rows[0];
-  if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(row);
+  const session = await getCurrentSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const flow = await getFlow(
+      { kind: "user", workspaceId: ws.workspace.id, userId: session.user.id },
+      id
+    );
+    return NextResponse.json(flow);
+  } catch (e) {
+    return serviceErrorResponse(e);
+  }
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -42,36 +45,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { id } = await params;
   const parsed = await parseBody(req, updateFlowSchema);
   if (!parsed.ok) return parsed.response;
-  const { name, description, status, trigger, triggerConfig, nodes, edges, variables, enabled } =
-    parsed.data;
-  const db = getDb();
-  const updated = await db
-    .update(schema.flows)
-    .set({
-      ...(name !== undefined && { name: name.trim() }),
-      ...(description !== undefined && { description }),
-      ...(status !== undefined && { status }),
-      ...(trigger !== undefined && { trigger }),
-      ...(triggerConfig !== undefined && { triggerConfig }),
-      ...(nodes !== undefined && { nodes: normalizeFlowNodes(nodes) as never }),
-      ...(edges !== undefined && { edges: normalizeFlowEdges(edges) as never }),
-      ...(variables !== undefined && { variables }),
-      ...(enabled !== undefined && { enabled }),
-      updatedAt: new Date(),
-    })
-    .where(and(eq(schema.flows.id, id), eq(schema.flows.workspaceId, ctx.workspace.id)))
-    .returning();
-  const row = updated[0];
-  if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  await logAudit({
-    workspaceId: ctx.workspace.id,
-    userId: ctx.user.id,
-    action: "flow.update",
-    resource: "flow",
-    resourceId: row.id,
-    after: { name: row.name },
-  });
-  return NextResponse.json(row);
+  try {
+    const { flow } = await updateFlow(
+      { kind: "user", workspaceId: ctx.workspace.id, userId: ctx.user.id },
+      id,
+      parsed.data
+    );
+    return NextResponse.json(flow);
+  } catch (e) {
+    return serviceErrorResponse(e);
+  }
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {

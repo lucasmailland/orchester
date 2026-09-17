@@ -28,6 +28,7 @@ export default async function FlowDetailPage({
         nodes: (f.nodes ?? []) as never,
         edges: (f.edges ?? []) as never,
         variables: (f.variables ?? {}) as Record<string, unknown>,
+        spec: f.spec,
       }}
     />
   );

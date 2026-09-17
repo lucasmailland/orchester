@@ -1,18 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createId } from "@paralleldrive/cuid2";
-import { getDb, schema } from "@orchester/db";
-import { eq, and, or, desc } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
-import { logAudit } from "@/lib/audit";
-import { checkQuota } from "@/lib/billing/quotas";
-import { normalizeFlowNodes, normalizeFlowEdges } from "@/lib/flows/normalize";
+import { createFlow, listFlows, serviceErrorResponse } from "@/lib/flows/service";
 
 const createFlowSchema = z.object({
   name: z.string().trim().min(1, "name required"),
   description: z.string().nullable().optional(),
+  spec: z.string().nullable().optional(),
   templateId: z.string().optional(),
   // Inline graph seed used by the Compass TemplatePicker. The server-side
   // `flowTemplates` table is the canonical source when `templateId` is set;
@@ -25,96 +20,30 @@ const createFlowSchema = z.object({
 });
 
 export async function GET() {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.flows)
-    .where(eq(schema.flows.workspaceId, ws.workspace.id))
-    .orderBy(desc(schema.flows.updatedAt));
-  return NextResponse.json(rows);
+  const ctx = await requireAuth();
+  if (!isAuthContext(ctx)) return ctx;
+  const flows = await listFlows({
+    kind: "user",
+    workspaceId: ctx.workspace.id,
+    userId: ctx.user.id,
+  });
+  return NextResponse.json(flows);
 }
 
 export async function POST(req: Request) {
   const ctx = await requireAuth({ minRole: "editor" });
   if (!isAuthContext(ctx)) return ctx;
-  const quota = await checkQuota(ctx.workspace.id, "flows");
-  if (!quota.allowed) {
-    return NextResponse.json(
-      { error: quota.reason ?? "Flow quota exceeded for your plan" },
-      { status: 402 }
-    );
-  }
   const parsed = await parseBody(req, createFlowSchema);
   if (!parsed.ok) return parsed.response;
-  const {
-    name,
-    description,
-    templateId,
-    nodes: seedNodes,
-    edges: seedEdges,
-    variables: seedVars,
-  } = parsed.data;
-  const db = getDb();
-
-  // Optional: load template. Server-stored templates win over inline seed,
-  // so a saved organisational template can never be silently overridden by
-  // a stale client payload.
-  let initialNodes: unknown[] = seedNodes ?? [];
-  let initialEdges: unknown[] = seedEdges ?? [];
-  let initialVars: Record<string, unknown> = seedVars ?? {};
-  if (templateId) {
-    const tpls = await db
-      .select()
-      .from(schema.flowTemplates)
-      .where(
-        and(
-          eq(schema.flowTemplates.id, templateId),
-          or(
-            eq(schema.flowTemplates.isPublic, true),
-            eq(schema.flowTemplates.workspaceId, ctx.workspace.id)
-          )
-        )
-      )
-      .limit(1);
-    const t = tpls[0];
-    if (!t) return NextResponse.json({ error: "Template not found" }, { status: 404 });
-    initialNodes = (t.nodes as unknown[]) ?? [];
-    initialEdges = (t.edges as unknown[]) ?? [];
-    initialVars = (t.variables as Record<string, unknown>) ?? {};
-  }
-
   // Sin template, el flujo arranca vacío: así el builder muestra el estado guiado
   // con plantillas y disparadores para empezar (el usuario elige cómo arrancar).
-
-  // Whatever the source — a Compass template, a stored template or an API
-  // client — store only a graph the editor can open. The raw seed used to be
-  // stored as-is, and a flow in the wrong shape crashed the editor every time.
-  initialNodes = normalizeFlowNodes(initialNodes);
-  initialEdges = normalizeFlowEdges(initialEdges);
-
-  const inserted = await db
-    .insert(schema.flows)
-    .values({
-      id: createId(),
-      workspaceId: ctx.workspace.id,
-      name: name.trim(),
-      description: description ?? null,
-      nodes: initialNodes as never,
-      edges: initialEdges as never,
-      variables: initialVars,
-    })
-    .returning();
-  const row = inserted[0];
-  if (!row) return NextResponse.json({ error: "Insert failed" }, { status: 500 });
-  await logAudit({
-    workspaceId: ctx.workspace.id,
-    userId: ctx.user.id,
-    action: "flow.create",
-    resource: "flow",
-    resourceId: row.id,
-    after: { name: row.name },
-  });
-  return NextResponse.json(row, { status: 201 });
+  try {
+    const { flow } = await createFlow(
+      { kind: "user", workspaceId: ctx.workspace.id, userId: ctx.user.id },
+      parsed.data
+    );
+    return NextResponse.json(flow, { status: 201 });
+  } catch (e) {
+    return serviceErrorResponse(e);
+  }
 }

@@ -6,6 +6,8 @@ import { llmCall } from "./llm-call";
 import { enqueue, JOB_FLOW_RUN } from "./queue";
 import { assertPublicUrl } from "./net-guard";
 import { logWithContext, recordMetric } from "./observability";
+import { evaluateExpression } from "./flows/filters";
+import { parseRetryConfig, runWithRetry, StepFailure } from "./flows/retry";
 
 /**
  * R2-C: Flow execution writes to tenant tables (flow_runs,
@@ -40,46 +42,8 @@ async function withFlowTx<T>(workspaceId: string, fn: (tx: WsDb) => Promise<T>):
   });
 }
 
-/**
- * Única fuente de verdad de los tipos de nodo (A7): la unión se deriva de este
- * const, así no se duplica el listado. (El pgEnum `flow_node_type` del schema es
- * intencionalmente independiente para no acoplar una migración a este archivo;
- * mantenerlos en sync sigue siendo manual — ver el follow-up del executeNode
- * handler-map en docs/superpowers/audits.)
- */
-export const FLOW_NODE_TYPES = [
-  "trigger",
-  "agent",
-  "kb_search",
-  "generate_image",
-  "embed_text",
-  "llm_prompt",
-  "generate_video",
-  "text_to_speech",
-  "transcribe",
-  "rerank",
-  "generate_avatar",
-  "generate_music",
-  "ocr_extract",
-  "condition",
-  "switch",
-  "http",
-  "integration",
-  "transform",
-  "spreadsheet",
-  "delay",
-  "notify",
-  "code",
-  "loop_for_each",
-  "parallel",
-  "try_catch",
-  "subflow",
-  "wait_human",
-  "note",
-  "end",
-] as const;
-
-export type FlowNodeType = (typeof FLOW_NODE_TYPES)[number];
+export { FLOW_NODE_TYPES, type FlowNodeType } from "./flows/node-types";
+import type { FlowNodeType } from "./flows/node-types";
 
 export interface FlowNode {
   id: string;
@@ -140,16 +104,8 @@ export function buildAgentUserMessage(
 
 export function interpolate(template: string, ctx: Record<string, unknown>): string {
   if (typeof template !== "string") return "";
-  return template.replace(/\{\{([^}]+)\}\}/g, (_, path: string) => {
-    const parts = path.trim().split(".");
-    let v: unknown = ctx;
-    for (const p of parts) {
-      if (v && typeof v === "object" && p in (v as Record<string, unknown>)) {
-        v = (v as Record<string, unknown>)[p];
-      } else {
-        return "";
-      }
-    }
+  return template.replace(/\{\{([^}]+)\}\}/g, (_, expr: string) => {
+    const v = evaluateExpression(expr.trim(), ctx);
     if (v == null) return "";
     // Objects and arrays as JSON: an http step parses JSON responses and
     // kb_search leaves an array of results, and String() turned both into the
@@ -166,18 +122,7 @@ export function interpolate(template: string, ctx: Record<string, unknown>): str
 export function resolveValue(template: unknown, ctx: Record<string, unknown>): unknown {
   if (typeof template !== "string") return template;
   const m = /^\s*\{\{([^}]+)\}\}\s*$/.exec(template);
-  if (m) {
-    const parts = m[1]!.trim().split(".");
-    let v: unknown = ctx;
-    for (const p of parts) {
-      if (v && typeof v === "object" && p in (v as Record<string, unknown>)) {
-        v = (v as Record<string, unknown>)[p];
-      } else {
-        return undefined;
-      }
-    }
-    return v;
-  }
+  if (m) return evaluateExpression(m[1]!.trim(), ctx);
   return interpolate(template, ctx);
 }
 
@@ -565,7 +510,6 @@ async function runFromNode(
 
   let nextHandle: string | undefined;
   let stepOutput: Record<string, unknown> = {};
-  let skipChildren = false;
 
   try {
     await executeNode(node, ctx, runId, workspaceId, nodes, edges, db, depth, {
@@ -574,9 +518,6 @@ async function runFromNode(
       },
       setOutput: (o) => {
         stepOutput = o;
-      },
-      skipChildren: () => {
-        skipChildren = true;
       },
     });
 
@@ -598,7 +539,12 @@ async function runFromNode(
     await withFlowTx(workspaceId, (tx) =>
       tx
         .update(schema.flowRunSteps)
-        .set({ status: "failed", error: msg, completedAt: new Date() })
+        .set({
+          status: "failed",
+          error: msg,
+          ...(e instanceof StepFailure ? { output: e.output } : {}),
+          completedAt: new Date(),
+        })
         .where(eq(schema.flowRunSteps.id, stepId))
     );
     ctx.emit?.({ type: "step_finish", nodeId: node.id, status: "failed", error: msg });
@@ -612,8 +558,6 @@ async function runFromNode(
     throw e;
   }
 
-  if (skipChildren) return;
-
   const outgoing = edges.filter(
     (e) => e.source === node.id && (nextHandle == null || e.sourceHandle === nextHandle)
   );
@@ -625,7 +569,6 @@ async function runFromNode(
 interface ExecHelpers {
   setHandle: (h: string) => void;
   setOutput: (o: Record<string, unknown>) => void;
-  skipChildren: () => void;
 }
 
 /**
@@ -772,13 +715,16 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       init.body = interpolate((cfg.body as string) ?? "", ctx.variables);
     }
 
-    const maxAttempts = Math.min(5, Number(cfg.maxAttempts ?? 1));
     const timeoutMs = Math.min(60000, Number(cfg.timeoutMs ?? 30000));
-    let lastError: Error | undefined;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const failOnStatus = cfg.failOnStatus === true;
+    const outputVar = (cfg.outputVar as string) ?? "httpResult";
+    const send = async (signal?: AbortSignal) => {
+      const ac = new AbortController();
+      const onAbort = () => ac.abort();
+      signal?.addEventListener("abort", onAbort, { once: true });
+      if (signal?.aborted) onAbort();
+      const t = setTimeout(() => ac.abort(), timeoutMs);
       try {
-        const ac = new AbortController();
-        const t = setTimeout(() => ac.abort(), timeoutMs);
         const r = await fetch(url, { ...init, signal: ac.signal });
         clearTimeout(t);
         const text = await r.text();
@@ -786,18 +732,70 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
         try {
           body = JSON.parse(text);
         } catch {}
-        if (!r.ok && attempt < maxAttempts) {
-          await new Promise((res) => setTimeout(res, 200 * Math.pow(2, attempt - 1)));
+        return { status: r.status, ok: r.ok, body };
+      } finally {
+        clearTimeout(t);
+        signal?.removeEventListener("abort", onAbort);
+      }
+    };
+    const finish = (
+      res: { status: number; ok: boolean; body: unknown },
+      extra: Record<string, unknown>
+    ) => {
+      if (failOnStatus && !res.ok) {
+        throw new StepFailure(`HTTP ${res.status}`, {
+          status: res.status,
+          body: res.body,
+          ...extra,
+        });
+      }
+      ctx.variables[outputVar] = res.body;
+      helpers.setOutput({ status: res.status, body: res.body, ...extra });
+    };
+
+    const retry = parseRetryConfig(cfg.retry);
+    if (retry) {
+      const r = await runWithRetry(
+        retry,
+        async () => {
+          try {
+            const res = await send(ctx.signal);
+            const retryable = res.status === 429 || res.status >= 500;
+            return retryable
+              ? {
+                  kind: "retry",
+                  error: new Error(`HTTP ${res.status}`),
+                  status: res.status,
+                  value: res,
+                }
+              : { kind: "done", value: res, status: res.status };
+          } catch (e) {
+            return { kind: "retry", error: e instanceof Error ? e : new Error(String(e)) };
+          }
+        },
+        ctx.signal ? { signal: ctx.signal } : {}
+      );
+      if (r.ok) return finish(r.value, { attempts: r.attempts });
+      if (r.value) return finish(r.value, { attempts: r.attempts });
+      throw new StepFailure(r.error.message, { attempts: r.attempts });
+    }
+
+    // Legacy behaviour (no `retry` block): retry any non-2xx up to maxAttempts.
+    const maxAttempts = Math.min(5, Number(cfg.maxAttempts ?? 1));
+    let lastError: Error | undefined;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const res = await send();
+        if (!res.ok && attempt < maxAttempts) {
+          await new Promise((done) => setTimeout(done, 200 * Math.pow(2, attempt - 1)));
           continue;
         }
-        const outputVar = (cfg.outputVar as string) ?? "httpResult";
-        ctx.variables[outputVar] = body;
-        helpers.setOutput({ status: r.status, body, attempt });
-        return;
+        return finish(res, { attempt });
       } catch (e) {
+        if (e instanceof StepFailure) throw e;
         lastError = e instanceof Error ? e : new Error(String(e));
         if (attempt < maxAttempts) {
-          await new Promise((res) => setTimeout(res, 200 * Math.pow(2, attempt - 1)));
+          await new Promise((done) => setTimeout(done, 200 * Math.pow(2, attempt - 1)));
         }
       }
     }
@@ -1023,10 +1021,31 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     const input =
       (deepInterpolate(cfg.input ?? {}, ctx.variables) as Record<string, unknown>) ?? {};
     const { runIntegrationAction } = await import("./integrations/store");
-    const result = await runIntegrationAction(workspaceId, integrationId, action, input);
+    const retry = parseRetryConfig(cfg.retry);
     const outputVar = (cfg.outputVar as string) ?? "appResult";
-    ctx.variables[outputVar] = result;
-    helpers.setOutput({ result });
+    if (!retry) {
+      const result = await runIntegrationAction(workspaceId, integrationId, action, input);
+      ctx.variables[outputVar] = result;
+      helpers.setOutput({ result });
+      return;
+    }
+    const r = await runWithRetry(
+      retry,
+      async () => {
+        try {
+          return {
+            kind: "done",
+            value: await runIntegrationAction(workspaceId, integrationId, action, input),
+          };
+        } catch (e) {
+          return { kind: "retry", error: e instanceof Error ? e : new Error(String(e)) };
+        }
+      },
+      ctx.signal ? { signal: ctx.signal } : {}
+    );
+    if (!r.ok) throw new StepFailure(r.error.message, { attempts: r.attempts });
+    ctx.variables[outputVar] = r.value;
+    helpers.setOutput({ result: r.value, attempts: r.attempts });
   },
 
   spreadsheet: async ({ cfg, ctx, helpers }) => {
@@ -1089,15 +1108,16 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
   },
 
   parallel: async ({ edges, node, nodes, ctx, runId, workspaceId, db, depth, helpers }) => {
-    const branchEdges = edges.filter((e) => e.source === node.id);
-    // B7: fan-out acotado. Antes era `Promise.all` sobre TODAS las ramas a la
-    // vez (concurrencia ilimitada hacia providers/DB). Mismo orden de resultados
-    // y misma semántica de error (el primer fallo se propaga).
+    // Every outgoing edge except `done` is a branch. `done` runs once, after
+    // all branches, through runFromNode's normal handle routing.
+    const branchEdges = edges.filter((e) => e.source === node.id && e.sourceHandle !== "done");
+    // B7: fan-out acotado. Mismo orden de resultados y misma semántica de error
+    // (el primer fallo se propaga, y `done` no corre).
     await mapWithConcurrency(branchEdges, FLOW_MAX_FANOUT, (ed) =>
       runFromNode(ed.target, nodes, edges, ctx, runId, workspaceId, db, depth + 1)
     );
     helpers.setOutput({ branches: branchEdges.length });
-    helpers.skipChildren();
+    helpers.setHandle("done");
   },
 
   try_catch: async ({ cfg, edges, node, nodes, ctx, runId, workspaceId, db, depth, helpers }) => {
@@ -1111,11 +1131,14 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       const err = e instanceof Error ? e.message : String(e);
       ctx.variables[(cfg.errorVar as string) ?? "error"] = err;
       if (catchEdge) {
+        // A throwing catch branch propagates, and `done` does not run.
         await runFromNode(catchEdge.target, nodes, edges, ctx, runId, workspaceId, db, depth + 1);
       }
       helpers.setOutput({ caught: true, error: err });
     }
-    helpers.skipChildren();
+    // Only `done` edges continue; `try`/`catch` edges were handled above and
+    // edges without a handle stay ignored, as before.
+    helpers.setHandle("done");
   },
 
   subflow: async ({ cfg, ctx, workspaceId, runId, db, helpers }) => {

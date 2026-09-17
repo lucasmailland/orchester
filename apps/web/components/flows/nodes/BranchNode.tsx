@@ -1,7 +1,7 @@
 "use client";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
-import { GitBranch, LifeBuoy, Repeat, Split, type LucideIcon } from "lucide-react";
+import { GitBranch, LifeBuoy, Repeat, Rows3, Split, type LucideIcon } from "lucide-react";
 
 interface BranchDef {
   id: string;
@@ -103,10 +103,41 @@ export function TryCatchNode(p: NodeProps) {
       Icon={LifeBuoy}
       accent="#f97316"
       branches={[
-        { id: "try", label: "Intentar", color: "#3b82f6", top: 0.34 },
-        { id: "catch", label: "Si falla", color: "#f59e0b", top: 0.7 },
+        { id: "try", label: "Intentar", color: "#3b82f6", top: 0.26 },
+        { id: "catch", label: "Si falla", color: "#f59e0b", top: 0.52 },
+        { id: "done", label: "Al terminar", color: "#10b981", top: 0.78 },
       ]}
     />
+  );
+}
+
+export function ParallelNode(p: NodeProps) {
+  const data = p.data as NodeData;
+  return (
+    <div className="relative">
+      {/*
+        Handle-less edges use the first source handle in DOM order, so both go
+        before the card. Coming first also puts them under it: the z-index keeps
+        the label and the handle visible without changing that order.
+      */}
+      <span
+        className="absolute right-3 z-10 text-[9px] font-medium"
+        style={{ top: "calc(34% - 6px)", color: "#ec4899" }}
+      >
+        En paralelo
+      </span>
+      <Handle
+        type="source"
+        position={Position.Right}
+        style={{ top: "34%", background: "#ec4899", zIndex: 10 }}
+      />
+      <BranchNode
+        data={data}
+        Icon={Rows3}
+        accent="#ec4899"
+        branches={[{ id: "done", label: "Al terminar", color: "#10b981", top: 0.72 }]}
+      />
+    </div>
   );
 }
 
