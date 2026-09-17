@@ -440,8 +440,27 @@ Orchester ships a built-in MCP server. Point Claude Desktop, Cursor, or any MCP-
 }
 ```
 
+#### Flow tools — build, validate and debug a flow from the client
+
+Beyond `list_flows` and `run_flow`, the client can author and troubleshoot flows without opening the Studio:
+
+| Tool                  | Access | What it does                                                                      |
+| --------------------- | ------ | --------------------------------------------------------------------------------- |
+| `get_flow`            | read   | The whole flow: spec, steps with their purpose, connections, variables, state.    |
+| `validate_flow`       | read   | Validates a saved flow (`flowId`) or an unsaved graph (`nodes`, `edges`, `spec`). |
+| `create_flow`         | write  | Creates a flow. A graph with errors is rejected and the issues come back.         |
+| `update_flow`         | write  | Partial update of a flow. A graph with errors is rejected.                        |
+| `get_flow_run`        | read   | State, input, output and error of one run, with its steps in order.               |
+| `list_flow_runs`      | read   | Latest runs of a flow, without steps. Default 20, max 100.                        |
+| `create_flow_webhook` | write  | Creates an inbound webhook for the flow and returns its URL.                      |
+| `list_flow_webhooks`  | read   | Webhooks of a flow: id, date and whether they use HMAC.                           |
+
 > [!IMPORTANT]
 > The MCP server runs with the **same RBAC + quota stack as the REST API**. A read-only API key sees read-only tools. A workspace-scoped key cannot see another workspace's flows. This is enforced by the invariants guard — not by review.
+>
+> The write flow tools use a stricter scope rule than the rest: they accept a key that is **unscoped** (legacy full access) or holds **`write`** or **`flows:write`**. A `readonly` key always refuses, and so does an `agents:write` key — being allowed to run agents does not grant editing flows.
+>
+> `create_flow_webhook` is the **only** call that ever returns a webhook secret (inside the URL it gives you, plus `hmacKey` when you ask for HMAC). Store it when you get it: `list_flow_webhooks` never returns secrets, and the secret cannot be read back.
 
 ### Webhooks — fire flows from anything that can POST
 

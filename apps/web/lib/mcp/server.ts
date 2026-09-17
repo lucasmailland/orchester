@@ -3,6 +3,7 @@ import { getDb, schema } from "@orchester/db";
 import { createId } from "@paralleldrive/cuid2";
 import { and, desc, eq } from "drizzle-orm";
 import { getMnemoClient } from "@/lib/mnemo/client";
+import { FLOW_TOOLS, actorOf } from "./flow-tools";
 
 /**
  * Orchester MCP server core.
@@ -32,13 +33,15 @@ interface JsonSchema {
   required?: string[];
 }
 
-interface McpToolDef {
+export interface McpToolDef {
   name: string;
   title: string;
   description: string;
   inputSchema: JsonSchema;
   /** "read" siempre permitido; "write" requiere que la key NO sea readonly. */
   access: "read" | "write";
+  /** Restringe la escritura al scope del dominio (ver `canWriteScope`). */
+  scope?: "flows";
   handler: (input: Record<string, unknown>, auth: McpAuth) => Promise<unknown>;
 }
 
@@ -52,6 +55,17 @@ function canWrite(auth: McpAuth): boolean {
   if (auth.scopes.includes("readonly")) return false;
   if (auth.scopes.length === 0) return true; // sin scopes = full (compat)
   return auth.scopes.some((s) => s === "write" || s.endsWith(":write"));
+}
+
+/**
+ * Flow tools use a stricter rule than `canWrite`: an `agents:write` key must
+ * not be able to edit flows. Unscoped keys keep their legacy full access.
+ */
+export function canWriteScope(auth: McpAuth, scope?: "flows"): boolean {
+  if (!scope) return canWrite(auth);
+  if (auth.scopes.includes("readonly")) return false;
+  if (auth.scopes.length === 0) return true;
+  return auth.scopes.includes("write") || auth.scopes.includes(`${scope}:write`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -251,23 +265,16 @@ const TOOLS: McpToolDef[] = [
     access: "read",
     inputSchema: { type: "object", properties: {} },
     async handler(_input, auth) {
-      const db = getDb();
-      const rows = await db
-        .select({
-          id: schema.flows.id,
-          name: schema.flows.name,
-          status: schema.flows.status,
-        })
-        .from(schema.flows)
-        .where(eq(schema.flows.workspaceId, auth.workspaceId));
-      return { flows: rows };
+      const { listFlows } = await import("@/lib/flows/service");
+      const rows = await listFlows(actorOf(auth));
+      return { flows: rows.map(({ id, name, status }) => ({ id, name, status })) };
     },
   },
   {
     name: "run_flow",
     title: "Run a flow",
     description:
-      "Ejecuta un flujo del workspace con un input opcional y devuelve el resultado de la corrida.",
+      "Encola un flujo del workspace con un input opcional y devuelve { runId, status }. Consultá el resultado con get_flow_run.",
     access: "write",
     inputSchema: {
       type: "object",
@@ -598,6 +605,7 @@ const TOOLS: McpToolDef[] = [
       };
     },
   },
+  ...FLOW_TOOLS,
 ];
 
 const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]));
@@ -636,7 +644,7 @@ export async function callMcpTool(
       isError: true,
     };
   }
-  if (tool.access === "write" && !canWrite(auth)) {
+  if (tool.access === "write" && !canWriteScope(auth, tool.scope)) {
     return {
       content: [
         { type: "text", text: `La tool "${name}" requiere una API key con permiso de escritura.` },
