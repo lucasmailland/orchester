@@ -16,7 +16,9 @@ export interface ValidationIssue {
 export interface VNode {
   id: string;
   type?: string | undefined;
-  data?: { nodeId?: string; label?: string; config?: Record<string, unknown> } | undefined;
+  data?:
+    | { nodeId?: string; label?: string; config?: Record<string, unknown>; purpose?: string }
+    | undefined;
 }
 export interface VEdge {
   id: string;
@@ -40,7 +42,8 @@ function fieldVisible(f: FieldDef, config: Record<string, unknown>): boolean {
 export function validateFlow(
   nodes: VNode[],
   edges: VEdge[],
-  locale: Locale = "es"
+  locale: Locale = "es",
+  docs?: { spec: string | null }
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const labelOf = (n: VNode) => {
@@ -104,6 +107,28 @@ export function validateFlow(
         nodeId: n.id,
         message: `El paso "${labelOf(n)}" no está conectado a nada. Conectalo o borralo.`,
       });
+    }
+  }
+
+  // 5. Documentación (sólo avisos). Se chequea cuando quien valida la conoce.
+  if (docs) {
+    if (nodes.length > 0 && !docs.spec?.trim()) {
+      issues.push({
+        level: "warning",
+        message:
+          "El flujo no tiene documentación. Escribí qué hace y por qué en la pestaña Documentación.",
+      });
+    }
+    for (const n of nodes) {
+      const engine = getNodeDef(String(n.data?.nodeId ?? n.type ?? ""))?.engine ?? n.type;
+      if (engine === "trigger" || engine === "note") continue;
+      if (!n.data?.purpose?.trim()) {
+        issues.push({
+          level: "warning",
+          nodeId: n.id,
+          message: `El paso "${labelOf(n)}" no dice para qué está. Completá su propósito.`,
+        });
+      }
     }
   }
 
