@@ -1,4 +1,4 @@
-# Flow management over MCP, documented flows, and two engine primitives
+# Flow management over MCP, documented flows, and engine primitives
 
 Date: 2026-09-17 · Status: approved design, revised after adversarial review, pending implementation
 
@@ -24,6 +24,11 @@ the process environment holds secrets:
 - **Deriving a value** from a variable: `{{…}}` interpolation only substitutes, so "a timestamp minus
   15 minutes" or "the first 8 characters of an id" are impossible.
 
+And one thing no flow can express at all: **continuing after a block**. `try_catch` runs everything
+reachable from its `try` branch and then skips its own outgoing edges; `parallel` treats every outgoing
+edge as a branch. So a step placed "after" a `try_catch` ends up inside its `try`, and nothing can run
+once after all `parallel` branches finish.
+
 ## Goals
 
 - An MCP client with a workspace API key can create, read, update and validate a flow, create its
@@ -39,7 +44,6 @@ the process environment holds secrets:
 - An agent that checks a flow against its spec (enabled by this work, built later).
 - Resuming a failed run from the failed step. Recovery is a new run; flows that need it must make
   their writes idempotent.
-- A join/barrier step after `parallel`.
 
 ## Design
 
@@ -64,10 +68,12 @@ Functions: `getFlow`, `createFlow`, `updateFlow`, `validateStoredFlow`, `getFlow
   the service fixes that for both the route and MCP;
 - keeps today's behaviour: plan quota on create, `normalizeFlowNodes` / `normalizeFlowEdges` on write,
   template resolution on create;
-- writes audit entries through `appendAuditSync` (the non-deprecated path) with
-  `actorKind: "api_key"` and the key id in the entry for API keys, `actorKind: "user"` and `userId` for
-  users. For API-key writes a failed audit write fails the operation — an agent's change must never be
-  unattributed. User writes keep today's fire-and-forget behaviour.
+- writes audit entries through the non-deprecated audit path. For API keys: `actorKind: "api_key"`,
+  `actorUserId: null` (the column references users) and `meta.apiKeyId`. For users: `actorKind: "user"`
+  and `actorUserId`. `appendAuditSync` opens its own transaction today; it gains a variant that takes
+  the caller's transaction, and API-key writes use it so **the change and its audit entry commit or roll
+  back together** — an agent's change is never unattributed. User writes keep today's fire-and-forget
+  behaviour.
 
 Route handlers become thin: auth, body parsing, service call, response mapping. Their tests must pass
 unchanged, except where they encode the missing ownership check.
@@ -153,18 +159,40 @@ non-note step without purpose.
 { "retry": { "attempts": 3, "backoffMs": 1000, "maxBackoffMs": 30000 } }
 ```
 
-- `attempts` is the total number of tries (1–5, default 1 = today's behaviour). Delay doubles from
-  `backoffMs`, capped at `maxBackoffMs`, with jitter.
-- `integration` retries when the action throws. `http` retries on network errors, 429 and 5xx; other
-  statuses return as today.
+- `attempts` is the total number of tries (1–5, default 1). Delay doubles from `backoffMs`, capped at
+  `maxBackoffMs`, with jitter.
+- `integration` retries when the action throws.
+- `http` already has `maxAttempts`, which retries **any** non-2xx with a fixed 200 ms doubling. When a
+  step has no `retry` block, that legacy behaviour is kept exactly. When it has one, `retry` wins
+  (`maxAttempts` is ignored) and only network errors, 429 and 5xx are retried. Existing tests for
+  `maxAttempts` stay as they are.
+- Only the external call is retried — never the descendant traversal or the step recording.
 - `http` gains `failOnStatus: boolean` (default `false`, today's behaviour). When true, a non-2xx final
   response fails the step, so `try_catch` can see it.
-- Each attempt is visible in the step's output (`attempts`, last error). The run fails only after the
-  last attempt.
+- Attempts are recorded on the step **whether it succeeds or fails** (a bounded list: attempt number,
+  status or error, delay). Today a failed step stores only its status and error, so the recording path
+  changes to keep that list too. The run fails only after the last attempt.
 - Retries repeat the external call, so the flow author is responsible for idempotency. The field's help
   text says so.
 
-### 6. Interpolation filters
+### 6. Continuing after `try_catch` and `parallel`
+
+Both steps gain an optional **`done`** output handle:
+
+- `try_catch`: after the `try` branch finishes — or after the `catch` branch, if it ran — the engine
+  runs the `done` branch **once**. `done` runs even when there is no `catch` branch and the error was
+  swallowed. If the `catch` branch itself throws, the error propagates and `done` does not run.
+- `parallel`: after **all** branches finish, `done` runs once. If a branch fails, today's semantics are
+  kept (the first failure propagates) and `done` does not run.
+- The `done` edge is not a branch: `parallel` excludes it from its fan-out, and `try_catch` never enters
+  it as part of `try`.
+- Flows without a `done` edge behave exactly as today.
+- The editor shows the new handle; `validateStoredFlow` accepts it only on these two step types.
+
+This is what makes a sequence of independently caught blocks possible:
+`try_catch A ─done→ try_catch B ─done→ final step`.
+
+### 7. Interpolation filters
 
 `{{ path | filter:arg:arg }}`, applied left to right. Pure functions, no user code, unknown filter =
 error at validation time and at run time.
@@ -177,10 +205,14 @@ error at validation time and at run time.
 | `lower` / `upper` / `trim` | | |
 | `default:value` | `{{priority \| default:unknown}}` | fallback for missing or empty |
 | `json` | `{{error \| json}}` | JSON string, for embedding in a body |
-| `nrql` | `{{appName \| nrql}}` | escaped for a NRQL string literal (reuses `nrqlEscape`) |
+| `nrql` | `'{{appName \| nrql}}'` | escapes the content of a NRQL string literal (reuses `nrqlEscape`); **does not add the quotes** |
+| `html` | `{{summary \| html}}` | escapes `& < > " '` and turns line breaks into `<br>`, for HTML fields (reuses the Odoo client's helper) |
 | `redact:maxLen` | `{{message \| redact:500}}` | masks emails, bearer/API tokens, JWTs and digit runs of 8+, then truncates to `maxLen` |
 
-Filters apply in `interpolate`, `resolveValue` and `deepInterpolate`. `validateStoredFlow` parses every
+Filters apply in `interpolate`, `resolveValue` and `deepInterpolate`, so they work in `http` URLs and
+bodies, `transform` templates and `integration` inputs alike. A `transform` resolves all its fields
+before merging them, so one field cannot use a variable another field of the same `transform` creates;
+the field help says so. `validateStoredFlow` parses every
 template in node configs and reports unknown filters and bad arguments as errors.
 
 ## Testing (Vitest, test first)
@@ -194,9 +226,14 @@ template in node configs and reports unknown filters and bad arguments as errors
 - `validateStoredFlow`: flat stored nodes validate the same as editor nodes; unknown types rejected.
 - `purpose`: survives normalization (truncated past 280) and an editor load → edit → save round-trip.
 - Versions: create and restore carry `spec`.
-- Retry: attempts count, backoff schedule (fake timers), which statuses retry, `failOnStatus`, final
+- Retry: legacy `maxAttempts` unchanged when `retry` is absent; `retry` wins when both are set; attempts
+  recorded on success and on failure; attempts count, backoff schedule (fake timers), which statuses retry, `failOnStatus`, final
   failure propagates through `try_catch`.
-- Filters: each filter (for `redact`: emails, tokens, JWTs, long digit runs, truncation), chaining, bad arguments, unknown filter, and that a template without filters
+- `done` handle: runs once after a successful `try`, after a caught error with and without a `catch`
+  branch, and after all `parallel` branches; does not run when `catch` throws or a branch fails; is not
+  treated as a branch; flows without it are unchanged; a chain of three `try_catch` blocks where the
+  second fails still runs the third and the final step.
+- Filters: each filter (for `html`: escaping and line breaks) (for `redact`: emails, tokens, JWTs, long digit runs, truncation), chaining, bad arguments, unknown filter, and that a template without filters
   interpolates exactly as before.
 - Existing route and engine tests keep passing.
 
@@ -206,6 +243,12 @@ One PR to `main`, with no deployment-specific identifiers. The migration adds tw
 is safe to apply before the new image starts. Deploy from the merged `main` commit and confirm the
 columns exist before switching the image. All new engine behaviour is opt-in per step, so existing flows
 run unchanged.
+
+## Known gaps outside this change
+
+- `enqueueFlowRun` and the integration credential lookup query tables with FORCE RLS without setting
+  `app.workspace_id`; they rely on filtering by workspace and on the deployment's database role. Webhook
+  runs work in the current deployment, so this is recorded to verify, not fixed here.
 
 ## Risks
 
