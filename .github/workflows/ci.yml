@@ -79,13 +79,20 @@ jobs:
         run: pnpm --filter @orchester/db migrate
 
       - name: TypeScript check
-        run: pnpm --filter web tsc --noEmit
+        # `pnpm --filter <pkg> <name>` runs a package SCRIPT. There is no "tsc"
+        # script in apps/web, so pnpm printed `None of the selected packages has
+        # a "tsc" script`, exited 0, and this step passed without type-checking
+        # anything. `exec` runs the binary from node_modules instead.
+        run: pnpm --filter web exec tsc --noEmit
 
       - name: Audit invariants (RBAC + zod + spend guard + metering + flow signal)
         run: bash scripts/audit-invariants.sh
 
       - name: Tests
-        run: pnpm --filter web vitest run
+        # Same no-op as above: there is no "vitest" script, only "test". Every
+        # CI run since this workflow landed reported green without running a
+        # single test.
+        run: pnpm --filter web test
 
       - name: Build
         run: pnpm --filter web build
