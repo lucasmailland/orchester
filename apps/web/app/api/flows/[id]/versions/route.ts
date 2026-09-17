@@ -5,6 +5,7 @@ import { getDb, schema } from "@orchester/db";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
+import { versionSnapshot } from "@/lib/flows/versions";
 
 const createFlowVersionSchema = z.object({
   label: z.string().nullable().optional(),
@@ -68,9 +69,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         workspaceId: ctx.workspace.id,
         version: flow.version ?? 1,
         label: body.label ?? null,
-        nodes: flow.nodes ?? [],
-        edges: flow.edges ?? [],
-        variables: flow.variables ?? {},
+        ...versionSnapshot(flow),
       })
       .returning();
     return { kind: "ok" as const, row: inserted[0] };

@@ -100,3 +100,29 @@ describe("normalizeFlowEdges", () => {
     expect(normalizeFlowEdges(undefined)).toEqual([]);
   });
 });
+
+describe("purpose", () => {
+  it("keeps a one-line purpose from the stored node or legacy data", () => {
+    const out = normalizeFlowNodes([
+      {
+        id: "a",
+        type: "note",
+        label: "A",
+        config: {},
+        position: { x: 0, y: 0 },
+        purpose: "Explain the flow",
+      },
+      { id: "b", type: "note", data: { label: "B", purpose: "line one\nline two" } },
+    ]);
+    expect(out[0]!.purpose).toBe("Explain the flow");
+    expect(out[1]!.purpose).toBe("line one line two");
+  });
+  it("truncates past 280 characters and drops empty purposes", () => {
+    const out = normalizeFlowNodes([
+      { id: "a", type: "note", config: {}, purpose: "x".repeat(300) },
+      { id: "b", type: "note", config: {}, purpose: "   " },
+    ]);
+    expect(out[0]!.purpose).toHaveLength(280);
+    expect(out[1]).not.toHaveProperty("purpose");
+  });
+});

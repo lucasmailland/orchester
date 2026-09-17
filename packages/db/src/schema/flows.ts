@@ -102,6 +102,8 @@ export const flows = pgTable("flow", {
     .references(() => workspaces.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description"),
+  /** Markdown specification: what the flow does and why. */
+  spec: text("spec"),
   status: flowStatusEnum("status").notNull().default("draft"),
   trigger: flowTriggerEnum("trigger").notNull().default("manual"),
   triggerConfig: jsonb("trigger_config").$type<Record<string, unknown>>().default({}),
@@ -157,6 +159,8 @@ export const flowVersions = pgTable("flow_version", {
     .references(() => workspaces.id, { onDelete: "cascade" }),
   version: integer("version").notNull(),
   label: text("label"),
+  /** Markdown specification: what the flow does and why. */
+  spec: text("spec"),
   nodes: jsonb("nodes").$type<Array<{ id: string } & FlowNodeData>>().default([]),
   edges: jsonb("edges").$type<Array<{ id: string } & FlowEdgeData>>().default([]),
   variables: jsonb("variables").$type<Record<string, unknown>>().default({}),

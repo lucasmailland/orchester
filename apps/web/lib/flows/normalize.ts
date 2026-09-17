@@ -20,6 +20,18 @@ export interface StoredFlowNode {
   label: string;
   config: Record<string, unknown>;
   position: { x: number; y: number };
+  purpose?: string;
+}
+
+export const PURPOSE_MAX = 280;
+
+function purposeOf(
+  item: Record<string, unknown>,
+  data: Record<string, unknown>
+): string | undefined {
+  const raw = [item.purpose, data.purpose].find((p): p is string => typeof p === "string");
+  const oneLine = raw?.replace(/\s*[\r\n]+\s*/g, " ").trim();
+  return oneLine ? oneLine.slice(0, PURPOSE_MAX) : undefined;
 }
 
 export interface StoredFlowEdge {
@@ -47,7 +59,7 @@ function isPosition(value: unknown): value is { x: number; y: number } {
 }
 
 /** The registry step a stored node is — triggers share one engine type. */
-function registryIdOf(type: string, config: Record<string, unknown>): string {
+export function registryIdOf(type: string, config: Record<string, unknown>): string {
   return type === "trigger" ? `trigger_${String(config.triggerKind ?? "manual")}` : type;
 }
 
@@ -70,6 +82,7 @@ export function normalizeFlowNodes(raw: unknown): StoredFlowNode[] {
         ? data.config
         : null;
     const type = LEGACY_TYPES[rawType] ?? rawType;
+    const purpose = purposeOf(item, data);
 
     if (!ENGINE_TYPES.has(type)) {
       // No equivalent: keep the step visible and say what it was, rather than
@@ -94,7 +107,14 @@ export function normalizeFlowNodes(raw: unknown): StoredFlowNode[] {
       config = { ...(def?.defaults ?? {}), ...(def?.fixedConfig ?? {}) };
     }
     const def = getNodeDef(registryIdOf(type, config));
-    nodes.push({ id, type, label: label ?? def?.title.es ?? type, config, position });
+    nodes.push({
+      id,
+      type,
+      label: label ?? def?.title.es ?? type,
+      config,
+      position,
+      ...(purpose ? { purpose } : {}),
+    });
   });
 
   return nodes;

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getDb, schema } from "@orchester/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { restorePatch } from "@/lib/flows/versions";
 
 export async function POST(
   _req: Request,
@@ -31,9 +32,7 @@ export async function POST(
     const updated = await tx
       .update(schema.flows)
       .set({
-        nodes: v.nodes ?? [],
-        edges: v.edges ?? [],
-        variables: v.variables ?? {},
+        ...restorePatch(v),
         updatedAt: new Date(),
       })
       .where(and(eq(schema.flows.id, id), eq(schema.flows.workspaceId, ctx.workspace.id)))

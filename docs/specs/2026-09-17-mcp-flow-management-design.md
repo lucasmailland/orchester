@@ -92,16 +92,16 @@ unchanged, except where they encode the missing ownership check.
 
 ### 3. New MCP tools (`apps/web/lib/mcp/server.ts`)
 
-| Tool | Access | Input | Output |
-|---|---|---|---|
-| `get_flow` | read | `flowId` | name, description, spec, status, enabled, trigger, nodes (with `purpose`), edges, variables, version |
-| `validate_flow` | read | `flowId` **or** `{nodes, edges}` | `{ issues: [{level, message, nodeId?}] }` |
-| `create_flow` | write | `name`, `description?`, `spec?`, `nodes?`, `edges?`, `variables?` | the created flow + warnings |
-| `update_flow` | write | `flowId` + any of `name`, `description`, `spec`, `nodes`, `edges`, `variables`, `status`, `enabled` | the updated flow + warnings |
-| `get_flow_run` | read | `runId` | run (status, input, output, error, timestamps) and its steps in order |
-| `list_flow_runs` | read | `flowId`, `limit?` (default 20, max 100) | runs, newest first, without steps |
-| `create_flow_webhook` | write | `flowId`, `hmac?` | webhook id, full URL, HMAC key if requested |
-| `list_flow_webhooks` | read | `flowId` | webhook ids, created dates, whether HMAC is on — **never** secrets |
+| Tool                  | Access | Input                                                                                               | Output                                                                                               |
+| --------------------- | ------ | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `get_flow`            | read   | `flowId`                                                                                            | name, description, spec, status, enabled, trigger, nodes (with `purpose`), edges, variables, version |
+| `validate_flow`       | read   | `flowId` **or** `{nodes, edges}`                                                                    | `{ issues: [{level, message, nodeId?}] }`                                                            |
+| `create_flow`         | write  | `name`, `description?`, `spec?`, `nodes?`, `edges?`, `variables?`                                   | the created flow + warnings                                                                          |
+| `update_flow`         | write  | `flowId` + any of `name`, `description`, `spec`, `nodes`, `edges`, `variables`, `status`, `enabled` | the updated flow + warnings                                                                          |
+| `get_flow_run`        | read   | `runId`                                                                                             | run (status, input, output, error, timestamps) and its steps in order                                |
+| `list_flow_runs`      | read   | `flowId`, `limit?` (default 20, max 100)                                                            | runs, newest first, without steps                                                                    |
+| `create_flow_webhook` | write  | `flowId`, `hmac?`                                                                                   | webhook id, full URL, HMAC key if requested                                                          |
+| `list_flow_webhooks`  | read   | `flowId`                                                                                            | webhook ids, created dates, whether HMAC is on — **never** secrets                                   |
 
 Rules:
 
@@ -123,7 +123,9 @@ Rules:
 
 ### 4. Flow specification and step purpose
 
-**Data model** (migration generated with `drizzle-kit generate`, applied by `migrate`):
+**Data model** (hand-written migration `packages/db/migrations/0055_flow_spec.sql`, added to the
+manifest of `scripts/apply-sql-migrations.mjs`; the drizzle snapshot is stale versus the schema, so
+`drizzle-kit generate` would emit unrelated changes):
 
 - `flow.spec text` — markdown, nullable.
 - `flow_version.spec text` — snapshotted with the graph when a version is created, restored with it.
@@ -138,10 +140,15 @@ would drop it.
 
 ```markdown
 ## Purpose
+
 ## Trigger
+
 ## Steps
+
 ## Side effects
+
 ## Failure handling
+
 ## Dependencies
 ```
 
@@ -197,17 +204,17 @@ This is what makes a sequence of independently caught blocks possible:
 `{{ path | filter:arg:arg }}`, applied left to right. Pure functions, no user code, unknown filter =
 error at validation time and at run time.
 
-| Filter | Example | Result |
-|---|---|---|
-| `addMinutes:n` | `{{activatedAt \| addMinutes:-15}}` | epoch ms shifted by n minutes (accepts epoch ms or ISO) |
-| `toEpochMs` / `toIso` | `{{closedAt \| toIso}}` | conversion |
-| `slice:start:end` | `{{issueId \| slice:0:8}}` | substring |
-| `lower` / `upper` / `trim` | | |
-| `default:value` | `{{priority \| default:unknown}}` | fallback for missing or empty |
-| `json` | `{{error \| json}}` | JSON string, for embedding in a body |
-| `nrql` | `'{{appName \| nrql}}'` | escapes the content of a NRQL string literal (reuses `nrqlEscape`); **does not add the quotes** |
-| `html` | `{{summary \| html}}` | escapes `& < > " '` and turns line breaks into `<br>`, for HTML fields (reuses the Odoo client's helper) |
-| `redact:maxLen` | `{{message \| redact:500}}` | masks emails, bearer/API tokens, JWTs and digit runs of 8+, then truncates to `maxLen` |
+| Filter                     | Example                             | Result                                                                                                   |
+| -------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `addMinutes:n`             | `{{activatedAt \| addMinutes:-15}}` | epoch ms shifted by n minutes (accepts epoch ms or ISO)                                                  |
+| `toEpochMs` / `toIso`      | `{{closedAt \| toIso}}`             | conversion                                                                                               |
+| `slice:start:end`          | `{{issueId \| slice:0:8}}`          | substring                                                                                                |
+| `lower` / `upper` / `trim` |                                     |                                                                                                          |
+| `default:value`            | `{{priority \| default:unknown}}`   | fallback for missing or empty                                                                            |
+| `json`                     | `{{error \| json}}`                 | JSON string, for embedding in a body                                                                     |
+| `nrql`                     | `'{{appName \| nrql}}'`             | escapes the content of a NRQL string literal (reuses `nrqlEscape`); **does not add the quotes**          |
+| `html`                     | `{{summary \| html}}`               | escapes `& < > " '` and turns line breaks into `<br>`, for HTML fields (reuses the Odoo client's helper) |
+| `redact:maxLen`            | `{{message \| redact:500}}`         | masks emails, bearer/API tokens, JWTs and digit runs of 8+, then truncates to `maxLen`                   |
 
 Filters apply in `interpolate`, `resolveValue` and `deepInterpolate`, so they work in `http` URLs and
 bodies, `transform` templates and `integration` inputs alike. A `transform` resolves all its fields
