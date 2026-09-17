@@ -39,3 +39,25 @@ describe("appendAuditInTx", () => {
     expect(tx.execute).toHaveBeenCalled();
   });
 });
+
+it("exports a shared structured chain-rotation warning", async () => {
+  const warn = vi
+    .spyOn(await import("../lib/safe-log"), "safeLogWarn")
+    .mockImplementation(() => {});
+  try {
+    const log = await import("../lib/audit/log");
+    expect(log).toHaveProperty("warnChainRotated", expect.any(Function));
+    await log.warnChainRotated("ws_test", BigInt(2));
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      "[audit] chain rotated past legacy bootstrap row:",
+      {
+        level: "warn",
+        msg: "audit.chain.rotated_past_legacy_bootstrap",
+        workspaceId: "ws_test",
+        seq: "2",
+      }
+    );
+  } finally {
+    warn.mockRestore();
+  }
+});

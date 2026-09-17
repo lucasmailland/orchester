@@ -117,11 +117,11 @@ function checkGraph(
 }
 
 export function listFlows(actor: FlowActor): Promise<Flow[]> {
-  return withRepo(actor.workspaceId, (repo) => repo.listFlows(actor.workspaceId));
+  return withRepo(actor, (repo) => repo.listFlows(actor.workspaceId));
 }
 
 export function getFlow(actor: FlowActor, flowId: string): Promise<Flow> {
-  return withRepo(actor.workspaceId, (repo) => requireFlow(repo, actor, flowId));
+  return withRepo(actor, (repo) => requireFlow(repo, actor, flowId));
 }
 
 export async function createFlow(
@@ -133,7 +133,7 @@ export async function createFlow(
   if (!quota.allowed) {
     throw new FlowServiceError("quota", quota.reason ?? "Flow quota exceeded for your plan");
   }
-  const result = await withRepo(actor.workspaceId, async (repo) => {
+  const result = await withRepo(actor, async (repo) => {
     let nodes: unknown[] = input.nodes ?? [];
     let edges: unknown[] = input.edges ?? [];
     let variables: Record<string, unknown> = input.variables ?? {};
@@ -173,7 +173,7 @@ export async function updateFlow(
   input: FlowInput,
   { strict = false }: { strict?: boolean } = {}
 ): Promise<{ flow: Flow; warnings: ValidationIssue[] }> {
-  const result = await withRepo(actor.workspaceId, async (repo) => {
+  const result = await withRepo(actor, async (repo) => {
     let warnings: ValidationIssue[] = [];
     if (strict) {
       const current = await requireFlow(repo, actor, flowId);
@@ -206,7 +206,7 @@ export async function updateFlow(
 }
 
 export function validateFlowById(actor: FlowActor, flowId: string): Promise<ValidationIssue[]> {
-  return withRepo(actor.workspaceId, async (repo) => {
+  return withRepo(actor, async (repo) => {
     const flow = await requireFlow(repo, actor, flowId);
     return validateStoredFlow(flow.nodes, flow.edges, { spec: flow.spec });
   });
@@ -216,7 +216,7 @@ export function getFlowRun(
   actor: FlowActor,
   runId: string
 ): Promise<{ run: FlowRun; steps: FlowRunStep[] }> {
-  return withRepo(actor.workspaceId, async (repo) => {
+  return withRepo(actor, async (repo) => {
     const run = await repo.findRun(runId, actor.workspaceId);
     if (!run) throw notFound("Run");
     return { run, steps: await repo.listSteps(run.id) };
@@ -235,7 +235,7 @@ export function listFlowRuns(
     FLOW_RUNS_MAX_LIMIT,
     Math.max(1, Math.trunc(Number(limit) || FLOW_RUNS_DEFAULT_LIMIT))
   );
-  return withRepo(actor.workspaceId, async (repo) => {
+  return withRepo(actor, async (repo) => {
     await requireFlow(repo, actor, flowId);
     return repo.listRuns(flowId, actor.workspaceId, n);
   });
@@ -246,7 +246,7 @@ export function createFlowWebhook(
   flowId: string,
   opts: { hmac?: boolean }
 ): Promise<FlowWebhook> {
-  return withRepo(actor.workspaceId, async (repo) => {
+  return withRepo(actor, async (repo) => {
     await requireFlow(repo, actor, flowId);
     const hook = await repo.insertWebhook({
       id: createId(),
@@ -265,7 +265,7 @@ export function listFlowWebhooks(
   flowId: string,
   { redact = false }: { redact?: boolean } = {}
 ): Promise<Array<FlowWebhook | RedactedFlowWebhook>> {
-  return withRepo(actor.workspaceId, async (repo) => {
+  return withRepo(actor, async (repo) => {
     await requireFlow(repo, actor, flowId);
     const rows = await repo.listWebhooks(flowId, actor.workspaceId);
     if (!redact) return rows;

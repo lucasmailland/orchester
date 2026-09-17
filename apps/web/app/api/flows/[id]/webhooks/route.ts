@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
-import { createFlowWebhook, listFlowWebhooks, serviceErrorResponse } from "@/lib/flows/service";
+import {
+  FlowServiceError,
+  createFlowWebhook,
+  listFlowWebhooks,
+  serviceErrorResponse,
+} from "@/lib/flows/service";
 
 const createFlowWebhookSchema = z.object({
   hmac: z.boolean().optional(),
@@ -20,6 +25,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     );
     return NextResponse.json(rows);
   } catch (e) {
+    if (e instanceof FlowServiceError && e.code === "not_found") return NextResponse.json([]);
     return serviceErrorResponse(e);
   }
 }

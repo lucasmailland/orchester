@@ -118,6 +118,17 @@ export async function appendAuditInTx(
   return { rotatedAtSeq: rotated };
 }
 
+/** Emit only after the transaction containing the rotation has committed. */
+export async function warnChainRotated(workspaceId: string, seq: bigint): Promise<void> {
+  const { safeLogWarn } = await import("../safe-log");
+  safeLogWarn("[audit] chain rotated past legacy bootstrap row:", {
+    level: "warn",
+    msg: "audit.chain.rotated_past_legacy_bootstrap",
+    workspaceId,
+    seq: seq.toString(),
+  });
+}
+
 export async function appendAuditSync(workspaceId: string, entry: AuditEntryInput): Promise<void> {
   const db = getDb();
   const { rotatedAtSeq } = await db.transaction((tx) => appendAuditInTx(tx, workspaceId, entry));
@@ -128,13 +139,7 @@ export async function appendAuditSync(workspaceId: string, entry: AuditEntryInpu
   // would either succeed (and chain to the new row, suppressing the
   // signal) or recurse if the chain were corrupted again.
   if (rotatedAtSeq !== null) {
-    const { safeLogWarn } = await import("../safe-log");
-    safeLogWarn("[audit] chain rotated past legacy bootstrap row:", {
-      level: "warn",
-      msg: "audit.chain.rotated_past_legacy_bootstrap",
-      workspaceId,
-      seq: rotatedAtSeq.toString(),
-    });
+    await warnChainRotated(workspaceId, rotatedAtSeq);
   }
 }
 

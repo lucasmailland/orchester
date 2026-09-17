@@ -1,8 +1,9 @@
 import "server-only";
 import { schema } from "@orchester/db";
-import { and, asc, desc, eq, or } from "drizzle-orm";
+import { and, asc, desc, eq, or, sql } from "drizzle-orm";
 import { withWorkspaceTx } from "@/lib/tenant/context";
-import { appendAuditInTx } from "@/lib/audit/log";
+import { appendAuditInTx, warnChainRotated } from "@/lib/audit/log";
+import type { FlowActor } from "./service";
 import type { AuditEntryInput } from "@/lib/audit/types";
 
 type Tx = Parameters<Parameters<typeof withWorkspaceTx>[1]>[0];
@@ -91,27 +92,20 @@ function repo(tx: Tx, onRotate: (seq: bigint) => void) {
 
 export type FlowRepo = ReturnType<typeof repo>;
 
-export async function withRepo<T>(
-  workspaceId: string,
-  fn: (r: FlowRepo) => Promise<T>
-): Promise<T> {
+export async function withRepo<T>(actor: FlowActor, fn: (r: FlowRepo) => Promise<T>): Promise<T> {
   const rotation: { seq: bigint | null } = { seq: null };
-  const result = await withWorkspaceTx(workspaceId, (tx) =>
-    fn(
+  const result = await withWorkspaceTx(actor.workspaceId, async (tx) => {
+    if (actor.kind === "user") {
+      await tx.execute(sql`SELECT set_config('app.user_id', ${actor.userId}, true)`);
+    }
+    return fn(
       repo(tx, (seq) => {
         rotation.seq = seq;
       })
-    )
-  );
-  // Same post-commit warning as appendAuditSync: a chain rotation must be visible.
+    );
+  });
   if (rotation.seq !== null) {
-    const { safeLogWarn } = await import("@/lib/safe-log");
-    safeLogWarn("[audit] chain rotated past legacy bootstrap row:", {
-      level: "warn",
-      msg: "audit.chain.rotated_past_legacy_bootstrap",
-      workspaceId,
-      seq: rotation.seq.toString(),
-    });
+    await warnChainRotated(actor.workspaceId, rotation.seq);
   }
   return result;
 }

@@ -12,7 +12,7 @@ const db = vi.hoisted(() => ({
 // The service only talks to the DB through small repository helpers defined in
 // flow-repo.ts; the test replaces them wholesale.
 vi.mock("@/lib/flows/flow-repo", () => ({
-  withRepo: async (_ws: string, fn: (repo: unknown) => Promise<unknown>) =>
+  withRepo: async (_actor: unknown, fn: (repo: unknown) => Promise<unknown>) =>
     fn({
       findFlow: async (id: string, ws: string) =>
         db.flows.find((f) => f.id === id && f.workspaceId === ws),
@@ -106,7 +106,7 @@ describe("flow service", () => {
     expect((flow.nodes as Array<{ label: string }>)[0]!.label).toBe("N");
   });
 
-  it("stores spec and purpose and returns documentation warnings", async () => {
+  it("stores spec and returns documentation warnings", async () => {
     const { flow, warnings } = await svc.createFlow(
       key,
       { name: "doc", nodes: [trigger], spec: null },
