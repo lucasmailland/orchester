@@ -6,6 +6,7 @@ import { llmCall } from "./llm-call";
 import { enqueue, JOB_FLOW_RUN } from "./queue";
 import { assertPublicUrl } from "./net-guard";
 import { logWithContext, recordMetric } from "./observability";
+import { evaluateExpression } from "./flows/filters";
 
 /**
  * R2-C: Flow execution writes to tenant tables (flow_runs,
@@ -140,16 +141,8 @@ export function buildAgentUserMessage(
 
 export function interpolate(template: string, ctx: Record<string, unknown>): string {
   if (typeof template !== "string") return "";
-  return template.replace(/\{\{([^}]+)\}\}/g, (_, path: string) => {
-    const parts = path.trim().split(".");
-    let v: unknown = ctx;
-    for (const p of parts) {
-      if (v && typeof v === "object" && p in (v as Record<string, unknown>)) {
-        v = (v as Record<string, unknown>)[p];
-      } else {
-        return "";
-      }
-    }
+  return template.replace(/\{\{([^}]+)\}\}/g, (_, expr: string) => {
+    const v = evaluateExpression(expr.trim(), ctx);
     if (v == null) return "";
     // Objects and arrays as JSON: an http step parses JSON responses and
     // kb_search leaves an array of results, and String() turned both into the
@@ -166,18 +159,7 @@ export function interpolate(template: string, ctx: Record<string, unknown>): str
 export function resolveValue(template: unknown, ctx: Record<string, unknown>): unknown {
   if (typeof template !== "string") return template;
   const m = /^\s*\{\{([^}]+)\}\}\s*$/.exec(template);
-  if (m) {
-    const parts = m[1]!.trim().split(".");
-    let v: unknown = ctx;
-    for (const p of parts) {
-      if (v && typeof v === "object" && p in (v as Record<string, unknown>)) {
-        v = (v as Record<string, unknown>)[p];
-      } else {
-        return undefined;
-      }
-    }
-    return v;
-  }
+  if (m) return evaluateExpression(m[1]!.trim(), ctx);
   return interpolate(template, ctx);
 }
 
