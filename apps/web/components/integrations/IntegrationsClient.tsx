@@ -4,9 +4,12 @@ import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import {
+  Activity,
   Boxes,
+  Briefcase,
   CreditCard,
   Database,
+  GitBranch,
   FileText,
   Globe,
   Loader2,
@@ -57,6 +60,9 @@ const ICONS: Record<string, typeof Database> = {
   http: Globe,
   slack: MessageSquare,
   google: Boxes,
+  odoo: Briefcase,
+  newrelic: Activity,
+  gitlab: GitBranch,
 };
 
 export function IntegrationsClient() {
