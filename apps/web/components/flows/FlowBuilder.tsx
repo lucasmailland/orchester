@@ -28,9 +28,11 @@ import {
   ParallelNode,
 } from "./nodes/BranchNode";
 import { FlowRunsPanel } from "./FlowRunsPanel";
+import { FlowDocsPanel } from "./FlowDocsPanel";
 import { InspectorForm } from "./inspector/InspectorForm";
 import { NodePalette } from "./NodePalette";
 import { CopilotPanel } from "./CopilotPanel";
+import { toCanvasNode, type StoredNodeDTO } from "./node-mapping";
 import { getNodeDef, type Locale } from "@/lib/flows/node-registry";
 import { autoLayout } from "@/lib/flows/layout";
 import { validateFlow, type ValidationIssue } from "@/lib/flows/validate";
@@ -52,6 +54,7 @@ import {
   Redo2,
   LayoutGrid,
   ShieldCheck,
+  BookText,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -89,25 +92,10 @@ const nodeTypes = {
   ocr_extract: RegistryNode,
 };
 
-/** Deriva el id del registry a partir del nodo guardado (que sólo tiene engine type). */
-function deriveNodeId(n: { type: string; config?: Record<string, unknown> }): string {
-  if (n.type === "trigger") {
-    const kind = (n.config?.triggerKind as string) ?? "manual";
-    return `trigger_${kind}`;
-  }
-  return n.type;
-}
-
 export interface FlowDTO {
   id: string;
   name: string;
-  nodes: Array<{
-    id: string;
-    type: string;
-    label: string;
-    config: Record<string, unknown>;
-    position: { x: number; y: number };
-  }>;
+  nodes: StoredNodeDTO[];
   edges: Array<{
     id: string;
     source: string;
@@ -116,6 +104,7 @@ export interface FlowDTO {
     label?: string;
   }>;
   variables?: Record<string, unknown>;
+  spec?: string | null;
 }
 
 export function FlowBuilder({ flow }: { flow: FlowDTO }) {
@@ -128,14 +117,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     rawLocale === "es" || rawLocale === "pt" || rawLocale === "en" ? (rawLocale as Locale) : "es";
   // Normalized on open, so a flow stored in an older shape opens instead of
   // crashing the editor (and is saved back in the current shape).
-  const [nodes, setNodes] = useState<Node[]>(
-    normalizeFlowNodes(flow.nodes).map((n) => ({
-      id: n.id,
-      type: n.type,
-      position: n.position,
-      data: { label: n.label, subtitle: subtitleFor(n), config: n.config, nodeId: deriveNodeId(n) },
-    }))
-  );
+  const [nodes, setNodes] = useState<Node[]>(normalizeFlowNodes(flow.nodes).map(toCanvasNode));
   const [edges, setEdges] = useState<Edge[]>(
     normalizeFlowEdges(flow.edges).map((e) => {
       const edge: Edge = { id: e.id, source: e.source, target: e.target };
@@ -147,6 +129,8 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const [selected, setSelected] = useState<Node | null>(null);
   const [variables, setVariables] = useState<Record<string, unknown>>(flow.variables ?? {});
   const [varsOpen, setVarsOpen] = useState(false);
+  const [spec, setSpec] = useState(flow.spec ?? "");
+  const [docsOpen, setDocsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
@@ -285,8 +269,8 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   }
 
   const buildPayload = useCallback(
-    () => buildFlowPayload(nodes, edges, variables),
-    [nodes, edges, variables]
+    () => buildFlowPayload(nodes, edges, variables, spec || null),
+    [nodes, edges, variables, spec]
   );
 
   async function save({ silent }: { silent?: boolean } = {}) {
@@ -314,7 +298,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
 
   // Auto-save with 2s debounce after any change that alters the stored flow
   useEffect(() => {
-    const signature = flowSignature(buildFlowPayload(nodes, edges, variables));
+    const signature = flowSignature(buildFlowPayload(nodes, edges, variables, spec || null));
     if (savedSignatureRef.current === null) {
       // First render: this is what the server already has.
       savedSignatureRef.current = signature;
@@ -334,7 +318,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, variables]);
+  }, [nodes, edges, variables, spec]);
 
   // Atajos de teclado: Cmd/Ctrl+Z deshacer, Cmd/Ctrl+Shift+Z rehacer.
   useEffect(() => {
@@ -377,7 +361,9 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
       // Tidying is cosmetic and nobody asked for it: take it as the saved
       // state so it doesn't auto-save on its own. A later real edit stores the
       // tidied positions along with it.
-      savedSignatureRef.current = flowSignature(buildFlowPayload(tidied, edges, variables));
+      savedSignatureRef.current = flowSignature(
+        buildFlowPayload(tidied, edges, variables, spec || null)
+      );
       setNodes(tidied);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -518,7 +504,12 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     nodes.map((n) => ({
       id: n.id,
       type: n.type,
-      data: n.data as { nodeId?: string; label?: string; config?: Record<string, unknown> },
+      data: n.data as {
+        nodeId?: string;
+        label?: string;
+        config?: Record<string, unknown>;
+        purpose?: string;
+      },
     })),
     edges.map((e) => ({
       id: e.id,
@@ -526,7 +517,8 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
       target: e.target,
       ...(e.sourceHandle ? { sourceHandle: e.sourceHandle } : {}),
     })),
-    LOCALE
+    LOCALE,
+    { spec }
   )) {
     if (iss.nodeId) (issuesByNode[iss.nodeId] ??= []).push(iss.message);
   }
@@ -624,6 +616,14 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               title={t("copilotTooltip")}
             >
               <Sparkles className="h-3.5 w-3.5" /> {t("copilot")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDocsOpen((o) => !o)}
+              className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover"
+              title={t("documentation")}
+            >
+              <BookText className="h-3.5 w-3.5" />
             </button>
             <button
               type="button"
@@ -765,6 +765,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               nodes={nodes}
               edges={edges}
               locale={LOCALE}
+              spec={spec}
               onClose={() => setValidationOpen(false)}
               onSelect={(id) => {
                 const n = nodes.find((x) => x.id === id);
@@ -773,6 +774,9 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             />
           )}
           <FlowRunsPanel flowId={flow.id} open={runsOpen} onClose={() => setRunsOpen(false)} />
+          {docsOpen && (
+            <FlowDocsPanel spec={spec} onChange={setSpec} onClose={() => setDocsOpen(false)} />
+          )}
         </div>
         {runModalOpen && (
           <div
@@ -963,19 +967,26 @@ function ValidationPanel({
   onClose,
   onSelect,
   locale,
+  spec,
 }: {
   nodes: Node[];
   edges: Edge[];
   onClose: () => void;
   onSelect: (id: string) => void;
   locale: Locale;
+  spec: string;
 }) {
   const t = useTranslations("pages.flows.builder");
   const issues: ValidationIssue[] = validateFlow(
     nodes.map((n) => ({
       id: n.id,
       type: n.type,
-      data: n.data as { nodeId?: string; label?: string; config?: Record<string, unknown> },
+      data: n.data as {
+        nodeId?: string;
+        label?: string;
+        config?: Record<string, unknown>;
+        purpose?: string;
+      },
     })),
     edges.map((e) => ({
       id: e.id,
@@ -983,7 +994,8 @@ function ValidationPanel({
       target: e.target,
       ...(e.sourceHandle ? { sourceHandle: e.sourceHandle } : {}),
     })),
-    locale
+    locale,
+    { spec }
   );
   const errors = issues.filter((i) => i.level === "error");
   const warnings = issues.filter((i) => i.level === "warning");
@@ -1256,13 +1268,6 @@ function describeGraph(nodes: Node[], edges: Edge[]): string {
     return `• ${s?.label ?? e.source}${handle} → ${t?.label ?? e.target}`;
   });
   return `Pasos:\n${lines.join("\n")}\n\nConexiones:\n${conns.join("\n") || "(ninguna)"}`;
-}
-
-function subtitleFor(n: { type: string; config?: Record<string, unknown> | undefined }): string {
-  if (n.type === "agent" && n.config?.agentId)
-    return `agentId: ${(n.config.agentId as string).slice(0, 8)}`;
-  if (n.type === "http" && n.config?.url) return String(n.config.url).slice(0, 32);
-  return "";
 }
 
 function VariablesPanel({

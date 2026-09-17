@@ -971,7 +971,8 @@
         "runNoFieldsHint": "Clique em \"Executar\" para rodar. Se quiser, adicione variáveis ao fluxo pelo botão de variáveis.",
         "runJsonLabel": "Dados (JSON)",
         "cancel": "Cancelar",
-        "runButton": "Executar"
+        "runButton": "Executar",
+        "documentation": "Documentação"
       },
       "inspector": {
         "deleteNodeAria": "Excluir nó",
@@ -988,7 +989,18 @@
         "cronHourly": "A cada hora",
         "cronDaily": "Todos os dias às 9",
         "cronWeekly": "Toda segunda às 9",
-        "cronMonthly": "No dia 1 de cada mês"
+        "cronMonthly": "No dia 1 de cada mês",
+        "purposeLabel": "Para que serve este passo",
+        "purposeHelp": "Uma linha. Ajuda pessoas e agentes a entender o fluxo sem abrir cada passo.",
+        "purposePlaceholder": "Ex.: busca a tarefa do incidente"
+      },
+      "docs": {
+        "title": "Documentação do fluxo",
+        "edit": "Editar",
+        "preview": "Pré-visualização",
+        "close": "Fechar",
+        "useTemplate": "Usar modelo",
+        "placeholder": "O que este fluxo faz, o que o dispara, o que ele escreve fora e o que acontece se falhar."
       }
     },
     "knowledge": {

@@ -115,9 +115,13 @@ export function ParallelNode(p: NodeProps) {
   const data = p.data as NodeData;
   return (
     <div className="relative">
-      {/* Handle-less edges use the first source handle in DOM order. */}
+      {/*
+        Handle-less edges use the first source handle in DOM order, so both go
+        before the card. Coming first also puts them under it: the z-index keeps
+        the label and the handle visible without changing that order.
+      */}
       <span
-        className="absolute right-3 text-[9px] font-medium"
+        className="absolute right-3 z-10 text-[9px] font-medium"
         style={{ top: "calc(34% - 6px)", color: "#ec4899" }}
       >
         En paralelo
@@ -125,7 +129,7 @@ export function ParallelNode(p: NodeProps) {
       <Handle
         type="source"
         position={Position.Right}
-        style={{ top: "34%", background: "#ec4899" }}
+        style={{ top: "34%", background: "#ec4899", zIndex: 10 }}
       />
       <BranchNode
         data={data}

@@ -971,7 +971,8 @@
         "runNoFieldsHint": "Click \"Run\" to launch it. If you want, add variables to the flow from the variables button.",
         "runJsonLabel": "Data (JSON)",
         "cancel": "Cancel",
-        "runButton": "Run"
+        "runButton": "Run",
+        "documentation": "Documentation"
       },
       "inspector": {
         "deleteNodeAria": "Delete node",
@@ -988,7 +989,18 @@
         "cronHourly": "Every hour",
         "cronDaily": "Every day at 9am",
         "cronWeekly": "Every Monday at 9am",
-        "cronMonthly": "On day 1 of every month"
+        "cronMonthly": "On day 1 of every month",
+        "purposeLabel": "What this step is for",
+        "purposeHelp": "One line. Helps people and agents understand the flow without opening every step.",
+        "purposePlaceholder": "e.g. finds the incident's task"
+      },
+      "docs": {
+        "title": "Flow documentation",
+        "edit": "Edit",
+        "preview": "Preview",
+        "close": "Close",
+        "useTemplate": "Use template",
+        "placeholder": "What this flow does, what starts it, what it writes elsewhere and what happens when it fails."
       }
     },
     "knowledge": {
