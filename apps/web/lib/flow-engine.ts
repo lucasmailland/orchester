@@ -510,7 +510,6 @@ async function runFromNode(
 
   let nextHandle: string | undefined;
   let stepOutput: Record<string, unknown> = {};
-  let skipChildren = false;
 
   try {
     await executeNode(node, ctx, runId, workspaceId, nodes, edges, db, depth, {
@@ -519,9 +518,6 @@ async function runFromNode(
       },
       setOutput: (o) => {
         stepOutput = o;
-      },
-      skipChildren: () => {
-        skipChildren = true;
       },
     });
 
@@ -562,8 +558,6 @@ async function runFromNode(
     throw e;
   }
 
-  if (skipChildren) return;
-
   const outgoing = edges.filter(
     (e) => e.source === node.id && (nextHandle == null || e.sourceHandle === nextHandle)
   );
@@ -575,7 +569,6 @@ async function runFromNode(
 interface ExecHelpers {
   setHandle: (h: string) => void;
   setOutput: (o: Record<string, unknown>) => void;
-  skipChildren: () => void;
 }
 
 /**

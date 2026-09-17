@@ -54,6 +54,15 @@ describe("evaluateExpression", () => {
     expect(out).toContain("[email]");
     expect(String(evaluateExpression("msg | redact:10", ctx)).length).toBeLessThanOrEqual(11);
   });
+  it.each([
+    ["api_key=abcdef123456", "api_key [secret]"],
+    ["apikey=abcdefghij", "apikey [secret]"],
+    ["Authorization: Bearer abcdef123456", "Authorization: Bearer [secret]"],
+    ["token Bearer abc.def-123", "token Bearer [secret]"],
+    ["the token was rotated", "the token was rotated"],
+  ])("redacts credential syntax: %s", (msg, expected) => {
+    expect(evaluateExpression("msg | redact:500", { msg })).toBe(expected);
+  });
   it("throws on unknown filters and bad arguments", () => {
     expect(() => evaluateExpression("at | nope", ctx)).toThrow(FilterError);
     expect(() => evaluateExpression("at | addMinutes:abc", ctx)).toThrow(FilterError);

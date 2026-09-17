@@ -32,7 +32,7 @@ export type FlowActor =
 
 export class FlowServiceError extends Error {
   constructor(
-    readonly code: "not_found" | "invalid" | "quota" | "template_not_found",
+    readonly code: "not_found" | "invalid" | "quota" | "template_not_found" | "internal",
     message: string,
     readonly issues?: ValidationIssue[]
   ) {
@@ -159,7 +159,7 @@ export async function createFlow(
       edges: normalizeFlowEdges(edges) as never,
       variables,
     });
-    if (!flow) throw new Error("Insert failed");
+    if (!flow) throw new FlowServiceError("internal", "Insert failed");
     await auditApiKey(repo, actor, "flow.create", flow);
     return { flow, warnings };
   });
@@ -255,7 +255,7 @@ export function createFlowWebhook(
       secret: crypto.randomBytes(24).toString("hex"),
       hmacKey: opts.hmac ? crypto.randomBytes(32).toString("hex") : null,
     });
-    if (!hook) throw new Error("Insert failed");
+    if (!hook) throw new FlowServiceError("internal", "Insert failed");
     return hook;
   });
 }
@@ -278,19 +278,26 @@ export function listFlowWebhooks(
   });
 }
 
-/** Public URL of a flow webhook. Falls back to a path when no base URL is configured. */
+/** Public URL of a flow webhook; a configured base URL is required. */
 export function webhookUrl(secret: string): string {
   const base = (process.env["NEXT_PUBLIC_APP_URL"] ?? process.env["BETTER_AUTH_URL"] ?? "").replace(
     /\/+$/,
     ""
   );
+  if (!base) throw new Error("Configure NEXT_PUBLIC_APP_URL or BETTER_AUTH_URL for webhook URLs");
   return `${base}/api/webhooks/${secret}`;
 }
 
 /** Maps a FlowServiceError to the HTTP response the session routes return. */
 export function serviceErrorResponse(e: unknown): Response {
   if (e instanceof FlowServiceError) {
-    const status = { not_found: 404, invalid: 422, quota: 402, template_not_found: 404 }[e.code];
+    const status = {
+      not_found: 404,
+      invalid: 422,
+      quota: 402,
+      template_not_found: 404,
+      internal: 500,
+    }[e.code];
     const error = e.code === "not_found" ? "Not found" : e.message;
     return Response.json({ error, ...(e.issues ? { issues: e.issues } : {}) }, { status });
   }

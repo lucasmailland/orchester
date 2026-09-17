@@ -50,7 +50,7 @@ const REDACTIONS: Array<[RegExp, string]> = [
   [/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "[email]"],
   [/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "[jwt]"],
   [
-    new RegExp(`\\b(${SECRET_SCHEMES})\\b[:=]?\\s+(?!(?:${SECRET_SCHEMES})\\b)\\S{6,}`, "gi"),
+    new RegExp(`\\b(${SECRET_SCHEMES})\\b[:=]?\\s*(?!(?:${SECRET_SCHEMES})\\b)\\S{6,}`, "gi"),
     "$1 [secret]",
   ],
   [/\d{8,}/g, "[number]"],

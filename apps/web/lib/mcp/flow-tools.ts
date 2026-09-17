@@ -151,10 +151,11 @@ export const FLOW_TOOLS: McpToolDef[] = [
       if (typeof input.flowId === "string" && input.flowId) {
         return { issues: await (await svc()).validateFlowById(actorOf(auth), input.flowId) };
       }
+      const graph = updateInputSchema.pick({ nodes: true, edges: true, spec: true }).parse(input);
       const { validateStoredFlow } = await import("@/lib/flows/validate-stored");
       return {
-        issues: validateStoredFlow(input.nodes ?? [], input.edges ?? [], {
-          spec: typeof input.spec === "string" ? input.spec : null,
+        issues: validateStoredFlow(graph.nodes ?? [], graph.edges ?? [], {
+          spec: graph.spec ?? null,
         }),
       };
     },

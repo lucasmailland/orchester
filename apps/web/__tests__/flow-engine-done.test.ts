@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, it, expect, vi } from "vitest";
 import { runFlowGraph } from "./flow-engine-harness";
 
@@ -153,4 +154,9 @@ describe("parallel done", () => {
     expect(r.status).toBe("failed");
     expect(ran(r)).not.toContain("d");
   });
+});
+
+// Structural regression: child traversal is controlled solely by output handles.
+it("removes the obsolete skipChildren helper and plumbing", () => {
+  expect(readFileSync("lib/flow-engine.ts", "utf8")).not.toMatch(/\bskipChildren\b/);
 });

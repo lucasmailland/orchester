@@ -221,6 +221,17 @@ describe("flow MCP tools", async () => {
     ).toEqual(["a", "b"]);
   });
 
+  it.each([
+    ["nodes", "oops"],
+    ["edges", "oops"],
+    ["spec", 123],
+  ])("validate_flow rejects invalid %s types", async (field, value) => {
+    const r = await call("validate_flow", { [field]: value }, ["readonly"]);
+    expect(r.isError).toBe(true);
+    expect(r.content[0]!.text).toContain(field);
+    expect(r.content[0]!.text).toMatch(/expected (array|string)/i);
+  });
+
   it("validate_flow accepts an unsaved graph", async () => {
     const r = await call(
       "validate_flow",
