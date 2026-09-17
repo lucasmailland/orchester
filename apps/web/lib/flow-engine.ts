@@ -7,6 +7,7 @@ import { enqueue, JOB_FLOW_RUN } from "./queue";
 import { assertPublicUrl } from "./net-guard";
 import { logWithContext, recordMetric } from "./observability";
 import { evaluateExpression } from "./flows/filters";
+import { parseRetryConfig, runWithRetry, StepFailure } from "./flows/retry";
 
 /**
  * R2-C: Flow execution writes to tenant tables (flow_runs,
@@ -580,7 +581,12 @@ async function runFromNode(
     await withFlowTx(workspaceId, (tx) =>
       tx
         .update(schema.flowRunSteps)
-        .set({ status: "failed", error: msg, completedAt: new Date() })
+        .set({
+          status: "failed",
+          error: msg,
+          ...(e instanceof StepFailure ? { output: e.output } : {}),
+          completedAt: new Date(),
+        })
         .where(eq(schema.flowRunSteps.id, stepId))
     );
     ctx.emit?.({ type: "step_finish", nodeId: node.id, status: "failed", error: msg });
@@ -754,32 +760,78 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       init.body = interpolate((cfg.body as string) ?? "", ctx.variables);
     }
 
-    const maxAttempts = Math.min(5, Number(cfg.maxAttempts ?? 1));
     const timeoutMs = Math.min(60000, Number(cfg.timeoutMs ?? 30000));
-    let lastError: Error | undefined;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const failOnStatus = cfg.failOnStatus === true;
+    const outputVar = (cfg.outputVar as string) ?? "httpResult";
+    const send = async () => {
+      const ac = new AbortController();
+      const t = setTimeout(() => ac.abort(), timeoutMs);
       try {
-        const ac = new AbortController();
-        const t = setTimeout(() => ac.abort(), timeoutMs);
         const r = await fetch(url, { ...init, signal: ac.signal });
-        clearTimeout(t);
         const text = await r.text();
         let body: unknown = text;
         try {
           body = JSON.parse(text);
         } catch {}
-        if (!r.ok && attempt < maxAttempts) {
-          await new Promise((res) => setTimeout(res, 200 * Math.pow(2, attempt - 1)));
+        return { status: r.status, ok: r.ok, body };
+      } finally {
+        clearTimeout(t);
+      }
+    };
+    const finish = (
+      res: { status: number; ok: boolean; body: unknown },
+      extra: Record<string, unknown>
+    ) => {
+      if (failOnStatus && !res.ok) {
+        throw new StepFailure(`HTTP ${res.status}`, {
+          status: res.status,
+          body: res.body,
+          ...extra,
+        });
+      }
+      ctx.variables[outputVar] = res.body;
+      helpers.setOutput({ status: res.status, body: res.body, ...extra });
+    };
+
+    const retry = parseRetryConfig(cfg.retry);
+    if (retry) {
+      const r = await runWithRetry(retry, async () => {
+        try {
+          const res = await send();
+          const retryable = res.status === 429 || res.status >= 500;
+          return retryable
+            ? {
+                kind: "retry",
+                error: new Error(`HTTP ${res.status}`),
+                status: res.status,
+                value: res,
+              }
+            : { kind: "done", value: res, status: res.status };
+        } catch (e) {
+          return { kind: "retry", error: e instanceof Error ? e : new Error(String(e)) };
+        }
+      });
+      if (r.ok) return finish(r.value, { attempts: r.attempts });
+      if (r.value) return finish(r.value, { attempts: r.attempts });
+      throw new StepFailure(r.error.message, { attempts: r.attempts });
+    }
+
+    // Legacy behaviour (no `retry` block): retry any non-2xx up to maxAttempts.
+    const maxAttempts = Math.min(5, Number(cfg.maxAttempts ?? 1));
+    let lastError: Error | undefined;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const res = await send();
+        if (!res.ok && attempt < maxAttempts) {
+          await new Promise((done) => setTimeout(done, 200 * Math.pow(2, attempt - 1)));
           continue;
         }
-        const outputVar = (cfg.outputVar as string) ?? "httpResult";
-        ctx.variables[outputVar] = body;
-        helpers.setOutput({ status: r.status, body, attempt });
-        return;
+        return finish(res, { attempt });
       } catch (e) {
+        if (e instanceof StepFailure) throw e;
         lastError = e instanceof Error ? e : new Error(String(e));
         if (attempt < maxAttempts) {
-          await new Promise((res) => setTimeout(res, 200 * Math.pow(2, attempt - 1)));
+          await new Promise((done) => setTimeout(done, 200 * Math.pow(2, attempt - 1)));
         }
       }
     }
@@ -1005,10 +1057,27 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     const input =
       (deepInterpolate(cfg.input ?? {}, ctx.variables) as Record<string, unknown>) ?? {};
     const { runIntegrationAction } = await import("./integrations/store");
-    const result = await runIntegrationAction(workspaceId, integrationId, action, input);
+    const retry = parseRetryConfig(cfg.retry);
     const outputVar = (cfg.outputVar as string) ?? "appResult";
-    ctx.variables[outputVar] = result;
-    helpers.setOutput({ result });
+    if (!retry) {
+      const result = await runIntegrationAction(workspaceId, integrationId, action, input);
+      ctx.variables[outputVar] = result;
+      helpers.setOutput({ result });
+      return;
+    }
+    const r = await runWithRetry(retry, async () => {
+      try {
+        return {
+          kind: "done",
+          value: await runIntegrationAction(workspaceId, integrationId, action, input),
+        };
+      } catch (e) {
+        return { kind: "retry", error: e instanceof Error ? e : new Error(String(e)) };
+      }
+    });
+    if (!r.ok) throw new StepFailure(r.error.message, { attempts: r.attempts });
+    ctx.variables[outputVar] = r.value;
+    helpers.setOutput({ result: r.value, attempts: r.attempts });
   },
 
   spreadsheet: async ({ cfg, ctx, helpers }) => {
