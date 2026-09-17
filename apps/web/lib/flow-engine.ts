@@ -763,11 +763,15 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     const timeoutMs = Math.min(60000, Number(cfg.timeoutMs ?? 30000));
     const failOnStatus = cfg.failOnStatus === true;
     const outputVar = (cfg.outputVar as string) ?? "httpResult";
-    const send = async () => {
+    const send = async (signal?: AbortSignal) => {
       const ac = new AbortController();
+      const onAbort = () => ac.abort();
+      signal?.addEventListener("abort", onAbort, { once: true });
+      if (signal?.aborted) onAbort();
       const t = setTimeout(() => ac.abort(), timeoutMs);
       try {
         const r = await fetch(url, { ...init, signal: ac.signal });
+        clearTimeout(t);
         const text = await r.text();
         let body: unknown = text;
         try {
@@ -776,6 +780,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
         return { status: r.status, ok: r.ok, body };
       } finally {
         clearTimeout(t);
+        signal?.removeEventListener("abort", onAbort);
       }
     };
     const finish = (
@@ -795,22 +800,26 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
 
     const retry = parseRetryConfig(cfg.retry);
     if (retry) {
-      const r = await runWithRetry(retry, async () => {
-        try {
-          const res = await send();
-          const retryable = res.status === 429 || res.status >= 500;
-          return retryable
-            ? {
-                kind: "retry",
-                error: new Error(`HTTP ${res.status}`),
-                status: res.status,
-                value: res,
-              }
-            : { kind: "done", value: res, status: res.status };
-        } catch (e) {
-          return { kind: "retry", error: e instanceof Error ? e : new Error(String(e)) };
-        }
-      });
+      const r = await runWithRetry(
+        retry,
+        async () => {
+          try {
+            const res = await send(ctx.signal);
+            const retryable = res.status === 429 || res.status >= 500;
+            return retryable
+              ? {
+                  kind: "retry",
+                  error: new Error(`HTTP ${res.status}`),
+                  status: res.status,
+                  value: res,
+                }
+              : { kind: "done", value: res, status: res.status };
+          } catch (e) {
+            return { kind: "retry", error: e instanceof Error ? e : new Error(String(e)) };
+          }
+        },
+        ctx.signal ? { signal: ctx.signal } : {}
+      );
       if (r.ok) return finish(r.value, { attempts: r.attempts });
       if (r.value) return finish(r.value, { attempts: r.attempts });
       throw new StepFailure(r.error.message, { attempts: r.attempts });
@@ -1065,16 +1074,20 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       helpers.setOutput({ result });
       return;
     }
-    const r = await runWithRetry(retry, async () => {
-      try {
-        return {
-          kind: "done",
-          value: await runIntegrationAction(workspaceId, integrationId, action, input),
-        };
-      } catch (e) {
-        return { kind: "retry", error: e instanceof Error ? e : new Error(String(e)) };
-      }
-    });
+    const r = await runWithRetry(
+      retry,
+      async () => {
+        try {
+          return {
+            kind: "done",
+            value: await runIntegrationAction(workspaceId, integrationId, action, input),
+          };
+        } catch (e) {
+          return { kind: "retry", error: e instanceof Error ? e : new Error(String(e)) };
+        }
+      },
+      ctx.signal ? { signal: ctx.signal } : {}
+    );
     if (!r.ok) throw new StepFailure(r.error.message, { attempts: r.attempts });
     ctx.variables[outputVar] = r.value;
     helpers.setOutput({ result: r.value, attempts: r.attempts });

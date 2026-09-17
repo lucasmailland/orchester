@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { runFlowGraph } from "./flow-engine-harness";
 
 vi.mock("@orchester/db", async () => (await import("./flow-engine-harness")).dbMock);
@@ -42,6 +42,11 @@ beforeEach(() => {
   runAction.mockReset();
   vi.stubGlobal("fetch", vi.fn());
   vi.useFakeTimers({ shouldAdvanceTime: true });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe("harness sanity", () => {
@@ -119,6 +124,33 @@ const response = (status: number, body: unknown) =>
 
 describe("http retry", () => {
   const url = "https://example.com/hook";
+  it("legacy timeout stops at headers, allowing a slow body", async () => {
+    vi.mocked(fetch).mockImplementation(async (_url, init) => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return {
+        ...response(200, {}),
+        text: () =>
+          new Promise<string>((resolve, reject) => {
+            const timer = setTimeout(() => resolve('{"ok":1}'), 100);
+            init?.signal?.addEventListener(
+              "abort",
+              () => {
+                clearTimeout(timer);
+                reject(new DOMException("aborted", "AbortError"));
+              },
+              { once: true }
+            );
+          }),
+      } as Response;
+    });
+    const r = await runFlowGraph(
+      [trigger, step("h", "http", { url, timeoutMs: 50 })],
+      [edge("t", "h")]
+    );
+    expect(r.status).toBe("succeeded");
+    expect(r.steps.find((s) => s.nodeId === "h")?.status).toBe("succeeded");
+    expect(r.output.httpResult).toEqual({ ok: 1 });
+  });
   it("legacy maxAttempts still retries a 400 when retry is absent", async () => {
     const f = vi.mocked(fetch);
     f.mockResolvedValueOnce(response(400, {})).mockResolvedValueOnce(response(200, { ok: 1 }));
@@ -175,5 +207,63 @@ describe("http retry", () => {
       [edge("t", "h")]
     );
     expect(r.status).toBe("failed");
+  });
+});
+
+describe("retry cancellation", () => {
+  it.each(["http", "integration"])(
+    "cancels %s during backoff without another external call",
+    async (type) => {
+      const controller = new AbortController();
+      const call = type === "http" ? vi.mocked(fetch) : runAction;
+      call.mockImplementation(async () => {
+        setTimeout(() => controller.abort(), 10);
+        throw new Error("transient failure");
+      });
+      const r = await runFlowGraph(
+        [
+          trigger,
+          step("x", type, {
+            url: "https://example.com/hook",
+            integrationId: "test::execute",
+            input: {},
+            retry: { attempts: 3, backoffMs: 100, maxBackoffMs: 100 },
+          }),
+        ],
+        [edge("t", "x")],
+        {},
+        controller.signal
+      );
+      expect(call).toHaveBeenCalledTimes(1);
+      expect(r.status).toBe("cancelled");
+    }
+  );
+  it("aborts an in-flight retry http request", async () => {
+    const controller = new AbortController();
+    let requestAborted = false;
+    vi.mocked(fetch).mockImplementation(async (_url, init) => {
+      setTimeout(() => controller.abort(), 10);
+      return new Promise<Response>((resolve, reject) => {
+        const fallback = setTimeout(() => resolve(response(200, {})), 100);
+        init?.signal?.addEventListener(
+          "abort",
+          () => {
+            requestAborted = true;
+            clearTimeout(fallback);
+            reject(new DOMException("aborted", "AbortError"));
+          },
+          { once: true }
+        );
+      });
+    });
+    const r = await runFlowGraph(
+      [trigger, step("h", "http", { url: "https://example.com/hook", retry: { attempts: 1 } })],
+      [edge("t", "h")],
+      {},
+      controller.signal
+    );
+    expect(requestAborted).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(r.status).toBe("cancelled");
   });
 });

@@ -84,7 +84,8 @@ export const dbMock = {
 export async function runFlowGraph(
   nodes: unknown[],
   edges: unknown[],
-  input: Record<string, unknown> = {}
+  input: Record<string, unknown> = {},
+  signal?: AbortSignal
 ) {
   state.flow = { ...state.flow, nodes, edges };
   state.steps = [];
@@ -95,6 +96,7 @@ export async function runFlowGraph(
     workspaceId: "ws_test",
     triggerSource: "test",
     input,
+    ...(signal ? { signal } : {}),
   });
   const final = state.runUpdates.at(-1) ?? {};
   return {

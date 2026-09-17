@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { parseRetryConfig, backoffDelay, runWithRetry, StepFailure } from "./retry";
+import { parseRetryConfig, backoffDelay, runWithRetry, StepFailure, type RetryDeps } from "./retry";
 
 const noSleep = { sleep: vi.fn(async () => {}), random: () => 1 };
 
@@ -85,5 +85,39 @@ describe("StepFailure", () => {
     const e = new StepFailure("failed", { attempts: [] });
     expect(e).toBeInstanceOf(Error);
     expect(e.output).toEqual({ attempts: [] });
+  });
+});
+
+describe("retry cancellation", () => {
+  it("aborts during backoff without waiting or making another attempt", async () => {
+    const controller = new AbortController();
+    let startedSleep!: () => void;
+    const sleeping = new Promise<void>((resolve) => {
+      startedSleep = resolve;
+    });
+    const deps: Partial<RetryDeps> & { signal: AbortSignal } = {
+      signal: controller.signal,
+      sleep: () => {
+        startedSleep();
+        return new Promise<void>(() => {});
+      },
+    };
+    const attempt = vi.fn(async () => ({ kind: "retry" as const, error: new Error("down") }));
+    const result = runWithRetry({ attempts: 3, backoffMs: 100, maxBackoffMs: 100 }, attempt, deps);
+    const assertion = expect(result).rejects.toMatchObject({ name: "AbortError" });
+    await sleeping;
+    controller.abort("cancelled by caller");
+    await assertion;
+    expect(attempt).toHaveBeenCalledTimes(1);
+  });
+  it("does not start an attempt when already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const attempt = vi.fn(async () => ({ kind: "done" as const, value: 1 }));
+    const deps: Partial<RetryDeps> & { signal: AbortSignal } = { signal: controller.signal };
+    await expect(
+      runWithRetry({ attempts: 1, backoffMs: 0, maxBackoffMs: 0 }, attempt, deps)
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(attempt).not.toHaveBeenCalled();
   });
 });

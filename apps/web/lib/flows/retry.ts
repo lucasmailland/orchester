@@ -22,14 +22,37 @@ export type AttemptOutcome<T> =
   | { kind: "retry"; error: Error; status?: number; value?: T };
 
 export interface RetryDeps {
+  signal?: AbortSignal;
   sleep: (ms: number) => Promise<void>;
   random: () => number;
 }
 
-const DEFAULT_DEPS: RetryDeps = {
-  sleep: (ms) => new Promise((res) => setTimeout(res, ms)),
-  random: Math.random,
-};
+function abortError(): Error {
+  const error = new Error("Flow cancelled");
+  error.name = "AbortError";
+  return error;
+}
+
+function checkAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw abortError();
+}
+
+async function sleepWithSignal(ms: number, sleep?: RetryDeps["sleep"], signal?: AbortSignal) {
+  checkAborted(signal);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      onAbort = () => reject(abortError());
+      signal?.addEventListener("abort", onAbort, { once: true });
+      if (sleep) sleep(ms).then(resolve, reject);
+      else timer = setTimeout(resolve, ms);
+    });
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    if (onAbort) signal?.removeEventListener("abort", onAbort);
+  }
+}
 
 function int(value: unknown, fallback: number, min: number, max: number): number {
   const n = Number(value);
@@ -69,10 +92,12 @@ export async function runWithRetry<T>(
   | { ok: true; value: T; status?: number; attempts: AttemptRecord[] }
   | { ok: false; error: Error; status?: number; value?: T; attempts: AttemptRecord[] }
 > {
-  const { sleep, random } = { ...DEFAULT_DEPS, ...deps };
+  const { sleep, random = Math.random, signal } = deps;
   const attempts: AttemptRecord[] = [];
   for (let attempt = 1; ; attempt++) {
+    checkAborted(signal);
     const outcome = await attemptFn(attempt);
+    checkAborted(signal);
     if (outcome.kind === "done") {
       attempts.push({
         attempt,
@@ -104,7 +129,7 @@ export async function runWithRetry<T>(
     }
     const delayMs = backoffDelay(cfg, attempt, random);
     record.delayMs = delayMs;
-    await sleep(delayMs);
+    await sleepWithSignal(delayMs, sleep, signal);
   }
 }
 
