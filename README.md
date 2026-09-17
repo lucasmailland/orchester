@@ -458,7 +458,9 @@ Beyond `list_flows` and `run_flow`, the client can author and troubleshoot flows
 > [!IMPORTANT]
 > The MCP server runs with the **same RBAC + quota stack as the REST API**. A read-only API key sees read-only tools. A workspace-scoped key cannot see another workspace's flows. This is enforced by the invariants guard — not by review.
 >
-> The write flow tools use a stricter scope rule than the rest: they accept a key that is **unscoped** (legacy full access) or holds **`write`** or **`flows:write`**. A `readonly` key always refuses, and so does an `agents:write` key — being allowed to run agents does not grant editing flows.
+> The `create_flow`, `update_flow`, and `create_flow_webhook` tools use a stricter scope rule than the rest: they accept a key that is **unscoped** (legacy full access) or holds **`write`** or **`flows:write`**. A `readonly` key always refuses, and so does an `agents:write` key — being allowed to run agents does not grant editing flows.
+>
+> `run_flow` is not scope-gated: any non-readonly workspace key can execute any flow in that workspace.
 >
 > `create_flow_webhook` is the **only** call that ever returns a webhook secret (inside the URL it gives you, plus `hmacKey` when you ask for HMAC). Store it when you get it: `list_flow_webhooks` never returns secrets, and the secret cannot be read back.
 

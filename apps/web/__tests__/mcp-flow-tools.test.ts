@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const svc = vi.hoisted(() => ({
@@ -96,6 +97,107 @@ describe("flow MCP tools", async () => {
     }
   );
 
+  describe("input validation", () => {
+    const malformed: [string, unknown][] = [
+      ["nodes", null],
+      ["nodes", "x"],
+      ["nodes", [null]],
+      ["edges", null],
+      ["edges", "x"],
+      ["edges", [123]],
+      ["variables", []],
+      ["description", 123],
+      ["spec", false],
+      ["name", 123],
+    ];
+    for (const tool of ["create_flow", "update_flow"]) {
+      it.each(malformed)(tool + " rejects invalid %s (%j)", async (field, value) => {
+        expect(listMcpTools().map((t) => t.name)).toContain(tool);
+        const r = await call(tool, { flowId: "f1", name: "Valid", [field]: value });
+        expect(r.isError).toBe(true);
+        expect(r.content[0]!.text).toContain(field);
+        expect(svc.createFlow).not.toHaveBeenCalled();
+        expect(svc.updateFlow).not.toHaveBeenCalled();
+      });
+    }
+    it.each([
+      ["status", "bogus"],
+      ["enabled", "true"],
+    ])("update_flow rejects invalid %s", async (field, value) => {
+      const r = await call("update_flow", { flowId: "f1", [field]: value });
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toContain(field);
+      expect(svc.updateFlow).not.toHaveBeenCalled();
+    });
+    it.each(["create_flow", "update_flow"])("%s forwards a valid payload", async (tool) => {
+      const payload = {
+        name: "Valid",
+        description: null,
+        spec: "Purpose",
+        nodes: [{ id: "n", type: "start", config: {} }],
+        edges: [],
+        variables: { count: 1 },
+        ...(tool === "update_flow" ? { status: "active", enabled: true } : {}),
+      };
+      const r = await call(tool, { flowId: "f1", ...payload, ignored: true });
+      expect(r.isError).toBeFalsy();
+      const args = [
+        expect.anything(),
+        ...(tool === "update_flow" ? ["f1"] : []),
+        payload,
+        { strict: true },
+      ];
+      expect(tool === "update_flow" ? svc.updateFlow : svc.createFlow).toHaveBeenCalledWith(
+        ...args
+      );
+    });
+  });
+
+  it("create_flow drops status and enabled and documents the limitation", async () => {
+    const tool = listMcpTools().find((t) => t.name === "create_flow");
+    expect(tool).toBeDefined();
+    const r = await call("create_flow", { name: "Valid", status: "active", enabled: true });
+    expect(r.isError).toBeFalsy();
+    expect(svc.createFlow).toHaveBeenCalledWith(
+      expect.anything(),
+      { name: "Valid" },
+      { strict: true }
+    );
+    expect(tool!.description).toContain("status");
+    expect(tool!.description).toContain("enabled");
+    expect(tool!.description).toContain("update_flow");
+  });
+
+  it.each(["create_flow", "update_flow"])(
+    "%s returns structured validation issues",
+    async (tool) => {
+      expect(listMcpTools().map((t) => t.name)).toContain(tool);
+      const issues = [
+        { level: "error", message: "bad node", nodeId: "test_node" },
+        { level: "warning", message: "missing purpose" },
+      ];
+      const service = tool === "create_flow" ? svc.createFlow : svc.updateFlow;
+      service.mockRejectedValueOnce(
+        new svc.FlowServiceError("invalid", "The flow has errors", issues)
+      );
+      const r = await call(tool, { flowId: "f1", name: "Valid" });
+      expect(service).toHaveBeenCalledTimes(1);
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toContain(
+        "The flow has errors: [test_node] bad node; missing purpose"
+      );
+      expect(r.structuredContent).toEqual({ issues });
+    }
+  );
+
+  it("keeps ordinary errors unstructured", async () => {
+    svc.createFlow.mockRejectedValueOnce(new Error("test failure"));
+    const r = await call("create_flow", { name: "Valid" });
+    expect(r.isError).toBe(true);
+    expect(r.content[0]!.text).toBe("Error: test failure");
+    expect(r.structuredContent).toBeUndefined();
+  });
+
   it("returns validation issues when a write is rejected", async () => {
     svc.createFlow.mockRejectedValueOnce(
       new svc.FlowServiceError("invalid", "The flow has errors", [
@@ -146,6 +248,13 @@ describe("flow MCP tools", async () => {
   it("list_flows goes through the service", async () => {
     await call("list_flows", {}, ["readonly"]);
     expect(svc.listFlows).toHaveBeenCalled();
+  });
+
+  it("documents that run_flow is not scope-gated", () => {
+    const readme = readFileSync("../../README.md", "utf8");
+    expect(readme).toContain(
+      "`run_flow` is not scope-gated: any non-readonly workspace key can execute any flow in that workspace."
+    );
   });
 
   it("run_flow points callers at get_flow_run", () => {

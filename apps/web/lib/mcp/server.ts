@@ -3,7 +3,7 @@ import { getDb, schema } from "@orchester/db";
 import { createId } from "@paralleldrive/cuid2";
 import { and, desc, eq } from "drizzle-orm";
 import { getMnemoClient } from "@/lib/mnemo/client";
-import { FLOW_TOOLS, actorOf } from "./flow-tools";
+import { FLOW_TOOLS, actorOf, FlowToolValidationError } from "./flow-tools";
 
 /**
  * Orchester MCP server core.
@@ -662,6 +662,7 @@ export async function callMcpTool(
     return {
       content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
       isError: true,
+      ...(e instanceof FlowToolValidationError ? { structuredContent: { issues: e.issues } } : {}),
     };
   }
 }

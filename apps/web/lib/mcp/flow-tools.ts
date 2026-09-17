@@ -1,4 +1,7 @@
 import "server-only";
+import { z } from "zod";
+import type { ValidationIssue } from "@/lib/flows/validate";
+import type { FlowInput } from "@/lib/flows/service";
 import type { McpAuth, McpToolDef } from "./server";
 
 /**
@@ -19,6 +22,17 @@ export const actorOf = (auth: McpAuth) => ({
 
 const svc = () => import("@/lib/flows/service");
 
+/** Only flow validation failures opt into structured MCP error data. */
+export class FlowToolValidationError extends Error {
+  constructor(
+    message: string,
+    readonly issues: ValidationIssue[]
+  ) {
+    super(message);
+    this.name = "FlowToolValidationError";
+  }
+}
+
 /** Service errors reach the MCP client as a readable message with the issues. */
 async function guard<T>(fn: () => Promise<T>): Promise<T> {
   try {
@@ -26,8 +40,9 @@ async function guard<T>(fn: () => Promise<T>): Promise<T> {
   } catch (e) {
     const { FlowServiceError } = await svc();
     if (e instanceof FlowServiceError && e.issues?.length) {
-      throw new Error(
-        `${e.message}: ${e.issues.map((i) => `${i.nodeId ? `[${i.nodeId}] ` : ""}${i.message}`).join("; ")}`
+      throw new FlowToolValidationError(
+        `${e.message}: ${e.issues.map((i) => `${i.nodeId ? `[${i.nodeId}] ` : ""}${i.message}`).join("; ")}`,
+        e.issues
       );
     }
     throw e;
@@ -59,22 +74,28 @@ const graphProps = {
   description: { type: ["string", "null"] },
 };
 
-/** Only the fields a caller may set reach the service; anything else is ignored. */
-function pickInput(input: Record<string, unknown>) {
-  const out: Record<string, unknown> = {};
-  for (const k of [
-    "name",
-    "description",
-    "spec",
-    "nodes",
-    "edges",
-    "variables",
-    "status",
-    "enabled",
-  ]) {
-    if (input[k] !== undefined) out[k] = input[k];
+const updateInputSchema = z.object({
+  name: z.string().optional(),
+  description: z.string().nullable().optional(),
+  spec: z.string().nullable().optional(),
+  nodes: z.array(z.record(z.string(), z.unknown())).optional(),
+  edges: z.array(z.record(z.string(), z.unknown())).optional(),
+  variables: z.record(z.string(), z.unknown()).optional(),
+  status: z.enum(["draft", "active", "paused"]).optional(),
+  enabled: z.boolean().optional(),
+});
+
+const createInputSchema = updateInputSchema.omit({ status: true, enabled: true }).extend({
+  name: z.string().trim().min(1, "name required"),
+});
+
+/** Validate writable fields and strip unknown fields before calling the service. */
+function pickInput(input: Record<string, unknown>, create = false): FlowInput {
+  const parsed = (create ? createInputSchema : updateInputSchema).safeParse(input);
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
   }
-  return out;
+  return parsed.data;
 }
 
 export const FLOW_TOOLS: McpToolDef[] = [
@@ -142,7 +163,7 @@ export const FLOW_TOOLS: McpToolDef[] = [
     name: "create_flow",
     title: "Create a flow",
     description:
-      "Crea un flujo. Rechaza grafos con errores y devuelve los problemas; los avisos vuelven junto al flujo.",
+      "Crea un flujo. Rechaza grafos con errores y devuelve los problemas; los avisos vuelven junto al flujo. status y enabled se ignoran al crear; usá update_flow para cambiarlos.",
     access: "write",
     scope: "flows",
     inputSchema: {
@@ -153,7 +174,11 @@ export const FLOW_TOOLS: McpToolDef[] = [
     async handler(input, auth) {
       const name = str(input.name, "name");
       return guard(async () =>
-        (await svc()).createFlow(actorOf(auth), { ...pickInput(input), name }, { strict: true })
+        (await svc()).createFlow(
+          actorOf(auth),
+          { ...pickInput(input, true), name },
+          { strict: true }
+        )
       );
     },
   },
