@@ -1,5 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
+import { htmlFromText } from "@/lib/text/escape";
+export { htmlFromText };
 
 /**
  * Odoo JSON-RPC client.
@@ -42,19 +44,6 @@ export type TicketPriority = keyof typeof TICKET_PRIORITY;
  */
 export function x2manyReplace(ids: number[]): [number, number, number[]][] {
   return [[6, 0, ids]];
-}
-
-/**
- * Odoo renders `description` and chatter bodies as HTML. Markdown reaches the
- * ticket as literal asterisks, and an unescaped `<` truncates the report at
- * the first angle bracket — which, in a stack trace, is common.
- */
-export function htmlFromText(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\r\n|\r|\n/g, "<br/>");
 }
 
 // ── Transport ───────────────────────────────────────────────────────────────
