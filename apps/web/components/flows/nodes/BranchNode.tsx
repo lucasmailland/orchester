@@ -115,12 +115,7 @@ export function ParallelNode(p: NodeProps) {
   const data = p.data as NodeData;
   return (
     <div className="relative">
-      <BranchNode
-        data={data}
-        Icon={Rows3}
-        accent="#ec4899"
-        branches={[{ id: "done", label: "Al terminar", color: "#10b981", top: 0.72 }]}
-      />
+      {/* Handle-less edges use the first source handle in DOM order. */}
       <span
         className="absolute right-3 text-[9px] font-medium"
         style={{ top: "calc(34% - 6px)", color: "#ec4899" }}
@@ -131,6 +126,12 @@ export function ParallelNode(p: NodeProps) {
         type="source"
         position={Position.Right}
         style={{ top: "34%", background: "#ec4899" }}
+      />
+      <BranchNode
+        data={data}
+        Icon={Rows3}
+        accent="#ec4899"
+        branches={[{ id: "done", label: "Al terminar", color: "#10b981", top: 0.72 }]}
       />
     </div>
   );

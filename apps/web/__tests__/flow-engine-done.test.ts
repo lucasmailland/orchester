@@ -100,6 +100,7 @@ describe("try_catch done", () => {
       [trigger, node("tc", "try_catch"), set("a", "a"), set("z", "z")],
       [e("t", "tc"), e("tc", "a", "try"), e("tc", "z")]
     );
+    expect(r.status).toBe("succeeded");
     expect(ran(r)).toEqual(["t", "tc", "a"]);
   });
   it("a retried integration step that always fails is caught, still records its attempts, and done runs", async () => {
@@ -122,6 +123,19 @@ describe("try_catch done", () => {
 });
 
 describe("parallel done", () => {
+  it("runs named non-done and handle-less branches before done once", async () => {
+    const r = await runFlowGraph(
+      [trigger, node("p", "parallel"), set("a", "a"), set("b", "b"), set("d", "d")],
+      [e("t", "p"), e("p", "a", "x"), e("p", "b"), e("p", "d", "done")]
+    );
+    expect(r.status).toBe("succeeded");
+    const steps = ran(r);
+    expect(steps.filter((id) => id === "a")).toHaveLength(1);
+    expect(steps.filter((id) => id === "b")).toHaveLength(1);
+    expect(steps.filter((id) => id === "d")).toHaveLength(1);
+    expect(steps.indexOf("d")).toBeGreaterThan(Math.max(steps.indexOf("a"), steps.indexOf("b")));
+    expect(r.steps.find((s) => s.nodeId === "p")?.output).toEqual({ branches: 2 });
+  });
   it("runs every branch, then done once, and done is not a branch", async () => {
     const r = await runFlowGraph(
       [trigger, node("p", "parallel"), set("a", "a"), set("b", "b"), set("d", "d")],
