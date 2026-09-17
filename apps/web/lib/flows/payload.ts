@@ -32,28 +32,38 @@ export interface FlowPayloadNode {
   label: string;
   config: Record<string, unknown>;
   position: { x: number; y: number };
+  /** Para qué está el paso, escrito por quien arma el flujo. Ausente si está en blanco. */
+  purpose?: string;
 }
 
 export interface FlowPayload {
   nodes: FlowPayloadNode[];
   edges: Record<string, unknown>[];
   variables: Record<string, unknown>;
+  spec: string | null;
 }
 
 export function buildFlowPayload(
   nodes: readonly BuilderNode[],
   edges: readonly BuilderEdge[],
-  variables: Record<string, unknown>
+  variables: Record<string, unknown>,
+  spec: string | null
 ): FlowPayload {
   return {
     nodes: nodes.map((n) => {
-      const data = (n.data ?? {}) as { label?: string; config?: Record<string, unknown> };
+      const data = (n.data ?? {}) as {
+        label?: string;
+        config?: Record<string, unknown>;
+        purpose?: string;
+      };
+      const purpose = data.purpose?.trim();
       return {
         id: n.id,
         type: n.type,
         label: data.label ?? "",
         config: data.config ?? {},
         position: n.position,
+        ...(purpose ? { purpose } : {}),
       };
     }),
     edges: edges.map((e) => {
@@ -63,6 +73,7 @@ export function buildFlowPayload(
       return out;
     }),
     variables,
+    spec,
   };
 }
 

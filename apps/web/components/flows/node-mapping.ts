@@ -1,10 +1,12 @@
 import type { Node } from "@xyflow/react";
 
 /**
- * Traducción entre el nodo guardado en la base y el nodo del lienzo.
+ * Traducción del nodo guardado en la base al nodo del lienzo.
  *
  * Vive fuera de `FlowBuilder.tsx` a propósito: es puro y no depende del runtime
- * de xyflow, del router ni de next-intl, así que se puede probar solo.
+ * de xyflow, del router ni de next-intl, así que se puede probar solo. El
+ * camino de vuelta (lienzo → guardado) lo arma `buildFlowPayload`, en
+ * `@/lib/flows/payload`, que es lo que se compara para decidir si hay cambios.
  */
 
 export interface StoredNodeDTO {
@@ -47,17 +49,5 @@ export function toCanvasNode(n: StoredNodeDTO): Node {
       nodeId: deriveNodeId(n),
       ...(n.purpose ? { purpose: n.purpose } : {}),
     },
-  };
-}
-
-export function toStoredNode(n: Node): StoredNodeDTO {
-  const d = n.data as { label: string; config?: Record<string, unknown>; purpose?: string };
-  return {
-    id: n.id,
-    type: n.type as string,
-    label: d.label,
-    config: d.config ?? {},
-    position: n.position,
-    ...(d.purpose?.trim() ? { purpose: d.purpose.trim() } : {}),
   };
 }
