@@ -2,6 +2,31 @@ import "server-only";
 import { assertPublicUrl } from "@/lib/net-guard";
 
 const MAX_FILE_BYTES = 200 * 1024;
+// Includes base64 expansion and JSON metadata; bounds every GitLab response.
+const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
+
+async function boundedText(res: Response, ac: AbortController): Promise<string> {
+  if (!res.body) return "";
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_RESPONSE_BYTES) {
+        ac.abort();
+        await reader.cancel().catch(() => {});
+        throw new Error("GitLab response exceeds the 8 MiB (8388608 bytes) limit.");
+      }
+      chunks.push(value);
+    }
+    return Buffer.concat(chunks, bytes).toString("utf8");
+  } finally {
+    reader.releaseLock();
+  }
+}
 
 function requiredText(value: unknown, name: string): string {
   if (typeof value !== "string" || !value.trim()) throw new Error(`GitLab needs ${name}.`);
@@ -54,7 +79,7 @@ async function get<T>(
       redirect: "error",
       signal: ac.signal,
     });
-    const text = await res.text();
+    const text = await boundedText(res, ac);
     if (!res.ok) throw new Error(`GitLab HTTP ${res.status}: ${text.trim().slice(0, 200)}`);
     let data: T;
     try {
@@ -137,11 +162,33 @@ export async function gitlabReadFile(
     { ref: input.ref === undefined ? "HEAD" : requiredText(input.ref, "ref") }
   );
   const tooLarge = () => new Error("GitLab file exceeds the 200 KiB (204800 bytes) limit.");
-  if (data.size > MAX_FILE_BYTES) throw tooLarge();
+  const windowed = input.aroundLine !== undefined;
+  if (!windowed && data.size > MAX_FILE_BYTES) throw tooLarge();
   if (data.encoding !== "base64") throw new Error("GitLab file content must be base64-encoded.");
   const content = Buffer.from(data.content, "base64");
-  if (content.length > MAX_FILE_BYTES) throw tooLarge();
-  return { content: content.toString("utf8"), size: content.length };
+  if (!windowed && content.length > MAX_FILE_BYTES) throw tooLarge();
+  const text = content.toString("utf8");
+  if (!windowed) return { content: text, size: content.length };
+  // Splitting only on LF preserves CR characters and trailing empty lines.
+  const lines = text.split("\n");
+  const requestedLine = Number(input.aroundLine);
+  const aroundLine = Number.isFinite(requestedLine)
+    ? Math.min(lines.length, Math.max(1, Math.trunc(requestedLine)))
+    : 1;
+  const requestedContext = Number(input.contextLines ?? 40);
+  const contextLines = Number.isFinite(requestedContext)
+    ? Math.min(200, Math.max(0, Math.trunc(requestedContext)))
+    : 40;
+  const fromLine = Math.max(1, aroundLine - contextLines);
+  const toLine = Math.min(lines.length, aroundLine + contextLines);
+  return {
+    content: lines.slice(fromLine - 1, toLine).join("\n"),
+    size: content.length,
+    fromLine,
+    toLine,
+    totalLines: lines.length,
+    truncated: true,
+  };
 }
 
 interface Commit {
