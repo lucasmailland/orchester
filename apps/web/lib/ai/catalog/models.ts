@@ -80,6 +80,15 @@ export const MODELS: ModelDef[] = [
   // throughput isn't supported. Retry with the ID or ARN of an inference profile".
   // Precios: Bedrock es partner-operado y cobra aparte del API directo de
   // Anthropic — ver https://aws.amazon.com/bedrock/pricing/ antes de tocarlos.
+  //
+  // Y hay DOS tarifas por modelo, no una. AWS publica, por cada Claude, un SKU
+  // `..._Global-Units` y uno regional a secas, y el regional sale 10% más:
+  // Sonnet 4.6 son 0.003/0.015 por el perfil `global.*` y 0.0033/0.0165 por el
+  // `us.*`. Los ids de acá son `us.*`, así que va la tarifa regional. Hasta el
+  // 2026-09-18 tenían la global, o sea que toda la facturación de Bedrock
+  // quedaba 10% corta. Verificado contra la Price List API de AWS, oferta
+  // `AmazonBedrockFoundationModels` (la de Bedrock a secas sólo tiene Claude 3),
+  // que además cotiza por 1M de tokens y no por 1K: dividir antes de guardar.
   // Verificados USABLES en la cuenta de Fichap (2026-08-24). opus-4-7 lleva
   // noSampling: con temperature devuelve 400.
   m("bedrock", "us.anthropic.claude-opus-4-7", "Claude Opus 4.7 (Bedrock)", "chat", {
@@ -92,8 +101,8 @@ export const MODELS: ModelDef[] = [
   m("bedrock", "us.anthropic.claude-sonnet-4-6", "Claude Sonnet 4.6 (Bedrock)", "chat", {
     tier: "smart",
     ctx: 200_000,
-    cin: 0.003,
-    cout: 0.015,
+    cin: 0.0033,
+    cout: 0.0165,
   }),
   m("bedrock", "us.anthropic.claude-opus-5", "Claude Opus 5 (Bedrock)", "chat", {
     tier: "powerful",
@@ -123,8 +132,8 @@ export const MODELS: ModelDef[] = [
     {
       tier: "fast",
       ctx: 200_000,
-      cin: 0.001,
-      cout: 0.005,
+      cin: 0.0011,
+      cout: 0.0055,
     }
   ),
   m("google", "gemini-3-pro-preview", "Gemini 3 Pro", "chat", {
