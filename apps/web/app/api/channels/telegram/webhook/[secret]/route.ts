@@ -1,3 +1,4 @@
+import { isSenderAllowed } from "@/lib/channels/allowlist";
 import { NextResponse } from "next/server";
 import { schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
@@ -36,6 +37,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
   }
 
   try {
+    if (
+      !isSenderAllowed(channel.config?.allowedSenders as string[] | undefined, {
+        id: String(chatId),
+        username: message?.from?.username,
+      })
+    ) {
+      const creds = decodeTelegramCredentials(channel.credentialsEncrypted);
+      if (creds?.botToken) {
+        await telegramSend(creds.botToken, chatId, `You do not have access. Your ID: ${chatId}.`);
+      }
+      return NextResponse.json({ ok: true });
+    }
+
     const result = await handleInbound(channel.workspaceId, {
       channelId: channel.id,
       externalId: String(chatId),

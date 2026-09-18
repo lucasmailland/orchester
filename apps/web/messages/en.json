@@ -1201,7 +1201,14 @@
           "label": "Web Widget",
           "description": "Widget alias."
         }
-      }
+      },
+      "allowlistLabel": "Allowed senders",
+      "allowlistHelp": "An empty list allows everyone. Enter one sender per line.",
+      "allowlistTelegram": "Use a Telegram chat ID or username (with or without @). A group chat ID allows everyone in that group.",
+      "allowlistSlack": "Use a Slack user ID (U…) or channel ID (C…). A channel ID allows everyone in that channel.",
+      "allowlistWarning": "This channel is open to everyone and its agent has tools. Add allowed senders to restrict access.",
+      "allowlistLimit": "Use at most 200 entries, with up to 256 characters each.",
+      "allowlistSaved": "Allowed senders saved."
     },
     "integrations": {
       "title": "Integrations",

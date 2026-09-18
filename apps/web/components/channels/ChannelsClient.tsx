@@ -43,6 +43,7 @@ interface Channel {
   config: Record<string, unknown>;
 }
 interface Agent {
+  hasTools: boolean;
   id: string;
   name: string;
   status: string;
@@ -445,6 +446,42 @@ function ConnectedChannelRow({
   const [saving, setSaving] = useState(false);
   const [agentId, setAgentId] = useState(channel.agentId ?? "");
   const [copied, setCopied] = useState<string | null>(null);
+  const supportsAllowlist = channel.type === "telegram" || channel.type === "slack";
+  const persistedAllowlist = Array.isArray(channel.config.allowedSenders)
+    ? channel.config.allowedSenders.filter((entry): entry is string => typeof entry === "string")
+    : [];
+  const [allowedSendersInput, setAllowedSendersInput] = useState(() =>
+    persistedAllowlist.join("\n")
+  );
+  const [savingAllowlist, setSavingAllowlist] = useState(false);
+  const hasTools = agents.find((agent) => agent.id === agentId)?.hasTools ?? false;
+
+  async function saveAllowlist() {
+    const allowedSenders = allowedSendersInput
+      .split("\n")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    if (allowedSenders.length > 200 || allowedSenders.some((entry) => entry.length > 256)) {
+      toast.error(t("allowlistLimit"));
+      return;
+    }
+    setSavingAllowlist(true);
+    try {
+      const response = await fetch(`/api/channels/${channel.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ config: { allowedSenders } }),
+      });
+      if (!response.ok) throw new Error("Unable to save allowlist");
+      setAllowedSendersInput(allowedSenders.join("\n"));
+      toast.success(t("allowlistSaved"));
+      router.refresh();
+    } catch {
+      toast.error(t("saveError"));
+    } finally {
+      setSavingAllowlist(false);
+    }
+  }
 
   async function copy(text: string, label: string) {
     await navigator.clipboard.writeText(text);
@@ -553,6 +590,15 @@ function ConnectedChannelRow({
         </button>
       </div>
 
+      {supportsAllowlist && persistedAllowlist.length === 0 && hasTools && (
+        <p
+          role="status"
+          className="mt-3 rounded-lg bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-300"
+        >
+          {t("allowlistWarning")}
+        </p>
+      )}
+
       {expanded && (
         <div className="mt-4 space-y-3 border-t border-line pt-4 text-xs">
           <div>
@@ -570,6 +616,38 @@ function ConnectedChannelRow({
               ))}
             </select>
           </div>
+
+          {supportsAllowlist && (
+            <div>
+              <label htmlFor={`allowlist-${channel.id}`} className="block text-muted">
+                {t("allowlistLabel")}
+              </label>
+              <p id={`allowlist-help-${channel.id}`} className="mt-1 text-faint">
+                {t("allowlistHelp")}
+              </p>
+              <p className="mt-1 text-faint">
+                {t(channel.type === "telegram" ? "allowlistTelegram" : "allowlistSlack")}
+              </p>
+              <textarea
+                id={`allowlist-${channel.id}`}
+                aria-describedby={`allowlist-help-${channel.id}`}
+                value={allowedSendersInput}
+                onChange={(event) => setAllowedSendersInput(event.target.value)}
+                rows={4}
+                disabled={savingAllowlist}
+                className="mt-2 w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none focus:border-violet-500/60"
+              />
+              <button
+                type="button"
+                onClick={saveAllowlist}
+                disabled={savingAllowlist}
+                className="mt-1 flex items-center gap-1 rounded-lg bg-violet-500 px-3 py-1.5 text-xs text-white hover:bg-violet-400 disabled:opacity-40"
+              >
+                {savingAllowlist && <Loader2 className="h-3 w-3 animate-spin" />}
+                {t("save")}
+              </button>
+            </div>
+          )}
 
           {channel.type === "widget" && (
             <div>
