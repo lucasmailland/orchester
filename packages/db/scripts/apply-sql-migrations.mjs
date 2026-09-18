@@ -28,6 +28,9 @@
  *
  * QUÉ NO APLICA, Y POR QUÉ
  * ------------------------
+ * La lista vive en `migrations-excluidas.mjs`, con el motivo de cada una, para
+ * que el auditor pueda distinguir "decidimos no aplicarla" de "se nos pasó".
+ * Lo de abajo queda como resumen; el archivo manda.
  *   - 0008 / 0009 / 0010 (RLS enable + policies + FORCE): decisión explícita
  *     para el deploy single-tenant de Fichap. RLS aísla ENTRE tenants; con un
  *     solo tenant no protege de nada. Las funciones helper (0006) SÍ se aplican
@@ -55,36 +58,12 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { MANIFEST } from "./manifest.mjs";
 
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "migrations");
 
 /** Orden importa: 0007 hace REVOKE sobre audit_log y security_event, así que
  *  0002b y 0005 tienen que haber corrido antes. */
-const MANIFEST = [
-  [
-    "0001_workspace_lifecycle.sql",
-    "8 columnas de lifecycle en `workspace` (suspend/delete/restore)",
-  ],
-  ["0002a_rename_legacy_audit_log.sql", "renombra la audit_log vieja a audit_log_legacy"],
-  ["0002b_audit_log.sql", "audit_log nueva, con cadena de hashes (seq/prev_hash/chain_hash)"],
-  ["0002c_audit_log_data_migration.sql", "migra los datos de la legacy a la nueva"],
-  ["0003_feature_flags.sql", "tabla feature_flag"],
-  ["0004_gdpr_export_jobs.sql", "tabla gdpr_export_job"],
-  ["0005_idempotency_security.sql", "tablas idempotency_key y security_event"],
-  ["0006_rls_helpers.sql", "funciones current_workspace_id() e is_cross_tenant_admin()"],
-  ["0007_postgres_roles.sql", "roles app_user / cron_admin / read_only_audit + grants"],
-  ["0036_mnemosyne_agent_memory_policy.sql", "columna agent.memory_policy"],
-  ["0038_conversation_sensitivity.sql", "columna conversation.memory_learning_paused"],
-  ["0049_org_primitive.sql", "tabla org + columna workspace.org_id"],
-  ["0054_pgboss_schema_grant.sql", "GRANT CREATE ON DATABASE — pg-boss crea su propio schema"],
-  ["0055_flow_spec.sql", "columnas flow.spec y flow_version.spec (documentación del flujo)"],
-  ["0056_channel_type_discord.sql", "valor `discord` en el enum channel_type"],
-  ["0057_api_key_explicit_scopes.sql", "scopes explícitos en las api keys que ya existen"],
-  // Sin número: ajuste del deploy single-tenant, no historia de upstream.
-  // 0049 deja `org` con FORCE RLS y sólo una política de SELECT, así que ningún
-  // INSERT pasa y crear un workspace da 500. Ver el header del archivo.
-  ["single-tenant-org-rls-off.sql", "apaga RLS en `org` — 0049 la deja sin política de INSERT"],
-];
 
 const url = process.env["DATABASE_URL"];
 if (!url) {

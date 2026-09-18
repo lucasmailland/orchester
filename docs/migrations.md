@@ -83,3 +83,36 @@ in a single release.
 
 The golden rule: **every migration must be safe to apply while the previous app
 version is still serving traffic.**
+
+## Comprobar que la base es lo que las migraciones dicen
+
+```bash
+DATABASE_URL=postgresql://… pnpm --filter @orchester/db migrate:audit
+```
+
+Lee cada migración, saca los objetos que crea —tablas, columnas, funciones,
+roles, triggers, políticas, valores de enum— y pregunta a la base si están.
+No escribe nada: es seguro contra producción.
+
+Existe porque `_applied_sql_migrations` sólo sabe lo que corrió **por el
+runner**. Una migración aplicada a mano queda sin registrar y el registro pasa
+a mentir en silencio, que es la peor forma de mentir de un registro. Ya pasó:
+`0055_flow_spec` tenía sus columnas en la base y no figuraba.
+
+Los desvíos que distingue:
+
+| Estado                    | Qué significa                                                          |
+| ------------------------- | ---------------------------------------------------------------------- |
+| `registrada-pero-ausente` | El registro dice que corrió y la base dice que no                      |
+| `pendiente`               | Está en el manifiesto y no se aplicó                                   |
+| `huerfana`                | Ni en el manifiesto ni en las excluidas: nadie sabe si fue a propósito |
+| `aplicada-sin-registrar`  | Está en la base, el registro no la tiene                               |
+| `excluida-pero-aplicada`  | Se decidió no aplicarla y alguien la aplicó igual                      |
+
+**Toda migración forward tiene que estar en `manifest.mjs` o en
+`migrations-excluidas.mjs`.** Dejar una afuera en silencio es el mecanismo que
+produjo los desvíos que ya encontramos, así que el auditor trata ese silencio
+como un hallazgo y no como un default.
+
+Lo que no puede comprobar —un `UPDATE` de datos, un `GRANT`, un `REVOKE`— lo
+informa como "sin objetos que comprobar" en vez de darlo por bueno.
