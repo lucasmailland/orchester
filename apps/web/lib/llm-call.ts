@@ -446,6 +446,19 @@ function isBedrockClaude(model: string): boolean {
   return /(?:^|[.:/])anthropic\.claude-/.test(model);
 }
 
+/**
+ * Whether the model accepts `status` on a tool result.
+ *
+ * AWS documents that field as supported only by Amazon Nova and Anthropic
+ * Claude 3 and 4. Sending it to a Llama or Mistral is a ValidationException on
+ * the first tool call that fails — which would break the agent loop for
+ * exactly the models this Converse migration exists to unlock. The error text
+ * is already in the result's content, so the flag costs nothing to drop.
+ */
+function acceptsToolResultStatus(model: string): boolean {
+  return isBedrockClaude(model) || /(?:^|[.:/])amazon\.nova-/.test(model);
+}
+
 /** Map the internal chat/tool history to Bedrock's vendor-neutral Converse API. */
 function buildBedrockBody(p: LlmCallParams, noSampling: boolean): Record<string, unknown> {
   // Reuse the boundary validation so the static prefix keeps its existing
@@ -483,7 +496,7 @@ function buildBedrockBody(p: LlmCallParams, noSampling: boolean): Record<string,
                       : JSON.stringify(tr.output ?? null),
                 },
               ],
-              ...(tr.error ? { status: "error" } : {}),
+              ...(tr.error && acceptsToolResultStatus(p.model) ? { status: "error" } : {}),
             },
           })),
         };
@@ -496,7 +509,11 @@ function buildBedrockBody(p: LlmCallParams, noSampling: boolean): Record<string,
         }
       }
       return { role: m.role, content };
-    });
+    })
+    // Converse rejects a message with no content blocks. An empty assistant or
+    // user turn carries nothing anyway, and the old Anthropic-shaped path got
+    // away with sending `content: ""`, which Converse will not take.
+    .filter((m) => m.content.length > 0);
   return {
     ...(system.length ? { system } : {}),
     messages,

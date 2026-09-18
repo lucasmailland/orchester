@@ -211,6 +211,53 @@ describe("Bedrock Converse", () => {
     ]);
     expect(result.toolCalls).toEqual([toolCall]);
   });
+  it.each([
+    ["us.amazon.nova-pro-v1:0", true],
+    ["us.anthropic.claude-sonnet-5", true],
+    ["us.meta.llama3-3-70b-instruct-v1:0", false],
+    ["mistral.mistral-large-2407-v1:0", false],
+    ["cohere.command-r-plus-v1:0", false],
+  ])("marks a failed tool result on %s: %s", async (model, marked) => {
+    // AWS supports `status` on a tool result for Nova and Claude only. Sending
+    // it elsewhere is a ValidationException on the first failing tool call —
+    // for exactly the models Converse was adopted to reach. The error text is
+    // in the content either way.
+    fetchMock.mockResolvedValue(Response.json(response));
+    await llmCall(
+      params({
+        model: `bedrock:${model}`,
+        messages: [
+          { role: "user", content: "Hello" },
+          {
+            role: "tool",
+            content: "",
+            toolResults: [{ id: "tool-1", name: "lookup", error: "Unavailable" }],
+          },
+        ],
+      })
+    );
+    const toolResult = request().body.messages.at(-1).content[0].toolResult;
+    expect(toolResult.content).toEqual([{ text: "Error: Unavailable" }]);
+    expect("status" in toolResult).toBe(marked);
+  });
+  it("drops a turn that carries no content at all", async () => {
+    // Converse rejects a message with an empty content array, where the old
+    // Anthropic-shaped body got away with sending content: "".
+    fetchMock.mockResolvedValue(Response.json(response));
+    await llmCall(
+      params({
+        messages: [
+          { role: "user", content: "Hello" },
+          { role: "assistant", content: "" },
+          { role: "user", content: "Still there?" },
+        ],
+      })
+    );
+    expect(request().body.messages).toEqual([
+      { role: "user", content: [{ text: "Hello" }] },
+      { role: "user", content: [{ text: "Still there?" }] },
+    ]);
+  });
   it("surfaces the HTTP status and Bedrock error body", async () => {
     fetchMock.mockResolvedValue(
       Response.json({ message: "Model does not support tool use" }, { status: 400 })
