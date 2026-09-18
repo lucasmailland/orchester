@@ -594,6 +594,30 @@ interface NodeHandlerArgs {
 }
 type NodeHandler = (args: NodeHandlerArgs) => Promise<void>;
 
+/**
+ * La firma de una respuesta del modelo: quién la escribió, con qué y a qué costo.
+ *
+ * Se expone como `{{<salida>Meta}}` para que un paso pueda estamparla en lo que
+ * escribe. `model` es el modelo que EFECTIVAMENTE contestó, no el configurado:
+ * si hubo fallback, registrar el elegido sería mentir justo cuando más importa
+ * saberlo.
+ */
+function firma(
+  res: { model: string; tokensUsed: number },
+  cargo: { tokensIn: number; tokensOut: number; costUsd: number },
+  agentName?: string
+): Record<string, unknown> {
+  return {
+    ...(agentName ? { agent: agentName } : {}),
+    model: res.model,
+    tokensIn: cargo.tokensIn,
+    tokensOut: cargo.tokensOut,
+    tokensUsed: res.tokensUsed,
+    costUsd: cargo.costUsd,
+    at: new Date().toISOString(),
+  };
+}
+
 const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
   trigger: async () => {
     // No-op: el nodo trigger sólo marca el punto de entrada del flow.
@@ -629,18 +653,17 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
         tx,
       })
     );
-    const { recordAiUsage } = await import("./ai/run");
-    const { calculateChatCostUsd } = await import("./pricing");
+    const { recordAiUsage, chargeFor } = await import("./ai/run");
+    const cargo = chargeFor(result);
     await recordAiUsage({
       workspaceId,
       capability: "chat",
       model: result.model,
-      tokensOut: result.tokensUsed,
-      tokensTotal: result.tokensUsed,
-      costUsd: calculateChatCostUsd(result.model, 0, result.tokensUsed),
+      ...cargo,
     });
     const outputVar = (cfg.outputVar as string) ?? "agentResult";
     ctx.variables[outputVar] = result.content;
+    ctx.variables[`${outputVar}Meta`] = firma(result, cargo, agent.name);
     helpers.setOutput({ content: result.content, tokensUsed: result.tokensUsed });
   },
 
@@ -916,6 +939,11 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     });
     const outputVar = (cfg.outputVar as string) || "texto";
     ctx.variables[outputVar] = res.content;
+    // Quién contestó, con qué y a qué costo, disponible para la plantilla. Sin
+    // esto el dato existe en la corrida pero no llega a lo que el flujo
+    // escribe, que es lo único que una persona termina leyendo.
+    const { chargeFor } = await import("./ai/run");
+    ctx.variables[`${outputVar}Meta`] = firma(res, chargeFor(res));
     helpers.setOutput({ tokensUsed: res.tokensUsed });
   },
 

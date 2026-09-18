@@ -217,6 +217,23 @@ error at validation time and at run time.
 | `html`                     | `{{summary \| html}}`               | escapes `& < > " '` and turns line breaks into `<br>`, for HTML fields (reuses the Odoo client's helper)                     |
 | `redact:maxLen`            | `{{message \| redact:500}}`         | masks emails, bearer/API tokens, JWTs and digit runs of 8+, then truncates to `maxLen`                                       |
 
+### Who wrote it, with what, and at what cost
+
+A step that calls a model leaves a companion variable beside its output:
+`{{<outputVar>Meta}}`, carrying `model`, `tokensIn`, `tokensOut`, `tokensUsed`,
+`costUsd`, `at`, and — for an `agent` step — `agent` with the agent's name.
+
+```
+<p><i>{{dictamenMeta.agent | default:paso de modelo}} · {{dictamenMeta.model}}
+· {{dictamenMeta.tokensUsed}} tokens · US$ {{dictamenMeta.costUsd}}</i></p>
+```
+
+`model` is the model that **answered**, which is not always the one configured:
+with a fallback chain, recording the chosen one would be wrong exactly when it
+matters. This exists so that what a flow writes can be attributed and priced
+later; the numbers were already in the run record, where nothing a person reads
+could reach them.
+
 Filters apply in `interpolate`, `resolveValue` and `deepInterpolate`, so they work in `http` URLs and
 bodies, `transform` templates and `integration` inputs alike. A `transform` resolves all its fields
 before merging them, so one field cannot use a variable another field of the same `transform` creates;
