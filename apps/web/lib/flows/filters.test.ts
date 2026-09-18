@@ -78,3 +78,73 @@ describe("findTemplateErrors", () => {
     expect(findTemplateErrors("SINCE {{at | addMinutes:-15}} {{plain}} no braces")).toEqual([]);
   });
 });
+
+describe("json con indentación", () => {
+  it("sigue compacto sin argumento", () => {
+    expect(evaluateExpression("obj | json", ctx)).toBe('{"a":[1,2]}');
+  });
+
+  it("indenta cuando se lo piden", () => {
+    expect(evaluateExpression("obj | json:2", ctx)).toBe('{\n  "a": [\n    1,\n    2\n  ]\n}');
+  });
+});
+
+describe("table", () => {
+  const filas = {
+    deploys: [
+      { hora: "14:02", servicio: "auth-service", rev: "a3f21c" },
+      { hora: "14:31", servicio: "auth-service", rev: "b19e04" },
+    ],
+  };
+
+  it("arma una tabla con encabezados a partir de las claves", () => {
+    expect(evaluateExpression("deploys | table", filas)).toBe(
+      "<table><thead><tr><th>hora</th><th>servicio</th><th>rev</th></tr></thead>" +
+        "<tbody><tr><td>14:02</td><td>auth-service</td><td>a3f21c</td></tr>" +
+        "<tr><td>14:31</td><td>auth-service</td><td>b19e04</td></tr></tbody></table>"
+    );
+  });
+
+  it("escapa el contenido, porque esto termina dentro de un campo HTML", () => {
+    // Un `<` en un mensaje de error partiría el markup de la nota entera.
+    const malo = { filas: [{ msg: '<script>alert("x")</script>' }] };
+    const salida = evaluateExpression("filas | table", malo) as string;
+    expect(salida).toContain("&lt;script&gt;");
+    expect(salida).not.toContain("<script>");
+  });
+
+  it("no pierde una columna que le falta a una fila", () => {
+    const dispar = { filas: [{ a: 1 }, { b: 2 }] };
+    const salida = evaluateExpression("filas | table", dispar) as string;
+    expect(salida).toContain("<th>a</th><th>b</th>");
+    // La celda ausente queda vacía, no dice "undefined".
+    expect(salida).toContain("<tr><td>1</td><td></td></tr>");
+  });
+
+  it("corta las filas de más y dice cuántas quedaron afuera", () => {
+    // Leer 20 filas y creer que son todas es peor que ver 2 y saber que faltan.
+    const muchas = { filas: Array.from({ length: 25 }, (_, i) => ({ n: i })) };
+    const salida = evaluateExpression("filas | table:2", muchas) as string;
+    expect(salida).toContain("<td>0</td>");
+    expect(salida).toContain("<td>1</td>");
+    expect(salida).not.toContain("<td>2</td>");
+    expect(salida).toContain("23 fila(s) más");
+  });
+
+  it("recorta una celda larga", () => {
+    const larga = { filas: [{ msg: "x".repeat(50) }] };
+    expect(evaluateExpression("filas | table:10:20", larga)).toContain("x".repeat(20) + "…");
+  });
+
+  it("devuelve vacío cuando no hay filas", () => {
+    expect(evaluateExpression("filas | table", { filas: [] })).toBe("");
+    expect(evaluateExpression("nada | table", {})).toBe("");
+  });
+
+  it("cae a una lista cuando los elementos no son objetos", () => {
+    // Una tabla de una sola columna sin nombre no dice nada que la lista no diga.
+    expect(evaluateExpression("filas | table", { filas: ["uno", "dos"] })).toBe(
+      "<ul><li>uno</li><li>dos</li></ul>"
+    );
+  });
+});
