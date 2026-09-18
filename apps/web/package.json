@@ -30,7 +30,8 @@
     "i18n:check": "tsx scripts/i18n-check.ts",
     "kb:backfill": "tsx scripts/backfill-seed-kb.ts",
     "screenshots": "tsx scripts/capture-screenshots.mts",
-    "test:smoke": "DOMAIN=${DOMAIN:-http://localhost:3333} bash ../../scripts/smoke-test.sh"
+    "test:smoke": "DOMAIN=${DOMAIN:-http://localhost:3333} bash ../../scripts/smoke-test.sh",
+    "models:check": "node scripts/check-models-dev.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1059.0",
