@@ -59,6 +59,8 @@ const ICONS: Record<string, typeof Database> = {
   resend: Mail,
   http: Globe,
   slack: MessageSquare,
+  discord: MessageSquare,
+  telegram: MessageSquare,
   google: Boxes,
   odoo: Briefcase,
   newrelic: Activity,

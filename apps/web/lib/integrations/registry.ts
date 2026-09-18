@@ -1,4 +1,6 @@
 import "server-only";
+import { discordWebhookUrl, discordSendMessage, discordSendEmbed } from "./discord-client";
+import { telegramTest, telegramSendMessage } from "./telegram-client";
 import {
   gitlabTest,
   gitlabSearchCode,
@@ -514,6 +516,137 @@ const slack: Connector = {
   },
 };
 
+const discord: Connector = {
+  id: "discord",
+  name: "Discord",
+  description: "Send channel messages and simple embeds through an incoming webhook.",
+  category: "messaging",
+  authType: "token",
+  fields: [
+    {
+      key: "webhookUrl",
+      label: "Webhook URL",
+      type: "password",
+      required: true,
+      help: "Discord channel settings → Integrations → Webhooks. Connection testing validates URL format only; delivery is checked when sending.",
+    },
+  ],
+  async test(config) {
+    try {
+      discordWebhookUrl(config);
+      return { ok: true, meta: { validation: "URL format only" } };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  },
+  actions: {
+    send_message: {
+      description: "Send a message to the webhook's channel or a thread.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          content: {
+            type: "string",
+            description:
+              "Message text. Over 2000 characters is truncated with a final ellipsis within the limit.",
+          },
+          username: { type: "string", description: "Optional webhook display name." },
+          threadId: { type: "string", description: "Optional thread ID in the webhook's channel." },
+        },
+        required: ["content"],
+      },
+      run: discordSendMessage,
+    },
+    send_embed: {
+      description: "Send one simple Discord embed.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          description: { type: "string" },
+          url: { type: "string" },
+          color: {
+            type: "integer",
+            minimum: 0,
+            maximum: 16777215,
+            description: "RGB color as a decimal integer.",
+          },
+          fields: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                value: { type: "string" },
+                inline: { type: "boolean" },
+              },
+              required: ["name", "value"],
+            },
+          },
+        },
+        required: ["title", "description"],
+      },
+      run: discordSendEmbed,
+    },
+  },
+};
+
+const telegram: Connector = {
+  id: "telegram",
+  name: "Telegram",
+  description: "Send messages to chats and groups through a Telegram bot.",
+  category: "messaging",
+  authType: "token",
+  fields: [
+    {
+      key: "botToken",
+      label: "Bot token",
+      type: "password",
+      required: true,
+      help: "Create a bot with BotFather. Connection testing checks the token, not chat access.",
+    },
+    {
+      key: "defaultChatId",
+      label: "Default chat ID",
+      type: "text",
+      required: true,
+      help: "Chat or group ID used when an action does not specify chatId.",
+    },
+  ],
+  async test(config) {
+    try {
+      await telegramTest(config);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  },
+  actions: {
+    send_message: {
+      description: "Send a bot message to a chat or group.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          text: {
+            type: "string",
+            description:
+              "Message text. Over 4096 characters is truncated with a final ellipsis within the limit. With formatting, keep markup valid at the truncation boundary.",
+          },
+          chatId: { type: "string", description: "Defaults to the configured defaultChatId." },
+          parseMode: {
+            type: "string",
+            enum: ["MarkdownV2", "HTML", "none"],
+            description: "Omit or use none for plain text.",
+          },
+          disableNotification: { type: "boolean" },
+        },
+        required: ["text"],
+      },
+      run: telegramSendMessage,
+    },
+  },
+};
+
 const TICKET_FIELDS = [
   "id",
   "name",
@@ -1003,6 +1136,8 @@ export const CONNECTORS: Record<string, Connector> = {
   resend,
   http,
   slack,
+  discord,
+  telegram,
   google: googleWorkspace,
   odoo,
   newrelic,
