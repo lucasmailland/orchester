@@ -127,6 +127,69 @@ export const MODELS: ModelDef[] = [
       cout: 0.005,
     }
   ),
+  // Bedrock, fuera de Anthropic. Sólo entran los modelos con DOS cosas
+  // verificadas contra fuentes primarias el 2026-09-18: el precio, desde la
+  // Price List API de AWS (`publicationDate 2026-09-17`, us-east-1, on-demand),
+  // y el soporte de tool use por Converse, desde la ficha del modelo. Un modelo
+  // sin tool use no sirve como agente acá, y un precio de memoria corrompe la
+  // facturación en silencio — los que no pasaron los dos filtros quedaron
+  // afuera a propósito. El resto de la cuenta se descubre probando la conexión
+  // (`testProviderConnection`), que pregunta qué hay y con qué id se llama.
+  //
+  // Cohere Command R/R+ quedan afuera por dos motivos: se facturan por AWS
+  // Marketplace y no figuran en la lista de precios de Bedrock en ninguna
+  // región, y su EOL fue el 2026-08-19. Nova Premier queda afuera por EOL
+  // 2026-09-14.
+  m("bedrock", "amazon.nova-micro-v1:0", "Nova Micro (Bedrock)", "chat", {
+    tier: "fast",
+    ctx: 128_000,
+    cin: 0.000035,
+    cout: 0.00014,
+  }),
+  m("bedrock", "amazon.nova-lite-v1:0", "Nova Lite (Bedrock)", "chat", {
+    tier: "fast",
+    ctx: 300_000,
+    cin: 0.00006,
+    cout: 0.00024,
+  }),
+  m("bedrock", "amazon.nova-pro-v1:0", "Nova Pro (Bedrock)", "chat", {
+    tier: "smart",
+    ctx: 300_000,
+    cin: 0.0008,
+    cout: 0.0032,
+  }),
+  m("bedrock", "us.amazon.nova-2-lite-v1:0", "Nova 2 Lite (Bedrock)", "chat", {
+    tier: "smart",
+    ctx: 1_000_000,
+    cin: 0.00033,
+    cout: 0.00275,
+    // Único modelo donde el perfil cambia el precio: `global.` sale 0.0003 /
+    // 0.0025. Los demás perfiles geográficos cobran la tarifa regional.
+    notes: "Requiere perfil de inferencia; el perfil global.* es algo más barato.",
+  }),
+  m("bedrock", "us.meta.llama4-maverick-17b-instruct-v1:0", "Llama 4 Maverick (Bedrock)", "chat", {
+    tier: "smart",
+    ctx: 1_000_000,
+    cin: 0.00024,
+    cout: 0.00097,
+    notes: "No soporta streaming: ConverseStream no acepta Llama 4 Instruct.",
+  }),
+  m("bedrock", "mistral.mistral-small-2402-v1:0", "Mistral Small (Bedrock)", "chat", {
+    tier: "fast",
+    ctx: 32_000,
+    cin: 0.001,
+    cout: 0.003,
+  }),
+  m("bedrock", "qwen.qwen3-235b-a22b-2507-v1:0", "Qwen3 235B (Bedrock)", "chat", {
+    tier: "powerful",
+    ctx: 256_000,
+    // Único precio del bloque apoyado en una sola fuente: la Price List API
+    // trae el SKU de us-east-1, pero la página de precios sólo lo resuelve
+    // para Oregon, Ohio y Estocolmo (con la misma tarifa). Confirmar contra la
+    // factura antes de usarlo para decidir por costo.
+    cin: 0.00022,
+    cout: 0.00088,
+  }),
   m("google", "gemini-3-pro-preview", "Gemini 3 Pro", "chat", {
     tier: "powerful",
     ctx: 1_000_000,
