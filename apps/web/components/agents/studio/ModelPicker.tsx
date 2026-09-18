@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Zap, Brain, Rocket } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
@@ -33,6 +33,13 @@ interface Props {
   fallbackToAvailable?: boolean;
 }
 
+/** Room the list leaves between itself and the edge of the window. */
+const VIEWPORT_MARGIN = 12;
+/** Tallest the list ever gets, matching the old `max-h-72`. */
+const DEFAULT_MAX_HEIGHT = 288;
+/** Below this, a dropdown shows so little that scrolling the page is the only way out. */
+const MIN_USABLE_HEIGHT = 160;
+
 const TIER_ICON: Record<string, ReactNode> = {
   fast: <Zap className="h-3.5 w-3.5" />,
   smart: <Brain className="h-3.5 w-3.5" />,
@@ -44,6 +51,54 @@ export function ModelPicker({ value, onChange, fallbackToAvailable = false }: Pr
   const [groups, setGroups] = useState<ProviderGroup[]>([]);
   const [providerName, setProviderName] = useState<Record<string, string>>({});
   const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  // Where the list goes and how tall it may be, measured when it opens.
+  const [placement, setPlacement] = useState<{ above: boolean; maxHeight: number }>({
+    above: false,
+    maxHeight: DEFAULT_MAX_HEIGHT,
+  });
+
+  /**
+   * The list used to always drop downwards at a fixed height, so opening it
+   * near the bottom of the window pushed the options off-screen and the person
+   * had to scroll the page to read their own choices. Put it wherever there is
+   * more room, and never let it be taller than that room.
+   */
+  const place = useCallback(() => {
+    const trigger = rootRef.current;
+    if (!trigger) return;
+    const box = trigger.getBoundingClientRect();
+    const below = window.innerHeight - box.bottom - VIEWPORT_MARGIN;
+    const above = box.top - VIEWPORT_MARGIN;
+    // Only flip when going up genuinely helps: below is cramped and above is better.
+    const flip = below < MIN_USABLE_HEIGHT && above > below;
+    setPlacement({
+      above: flip,
+      maxHeight: Math.max(MIN_USABLE_HEIGHT, Math.min(DEFAULT_MAX_HEIGHT, flip ? above : below)),
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    place();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    const onPointer = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    window.addEventListener("resize", place);
+    // Capture: an ancestor panel scrolling moves the trigger too.
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onPointer);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onPointer);
+    };
+  }, [open, place]);
 
   useEffect(() => {
     // Modelos de chat del catálogo, sólo de proveedores conectados.
@@ -95,9 +150,11 @@ export function ModelPicker({ value, onChange, fallbackToAvailable = false }: Pr
   const selected = groups.flatMap((g) => g.models).find((m) => m.id === value) ?? null;
 
   return (
-    <div className="relative">
+    <div className="relative" ref={rootRef}>
       <button
         type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className="flex w-full min-w-[200px] items-center justify-between gap-2 rounded-xl border border-line bg-elevated px-3.5 py-2.5 text-sm text-strong hover:bg-elevated"
       >
@@ -112,7 +169,14 @@ export function ModelPicker({ value, onChange, fallbackToAvailable = false }: Pr
         <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
       </button>
       {open && (
-        <div className="absolute z-50 mt-1.5 max-h-72 w-full overflow-y-auto rounded-xl border border-line bg-surface shadow-xl">
+        <div
+          role="listbox"
+          style={{ maxHeight: placement.maxHeight }}
+          className={cn(
+            "absolute z-50 w-full overflow-y-auto rounded-xl border border-line bg-surface shadow-xl",
+            placement.above ? "bottom-full mb-1.5" : "mt-1.5"
+          )}
+        >
           {groups.length === 0 && (
             <div className="px-3 py-3 text-xs text-muted">{t("noConnected")}</div>
           )}
