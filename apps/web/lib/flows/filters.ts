@@ -76,7 +76,61 @@ const FILTERS: Record<string, FilterSpec> = {
     arity: [1, Infinity],
     apply: (v, args) => (v == null || v === "" ? args.join(":") : v),
   },
-  json: { arity: [0, 0], apply: (v) => JSON.stringify(v ?? null) },
+  // `json:2` indenta. Sin argumento sigue compacto, como siempre.
+  json: {
+    arity: [0, 1],
+    apply: (v, [indent]) =>
+      JSON.stringify(v ?? null, null, indent === undefined ? undefined : toInt(indent, "json")),
+  },
+  /**
+   * Un arreglo de objetos planos como tabla HTML.
+   *
+   * Existe porque volcar `| json` en una nota deja a la persona que abre la
+   * tarea leyendo llaves y corchetes para sacar tres datos. Los mismos datos
+   * en una tabla se leen de un vistazo, y son exactamente los mismos datos.
+   *
+   * Todo valor pasa por el escape de HTML: esto termina dentro de un campo
+   * HTML, y una comilla o un `<` en un mensaje de error partiría el markup.
+   */
+  table: {
+    arity: [0, 2],
+    apply: (v, [maxRows, maxCell]) => {
+      const rows = Array.isArray(v) ? v : [];
+      if (rows.length === 0) return "";
+      const limit = maxRows === undefined ? 20 : toInt(maxRows, "table");
+      const cellLimit = maxCell === undefined ? 200 : toInt(maxCell, "table");
+      const shown = rows.slice(0, limit);
+      // Las columnas son la unión de las claves, en el orden en que aparecen:
+      // una fila a la que le falta un campo no debe hacer desaparecer la columna.
+      const columns: string[] = [];
+      for (const row of shown) {
+        if (row && typeof row === "object" && !Array.isArray(row)) {
+          for (const key of Object.keys(row)) if (!columns.includes(key)) columns.push(key);
+        }
+      }
+      // Sin objetos que inspeccionar no hay tabla que armar; una lista simple
+      // dice más que una tabla de una sola columna sin nombre.
+      if (columns.length === 0) {
+        return `<ul>${shown.map((r) => `<li>${htmlEscape(asText(r))}</li>`).join("")}</ul>`;
+      }
+      const cell = (value: unknown) => {
+        const text = asText(value);
+        return htmlEscape(text.length > cellLimit ? `${text.slice(0, cellLimit)}…` : text);
+      };
+      const head = columns.map((c) => `<th>${htmlEscape(c)}</th>`).join("");
+      const body = shown
+        .map((row) => {
+          const record = (row ?? {}) as Record<string, unknown>;
+          return `<tr>${columns.map((c) => `<td>${cell(record[c])}</td>`).join("")}</tr>`;
+        })
+        .join("");
+      // Decir cuántas quedaron afuera evita que alguien lea 20 filas y crea
+      // que ésas son todas.
+      const rest =
+        rows.length > shown.length ? `<p>… y ${rows.length - shown.length} fila(s) más.</p>` : "";
+      return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${rest}`;
+    },
+  },
   nrql: { arity: [0, 0], apply: (v) => nrqlEscape(asText(v)) },
   html: { arity: [0, 0], apply: (v) => htmlEscape(asText(v)) },
   redact: {
