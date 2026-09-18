@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
-  teams, agents, agentStatusEnum,
+  teams,
+  agents,
+  agentStatusEnum,
   channelTypeEnum,
   employees,
   conversationStatusEnum,
@@ -22,7 +24,7 @@ describe("Core schema", () => {
 
   it("channels has type enum", () => {
     expect(channelTypeEnum.enumValues).toEqual(
-      expect.arrayContaining(["web", "whatsapp", "telegram"])
+      expect.arrayContaining(["web", "whatsapp", "telegram", "slack", "discord"])
     );
   });
 

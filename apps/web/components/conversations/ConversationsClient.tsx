@@ -303,6 +303,7 @@ export function ConversationsClient({ agents, labels }: { agents: Agent[]; label
               <SelectItem key="telegram">{t("channel.telegram")}</SelectItem>
               <SelectItem key="whatsapp">{t("channel.whatsapp")}</SelectItem>
               <SelectItem key="slack">{t("channel.slack")}</SelectItem>
+              <SelectItem key="discord">{t("channel.discord")}</SelectItem>
               <SelectItem key="email">{t("channel.email")}</SelectItem>
               <SelectItem key="api">{t("channel.api")}</SelectItem>
             </Select>

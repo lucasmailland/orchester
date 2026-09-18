@@ -8,6 +8,7 @@ import {
   MessageCircle,
   Send,
   MessagesSquare,
+  AtSign,
   Mail,
   Webhook,
   Plus,
@@ -30,7 +31,15 @@ import { TourSpot } from "@/components/compass/TourSpot";
 import type { ChannelTemplatePayload, CompassTemplate } from "@/lib/compass/templates";
 import { useTemplateCreateFlow } from "@/lib/compass/use-template-create-flow";
 
-type ChannelType = "widget" | "telegram" | "slack" | "whatsapp" | "email" | "api" | "web";
+type ChannelType =
+  | "widget"
+  | "telegram"
+  | "slack"
+  | "discord"
+  | "whatsapp"
+  | "email"
+  | "api"
+  | "web";
 
 interface Channel {
   id: string;
@@ -55,6 +64,7 @@ const TYPE_ICONS: Record<ChannelType, typeof Globe> = {
   telegram: Send,
   whatsapp: MessageCircle,
   slack: MessagesSquare,
+  discord: AtSign,
   email: Mail,
   api: Webhook,
 };
@@ -64,6 +74,7 @@ const TYPE_SUPPORTED: Record<ChannelType, boolean> = {
   telegram: true,
   whatsapp: false,
   slack: false,
+  discord: true,
   email: false,
   api: true,
 };
@@ -443,10 +454,24 @@ function ConnectedChannelRow({
   const channelLabel = t(`types.${channelType}.label`);
   const [expanded, setExpanded] = useState(false);
   const [credInput, setCredInput] = useState("");
+  // Discord needs three values, not one: the app ID builds the reply URL, the
+  // public key verifies inbound requests, and the bot token registers the command.
+  const [discordCreds, setDiscordCreds] = useState({
+    applicationId: "",
+    publicKey: "",
+    botToken: "",
+  });
+  const [commandName, setCommandName] = useState(
+    typeof channel.config["commandName"] === "string"
+      ? (channel.config["commandName"] as string)
+      : "orchester"
+  );
+  const [publicReplies, setPublicReplies] = useState(channel.config["publicReplies"] === true);
   const [saving, setSaving] = useState(false);
   const [agentId, setAgentId] = useState(channel.agentId ?? "");
   const [copied, setCopied] = useState<string | null>(null);
-  const supportsAllowlist = channel.type === "telegram" || channel.type === "slack";
+  const supportsAllowlist =
+    channel.type === "telegram" || channel.type === "slack" || channel.type === "discord";
   const persistedAllowlist = Array.isArray(channel.config.allowedSenders)
     ? channel.config.allowedSenders.filter((entry): entry is string => typeof entry === "string")
     : [];
@@ -515,6 +540,45 @@ function ConnectedChannelRow({
     }
   }
 
+  async function saveDiscordCreds() {
+    const credentials = {
+      applicationId: discordCreds.applicationId.trim(),
+      publicKey: discordCreds.publicKey.trim(),
+    };
+    const botToken = discordCreds.botToken.trim();
+    const typedAny = Boolean(credentials.applicationId || credentials.publicKey || botToken);
+    const typedAll = Boolean(credentials.applicationId && credentials.publicKey && botToken);
+    // Leaving the three fields empty on a channel that already has credentials
+    // means "only save the settings" — the server re-registers the command with
+    // the stored token, so renaming it does not need the token pasted again.
+    if (typedAny ? !typedAll : !channel.hasCredentials) {
+      return toast.error(t("discordAllFieldsRequired"));
+    }
+    setSaving(true);
+    const body: Record<string, unknown> = {
+      config: { commandName: commandName.trim(), publicReplies },
+    };
+    if (typedAll) {
+      body["credentials"] = {
+        applicationId: credentials.applicationId,
+        publicKey: credentials.publicKey,
+        botToken,
+      };
+    }
+    const r = await fetch(`/api/channels/${channel.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setSaving(false);
+    if (!r.ok) return toast.error(t("discordInvalidCommand"));
+    const j = await r.json();
+    if (j.error) toast.error(j.error);
+    else toast.success(t("discordCommandRegistered", { command: j.discordCommand }));
+    setDiscordCreds({ applicationId: "", publicKey: "", botToken: "" });
+    router.refresh();
+  }
+
   async function toggleStatus() {
     const next = channel.status === "active" ? "inactive" : "active";
     const r = await fetch(`/api/channels/${channel.id}`, {
@@ -542,6 +606,9 @@ function ConnectedChannelRow({
   const embedSnippet = `<script src="${origin}/api/embed?c=${channel.id}" async></script>`;
   const telegramWebhookUrl = channel.secret
     ? `${origin}/api/channels/telegram/webhook/${channel.secret}`
+    : "";
+  const discordWebhookUrl = channel.secret
+    ? `${origin}/api/channels/discord/webhook/${channel.secret}`
     : "";
   const apiTriggerUrl = channel.secret ? `${origin}/api/widget/${channel.id}/messages` : "";
 
@@ -626,7 +693,13 @@ function ConnectedChannelRow({
                 {t("allowlistHelp")}
               </p>
               <p className="mt-1 text-faint">
-                {t(channel.type === "telegram" ? "allowlistTelegram" : "allowlistSlack")}
+                {t(
+                  channel.type === "telegram"
+                    ? "allowlistTelegram"
+                    : channel.type === "discord"
+                      ? "allowlistDiscord"
+                      : "allowlistSlack"
+                )}
               </p>
               <textarea
                 id={`allowlist-${channel.id}`}
@@ -724,6 +797,81 @@ function ConnectedChannelRow({
                   </div>
                 </div>
               )}
+            </>
+          )}
+
+          {channel.type === "discord" && (
+            <>
+              <div>
+                <label className="block text-muted">{t("discordCommandLabel")}</label>
+                <input
+                  value={commandName}
+                  onChange={(e) => setCommandName(e.target.value)}
+                  placeholder="orchester"
+                  className="mt-1 w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none focus:border-violet-500/60"
+                />
+                <p className="mt-1 text-faint">{t("discordCommandHelp")}</p>
+              </div>
+              {(
+                [
+                  ["applicationId", t("discordApplicationIdLabel"), "text"],
+                  ["publicKey", t("discordPublicKeyLabel"), "text"],
+                  ["botToken", t("discordBotTokenLabel"), "password"],
+                ] as const
+              ).map(([field, label, inputType]) => (
+                <div key={field}>
+                  <label className="block text-muted">{label}</label>
+                  <input
+                    type={inputType}
+                    value={discordCreds[field]}
+                    onChange={(e) =>
+                      setDiscordCreds((prev) => ({ ...prev, [field]: e.target.value }))
+                    }
+                    placeholder={channel.hasCredentials ? t("discordReplacePlaceholder") : ""}
+                    className="mt-1 w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none focus:border-violet-500/60"
+                  />
+                </div>
+              ))}
+              <label className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={publicReplies}
+                  onChange={(e) => setPublicReplies(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="block text-muted">{t("discordPublicRepliesLabel")}</span>
+                  <span className="block text-faint">{t("discordPublicRepliesHelp")}</span>
+                </span>
+              </label>
+              <button
+                type="button"
+                onClick={saveDiscordCreds}
+                disabled={saving}
+                className="flex items-center gap-1 rounded-lg bg-violet-500 px-3 py-1.5 text-xs text-white hover:bg-violet-400 disabled:opacity-40"
+              >
+                {saving && <Loader2 className="h-3 w-3 animate-spin" />} {t("save")}
+              </button>
+              <div>
+                <label className="block text-muted">{t("discordEndpointLabel")}</label>
+                <div className="mt-1 flex items-center gap-2 rounded-lg border border-line bg-black/40 p-2">
+                  <pre className="flex-1 overflow-x-auto font-mono text-[10px] text-body">
+                    {discordWebhookUrl}
+                  </pre>
+                  <button
+                    type="button"
+                    onClick={() => copy(discordWebhookUrl, "discord")}
+                    className="text-muted hover:text-body"
+                  >
+                    {copied === "discord" ? (
+                      <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                </div>
+                <p className="mt-1 text-faint">{t("discordEndpointHelp")}</p>
+              </div>
             </>
           )}
 

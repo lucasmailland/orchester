@@ -1085,6 +1085,7 @@
         "whatsapp": "WhatsApp",
         "telegram": "Telegram",
         "slack": "Slack",
+        "discord": "Discord",
         "email": "Email",
         "api": "API"
       },
@@ -1189,6 +1190,10 @@
           "label": "Slack",
           "description": "Slash commands e DMs. (Requer Slack app)."
         },
+        "discord": {
+          "label": "Discord",
+          "description": "Um slash command no seu servidor. (Requer um app do Discord)."
+        },
         "email": {
           "label": "Email",
           "description": "Inbox virtual com Resend / Postmark."
@@ -1206,6 +1211,20 @@
       "allowlistHelp": "Uma lista vazia permite o acesso de todos. Insira um remetente por linha.",
       "allowlistTelegram": "Use um ID de chat do Telegram ou nome de usuário (com ou sem @). Um ID de grupo permite o acesso de todos os membros.",
       "allowlistSlack": "Use um ID de usuário do Slack (U…) ou de canal (C…). Um ID de canal permite o acesso de todos os membros.",
+      "allowlistDiscord": "Use um ID de usuário do Discord (clique com o botão direito em um membro → Copiar ID de usuário, com o Modo desenvolvedor ativado). O nome de usuário também funciona.",
+      "discordCommandLabel": "Nome do comando",
+      "discordCommandHelp": "As pessoas digitam /nome seguido da pergunta. Apenas minúsculas, dígitos, - e _.",
+      "discordPublicRepliesLabel": "Publicar as respostas para todo o canal",
+      "discordPublicRepliesHelp": "Desligado por padrão: uma resposta pode trazer dados do workspace, e o Discord fixa a visibilidade ao enviá-la, então depois não dá para torná-la privada.",
+      "discordApplicationIdLabel": "Application ID",
+      "discordPublicKeyLabel": "Chave pública",
+      "discordBotTokenLabel": "Token do bot",
+      "discordReplacePlaceholder": "Salvo — digite um novo valor para substituí-lo",
+      "discordAllFieldsRequired": "São necessários os três: Application ID, chave pública e token do bot.",
+      "discordInvalidCommand": "Esse nome de comando não é válido: apenas minúsculas, dígitos, - e _.",
+      "discordCommandRegistered": "{command} foi registrado. Cole a URL do endpoint no Discord para concluir.",
+      "discordEndpointLabel": "URL do endpoint de interações",
+      "discordEndpointHelp": "Cole no seu app do Discord, em General Information → Interactions Endpoint URL.",
       "allowlistWarning": "Este canal está aberto a todos e seu agente tem ferramentas. Adicione remetentes permitidos para restringir o acesso.",
       "allowlistLimit": "Insira até 200 entradas com até 256 caracteres cada.",
       "allowlistSaved": "Remetentes permitidos salvos."

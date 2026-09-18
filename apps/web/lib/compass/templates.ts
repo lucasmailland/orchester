@@ -19,7 +19,15 @@ import { specToStoredGraph } from "@/lib/flows/normalize";
  * templates are built from the node registry, so they can only reference
  * steps the editor actually has.)
  */
-export type ChannelType = "widget" | "web" | "telegram" | "slack" | "whatsapp" | "email" | "api";
+export type ChannelType =
+  | "widget"
+  | "web"
+  | "telegram"
+  | "slack"
+  | "discord"
+  | "whatsapp"
+  | "email"
+  | "api";
 
 // -------------------------------------------------------------------------
 // Public types

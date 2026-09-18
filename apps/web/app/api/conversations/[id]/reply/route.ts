@@ -6,6 +6,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { decodeTelegramCredentials, telegramSend } from "@/lib/channels/telegram";
+import { decodeDiscordCredentials, discordPostToChannel } from "@/lib/channels/discord";
 import { decodeSlackCredentials, slackSend } from "@/lib/channels/slack";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { safeLogError } from "@/lib/safe-log";
@@ -109,6 +110,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           }
         } catch (e) {
           safeLogError("Slack send failed:", e);
+        }
+      }
+    } else if (channel?.type === "discord" && conv.externalId) {
+      // externalId = "<discordChannel>:<discordUser>" — the interaction token
+      // that answered the slash command is long expired, so post as the bot
+      // and mention the person who asked.
+      const creds = decodeDiscordCredentials(channel.credentialsEncrypted);
+      if (creds?.botToken) {
+        const [discordChannel, discordUser] = conv.externalId.split(":");
+        try {
+          if (discordChannel && discordChannel !== "dm") {
+            await discordPostToChannel(creds.botToken, discordChannel, text, discordUser);
+          }
+        } catch (e) {
+          safeLogError("Discord send failed:", e);
         }
       }
     }

@@ -348,7 +348,11 @@ Costs are computed from token usage × catalog price and written to `usage_event
 
 ## Conversational turn (channels)
 
-`lib/channels/router.ts handleInbound` and `handleInboundStream` are the entry points for inbound messages from Slack, Telegram, the embeddable widget, and the public REST API. The flow is the same for both — streaming only changes where the txn boundaries fall.
+`lib/channels/router.ts handleInbound` and `handleInboundStream` are the entry points for inbound messages from Slack, Telegram, Discord, the embeddable widget, and the public REST API. The flow is the same for both — streaming only changes where the txn boundaries fall.
+
+Each provider gets a webhook route under `app/api/channels/<provider>/webhook/[secret]`. The route's job is provider-specific and small: authenticate the request (the URL secret always; an HMAC for Slack, an Ed25519 signature for Discord), pull out sender and text, check the allowlist, call `handleInbound`, and deliver the reply through that provider's client. Everything after `handleInbound` is channel-agnostic.
+
+Discord is the one that cannot simply await the answer: it discards an interaction that goes unanswered for three seconds, which no agent run fits into. Its route acknowledges with a deferred reply and edits the real answer in from `after()`, using the interaction token — valid for fifteen minutes.
 
 ```mermaid
 %%{init: {

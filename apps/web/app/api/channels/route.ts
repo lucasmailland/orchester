@@ -12,7 +12,7 @@ import { logAudit } from "@/lib/audit";
 
 const createChannelSchema = z.object({
   name: z.string().trim().min(1, "name required"),
-  type: z.enum(["widget", "web", "telegram", "slack", "whatsapp", "email", "api"]),
+  type: z.enum(["widget", "web", "telegram", "slack", "discord", "whatsapp", "email", "api"]),
   agentId: z.string().optional(),
   // Optional seed config from a TemplatePicker selection (greeting, position, etc.).
   // Lands as-is into channels.config so the channel boots with a sensible default.

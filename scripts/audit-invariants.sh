@@ -93,7 +93,10 @@ fi
 #
 # Excepciones (públicas / con auth propia):
 # Public surfaces with their own auth pattern (session/secret/API-key/Stripe sig).
-EXCLUDE_RBAC='/api/auth/|/api/health|/api/webhooks/\[secret\]|/api/widget/|/api/embed|/api/me/|/api/me/|/api/v1/|/api/billing/webhook|/api/mcp|/api/sessions|/api/invites/accept|/api/notification-prefs|/api/workspaces/\[id\]|/channels/(telegram|slack)/webhook/\[secret\]'
+# The channel webhooks are called by Telegram, Slack and Discord, never by a
+# logged-in user: the URL secret is the credential, and Slack and Discord also
+# sign every request. Their bodies are the providers' own envelopes, not ours.
+EXCLUDE_RBAC='/api/auth/|/api/health|/api/webhooks/\[secret\]|/api/widget/|/api/embed|/api/me/|/api/me/|/api/v1/|/api/billing/webhook|/api/mcp|/api/sessions|/api/invites/accept|/api/notification-prefs|/api/workspaces/\[id\]|/channels/(telegram|slack|discord)/webhook/\[secret\]'
 
 # Routes whose mutating handlers genuinely have NO body (param-only):
 # - .../restore/route.ts (POST with only URL params)
@@ -101,7 +104,7 @@ EXCLUDE_RBAC='/api/auth/|/api/health|/api/webhooks/\[secret\]|/api/widget/|/api/
 # - flows/seed-real (dev-only seed util)
 # - billing/portal (Stripe form, no JSON)
 # - any route that DOES validate manually if not zod (audited case-by-case)
-EXCLUDE_BODY='/restore/route.ts$|/api/providers/\[id\]/test/route.ts$|/api/flows/seed-real/route.ts$|/api/billing/portal/route.ts$|/api/workspace-members/route.ts$|/api/conversations/\[id\]/takeover/route.ts$|/api/webhooks/\[secret\]/route.ts$|/api/billing/webhook/route.ts$|/channels/(telegram|slack)/webhook/\[secret\]/route.ts$|/api/mcp/route.ts$|/api/widget/\[channelId\]/stream/route.ts$'
+EXCLUDE_BODY='/restore/route.ts$|/api/providers/\[id\]/test/route.ts$|/api/flows/seed-real/route.ts$|/api/billing/portal/route.ts$|/api/workspace-members/route.ts$|/api/conversations/\[id\]/takeover/route.ts$|/api/webhooks/\[secret\]/route.ts$|/api/billing/webhook/route.ts$|/channels/(telegram|slack|discord)/webhook/\[secret\]/route.ts$|/api/mcp/route.ts$|/api/widget/\[channelId\]/stream/route.ts$'
 
 while IFS= read -r f; do
   # Sólo rutas con un handler mutante

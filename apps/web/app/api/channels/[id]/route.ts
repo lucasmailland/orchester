@@ -8,6 +8,13 @@ import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { encrypt } from "@/lib/encryption";
 import { telegramSetWebhook, telegramGetMe } from "@/lib/channels/telegram";
 import { slackAuthTest } from "@/lib/channels/slack";
+import {
+  DISCORD_COMMAND_DESCRIPTION,
+  DISCORD_OPTION_NAME,
+  decodeDiscordCredentials,
+  discordCommandName,
+  discordRegisterCommand,
+} from "@/lib/channels/discord";
 import { logAudit } from "@/lib/audit";
 import { parseBody } from "@/lib/validation";
 
@@ -150,6 +157,53 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         ...rest,
         hasCredentials: true,
         webhookSet: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  // Discord: registrar el slash command cuando se actualizan las credenciales.
+  // El Interactions Endpoint URL no se puede configurar por API — se devuelve
+  // para que el operador lo pegue en el Developer Portal de Discord.
+  // Renaming the command has to re-register it too, and a config-only PATCH
+  // carries no credentials — so fall back to the ones already stored rather
+  // than making the operator paste the bot token again to rename a command.
+  const discordCreds =
+    row.type === "discord"
+      ? body.credentials?.["botToken"] && body.credentials?.["applicationId"]
+        ? {
+            botToken: String(body.credentials["botToken"]),
+            applicationId: String(body.credentials["applicationId"]),
+          }
+        : decodeDiscordCredentials(row.credentialsEncrypted)
+      : null;
+  if (row.type === "discord" && discordCreds && (body.credentials || body.config)) {
+    const commandName = discordCommandName(row.config);
+    const webhookUrl = process.env["NEXT_PUBLIC_APP_URL"]
+      ? `${process.env["NEXT_PUBLIC_APP_URL"]}/api/channels/discord/webhook/${row.secret}`
+      : null;
+    const { credentialsEncrypted, ...rest } = row;
+    try {
+      await discordRegisterCommand({
+        applicationId: discordCreds.applicationId,
+        botToken: discordCreds.botToken,
+        commandName,
+        optionName: DISCORD_OPTION_NAME,
+        description: DISCORD_COMMAND_DESCRIPTION,
+      });
+      return NextResponse.json({
+        ...rest,
+        hasCredentials: true,
+        webhookSet: true,
+        discordCommand: `/${commandName}`,
+        webhookUrl, // el operador la pega en Discord → Interactions Endpoint URL
+      });
+    } catch (e) {
+      return NextResponse.json({
+        ...rest,
+        hasCredentials: true,
+        webhookSet: false,
+        webhookUrl,
         error: e instanceof Error ? e.message : String(e),
       });
     }
