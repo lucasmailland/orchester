@@ -25,3 +25,24 @@ it("refuses nonmatching IDs and usernames", () => {
   expect(isSenderAllowed(["u_test"], { id: "U_TEST" })).toBe(false);
   expect(isSenderAllowed(["@1234567"], { id: "1234567" })).toBe(false);
 });
+
+it("never lets a username stand in for an ID-shaped entry", () => {
+  // A Discord username may be digits only and is freely changeable, so without
+  // this an attacker renames themselves to an allowlisted user's ID and walks
+  // in. Telegram usernames cannot be numeric, so nothing is lost there.
+  expect(
+    isSenderAllowed(["402831774391369738"], {
+      id: "999999999999999999",
+      username: "402831774391369738",
+    })
+  ).toBe(false);
+  // The real owner of that ID still gets in.
+  expect(isSenderAllowed(["402831774391369738"], { id: "402831774391369738" })).toBe(true);
+  // Negative Telegram group IDs are ID-shaped too.
+  expect(isSenderAllowed(["-1001234567890"], { id: "42", username: "-1001234567890" })).toBe(false);
+});
+
+it("still matches a username that only looks a bit like a number", () => {
+  // Four digits is a plausible nickname, not an account ID.
+  expect(isSenderAllowed(["1984"], { id: "42", username: "1984" })).toBe(true);
+});

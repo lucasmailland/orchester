@@ -64,11 +64,22 @@ export function verifyDiscordSignature(params: {
   signatureHeader: string | null;
   timestampHeader: string | null;
   rawBody: string;
+  /** Replay window in seconds. Default 5 minutes, same as the Slack adapter. */
+  toleranceSeconds?: number;
 }): boolean {
   const { publicKey, signatureHeader, timestampHeader, rawBody } = params;
   if (!signatureHeader || !timestampHeader) return false;
   if (!/^[0-9a-fA-F]{128}$/.test(signatureHeader)) return false;
   if (!/^[0-9a-fA-F]{64}$/.test(publicKey)) return false;
+  // A signed request stays valid forever without this: the signature is
+  // deterministic and carries no nonce, so anyone who captures one request —
+  // from a proxy log, a trace with bodies — can replay it indefinitely. Each
+  // replay runs a full agent turn and bills for it, and the reply fails
+  // silently because the interaction token is long gone.
+  const timestamp = Number(timestampHeader);
+  if (!Number.isFinite(timestamp)) return false;
+  const tolerance = params.toleranceSeconds ?? 300;
+  if (Math.abs(Math.floor(Date.now() / 1000) - timestamp) > tolerance) return false;
   try {
     const key = crypto.createPublicKey({
       key: Buffer.concat([ED25519_SPKI_PREFIX, Buffer.from(publicKey, "hex")]),
@@ -153,7 +164,12 @@ export async function discordEditReply(
     {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ content: truncateForDiscord(content) }),
+      body: JSON.stringify({
+        content: truncateForDiscord(content),
+        // The content is whatever the agent wrote. Without this, an "@everyone"
+        // in that text pings the whole server with the bot's permissions.
+        allowed_mentions: { parse: [] },
+      }),
     },
     DISCORD_TIMEOUT_MS
   );
@@ -184,7 +200,12 @@ export async function discordPostToChannel(
         authorization: `Bot ${botToken}`,
         "content-type": "application/json",
       },
-      body: JSON.stringify({ content: truncateForDiscord(body) }),
+      body: JSON.stringify({
+        content: truncateForDiscord(body),
+        // Only the one person this reply answers gets pinged — never a role,
+        // never @everyone, whatever the operator typed.
+        allowed_mentions: { parse: [], users: mentionUserId ? [mentionUserId] : [] },
+      }),
     },
     DISCORD_TIMEOUT_MS
   );
@@ -204,6 +225,19 @@ export const DISCORD_DEFAULT_COMMAND = "orchester";
  */
 export const DISCORD_OPTION_NAME = "message";
 export const DISCORD_COMMAND_DESCRIPTION = "Ask the agent connected to this channel";
+
+/**
+ * Whether answers are posted for the whole channel to read.
+ *
+ * Default false: the answer carries whatever the agent pulled out of the
+ * workspace, and a Discord interaction's visibility is fixed when it is
+ * deferred — it cannot be made private later. Public is an explicit choice.
+ */
+export function discordRepliesArePublic(
+  config: Record<string, unknown> | null | undefined
+): boolean {
+  return config?.["publicReplies"] === true;
+}
 
 /** The command name this channel answers to. */
 export function discordCommandName(config: Record<string, unknown> | null | undefined): string {

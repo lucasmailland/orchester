@@ -1214,6 +1214,8 @@
       "allowlistDiscord": "Usá un ID de usuario de Discord (clic derecho en un miembro → Copiar ID de usuario, con el Modo desarrollador activado). También sirve el nombre de usuario.",
       "discordCommandLabel": "Nombre del comando",
       "discordCommandHelp": "La gente escribe /nombre seguido de su pregunta. Sólo minúsculas, dígitos, - y _.",
+      "discordPublicRepliesLabel": "Publicar las respuestas para todo el canal",
+      "discordPublicRepliesHelp": "Apagado por defecto: una respuesta puede traer datos del workspace, y Discord fija la visibilidad al enviarla, así que después no se puede volver privada.",
       "discordApplicationIdLabel": "Application ID",
       "discordPublicKeyLabel": "Clave pública",
       "discordBotTokenLabel": "Token del bot",

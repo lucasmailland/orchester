@@ -9,5 +9,7 @@ export const channelConfigSchema = z
       .trim()
       .regex(/^[-_a-z0-9]{1,32}$/, "Lowercase letters, digits, - and _ only; up to 32 characters")
       .optional(),
+    /** Discord: post answers for the whole channel to read. Default private. */
+    publicReplies: z.boolean().optional(),
   })
   .catchall(z.unknown());

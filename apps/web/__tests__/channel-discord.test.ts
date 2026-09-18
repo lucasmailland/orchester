@@ -31,7 +31,8 @@ function sign(privateKey: crypto.KeyObject, timestamp: string, body: string) {
 
 describe("verifyDiscordSignature", () => {
   const { privateKey, publicKeyHex } = keypair();
-  const timestamp = "1700000000";
+  // Within the replay window, which is checked against the wall clock.
+  const timestamp = String(Math.floor(Date.now() / 1000));
   const rawBody = JSON.stringify({ type: 1 });
 
   it("accepts a request Discord actually signed", () => {
@@ -75,7 +76,56 @@ describe("verifyDiscordSignature", () => {
       verifyDiscordSignature({
         publicKey: publicKeyHex,
         signatureHeader: sign(privateKey, timestamp, rawBody),
-        timestampHeader: "1700000001",
+        timestampHeader: String(Number(timestamp) + 1),
+        rawBody,
+      })
+    ).toBe(false);
+  });
+
+  it("rejects a correctly signed request that is too old to still be live", () => {
+    // A signature never decays on its own: without a window, one captured
+    // request can be replayed forever, each replay running a full agent turn.
+    const old = String(Math.floor(Date.now() / 1000) - 301);
+    expect(
+      verifyDiscordSignature({
+        publicKey: publicKeyHex,
+        signatureHeader: sign(privateKey, old, rawBody),
+        timestampHeader: old,
+        rawBody,
+      })
+    ).toBe(false);
+  });
+
+  it("accepts a request from inside the window", () => {
+    const recent = String(Math.floor(Date.now() / 1000) - 299);
+    expect(
+      verifyDiscordSignature({
+        publicKey: publicKeyHex,
+        signatureHeader: sign(privateKey, recent, rawBody),
+        timestampHeader: recent,
+        rawBody,
+      })
+    ).toBe(true);
+  });
+
+  it("rejects a clock far in the future as readily as one in the past", () => {
+    const ahead = String(Math.floor(Date.now() / 1000) + 400);
+    expect(
+      verifyDiscordSignature({
+        publicKey: publicKeyHex,
+        signatureHeader: sign(privateKey, ahead, rawBody),
+        timestampHeader: ahead,
+        rawBody,
+      })
+    ).toBe(false);
+  });
+
+  it("rejects a timestamp that is not a number", () => {
+    expect(
+      verifyDiscordSignature({
+        publicKey: publicKeyHex,
+        signatureHeader: sign(privateKey, "later", rawBody),
+        timestampHeader: "later",
         rawBody,
       })
     ).toBe(false);
@@ -232,7 +282,12 @@ describe("outbound calls", () => {
     expect(init.method).toBe("PATCH");
     // The interaction token is the credential here; a bot token would be a leak.
     expect(init.headers).not.toHaveProperty("authorization");
-    expect(JSON.parse(init.body)).toEqual({ content: "the answer" });
+    // No mentions parsed: the content is whatever the agent wrote, and an
+    // "@everyone" in it would otherwise ping the whole server.
+    expect(JSON.parse(init.body)).toEqual({
+      content: "the answer",
+      allowed_mentions: { parse: [] },
+    });
   });
 
   it("truncates an over-long reply before sending it", async () => {
@@ -250,7 +305,19 @@ describe("outbound calls", () => {
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("https://discord.com/api/v10/channels/chan-1/messages");
     expect(init.headers.authorization).toBe("Bot bot-token");
-    expect(JSON.parse(init.body).content).toBe("<@user-9> here you go");
+    expect(JSON.parse(init.body)).toEqual({
+      content: "<@user-9> here you go",
+      // Only the person being answered gets pinged, never a role or @everyone.
+      allowed_mentions: { parse: [], users: ["user-9"] },
+    });
+  });
+
+  it("pings nobody at all when the reply names nobody", async () => {
+    await discordPostToChannel("bot-token", "chan-1", "@everyone look at this");
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body).allowed_mentions).toEqual({
+      parse: [],
+      users: [],
+    });
   });
 
   it("posts without a mention when nobody is named", async () => {

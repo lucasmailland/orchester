@@ -466,6 +466,7 @@ function ConnectedChannelRow({
       ? (channel.config["commandName"] as string)
       : "orchester"
   );
+  const [publicReplies, setPublicReplies] = useState(channel.config["publicReplies"] === true);
   const [saving, setSaving] = useState(false);
   const [agentId, setAgentId] = useState(channel.agentId ?? "");
   const [copied, setCopied] = useState<string | null>(null);
@@ -543,31 +544,35 @@ function ConnectedChannelRow({
     const credentials = {
       applicationId: discordCreds.applicationId.trim(),
       publicKey: discordCreds.publicKey.trim(),
-      botToken: discordCreds.botToken.trim(),
     };
-    if (!credentials.applicationId || !credentials.publicKey || !credentials.botToken) {
+    const botToken = discordCreds.botToken.trim();
+    const typedAny = Boolean(credentials.applicationId || credentials.publicKey || botToken);
+    const typedAll = Boolean(credentials.applicationId && credentials.publicKey && botToken);
+    // Leaving the three fields empty on a channel that already has credentials
+    // means "only save the settings" — the server re-registers the command with
+    // the stored token, so renaming it does not need the token pasted again.
+    if (typedAny ? !typedAll : !channel.hasCredentials) {
       return toast.error(t("discordAllFieldsRequired"));
     }
     setSaving(true);
-    // The command name lives in config and the registration reads it back, so it
-    // has to be saved before the credentials trigger the registration call.
-    const configResponse = await fetch(`/api/channels/${channel.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ config: { commandName: commandName.trim() } }),
-    });
-    if (!configResponse.ok) {
-      setSaving(false);
-      return toast.error(t("discordInvalidCommand"));
+    const body: Record<string, unknown> = {
+      config: { commandName: commandName.trim(), publicReplies },
+    };
+    if (typedAll) {
+      body["credentials"] = {
+        applicationId: credentials.applicationId,
+        publicKey: credentials.publicKey,
+        botToken,
+      };
     }
     const r = await fetch(`/api/channels/${channel.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ credentials }),
+      body: JSON.stringify(body),
     });
     setSaving(false);
+    if (!r.ok) return toast.error(t("discordInvalidCommand"));
     const j = await r.json();
-    if (!r.ok) return toast.error(t("saveError"));
     if (j.error) toast.error(j.error);
     else toast.success(t("discordCommandRegistered", { command: j.discordCommand }));
     setDiscordCreds({ applicationId: "", publicKey: "", botToken: "" });
@@ -827,6 +832,18 @@ function ConnectedChannelRow({
                   />
                 </div>
               ))}
+              <label className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={publicReplies}
+                  onChange={(e) => setPublicReplies(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="block text-muted">{t("discordPublicRepliesLabel")}</span>
+                  <span className="block text-faint">{t("discordPublicRepliesHelp")}</span>
+                </span>
+              </label>
               <button
                 type="button"
                 onClick={saveDiscordCreds}

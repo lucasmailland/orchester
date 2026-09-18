@@ -4,6 +4,7 @@ import { schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
 import { handleInbound } from "@/lib/channels/router";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
+import { safeLogError } from "@/lib/safe-log";
 import {
   DISCORD_APPLICATION_COMMAND,
   DISCORD_DEFERRED_REPLY,
@@ -15,6 +16,7 @@ import {
   decodeDiscordCredentials,
   discordCommandName,
   discordEditReply,
+  discordRepliesArePublic,
   interactionSender,
   interactionText,
   verifyDiscordSignature,
@@ -121,6 +123,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
   // Everything below runs after the deferred reply is already on its way.
   const conversationKey = `${interaction.channel_id ?? "dm"}:${sender.id}`;
   after(async () => {
+    const say = async (content: string) => {
+      try {
+        await discordEditReply(creds.applicationId, token, content);
+      } catch (e) {
+        // Nothing else reports this: the HTTP response went out long ago, and
+        // a swallowed failure here is a person left on "thinking…" forever.
+        safeLogError("Discord edit reply failed:", e);
+      }
+    };
     try {
       const result = await handleInbound(channel.workspaceId, {
         channelId: channel.id,
@@ -135,20 +146,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
           discordGuildId: interaction.guild_id,
         },
       });
-      await discordEditReply(
-        creds.applicationId,
-        token,
-        result.reply || "I have no answer for that."
-      );
+      await say(result.reply || "I have no answer for that.");
     } catch (e) {
-      // Without this the person is left looking at "thinking…" forever.
-      await discordEditReply(
-        creds.applicationId,
-        token,
-        `Something went wrong: ${e instanceof Error ? e.message : String(e)}`
-      ).catch(() => undefined);
+      // The message lands in a chat room, so it says nothing about what broke:
+      // the thrown error can carry a SQL statement, a provider's response body
+      // or an internal hostname. The detail goes to the log instead.
+      safeLogError("Discord inbound failed:", e);
+      await say("Something went wrong on my side. It has been logged.");
     }
   });
 
-  return NextResponse.json({ type: DISCORD_DEFERRED_REPLY });
+  return NextResponse.json({
+    type: DISCORD_DEFERRED_REPLY,
+    // Visibility is fixed here and cannot be changed by the later edit, so a
+    // channel that has not asked for public answers gets private ones.
+    ...(discordRepliesArePublic(channel.config) ? {} : { data: { flags: DISCORD_EPHEMERAL } }),
+  });
 }

@@ -11,6 +11,7 @@ import { slackAuthTest } from "@/lib/channels/slack";
 import {
   DISCORD_COMMAND_DESCRIPTION,
   DISCORD_OPTION_NAME,
+  decodeDiscordCredentials,
   discordCommandName,
   discordRegisterCommand,
 } from "@/lib/channels/discord";
@@ -164,11 +165,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // Discord: registrar el slash command cuando se actualizan las credenciales.
   // El Interactions Endpoint URL no se puede configurar por API — se devuelve
   // para que el operador lo pegue en el Developer Portal de Discord.
-  if (
-    row.type === "discord" &&
-    body.credentials?.["botToken"] &&
-    body.credentials?.["applicationId"]
-  ) {
+  // Renaming the command has to re-register it too, and a config-only PATCH
+  // carries no credentials — so fall back to the ones already stored rather
+  // than making the operator paste the bot token again to rename a command.
+  const discordCreds =
+    row.type === "discord"
+      ? body.credentials?.["botToken"] && body.credentials?.["applicationId"]
+        ? {
+            botToken: String(body.credentials["botToken"]),
+            applicationId: String(body.credentials["applicationId"]),
+          }
+        : decodeDiscordCredentials(row.credentialsEncrypted)
+      : null;
+  if (row.type === "discord" && discordCreds && (body.credentials || body.config)) {
     const commandName = discordCommandName(row.config);
     const webhookUrl = process.env["NEXT_PUBLIC_APP_URL"]
       ? `${process.env["NEXT_PUBLIC_APP_URL"]}/api/channels/discord/webhook/${row.secret}`
@@ -176,8 +185,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const { credentialsEncrypted, ...rest } = row;
     try {
       await discordRegisterCommand({
-        applicationId: String(body.credentials["applicationId"]),
-        botToken: String(body.credentials["botToken"]),
+        applicationId: discordCreds.applicationId,
+        botToken: discordCreds.botToken,
         commandName,
         optionName: DISCORD_OPTION_NAME,
         description: DISCORD_COMMAND_DESCRIPTION,

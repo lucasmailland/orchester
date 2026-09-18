@@ -1214,6 +1214,8 @@
       "allowlistDiscord": "Use a Discord user ID (right-click a member → Copy User ID, with Developer Mode on). Usernames work too.",
       "discordCommandLabel": "Command name",
       "discordCommandHelp": "People type /name followed by their question. Lowercase, digits, - and _ only.",
+      "discordPublicRepliesLabel": "Post answers for the whole channel",
+      "discordPublicRepliesHelp": "Off by default: an answer can carry workspace data, and Discord fixes a reply's visibility when it is sent, so it cannot be made private afterwards.",
       "discordApplicationIdLabel": "Application ID",
       "discordPublicKeyLabel": "Public key",
       "discordBotTokenLabel": "Bot token",
