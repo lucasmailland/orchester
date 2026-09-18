@@ -34,6 +34,7 @@ import { TemplatePicker } from "@/components/compass/TemplatePicker";
 import { TermDef } from "@/components/compass/TermDef";
 import { TourSpot } from "@/components/compass/TourSpot";
 import type { CompassTemplate, FlowTemplatePayload } from "@/lib/compass/templates";
+import { groupFlowsByStatus, type FlowStatus } from "@/lib/flows/group-by-status";
 import { useTemplateCreateFlow } from "@/lib/compass/use-template-create-flow";
 
 // Prefill captured from a TemplatePicker selection. Name + description seed
@@ -52,10 +53,16 @@ interface Item {
   id: string;
   name: string;
   description: string | null;
-  status: string;
+  status: FlowStatus;
   nodeCount: number;
   lastRunAt: string | null;
 }
+
+const STATUS_BADGE_CLASSES: Record<FlowStatus, string> = {
+  active: "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  paused: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  draft: "border-line text-muted",
+};
 
 export function FlowsListClient({ flows }: { flows: Item[] }) {
   const router = useRouter();
@@ -241,26 +248,42 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
           titleKey="compass.tours.flows.step3.title"
           bodyKey="compass.tours.flows.step3.body"
         >
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {flows.map((f) => (
-              <motion.button
-                key={f.id}
-                type="button"
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                onClick={() => router.push(`/${locale}/${workspaceSlug}/flows/${f.id}`)}
-                className="rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
-              >
-                <div className="mb-2 flex items-center gap-2">
-                  <Workflow className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-                  <span className="truncate font-medium text-strong">{f.name}</span>
+          <div className="space-y-6">
+            {groupFlowsByStatus(flows).map((group) => (
+              <section key={group.status} aria-labelledby={`flows-${group.status}-title`}>
+                <h2
+                  id={`flows-${group.status}-title`}
+                  className="mb-3 text-sm font-semibold text-strong"
+                >
+                  {t(`groups.${group.status}`, { count: group.flows.length })}
+                </h2>
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  {group.flows.map((f) => (
+                    <motion.button
+                      key={f.id}
+                      type="button"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      onClick={() => router.push(`/${locale}/${workspaceSlug}/flows/${f.id}`)}
+                      className="rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
+                    >
+                      <div className="mb-2 flex items-center gap-2">
+                        <Workflow className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                        <span className="truncate font-medium text-strong">{f.name}</span>
+                      </div>
+                      <p className="line-clamp-2 text-xs text-muted">{f.description ?? "—"}</p>
+                      <div className="mt-3 flex items-center justify-between text-[10px] text-faint">
+                        <span>{t("nodesLabel", { count: f.nodeCount })}</span>
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASSES[f.status]}`}
+                        >
+                          {t(`statuses.${f.status}`)}
+                        </span>
+                      </div>
+                    </motion.button>
+                  ))}
                 </div>
-                <p className="line-clamp-2 text-xs text-muted">{f.description ?? "—"}</p>
-                <div className="mt-3 flex items-center justify-between text-[10px] text-faint">
-                  <span>{t("nodesLabel", { count: f.nodeCount })}</span>
-                  <span className="uppercase tracking-wide">{f.status}</span>
-                </div>
-              </motion.button>
+              </section>
             ))}
           </div>
         </TourSpot>

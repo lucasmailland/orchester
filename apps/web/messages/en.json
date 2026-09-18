@@ -2263,6 +2263,16 @@
       "firstFlowTipTitle": "Tip for your first flow",
       "nodesLabel": "{count, plural, one {# step} other {# steps}}",
       "statusLabel": "Status",
+      "groups": {
+        "active": "Active · {count}",
+        "paused": "Paused · {count}",
+        "draft": "Drafts · {count}"
+      },
+      "statuses": {
+        "active": "Active",
+        "paused": "Paused",
+        "draft": "Draft"
+      },
       "neverRun": "Never run",
       "lastRunLabel": "Last run",
       "nextStepsTitle": "What to do next",
