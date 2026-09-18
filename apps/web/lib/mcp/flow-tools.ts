@@ -105,6 +105,7 @@ export const FLOW_TOOLS: McpToolDef[] = [
     description:
       "Devuelve un flujo completo: spec, pasos (con su propósito), conexiones, variables y estado.",
     access: "read",
+    domain: "flows",
     inputSchema: {
       type: "object",
       properties: { flowId: { type: "string" } },
@@ -146,6 +147,7 @@ export const FLOW_TOOLS: McpToolDef[] = [
     description:
       "Valida un flujo guardado (flowId) o un grafo sin guardar ({ nodes, edges, spec }). Devuelve errores y avisos.",
     access: "read",
+    domain: "flows",
     inputSchema: { type: "object", properties: { flowId: { type: "string" }, ...graphProps } },
     async handler(input, auth) {
       if (typeof input.flowId === "string" && input.flowId) {
@@ -166,7 +168,7 @@ export const FLOW_TOOLS: McpToolDef[] = [
     description:
       "Crea un flujo. Rechaza grafos con errores y devuelve los problemas; los avisos vuelven junto al flujo. status y enabled se ignoran al crear; usá update_flow para cambiarlos.",
     access: "write",
-    scope: "flows",
+    domain: "flows",
     inputSchema: {
       type: "object",
       properties: { name: { type: "string" }, ...graphProps },
@@ -188,7 +190,7 @@ export const FLOW_TOOLS: McpToolDef[] = [
     title: "Update a flow",
     description: "Actualiza campos de un flujo (parcial). Rechaza grafos con errores.",
     access: "write",
-    scope: "flows",
+    domain: "flows",
     inputSchema: {
       type: "object",
       properties: {
@@ -213,6 +215,7 @@ export const FLOW_TOOLS: McpToolDef[] = [
     description:
       "Estado, entrada, salida y error de una corrida, con sus pasos en orden. Los pasos guardan entradas y salidas tal cual: pueden contener datos sensibles del flujo.",
     access: "read",
+    domain: "flows",
     inputSchema: { type: "object", properties: { runId: { type: "string" } }, required: ["runId"] },
     async handler(input, auth) {
       return (await svc()).getFlowRun(actorOf(auth), str(input.runId, "runId"));
@@ -223,6 +226,7 @@ export const FLOW_TOOLS: McpToolDef[] = [
     title: "List flow runs",
     description: "Últimas corridas de un flujo, sin pasos. Default 20, máximo 100.",
     access: "read",
+    domain: "flows",
     inputSchema: {
       type: "object",
       properties: { flowId: { type: "string" }, limit: { type: "number" } },
@@ -241,7 +245,7 @@ export const FLOW_TOOLS: McpToolDef[] = [
     description:
       "Crea un webhook para el flujo y devuelve su URL. Es la única vez que se devuelve el secreto: guardalo donde corresponda.",
     access: "write",
-    scope: "flows",
+    domain: "flows",
     inputSchema: {
       type: "object",
       properties: { flowId: { type: "string" }, hmac: { type: "boolean" } },
@@ -264,6 +268,7 @@ export const FLOW_TOOLS: McpToolDef[] = [
     title: "List flow webhooks",
     description: "Webhooks de un flujo: id, fecha y si usa HMAC. Nunca devuelve secretos.",
     access: "read",
+    domain: "flows",
     inputSchema: {
       type: "object",
       properties: { flowId: { type: "string" } },

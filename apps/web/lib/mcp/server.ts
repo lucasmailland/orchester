@@ -18,6 +18,13 @@ import { FLOW_TOOLS, actorOf, FlowToolValidationError } from "./flow-tools";
  * framing JSON-RPC.
  */
 
+import {
+  missingScopeMessage,
+  scopesAllow,
+  type ScopeAccess,
+  type ScopeDomain,
+} from "@/lib/api-auth/scopes";
+
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 export const MCP_SERVER_INFO = { name: "orchester", version: "1.0.0" };
 
@@ -38,39 +45,11 @@ export interface McpToolDef {
   title: string;
   description: string;
   inputSchema: JsonSchema;
-  /** "read" siempre permitido; "write" requiere que la key NO sea readonly. */
-  access: "read" | "write";
-  /** Restringe la escritura al scope del dominio (ver `canWriteScope`). */
-  scope?: "flows";
+  access: ScopeAccess;
+  /** The area this tool belongs to. With `access`, it names the scope a key needs. */
+  domain: ScopeDomain;
   handler: (input: Record<string, unknown>, auth: McpAuth) => Promise<unknown>;
 }
-
-/**
- * Allowlist para escritura: una key puede escribir sólo si NO es readonly Y
- * (no tiene scopes — caso legacy/full — O tiene algún scope de escritura).
- * Evita el bug de blocklist donde `["agents:read"]` pasaba por no contener
- * literalmente "readonly".
- */
-function canWrite(auth: McpAuth): boolean {
-  if (auth.scopes.includes("readonly")) return false;
-  if (auth.scopes.length === 0) return true; // sin scopes = full (compat)
-  return auth.scopes.some((s) => s === "write" || s.endsWith(":write"));
-}
-
-/**
- * Flow tools use a stricter rule than `canWrite`: an `agents:write` key must
- * not be able to edit flows. Unscoped keys keep their legacy full access.
- */
-export function canWriteScope(auth: McpAuth, scope?: "flows"): boolean {
-  if (!scope) return canWrite(auth);
-  if (auth.scopes.includes("readonly")) return false;
-  if (auth.scopes.length === 0) return true;
-  return auth.scopes.includes("write") || auth.scopes.includes(`${scope}:write`);
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// Tool catalog
-// ─────────────────────────────────────────────────────────────────────────
 
 const TOOLS: McpToolDef[] = [
   {
@@ -79,6 +58,7 @@ const TOOLS: McpToolDef[] = [
     description:
       "Lista los agentes de IA del workspace con su rol, modelo y estado. Usá esto primero para descubrir con qué agentes podés chatear.",
     access: "read",
+    domain: "agents",
     inputSchema: { type: "object", properties: {} },
     async handler(_input, auth) {
       const db = getDb();
@@ -102,6 +82,7 @@ const TOOLS: McpToolDef[] = [
     description:
       "Envía un mensaje a un agente de Orchester y devuelve su respuesta. El agente usa su system prompt, modelo, tools y knowledge configurados. Consume tokens del proveedor del workspace.",
     access: "write",
+    domain: "agents",
     inputSchema: {
       type: "object",
       properties: {
@@ -144,6 +125,7 @@ const TOOLS: McpToolDef[] = [
     description:
       "Lista conversaciones recientes del workspace (cliente, agente, canal, estado, conteo de mensajes).",
     access: "read",
+    domain: "conversations",
     inputSchema: {
       type: "object",
       properties: {
@@ -181,6 +163,7 @@ const TOOLS: McpToolDef[] = [
     title: "Get a conversation transcript",
     description: "Devuelve el transcript completo (todos los mensajes) de una conversación.",
     access: "read",
+    domain: "conversations",
     inputSchema: {
       type: "object",
       properties: { conversationId: { type: "string", description: "ID de la conversación." } },
@@ -221,6 +204,7 @@ const TOOLS: McpToolDef[] = [
     description:
       "Búsqueda semántica (RAG) sobre una knowledge base del workspace. Devuelve los chunks más relevantes con su score.",
     access: "read",
+    domain: "knowledge",
     inputSchema: {
       type: "object",
       properties: {
@@ -244,6 +228,7 @@ const TOOLS: McpToolDef[] = [
     title: "List knowledge bases",
     description: "Lista las knowledge bases del workspace (id, nombre, conteo de documentos).",
     access: "read",
+    domain: "knowledge",
     inputSchema: { type: "object", properties: {} },
     async handler(_input, auth) {
       const db = getDb();
@@ -263,6 +248,7 @@ const TOOLS: McpToolDef[] = [
     title: "List flows",
     description: "Lista los flujos (workflows) del workspace que se pueden ejecutar.",
     access: "read",
+    domain: "flows",
     inputSchema: { type: "object", properties: {} },
     async handler(_input, auth) {
       const { listFlows } = await import("@/lib/flows/service");
@@ -276,6 +262,7 @@ const TOOLS: McpToolDef[] = [
     description:
       "Encola un flujo del workspace con un input opcional y devuelve { runId, status }. Consultá el resultado con get_flow_run.",
     access: "write",
+    domain: "flows",
     inputSchema: {
       type: "object",
       properties: {
@@ -303,6 +290,7 @@ const TOOLS: McpToolDef[] = [
     title: "List employees",
     description: "Lista los empleados del workspace (nombre, email, área, budget mensual).",
     access: "read",
+    domain: "employees",
     inputSchema: { type: "object", properties: {} },
     async handler(_input, auth) {
       const db = getDb();
@@ -325,6 +313,7 @@ const TOOLS: McpToolDef[] = [
     description:
       "Crea un nuevo agente conversacional en el workspace con nombre, rol, system prompt y modelo.",
     access: "write",
+    domain: "agents",
     inputSchema: {
       type: "object",
       properties: {
@@ -380,6 +369,7 @@ const TOOLS: McpToolDef[] = [
     description:
       "Trae los hechos más relevantes que la memoria del workspace tiene sobre la query. Usá esto para recordar preferencias del usuario, decisiones pasadas, contexto histórico o cualquier conocimiento durable extraído de conversaciones anteriores. Devuelve top-K facts con score, subject, kind y statement.",
     access: "read",
+    domain: "memory",
     inputSchema: {
       type: "object",
       properties: {
@@ -444,6 +434,7 @@ const TOOLS: McpToolDef[] = [
     description:
       "Persiste un hecho durable nuevo en la memoria del workspace. Usalo cuando descubras información que valga la pena recordar a futuro (preferencias, decisiones, configuraciones aprendidas en la conversación). El fact entra al review queue con confidence='llm' y se vuelve buscable inmediatamente. Idempotente vía content-hash: re-enviar el mismo statement no duplica.",
     access: "write",
+    domain: "memory",
     inputSchema: {
       type: "object",
       properties: {
@@ -518,6 +509,7 @@ const TOOLS: McpToolDef[] = [
     description:
       "Marca un hecho como 'pinned' — protege de prune/forget automáticos y le da prioridad en recall. Usalo para conocimiento crítico que NO querés que el sistema olvide jamás.",
     access: "write",
+    domain: "memory",
     inputSchema: {
       type: "object",
       properties: {
@@ -540,6 +532,7 @@ const TOOLS: McpToolDef[] = [
     description:
       "Archiva un hecho — sale del recall pero queda en mnemo_fact_archive para auditoría y eventual restore. Usalo cuando descubras que un hecho aprendido era incorrecto, sensible o ya no aplica. NO destruye datos.",
     access: "write",
+    domain: "memory",
     inputSchema: {
       type: "object",
       properties: {
@@ -564,6 +557,7 @@ const TOOLS: McpToolDef[] = [
     description:
       "Devuelve los hechos más recientes (created/updated/archived) del workspace. Útil para diff: '¿qué aprendió mi IA esta semana?'. Default 20, max 100.",
     access: "read",
+    domain: "memory",
     inputSchema: {
       type: "object",
       properties: {
@@ -644,11 +638,11 @@ export async function callMcpTool(
       isError: true,
     };
   }
-  if (tool.access === "write" && !canWriteScope(auth, tool.scope)) {
+  // Reads are checked too. They were not before, so a key labelled "readonly"
+  // could read every agent, conversation and flow in the workspace.
+  if (!scopesAllow(auth.scopes, tool.domain, tool.access)) {
     return {
-      content: [
-        { type: "text", text: `La tool "${name}" requiere una API key con permiso de escritura.` },
-      ],
+      content: [{ type: "text", text: missingScopeMessage(tool.domain, tool.access) }],
       isError: true,
     };
   }

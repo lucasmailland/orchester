@@ -1415,7 +1415,22 @@
         "testWebhookOk": "Test event delivered",
         "testWebhookFailed": "Test delivery failed",
         "addWebhook": "Add webhook",
-        "apiHint": "Use your API key with"
+        "apiHint": "Use your API key with",
+        "scopesLegend": "Permissions",
+        "scopesHelp": "A key can only reach what you tick here. Granting write includes read.",
+        "scopeFullAccess": "full access",
+        "scopeDomain": {
+          "agents": "Agents",
+          "flows": "Flows",
+          "conversations": "Conversations",
+          "knowledge": "Knowledge",
+          "employees": "Employees",
+          "memory": "Memory"
+        },
+        "scopeAccess": {
+          "read": "read",
+          "write": "write"
+        }
       },
       "providers": {
         "loading": "Loading providers…",

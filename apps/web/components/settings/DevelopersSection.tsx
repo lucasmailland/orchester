@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Key, Plus, Copy, Check, Trash2, Webhook as WebhookIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
+import { cn } from "@/lib/utils";
+import { SCOPE_DOMAINS } from "@/lib/api-auth/scopes";
 
 interface ApiKey {
   id: string;
@@ -38,6 +40,9 @@ export function DevelopersSection() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [webhooks, setWebhooks] = useState<OutboundWebhook[]>([]);
   const [newKeyName, setNewKeyName] = useState("");
+  // Nothing preselected: a key's reach should be a decision, not a default
+  // somebody accepted without reading.
+  const [newKeyScopes, setNewKeyScopes] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [revealedKey, setRevealedKey] = useState<{ id: string; key: string } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -57,13 +62,28 @@ export function DevelopersSection() {
     load();
   }, []);
 
+  function toggleScope(scope: string) {
+    setNewKeyScopes((current) => {
+      if (current.includes(scope)) {
+        // Dropping write keeps read, which is what the server would infer anyway.
+        return current.filter((s) => s !== scope);
+      }
+      // Granting write grants read with it: a key that can rewrite a flow can
+      // obviously see it, and making somebody tick both is a footgun.
+      const domain = scope.split(":")[0];
+      return scope.endsWith(":write") && !current.includes(`${domain}:read`)
+        ? [...current, `${domain}:read`, scope]
+        : [...current, scope];
+    });
+  }
+
   async function createKey() {
     if (!newKeyName.trim()) return;
     setCreating(true);
     const r = await fetch("/api/api-keys", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: newKeyName }),
+      body: JSON.stringify({ name: newKeyName, scopes: newKeyScopes }),
     });
     setCreating(false);
     const j = await r.json();
@@ -193,6 +213,24 @@ export function DevelopersSection() {
                     ? t("lastUsed", { date: new Date(k.lastUsedAt).toLocaleDateString() })
                     : t("neverUsed")}
                 </div>
+                {/* What a key can reach is the thing you need when deciding
+                    whether to rotate it, so it is on the row, not behind a click. */}
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {k.scopes.length === 0 ? (
+                    <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">
+                      {t("scopeFullAccess")}
+                    </span>
+                  ) : (
+                    k.scopes.map((scope) => (
+                      <span
+                        key={scope}
+                        className="rounded-md border border-line px-1.5 py-0.5 font-mono text-[10px] text-muted"
+                      >
+                        {scope}
+                      </span>
+                    ))
+                  )}
+                </div>
               </div>
               {!k.revokedAt && (
                 <button
@@ -206,23 +244,58 @@ export function DevelopersSection() {
             </div>
           ))}
 
-          <div className="mt-2 flex items-center gap-2 border-t border-line pt-3">
-            <label htmlFor="api-key-name" className="sr-only">
-              {t("keyNameAria")}
-            </label>
-            <input
-              id="api-key-name"
-              name="api-key-name"
-              autoComplete="off"
-              value={newKeyName}
-              onChange={(e) => setNewKeyName(e.target.value)}
-              placeholder={t("keyNamePlaceholder")}
-              className="flex-1 rounded-lg border border-line bg-elevated px-3 py-1.5 text-xs text-strong outline-none focus:border-violet-500/60"
-            />
+          <div className="mt-2 space-y-3 border-t border-line pt-3">
+            <div className="flex items-center gap-2">
+              <label htmlFor="api-key-name" className="sr-only">
+                {t("keyNameAria")}
+              </label>
+              <input
+                id="api-key-name"
+                name="api-key-name"
+                autoComplete="off"
+                value={newKeyName}
+                onChange={(e) => setNewKeyName(e.target.value)}
+                placeholder={t("keyNamePlaceholder")}
+                className="flex-1 rounded-lg border border-line bg-elevated px-3 py-1.5 text-xs text-strong outline-none focus:border-violet-500/60"
+              />
+            </div>
+            <fieldset>
+              <legend className="text-xs text-muted">{t("scopesLegend")}</legend>
+              <p className="mt-0.5 text-[11px] text-faint">{t("scopesHelp")}</p>
+              <div className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-2">
+                {SCOPE_DOMAINS.map((domain) => (
+                  <div key={domain} className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-body">{t(`scopeDomain.${domain}`)}</span>
+                    <div className="flex gap-1">
+                      {(["read", "write"] as const).map((access) => {
+                        const scope = `${domain}:${access}`;
+                        const on = newKeyScopes.includes(scope);
+                        return (
+                          <button
+                            key={scope}
+                            type="button"
+                            aria-pressed={on}
+                            onClick={() => toggleScope(scope)}
+                            className={cn(
+                              "rounded-md border px-2 py-0.5 text-[11px]",
+                              on
+                                ? "border-violet-500/60 bg-violet-500/10 text-violet-700 dark:text-violet-200"
+                                : "border-line text-muted hover:text-body"
+                            )}
+                          >
+                            {t(`scopeAccess.${access}`)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </fieldset>
             <button
               type="button"
               onClick={createKey}
-              disabled={creating || !newKeyName.trim()}
+              disabled={creating || !newKeyName.trim() || newKeyScopes.length === 0}
               className="flex items-center gap-1 rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-400 disabled:opacity-40"
             >
               {creating ? (
