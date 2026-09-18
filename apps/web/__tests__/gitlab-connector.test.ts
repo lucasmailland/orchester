@@ -73,7 +73,7 @@ describe("gitlab connector", () => {
       })
     ).toMatchObject({ matches: [{ path: "src/a.ts", startline: 7, snippet: "match" }] });
     expect(calls[0]!.url).toBe(
-      `https://gitlab.example.com/api/v4/${scope}s/group%2Fproject%20%23%3F/search?scope=blobs&search=a+%26+b%2B%23&per_page=2&ref=feat%2Fa%23b`
+      `https://gitlab.example.com/api/v4/${scope}s/group%2Fproject%20%23%3F/search?scope=blobs&search=a+%26+b%2B%23&per_page=20&ref=feat%2Fa%23b`
     );
     expectGet(calls);
   });
@@ -164,21 +164,167 @@ describe("gitlab connector", () => {
     });
   });
   it.each([
-    [undefined, 20],
-    [999, 50],
-    [0, 1],
-    [NaN, 20],
-    [2.9, 2],
-  ])("bounds search limit %s to %s", async (limit, expected) => {
+    [undefined, 20, 80],
+    [999, 50, 100],
+    [0, 1, 20],
+    [NaN, 20, 80],
+    [2.9, 2, 20],
+  ])("bounds search limit %s to %s while fetching %s to rank", async (limit, expected, fetched) => {
     const calls = mockGitLab({
-      payload: Array.from({ length: 60 }, () => ({ path: "a", startline: 1, data: "x" })),
+      payload: Array.from({ length: 120 }, () => ({ path: "a", startline: 1, data: "x" })),
     });
     const out = (await run("search_code", { scope: "project", id: 12, query: "x", limit })) as {
       matches: unknown[];
     };
     expect(out.matches).toHaveLength(expected!);
-    expect(new URL(calls[0]!.url).searchParams.get("per_page")).toBe(String(expected));
+    expect(new URL(calls[0]!.url).searchParams.get("per_page")).toBe(String(fetched));
     expectGet(calls);
+  });
+  describe("search ranking", () => {
+    async function search(paths: string[], input: Record<string, unknown> = {}) {
+      mockGitLab({
+        payload: paths.map((path, index) => ({ path, startline: index + 1, data: path })),
+      });
+      return (await run("search_code", {
+        scope: "project",
+        id: "acme/widgets",
+        query: "invalid password",
+        ...input,
+      })) as { matches: { path: string; startline: number; snippet: string }[] };
+    }
+
+    it("ranks source before locales and fixtures without changing match fields", async () => {
+      const paths = ["locales/es-ES.json", "fixtures/rs_invalid_password.json", "src/auth.ts"];
+      expect(await search(paths)).toEqual({
+        matches: [2, 0, 1].map((index) => ({
+          path: paths[index],
+          startline: index + 1,
+          snippet: paths[index],
+        })),
+      });
+    });
+
+    it("preserves GitLab order within every tier", async () => {
+      const paths = [
+        "tests/z.ts",
+        "locales/z.ts",
+        "README.md",
+        "src/z.ts",
+        "src/a.py",
+        "LICENSE",
+        "config.json",
+        "src/a.test.ts",
+      ];
+      expect((await search(paths, { onlySource: false })).matches.map((row) => row.path)).toEqual([
+        "src/z.ts",
+        "src/a.py",
+        "README.md",
+        "LICENSE",
+        "locales/z.ts",
+        "config.json",
+        "tests/z.ts",
+        "src/a.test.ts",
+      ]);
+    });
+
+    it("onlySource drops data and tests but retains unclassified files", async () => {
+      const excluded = [
+        ...["json", "yaml", "yml", "toml", "xml", "csv", "lock"].map((ext) => `config.${ext}`),
+        ...[
+          "locales",
+          "i18n",
+          "translations",
+          "messages",
+          "fixtures",
+          "__fixtures__",
+          "snapshots",
+          "__snapshots__",
+        ].map((dir) => `src/${dir}/example.ts`),
+        ...["test", "tests", "spec", "__tests__"].map((dir) => `${dir}/example.ts`),
+        "src/auth.test.ts",
+        "src/auth.spec.js",
+        "tests/fixtures/example.json",
+      ];
+      const kept = ["src/auth.ts", "README.md", "src/contests.ts", "src/test/helpers.ts"];
+      expect(
+        (await search([...excluded, ...kept], { onlySource: true })).matches.map((row) => row.path)
+      ).toEqual(["src/auth.ts", "src/contests.ts", "README.md"]);
+    });
+
+    it.each([
+      "ts",
+      "tsx",
+      "js",
+      "jsx",
+      "mjs",
+      "cjs",
+      "py",
+      "go",
+      "rb",
+      "java",
+      "kt",
+      "php",
+      "cs",
+      "rs",
+      "sql",
+    ])("ranks .%s source files before unclassified files", async (ext) => {
+      expect(
+        (await search(["README.md", `src/auth.${ext}`])).matches.map((row) => row.path)
+      ).toEqual([`src/auth.${ext}`, "README.md"]);
+    });
+
+    it("applies limit after ranking so the last source match survives", async () => {
+      expect(
+        (await search(["locales/es-ES.json", "fixtures/error.json", "src/auth.ts"], { limit: 1 }))
+          .matches
+      ).toEqual([{ path: "src/auth.ts", startline: 3, snippet: "src/auth.ts" }]);
+    });
+
+    it("fetches past the caller's limit so a late source match can still rank first", async () => {
+      const paths = [...Array.from({ length: 19 }, (_, i) => `locales/m${i}.json`), "src/auth.ts"];
+      const calls = mockGitLab({
+        payload: paths.map((path, index) => ({ path, startline: index + 1, data: path })),
+      });
+      const out = (await run("search_code", {
+        scope: "project",
+        id: "acme/widgets",
+        query: "invalid password",
+        limit: 2,
+      })) as { matches: { path: string }[] };
+      expect(new URL(calls[0]!.url).searchParams.get("per_page")).toBe("20");
+      expect(out.matches.map((row) => row.path)).toEqual(["src/auth.ts", "locales/m0.json"]);
+    });
+
+    it("gives test markers precedence over data markers and matches whole directories", async () => {
+      const paths = [
+        "tests/fixtures/auth.json",
+        "locales/auth.ts",
+        "src/latest/auth.ts",
+        "src/auth.test/helpers.ts",
+      ];
+      expect((await search(paths)).matches.map((row) => row.path)).toEqual([
+        "src/latest/auth.ts",
+        "src/auth.test/helpers.ts",
+        "locales/auth.ts",
+        "tests/fixtures/auth.json",
+      ]);
+    });
+
+    it("returns test-only results unless onlySource is requested", async () => {
+      const paths = ["tests/auth.ts", "src/auth.spec.ts"];
+      expect((await search(paths)).matches.map((row) => row.path)).toEqual(paths);
+      expect((await search(paths, { onlySource: true })).matches).toEqual([]);
+    });
+
+    it("documents onlySource as an optional boolean defaulting to false", () => {
+      const schema = getConnector("gitlab")!.actions.search_code!.inputSchema;
+      expect(schema.properties.onlySource).toMatchObject({
+        type: "boolean",
+        default: false,
+        description: expect.stringContaining("data"),
+      });
+      expect(schema.required).not.toContain("onlySource");
+    });
   });
   it("decodes UTF-8 file text and encodes path and ref", async () => {
     const content = "Hello 🌍\n",

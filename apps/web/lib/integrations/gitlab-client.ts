@@ -99,6 +99,23 @@ export async function gitlabTest(config: Record<string, string>): Promise<void> 
   await get(config, "user");
 }
 
+function searchTier(path: string): number {
+  const filename = path.slice(path.lastIndexOf("/") + 1);
+  // A test or translation proves the string exists; the source proves where it comes from.
+  if (/(^|\/)(test|tests|spec|__tests__)\//.test(path) || /\.(test|spec)\./.test(filename)) {
+    return 4;
+  }
+  if (
+    /(^|\/)(locales|i18n|translations|messages|fixtures|__fixtures__|snapshots|__snapshots__)\//.test(
+      path
+    ) ||
+    /\.(json|yaml|yml|toml|xml|csv|lock)$/.test(filename)
+  ) {
+    return 3;
+  }
+  return /\.(ts|tsx|js|jsx|mjs|cjs|py|go|rb|java|kt|php|cs|rs|sql)$/.test(filename) ? 1 : 2;
+}
+
 export async function gitlabSearchCode(
   config: Record<string, string>,
   input: Record<string, unknown>
@@ -107,6 +124,9 @@ export async function gitlabSearchCode(
     throw new Error("GitLab search scope must be project or group.");
   }
   const limit = limitOf(input.limit);
+  // Rank what GitLab returns, not what fits: the source file is often further down the
+  // page than the caller's limit, so fetch a wider page and let the tiers pick from it.
+  const fetchSize = Math.min(100, Math.max(limit * 4, 20));
   const { data } = await get<
     {
       path: string;
@@ -120,11 +140,15 @@ export async function gitlabSearchCode(
   >(config, `${input.scope}s/${segment(input.id, "id")}/search`, {
     scope: "blobs",
     search: requiredText(input.query, "query"),
-    per_page: String(limit),
+    per_page: String(fetchSize),
     ...optionalParams(input, ["ref"]),
   });
+  const ranked = data
+    .map((row) => ({ row, tier: searchTier(row.path) }))
+    .filter(({ tier }) => input.onlySource !== true || tier <= 2)
+    .sort((a, b) => a.tier - b.tier);
   return {
-    matches: data.slice(0, limit).map((row) => {
+    matches: ranked.slice(0, limit).map(({ row }) => {
       const projectId =
         row.project_id !== undefined
           ? String(row.project_id)
@@ -204,6 +228,9 @@ export async function gitlabListCommits(
   input: Record<string, unknown>
 ) {
   const limit = limitOf(input.limit);
+  // Rank what GitLab returns, not what fits: the source file is often further down the
+  // page than the caller's limit, so fetch a wider page and let the tiers pick from it.
+  const fetchSize = Math.min(100, Math.max(limit * 4, 20));
   const { data } = await get<Commit[]>(
     config,
     `projects/${segment(input.project, "project")}/repository/commits`,
