@@ -71,11 +71,97 @@ describe("gitlab connector", () => {
         ref: "feat/a#b",
         limit: 2,
       })
-    ).toEqual({ matches: [{ path: "src/a.ts", startline: 7, snippet: "match" }] });
+    ).toMatchObject({ matches: [{ path: "src/a.ts", startline: 7, snippet: "match" }] });
     expect(calls[0]!.url).toBe(
       `https://gitlab.example.com/api/v4/${scope}s/group%2Fproject%20%23%3F/search?scope=blobs&search=a+%26+b%2B%23&per_page=2&ref=feat%2Fa%23b`
     );
     expectGet(calls);
+  });
+  it("returns each group match's project and chains numeric IDs into read actions", async () => {
+    const calls = mockGitLab(
+      {
+        payload: [
+          { path: "src/a.ts", startline: 7, data: "match", project_id: 12 },
+          { path: "src/b.ts", startline: 8, data: "match", project_id: 34 },
+        ],
+      },
+      { payload: { content: "eA==", encoding: "base64", size: 1 } },
+      { payload: [] }
+    );
+    const out = (await run("search_code", { scope: "group", id: "acme", query: "match" })) as {
+      matches: { projectId: string; path: string }[];
+    };
+    expect(out.matches).toEqual([
+      { path: "src/a.ts", startline: 7, snippet: "match", projectId: "12" },
+      { path: "src/b.ts", startline: 8, snippet: "match", projectId: "34" },
+    ]);
+    await run("read_file", { project: out.matches[0]!.projectId, path: out.matches[0]!.path });
+    await run("list_commits", { project: out.matches[1]!.projectId });
+    expect(calls[1]!.url).toContain("/projects/12/repository/files/");
+    expect(calls[2]!.url).toContain("/projects/34/repository/commits?");
+    expect(calls).toHaveLength(3);
+  });
+  it.each([12, "12"])(
+    "preserves numeric project scope %s without response metadata",
+    async (id) => {
+      const calls = mockGitLab({ payload: [{ path: "a.ts", startline: 1, data: "x" }] });
+      expect(await run("search_code", { scope: "project", id, query: "x" })).toEqual({
+        matches: [{ path: "a.ts", startline: 1, snippet: "x", projectId: "12" }],
+      });
+      expect(calls).toHaveLength(1);
+    }
+  );
+  it("returns the API project ID for a project selected by namespace", async () => {
+    mockGitLab({ payload: [{ path: "a.ts", startline: 1, data: "x", project_id: 12 }] });
+    expect(
+      await run("search_code", { scope: "project", id: "acme/widgets", query: "x" })
+    ).toMatchObject({ matches: [{ projectId: "12" }] });
+  });
+  it("builds links only with a project path, file path and known ref", async () => {
+    // Optional project.path_with_namespace and ref are assumed response extensions.
+    const project = { path_with_namespace: "acme/widgets" };
+    const calls = mockGitLab({
+      payload: [
+        { path: "src/a #?.ts", startline: 7, data: "x", project_id: 12, project, ref: "feat/a#b" },
+        { path: "b.ts", startline: 1, data: "x", project_id: 12, project },
+        { path: "c.ts", startline: 1, data: "x", project_id: 34, ref: "main" },
+      ],
+    });
+    const out = (await getConnector("gitlab")!.actions.search_code!.run(
+      { ...CONFIG, baseUrl: `${CONFIG.baseUrl}/gitlab/` },
+      { scope: "group", id: "acme", query: "x" }
+    )) as { matches: Record<string, unknown>[] };
+    expect(out.matches[0]).toEqual({
+      path: "src/a #?.ts",
+      startline: 7,
+      snippet: "x",
+      projectId: "12",
+      projectPath: "acme/widgets",
+      webUrl: `${CONFIG.baseUrl}/gitlab/acme/widgets/-/blob/feat%2Fa%23b/src/a%20%23%3F.ts`,
+    });
+    expect(out.matches[1]).toHaveProperty("projectPath", "acme/widgets");
+    expect(out.matches[1]).not.toHaveProperty("webUrl");
+    expect(out.matches[2]).not.toHaveProperty("projectPath");
+    expect(out.matches[2]).not.toHaveProperty("webUrl");
+    expect(calls).toHaveLength(1);
+  });
+  it("uses an explicit project search ref when the response has no ref", async () => {
+    mockGitLab({
+      payload: [
+        {
+          path: "a.ts",
+          startline: 1,
+          data: "x",
+          project_id: 12,
+          project: { path_with_namespace: "acme/widgets" },
+        },
+      ],
+    });
+    expect(
+      await run("search_code", { scope: "project", id: 12, query: "x", ref: "release" })
+    ).toMatchObject({
+      matches: [{ webUrl: `${CONFIG.baseUrl}/acme/widgets/-/blob/release/a.ts` }],
+    });
   });
   it.each([
     [undefined, 20],

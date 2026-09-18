@@ -1067,12 +1067,16 @@ const gitlab: Connector = {
   actions: {
     search_code: {
       description:
-        "Search project or group code; return path, startline and snippet. Group search requires advanced or exact code search. Ref support depends on the search backend.",
+        "Search project or group code; return path, startline, snippet and projectId (numeric ID as a string) for chaining into read_file or list_commits. Include projectPath when supplied and webUrl when the project path, file path and ref are known. Group search requires advanced or exact code search. Ref support depends on the search backend.",
       inputSchema: {
         type: "object",
         properties: {
           scope: { type: "string", enum: ["project", "group"] },
-          id: gitlabIdSchema,
+          id: {
+            ...gitlabIdSchema,
+            description:
+              "Project or group ID/path selected by scope. Each match carries its own projectId; pass that to read_file or list_commits, not the group ID.",
+          },
           query: { type: "string", minLength: 1 },
           ref: {
             type: "string",
@@ -1089,7 +1093,11 @@ const gitlab: Connector = {
       inputSchema: {
         type: "object",
         properties: {
-          project: gitlabIdSchema,
+          project: {
+            ...gitlabIdSchema,
+            description:
+              "Numeric ID or full namespace path. Accepts projectId from a search_code match.",
+          },
           path: { type: "string", minLength: 1 },
           ref: {
             type: "string",
@@ -1106,7 +1114,11 @@ const gitlab: Connector = {
       inputSchema: {
         type: "object",
         properties: {
-          project: gitlabIdSchema,
+          project: {
+            ...gitlabIdSchema,
+            description:
+              "Numeric ID or full namespace path. Accepts projectId from a search_code match.",
+          },
           path: { type: "string" },
           since: { type: "string", description: "ISO 8601 lower date bound." },
           until: { type: "string", description: "ISO 8601 upper date bound." },
