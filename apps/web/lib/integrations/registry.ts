@@ -1,5 +1,12 @@
 import "server-only";
 import {
+  gitlabTest,
+  gitlabSearchCode,
+  gitlabReadFile,
+  gitlabListCommits,
+  gitlabGetMergeRequest,
+} from "./gitlab-client";
+import {
   odooAuthenticate,
   odooExecute,
   htmlFromText,
@@ -883,6 +890,112 @@ const newrelic: Connector = {
   },
 };
 
+const gitlabIdSchema = {
+  anyOf: [
+    { type: "string", minLength: 1 },
+    { type: "integer", minimum: 1 },
+  ],
+  description: "Numeric ID or full namespace path.",
+};
+const gitlabLimitSchema = { type: "integer", minimum: 1, maximum: 50, default: 20 };
+
+const gitlab: Connector = {
+  id: "gitlab",
+  name: "GitLab",
+  description:
+    "Search code, read files, list commits and inspect merge requests. Read-only operations.",
+  category: "productivity",
+  authType: "token",
+  fields: [
+    {
+      key: "baseUrl",
+      label: "GitLab URL",
+      type: "url",
+      placeholder: "https://gitlab.com",
+      required: false,
+      help: "Defaults to https://gitlab.com. For self-managed GitLab, enter the instance URL without /api/v4.",
+    },
+    {
+      key: "token",
+      label: "Personal access token",
+      type: "password",
+      required: true,
+      help: "Create a personal access token with the read_api scope. Only GET requests are supported.",
+    },
+  ],
+  async test(config) {
+    try {
+      await gitlabTest(config);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  },
+  actions: {
+    search_code: {
+      description:
+        "Search project or group code; return path, startline and snippet. Group search requires advanced or exact code search. Ref support depends on the search backend.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          scope: { type: "string", enum: ["project", "group"] },
+          id: gitlabIdSchema,
+          query: { type: "string", minLength: 1 },
+          ref: {
+            type: "string",
+            description: "Optional branch or tag; supported by project search.",
+          },
+          limit: gitlabLimitSchema,
+        },
+        required: ["scope", "id", "query"],
+      },
+      run: gitlabSearchCode,
+    },
+    read_file: {
+      description: "Read UTF-8 file text and byte size. Files over 200 KiB are refused.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project: gitlabIdSchema,
+          path: { type: "string", minLength: 1 },
+          ref: {
+            type: "string",
+            default: "HEAD",
+            description: "Branch, tag or commit. Defaults to the default branch (HEAD).",
+          },
+        },
+        required: ["project", "path"],
+      },
+      run: gitlabReadFile,
+    },
+    list_commits: {
+      description: "List recent commit IDs, titles, author names and committed dates.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project: gitlabIdSchema,
+          path: { type: "string" },
+          since: { type: "string", description: "ISO 8601 lower date bound." },
+          until: { type: "string", description: "ISO 8601 upper date bound." },
+          limit: gitlabLimitSchema,
+        },
+        required: ["project"],
+      },
+      run: gitlabListCommits,
+    },
+    get_merge_request: {
+      description:
+        "Read merge request metadata and unique changed file paths, including both sides of renames. No diffs are returned; GitLab server diff limits apply.",
+      inputSchema: {
+        type: "object",
+        properties: { project: gitlabIdSchema, iid: { type: "integer", minimum: 1 } },
+        required: ["project", "iid"],
+      },
+      run: gitlabGetMergeRequest,
+    },
+  },
+};
+
 export const CONNECTORS: Record<string, Connector> = {
   stripe,
   notion,
@@ -893,6 +1006,7 @@ export const CONNECTORS: Record<string, Connector> = {
   google: googleWorkspace,
   odoo,
   newrelic,
+  gitlab,
 };
 
 export function getConnector(id: string): Connector | undefined {
