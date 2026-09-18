@@ -24,6 +24,7 @@ export const channelTypeEnum = pgEnum("channel_type", [
   "whatsapp",
   "telegram",
   "slack",
+  "discord",
   "email",
   "api",
 ]);

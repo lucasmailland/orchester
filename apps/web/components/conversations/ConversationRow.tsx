@@ -1,12 +1,20 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { MessageSquare, Globe, Phone, Hash, Mail, Code } from "lucide-react";
+import { MessageSquare, Globe, Phone, Hash, AtSign, Mail, Code } from "lucide-react";
 import { APPLE_EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 type ConvStatus = "open" | "closed" | "escalated";
-type ChannelType = "web" | "widget" | "whatsapp" | "telegram" | "slack" | "email" | "api";
+type ChannelType =
+  | "web"
+  | "widget"
+  | "whatsapp"
+  | "telegram"
+  | "slack"
+  | "discord"
+  | "email"
+  | "api";
 
 interface ConversationRowProps {
   employeeName: string | null;
@@ -40,6 +48,7 @@ const CHANNEL_ICONS: Record<ChannelType, React.ReactNode> = {
   whatsapp: <Phone size={11} />,
   telegram: <MessageSquare size={11} />,
   slack: <Hash size={11} />,
+  discord: <AtSign size={11} />,
   email: <Mail size={11} />,
   api: <Code size={11} />,
 };

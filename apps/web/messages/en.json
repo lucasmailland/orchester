@@ -1085,6 +1085,7 @@
         "whatsapp": "WhatsApp",
         "telegram": "Telegram",
         "slack": "Slack",
+        "discord": "Discord",
         "email": "Email",
         "api": "API"
       },
@@ -1189,6 +1190,10 @@
           "label": "Slack",
           "description": "Slash commands and DMs. (Requires Slack app)."
         },
+        "discord": {
+          "label": "Discord",
+          "description": "A slash command in your server. (Requires a Discord app)."
+        },
         "email": {
           "label": "Email",
           "description": "Virtual inbox with Resend / Postmark."
@@ -1206,6 +1211,18 @@
       "allowlistHelp": "An empty list allows everyone. Enter one sender per line.",
       "allowlistTelegram": "Use a Telegram chat ID or username (with or without @). A group chat ID allows everyone in that group.",
       "allowlistSlack": "Use a Slack user ID (U…) or channel ID (C…). A channel ID allows everyone in that channel.",
+      "allowlistDiscord": "Use a Discord user ID (right-click a member → Copy User ID, with Developer Mode on). Usernames work too.",
+      "discordCommandLabel": "Command name",
+      "discordCommandHelp": "People type /name followed by their question. Lowercase, digits, - and _ only.",
+      "discordApplicationIdLabel": "Application ID",
+      "discordPublicKeyLabel": "Public key",
+      "discordBotTokenLabel": "Bot token",
+      "discordReplacePlaceholder": "Saved — type a new value to replace it",
+      "discordAllFieldsRequired": "Application ID, public key and bot token are all required.",
+      "discordInvalidCommand": "That command name is not valid: lowercase, digits, - and _ only.",
+      "discordCommandRegistered": "{command} is registered. Paste the endpoint URL into Discord to finish.",
+      "discordEndpointLabel": "Interactions endpoint URL",
+      "discordEndpointHelp": "Paste this into your Discord application under General Information → Interactions Endpoint URL.",
       "allowlistWarning": "This channel is open to everyone and its agent has tools. Add allowed senders to restrict access.",
       "allowlistLimit": "Use at most 200 entries, with up to 256 characters each.",
       "allowlistSaved": "Allowed senders saved."

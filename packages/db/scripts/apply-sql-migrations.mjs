@@ -78,6 +78,7 @@ const MANIFEST = [
   ["0049_org_primitive.sql", "tabla org + columna workspace.org_id"],
   ["0054_pgboss_schema_grant.sql", "GRANT CREATE ON DATABASE — pg-boss crea su propio schema"],
   ["0055_flow_spec.sql", "columnas flow.spec y flow_version.spec (documentación del flujo)"],
+  ["0056_channel_type_discord.sql", "valor `discord` en el enum channel_type"],
   // Sin número: ajuste del deploy single-tenant, no historia de upstream.
   // 0049 deja `org` con FORCE RLS y sólo una política de SELECT, así que ningún
   // INSERT pasa y crear un workspace da 500. Ver el header del archivo.

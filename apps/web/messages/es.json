@@ -1085,6 +1085,7 @@
         "whatsapp": "WhatsApp",
         "telegram": "Telegram",
         "slack": "Slack",
+        "discord": "Discord",
         "email": "Email",
         "api": "API"
       },
@@ -1189,6 +1190,10 @@
           "label": "Slack",
           "description": "Slash commands y DMs. (Requiere Slack app)."
         },
+        "discord": {
+          "label": "Discord",
+          "description": "Un slash command en tu servidor. (Requiere una app de Discord)."
+        },
         "email": {
           "label": "Email",
           "description": "Inbox virtual con Resend / Postmark."
@@ -1206,6 +1211,18 @@
       "allowlistHelp": "Una lista vacía permite el acceso a todos. Ingresá un remitente por línea.",
       "allowlistTelegram": "Usá un ID de chat de Telegram o un nombre de usuario (con o sin @). Un ID de grupo permite el acceso a todos los miembros.",
       "allowlistSlack": "Usá un ID de usuario de Slack (U…) o de canal (C…). Un ID de canal permite el acceso a todos sus miembros.",
+      "allowlistDiscord": "Usá un ID de usuario de Discord (clic derecho en un miembro → Copiar ID de usuario, con el Modo desarrollador activado). También sirve el nombre de usuario.",
+      "discordCommandLabel": "Nombre del comando",
+      "discordCommandHelp": "La gente escribe /nombre seguido de su pregunta. Sólo minúsculas, dígitos, - y _.",
+      "discordApplicationIdLabel": "Application ID",
+      "discordPublicKeyLabel": "Clave pública",
+      "discordBotTokenLabel": "Token del bot",
+      "discordReplacePlaceholder": "Guardado — escribí un valor nuevo para reemplazarlo",
+      "discordAllFieldsRequired": "Hacen falta los tres: Application ID, clave pública y token del bot.",
+      "discordInvalidCommand": "Ese nombre de comando no es válido: sólo minúsculas, dígitos, - y _.",
+      "discordCommandRegistered": "{command} quedó registrado. Pegá la URL del endpoint en Discord para terminar.",
+      "discordEndpointLabel": "URL del endpoint de interacciones",
+      "discordEndpointHelp": "Pegala en tu app de Discord, en General Information → Interactions Endpoint URL.",
       "allowlistWarning": "Este canal está abierto a todos y su agente tiene herramientas. Agregá remitentes permitidos para restringir el acceso.",
       "allowlistLimit": "Ingresá hasta 200 entradas de hasta 256 caracteres cada una.",
       "allowlistSaved": "Remitentes permitidos guardados."
