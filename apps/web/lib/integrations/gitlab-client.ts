@@ -82,20 +82,48 @@ export async function gitlabSearchCode(
     throw new Error("GitLab search scope must be project or group.");
   }
   const limit = limitOf(input.limit);
-  const { data } = await get<{ path: string; startline: number; data: string }[]>(
-    config,
-    `${input.scope}s/${segment(input.id, "id")}/search`,
+  const { data } = await get<
     {
-      scope: "blobs",
-      search: requiredText(input.query, "query"),
-      per_page: String(limit),
-      ...optionalParams(input, ["ref"]),
-    }
-  );
+      path: string;
+      startline: number;
+      data: string;
+      project_id?: number;
+      // Optional response extensions; do not assume every search backend supplies them.
+      project?: { path_with_namespace?: string };
+      ref?: string;
+    }[]
+  >(config, `${input.scope}s/${segment(input.id, "id")}/search`, {
+    scope: "blobs",
+    search: requiredText(input.query, "query"),
+    per_page: String(limit),
+    ...optionalParams(input, ["ref"]),
+  });
   return {
-    matches: data
-      .slice(0, limit)
-      .map((row) => ({ path: row.path, startline: row.startline, snippet: row.data })),
+    matches: data.slice(0, limit).map((row) => {
+      const projectId =
+        row.project_id !== undefined
+          ? String(row.project_id)
+          : input.scope === "project" && /^[1-9]\d*$/.test(String(input.id))
+            ? String(input.id)
+            : undefined;
+      const projectPath = row.project?.path_with_namespace;
+      const ref =
+        row.ref || (input.scope === "project" ? (input.ref as string | undefined) : undefined);
+      const encodePath = (path: string) => path.split("/").map(encodeURIComponent).join("/");
+      const baseUrl = (config.baseUrl?.trim() || "https://gitlab.com").replace(/\/+$/, "");
+      const webUrl =
+        projectPath && row.path && ref
+          ? `${baseUrl}/${encodePath(projectPath)}/-/blob/${encodeURIComponent(ref)}/${encodePath(row.path)}`
+          : undefined;
+      return {
+        path: row.path,
+        startline: row.startline,
+        snippet: row.data,
+        ...(projectId !== undefined ? { projectId } : {}),
+        ...(projectPath ? { projectPath } : {}),
+        ...(webUrl ? { webUrl } : {}),
+      };
+    }),
   };
 }
 
