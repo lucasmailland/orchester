@@ -140,8 +140,8 @@ export interface LlmCallResult {
   toolCalls?: ToolUseBlock[];
   /**
    * Per-call usage broken down by cache state. Only populated for
-   * Anthropic (the only provider currently exposing prompt cache).
-   * Other providers leave it `undefined`.
+   * Anthropic (direct or Bedrock), and other Bedrock models when the
+   * response includes cache counters. Otherwise left `undefined`.
    */
   cacheUsage?: PromptCacheUsage;
 }
@@ -293,8 +293,6 @@ export function buildAnthropicSystem(
 
 /**
  * Encode our ChatMessage[] into Anthropic's content-block format.
- * Compartido por el API directo y por Bedrock: los dos hablan el mismo formato
- * de mensajes.
  */
 function toAnthropicMessages(p: LlmCallParams) {
   return p.messages
@@ -356,15 +354,7 @@ async function callAnthropic(
   return parseAnthropicResult(j, p.model);
 }
 
-/**
- * Cuerpo compartido por el API directo de Anthropic y por Bedrock.
- *
- * Los dos hablan el formato Messages y difieren SÓLO en cómo se selecciona el
- * modelo: el directo lo manda en el body como `model`; Bedrock lo lleva en la
- * URL y en su lugar exige `anthropic_version`. Todo lo demás —system con cache
- * boundary, tools, max_tokens, temperature— es idéntico, así que vive acá y no
- * duplicado en cada caller.
- */
+/** Build the direct Anthropic Messages request body. */
 function buildAnthropicBody(
   p: LlmCallParams,
   messages: unknown[],
@@ -430,7 +420,7 @@ function parseAnthropicResult(j: AnthropicResponse, model: string): LlmCallResul
   return result;
 }
 
-/** Forma de la respuesta del formato Messages (directo y Bedrock son iguales). */
+/** Response shape for the direct Anthropic Messages API. */
 interface AnthropicResponse {
   content?: Array<{ type: string; text?: string; id?: string; name?: string; input?: unknown }>;
   usage?: {
@@ -451,38 +441,166 @@ function bedrockBaseUrl(endpoint?: string | null): string {
   return `https://bedrock-runtime.${e}.amazonaws.com`;
 }
 
+/** Claude model IDs may include a geography prefix or an inference-profile ARN. */
+function isBedrockClaude(model: string): boolean {
+  return /(?:^|[.:/])anthropic\.claude-/.test(model);
+}
+
 /**
- * Chat vía Amazon Bedrock, autenticado con una **Bedrock API Key**
- * (`Authorization: Bearer ABSK…`) — no con credenciales IAM.
+ * Whether the model accepts `status` on a tool result.
  *
- * Por qué API Key y no IAM: firmar SigV4 exige `@aws-sdk/client-bedrock-runtime`,
- * una dependencia pesada que este repo no tiene y que sólo se usaría acá. La
- * Bedrock API Key es un simple bearer, así que Bedrock entra como cualquier otro
- * proveedor de `auth: "api_key"` — incluido el formulario del onboarding, que
- * antes no lo ofrecía justamente porque estaba declarado como `auth: "aws"`.
- *
- * Dos diferencias con el API directo, ambas verificadas contra el servicio real:
- *
- *  1. El modelo va en la URL, no en el body, y en su lugar el body exige
- *     `anthropic_version: "bedrock-2023-05-31"`.
- *  2. Los model id son **inference profiles** con prefijo de región
- *     (`us.anthropic.claude-opus-5`), no el id pelado. Invocar
- *     `anthropic.claude-…` directo devuelve ValidationException:
- *     "Invocation of model ID … with on-demand throughput isn't supported.
- *      Retry your request with the ID or ARN of an inference profile".
+ * AWS documents that field as supported only by Amazon Nova and Anthropic
+ * Claude 3 and 4. Sending it to a Llama or Mistral is a ValidationException on
+ * the first tool call that fails — which would break the agent loop for
+ * exactly the models this Converse migration exists to unlock. The error text
+ * is already in the result's content, so the flag costs nothing to drop.
  */
+function acceptsToolResultStatus(model: string): boolean {
+  return isBedrockClaude(model) || /(?:^|[.:/])amazon\.nova-/.test(model);
+}
+
+/** Map the internal chat/tool history to Bedrock's vendor-neutral Converse API. */
+function buildBedrockBody(p: LlmCallParams, noSampling: boolean): Record<string, unknown> {
+  // Reuse the boundary validation so the static prefix keeps its existing
+  // 5-minute cache lifetime. Other vendors must not receive Claude checkpoints.
+  const prompt = buildAnthropicSystem(
+    p.systemPrompt,
+    isBedrockClaude(p.model) ? p.systemPromptCacheBoundary : undefined
+  );
+  const system =
+    typeof prompt === "string"
+      ? prompt
+        ? [{ text: prompt }]
+        : []
+      : prompt.flatMap(
+          (block): Array<{ text: string } | { cachePoint: { type: "default" } }> => [
+            { text: block.text },
+            ...(block.cache_control ? [{ cachePoint: { type: "default" as const } }] : []),
+          ]
+        );
+  const messages = p.messages
+    .filter((m) => m.role !== "system")
+    .map((m) => {
+      if (m.role === "tool") {
+        return {
+          role: "user",
+          content: (m.toolResults ?? []).map((tr) => ({
+            toolResult: {
+              toolUseId: tr.id,
+              content: [
+                {
+                  text: tr.error
+                    ? `Error: ${tr.error}`
+                    : typeof tr.output === "string"
+                      ? tr.output
+                      : JSON.stringify(tr.output ?? null),
+                },
+              ],
+              ...(tr.error && acceptsToolResultStatus(p.model) ? { status: "error" } : {}),
+            },
+          })),
+        };
+      }
+      const content: Array<Record<string, unknown>> = [];
+      if (m.content) content.push({ text: m.content });
+      if (m.role === "assistant") {
+        for (const tc of m.toolCalls ?? []) {
+          content.push({ toolUse: { toolUseId: tc.id, name: tc.name, input: tc.input ?? {} } });
+        }
+      }
+      return { role: m.role, content };
+    })
+    // Converse rejects a message with no content blocks. An empty assistant or
+    // user turn carries nothing anyway, and the old Anthropic-shaped path got
+    // away with sending `content: ""`, which Converse will not take.
+    .filter((m) => m.content.length > 0);
+  return {
+    ...(system.length ? { system } : {}),
+    messages,
+    inferenceConfig: {
+      maxTokens: p.maxTokens ?? 1024,
+      ...(!noSampling ? { temperature: p.temperature ?? 0.7 } : {}),
+    },
+    ...(p.tools?.length
+      ? {
+          toolConfig: {
+            tools: p.tools.map((t) => ({
+              toolSpec: {
+                name: t.name,
+                description: t.description,
+                inputSchema: { json: t.inputSchema },
+              },
+            })),
+          },
+        }
+      : {}),
+  };
+}
+
+interface BedrockResponse {
+  output?: {
+    message?: {
+      content?: Array<{
+        text?: string;
+        toolUse?: { toolUseId: string; name: string; input?: unknown };
+      }>;
+    };
+  };
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    cacheWriteInputTokens?: number;
+    cacheReadInputTokens?: number;
+  };
+}
+
+function parseBedrockResult(j: BedrockResponse, model: string): LlmCallResult {
+  const blocks = j.output?.message?.content ?? [];
+  const usage = j.usage;
+  const toolCalls = blocks.flatMap((b) =>
+    b.toolUse
+      ? [
+          {
+            id: b.toolUse.toolUseId,
+            name: b.toolUse.name,
+            input: b.toolUse.input ?? {},
+          },
+        ]
+      : []
+  );
+  return {
+    content: blocks.map((b) => b.text ?? "").join(""),
+    // Keep the existing input + output total used by recordAiUsage/pricing.
+    tokensUsed: (usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0),
+    model,
+    ...(toolCalls.length ? { toolCalls } : {}),
+    ...(isBedrockClaude(model) ||
+    usage?.cacheWriteInputTokens !== undefined ||
+    usage?.cacheReadInputTokens !== undefined
+      ? {
+          cacheUsage: {
+            inputTokens: usage?.inputTokens ?? 0,
+            outputTokens: usage?.outputTokens ?? 0,
+            cacheCreationTokens: usage?.cacheWriteInputTokens ?? 0,
+            cacheReadTokens: usage?.cacheReadInputTokens ?? 0,
+          },
+        }
+      : {}),
+  };
+}
+
+/** Chat via Bedrock Converse, using the existing Bedrock API-key bearer auth. */
 async function callBedrock(
   p: LlmCallParams,
   apiKey: string,
   endpoint?: string | null,
   noSampling = false
 ): Promise<LlmCallResult> {
-  const body = buildAnthropicBody(p, toAnthropicMessages(p), noSampling);
-  body.anthropic_version = "bedrock-2023-05-31";
+  const body = buildBedrockBody(p, noSampling);
 
   // El id lleva `:` y `.` (ej. `us.anthropic.claude-haiku-4-5-20251001-v1:0`),
   // así que va escapado o el `:` rompe el path.
-  const url = `${bedrockBaseUrl(endpoint)}/model/${encodeURIComponent(p.model)}/invoke`;
+  const url = `${bedrockBaseUrl(endpoint)}/model/${encodeURIComponent(p.model)}/converse`;
 
   const j = await withRetry(async () => {
     const r = await fetchWithTimeout(
@@ -502,7 +620,7 @@ async function callBedrock(
     return r.json();
   });
 
-  return parseAnthropicResult(j, p.model);
+  return parseBedrockResult(j, p.model);
 }
 
 /** Encode our ChatMessage[] into OpenAI Chat Completions format (with tools). */
@@ -686,7 +804,7 @@ async function callAzure(
  * de texto a medida que el provider los manda. Implementaciones:
  *   - Anthropic: SSE con eventos `content_block_delta`/`message_delta`
  *   - OpenAI: SSE con `delta.content` parcial
- *   - Google + Azure: fall-through a llamada blocking + emit single chunk
+ *   - Google + Azure + Bedrock: fall-through a llamada blocking + emit single chunk
  *     (no soportan streaming en este iteration)
  *
  * El caller consume con:
@@ -712,7 +830,8 @@ export async function* llmStream(p: LlmCallParams): AsyncGenerator<LlmStreamChun
     yield* streamOpenAI(params, apiKey, resolved.provider.baseURL!);
     return;
   }
-  // Gemini / Azure → fallback blocking, un solo chunk al final.
+  // Gemini / Azure / Bedrock use the blocking fallback. Native Bedrock
+  // streaming requires decoding AWS binary event streams, not SSE.
   try {
     const result = await llmCall(p);
     if (result.content) yield { type: "text", delta: result.content };
