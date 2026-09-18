@@ -1078,6 +1078,12 @@ const gitlab: Connector = {
               "Project or group ID/path selected by scope. Each match carries its own projectId; pass that to read_file or list_commits, not the group ID.",
           },
           query: { type: "string", minLength: 1 },
+          onlySource: {
+            type: "boolean",
+            default: false,
+            description:
+              "Exclude data/config, translation, fixture, snapshot and test matches (default false). Retains source and unclassified files. Results are ranked source-first before applying limit.",
+          },
           ref: {
             type: "string",
             description: "Optional branch or tag; supported by project search.",
