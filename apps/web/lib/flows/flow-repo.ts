@@ -5,6 +5,8 @@ import { withWorkspaceTx } from "@/lib/tenant/context";
 import { appendAuditInTx, warnChainRotated } from "@/lib/audit/log";
 import type { FlowActor } from "./service";
 import type { AuditEntryInput } from "@/lib/audit/types";
+import { createId } from "@paralleldrive/cuid2";
+import { versionSnapshot } from "./versions";
 
 type Tx = Parameters<Parameters<typeof withWorkspaceTx>[1]>[0];
 
@@ -39,6 +41,48 @@ function repo(tx: Tx, onRotate: (seq: bigint) => void) {
           .set(patch)
           .where(and(eq(schema.flows.workspaceId, ws), eq(schema.flows.id, id)))
           .returning()
+      )[0],
+    /** Guarda el estado ACTUAL del flow como versión y devuelve el número nuevo. */
+    snapshotFlow: async (
+      flow: typeof schema.flows.$inferSelect,
+      ws: string,
+      label: string | null
+    ) => {
+      const actual = flow.version ?? 1;
+      await tx.insert(schema.flowVersions).values({
+        id: createId(),
+        flowId: flow.id,
+        workspaceId: ws,
+        version: actual,
+        label,
+        ...versionSnapshot(flow),
+      });
+      return actual + 1;
+    },
+    listVersions: (flowId: string, ws: string) =>
+      tx
+        .select({
+          id: schema.flowVersions.id,
+          version: schema.flowVersions.version,
+          label: schema.flowVersions.label,
+          createdAt: schema.flowVersions.createdAt,
+        })
+        .from(schema.flowVersions)
+        .where(and(eq(schema.flowVersions.workspaceId, ws), eq(schema.flowVersions.flowId, flowId)))
+        .orderBy(desc(schema.flowVersions.version)),
+    findVersion: async (versionId: string, flowId: string, ws: string) =>
+      (
+        await tx
+          .select()
+          .from(schema.flowVersions)
+          .where(
+            and(
+              eq(schema.flowVersions.workspaceId, ws),
+              eq(schema.flowVersions.flowId, flowId),
+              eq(schema.flowVersions.id, versionId)
+            )
+          )
+          .limit(1)
       )[0],
     findRun: async (id: string, ws: string) =>
       (

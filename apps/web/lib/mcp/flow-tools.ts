@@ -210,6 +210,48 @@ export const FLOW_TOOLS: McpToolDef[] = [
     },
   },
   {
+    name: "list_flow_versions",
+    title: "List flow versions",
+    description:
+      "Historial de un flujo, de la más nueva a la más vieja. Cada entrada dice quién la dejó. Se guarda una versión cada vez que cambia el grafo o el spec, no al pausar ni al renombrar.",
+    access: "read",
+    domain: "flows",
+    inputSchema: {
+      type: "object",
+      properties: { flowId: { type: "string" } },
+      required: ["flowId"],
+    },
+    async handler(input, auth) {
+      const versions = await (
+        await svc()
+      ).listFlowVersions(actorOf(auth), str(input.flowId, "flowId"));
+      return { versions };
+    },
+  },
+  {
+    name: "restore_flow_version",
+    title: "Restore a flow version",
+    description:
+      "Devuelve el flujo a una versión guardada: nodos, aristas, variables y spec. Deja su propia versión del estado descartado, así que restaurar también se puede deshacer.",
+    access: "write",
+    domain: "flows",
+    inputSchema: {
+      type: "object",
+      properties: { flowId: { type: "string" }, versionId: { type: "string" } },
+      required: ["flowId", "versionId"],
+    },
+    async handler(input, auth) {
+      const { flow, warnings } = await (
+        await svc()
+      ).restoreFlowVersion(
+        actorOf(auth),
+        str(input.flowId, "flowId"),
+        str(input.versionId, "versionId")
+      );
+      return { flow, warnings };
+    },
+  },
+  {
     name: "get_flow_run",
     title: "Get a flow run",
     description:
