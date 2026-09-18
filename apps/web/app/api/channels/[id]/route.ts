@@ -1,7 +1,8 @@
+import { channelConfigSchema } from "@/lib/channels/config";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDb, schema } from "@orchester/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { encrypt } from "@/lib/encryption";
@@ -14,7 +15,7 @@ const updateChannelSchema = z.object({
   name: z.string().optional(),
   status: z.enum(["active", "inactive"]).optional(),
   agentId: z.string().nullable().optional(),
-  config: z.record(z.string(), z.unknown()).optional(),
+  config: channelConfigSchema.optional(),
   // credentials es libre por canal (botToken/signingSecret/etc.). No se loguea.
   credentials: z
     .object({
@@ -54,7 +55,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (body.name !== undefined) set.name = body.name;
   if (body.status !== undefined) set.status = body.status;
   if (body.agentId !== undefined) set.agentId = body.agentId || null;
-  if (body.config !== undefined) set.config = body.config;
+  if (body.config !== undefined) {
+    // Preserve access restrictions when updating unrelated config fields.
+    set.config = sql`coalesce(${schema.channels.config}, '{}'::jsonb) || ${JSON.stringify(body.config)}::jsonb`;
+  }
 
   // For credentials: accept plaintext, encrypt and store. For Telegram, also auto-config webhook.
   if (body.credentials !== undefined) {

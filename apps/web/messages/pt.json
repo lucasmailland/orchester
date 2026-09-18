@@ -1201,7 +1201,14 @@
           "label": "Web Widget",
           "description": "Alias de Widget."
         }
-      }
+      },
+      "allowlistLabel": "Remetentes permitidos",
+      "allowlistHelp": "Uma lista vazia permite o acesso de todos. Insira um remetente por linha.",
+      "allowlistTelegram": "Use um ID de chat do Telegram ou nome de usuário (com ou sem @). Um ID de grupo permite o acesso de todos os membros.",
+      "allowlistSlack": "Use um ID de usuário do Slack (U…) ou de canal (C…). Um ID de canal permite o acesso de todos os membros.",
+      "allowlistWarning": "Este canal está aberto a todos e seu agente tem ferramentas. Adicione remetentes permitidos para restringir o acesso.",
+      "allowlistLimit": "Insira até 200 entradas com até 256 caracteres cada.",
+      "allowlistSaved": "Remetentes permitidos salvos."
     },
     "integrations": {
       "title": "Integrações",

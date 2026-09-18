@@ -1,3 +1,4 @@
+import { isSenderAllowed } from "@/lib/channels/allowlist";
 import { NextResponse } from "next/server";
 import { schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
@@ -83,6 +84,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
   }
   if (!ev.text || !ev.channel || !ev.user) {
     return NextResponse.json({ ok: true });
+  }
+
+  const allowed = channel.config?.allowedSenders as string[] | undefined;
+  if (!isSenderAllowed(allowed, { id: ev.user }) && !isSenderAllowed(allowed, { id: ev.channel })) {
+    try {
+      await slackSend(
+        creds.botToken,
+        ev.channel,
+        `You do not have access. Your ID: ${ev.user}.`,
+        ev.thread_ts ?? ev.ts
+      );
+      return NextResponse.json({ ok: true });
+    } catch {
+      return NextResponse.json({ ok: false, error: "Unable to send refusal" }, { status: 500 });
+    }
   }
 
   // UX: feedback inmediato al usuario antes de invocar el LLM (puede tardar

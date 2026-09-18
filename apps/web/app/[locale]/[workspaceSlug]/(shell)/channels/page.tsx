@@ -33,7 +33,12 @@ export default async function ChannelsPage({
         hasCredentials: Boolean(c.credentialsEncrypted),
         config: (c.config ?? {}) as Record<string, unknown>,
       }))}
-      agents={agents.map((a) => ({ id: a.id, name: a.name, status: a.status }))}
+      agents={agents.map((a) => ({
+        id: a.id,
+        name: a.name,
+        status: a.status,
+        hasTools: (a.tools?.length ?? 0) > 0,
+      }))}
     />
   );
 }

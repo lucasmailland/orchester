@@ -1,3 +1,4 @@
+import { channelConfigSchema } from "@/lib/channels/config";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
@@ -15,7 +16,7 @@ const createChannelSchema = z.object({
   agentId: z.string().optional(),
   // Optional seed config from a TemplatePicker selection (greeting, position, etc.).
   // Lands as-is into channels.config so the channel boots with a sensible default.
-  config: z.record(z.string(), z.unknown()).optional(),
+  config: channelConfigSchema.optional(),
 });
 
 export async function GET() {
