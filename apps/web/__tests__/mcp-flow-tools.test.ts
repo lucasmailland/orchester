@@ -75,7 +75,7 @@ describe("flow MCP tools", async () => {
     }
   });
 
-  it.each([["readonly"], ["agents:read"], ["agents:write"]])(
+  it.each([["readonly"], ["agents:read"], ["agents:write"], ["flows:read"]])(
     "write tools refuse a key with only %s",
     async (scope) => {
       const r = await call("create_flow", { name: "x" }, [scope]);
@@ -83,6 +83,22 @@ describe("flow MCP tools", async () => {
       expect(svc.createFlow).not.toHaveBeenCalled();
     }
   );
+
+  it.each([["readonly"], ["agents:read"], ["agents:write"]])(
+    "read tools refuse a key with only %s",
+    async (scope) => {
+      // Reads used to be waved through for any key at all, so "readonly" could
+      // read every flow, agent and conversation in the workspace.
+      const r = await call("get_flow", { flowId: "f1" }, [scope]);
+      expect(r.isError).toBe(true);
+      expect(svc.getFlow).not.toHaveBeenCalled();
+    }
+  );
+
+  it("a key that can write flows can read them without being told twice", async () => {
+    const r = await call("get_flow", { flowId: "f1" }, ["flows:write"]);
+    expect(r.isError).toBeFalsy();
+  });
 
   it.each([[[]], [["write"]], [["flows:write"]]])(
     "write tools accept scopes %j",
@@ -210,12 +226,12 @@ describe("flow MCP tools", async () => {
   });
 
   it("get_flow returns the spec and purposes", async () => {
-    const r = await call("get_flow", { flowId: "f1" }, ["readonly"]);
+    const r = await call("get_flow", { flowId: "f1" }, ["flows:read"]);
     expect(r.structuredContent).toMatchObject({ spec: "## Purpose", nodes: [{ purpose: "p" }] });
   });
 
   it("get_flow_run returns ordered steps with a readonly key", async () => {
-    const r = await call("get_flow_run", { runId: "r1" }, ["readonly"]);
+    const r = await call("get_flow_run", { runId: "r1" }, ["flows:read"]);
     expect(
       (r.structuredContent as { steps: Array<{ nodeId: string }> }).steps.map((s) => s.nodeId)
     ).toEqual(["a", "b"]);
@@ -226,7 +242,7 @@ describe("flow MCP tools", async () => {
     ["edges", "oops"],
     ["spec", 123],
   ])("validate_flow rejects invalid %s types", async (field, value) => {
-    const r = await call("validate_flow", { [field]: value }, ["readonly"]);
+    const r = await call("validate_flow", { [field]: value }, ["flows:read"]);
     expect(r.isError).toBe(true);
     expect(r.content[0]!.text).toContain(field);
     expect(r.content[0]!.text).toMatch(/expected (array|string)/i);
@@ -236,7 +252,7 @@ describe("flow MCP tools", async () => {
     const r = await call(
       "validate_flow",
       { nodes: [{ id: "z", type: "teleport", config: {} }], edges: [] },
-      ["readonly"]
+      ["flows:read"]
     );
     expect((r.structuredContent as { issues: unknown[] }).issues.length).toBeGreaterThan(0);
     expect(svc.validateFlowById).not.toHaveBeenCalled();
@@ -251,13 +267,13 @@ describe("flow MCP tools", async () => {
       url: "https://example.com/api/webhooks/s3cr3t",
       hmacKey: "k",
     });
-    const listed = await call("list_flow_webhooks", { flowId: "f1" }, ["readonly"]);
+    const listed = await call("list_flow_webhooks", { flowId: "f1" }, ["flows:read"]);
     expect(JSON.stringify(listed.structuredContent)).not.toContain("s3cr3t");
     expect(svc.listFlowWebhooks).toHaveBeenCalledWith(expect.anything(), "f1", { redact: true });
   });
 
   it("list_flows goes through the service", async () => {
-    await call("list_flows", {}, ["readonly"]);
+    await call("list_flows", {}, ["flows:read"]);
     expect(svc.listFlows).toHaveBeenCalled();
   });
 

@@ -1416,7 +1416,22 @@
         "testWebhookOk": "Evento de teste entregue",
         "testWebhookFailed": "A entrega de teste falhou",
         "addWebhook": "Adicionar webhook",
-        "apiHint": "Use sua API key com"
+        "apiHint": "Use sua API key com",
+        "scopesLegend": "Permissões",
+        "scopesHelp": "A chave só alcança o que você marcar aqui. Conceder escrita inclui leitura.",
+        "scopeFullAccess": "acesso total",
+        "scopeDomain": {
+          "agents": "Agentes",
+          "flows": "Flows",
+          "conversations": "Conversas",
+          "knowledge": "Conhecimento",
+          "employees": "Colaboradores",
+          "memory": "Memória"
+        },
+        "scopeAccess": {
+          "read": "ler",
+          "write": "escrever"
+        }
       },
       "providers": {
         "loading": "Carregando provedores…",
