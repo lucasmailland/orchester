@@ -223,6 +223,150 @@ describe("gitlab connector", () => {
     await expect(run("read_file", { project: 12, path: "large.txt" })).rejects.toThrow(/200 KiB/);
     expectGet(calls);
   });
+  it.each([
+    [100, undefined, 60, 140],
+    [-10, 2, 1, 3],
+    [9999, 2, 498, 500],
+    [250, 3, 247, 253],
+    [250, 999, 50, 450],
+    [250, 0, 250, 250],
+  ])("windows around %s with context %s", async (aroundLine, contextLines, fromLine, toLine) => {
+    const lines = Array.from({ length: 500 }, (_, i) => `line ${i + 1}`);
+    const content = lines.join("\n");
+    mockGitLab({
+      payload: {
+        content: Buffer.from(content).toString("base64"),
+        encoding: "base64",
+        size: content.length,
+      },
+    });
+    expect(
+      await run("read_file", {
+        project: "acme/widgets",
+        path: "service.ts",
+        aroundLine,
+        contextLines,
+      })
+    ).toEqual({
+      content: lines.slice(fromLine! - 1, toLine).join("\n"),
+      size: content.length,
+      fromLine,
+      toLine,
+      totalLines: 500,
+      truncated: true,
+    });
+  });
+  it.each(["first\r\nsecond\r\n", ""])("preserves line contents: %j", async (content) => {
+    mockGitLab({
+      payload: {
+        content: Buffer.from(content).toString("base64"),
+        encoding: "base64",
+        size: content.length,
+      },
+    });
+    expect(
+      await run("read_file", {
+        project: "acme/widgets",
+        path: "service.ts",
+        aroundLine: 1,
+      })
+    ).toEqual({
+      content,
+      size: content.length,
+      fromLine: 1,
+      toLine: content.split("\n").length,
+      totalLines: content.split("\n").length,
+      truncated: true,
+    });
+  });
+  it("ignores contextLines without aroundLine and adds no window fields", async () => {
+    const content = "first\r\nsecond\nlast\n";
+    mockGitLab({
+      payload: {
+        content: Buffer.from(content).toString("base64"),
+        encoding: "base64",
+        size: 999,
+      },
+    });
+    expect(
+      await run("read_file", {
+        project: "acme/widgets",
+        path: "service.ts",
+        contextLines: 0,
+      })
+    ).toEqual({ content, size: content.length });
+  });
+  it.each([true, false])(
+    "allows oversized windowed files (accurate metadata: %s)",
+    async (accurate) => {
+      const content = "a".repeat(204801) + "\nmatch\nlast";
+      mockGitLab({
+        payload: {
+          content: Buffer.from(content).toString("base64"),
+          encoding: "base64",
+          size: accurate ? content.length : 1,
+        },
+      });
+      expect(
+        await run("read_file", {
+          project: "acme/widgets",
+          path: "service.ts",
+          aroundLine: 2,
+          contextLines: 0,
+        })
+      ).toEqual({
+        content: "match",
+        size: content.length,
+        fromLine: 2,
+        toLine: 2,
+        totalLines: 3,
+        truncated: true,
+      });
+    }
+  );
+  it.each([undefined, "1", String(8 * 1024 * 1024 + 1)])(
+    "bounds streamed bytes regardless of Content-Length %s",
+    async (length) => {
+      const cancel = vi.fn();
+      let chunks = 0;
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          chunks++;
+          controller.enqueue(new Uint8Array(1024 * 1024).fill(32));
+          if (chunks === 12) controller.close();
+        },
+        cancel,
+      });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          async () =>
+            new Response(body, {
+              headers: length === undefined ? {} : { "content-length": length },
+            })
+        )
+      );
+      await expect(
+        run("read_file", {
+          project: "acme/widgets",
+          path: "service.ts",
+          aroundLine: 2,
+        })
+      ).rejects.toThrow(/8 MiB/);
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(chunks).toBeLessThan(12);
+    }
+  );
+  it("accepts a response exactly at the byte cap", async () => {
+    const payload = JSON.stringify({ content: "eA==", encoding: "base64", size: 1 });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(payload.padEnd(8 * 1024 * 1024)))
+    );
+    expect(
+      await run("read_file", { project: "acme/widgets", path: "service.ts", aroundLine: 1 })
+    ).toEqual({ content: "x", size: 1, fromLine: 1, toLine: 1, totalLines: 1, truncated: true });
+  });
   it("lists only commit summary fields with encoded filters", async () => {
     const commit = {
       id: "abcdef",

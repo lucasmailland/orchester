@@ -1089,7 +1089,8 @@ const gitlab: Connector = {
       run: gitlabSearchCode,
     },
     read_file: {
-      description: "Read UTF-8 file text and byte size. Files over 200 KiB are refused.",
+      description:
+        "Read UTF-8 file text and full-file byte size. Pass a search_code match's startline as aroundLine to return a line window with fromLine, toLine, totalLines and truncated: true. Whole-file reads are limited to 200 KiB; all responses are capped at 8 MiB including base64 and JSON.",
       inputSchema: {
         type: "object",
         properties: {
@@ -1099,6 +1100,19 @@ const gitlab: Connector = {
               "Numeric ID or full namespace path. Accepts projectId from a search_code match.",
           },
           path: { type: "string", minLength: 1 },
+          aroundLine: {
+            type: "integer",
+            description:
+              "Optional 1-based center line. Pass startline from a search_code match directly. Clamped to the first or last line when out of range.",
+          },
+          contextLines: {
+            type: "integer",
+            minimum: 0,
+            maximum: 200,
+            default: 40,
+            description:
+              "Lines before and after aroundLine (default 40, capped at 200). Ignored without aroundLine.",
+          },
           ref: {
             type: "string",
             default: "HEAD",
