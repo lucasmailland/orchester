@@ -98,11 +98,53 @@ describe("table", () => {
   };
 
   it("arma una tabla con encabezados a partir de las claves", () => {
-    expect(evaluateExpression("deploys | table", filas)).toBe(
-      "<table><thead><tr><th>hora</th><th>servicio</th><th>rev</th></tr></thead>" +
-        "<tbody><tr><td>14:02</td><td>auth-service</td><td>a3f21c</td></tr>" +
-        "<tr><td>14:31</td><td>auth-service</td><td>b19e04</td></tr></tbody></table>"
+    const salida = evaluateExpression("deploys | table", filas) as string;
+    expect(salida).toContain("<th style=");
+    expect(salida).toContain(">hora</th>");
+    expect(salida).toContain(">servicio</th>");
+    expect(salida).toContain(">rev</th>");
+    expect(salida).toContain(">14:02</td>");
+    expect(salida).toContain(">b19e04</td>");
+  });
+
+  it("lleva los bordes en el atributo style y no en clases", () => {
+    // Esto se embebe en HTML de otro: no hay hoja de estilos nuestra del otro
+    // lado, y una clase de Bootstrap sólo pinta si el destino usa Bootstrap.
+    const salida = evaluateExpression("deploys | table", filas) as string;
+    expect(salida).toContain("border-collapse:collapse");
+    expect(salida).toContain("border:1px solid");
+    expect(salida).not.toContain("class=");
+  });
+
+  describe("fechas legibles", () => {
+    it("convierte un epoch en una columna que se llama timestamp", () => {
+      const datos = { logs: [{ timestamp: 1789769424158, level: "info" }] };
+      expect(evaluateExpression("logs | table", datos)).toContain("2026-09-18 ");
+    });
+
+    it.each(["time", "date", "fecha", "hora", "created_at", "closedAt"])(
+      "también en una columna %s",
+      (col) => {
+        const datos = { logs: [{ [col]: 1789769424158 }] };
+        expect(evaluateExpression("logs | table", datos)).toContain("2026-09-18 ");
+      }
     );
+
+    it("no toca una cantidad que da la casualidad de ser grande", () => {
+      // Sin el chequeo del nombre, un contador se disfrazaría de fecha.
+      const datos = { filas: [{ count: 1789769424158 }] };
+      expect(evaluateExpression("filas | table", datos)).toContain(">1789769424158</td>");
+    });
+
+    it("no toca un número fuera del rango de épocas creíbles", () => {
+      const datos = { filas: [{ timestamp: 42 }] };
+      expect(evaluateExpression("filas | table", datos)).toContain(">42</td>");
+    });
+
+    it("deja en paz un instante que ya viene como texto", () => {
+      const datos = { filas: [{ timestamp: "2026-09-18T14:02:11Z" }] };
+      expect(evaluateExpression("filas | table", datos)).toContain(">2026-09-18T14:02:11Z</td>");
+    });
   });
 
   it("escapa el contenido, porque esto termina dentro de un campo HTML", () => {
@@ -116,18 +158,18 @@ describe("table", () => {
   it("no pierde una columna que le falta a una fila", () => {
     const dispar = { filas: [{ a: 1 }, { b: 2 }] };
     const salida = evaluateExpression("filas | table", dispar) as string;
-    expect(salida).toContain("<th>a</th><th>b</th>");
+    expect(salida).toMatch(/<th[^>]*>a<\/th><th[^>]*>b<\/th>/);
     // La celda ausente queda vacía, no dice "undefined".
-    expect(salida).toContain("<tr><td>1</td><td></td></tr>");
+    expect(salida).toMatch(/<td[^>]*>1<\/td><td[^>]*><\/td>/);
   });
 
   it("corta las filas de más y dice cuántas quedaron afuera", () => {
     // Leer 20 filas y creer que son todas es peor que ver 2 y saber que faltan.
     const muchas = { filas: Array.from({ length: 25 }, (_, i) => ({ n: i })) };
     const salida = evaluateExpression("filas | table:2", muchas) as string;
-    expect(salida).toContain("<td>0</td>");
-    expect(salida).toContain("<td>1</td>");
-    expect(salida).not.toContain("<td>2</td>");
+    expect(salida).toContain(">0</td>");
+    expect(salida).toContain(">1</td>");
+    expect(salida).not.toContain(">2</td>");
     expect(salida).toContain("23 fila(s) más");
   });
 

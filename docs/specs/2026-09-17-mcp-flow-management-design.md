@@ -204,18 +204,18 @@ This is what makes a sequence of independently caught blocks possible:
 `{{ path | filter:arg:arg }}`, applied left to right. Pure functions, no user code, unknown filter =
 error at validation time and at run time.
 
-| Filter                     | Example                             | Result                                                                                                                       |
-| -------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `addMinutes:n`             | `{{activatedAt \| addMinutes:-15}}` | epoch ms shifted by n minutes (accepts epoch ms or ISO)                                                                      |
-| `toEpochMs` / `toIso`      | `{{closedAt \| toIso}}`             | conversion                                                                                                                   |
-| `slice:start:end`          | `{{issueId \| slice:0:8}}`          | substring                                                                                                                    |
-| `lower` / `upper` / `trim` |                                     |                                                                                                                              |
-| `default:value`            | `{{priority \| default:unknown}}`   | fallback for missing or empty                                                                                                |
-| `json` / `json:indent`     | `{{error \| json:2}}`               | JSON string; with an indent it is pretty-printed, for a `<pre>` block                                                        |
-| `table:rows:cell`          | `{{deploys \| table}}`              | array of flat objects as an HTML table, values escaped; caps rows (20) and cell length (200) and says how many were left out |
-| `nrql`                     | `'{{appName \| nrql}}'`             | escapes the content of a NRQL string literal (reuses `nrqlEscape`); **does not add the quotes**                              |
-| `html`                     | `{{summary \| html}}`               | escapes `& < > " '` and turns line breaks into `<br>`, for HTML fields (reuses the Odoo client's helper)                     |
-| `redact:maxLen`            | `{{message \| redact:500}}`         | masks emails, bearer/API tokens, JWTs and digit runs of 8+, then truncates to `maxLen`                                       |
+| Filter                     | Example                             | Result                                                                                                                                                                                                    |
+| -------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `addMinutes:n`             | `{{activatedAt \| addMinutes:-15}}` | epoch ms shifted by n minutes (accepts epoch ms or ISO)                                                                                                                                                   |
+| `toEpochMs` / `toIso`      | `{{closedAt \| toIso}}`             | conversion                                                                                                                                                                                                |
+| `slice:start:end`          | `{{issueId \| slice:0:8}}`          | substring                                                                                                                                                                                                 |
+| `lower` / `upper` / `trim` |                                     |                                                                                                                                                                                                           |
+| `default:value`            | `{{priority \| default:unknown}}`   | fallback for missing or empty                                                                                                                                                                             |
+| `json` / `json:indent`     | `{{error \| json:2}}`               | JSON string; with an indent it is pretty-printed, for a `<pre>` block                                                                                                                                     |
+| `table:rows:cell`          | `{{deploys \| table}}`              | array of flat objects as an HTML table with inline borders, values escaped; epoch ms in a time-named column becomes a readable date; caps rows (20) and cell length (200) and says how many were left out |
+| `nrql`                     | `'{{appName \| nrql}}'`             | escapes the content of a NRQL string literal (reuses `nrqlEscape`); **does not add the quotes**                                                                                                           |
+| `html`                     | `{{summary \| html}}`               | escapes `& < > " '` and turns line breaks into `<br>`, for HTML fields (reuses the Odoo client's helper)                                                                                                  |
+| `redact:maxLen`            | `{{message \| redact:500}}`         | masks emails, bearer/API tokens, JWTs and digit runs of 8+, then truncates to `maxLen`                                                                                                                    |
 
 Filters apply in `interpolate`, `resolveValue` and `deepInterpolate`, so they work in `http` URLs and
 bodies, `transform` templates and `integration` inputs alike. A `transform` resolves all its fields
