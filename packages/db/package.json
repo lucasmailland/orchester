@@ -29,7 +29,8 @@
     "studio": "drizzle-kit studio",
     "seed": "tsx src/seed.ts",
     "seed:demo": "tsx src/seed-demo.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "migrate:audit": "node scripts/audit-sql-migrations.mjs"
   },
   "dependencies": {
     "@better-auth/utils": "0.4.1",
