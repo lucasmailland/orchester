@@ -56,6 +56,41 @@ const REDACTIONS: Array<[RegExp, string]> = [
   [/\d{8,}/g, "[number]"],
 ];
 
+/**
+ * Estilos en línea, no clases.
+ *
+ * Esto termina embebido en HTML de otro (una nota de Odoo, un mail): no hay
+ * hoja de estilos nuestra del otro lado, y una clase de Bootstrap sólo pinta
+ * si el destino usa Bootstrap. Las propiedades elegidas son las que sobreviven
+ * a un sanitizador estricto — Odoo filtra el valor de `style` contra una lista
+ * blanca que incluye `border*`, `padding*` y `text-align`.
+ */
+const TABLE_STYLE = "border-collapse:collapse;font-size:13px";
+const CELL = "border:1px solid #d9d9d9;padding:4px 8px";
+const TH_STYLE = `${CELL};text-align:left;background:#f5f5f5`;
+const TD_STYLE = CELL;
+
+/** Columnas cuyo nombre dice que el número es un instante, no una cantidad. */
+const TIME_COLUMN = /^(timestamp|time|date|fecha|hora)$|(_at|At)$/;
+/** Milisegundos de época entre 2001 y 2035: un conteo ahí adentro no es creíble. */
+const EPOCH_MS_RANGE = [1_000_000_000_000, 2_000_000_000_000] as const;
+
+/**
+ * Un epoch en milisegundos se muestra como fecha legible.
+ *
+ * `1789769424158` en una celda no le dice nada a nadie. Se convierte sólo
+ * cuando el NOMBRE de la columna dice que es un instante y el número cae en un
+ * rango creíble: así una cantidad grande nunca se disfraza de fecha.
+ */
+function readable(column: string, value: unknown): unknown {
+  if (typeof value !== "number" || !TIME_COLUMN.test(column)) return value;
+  if (value < EPOCH_MS_RANGE[0] || value > EPOCH_MS_RANGE[1]) return value;
+  return new Date(value)
+    .toISOString()
+    .replace("T", " ")
+    .replace(/\.\d+Z$/, " UTC");
+}
+
 const FILTERS: Record<string, FilterSpec> = {
   addMinutes: {
     arity: [1, 1],
@@ -113,22 +148,24 @@ const FILTERS: Record<string, FilterSpec> = {
       if (columns.length === 0) {
         return `<ul>${shown.map((r) => `<li>${htmlEscape(asText(r))}</li>`).join("")}</ul>`;
       }
-      const cell = (value: unknown) => {
-        const text = asText(value);
+      const cell = (column: string, value: unknown) => {
+        const text = asText(readable(column, value));
         return htmlEscape(text.length > cellLimit ? `${text.slice(0, cellLimit)}…` : text);
       };
-      const head = columns.map((c) => `<th>${htmlEscape(c)}</th>`).join("");
+      const head = columns.map((c) => `<th style="${TH_STYLE}">${htmlEscape(c)}</th>`).join("");
       const body = shown
         .map((row) => {
           const record = (row ?? {}) as Record<string, unknown>;
-          return `<tr>${columns.map((c) => `<td>${cell(record[c])}</td>`).join("")}</tr>`;
+          return `<tr>${columns
+            .map((c) => `<td style="${TD_STYLE}">${cell(c, record[c])}</td>`)
+            .join("")}</tr>`;
         })
         .join("");
       // Decir cuántas quedaron afuera evita que alguien lea 20 filas y crea
       // que ésas son todas.
       const rest =
         rows.length > shown.length ? `<p>… y ${rows.length - shown.length} fila(s) más.</p>` : "";
-      return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${rest}`;
+      return `<table style="${TABLE_STYLE}"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${rest}`;
     },
   },
   nrql: { arity: [0, 0], apply: (v) => nrqlEscape(asText(v)) },
