@@ -7,6 +7,7 @@ import { checkQuota } from "@/lib/billing/quotas";
 import { withRepo, type FlowRepo } from "./flow-repo";
 import { normalizeFlowNodes, normalizeFlowEdges } from "./normalize";
 import { validateStoredFlow, hasErrors } from "./validate-stored";
+import { changesTheGraph, restorePatch } from "./versions";
 import type { ValidationIssue } from "./validate";
 
 /**
@@ -167,6 +168,17 @@ export async function createFlow(
   return result;
 }
 
+/**
+ * Quién hizo el cambio, para que el historial lo diga.
+ *
+ * Una lista de versiones que no dice quién las hizo obliga a cruzar la
+ * auditoría por hora para responder "¿esto quién lo tocó?".
+ */
+function quienCambio(actor: FlowActor): string {
+  if (actor.kind === "user") return `usuario ${actor.userId}`;
+  return `api key ${actor.keyId}`;
+}
+
 export async function updateFlow(
   actor: FlowActor,
   flowId: string,
@@ -175,8 +187,8 @@ export async function updateFlow(
 ): Promise<{ flow: Flow; warnings: ValidationIssue[] }> {
   const result = await withRepo(actor, async (repo) => {
     let warnings: ValidationIssue[] = [];
+    const current = await requireFlow(repo, actor, flowId);
     if (strict) {
-      const current = await requireFlow(repo, actor, flowId);
       warnings = checkGraph(
         input.nodes ?? (current.nodes as unknown[]) ?? [],
         input.edges ?? (current.edges as unknown[]) ?? [],
@@ -184,7 +196,14 @@ export async function updateFlow(
         strict
       );
     }
+    // El estado anterior se guarda ANTES de pisarlo, en esta misma
+    // transacción: si el update falla, no queda una versión fantasma de algo
+    // que nunca llegó a cambiar.
+    const nuevaVersion = changesTheGraph(current, input)
+      ? await repo.snapshotFlow(current, actor.workspaceId, quienCambio(actor))
+      : undefined;
     const flow = await repo.updateFlow(flowId, actor.workspaceId, {
+      ...(nuevaVersion !== undefined && { version: nuevaVersion }),
       ...(input.name !== undefined && { name: input.name.trim() }),
       ...(input.description !== undefined && { description: input.description }),
       ...(input.spec !== undefined && { spec: input.spec }),
@@ -203,6 +222,34 @@ export async function updateFlow(
   });
   await auditUser(actor, "flow.update", result.flow);
   return result;
+}
+
+export function listFlowVersions(actor: FlowActor, flowId: string) {
+  return withRepo(actor, async (repo) => {
+    await requireFlow(repo, actor, flowId);
+    return repo.listVersions(flowId, actor.workspaceId);
+  });
+}
+
+/**
+ * Vuelve el flow a una versión guardada.
+ *
+ * Restaurar es un cambio como cualquier otro, así que pasa por `updateFlow` y
+ * por lo tanto deja su propia versión del estado que se está descartando. Sin
+ * eso, deshacer una restauración equivocada sería imposible.
+ */
+export async function restoreFlowVersion(
+  actor: FlowActor,
+  flowId: string,
+  versionId: string
+): Promise<{ flow: Flow; warnings: ValidationIssue[] }> {
+  const version = await withRepo(actor, async (repo) => {
+    await requireFlow(repo, actor, flowId);
+    const found = await repo.findVersion(versionId, flowId, actor.workspaceId);
+    if (!found) throw notFound("Flow version");
+    return found;
+  });
+  return updateFlow(actor, flowId, restorePatch(version) as FlowInput);
 }
 
 export function validateFlowById(actor: FlowActor, flowId: string): Promise<ValidationIssue[]> {

@@ -8,6 +8,7 @@ const db = vi.hoisted(() => ({
   audits: [] as Array<Record<string, unknown>>,
   failAudit: false,
   failInsert: false,
+  versions: [] as Array<Record<string, unknown>>,
 }));
 
 // The service only talks to the DB through small repository helpers defined in
@@ -20,6 +21,12 @@ vi.mock("@/lib/flows/flow-repo", () => ({
       listFlows: async (ws: string) => db.flows.filter((f) => f.workspaceId === ws),
       insertFlow: async (row: Record<string, unknown>) =>
         db.failInsert ? undefined : (db.flows.push(row), row),
+      // Guardar la versión anterior antes de pisarla: el servicio lo hace en
+      // cada cambio del grafo, así que el repo de mentira también tiene que saber.
+      snapshotFlow: async (flow: Record<string, unknown>, _ws: string, label: string | null) => {
+        (db.versions ??= []).push({ flowId: flow["id"], version: flow["version"] ?? 1, label });
+        return ((flow["version"] as number) ?? 1) + 1;
+      },
       updateFlow: async (id: string, ws: string, patch: Record<string, unknown>) => {
         const f = db.flows.find((x) => x.id === id && x.workspaceId === ws);
         if (f) Object.assign(f, patch);
@@ -226,5 +233,70 @@ describe("service error responses", () => {
     const response = svc.serviceErrorResponse(new svc.FlowServiceError(code, "test error"));
     expect(response.status).toBe(status);
     expect(await response.json()).toEqual({ error });
+  });
+});
+
+describe("versiones automáticas", () => {
+  it("guarda el estado anterior cuando cambia el grafo", async () => {
+    db.flows.length = 0;
+    db.versions = [];
+    db.flows.push({
+      id: "f-ver",
+      workspaceId: "ws",
+      name: "Con historial",
+      version: 3,
+      nodes: [{ id: "a" }],
+      edges: [],
+      variables: {},
+      spec: null,
+    });
+    await svc.updateFlow({ kind: "user", workspaceId: "ws", userId: "u1" }, "f-ver", {
+      nodes: [{ id: "a" }, { id: "b" }],
+    });
+    expect(db.versions).toHaveLength(1);
+    // Se guarda el número que TENÍA, y el flow queda en el siguiente.
+    expect(db.versions[0]).toMatchObject({ flowId: "f-ver", version: 3 });
+    expect(db.flows[0]!.version).toBe(4);
+  });
+
+  it("dice quién lo cambió, para no tener que cruzar la auditoría por hora", async () => {
+    db.flows.length = 0;
+    db.versions = [];
+    db.flows.push({
+      id: "f-quien",
+      workspaceId: "ws",
+      name: "x",
+      version: 1,
+      nodes: [],
+      edges: [],
+      variables: {},
+      spec: null,
+    });
+    await svc.updateFlow({ kind: "apiKey", workspaceId: "ws", keyId: "k-77" }, "f-quien", {
+      nodes: [{ id: "nuevo" }],
+    });
+    expect(String(db.versions[0]!.label)).toContain("k-77");
+  });
+
+  it("renombrar o pausar no gasta una versión", async () => {
+    db.flows.length = 0;
+    db.versions = [];
+    db.flows.push({
+      id: "f-quieto",
+      workspaceId: "ws",
+      name: "antes",
+      version: 1,
+      nodes: [{ id: "a" }],
+      edges: [],
+      variables: {},
+      spec: null,
+    });
+    const actor = { kind: "user" as const, workspaceId: "ws", userId: "u1" };
+    await svc.updateFlow(actor, "f-quieto", { name: "después" });
+    await svc.updateFlow(actor, "f-quieto", { status: "paused" });
+    // Y volver a mandar los mismos nodos tampoco.
+    await svc.updateFlow(actor, "f-quieto", { nodes: [{ id: "a" }] });
+    expect(db.versions).toHaveLength(0);
+    expect(db.flows[0]!.version).toBe(1);
   });
 });

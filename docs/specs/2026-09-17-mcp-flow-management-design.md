@@ -234,6 +234,24 @@ matters. This exists so that what a flow writes can be attributed and priced
 later; the numbers were already in the run record, where nothing a person reads
 could reach them.
 
+### Version history
+
+`flow_version` already existed, with endpoints to list, snapshot and restore —
+and zero rows, because nothing ever called them. Saving a flow now snapshots the
+**previous** state inside the same transaction, so a failed update leaves no
+phantom version.
+
+Only a change to the graph or the spec counts. Renaming, pausing, or saving the
+same nodes back does not: retention keeps the last 20, and a history full of
+"paused and resumed" evicts exactly the versions worth returning to.
+
+Each entry records who made the change, so answering "who touched this?" does not
+mean correlating the audit log by timestamp.
+
+`list_flow_versions` and `restore_flow_version` expose it over MCP. Restoring
+goes through the normal update path, so it leaves its own version of what it
+discarded — undoing a bad restore is possible.
+
 Filters apply in `interpolate`, `resolveValue` and `deepInterpolate`, so they work in `http` URLs and
 bodies, `transform` templates and `integration` inputs alike. A `transform` resolves all its fields
 before merging them, so one field cannot use a variable another field of the same `transform` creates;
