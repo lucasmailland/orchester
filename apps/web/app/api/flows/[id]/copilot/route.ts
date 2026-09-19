@@ -5,8 +5,7 @@ import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { llmCall, pickAvailableModel, type ChatMessage } from "@/lib/llm-call";
 import { assertWithinSpend } from "@/lib/cost-alerts";
-import { recordAiUsage } from "@/lib/ai/run";
-import { calculateChatCostUsd } from "@/lib/pricing";
+import { recordAiUsage, chargeFor } from "@/lib/ai/run";
 
 const copilotSchema = z.object({
   prompt: z.string().optional(),
@@ -106,9 +105,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     workspaceId: ctx.workspace.id,
     capability: "chat",
     model: result.model,
-    tokensOut: result.tokensUsed,
-    tokensTotal: result.tokensUsed,
-    costUsd: calculateChatCostUsd(result.model, 0, result.tokensUsed),
+    ...chargeFor(result),
   });
 
   const setFlow = result.toolCalls?.find((t) => t.name === "set_flow");

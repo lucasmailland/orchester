@@ -108,6 +108,34 @@ export interface RunChatOpts {
   fallbackModels?: string[];
 }
 
+/**
+ * Cómo se cobra una respuesta del modelo.
+ *
+ * Hasta ahora todo el total se pasaba como tokens de SALIDA, y la salida
+ * cuesta entre 4 y 5 veces más que la entrada. El costo quedaba inflado, y
+ * peor cuanto más grande el prompt — justo el caso de un flujo que le manda un
+ * archivo entero al modelo. Con el desglose se cobra cada mitad a su precio.
+ *
+ * Si el proveedor no informa el desglose se cae al comportamiento anterior, que
+ * sobreestima: preferible a subestimar, porque el tope de gasto lo lee.
+ */
+export function chargeFor(res: {
+  model: string;
+  tokensUsed: number;
+  tokensIn?: number;
+  tokensOut?: number;
+}) {
+  const tieneDesglose = res.tokensIn !== undefined && res.tokensOut !== undefined;
+  const tokensIn = tieneDesglose ? res.tokensIn! : 0;
+  const tokensOut = tieneDesglose ? res.tokensOut! : res.tokensUsed;
+  return {
+    tokensIn,
+    tokensOut,
+    tokensTotal: res.tokensUsed,
+    costUsd: calculateChatCostUsd(res.model, tokensIn, tokensOut),
+  };
+}
+
 export async function runChat(params: LlmCallParams, opts?: RunChatOpts): Promise<LlmCallResult> {
   await assertWithinSpend(params.workspaceId);
 
@@ -122,9 +150,7 @@ export async function runChat(params: LlmCallParams, opts?: RunChatOpts): Promis
         workspaceId: params.workspaceId,
         capability: "chat",
         model: res.model,
-        tokensOut: res.tokensUsed,
-        tokensTotal: res.tokensUsed,
-        costUsd: calculateChatCostUsd(res.model, 0, res.tokensUsed),
+        ...chargeFor(res),
       });
       return res;
     } catch (e) {

@@ -135,7 +135,18 @@ export interface PromptCacheUsage {
 
 export interface LlmCallResult {
   content: string;
+  /** Entrada + salida. Se conserva: es lo que lee todo lo que ya existe. */
   tokensUsed: number;
+  /**
+   * El desglose, cuando el proveedor lo informa.
+   *
+   * Importa porque los tokens de salida cuestan entre 4 y 5 veces más que los
+   * de entrada. Sin el desglose hay que asumir uno de los dos, y asumir que
+   * todo es salida infla el costo — más cuanto más grande sea el prompt, que
+   * es justo el caso de un flujo que le pasa un archivo entero al modelo.
+   */
+  tokensIn?: number;
+  tokensOut?: number;
   model: string;
   toolCalls?: ToolUseBlock[];
   /**
@@ -402,6 +413,8 @@ function parseAnthropicResult(j: AnthropicResponse, model: string): LlmCallResul
   const result: LlmCallResult = {
     content: text,
     tokensUsed: (j.usage?.input_tokens ?? 0) + (j.usage?.output_tokens ?? 0),
+    tokensIn: j.usage?.input_tokens ?? 0,
+    tokensOut: j.usage?.output_tokens ?? 0,
     model,
     // v2.1 — cache observability. When the provider doesn't return
     // cache fields they collapse to 0 and the caller sees
@@ -572,6 +585,8 @@ function parseBedrockResult(j: BedrockResponse, model: string): LlmCallResult {
     content: blocks.map((b) => b.text ?? "").join(""),
     // Keep the existing input + output total used by recordAiUsage/pricing.
     tokensUsed: (usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0),
+    tokensIn: usage?.inputTokens ?? 0,
+    tokensOut: usage?.outputTokens ?? 0,
     model,
     ...(toolCalls.length ? { toolCalls } : {}),
     ...(isBedrockClaude(model) ||
@@ -720,6 +735,8 @@ async function callOpenAICompatible(
   const result: LlmCallResult = {
     content: msg.content ?? "",
     tokensUsed: j.usage?.total_tokens ?? 0,
+    tokensIn: j.usage?.prompt_tokens ?? 0,
+    tokensOut: j.usage?.completion_tokens ?? 0,
     model: p.model,
   };
   if (toolCalls.length > 0) result.toolCalls = toolCalls;
@@ -760,6 +777,8 @@ async function callGoogle(p: LlmCallParams, apiKey: string): Promise<LlmCallResu
     content,
     tokensUsed:
       (j.usageMetadata?.promptTokenCount ?? 0) + (j.usageMetadata?.candidatesTokenCount ?? 0),
+    tokensIn: j.usageMetadata?.promptTokenCount ?? 0,
+    tokensOut: j.usageMetadata?.candidatesTokenCount ?? 0,
     model: p.model,
   };
 }
@@ -795,6 +814,8 @@ async function callAzure(
   return {
     content: j.choices?.[0]?.message?.content ?? "",
     tokensUsed: j.usage?.total_tokens ?? 0,
+    tokensIn: j.usage?.prompt_tokens ?? 0,
+    tokensOut: j.usage?.completion_tokens ?? 0,
     model: p.model,
   };
 }
