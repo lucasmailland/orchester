@@ -6,6 +6,84 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 Releases are produced by [release-please](https://github.com/googleapis/release-please) from Conventional Commit messages on `main`.
 
+## [0.0.1](https://github.com/lucasmailland/orchester/compare/v0.0.1...v0.0.1) (2026-09-19)
+
+
+### Added
+
+* **ai:** let bedrock tell you which models your account can call ([#56](https://github.com/lucasmailland/orchester/issues/56)) ([1d8044e](https://github.com/lucasmailland/orchester/commit/1d8044e7532deb43230a976f665937b1a9053ff2))
+* **api-keys:** let a key be given only the permissions it needs ([#58](https://github.com/lucasmailland/orchester/issues/58)) ([3e3e6c7](https://github.com/lucasmailland/orchester/commit/3e3e6c73bc3c1e77e10302b9de0f8f0ca4c4a881))
+* Bedrock, Odoo and New Relic integrations, plus production fixes ([#40](https://github.com/lucasmailland/orchester/issues/40)) ([7c479ff](https://github.com/lucasmailland/orchester/commit/7c479ff6101c3a7d978371c65e26f56de70361f2))
+* **brain-graph:** functional + visual overhaul of graph controls ([e085964](https://github.com/lucasmailland/orchester/commit/e085964fef81bed029bae035ba32e6cd2e464fb4))
+* **brain-graph:** Obsidian-level graph interactions for 2D and 3D ([a83c006](https://github.com/lucasmailland/orchester/commit/a83c006751da111f2305dacc84a6662e08137273))
+* **brain-graph:** show real memory content per node + bump mnemosyne ([7701ad1](https://github.com/lucasmailland/orchester/commit/7701ad1b284ba437bad38caaf8d8969d1bdd3bda))
+* **brain:** add Cytoscape/Sigma/G6/3D renderers + drawer pagination & fact sources ([44393aa](https://github.com/lucasmailland/orchester/commit/44393aabd72302f8dfb9085369a8e209e7993334))
+* **brain:** add ECharts graph renderer with Obsidian-style interactions ([7570e25](https://github.com/lucasmailland/orchester/commit/7570e251f2b17e6a8f59be31bb011e2acd0d1c4a))
+* **brain:** backfill mnemo embeddings + finish audit outstanding items ([ddcb1ed](https://github.com/lucasmailland/orchester/commit/ddcb1edfa017e50dc13b6223cc8aa88dfc72280a))
+* **brain:** focus-exit banner, conversation detail page, session spec ([892f70d](https://github.com/lucasmailland/orchester/commit/892f70d58e5ba46bbafe565d2a359a9bd01992cd))
+* **brain:** graphology analytics + ECharts scalability; drop Cytoscape/Sigma/G6 ([111d7eb](https://github.com/lucasmailland/orchester/commit/111d7ebd13bb4b8830fe048951ae5f4b709e915b))
+* **brain:** implement Memory Ops admin routes (fix 404s) ([bb2e394](https://github.com/lucasmailland/orchester/commit/bb2e394d007d2f0b3e870a65790ff0ca80deece5))
+* **channels:** answer a discord slash command with the channel's agent ([#54](https://github.com/lucasmailland/orchester/issues/54)) ([e677b2f](https://github.com/lucasmailland/orchester/commit/e677b2f2d2a0877f0a1815498cd34d2085ae7429))
+* **channels:** restrict who can talk to a channel with a sender allowlist ([#49](https://github.com/lucasmailland/orchester/issues/49)) ([9938025](https://github.com/lucasmailland/orchester/commit/99380253c56a44c9c35813fd912a045044d289e7))
+* **db:** check the database is what the migrations say it is ([#63](https://github.com/lucasmailland/orchester/issues/63)) ([f5af2d4](https://github.com/lucasmailland/orchester/commit/f5af2d4139f7861adb7f47cae58f0619aa5a68e7))
+* **flows:** keep the previous version every time a flow changes ([#62](https://github.com/lucasmailland/orchester/issues/62)) ([c2a93a8](https://github.com/lucasmailland/orchester/commit/c2a93a879134ea72eccc4eb50ae2cdb41abaf8bf))
+* **flows:** make the table look like a table and the dates readable ([#60](https://github.com/lucasmailland/orchester/issues/60)) ([fb4158d](https://github.com/lucasmailland/orchester/commit/fb4158d2eb56ffb2476ff160f779dd892762ad99))
+* **flows:** render data for a person to read, not a machine ([#59](https://github.com/lucasmailland/orchester/issues/59)) ([bff8fe0](https://github.com/lucasmailland/orchester/commit/bff8fe0f04e2887c9865b249d596abcade8c3295))
+* **integrations:** add a read-only gitlab connector ([#46](https://github.com/lucasmailland/orchester/issues/46)) ([8a0ffd3](https://github.com/lucasmailland/orchester/commit/8a0ffd3ffb1f8af15f90ad8b72d4b51e6f521054))
+* **integrations:** add discord and telegram notification connectors ([#48](https://github.com/lucasmailland/orchester/issues/48)) ([940a30c](https://github.com/lucasmailland/orchester/commit/940a30c440351602aec547470c95067889ede106))
+* **integrations:** rank code above data in gitlab search results ([#53](https://github.com/lucasmailland/orchester/issues/53)) ([63016f5](https://github.com/lucasmailland/orchester/commit/63016f5d4a7680031da5131678e88d57fd312d7b))
+* **integrations:** read a window of a gitlab file around a line ([#51](https://github.com/lucasmailland/orchester/issues/51)) ([4a73d9d](https://github.com/lucasmailland/orchester/commit/4a73d9d1d19854b8fccfac336689db03ecd83fba))
+* **llm:** talk to bedrock through the converse api ([#52](https://github.com/lucasmailland/orchester/issues/52)) ([d0d67d3](https://github.com/lucasmailland/orchester/commit/d0d67d33ea81c2f3cd13cf626d7f17ec0f3d09a9))
+* manage flows over MCP, document them, and add retry, filters and a done handle ([#44](https://github.com/lucasmailland/orchester/issues/44)) ([3365217](https://github.com/lucasmailland/orchester/commit/336521716c493857c5e7939be25d1f466ceee719))
+* **mnemo:** auto-bootstrap mnemosyne API key on first connection ([f278769](https://github.com/lucasmailland/orchester/commit/f2787698f7da167d0af31bf8f99338a924b284ce))
+* **mnemo:** auto-provision workspace LLM config on AI provider save ([a534f32](https://github.com/lucasmailland/orchester/commit/a534f3226a18d7414d9c95f44603a901812fe7bd))
+* **mnemo:** forward workspace-embedded vector to recall — no LLM in mnemosyne env ([072262d](https://github.com/lucasmailland/orchester/commit/072262d0753ebec6ccdbbf4ef8af3711cc14ec14))
+* **mnemo:** Phase 3 — cut @mnemosyne/core from orchester runtime ([68ec07b](https://github.com/lucasmailland/orchester/commit/68ec07bf6f89da21cf600586e909d87e32f9dff6))
+* orchester fully connected to mnemosyne v3 ([7969052](https://github.com/lucasmailland/orchester/commit/7969052b9f43c7bd39e7c5bb6bcb4ed4e2e94dd6))
+* **scripts:** idempotent mnemo workspace+key provisioning ([fd2b4aa](https://github.com/lucasmailland/orchester/commit/fd2b4aac8cca91106dcfc21130f493b9c57d275d))
+
+
+### Fixed
+
+* **agent-studio:** JSON sample placeholder crashed with INVALID_MESSAGE ([4936b76](https://github.com/lucasmailland/orchester/commit/4936b76840dd382610b9359fd234e446c5724d2b))
+* **agents:** open the model list where there is room for it ([#55](https://github.com/lucasmailland/orchester/issues/55)) ([734ac5e](https://github.com/lucasmailland/orchester/commit/734ac5ecc74277118c0230d56ba0415361a8fa90))
+* **ai:** bill bedrock claude at the rate its ids actually pay ([#57](https://github.com/lucasmailland/orchester/issues/57)) ([e612c4a](https://github.com/lucasmailland/orchester/commit/e612c4aee22d597d17c518b6ab452495d33be68e))
+* **ai:** bill input as input, and record who wrote what ([#61](https://github.com/lucasmailland/orchester/issues/61)) ([6c0119b](https://github.com/lucasmailland/orchester/commit/6c0119b800a875a54f7716df915913b8704ca485))
+* **brain-graph:** relocate eslint-disable to cover the actual any line ([de3284e](https://github.com/lucasmailland/orchester/commit/de3284ebad6bcc180d6aab00698f4462275af216))
+* **brain-graph:** remove d3ReheatSimulation call that crashes 3D mode ([7b558be](https://github.com/lucasmailland/orchester/commit/7b558be228412d964c7134624e392346cfe4af77))
+* **brain-graph:** resolve node collapse bug with callback ref ([2969d7a](https://github.com/lucasmailland/orchester/commit/2969d7a7fb19f0e9e8e82da78fa3bbde11d3d2d3))
+* **brain:** wire AI Providers tri-state + restore mnemo health routes ([daafac7](https://github.com/lucasmailland/orchester/commit/daafac7bdc51c99a763e0965773c2d5841c18d48))
+* **ci:** actually run the type check and the tests ([#45](https://github.com/lucasmailland/orchester/issues/45)) ([8a966d6](https://github.com/lucasmailland/orchester/commit/8a966d6180e2e1dc4d38deea73ceeed2db1b63cc))
+* **flows:** group the flows list by status ([#47](https://github.com/lucasmailland/orchester/issues/47)) ([b1b1309](https://github.com/lucasmailland/orchester/commit/b1b13096d358fe0fa7b45022b09e7cdea5ecb338))
+* **flows:** stop auto-saving a flow that was only opened ([#42](https://github.com/lucasmailland/orchester/issues/42)) ([fdf5e68](https://github.com/lucasmailland/orchester/commit/fdf5e685e12d2e31f88322a98f9e0bd9b7526a07))
+* **flows:** stop auto-saving a flow that was only opened ([#43](https://github.com/lucasmailland/orchester/issues/43)) ([ac83c1d](https://github.com/lucasmailland/orchester/commit/ac83c1dca56b7fcf72eef338aa2fb6b07d24b531))
+* **integrations:** return the project of each gitlab search match ([#50](https://github.com/lucasmailland/orchester/issues/50)) ([e409657](https://github.com/lucasmailland/orchester/commit/e40965738e16cdd2b7d397c8284b9e01f5fb662b))
+* **memory/graph:** readable layout for small graphs (≤10 entities) ([fd571b3](https://github.com/lucasmailland/orchester/commit/fd571b37105c6ab1b82cdc7d1f796c494f9a276e))
+* **seed:** don't insert anthropic/google placeholder provider rows ([9dec173](https://github.com/lucasmailland/orchester/commit/9dec173b44acf4e0fe390f94f65e093cd950373b))
+* **seed:** seed every agent + message + version with an OpenAI model ([8059d68](https://github.com/lucasmailland/orchester/commit/8059d68630b63a76dd79df0477635f19455ffb54))
+* **settings/providers:** remove 'Paused' concept — disabled rows go to Available ([01369c9](https://github.com/lucasmailland/orchester/commit/01369c98aa241f9c064867063b6627b509fa7cdb))
+* **ui:** batch polish — heartbeat banner, KPI contrast, model labels, provider card lift ([b4c443a](https://github.com/lucasmailland/orchester/commit/b4c443af3c8fa7b8ca605f7150ed273eeab60262))
+
+
+### Documentation
+
+* **architecture:** rewrite ARCHITECTURE.md to Phase-3 reality ([517b8f5](https://github.com/lucasmailland/orchester/commit/517b8f5c5c0e9eed395f113e2cb4bd52e5e61714))
+* **audit:** close out — Embedded 0% → 100%, all outstanding items handled ([d48d10b](https://github.com/lucasmailland/orchester/commit/d48d10b5cd98431d0fcb40825e4e9cec6f9f45c0))
+* **audit:** full UI walk-through 2026-06-06 ([74bbe3c](https://github.com/lucasmailland/orchester/commit/74bbe3c03324789565b403b7a9951a833275d274))
+* **audit:** mark fixed items from the 2026-06-06 polish pass ([c08ee37](https://github.com/lucasmailland/orchester/commit/c08ee37e5e53c2898a0c011f7dbf4df3b2f4170a))
+* **brain:** correct stale commit/status refs in session spec ([36c2f82](https://github.com/lucasmailland/orchester/commit/36c2f8295302b3df82681bf619854aa39b373246))
+* **cleanup:** purge ~320KB of legacy specs + mark superseded ADRs/plans ([ceaf70e](https://github.com/lucasmailland/orchester/commit/ceaf70edb97bf94089a3ef464d5326d4a4efb36a))
+* **diagrams:** fix flow-run invisible-arrows bug + ci-invariants overlap ([e5ac198](https://github.com/lucasmailland/orchester/commit/e5ac19818d8fa05a50ba5e9d8cc965665df14b1d))
+* **diagrams:** rebuild teams-pattern SVG with direct branches + delegation packets ([8c73992](https://github.com/lucasmailland/orchester/commit/8c739928bf0dfd55b757903f56b2b35dce3452b7))
+* **diagrams:** static visibility hotfix for GitHub-embedded SVGs ([3e957e7](https://github.com/lucasmailland/orchester/commit/3e957e70014903d6a6a9e36dca786b078e017b7b))
+* **diagrams:** Y-tree teams diagram — visible trunk, junction, diagonal branches ([e4f8399](https://github.com/lucasmailland/orchester/commit/e4f8399a0eeb733f11570d0e1e569e4a10d4cad0))
+* make keeping secrets out of the repository mandatory ([#41](https://github.com/lucasmailland/orchester/issues/41)) ([c2ba67a](https://github.com/lucasmailland/orchester/commit/c2ba67a6624ede9cd68dbcd678565c50eadf9e8f))
+* **mnemo:** clarify Phase 2/3 status in lib/mnemo/client.ts ([534a869](https://github.com/lucasmailland/orchester/commit/534a869b6a65583149a746a8bd8890be59dd1b63))
+* **mnemo:** remove stale library-fallback comments, require SMOKE_WS_ID env var ([489fc70](https://github.com/lucasmailland/orchester/commit/489fc70228ae8ea341a69c72fba515f20c5ac0e6))
+* **mnemosyne:** use :3939 in env/readme + refresh stale CI comment ([cb54ee7](https://github.com/lucasmailland/orchester/commit/cb54ee79d05ca4a70a166f890d4a7dc1a2768fe5))
+* **readme:** replace remaining ASCII diagrams with animated SVGs ([4b41fb6](https://github.com/lucasmailland/orchester/commit/4b41fb60a1cb187f80222123855bbdf405f1373b))
+* replace ugly default-mermaid renders with custom SVGs + themed mermaid ([9f49125](https://github.com/lucasmailland/orchester/commit/9f4912541a43f9f0d14c9d71c1159911674a7501))
+
 ## [0.0.1](https://github.com/lucasmailland/orchester/compare/v0.0.1...v0.0.1) (2026-06-07)
 
 
