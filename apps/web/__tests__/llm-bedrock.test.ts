@@ -267,6 +267,39 @@ describe("Bedrock Converse", () => {
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+  it("reintenta sin temperature cuando el modelo la rechaza", async () => {
+    // Kimi K3 en Bedrock contesta 400 "This model doesn't support the
+    // temperature field". El catálogo marca los conocidos con noSampling, pero
+    // Bedrock suma modelos todas las semanas: el catálogo siempre va atrás.
+    // Por eso el modelo de esta prueba NO está en el catálogo — es el caso que
+    // importa: uno que salió ayer y nadie anotó todavía.
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json(
+          { message: "This model doesn't support the temperature field. Remove temperature." },
+          { status: 400 }
+        )
+      )
+      .mockResolvedValue(Response.json(response));
+
+    const result = await llmCall(params({ model: "bedrock:recien.salido-del-horno-v1:0" }));
+
+    expect(result.content).toBe("Hello world");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const primero = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string);
+    const segundo = JSON.parse(fetchMock.mock.calls[1]![1]!.body as string);
+    expect(primero.inferenceConfig).toHaveProperty("temperature");
+    expect(segundo.inferenceConfig).not.toHaveProperty("temperature");
+  });
+  it("no reintenta un 400 que no habla de sampling", async () => {
+    // Reintentar a ciegas convierte un error claro en dos llamadas y el mismo
+    // error, cobrando el doble.
+    fetchMock.mockResolvedValue(
+      Response.json({ message: "Model does not support tool use" }, { status: 400 })
+    );
+    await expect(llmCall(params())).rejects.toThrow("Bedrock 400");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it("keeps llmStream's blocking fallback working through Converse", async () => {
     const chunks = [];
     for await (const chunk of llmStream(params())) chunks.push(chunk);

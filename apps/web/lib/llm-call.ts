@@ -604,6 +604,22 @@ function parseBedrockResult(j: BedrockResponse, model: string): LlmCallResult {
   };
 }
 
+/**
+ * ¿El 400 se queja de un parámetro de sampling?
+ *
+ * Los mensajes son del proveedor y cambian de redacción. Se pide que nombren el
+ * campo Y digan que no lo soportan: con "temperature" a secas, un 400 sobre un
+ * valor fuera de rango también entraría, y ahí reintentar no arregla nada.
+ */
+function rechazaSampling(e: unknown): boolean {
+  if (!(e instanceof HttpError) || e.status !== 400) return false;
+  const m = e.message.toLowerCase();
+  return (
+    /temperature|top_?p|topp/.test(m) &&
+    /(does\s?n[o']t support|not supported|unsupported|remove|deprecated)/.test(m)
+  );
+}
+
 /** Chat via Bedrock Converse, using the existing Bedrock API-key bearer auth. */
 async function callBedrock(
   p: LlmCallParams,
@@ -617,25 +633,37 @@ async function callBedrock(
   // así que va escapado o el `:` rompe el path.
   const url = `${bedrockBaseUrl(endpoint)}/model/${encodeURIComponent(p.model)}/converse`;
 
-  const j = await withRetry(async () => {
-    const r = await fetchWithTimeout(
-      url,
-      {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${apiKey}`,
-          "content-type": "application/json",
-          accept: "application/json",
+  const pedir = (cuerpo: Record<string, unknown>) =>
+    withRetry(async () => {
+      const r = await fetchWithTimeout(
+        url,
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${apiKey}`,
+            "content-type": "application/json",
+            accept: "application/json",
+          },
+          body: JSON.stringify(cuerpo),
         },
-        body: JSON.stringify(body),
-      },
-      LLM_TIMEOUT_MS
-    );
-    if (!r.ok) throw new HttpError(r.status, `Bedrock ${r.status}: ${await r.text()}`);
-    return r.json();
-  });
+        LLM_TIMEOUT_MS
+      );
+      if (!r.ok) throw new HttpError(r.status, `Bedrock ${r.status}: ${await r.text()}`);
+      return r.json();
+    });
 
-  return parseBedrockResult(j, p.model);
+  try {
+    return parseBedrockResult(await pedir(body), p.model);
+  } catch (e) {
+    // El catálogo marca con `noSampling` los modelos que rechazan estos campos,
+    // pero Bedrock suma modelos todas las semanas y el catálogo siempre va
+    // atrás. Un modelo que no está en la lista no puede fallar entero por un
+    // campo opcional: si el propio proveedor dice cuál sobra, se saca y se
+    // repite. Sólo una vez, y sólo cuando lo dice: reintentar a ciegas paga dos
+    // llamadas para recibir el mismo error.
+    if (noSampling || !rechazaSampling(e)) throw e;
+    return parseBedrockResult(await pedir(buildBedrockBody(p, true)), p.model);
+  }
 }
 
 /** Encode our ChatMessage[] into OpenAI Chat Completions format (with tools). */
