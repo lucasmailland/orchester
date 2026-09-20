@@ -930,12 +930,21 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     const prompt = interpolate(String(cfg.prompt ?? ""), ctx.variables);
     if (!prompt.trim()) throw new Error("Falta la instrucción.");
     const system = cfg.system ? interpolate(String(cfg.system), ctx.variables) : "";
+    // Sin temperatura declarada NO se manda ninguna: los flows que ya existen
+    // se escribieron y probaron con el valor por defecto del proveedor, y
+    // fijarles uno nuevo les cambiaría el comportamiento sin que nadie tocara
+    // nada. El chequeo es por número válido, no por verdad: `0` es falsy y es
+    // justo el valor que este campo existe para permitir.
+    const temperatura = Number(cfg.temperature);
+    const mandarTemp =
+      cfg.temperature !== undefined && cfg.temperature !== "" && !isNaN(temperatura);
     const { runChat } = await import("./ai/run");
     const res = await runChat({
       workspaceId,
       model,
       systemPrompt: system,
       messages: [{ role: "user", content: prompt }],
+      ...(mandarTemp ? { temperature: temperatura } : {}),
     });
     const outputVar = (cfg.outputVar as string) || "texto";
     ctx.variables[outputVar] = res.content;
