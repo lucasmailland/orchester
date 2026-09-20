@@ -36,6 +36,34 @@ function toInt(arg: string | undefined, filter: string): number {
   return n;
 }
 
+/**
+ * Cómo se ve la ruta de un archivo de prueba.
+ *
+ * Los bordes son a propósito: `\.spec\.` y no `spec` a secas, porque
+ * `respec.ts` contiene "spec" y `contest.service.ts` contiene "test". Borrar
+ * evidencia buena es peor que dejar pasar un mock — un mock se descarta
+ * leyéndolo, un archivo que nunca llegó no se descarta de ninguna manera.
+ */
+const TEST_PATH = /(^|\/)(__tests__|tests?|testing)\//i;
+const TEST_FILE = /\.(spec|test)\.[cm]?[jt]sx?($|\.)/i;
+
+/** La ruta de un elemento: un string suelto, o el campo `path`/`file`. */
+function pathOf(item: unknown): string {
+  if (typeof item === "string") return item;
+  if (item && typeof item === "object") {
+    const o = item as Record<string, unknown>;
+    for (const key of ["path", "file", "filename"]) {
+      if (typeof o[key] === "string") return o[key];
+    }
+  }
+  return "";
+}
+
+function looksLikeATest(item: unknown): boolean {
+  const path = pathOf(item);
+  return TEST_PATH.test(path) || TEST_FILE.test(path);
+}
+
 const asText = (value: unknown): string =>
   value == null ? "" : typeof value === "object" ? JSON.stringify(value) : String(value);
 
@@ -167,6 +195,25 @@ const FILTERS: Record<string, FilterSpec> = {
         rows.length > shown.length ? `<p>… y ${rows.length - shown.length} fila(s) más.</p>` : "";
       return `<table style="${TABLE_STYLE}"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${rest}`;
     },
+  },
+  /**
+   * Saca de una lista los archivos de prueba.
+   *
+   * Nace de una medición: buscando el mensaje "Timeout has occurred" en el
+   * código, las cinco coincidencias que devolvió GitLab eran mocks. Los seis
+   * modelos que probamos leyeron uno y dictaminaron un bug de producción.
+   * Pedírselo en el prompt no alcanzó — falló 18 de 18 veces. Un mock no es el
+   * lugar donde nace un error: eso es un hecho, y un hecho va en el flujo, no
+   * en una instrucción que el modelo puede ignorar.
+   *
+   * Que la lista quede vacía es información, no un fallo: significa que no hay
+   * evidencia, y el flujo puede contestar eso en vez de inventar una causa.
+   *
+   * Lo que no es una lista pasa intacto, como el resto de los filtros.
+   */
+  withoutTests: {
+    arity: [0, 0],
+    apply: (v) => (Array.isArray(v) ? v.filter((item) => !looksLikeATest(item)) : v),
   },
   nrql: { arity: [0, 0], apply: (v) => nrqlEscape(asText(v)) },
   html: { arity: [0, 0], apply: (v) => htmlEscape(asText(v)) },
