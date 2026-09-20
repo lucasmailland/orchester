@@ -199,6 +199,51 @@ export const MODELS: ModelDef[] = [
     cin: 0.00022,
     cout: 0.00088,
   }),
+  // Modelos no-Anthropic de Bedrock, agregados el 2026-09-19. Cada precio está
+  // cruzado entre DOS fuentes que coinciden al centavo: la AWS Price List API
+  // (`USE1-<modelo>-input-tokens` / `-output-tokens`, us-east-1, on demand) y
+  // models.dev. Las tarifas `-priority` son ~1,75x y no se usan acá.
+  m("bedrock", "zai.glm-5", "GLM 5 (Bedrock)", "chat", {
+    tier: "powerful",
+    ctx: 200_000,
+    cin: 0.001,
+    cout: 0.0032,
+  }),
+  m("bedrock", "zai.glm-4.7", "GLM 4.7 (Bedrock)", "chat", {
+    tier: "smart",
+    ctx: 200_000,
+    cin: 0.0006,
+    cout: 0.0022,
+  }),
+  m("bedrock", "zai.glm-4.7-flash", "GLM 4.7 Flash (Bedrock)", "chat", {
+    tier: "fast",
+    ctx: 200_000,
+    cin: 0.00007,
+    cout: 0.0004,
+  }),
+  m("bedrock", "deepseek.v3.2", "DeepSeek V3.2 (Bedrock)", "chat", {
+    tier: "smart",
+    ctx: 128_000,
+    cin: 0.00062,
+    cout: 0.00185,
+  }),
+  m("bedrock", "qwen.qwen3-coder-next", "Qwen3 Coder Next (Bedrock)", "chat", {
+    tier: "smart",
+    ctx: 256_000,
+    cin: 0.0005,
+    cout: 0.0012,
+  }),
+  m("bedrock", "us.moonshotai.kimi-k3", "Kimi K3 (Bedrock)", "chat", {
+    tier: "powerful",
+    ctx: 1_000_000,
+    // Precio del perfil `us.` (SKU `-mantle-*-standard`). El perfil `global.`
+    // sale 0.003/0.015, ~9% menos. Única entrada del bloque con una sola
+    // fuente: models.dev todavía no lo lista.
+    cin: 0.0033,
+    cout: 0.0165,
+    // Contesta 400 "This model doesn't support the temperature field".
+    noSampling: true,
+  }),
   m("google", "gemini-3-pro-preview", "Gemini 3 Pro", "chat", {
     tier: "powerful",
     ctx: 1_000_000,
