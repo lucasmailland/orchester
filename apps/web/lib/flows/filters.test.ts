@@ -190,3 +190,59 @@ describe("table", () => {
     );
   });
 });
+
+describe("withoutTests", () => {
+  // Medido el 2026-09-20 sobre el flow de análisis de incidentes: para el
+  // mensaje "Timeout has occurred", las CINCO coincidencias que devuelve
+  // GitLab son archivos de prueba. Los seis modelos que probamos leyeron un
+  // mock y dictaminaron un bug de producción — Sonnet incluso escribió que el
+  // archivo real "no fue traído", y dictaminó igual. Pedirles en el prompt que
+  // no lo hagan falló 18 de 18 veces. Que un mock no sea el lugar donde nace
+  // un error no es criterio: es un hecho, y los hechos van en el flujo.
+  const coincidencias = [
+    { path: "src/auth/auth.service.ts", startline: 40 },
+    { path: "src/auth/auth.service.spec.ts", startline: 316 },
+    { path: "src/nodes/__tests__/turno.gateway.spec.ts", startline: 154 },
+    { path: "src/testing/selectWorkday.spec.skip.ts", startline: 12 },
+    { path: "test/summary-computer.service.spec.ts", startline: 9 },
+    { path: "src/user/user.service.test.ts", startline: 7 },
+  ];
+
+  it("deja sólo el archivo de producción", () => {
+    expect(evaluateExpression("ms | withoutTests", { ms: coincidencias })).toEqual([
+      coincidencias[0],
+    ]);
+  });
+
+  it("no confunde una ruta que apenas contiene la palabra", () => {
+    // `contest.service.ts` contiene "test", y `respec.ts` contiene "spec".
+    // Un filtro por substring pelado se los comería, y borrar evidencia buena
+    // es peor que dejar pasar un mock: al menos el mock se puede descartar
+    // leyéndolo.
+    const sanos = [
+      { path: "src/contest/contest.service.ts" },
+      { path: "src/respec/respec.ts" },
+      { path: "src/latest/latest.controller.ts" },
+      { path: "src/protest.ts" },
+    ];
+    expect(evaluateExpression("ms | withoutTests", { ms: sanos })).toEqual(sanos);
+  });
+
+  it("sirve con una lista de rutas sueltas", () => {
+    expect(
+      evaluateExpression("ms | withoutTests", { ms: ["a/b.ts", "a/b.spec.ts", "a/__tests__/c.ts"] })
+    ).toEqual(["a/b.ts"]);
+  });
+
+  it("devuelve lista vacía cuando TODO era prueba", () => {
+    // Éste es el caso que importa: la lista vacía es la señal de que no hay
+    // evidencia, y el flujo la usa para contestar 'insuficiente' por su cuenta
+    // en vez de mandarle mocks a un modelo.
+    expect(evaluateExpression("ms | withoutTests", { ms: coincidencias.slice(1) })).toEqual([]);
+  });
+
+  it("deja pasar lo que no es una lista, sin romper", () => {
+    expect(evaluateExpression("x | withoutTests", { x: "hola" })).toBe("hola");
+    expect(evaluateExpression("falta | withoutTests", {})).toBeUndefined();
+  });
+});
