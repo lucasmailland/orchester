@@ -91,6 +91,57 @@ describe("validateStoredFlow", () => {
     );
     expect(ok.some((i) => /done/.test(i.message))).toBe(false);
   });
+  it("rejects a try_catch with no try branch, which only fails when it runs", () => {
+    // Esto pasó de verdad: el flow validó sin un solo error y reventó en la
+    // primera corrida con "try_catch: missing try branch". Una validación que
+    // aprueba un flow que no puede correr enseña a no leerla.
+    const tc = {
+      id: "tc",
+      type: "try_catch",
+      label: "Intentar",
+      config: {},
+      position: { x: 0, y: 0 },
+      purpose: "p",
+    };
+    const sinTry = validateStoredFlow(
+      [trigger, tc, transform("y", "{}")],
+      [
+        { id: "e1", source: "t", target: "tc" },
+        { id: "e2", source: "tc", target: "y" },
+      ],
+      { spec: "x" }
+    );
+    expect(sinTry.some((i) => i.level === "error" && i.nodeId === "tc")).toBe(true);
+
+    const conTry = validateStoredFlow(
+      [trigger, tc, transform("y", "{}")],
+      [
+        { id: "e1", source: "t", target: "tc" },
+        { id: "e2", source: "tc", target: "y", sourceHandle: "try" },
+      ],
+      { spec: "x" }
+    );
+    expect(conTry.some((i) => i.level === "error")).toBe(false);
+  });
+  it("warns about a loop with no body, which runs and does nothing", () => {
+    const issues = validateStoredFlow(
+      [
+        trigger,
+        {
+          id: "lp",
+          type: "loop_for_each",
+          label: "Por cada uno",
+          config: { items: "{{contactos}}" },
+          position: { x: 0, y: 0 },
+          purpose: "p",
+        },
+      ],
+      [{ id: "e1", source: "t", target: "lp" }],
+      { spec: "x" }
+    );
+    expect(issues.some((i) => i.level === "warning" && i.nodeId === "lp")).toBe(true);
+    expect(issues.some((i) => i.level === "error" && i.nodeId === "lp")).toBe(false);
+  });
   it("returns documentation warnings, never errors, for missing spec and purpose", () => {
     const issues = validateStoredFlow(
       [trigger, transform("x", "{}", "")],

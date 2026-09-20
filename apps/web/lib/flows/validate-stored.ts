@@ -72,6 +72,35 @@ export function validateStoredFlow(
     }
   }
 
+  // Salidas que el motor exige o da por supuestas. Sin ellas el flow valida
+  // limpio y falla recién al correr: `try_catch` tira "missing try branch", y
+  // un `loop_for_each` sin cuerpo recorre la lista sin hacer nada y devuelve
+  // una lista de vacíos, que es peor porque no se queja.
+  const salidas = new Map<string, Set<string>>();
+  for (const e of edges) {
+    if (!e.sourceHandle) continue;
+    const set = salidas.get(e.source) ?? new Set<string>();
+    set.add(e.sourceHandle);
+    salidas.set(e.source, set);
+  }
+  for (const n of nodes) {
+    const tiene = salidas.get(n.id) ?? new Set<string>();
+    if (n.type === "try_catch" && !tiene.has("try")) {
+      issues.push({
+        level: "error",
+        nodeId: n.id,
+        message: `"${n.label}" no tiene salida "Intentar": conectá el paso que querés proteger a esa salida, o el flow falla al correr.`,
+      });
+    }
+    if (n.type === "loop_for_each" && !tiene.has("body")) {
+      issues.push({
+        level: "warning",
+        nodeId: n.id,
+        message: `"${n.label}" no tiene salida "Cuerpo": va a recorrer la lista sin ejecutar nada.`,
+      });
+    }
+  }
+
   const typeOf = new Map(nodes.map((n) => [n.id, n.type]));
   for (const e of edges) {
     if (e.sourceHandle === "done" && !DONE_SOURCES.has(typeOf.get(e.source) ?? "")) {
