@@ -272,6 +272,14 @@ export const NODE_REGISTRY: Record<string, NodeDef> = {
         example: "Sos un redactor formal.",
       },
       {
+        key: "temperature",
+        label: "Temperatura",
+        type: "number",
+        advanced: true,
+        help: "0 = la misma respuesta ante la misma entrada; 1 = más variada. Para clasificar o decidir, poné 0. Vacío deja el valor del proveedor.",
+        example: "0",
+      },
+      {
         key: "outputVar",
         label: "Guardar en",
         type: "text",
