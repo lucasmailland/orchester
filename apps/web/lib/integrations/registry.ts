@@ -5,6 +5,7 @@ import {
   gitlabTest,
   gitlabSearchCode,
   gitlabReadFile,
+  gitlabCompareRefs,
   gitlabListCommits,
   gitlabGetMergeRequest,
 } from "./gitlab-client";
@@ -1147,6 +1148,25 @@ const gitlab: Connector = {
         required: ["project"],
       },
       run: gitlabListCommits,
+    },
+    compare_refs: {
+      description:
+        "Compare two refs (branch, tag or commit SHA) and return the commits between them plus the changed file paths. Use it to narrow suspects when you know the version where an error first appeared: pass the previous version's SHA as `from` and that version's SHA as `to`. Commits are capped by `limit` and files at 40; `truncated` says whether anything was left out.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project: {
+            ...gitlabIdSchema,
+            description:
+              "Numeric ID or full namespace path. Accepts projectId from a search_code match.",
+          },
+          from: { type: "string", minLength: 1, description: "The older ref: branch, tag or SHA." },
+          to: { type: "string", minLength: 1, description: "The newer ref: branch, tag or SHA." },
+          limit: gitlabLimitSchema,
+        },
+        required: ["project", "from", "to"],
+      },
+      run: gitlabCompareRefs,
     },
     get_merge_request: {
       description:

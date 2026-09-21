@@ -44,7 +44,7 @@ afterEach(() => {
 });
 
 describe("gitlab connector", () => {
-  it("registers only four read actions and standard credential fields", () => {
+  it("registers only read actions and standard credential fields", () => {
     const connector = getConnector("gitlab");
     expect(connector).toBeDefined();
     expect(connector!.authType).toBe("token");
@@ -52,12 +52,26 @@ describe("gitlab connector", () => {
       expect.objectContaining({ key: "baseUrl", type: "url", required: false }),
       expect.objectContaining({ key: "token", type: "password", required: true }),
     ]);
+    // La lista es explícita a propósito: el conector es de SÓLO LECTURA y esta
+    // prueba es el guardián. Sumar una acción acá es una decisión, no un
+    // descuido — y una que escriba en GitLab no debería pasar por este cambio
+    // de una línea, debería discutirse.
     expect(Object.keys(connector!.actions).sort()).toEqual([
+      "compare_refs",
       "get_merge_request",
       "list_commits",
       "read_file",
       "search_code",
     ]);
+  });
+  it("toda acción registrada es de lectura", () => {
+    // Lo que de verdad protege el guardián no es el número, es que nada
+    // escriba. Un nombre que suene a escritura falla acá aunque alguien haya
+    // actualizado la lista de arriba sin pensar.
+    const ESCRIBE = /^(create|update|delete|post|put|patch|merge|close|add|remove|set|write)/;
+    for (const nombre of Object.keys(getConnector("gitlab")!.actions)) {
+      expect(nombre).not.toMatch(ESCRIBE);
+    }
   });
   it.each(["project", "group"])("searches %s blobs with encoded inputs", async (scope) => {
     const calls = mockGitLab({
@@ -664,5 +678,81 @@ describe("gitlab connector", () => {
   it("rejects repeated pagination instead of looping", async () => {
     mockGitLab({ payload: {} }, { payload: [], headers: { "x-next-page": "1" } });
     await expect(run("get_merge_request", { project: 12, iid: 7 })).rejects.toThrow(/pagination/);
+  });
+});
+
+describe("compare_refs", () => {
+  // Para qué sirve: en Fichap, `service.version` de New Relic viene como
+  // `0.2.67+da206454` — semver MÁS el sha del commit. Si un error aparece
+  // recién en una versión, comparar el sha de la anterior contra el de ésa
+  // acota el sospechoso a unos pocos commits. Medido contra vacation-service
+  // el 2026-09-21: 3 commits y 4 archivos, contra los ~30 repos que hay que
+  // revisar buscando el texto del error.
+  const respuesta = {
+    commits: [
+      {
+        id: "96687710aaaa",
+        short_id: "96687710",
+        title: "Enhance vacation request DTOs",
+        author_name: "Alguien",
+        committed_date: "2026-09-16T10:00:00Z",
+      },
+    ],
+    diffs: [
+      { new_path: "src/vacations/services/vacationRequests.service.ts", old_path: "x" },
+      { new_path: "package.json", old_path: "package.json" },
+    ],
+  };
+
+  it("pide la comparación y devuelve commits y archivos", async () => {
+    const calls = mockGitLab({ payload: respuesta });
+    const out = (await run("compare_refs", {
+      project: "fichap-team/microservices/vacation-service",
+      from: "d9bc5f4d",
+      to: "da206454",
+    })) as { commits: unknown[]; files: string[] };
+
+    expectGet(calls);
+    expect(calls[0]!.url).toContain("/repository/compare");
+    expect(calls[0]!.url).toContain("from=d9bc5f4d");
+    expect(calls[0]!.url).toContain("to=da206454");
+    expect(out.commits).toHaveLength(1);
+    expect(out.files).toEqual([
+      "src/vacations/services/vacationRequests.service.ts",
+      "package.json",
+    ]);
+  });
+
+  it("acota commits y archivos, y dice que los acotó", async () => {
+    // Una comparación entre versiones lejanas puede traer cientos de archivos.
+    // Volcarlos en un prompt gasta el contexto en ruido; peor, esconde los
+    // pocos que importan.
+    const grande = {
+      commits: Array.from({ length: 40 }, (_, i) => ({
+        id: `c${i}`,
+        short_id: `c${i}`,
+        title: `commit ${i}`,
+        author_name: "a",
+        committed_date: "2026-09-16T10:00:00Z",
+      })),
+      diffs: Array.from({ length: 80 }, (_, i) => ({ new_path: `src/f${i}.ts` })),
+    };
+    mockGitLab({ payload: grande });
+    const out = (await run("compare_refs", {
+      project: "g/p",
+      from: "a",
+      to: "b",
+      limit: 5,
+    })) as { commits: unknown[]; files: string[]; truncated: boolean; totalCommits: number };
+
+    expect(out.commits).toHaveLength(5);
+    expect(out.files.length).toBeLessThanOrEqual(40);
+    expect(out.truncated).toBe(true);
+    expect(out.totalCommits).toBe(40);
+  });
+
+  it("exige las dos puntas", async () => {
+    await expect(run("compare_refs", { project: "g/p", from: "a" })).rejects.toThrow(/to/i);
+    await expect(run("compare_refs", { project: "g/p", to: "b" })).rejects.toThrow(/from/i);
   });
 });

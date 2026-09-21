@@ -246,3 +246,34 @@ describe("withoutTests", () => {
     expect(evaluateExpression("falta | withoutTests", {})).toBeUndefined();
   });
 });
+
+describe("after y before", () => {
+  // Nacen de un caso concreto: `service.version` de New Relic viene como
+  // `0.2.67+da206454` — semver MÁS el sha del commit. Para comparar dos
+  // versiones en GitLab hace falta el sha solo, y no había forma de partir un
+  // string en una plantilla.
+  it("parte una versión en semver y sha", () => {
+    const ctx = { v: "0.2.67+da206454" };
+    expect(evaluateExpression("v | after:+", ctx)).toBe("da206454");
+    expect(evaluateExpression("v | before:+", ctx)).toBe("0.2.67");
+  });
+
+  it("corta en la PRIMERA aparición", () => {
+    const ctx = { s: "a=b=c" };
+    expect(evaluateExpression("s | after:=", ctx)).toBe("b=c");
+    expect(evaluateExpression("s | before:=", ctx)).toBe("a");
+  });
+
+  it("sin separador devuelve el texto entero, no vacío", () => {
+    // Devolver "" convertiría una versión sin sha en una consulta a GitLab con
+    // la punta vacía. Devolver el texto entero deja que el error se vea.
+    const ctx = { v: "0.2.67" };
+    expect(evaluateExpression("v | after:+", ctx)).toBe("0.2.67");
+    expect(evaluateExpression("v | before:+", ctx)).toBe("0.2.67");
+  });
+
+  it("acepta separadores de más de un carácter y valores vacíos", () => {
+    expect(evaluateExpression("s | after:::", { s: "ns::clase" })).toBe("clase");
+    expect(evaluateExpression("falta | after:+", {})).toBe("");
+  });
+});

@@ -215,6 +215,36 @@ const FILTERS: Record<string, FilterSpec> = {
     arity: [0, 0],
     apply: (v) => (Array.isArray(v) ? v.filter((item) => !looksLikeATest(item)) : v),
   },
+  /**
+   * Partir un texto por un separador.
+   *
+   * Sin esto no había forma de sacar el sha de un `service.version` como
+   * `0.2.67+da206454` dentro de una plantilla. Cortan en la PRIMERA aparición,
+   * y si el separador no está devuelven el texto entero: devolver vacío
+   * convertiría una versión sin sha en una consulta con la punta en blanco, y
+   * eso falla lejos de donde está la causa.
+   *
+   * El separador toma el resto de la expresión, dos puntos incluidos, igual que
+   * `default` — así `after:::` parte por `::`.
+   */
+  after: {
+    arity: [1, Infinity],
+    apply: (v, args) => {
+      const texto = asText(v);
+      const sep = args.join(":");
+      const i = texto.indexOf(sep);
+      return i === -1 || sep === "" ? texto : texto.slice(i + sep.length);
+    },
+  },
+  before: {
+    arity: [1, Infinity],
+    apply: (v, args) => {
+      const texto = asText(v);
+      const sep = args.join(":");
+      const i = texto.indexOf(sep);
+      return i === -1 || sep === "" ? texto : texto.slice(0, i);
+    },
+  },
   nrql: { arity: [0, 0], apply: (v) => nrqlEscape(asText(v)) },
   html: { arity: [0, 0], apply: (v) => htmlEscape(asText(v)) },
   redact: {
