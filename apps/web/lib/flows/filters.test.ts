@@ -246,3 +246,68 @@ describe("withoutTests", () => {
     expect(evaluateExpression("falta | withoutTests", {})).toBeUndefined();
   });
 });
+
+describe("routeCandidates", () => {
+  // De dónde sale esto: New Relic no expone la traza de pila por NRQL, pero sí
+  // `transactionName`, que trae la ruta HTTP. Y la ruta ubica el código mucho
+  // mejor que el texto del error, porque las rutas NO se copian entre
+  // microservicios y los mensajes sí.
+  //
+  // El problema medido el 2026-09-20: NestJS parte la ruta entre
+  // @Controller(...) y @Post(...), y cada servicio corta en un lugar distinto.
+  // Buscar la ruta entera no encuentra el backend —encuentra clientes, que sí
+  // la escriben completa—. Por eso el filtro devuelve CANDIDATOS: se prueban de
+  // más específico a más general y se toma el primero que dé resultado.
+  it("saca el preámbulo de New Relic y devuelve prefijos, del más largo al más corto", () => {
+    expect(
+      evaluateExpression("t | routeCandidates", {
+        t: "WebTransaction/Expressjs/POST//auth/v1/point/login",
+      })
+    ).toEqual(["auth/v1/point/login", "auth/v1/point", "auth/v1", "auth", "login"]);
+  });
+
+  it("sirve con otros métodos y con una ruta corta", () => {
+    expect(
+      evaluateExpression("t | routeCandidates", {
+        t: "WebTransaction/Expressjs/GET//companies/white-label/self",
+      })
+    ).toEqual(["companies/white-label/self", "companies/white-label", "companies", "self"]);
+    expect(
+      evaluateExpression("t | routeCandidates", {
+        t: "WebTransaction/Expressjs/POST//workdays/clockIn",
+      })
+    ).toEqual(["workdays/clockIn", "workdays", "clockIn"]);
+  });
+
+  it("no repite el último tramo cuando ya es un candidato", () => {
+    expect(evaluateExpression("t | routeCandidates", { t: "POST//documents" })).toEqual([
+      "documents",
+    ]);
+  });
+
+  it("descarta los tramos que son parámetros", () => {
+    // `:id` y `{id}` no existen en el código con ese nombre, y un candidato que
+    // nunca puede encontrar nada sólo gasta una llamada a GitLab.
+    expect(
+      evaluateExpression("t | routeCandidates", {
+        t: "WebTransaction/Expressjs/GET//users/:id/files",
+      })
+    ).toEqual(["users", "files"]);
+  });
+
+  it("acepta una ruta pelada, sin preámbulo", () => {
+    expect(evaluateExpression("t | routeCandidates", { t: "/companies/white-label/self" })).toEqual(
+      ["companies/white-label/self", "companies/white-label", "companies", "self"]
+    );
+  });
+
+  it("devuelve lista vacía cuando no hay ruta", () => {
+    // Que sea vacía es la señal de "no tengo ruta": el flujo se saltea esa
+    // búsqueda en vez de inventar una consulta.
+    expect(evaluateExpression("t | routeCandidates", { t: "" })).toEqual([]);
+    expect(evaluateExpression("falta | routeCandidates", {})).toEqual([]);
+    expect(
+      evaluateExpression("t | routeCandidates", { t: "WebTransaction/Expressjs/POST//" })
+    ).toEqual([]);
+  });
+});

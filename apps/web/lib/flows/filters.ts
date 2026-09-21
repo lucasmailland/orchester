@@ -64,6 +64,56 @@ function looksLikeATest(item: unknown): boolean {
   return TEST_PATH.test(path) || TEST_FILE.test(path);
 }
 
+/**
+ * El preámbulo que los APM le ponen adelante a la ruta.
+ *
+ * New Relic informa `WebTransaction/Expressjs/POST//auth/v1/login`. Lo que
+ * sirve para encontrar código es lo que va después del método.
+ */
+const PREAMBULO = /^.*?\b(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b\/*/i;
+/** `:id`, `{id}`, `<id>`: no existen en el código con ese nombre. */
+const ES_PARAMETRO = /^[:{<]|^\d+$/;
+
+/**
+ * Los pedazos de una ruta que vale la pena buscar en el código, del más
+ * específico al más general.
+ *
+ * NestJS parte la ruta entre `@Controller(...)` y `@Post(...)`, y cada servicio
+ * corta en un lugar distinto: medido el 2026-09-20, company corta en
+ * `companies/white-label`, auth en `auth/v1`, y workdays deja `clockIn` suelto.
+ * Buscar la ruta entera no encuentra el backend — encuentra clientes, que sí la
+ * escriben completa. Por eso esto devuelve CANDIDATOS: se prueban en orden y se
+ * toma el primero que dé resultado.
+ *
+ * El último tramo va al final, no al principio: es el más propenso a ser una
+ * palabra común, y probarlo primero traería ruido antes que la respuesta.
+ */
+function routeCandidates(value: unknown): string[] {
+  const crudo = typeof value === "string" ? value : "";
+  const ruta = crudo.replace(PREAMBULO, "").replace(/^\/+/, "");
+  const tramos = ruta.split("/").filter((s) => s !== "");
+  const literales = tramos.filter((s) => !ES_PARAMETRO.test(s));
+  if (literales.length === 0) return [];
+
+  // Los prefijos se arman SÓLO hasta el primer parámetro. Unir lo que está a
+  // los dos lados de un `:id` produce una ruta que nunca existió —
+  // `users/:id/files` daría `users/files`— y buscarla gasta una llamada para
+  // garantizar cero resultados.
+  const corridaInicial: string[] = [];
+  for (const tramo of tramos) {
+    if (ES_PARAMETRO.test(tramo)) break;
+    corridaInicial.push(tramo);
+  }
+
+  const candidatos: string[] = [];
+  for (let corte = corridaInicial.length; corte >= 1; corte--) {
+    candidatos.push(corridaInicial.slice(0, corte).join("/"));
+  }
+  const ultimo = literales[literales.length - 1]!;
+  if (!candidatos.includes(ultimo)) candidatos.push(ultimo);
+  return candidatos;
+}
+
 const asText = (value: unknown): string =>
   value == null ? "" : typeof value === "object" ? JSON.stringify(value) : String(value);
 
@@ -215,6 +265,7 @@ const FILTERS: Record<string, FilterSpec> = {
     arity: [0, 0],
     apply: (v) => (Array.isArray(v) ? v.filter((item) => !looksLikeATest(item)) : v),
   },
+  routeCandidates: { arity: [0, 0], apply: (v) => routeCandidates(v) },
   nrql: { arity: [0, 0], apply: (v) => nrqlEscape(asText(v)) },
   html: { arity: [0, 0], apply: (v) => htmlEscape(asText(v)) },
   redact: {
