@@ -298,3 +298,60 @@ export async function gitlabGetMergeRequest(
     changed_paths: [...paths],
   };
 }
+
+interface Compare {
+  commits: Commit[];
+  diffs: { new_path?: string; old_path?: string }[];
+}
+
+/** Cuántos archivos como mucho: más que esto en un prompt es ruido, no evidencia. */
+const MAX_COMPARE_FILES = 40;
+
+/**
+ * Qué cambió entre dos puntos del repo.
+ *
+ * Existe para acotar al sospechoso cuando se sabe en qué versión apareció un
+ * error. En Fichap, `service.version` de New Relic viene como
+ * `0.2.67+da206454` — semver más el sha del commit —, así que comparar el sha
+ * de la versión anterior contra el de la primera que trae el error deja unos
+ * pocos commits. Medido contra vacation-service el 2026-09-21: 3 commits y 4
+ * archivos, en vez de buscar el texto del error en treinta repos.
+ *
+ * Acota a propósito, y lo dice: una comparación entre versiones lejanas puede
+ * traer cientos de archivos, y volcarlos enteros esconde los pocos que
+ * importan.
+ */
+export async function gitlabCompareRefs(
+  config: Record<string, string>,
+  input: Record<string, unknown>
+) {
+  const limit = limitOf(input.limit);
+  const from = requiredText(input.from, "from");
+  const to = requiredText(input.to, "to");
+  const { data } = await get<Compare>(
+    config,
+    `projects/${segment(input.project, "project")}/repository/compare`,
+    { from, to }
+  );
+  const commits = data.commits ?? [];
+  const archivos = (data.diffs ?? [])
+    .map((d) => d.new_path || d.old_path || "")
+    .filter((p) => p !== "");
+  return {
+    from,
+    to,
+    commits: commits
+      .slice(0, limit)
+      .map(({ id, short_id, title, author_name, committed_date }) => ({
+        id,
+        short_id,
+        title,
+        author_name,
+        committed_date,
+      })),
+    files: archivos.slice(0, MAX_COMPARE_FILES),
+    totalCommits: commits.length,
+    totalFiles: archivos.length,
+    truncated: commits.length > limit || archivos.length > MAX_COMPARE_FILES,
+  };
+}
