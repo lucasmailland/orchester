@@ -40,6 +40,9 @@ export interface Aviso {
   input: Record<string, unknown>;
 }
 
+/** Separa el workspace del secreto. No aparece en un cuid2 (alfanumérico). */
+const SEPARADOR = ".";
+
 /**
  * El secreto que viaja en el enlace de aprobación.
  *
@@ -47,9 +50,37 @@ export interface Aviso {
  * lado de esa decisión puede ser un merge a producción. Es de un solo uso: al
  * resolverse la pausa se borra, así que un enlace reenviado por mail no sirve
  * dos veces.
+ *
+ * **Por qué lleva el workspace adelante.** Quien aprueba no tiene sesión: el
+ * token es todo lo que trae. Pero para buscar el run hay que consultar
+ * `flow_run`, y con FORCE RLS una consulta sin `app.workspace_id` no devuelve
+ * filas — la primera versión guardaba un token opaco y buscaba con un `getDb()`
+ * pelado, así que en cualquier deploy con RLS encendido TODA aprobación habría
+ * contestado "este enlace no es válido", sin error y sin rastro. Con el
+ * workspace adelante, la ruta establece el contexto antes de tocar la base.
+ *
+ * El workspace no es el permiso: la búsqueda sigue comparando el token
+ * completo, así que conocer un workspaceId —que aparece en cualquier URL de la
+ * aplicación— no acerca a nadie a adivinar los dos cuid2 del secreto.
  */
-export function nuevoTokenDeAprobacion(): string {
-  return `apr_${createId()}${createId()}`;
+export function nuevoTokenDeAprobacion(workspaceId: string): string {
+  return `apr_${workspaceId}${SEPARADOR}${createId()}${createId()}`;
+}
+
+/**
+ * De qué workspace es este token, para poder consultar la base con contexto.
+ *
+ * Devuelve `undefined` si el token no tiene la forma esperada — un enlace
+ * recortado por un cliente de mail, o inventado. Quien llama trata ese caso
+ * igual que "no existe": nunca consulta sin workspace.
+ */
+export function workspaceDelToken(token: string): string | undefined {
+  if (!token.startsWith("apr_")) return undefined;
+  const corte = token.indexOf(SEPARADOR);
+  if (corte <= "apr_".length) return undefined;
+  const ws = token.slice("apr_".length, corte);
+  // Un secreto sin workspace, o un workspace sin secreto, no sirven.
+  return ws && token.length > corte + 1 ? ws : undefined;
 }
 
 /** Las dos únicas respuestas que el motor entiende. */

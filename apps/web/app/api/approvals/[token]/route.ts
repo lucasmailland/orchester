@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { workspaceDelToken } from "@/lib/flows/pause";
 import { mirarPorToken, retomarPorToken } from "@/lib/flows/resume";
 import { logWithContext } from "@/lib/observability";
 import { parseBody } from "@/lib/validation";
@@ -15,6 +16,13 @@ import { parseBody } from "@/lib/validation";
  * `/api/webhooks/[secret]`, y por eso está en la misma lista de excepciones de
  * `audit-invariants.sh`, con nombre y motivo, en vez de saltearse la regla en
  * silencio.
+ *
+ * **Pero sí resuelve el tenant.** No pedir sesión no es lo mismo que consultar
+ * sin workspace: `workspaceDelToken` saca el workspace del propio token, y todo
+ * lo que toca la base corre con ese contexto puesto. La primera versión
+ * buscaba el run con un `getDb()` pelado, y con FORCE RLS esa consulta no
+ * devuelve filas — toda aprobación habría contestado "este enlace no es
+ * válido", sin error en ningún log.
  *
  * A cambio, el token es de un solo uso: se borra en la misma escritura que
  * registra la decisión, así que un enlace reenviado no sirve dos veces. Y se
@@ -33,6 +41,11 @@ const decisionSchema = z.object({
 
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  // Un token sin workspace no se puede consultar con contexto, así que no se
+  // consulta: se rechaza acá, con el mismo texto que un token inexistente.
+  if (!workspaceDelToken(token)) {
+    return NextResponse.json({ error: "Este enlace no es válido." }, { status: 404 });
+  }
 
   const parsed = await parseBody(req, decisionSchema);
   if (!parsed.ok) return parsed.response;
@@ -67,6 +80,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
  */
 export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  if (!workspaceDelToken(token)) {
+    return NextResponse.json({ error: "Este enlace no es válido." }, { status: 404 });
+  }
   const r = await mirarPorToken(token);
   if (!r.ok) return NextResponse.json({ error: "Este enlace no es válido." }, { status: 404 });
   return NextResponse.json({

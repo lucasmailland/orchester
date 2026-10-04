@@ -62,6 +62,13 @@ const API_ROOT = join(__dirname, "..", "..", "app", "api");
 //   - resolveBySlug / checkMembership: `lib/tenant/resolve.ts` +
 //     `lib/tenant/membership.ts` — used by the workspace-switcher
 //     endpoint.
+//   - workspaceDelToken: `lib/flows/pause.ts` — the approval link for a
+//     `wait_human` pause. Same shape as `withCrossTenantAdmin`: the
+//     workspace comes from a public identifier (the approval token
+//     carries it ahead of the secret), except nothing bypasses RLS —
+//     the lookup and the write both run inside `withFlowTx`, which sets
+//     `app.workspace_id`. The route MUST reject a token with no
+//     workspace before querying, which is what the substring marks.
 const TENANT_HELPERS = [
   "withTenantContext",
   "withWorkspaceTx",
@@ -75,6 +82,7 @@ const TENANT_HELPERS = [
   "authenticateApiKey",
   "resolveBySlug",
   "checkMembership",
+  "workspaceDelToken",
 ];
 
 // Routes that legitimately don't scope by workspace. Paths are relative

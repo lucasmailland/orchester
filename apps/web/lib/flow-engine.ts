@@ -459,7 +459,7 @@ export async function executeFlow({
     // la posición vivía en la pila y no sobrevive al proceso— y soltamos el
     // job. La corrida sigue cuando alguien decida, en otro proceso.
     if (e instanceof PauseRequested) {
-      const token = nuevoTokenDeAprobacion();
+      const token = nuevoTokenDeAprobacion(workspaceId);
       await withFlowTx(workspaceId, (tx) =>
         tx
           .update(schema.flowRuns)
@@ -580,7 +580,7 @@ export async function continuarFlowPausado({
     // Un flow puede tener dos aprobaciones seguidas. La segunda pausa se
     // guarda igual que la primera, con token nuevo.
     if (e instanceof PauseRequested) {
-      const token = nuevoTokenDeAprobacion();
+      const token = nuevoTokenDeAprobacion(workspaceId);
       await withFlowTx(workspaceId, (tx) =>
         tx
           .update(schema.flowRuns)
