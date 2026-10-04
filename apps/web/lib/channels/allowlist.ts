@@ -5,17 +5,40 @@
  */
 const LOOKS_LIKE_AN_ID = /^-?\d{5,}$/;
 
-/** IDs match exactly; usernames ignore case and an optional leading @. */
+/**
+ * Whether this sender may talk to the channel's agent.
+ *
+ * **An empty allowlist denies.** It used to allow, and that conflated two very
+ * different situations: "nobody has configured this yet" and "this is meant to
+ * be open". The difference matters because a Telegram bot is addressable by its
+ * @name — anyone who finds it is already at the door, no URL secret needed —
+ * and because an approval link for a paused `wait_human` run travels through
+ * these channels. On the other side of that link can be a merge to production.
+ *
+ * To open a channel to everyone, set `allowAnySender: true`. Saying it out loud
+ * is the point: an open channel is now a decision someone made, visible in the
+ * config, instead of the state a channel happens to be born in.
+ *
+ * Takes the whole `channel.config` rather than the list: the three webhooks
+ * that ask this question used to each cast `config.allowedSenders` themselves,
+ * and a gate parsed in three places is a gate that drifts in three places.
+ */
 export function isSenderAllowed(
-  allowed: string[] | undefined,
+  config: Record<string, unknown> | null | undefined,
   sender: { id: string; username?: string }
 ): boolean {
-  if (allowed === undefined) return true;
-  // Fail closed if legacy or externally written config is malformed.
-  if (!Array.isArray(allowed)) return false;
-  if (allowed.length === 0) return true;
+  const allowed = config?.["allowedSenders"];
+  const abierto = config?.["allowAnySender"] === true;
+
+  // Fail closed if legacy or externally written config is malformed. `config`
+  // is a free-form jsonb column, so this is reachable without a code change.
+  if (allowed !== undefined && !Array.isArray(allowed)) return false;
+
+  const lista = (allowed as unknown[] | undefined) ?? [];
+  if (lista.length === 0) return abierto;
+
   const username = sender.username?.replace(/^@/, "").toLowerCase();
-  return allowed.some((entry) => {
+  return lista.some((entry) => {
     if (typeof entry !== "string") return false;
     if (entry === sender.id) return true;
     // An ID-shaped entry never matches a username. A Discord username may be
