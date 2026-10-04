@@ -4,7 +4,12 @@ import { schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
 import { handleInbound } from "@/lib/channels/router";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
-import { decodeTelegramCredentials, telegramSend } from "@/lib/channels/telegram";
+import {
+  checkWebhookSecret,
+  decodeTelegramCredentials,
+  telegramSend,
+} from "@/lib/channels/telegram";
+import { logWithContext } from "@/lib/observability";
 
 /**
  * Public Telegram webhook. Telegram POSTs incoming messages here.
@@ -27,6 +32,29 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
     return NextResponse.json({ ok: false, error: "channel not found" }, { status: 404 });
   }
 
+  // Is this really Telegram? The URL secret alone cannot answer that: a URL
+  // leaks into proxy logs, browser history and screenshots, and anyone holding
+  // it can post whatever they like straight to the agent. Telegram echoes back
+  // the `secret_token` we registered, which a leaked URL does not carry.
+  const creds = decodeTelegramCredentials(channel.credentialsEncrypted);
+  const check = checkWebhookSecret(
+    creds?.webhookSecret,
+    req.headers.get("x-telegram-bot-api-secret-token")
+  );
+  if (check === "mismatch") {
+    return NextResponse.json({ ok: false, error: "channel not found" }, { status: 404 });
+  }
+  if (check === "unconfigured") {
+    // The channel predates the check. It keeps working —breaking every existing
+    // Telegram channel is worse— but it is not silent: re-saving the bot token
+    // registers a secret and closes this.
+    logWithContext("warn", "telegram webhook without a secret token", {
+      correlationId: channel.id,
+      channelId: channel.id,
+      workspaceId: channel.workspaceId,
+    });
+  }
+
   const update = await req.json().catch(() => null);
   const message = update?.message;
   const chatId = message?.chat?.id;
@@ -38,12 +66,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
 
   try {
     if (
-      !isSenderAllowed(channel.config?.allowedSenders as string[] | undefined, {
+      !isSenderAllowed(channel.config, {
         id: String(chatId),
         username: message?.from?.username,
       })
     ) {
-      const creds = decodeTelegramCredentials(channel.credentialsEncrypted);
       if (creds?.botToken) {
         await telegramSend(creds.botToken, chatId, `You do not have access. Your ID: ${chatId}.`);
       }
@@ -59,7 +86,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
     });
 
     if (result.reply) {
-      const creds = decodeTelegramCredentials(channel.credentialsEncrypted);
       if (creds?.botToken) {
         await telegramSend(creds.botToken, chatId, result.reply);
       }

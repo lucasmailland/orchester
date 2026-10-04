@@ -35,6 +35,10 @@ export const MANIFEST = [
     "0059_wait_human_pause_columns.sql",
     "dónde retomar un run pausado: nodo, variables, token de aprobación",
   ],
+  [
+    "0060_channel_allow_any_sender.sql",
+    "marca `allowAnySender` en los canales que ya estaban abiertos — la lista vacía ahora deniega",
+  ],
   // Sin número: ajuste del deploy single-tenant, no historia de upstream.
   // 0049 deja `org` con FORCE RLS y sólo una política de SELECT, así que ningún
   // INSERT pasa y crear un workspace da 500. Ver el header del archivo.

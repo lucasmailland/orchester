@@ -86,8 +86,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
     return NextResponse.json({ ok: true });
   }
 
-  const allowed = channel.config?.allowedSenders as string[] | undefined;
-  if (!isSenderAllowed(allowed, { id: ev.user }) && !isSenderAllowed(allowed, { id: ev.channel })) {
+  // Either the person or the channel being allowed is enough: a Slack
+  // allowlist is commonly written as "this channel", not person by person.
+  const cfg = channel.config;
+  if (!isSenderAllowed(cfg, { id: ev.user }) && !isSenderAllowed(cfg, { id: ev.channel })) {
     try {
       await slackSend(
         creds.botToken,

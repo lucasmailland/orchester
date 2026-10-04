@@ -103,8 +103,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
     return ephemeral("Discord did not identify who ran this command.");
   }
 
-  const allowed = channel.config?.["allowedSenders"] as string[] | undefined;
-  if (!isSenderAllowed(allowed, sender)) {
+  if (!isSenderAllowed(channel.config, sender)) {
     // The refusal needs no agent, so it answers straight away — and only the
     // person who ran the command sees their own ID.
     return ephemeral(`You do not have access. Your ID: ${sender.id}.`);

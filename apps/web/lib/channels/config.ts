@@ -3,6 +3,12 @@ import { z } from "zod";
 export const channelConfigSchema = z
   .object({
     allowedSenders: z.array(z.string().trim().min(1).max(256)).max(200).optional(),
+    /**
+     * Let anyone who finds the channel talk to its agent. Only consulted when
+     * `allowedSenders` is empty or absent, where it used to be the implicit
+     * default. Opening a channel is a decision; this is where it is recorded.
+     */
+    allowAnySender: z.boolean().optional(),
     /** Discord slash command name. Discord only accepts lowercase and no spaces. */
     commandName: z
       .string()

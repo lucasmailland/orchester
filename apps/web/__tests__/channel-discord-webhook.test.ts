@@ -31,7 +31,13 @@ const params = { params: Promise.resolve({ secret: "test-secret" }) };
 function request(body: unknown) {
   return new Request("https://example.com", { method: "POST", body: JSON.stringify(body) });
 }
-function channel(config: Record<string, unknown> = {}, type = "discord") {
+/**
+ * The default is an OPEN channel, written out, because most tests here are
+ * about deferral and replies rather than about who may talk. An empty config
+ * now denies — see `lib/channels/allowlist.ts` — so a bare `channel()` would
+ * make every one of those tests fail for a reason they do not care about.
+ */
+function channel(config: Record<string, unknown> = { allowAnySender: true }, type = "discord") {
   mocks.lookup.mockResolvedValue({
     id: "channel_test",
     workspaceId: "workspace_test",
@@ -139,7 +145,7 @@ it("is not found when the channel is paused", async () => {
 });
 
 it("refuses a stranger before handleInbound and shows only their own ID", async () => {
-  channel({ allowedSenders: ["user-allowed"] });
+  channel({ allowedSenders: ["user-allowed"], allowAnySender: true });
   const response = await POST(command({ userId: "user-stranger" }), params);
   const body = await response.json();
   // Type 4 replies immediately: a refusal needs no agent, so no deferral.
@@ -149,6 +155,18 @@ it("refuses a stranger before handleInbound and shows only their own ID", async 
   expect(body.data.flags).toBe(64);
   expect(mocks.inbound).not.toHaveBeenCalled();
   expect(mocks.after).not.toHaveBeenCalled();
+});
+
+it("refuses everyone until someone configures the channel", async () => {
+  // The empty config used to mean "open". It meant two things at once —
+  // "nobody set this up yet" and "this is meant to be public" — and the first
+  // one is far more common than the second.
+  channel({});
+  const response = await POST(command({ userId: "user-1" }), params);
+  const body = await response.json();
+  expect(body.type).toBe(4);
+  expect(body.data.flags).toBe(64);
+  expect(mocks.inbound).not.toHaveBeenCalled();
 });
 
 it("lets an allowed sender through", async () => {
@@ -193,7 +211,7 @@ it("keeps the answer private unless the channel asked for public ones", async ()
 });
 
 it("posts the answer to the channel when the operator asked for that", async () => {
-  channel({ publicReplies: true });
+  channel({ publicReplies: true, allowAnySender: true });
   const response = await POST(command({}), params);
   expect(await response.json()).toEqual({ type: 5 });
 });
@@ -227,7 +245,7 @@ it("says something when the agent returns an empty answer", async () => {
 });
 
 it("names the command this channel answers to when another one arrives", async () => {
-  channel({ commandName: "soporte" });
+  channel({ commandName: "soporte", allowAnySender: true });
   const response = await POST(command({ name: "orchester" }), params);
   const body = await response.json();
   expect(body.type).toBe(4);
@@ -236,7 +254,7 @@ it("names the command this channel answers to when another one arrives", async (
 });
 
 it("accepts the configured command name", async () => {
-  channel({ commandName: "soporte" });
+  channel({ commandName: "soporte", allowAnySender: true });
   const response = await POST(command({ name: "soporte" }), params);
   expect((await response.json()).type).toBe(5);
 });
