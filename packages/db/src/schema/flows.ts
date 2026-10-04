@@ -14,6 +14,15 @@ export const flowRunStatusEnum = pgEnum("flow_run_status", [
   "succeeded",
   "failed",
   "cancelled",
+  /**
+   * El run llegó a un `wait_human` y espera que una persona decida. No es un
+   * estado de error: el worker soltó el job y la corrida va a continuar cuando
+   * alguien responda, en otro proceso y quizás días después.
+   *
+   * Antes de esto, `wait_human` escribía una variable que nadie leía y el motor
+   * seguía de largo: un flow que decía "esperá aprobación" mergeaba igual.
+   */
+  "paused",
 ]);
 export const flowNodeTypeEnum = pgEnum("flow_node_type", [
   "trigger",
@@ -132,6 +141,27 @@ export const flowRuns = pgTable("flow_run", {
   error: text("error"),
   startedAt: timestamp("started_at").notNull().defaultNow(),
   completedAt: timestamp("completed_at"),
+
+  /**
+   * Dónde retomar cuando alguien apruebe. El recorrido de nodos es recursivo,
+   * así que la posición vive en la pila de JavaScript y no sobrevive al
+   * proceso: hay que guardarla explícitamente.
+   *
+   * `pausedNodeId` es el `wait_human` que frenó; se retoma por sus aristas de
+   * salida. `pausedVariables` es el contexto completo en ese momento — sin él,
+   * retomar sería empezar de cero.
+   */
+  pausedNodeId: text("paused_node_id"),
+  pausedVariables: jsonb("paused_variables").$type<Record<string, unknown>>(),
+  pausedAt: timestamp("paused_at"),
+  /**
+   * Secreto de un solo uso que viaja en el enlace de aprobación. Sin esto,
+   * cualquiera que adivine un runId podría aprobar un merge a producción.
+   */
+  approvalToken: text("approval_token"),
+  /** Quién decidió y qué. Queda para auditoría, no lo usa el motor. */
+  resolvedBy: text("resolved_by"),
+  resolvedDecision: text("resolved_decision"),
 });
 
 export const flowRunSteps = pgTable("flow_run_step", {
