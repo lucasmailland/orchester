@@ -99,6 +99,62 @@ export function validateStoredFlow(
         message: `"${n.label}" no tiene salida "Cuerpo": va a recorrer la lista sin ejecutar nada.`,
       });
     }
+    // Un `condition` con una sola rama conectada deja la otra mitad del flow
+    // en el aire, y el motor sigue sin decir nada. Medido el 2026-10-03: un
+    // grafo así pasaba la validación con cero issues. Es el mismo agujero que
+    // el `try_catch` sin "Intentar", sólo que más fácil de cometer.
+    if (n.type === "condition") {
+      for (const rama of ["true", "false"] as const) {
+        if (!tiene.has(rama)) {
+          issues.push({
+            level: "error",
+            nodeId: n.id,
+            message: `"${n.label}" no tiene salida "${rama === "true" ? "Sí" : "No"}": ese camino termina en silencio y nadie se entera.`,
+          });
+        }
+      }
+    }
+    // Sin las dos salidas, aprobar y rechazar hacen lo mismo y la puerta
+    // humana es decorativa.
+    if (n.type === "wait_human") {
+      for (const rama of ["aprobado", "rechazado"] as const) {
+        if (!tiene.has(rama)) {
+          issues.push({
+            level: "error",
+            nodeId: n.id,
+            message: `"${n.label}" no tiene salida "${rama}": si no se ramifica, rechazar y aprobar terminan igual.`,
+          });
+        }
+      }
+    }
+  }
+
+  // Un `wait_human` adentro de un `try_catch`, de un `loop_for_each` o de una
+  // rama paralela **no se puede pausar**: la pausa desenrolla la recursión y se
+  // lleva puesto el contexto de esos nodos. Es mejor negarse a guardarlo que
+  // dejar que falle a las tres de la mañana esperando una aprobación que nunca
+  // va a poder retomar.
+  const porId = new Map(nodes.map((n) => [n.id, n]));
+  const dentroDeBloque = new Set<string>();
+  for (const e of edges) {
+    if (!["try", "catch", "body"].includes(e.sourceHandle ?? "")) continue;
+    const pila = [e.target];
+    while (pila.length) {
+      const id = pila.pop() as string;
+      if (dentroDeBloque.has(id)) continue;
+      dentroDeBloque.add(id);
+      for (const s of edges.filter((x) => x.source === id && x.sourceHandle !== "done")) {
+        pila.push(s.target);
+      }
+    }
+  }
+  for (const id of dentroDeBloque) {
+    if (porId.get(id)?.type !== "wait_human") continue;
+    issues.push({
+      level: "error",
+      nodeId: id,
+      message: `"${porId.get(id)?.label}" espera a una persona, y está adentro de un bloque (intentar/capturar/cuerpo). Ahí la pausa no puede retomarse: sacalo al nivel principal del flujo.`,
+    });
   }
 
   const typeOf = new Map(nodes.map((n) => [n.id, n.type]));

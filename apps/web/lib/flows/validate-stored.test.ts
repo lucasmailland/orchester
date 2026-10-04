@@ -159,3 +159,96 @@ describe("validateStoredFlow", () => {
     expect(hasErrors(validateStoredFlow([], [], {}))).toBe(false);
   });
 });
+
+/**
+ * Reglas que vinieron con `wait_human`, más una que faltaba desde antes.
+ *
+ * El `condition` sin una de sus ramas ya se podía guardar: medido el
+ * 2026-10-03, un grafo así pasaba con cero issues. Es el mismo agujero que el
+ * `try_catch` sin "Intentar" que cerró el PR #64, y se cuela más fácil porque
+ * el flow "anda" — simplemente la mitad de los casos termina en silencio.
+ */
+describe("ramas que no se pueden olvidar", () => {
+  const nodo = (id: string, type: string, label = id) => ({
+    id,
+    type,
+    label,
+    config: type === "condition" ? { left: "{{a}}", op: "==", right: "1" } : {},
+    position: { x: 0, y: 0 },
+    purpose: "Decidir",
+  });
+  const fin = (id: string) => transform(id, { ok: "1" });
+
+  it("un condition sin la rama No es un error, no un aviso", () => {
+    const r = validateStoredFlow(
+      [trigger, nodo("c", "condition"), fin("a")],
+      [
+        { id: "e1", source: "t", target: "c" },
+        { id: "e2", source: "c", target: "a", sourceHandle: "true" },
+      ],
+      {}
+    );
+    expect(hasErrors(r)).toBe(true);
+    expect(r.some((i) => i.nodeId === "c" && i.level === "error")).toBe(true);
+  });
+
+  it("con las dos ramas conectadas, el condition pasa", () => {
+    const r = validateStoredFlow(
+      [trigger, nodo("c", "condition"), fin("a"), fin("b")],
+      [
+        { id: "e1", source: "t", target: "c" },
+        { id: "e2", source: "c", target: "a", sourceHandle: "true" },
+        { id: "e3", source: "c", target: "b", sourceHandle: "false" },
+      ],
+      {}
+    );
+    expect(r.filter((i) => i.nodeId === "c" && i.level === "error")).toHaveLength(0);
+  });
+
+  it("un wait_human sin la salida rechazado hace que aprobar y rechazar terminen igual", () => {
+    const r = validateStoredFlow(
+      [trigger, nodo("w", "wait_human", "Aprobar el MR"), fin("a")],
+      [
+        { id: "e1", source: "t", target: "w" },
+        { id: "e2", source: "w", target: "a", sourceHandle: "aprobado" },
+      ],
+      {}
+    );
+    expect(hasErrors(r)).toBe(true);
+    expect(r.some((i) => i.nodeId === "w" && /rechazado/.test(i.message))).toBe(true);
+  });
+
+  it("un wait_human adentro de un try_catch no se puede retomar, y se rechaza al guardar", () => {
+    const r = validateStoredFlow(
+      [
+        trigger,
+        nodo("tc", "try_catch", "Proteger"),
+        nodo("w", "wait_human", "Aprobar"),
+        fin("a"),
+        fin("b"),
+      ],
+      [
+        { id: "e1", source: "t", target: "tc" },
+        { id: "e2", source: "tc", target: "w", sourceHandle: "try" },
+        { id: "e3", source: "w", target: "a", sourceHandle: "aprobado" },
+        { id: "e4", source: "w", target: "b", sourceHandle: "rechazado" },
+      ],
+      {}
+    );
+    expect(hasErrors(r)).toBe(true);
+    expect(r.some((i) => i.nodeId === "w" && /bloque/.test(i.message))).toBe(true);
+  });
+
+  it("al nivel principal, el mismo wait_human pasa", () => {
+    const r = validateStoredFlow(
+      [trigger, nodo("w", "wait_human", "Aprobar"), fin("a"), fin("b")],
+      [
+        { id: "e1", source: "t", target: "w" },
+        { id: "e2", source: "w", target: "a", sourceHandle: "aprobado" },
+        { id: "e3", source: "w", target: "b", sourceHandle: "rechazado" },
+      ],
+      {}
+    );
+    expect(r.filter((i) => i.nodeId === "w" && i.level === "error")).toHaveLength(0);
+  });
+});

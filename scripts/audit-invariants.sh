@@ -96,7 +96,16 @@ fi
 # The channel webhooks are called by Telegram, Slack and Discord, never by a
 # logged-in user: the URL secret is the credential, and Slack and Discord also
 # sign every request. Their bodies are the providers' own envelopes, not ours.
-EXCLUDE_RBAC='/api/auth/|/api/health|/api/webhooks/\[secret\]|/api/widget/|/api/embed|/api/me/|/api/me/|/api/v1/|/api/billing/webhook|/api/mcp|/api/sessions|/api/invites/accept|/api/notification-prefs|/api/workspaces/\[id\]|/channels/(telegram|slack|discord)/webhook/\[secret\]'
+# /api/approvals/[token] es la puerta humana de un `wait_human`: el token viaja
+# en el enlace que le llega a la persona por Telegram, Discord o mail, y quien
+# aprueba puede no tener cuenta. El token ES la credencial, y es de un solo uso
+# (se borra en la misma escritura que registra la decisión). Mismo modelo que
+# los webhooks de arriba.
+# Lo que la excepción NO cubre: el aislamiento por workspace. La ruta saca el
+# workspace del propio token (`workspaceDelToken`) y todo lo que toca la base
+# corre dentro de `withFlowTx`, así que `routes-static-audit.spec.ts` la cuenta
+# como tenant-scoped y no está en su allowlist.
+EXCLUDE_RBAC='/api/auth/|/api/health|/api/webhooks/\[secret\]|/api/widget/|/api/embed|/api/me/|/api/me/|/api/v1/|/api/billing/webhook|/api/mcp|/api/sessions|/api/invites/accept|/api/notification-prefs|/api/workspaces/\[id\]|/channels/(telegram|slack|discord)/webhook/\[secret\]|/api/approvals/\[token\]'
 
 # Routes whose mutating handlers genuinely have NO body (param-only):
 # - .../restore/route.ts (POST with only URL params)
