@@ -65,9 +65,6 @@
     "overrides": {
       "postgres": "3.4.9",
       "kysely": ">=0.28.17"
-    },
-    "patchedDependencies": {
-      "@better-auth/kysely-adapter@1.6.9": "patches/@better-auth__kysely-adapter@1.6.9.patch"
     }
   }
 }
