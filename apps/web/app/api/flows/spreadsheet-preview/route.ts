@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { previewCells, type Cells } from "@/lib/flows/spreadsheet-core";
+import { assertCodeExecutionAllowed } from "@/lib/flows/code-execution";
 
 // `cells` es un mapa cellRef → fórmula/valor, dinámico por su naturaleza.
 const previewSchema = z.object({
@@ -19,6 +20,12 @@ const previewSchema = z.object({
 export async function POST(req: Request) {
   const authCtx = await requireAuth({ minRole: "editor" });
   if (!isAuthContext(authCtx)) return authCtx;
+  // Same `node:vm` evaluator as the real run, so the same gate applies.
+  try {
+    assertCodeExecutionAllowed("fórmulas");
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 403 });
+  }
   const parsed = await parseBody(req, previewSchema);
   if (!parsed.ok) return parsed.response;
   const cells = (parsed.data.cells ?? {}) as Cells;

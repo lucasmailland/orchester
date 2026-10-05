@@ -24,7 +24,7 @@ export async function GET() {
   if (!isAuthContext(ctx)) return ctx;
 
   try {
-    const client = getMnemoClient();
+    const client = getMnemoClient(ctx.workspace.id);
     const h = (await client.health()) as unknown as {
       workspaceId: string;
       factsLive: number;

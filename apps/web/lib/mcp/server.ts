@@ -480,7 +480,7 @@ const TOOLS: McpToolDef[] = [
       // Phase 3: delegate to @mnemosyne/server. The server runs
       // poisoning detection, dedup, and contradiction-candidate
       // surfacing internally; orchester only forwards the input.
-      const client = getMnemoClient();
+      const client = getMnemoClient(auth.workspaceId);
       const fact = await client.createFact({
         content: statement,
         attribution: {
@@ -517,11 +517,11 @@ const TOOLS: McpToolDef[] = [
       },
       required: ["factId"],
     },
-    async handler(input, _auth) {
+    async handler(input, auth) {
       const factId = String(input.factId ?? "").trim();
       if (factId.length === 0) throw new Error("factId requerido");
 
-      const client = getMnemoClient();
+      const client = getMnemoClient(auth.workspaceId);
       const updated = await client.pinFact(factId);
       return { id: updated.id, pinned: updated.pinned };
     },
@@ -541,12 +541,12 @@ const TOOLS: McpToolDef[] = [
       },
       required: ["factId"],
     },
-    async handler(input, _auth) {
+    async handler(input, auth) {
       const factId = String(input.factId ?? "").trim();
       if (factId.length === 0) throw new Error("factId requerido");
       const reason = input.reason ? String(input.reason).slice(0, 200) : "mcp_forget";
 
-      const client = getMnemoClient();
+      const client = getMnemoClient(auth.workspaceId);
       await client.forgetFact(factId);
       return { id: factId, status: "forgotten", reason };
     },
@@ -569,7 +569,7 @@ const TOOLS: McpToolDef[] = [
         sinceIso: { type: "string", description: "Solo hechos cuyo updated_at >= esta fecha ISO." },
       },
     },
-    async handler(input, _auth) {
+    async handler(input, auth) {
       const limit = Math.min(100, Math.max(1, Number(input.limit ?? 20) || 20));
       const kind = input.kind ? String(input.kind) : null;
       const sinceIso = input.sinceIso ? String(input.sinceIso) : null;
@@ -579,7 +579,7 @@ const TOOLS: McpToolDef[] = [
       // refers to the fact's category, not the timeline event kind —
       // we currently can't filter by fact-category server-side, so the
       // filter is applied below when populated.
-      const client = getMnemoClient();
+      const client = getMnemoClient(auth.workspaceId);
       // TODO(mnemosyne): wire kind filter once the SDK exposes it.
       void kind;
       const { events } = await client.timeline({

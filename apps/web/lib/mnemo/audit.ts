@@ -34,11 +34,11 @@ export type AuditEnvelope =
   | { items: []; total: 0; available: false };
 
 export async function listWorkspaceAudit(
-  _workspaceId: string,
+  workspaceId: string,
   opts: { limit: number }
 ): Promise<{ mode: MnemoMode; data: AuditEnvelope }> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   try {
     const data = await client.audit({ limit: opts.limit });
     return { mode, data };

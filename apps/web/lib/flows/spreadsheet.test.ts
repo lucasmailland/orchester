@@ -1,7 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { evaluateSheet } from "./spreadsheet";
 
 describe("evaluateSheet", () => {
+  // Formulas run behind the FLOW_CODE_EXECUTION gate (see code-execution.ts).
+  beforeEach(() => {
+    vi.stubEnv("FLOW_CODE_EXECUTION", "1");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("evaluates literals and a SUM over a range", async () => {
     const r = await evaluateSheet({ A1: "2", A2: "3", A3: "=SUM(A1:A2)" }, {}, "A3");
     expect(r).toBe(5);

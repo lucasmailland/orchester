@@ -21,10 +21,10 @@ export interface ExportPayload {
 }
 
 export async function exportWorkspaceData(
-  _workspaceId: string
+  workspaceId: string
 ): Promise<{ mode: MnemoMode; data: ExportPayload }> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   const resp = await client.exportWorkspace();
   return {
     mode,

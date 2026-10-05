@@ -96,11 +96,11 @@ export interface ListFactsParams {
 // ───────────────────────────────────────────────────────────────────
 
 export async function listWorkspaceFacts(
-  _workspaceId: string,
+  workspaceId: string,
   params: ListFactsParams
 ): Promise<ListFactsInspector> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   const res: ListFactsResponse = await client.listFacts({
     ...(params.kind ? { kind: params.kind as never } : {}),
     ...(params.scope ? { scope: params.scope as never } : {}),
@@ -159,9 +159,9 @@ export interface FactDetail {
   data: FactInspectorRow | null;
 }
 
-export async function getWorkspaceFact(_workspaceId: string, id: string): Promise<FactDetail> {
+export async function getWorkspaceFact(workspaceId: string, id: string): Promise<FactDetail> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   // The upstream wire doesn't ship a "rich projection" single-fact
   // endpoint yet — fall through to listFacts({status:"all", limit:500})
   // and find by id. Acceptable for inspector single-fact reads (user
@@ -208,7 +208,7 @@ export async function getWorkspaceFact(_workspaceId: string, id: string): Promis
 // ───────────────────────────────────────────────────────────────────
 
 export async function patchWorkspaceFact(
-  _workspaceId: string,
+  workspaceId: string,
   id: string,
   patch: PatchFactInput
 ): Promise<{
@@ -226,7 +226,7 @@ export async function patchWorkspaceFact(
   } | null;
 }> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   const MnemosyneAPIError = await getMnemoApiError();
   try {
     const updated = await client.patchFact(id, patch);
@@ -275,9 +275,9 @@ export interface FactWriteResult {
  * combined `{pinned, metadata}`. Two-call sequence is acceptable —
  * pin/unpin are user-initiated and rare.
  */
-export async function pinWorkspaceFact(_workspaceId: string, id: string): Promise<FactWriteResult> {
+export async function pinWorkspaceFact(workspaceId: string, id: string): Promise<FactWriteResult> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   const MnemosyneAPIError = await getMnemoApiError();
   try {
     const current = await client.getFact(id);
@@ -302,11 +302,11 @@ export async function pinWorkspaceFact(_workspaceId: string, id: string): Promis
  * automation's decision".
  */
 export async function unpinWorkspaceFact(
-  _workspaceId: string,
+  workspaceId: string,
   id: string
 ): Promise<FactWriteResult> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   const MnemosyneAPIError = await getMnemoApiError();
   try {
     const current = await client.getFact(id);
@@ -335,11 +335,11 @@ export async function unpinWorkspaceFact(
  * {@link restoreWorkspaceFact}.
  */
 export async function forgetWorkspaceFact(
-  _workspaceId: string,
+  workspaceId: string,
   id: string
 ): Promise<FactWriteResult> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   const MnemosyneAPIError = await getMnemoApiError();
   try {
     await client.forgetFact(id);
@@ -357,11 +357,11 @@ export async function forgetWorkspaceFact(
 // ───────────────────────────────────────────────────────────────────
 
 export async function restoreWorkspaceFact(
-  _workspaceId: string,
+  workspaceId: string,
   id: string
 ): Promise<{ mode: MnemoMode; data: RestoreFactResponse | null }> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   const MnemosyneAPIError = await getMnemoApiError();
   try {
     const data = await client.restoreFact(id);
@@ -407,7 +407,7 @@ export async function getWorkspaceFactCitations(
   id: string
 ): Promise<FactCitationsResponse> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   const MnemosyneAPIError = await getMnemoApiError();
 
   let ids: string[];

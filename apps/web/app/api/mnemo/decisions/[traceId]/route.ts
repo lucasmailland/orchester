@@ -97,7 +97,7 @@ export async function GET(_req: Request, context: { params: Promise<{ traceId: s
     // Step 3: trust slice — fact count for the workspace via the SDK.
     let factCount = 0;
     try {
-      const client = getMnemoClient();
+      const client = getMnemoClient(ctx.workspace.id);
       const { total } = await client.listFacts({ limit: 1 });
       factCount = total;
     } catch (e) {

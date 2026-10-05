@@ -35,11 +35,39 @@ export function getMnemoMode(): MnemoMode {
 let _client: MnemosyneClient | undefined;
 
 /**
- * Returns the shared MnemosyneClient instance, constructing it on
- * first call. Throws at boot if `MNEMO_URL` or `MNEMO_API_KEY` is
- * missing — orchester REQUIRES a configured Mnemosyne service to run.
+ * Thrown when a workspace asks for memory it is not bound to.
+ *
+ * Orchester holds one `MNEMO_API_KEY` per process and Mnemosyne scopes
+ * tenants by key, so the key belongs to exactly one workspace
+ * (`MNEMO_BOUND_WORKSPACE_ID`). Until workspaces get their own keys, every
+ * other workspace — all of them when the binding is unset — gets no memory.
  */
-export function getMnemoClient(): MnemosyneClient {
+export class MnemoWorkspaceNotBoundError extends Error {
+  constructor(workspaceId: string) {
+    super(
+      `[mnemosyne/client] memory is not available for workspace "${workspaceId}". ` +
+        "Set MNEMO_BOUND_WORKSPACE_ID to the one workspace that owns MNEMO_API_KEY."
+    );
+    this.name = "MnemoWorkspaceNotBoundError";
+  }
+}
+
+function assertWorkspaceBound(workspaceId: string): void {
+  const bound = process.env["MNEMO_BOUND_WORKSPACE_ID"]?.trim();
+  if (!bound || !workspaceId || workspaceId !== bound) {
+    throw new MnemoWorkspaceNotBoundError(workspaceId);
+  }
+}
+
+/**
+ * Returns the shared MnemosyneClient instance for `workspaceId`,
+ * constructing it on first call. Throws `MnemoWorkspaceNotBoundError`
+ * unless `workspaceId` is the workspace bound to the process key, and
+ * throws at boot if `MNEMO_URL` or `MNEMO_API_KEY` is missing — orchester
+ * REQUIRES a configured Mnemosyne service to run.
+ */
+export function getMnemoClient(workspaceId: string): MnemosyneClient {
+  assertWorkspaceBound(workspaceId);
   if (_client) return _client;
 
   const url = process.env["MNEMO_URL"];

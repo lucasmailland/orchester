@@ -42,7 +42,7 @@ interface RecallParams extends Omit<RecallInput, "vector"> {
  */
 export async function recallForWorkspace(params: RecallParams): Promise<RecallResponse> {
   const { workspaceId, query, ...rest } = params;
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
 
   let vector: number[] | undefined;
   try {

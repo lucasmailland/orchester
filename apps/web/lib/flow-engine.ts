@@ -45,6 +45,7 @@ export async function withFlowTx<T>(workspaceId: string, fn: (tx: WsDb) => Promi
 
 export { FLOW_NODE_TYPES, type FlowNodeType } from "./flows/node-types";
 import type { FlowNodeType } from "./flows/node-types";
+import { assertCodeExecutionAllowed } from "@/lib/flows/code-execution";
 
 export interface FlowNode {
   id: string;
@@ -212,22 +213,6 @@ async function runUserCode(source: string, ctx: RunContext): Promise<Record<stri
 }
 
 /**
- * Gate de seguridad para la ejecución de código/fórmulas arbitrarias.
- *
- * `node:vm` NO es una frontera de seguridad: desde adentro, `({}).constructor.
- * constructor("return process")()` escapa a Node completo (process.env con todos
- * los secretos, fs, red). Por eso la ejecución de código de usuario está
- * **deshabilitada por defecto** (fail-closed) y sólo se habilita explícitamente
- * en entornos que corren los flujos en un aislamiento real (proceso/worker
- * separado sin secretos en el env). Ver docs/superpowers/audits para el
- * follow-up de aislamiento out-of-process (atado a la cola de jobs).
- *
- * El chequeo vive acá (en la ejecución) y no sólo en la ruta API, para cubrir
- * TODOS los disparadores: manual, webhook y schedule.
- */
-const CODE_EXECUTION_ENABLED = process.env.FLOW_CODE_EXECUTION === "1";
-
-/**
  * B3 — Cap de concurrencia por flow. Antes de encolar un run nuevo contamos los
  * runs activos (`pending`/`running`) de ese flow; si llega al cap, rechazamos.
  * Evita que un trigger ruidoso (webhook en loop, schedule muy seguido) dispare
@@ -277,16 +262,6 @@ async function mapWithConcurrency<T, R>(
   };
   await Promise.all(Array.from({ length: effectiveLimit }, () => worker()));
   return results;
-}
-
-function assertCodeExecutionAllowed(kind: "código JavaScript" | "fórmulas"): void {
-  if (!CODE_EXECUTION_ENABLED) {
-    throw new Error(
-      `La ejecución de ${kind} está deshabilitada en este entorno por seguridad. ` +
-        `Un administrador debe habilitar FLOW_CODE_EXECUTION=1, y sólo en un entorno ` +
-        `con aislamiento de procesos (sin secretos en el environment).`
-    );
-  }
 }
 
 /**

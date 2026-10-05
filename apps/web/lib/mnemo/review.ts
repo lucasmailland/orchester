@@ -27,11 +27,11 @@ export { getMnemoMode };
 export type { MnemoMode };
 
 export async function listWorkspaceReview(
-  _workspaceId: string,
+  workspaceId: string,
   opts: { reason?: ReviewReason; includeResolved?: boolean; limit: number }
 ): Promise<{ mode: MnemoMode; data: ListReviewResponse }> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   const data = await client.listReview({
     ...(opts.reason ? { reason: opts.reason } : {}),
     ...(opts.includeResolved !== undefined ? { all: opts.includeResolved } : {}),
@@ -41,10 +41,10 @@ export async function listWorkspaceReview(
 }
 
 export async function workspaceReviewCount(
-  _workspaceId: string
+  workspaceId: string
 ): Promise<{ mode: MnemoMode; data: ReviewCountResponse }> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   const data = await client.reviewCount();
   return { mode, data };
 }
@@ -55,7 +55,7 @@ export async function workspaceReviewCount(
  * maps → 409). The discriminant: `alreadyResolved` flag.
  */
 export async function resolveWorkspaceReview(
-  _workspaceId: string,
+  workspaceId: string,
   reviewId: string,
   input: ResolveReviewInput,
   _resolvedByUserId: string
@@ -65,7 +65,7 @@ export async function resolveWorkspaceReview(
   alreadyResolved: boolean;
 }> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   const { MnemosyneAPIError } = await import("@mnemo-ai/client-ts");
   try {
     const data = await client.resolveReview(reviewId, input);

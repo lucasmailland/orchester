@@ -173,7 +173,7 @@ export async function handleMnemosyneRemember(
   // SDK fact create. Mnemosyne server runs poisoning detection +
   // dedup + embedding enqueue internally; orchester just hands it the
   // statement plus attribution metadata.
-  const client = getMnemoClient();
+  const client = getMnemoClient(ctx.workspaceId);
   const fact = await client.createFact({
     content: input.statement,
     attribution: {

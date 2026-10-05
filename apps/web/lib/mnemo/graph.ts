@@ -6,7 +6,7 @@
 // under app/ as build artefacts and our /api/workspaces/[slug]/brain/graph
 // route uses this directly.
 //
-// Post Phase 3/4: every fetch goes through `getMnemoClient().graph()`
+// Post Phase 3/4: every fetch goes through `getMnemoClient(workspaceId).graph()`
 // against the running @mnemosyne/server. The orchester process keeps
 // zero coupling to the in-process query layer; the data round-trips
 // over HTTP.
@@ -26,11 +26,11 @@ export type GraphMode = MnemoMode;
 export { getMnemoMode };
 
 export async function fetchWorkspaceGraph(
-  _workspaceId: string,
+  workspaceId: string,
   focusEntityId?: string
 ): Promise<{ mode: GraphMode; graph: ClientGraphResponse }> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   const graph = await client.graph(focusEntityId ? { focus: focusEntityId } : {});
   return { mode, graph };
 }
