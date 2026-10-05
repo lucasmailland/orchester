@@ -109,6 +109,9 @@ services:
       # names (see apps/web/lib/auth.ts + lib/env.ts). Don't rename them.
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
       BETTER_AUTH_URL: https://${DOMAIN:?set DOMAIN in .env}
+      # Who may create an account: open (default) | invite | closed.
+      # Set it to invite once the first admin exists.
+      SIGNUP_MODE: ${SIGNUP_MODE:-open}
       NEXT_PUBLIC_APP_URL: https://${DOMAIN}
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET:?set ENCRYPTION_SECRET in .env}
       # HMAC secret for signed cookies + signed export URLs. lib/cookies.ts

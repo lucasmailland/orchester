@@ -1,7 +1,30 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError } from "better-auth/api";
 import { twoFactor } from "better-auth/plugins";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { createDbClient, schema } from "@orchester/db";
+import { assertSignupAllowed, getSignupMode, SignupNotAllowedError } from "@/lib/signup-policy";
+
+async function hasPendingInvite(email: string): Promise<boolean> {
+  // The invite belongs to a workspace the new user is not in yet, and
+  // workspace_invite is FORCE RLS, so the lookup has to cross tenants.
+  const { withCrossTenantAdmin } = await import("@/lib/tenant/cron");
+  return withCrossTenantAdmin("signup.invite-check", async (tx) => {
+    const rows = await tx
+      .select({ id: schema.workspaceInvites.id })
+      .from(schema.workspaceInvites)
+      .where(
+        and(
+          eq(sql`lower(${schema.workspaceInvites.email})`, email),
+          eq(schema.workspaceInvites.status, "pending"),
+          gt(schema.workspaceInvites.expiresAt, new Date())
+        )
+      )
+      .limit(1);
+    return rows.length > 0;
+  });
+}
 
 function getAuthDb() {
   const url = process.env["DATABASE_URL"];
@@ -36,6 +59,29 @@ export const auth = betterAuth({
           },
         }
       : {}),
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        // Runs before ANY user row is created — email signup and the first
+        // sign-in with a social provider — so SIGNUP_MODE gates both.
+        before: async (user) => {
+          try {
+            await assertSignupAllowed(
+              user.email,
+              getSignupMode(process.env["SIGNUP_MODE"]),
+              hasPendingInvite
+            );
+          } catch (e) {
+            if (e instanceof SignupNotAllowedError) {
+              throw new APIError("FORBIDDEN", { message: e.message });
+            }
+            throw e;
+          }
+          return { data: user };
+        },
+      },
+    },
   },
   user: {
     additionalFields: {
