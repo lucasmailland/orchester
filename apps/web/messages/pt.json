@@ -2767,5 +2767,22 @@
         }
       }
     }
+  },
+  "approvals": {
+    "title": "Um fluxo está esperando por você",
+    "runLabel": "Execução",
+    "flowLabel": "Fluxo",
+    "pausedAt": "Esperando desde",
+    "approve": "Aprovar",
+    "reject": "Rejeitar",
+    "deciding": "Enviando…",
+    "whoLabel": "Seu nome",
+    "whoPlaceholder": "Para que a decisão tenha um autor",
+    "approved": "Aprovado. O fluxo continua.",
+    "rejected": "Rejeitado. O fluxo segue pelo outro caminho.",
+    "invalidTitle": "Este link não é válido",
+    "invalidBody": "Já foi usado, ou nunca existiu. Um link de aprovação serve uma única vez: ao resolver a pausa ele é apagado.",
+    "failed": "Não foi possível enviar a decisão. O fluxo continua esperando, então o link ainda serve.",
+    "oneShot": "Este link serve uma única vez."
   }
 }
