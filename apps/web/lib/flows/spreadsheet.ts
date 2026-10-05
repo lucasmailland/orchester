@@ -1,3 +1,4 @@
+import { assertCodeExecutionAllowed } from "./code-execution";
 import { evaluateCells, type Cells } from "./spreadsheet-core";
 
 /**
@@ -10,6 +11,7 @@ export async function evaluateSheet(
   input: Record<string, unknown>,
   outputCell?: string
 ): Promise<unknown> {
+  assertCodeExecutionAllowed("fórmulas");
   const vm = await import("node:vm");
   const formulajs = await import("@formulajs/formulajs");
   const sandbox: Record<string, unknown> = { ...formulajs, input: structuredClone(input) };
