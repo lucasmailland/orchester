@@ -42,6 +42,7 @@ type WsTx = Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 // import it back here under the original name so the rest of this
 // file is untouched.
 import { withWorkspaceTx } from "@/lib/tenant/context";
+import { allowsPassiveMemoryRecall } from "@/lib/channels/public-channels";
 
 /**
  * Contexto resuelto para una conversación conversacional lista para invocar LLM.
@@ -372,7 +373,7 @@ async function buildConversationContext(
   let brainBlock = "";
   try {
     const lastUserMsg = [...fullHistory].reverse().find((m) => m.role === "user");
-    if (lastUserMsg?.content) {
+    if (allowsPassiveMemoryRecall(channel.type) && lastUserMsg?.content) {
       // Recall via `recallForWorkspace`: embeds host-side with the
       // workspace's `ai_provider` row, forwards `vector` to the SDK.
       // `RecallHit.content` is the fact statement, `score` blends

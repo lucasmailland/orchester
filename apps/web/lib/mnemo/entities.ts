@@ -29,11 +29,11 @@ export { getMnemoMode };
 export type { MnemoMode };
 
 export async function listWorkspaceEntities(
-  _workspaceId: string,
+  workspaceId: string,
   opts: { kind?: EntityKind; q?: string; limit: number }
 ): Promise<{ mode: MnemoMode; data: ListEntitiesResponse }> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   const data = await client.listEntities({
     ...(opts.kind ? { kind: opts.kind } : {}),
     ...(opts.q ? { q: opts.q } : {}),
@@ -43,11 +43,11 @@ export async function listWorkspaceEntities(
 }
 
 export async function getWorkspaceEntity(
-  _workspaceId: string,
+  workspaceId: string,
   id: string
 ): Promise<{ mode: MnemoMode; data: EntityWithCount | null }> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   try {
     const data = await client.getEntity(id);
     return { mode, data };
@@ -61,12 +61,12 @@ export async function getWorkspaceEntity(
 }
 
 export async function listWorkspaceEntityFacts(
-  _workspaceId: string,
+  workspaceId: string,
   id: string,
   opts: { limit: number }
 ): Promise<{ mode: MnemoMode; data: EntityFactsResponse | null }> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   try {
     const data = await client.listEntityFacts(id, { limit: opts.limit });
     return { mode, data };
@@ -80,22 +80,22 @@ export async function listWorkspaceEntityFacts(
 }
 
 export async function createWorkspaceEntity(
-  _workspaceId: string,
+  workspaceId: string,
   input: CreateEntityInput
 ): Promise<{ mode: MnemoMode; data: MnemoEntity }> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   const data = await client.createEntity(input);
   return { mode, data };
 }
 
 export async function updateWorkspaceEntity(
-  _workspaceId: string,
+  workspaceId: string,
   id: string,
   input: UpdateEntityInput
 ): Promise<{ mode: MnemoMode; data: MnemoEntity | null }> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   try {
     const data = await client.updateEntity(id, input);
     return { mode, data };
@@ -108,8 +108,8 @@ export async function updateWorkspaceEntity(
   }
 }
 
-export async function workspaceEntityExists(_workspaceId: string, id: string): Promise<boolean> {
-  const client = getMnemoClient();
+export async function workspaceEntityExists(workspaceId: string, id: string): Promise<boolean> {
+  const client = getMnemoClient(workspaceId);
   try {
     await client.getEntity(id);
     return true;

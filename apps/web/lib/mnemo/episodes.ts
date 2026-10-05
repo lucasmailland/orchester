@@ -17,11 +17,11 @@ export { getMnemoMode };
 export type { MnemoMode };
 
 export async function listWorkspaceEpisodes(
-  _workspaceId: string,
+  workspaceId: string,
   opts: { from?: Date; to?: Date; topic?: string; limit: number; includeSynthetic?: boolean }
 ): Promise<{ mode: MnemoMode; data: ListEpisodesResponse }> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   const data = await client.listEpisodes({
     ...(opts.from ? { from: opts.from.toISOString() } : {}),
     ...(opts.to ? { to: opts.to.toISOString() } : {}),
@@ -33,11 +33,11 @@ export async function listWorkspaceEpisodes(
 }
 
 export async function getWorkspaceEpisode(
-  _workspaceId: string,
+  workspaceId: string,
   id: string
 ): Promise<{ mode: MnemoMode; data: EpisodeWithLinkedFacts | null }> {
   const mode = getMnemoMode();
-  const client = getMnemoClient();
+  const client = getMnemoClient(workspaceId);
   try {
     const data = await client.getEpisode(id);
     return { mode, data };

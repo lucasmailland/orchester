@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   if (!parsed.ok) return parsed.response;
 
   try {
-    const client = getMnemoClient();
+    const client = getMnemoClient(ctx.workspace.id);
     const snapshot = await client.health();
     return NextResponse.json({ enqueued: true, snapshot });
   } catch (e) {

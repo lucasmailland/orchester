@@ -23,7 +23,7 @@ export async function GET() {
   if (!isAuthContext(ctx)) return ctx;
 
   try {
-    const client = getMnemoClient();
+    const client = getMnemoClient(ctx.workspace.id);
     // Upstream SDK bug: `client.health()` is declared to return the
     // generic `HealthSnapshot` (status/version/timestamp) but the
     // live `/v1/health` endpoint actually emits per-workspace

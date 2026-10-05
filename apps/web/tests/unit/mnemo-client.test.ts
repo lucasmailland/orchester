@@ -54,9 +54,11 @@ describe("getMnemoClient()", () => {
     vi.resetModules();
     delete process.env["MNEMO_URL"];
     delete process.env["MNEMO_API_KEY"];
+    vi.stubEnv("MNEMO_BOUND_WORKSPACE_ID", "ws_test");
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     process.env["MNEMO_URL"] = ORIGINAL.url ?? "";
     process.env["MNEMO_API_KEY"] = ORIGINAL.apiKey ?? "";
     if (!ORIGINAL.url) delete process.env["MNEMO_URL"];
@@ -66,21 +68,21 @@ describe("getMnemoClient()", () => {
   it("throws fail-loud when MNEMO_URL is missing", async () => {
     process.env["MNEMO_API_KEY"] = "mns_live_test_dummy";
     const mod = await import("@/lib/mnemo/client");
-    expect(() => mod.getMnemoClient()).toThrow(/MNEMO_URL and MNEMO_API_KEY are required/);
+    expect(() => mod.getMnemoClient("ws_test")).toThrow(/MNEMO_URL and MNEMO_API_KEY are required/);
   });
 
   it("throws fail-loud when MNEMO_API_KEY is missing", async () => {
     process.env["MNEMO_URL"] = "http://localhost:3939";
     const mod = await import("@/lib/mnemo/client");
-    expect(() => mod.getMnemoClient()).toThrow(/MNEMO_URL and MNEMO_API_KEY are required/);
+    expect(() => mod.getMnemoClient("ws_test")).toThrow(/MNEMO_URL and MNEMO_API_KEY are required/);
   });
 
   it("constructs and returns the same singleton across calls", async () => {
     process.env["MNEMO_URL"] = "http://localhost:3939";
     process.env["MNEMO_API_KEY"] = "mns_live_test_dummy";
     const mod = await import("@/lib/mnemo/client");
-    const a = mod.getMnemoClient();
-    const b = mod.getMnemoClient();
+    const a = mod.getMnemoClient("ws_test");
+    const b = mod.getMnemoClient("ws_test");
     expect(a).toBe(b);
   });
 });
