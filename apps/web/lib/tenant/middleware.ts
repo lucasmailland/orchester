@@ -26,6 +26,13 @@ const NON_WORKSPACE_TOP_LEVEL = new Set([
   "invite",
   "showcase",
   "workspaces",
+  // The approval link for a paused `wait_human` run. It has to be here even
+  // though it is a public page: the legacy-redirect below only fires when
+  // there IS a session, so without this entry an approver who happens to be
+  // logged in gets bounced to /<slug>/aprobar/<token> — which does not exist —
+  // while an approver without a session sees the page fine. The link would
+  // work for strangers and 404 for the team.
+  "aprobar",
 ]);
 
 const PUBLIC_PREFIXES = ["/api/auth", "/auth", "/api/health", "/_next", "/favicon"];

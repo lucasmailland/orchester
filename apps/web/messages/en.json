@@ -2767,5 +2767,22 @@
         }
       }
     }
+  },
+  "approvals": {
+    "title": "A flow is waiting for you",
+    "runLabel": "Run",
+    "flowLabel": "Flow",
+    "pausedAt": "Waiting since",
+    "approve": "Approve",
+    "reject": "Reject",
+    "deciding": "Sending…",
+    "whoLabel": "Your name",
+    "whoPlaceholder": "So the decision has an author",
+    "approved": "Approved. The flow is continuing.",
+    "rejected": "Rejected. The flow is taking the other branch.",
+    "invalidTitle": "This link is not valid",
+    "invalidBody": "It was already used, or it never existed. An approval link works once: resolving the pause clears it.",
+    "failed": "Could not send the decision. The flow is still waiting, so the link still works.",
+    "oneShot": "This link works once."
   }
 }
