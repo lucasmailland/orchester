@@ -115,6 +115,14 @@ export interface DiscordInteraction {
   token?: string;
   channel_id?: string;
   guild_id?: string;
+  /**
+   * Partial channel object. Discord documents it as carrying `parent_id` and,
+   * for threads, `thread_metadata`. Only `parent_id` is modelled because it is
+   * the one thing the location gate needs: a thread is a channel with its own
+   * id, so knowing its parent is what lets an allowlist of `#dev-alerts`
+   * accept the threads opened inside it.
+   */
+  channel?: { id?: string; type?: number; parent_id?: string };
   data?: {
     name?: string;
     options?: { name?: string; value?: unknown }[];

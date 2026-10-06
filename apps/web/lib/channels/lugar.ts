@@ -49,9 +49,28 @@ export function lugarPermitido(
   // `| undefined` written out because the repo runs with
   // `exactOptionalPropertyTypes`: a caller reading these off a parsed Discord
   // payload has them as `string | undefined`, and `?:` alone rejects that.
-  lugar: { guildId?: string | undefined; channelId?: string | undefined }
+  lugar: {
+    guildId?: string | undefined;
+    channelId?: string | undefined;
+    /**
+     * The thread's parent channel, when the command ran inside a thread.
+     *
+     * A thread is a channel with its own id, so allowlisting `#dev-alerts`
+     * would otherwise refuse every thread opened inside it — the filter would
+     * work backwards for the one place we most want a conversation to happen.
+     *
+     * Discord's docs do not say whether an interaction's `channel_id` is the
+     * thread or the parent. They do say the partial `channel` object carries
+     * `parent_id`. So this checks **both** and does not need the answer: list
+     * the parent and threads work; list the thread and it works too.
+     */
+    parentId?: string | undefined;
+  }
 ): LugarCheck {
   if (!permite(config?.["allowedGuilds"], lugar.guildId)) return "guild-no-permitido";
-  if (!permite(config?.["allowedChannels"], lugar.channelId)) return "canal-no-permitido";
+  const canalOk =
+    permite(config?.["allowedChannels"], lugar.channelId) ||
+    (lugar.parentId !== undefined && permite(config?.["allowedChannels"], lugar.parentId));
+  if (!canalOk) return "canal-no-permitido";
   return "ok";
 }

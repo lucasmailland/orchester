@@ -118,6 +118,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
   const lugar = lugarPermitido(channel.config, {
     guildId: interaction.guild_id,
     channelId: interaction.channel_id,
+    // A thread is a channel with its own id. Discord's docs do not say whether
+    // an interaction inside one reports the thread or its parent as
+    // `channel_id`, but they do say the partial `channel` object carries
+    // `parent_id` — so both are passed and the gate accepts either. Without
+    // this, allowlisting #dev-alerts would refuse every thread opened in it.
+    parentId: interaction.channel?.parent_id,
   });
   if (lugar !== "ok") {
     // The id goes back so whoever configures the channel can add it without
