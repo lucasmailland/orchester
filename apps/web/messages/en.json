@@ -1208,7 +1208,7 @@
         }
       },
       "allowlistLabel": "Allowed senders",
-      "allowlistHelp": "An empty list allows everyone. Enter one sender per line.",
+      "allowlistHelp": "An empty list blocks everyone. Enter one sender per line, or open the channel below.",
       "allowlistTelegram": "Use a Telegram chat ID or username (with or without @). A group chat ID allows everyone in that group.",
       "allowlistSlack": "Use a Slack user ID (U…) or channel ID (C…). A channel ID allows everyone in that channel.",
       "allowlistDiscord": "Use a Discord user ID (right-click a member → Copy User ID, with Developer Mode on). Usernames work too.",
@@ -1227,7 +1227,15 @@
       "discordEndpointHelp": "Paste this into your Discord application under General Information → Interactions Endpoint URL.",
       "allowlistWarning": "This channel is open to everyone and its agent has tools. Add allowed senders to restrict access.",
       "allowlistLimit": "Use at most 200 entries, with up to 256 characters each.",
-      "allowlistSaved": "Allowed senders saved."
+      "allowlistSaved": "Allowed senders saved.",
+      "allowAnyLabel": "Let anyone talk to this channel",
+      "allowAnyHelp": "Off by default. A Discord bot is reachable by anyone in a shared server, and an approval link can travel through here, so an unconfigured channel stays shut.",
+      "placeLabel": "Where the command may be used",
+      "placeHelp": "Discord only, and optional: leave empty for no restriction. One ID per line. A thread counts as the channel it was opened in.",
+      "guildsLabel": "Allowed servers",
+      "channelsLabel": "Allowed channels",
+      "placeSaved": "Allowed places saved.",
+      "placeLimit": "Use IDs only: digits, at most 100 servers and 200 channels."
     },
     "integrations": {
       "title": "Integrations",

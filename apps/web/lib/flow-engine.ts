@@ -8,7 +8,7 @@ import { assertPublicUrl } from "./net-guard";
 import { logWithContext, recordMetric } from "./observability";
 import { evaluateExpression } from "./flows/filters";
 import { parseRetryConfig, runWithRetry, StepFailure } from "./flows/retry";
-import { nuevoTokenDeAprobacion, PauseRequested } from "./flows/pause";
+import { createApprovalToken, PauseRequested } from "./flows/pause";
 
 /**
  * R2-C: Flow execution writes to tenant tables (flow_runs,
@@ -67,9 +67,9 @@ export type FlowRunEvent =
   | { type: "run_start"; runId: string }
   | { type: "step_start"; nodeId: string; nodeType: string }
   | { type: "step_finish"; nodeId: string; status: "succeeded" | "failed"; error?: string }
-  // `paused` cierra el stream igual que un final, pero el run no terminó: hay
-  // alguien a quien le toca decidir. Quien escuche esto —la UI, un SSE— tiene
-  // que distinguirlo de `succeeded`, o va a mostrar como hecho algo que espera.
+  // `paused` closes the stream like a final state, but the run has not ended:
+  // someone must decide. Listeners — the UI or an SSE consumer — must
+  // distinguish it from `succeeded`, or show pending work as completed.
   | { type: "run_finish"; status: "succeeded" | "failed" | "paused"; error?: string };
 
 export type FlowEmit = (ev: FlowRunEvent) => void;
@@ -341,10 +341,10 @@ export async function executeFlow({
   signal?: AbortSignal;
 }): Promise<{
   runId: string;
-  /** `paused` no es un final: el run espera a una persona y va a continuar. */
+  /** `paused` is not final: the run is waiting for a person and will continue. */
   status: "succeeded" | "failed" | "cancelled" | "paused";
   error?: string;
-  /** Sólo con `paused`: el secreto que habilita aprobar o rechazar. */
+  /** Only with `paused`: the secret that permits approval or rejection. */
   approvalToken?: string;
 }> {
   // R2-C: re-verify flow ownership + create/transition flow_run all under
@@ -429,12 +429,13 @@ export async function executeFlow({
     });
     return { runId, status: "succeeded" };
   } catch (e) {
-    // El run llegó a un `wait_human`. No terminó: está esperando a una persona,
-    // quizás días. Guardamos dónde retomar —el nodo y TODO el contexto, porque
-    // la posición vivía en la pila y no sobrevive al proceso— y soltamos el
-    // job. La corrida sigue cuando alguien decida, en otro proceso.
+    // The run reached a `wait_human`. It has not finished: it is waiting for
+    // a person, perhaps for days. Save where to resume — the node and ALL
+    // context, because the position lived on the stack and cannot survive
+    // the process — and release the job. When someone decides, the run
+    // continues in another process.
     if (e instanceof PauseRequested) {
-      const token = nuevoTokenDeAprobacion(workspaceId);
+      const token = createApprovalToken(workspaceId);
       await withFlowTx(workspaceId, (tx) =>
         tx
           .update(schema.flowRuns)
@@ -457,12 +458,12 @@ export async function executeFlow({
         runId,
         nodeId: e.nodeId,
       });
-      // El aviso va DESPUÉS de persistir, y nunca lanza. Si el canal está
-      // caído, la pausa ya está guardada y el mensaje se puede reenviar; al
-      // revés, un Telegram intermitente haría fallar runs que estaban bien.
-      if (e.aviso) {
-        const { avisarPausa } = await import("./flows/avisar-pausa");
-        await avisarPausa(workspaceId, runId, token, e.mensaje, e.aviso);
+      // Notify AFTER persisting, and never throw. If the channel is down,
+      // the pause is already saved and the message can be resent; reversing
+      // this would let an intermittent Telegram connection fail healthy runs.
+      if (e.notification) {
+        const { notifyPause } = await import("./flows/notify-pause");
+        await notifyPause(workspaceId, runId, token, e.approvalMessage, e.notification);
       }
       return { runId, status: "paused", approvalToken: token };
     }
@@ -491,39 +492,38 @@ export async function executeFlow({
 }
 
 /**
- * Continúa un run que estaba pausado en un `wait_human`, desde las aristas de
- * salida de ese nodo.
+ * Continues a run paused at a `wait_human`, from that node's outgoing edges.
  *
- * La decisión elige el camino: el `wait_human` se ramifica como un `condition`,
- * con salidas `aprobado` y `rechazado`. Eso es lo que hace útil la pausa — si
- * siguiera siempre por el mismo lado, rechazar y aprobar serían lo mismo.
+ * The decision selects the path: `wait_human` branches like a `condition`,
+ * with `aprobado` and `rechazado` outputs. That makes the pause useful — if
+ * it always took the same path, rejection and approval would be identical.
  *
- * El contexto sale de `pausedVariables`, no se recalcula: volver a correr el
- * flow desde el principio repetiría efectos ya ocurridos (notas escritas,
- * mensajes enviados) y es exactamente lo que una pausa tiene que evitar.
+ * Context comes from `pausedVariables` and is not recalculated: rerunning
+ * the flow from the start would repeat effects that already happened
+ * (written notes, sent messages), exactly what a pause must prevent.
  */
-export async function continuarFlowPausado({
+export async function resumePausedFlow({
   runId,
   workspaceId,
   flowId,
-  desdeNodo,
+  fromNodeId,
   variables,
   decision,
 }: {
   runId: string;
   workspaceId: string;
   flowId: string;
-  desdeNodo: string;
+  fromNodeId: string;
   variables: Record<string, unknown>;
   decision: "aprobado" | "rechazado";
 }): Promise<{ runId: string; status: "succeeded" | "failed" | "paused" }> {
   const flow = await withFlowTx(workspaceId, async (tx) => {
-    const filas = await tx
+    const rows = await tx
       .select()
       .from(schema.flows)
       .where(and(eq(schema.flows.id, flowId), eq(schema.flows.workspaceId, workspaceId)))
       .limit(1);
-    return filas[0];
+    return rows[0];
   });
   if (!flow) throw new Error("Flow not found");
 
@@ -532,12 +532,12 @@ export async function continuarFlowPausado({
   const edges = (flow.edges ?? []) as FlowEdge[];
   const ctx: RunContext = { variables: { ...variables, _decision: decision }, output: {} };
 
-  const salidas = edges.filter(
-    (e) => e.source === desdeNodo && (e.sourceHandle ?? "aprobado") === decision
+  const outgoingEdges = edges.filter(
+    (e) => e.source === fromNodeId && (e.sourceHandle ?? "aprobado") === decision
   );
 
   try {
-    for (const ed of salidas) {
+    for (const ed of outgoingEdges) {
       await runFromNode(ed.target, nodes, edges, ctx, runId, workspaceId, db);
     }
     await withFlowTx(workspaceId, async (tx) => {
@@ -552,10 +552,10 @@ export async function continuarFlowPausado({
     });
     return { runId, status: "succeeded" };
   } catch (e) {
-    // Un flow puede tener dos aprobaciones seguidas. La segunda pausa se
-    // guarda igual que la primera, con token nuevo.
+    // A flow can have two consecutive approvals. Save the second pause just
+    // like the first, with a new token.
     if (e instanceof PauseRequested) {
-      const token = nuevoTokenDeAprobacion(workspaceId);
+      const token = createApprovalToken(workspaceId);
       await withFlowTx(workspaceId, (tx) =>
         tx
           .update(schema.flowRuns)
@@ -649,16 +649,16 @@ async function runFromNode(
       status: "succeeded",
     });
   } catch (e) {
-    // Una pausa no es una falla: el `wait_human` hizo exactamente lo suyo.
-    // Marcarlo `failed` ensuciaría el historial y haría ver como rotos a los
-    // flows que esperan a una persona, que es el caso normal y no el raro.
+    // A pause is not a failure: `wait_human` did exactly what it should.
+    // Marking it `failed` would pollute the history and make flows waiting
+    // for a person look broken, even though that is the normal case.
     if (e instanceof PauseRequested) {
       await withFlowTx(workspaceId, (tx) =>
         tx
           .update(schema.flowRunSteps)
           .set({
             status: "succeeded",
-            output: { paused: true, mensaje: e.mensaje },
+            output: { paused: true, mensaje: e.approvalMessage },
             completedAt: new Date(),
           })
           .where(eq(schema.flowRunSteps.id, stepId))
@@ -1332,24 +1332,28 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
   wait_human: async ({ node, cfg, ctx, helpers }) => {
     const msg =
       (cfg.instructions as string) ?? (cfg.message as string) ?? "Se necesita una aprobación";
-    const mensaje = interpolate(msg, ctx.variables);
-    ctx.variables["_pendingApproval"] = { message: mensaje, assignee: cfg.assignee };
-    helpers.setOutput({ paused: true, mensaje });
+    const message = interpolate(msg, ctx.variables);
+    ctx.variables["_pendingApproval"] = { message, assignee: cfg.assignee };
+    helpers.setOutput({ paused: true, mensaje: message });
 
-    // Hasta acá esto terminaba y el motor seguía por la arista de salida: un
-    // flow que decía "esperá aprobación" aprobaba solo. Lanzar `PauseRequested`
-    // desenrolla la recursión y deja que `executeFlow` persista dónde retomar.
-    const avisoCfg = cfg.notify as
+    // Previously this returned and the engine followed the outgoing edge:
+    // a flow saying "wait for approval" approved itself. Throwing
+    // `PauseRequested` unwinds recursion and lets `executeFlow` persist
+    // where to resume.
+    const notificationConfig = cfg.notify as
       | { integrationId?: string; input?: Record<string, unknown> }
       | undefined;
-    const aviso =
-      avisoCfg?.integrationId && avisoCfg.input
+    const notification =
+      notificationConfig?.integrationId && notificationConfig.input
         ? {
-            integrationId: avisoCfg.integrationId,
-            input: deepInterpolate(avisoCfg.input, ctx.variables) as Record<string, unknown>,
+            integrationId: notificationConfig.integrationId,
+            input: deepInterpolate(notificationConfig.input, ctx.variables) as Record<
+              string,
+              unknown
+            >,
           }
         : undefined;
-    throw new PauseRequested(node.id, mensaje, aviso);
+    throw new PauseRequested(node.id, message, notification);
   },
 };
 
@@ -1394,9 +1398,9 @@ export async function enqueueFlowRun({
 }): Promise<{
   runId: string;
   /**
-   * `paused` sólo aparece con FLOW_RUN_INLINE=1, donde esta función ejecuta en
-   * vez de encolar. Por la cola normal el run arranca `pending` y la pausa
-   * ocurre después, en el worker.
+   * `paused` only appears with FLOW_RUN_INLINE=1, where this function executes
+   * instead of enqueueing. Through the normal queue, the run starts `pending`
+   * and the pause happens later, in the worker.
    */
   status: "pending" | "succeeded" | "failed" | "cancelled" | "paused";
   error?: string;

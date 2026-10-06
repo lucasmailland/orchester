@@ -1,91 +1,95 @@
 import { createId } from "@paralleldrive/cuid2";
 
 /**
- * Señal de que un run llegó a un `wait_human` y debe quedar esperando a una
- * persona.
+ * Signals that a run reached a `wait_human` and must wait for a person.
  *
- * Por qué una excepción y no un valor de retorno. El recorrido de nodos
- * (`runFromNode`) es **recursivo**: la posición del flow vive en la pila de
- * JavaScript, no en un contador. Devolver "pausá" obligaría a que cada nivel de
- * la recursión lo propague a mano, y bastaría olvidarse en uno para que el flow
- * siguiera de largo — que es exactamente el bug que estamos arreglando.
- * Lanzando, el desenrollado es automático y no se puede olvidar.
+ * Why an exception rather than a return value. Node traversal (`runFromNode`)
+ * is **recursive**: the flow's position lives on the JavaScript stack, not in
+ * a counter. Returning "pause" would require each recursion level to propagate
+ * it manually, and forgetting just one would let the flow continue — exactly
+ * the bug we are fixing. Throwing unwinds the stack automatically and cannot
+ * be forgotten.
  *
- * Sigue el mismo camino que `AbortError`, que el motor ya trata aparte para
- * catalogar un run como `cancelled` en vez de `failed`.
+ * This follows the same path as `AbortError`, which the engine already handles
+ * separately to classify a run as `cancelled` rather than `failed`.
  */
 export class PauseRequested extends Error {
   readonly nodeId: string;
-  readonly mensaje: string;
-  readonly aviso: Aviso | undefined;
+  readonly approvalMessage: string;
+  readonly notification: PauseNotification | undefined;
 
-  constructor(nodeId: string, mensaje: string, aviso?: Aviso) {
-    super(`wait_human: ${mensaje}`);
+  constructor(nodeId: string, approvalMessage: string, notification?: PauseNotification) {
+    super(`wait_human: ${approvalMessage}`);
     this.name = "PauseRequested";
     this.nodeId = nodeId;
-    this.mensaje = mensaje;
-    this.aviso = aviso;
+    this.approvalMessage = approvalMessage;
+    this.notification = notification;
   }
 }
 
 /**
- * A quién avisarle que hay algo esperando. Una pausa que nadie ve es tan
- * inútil como no pausar: el run queda detenido y nadie se entera hasta que
- * alguien revisa a mano.
+ * Who to notify that something is waiting. A pause nobody sees is as useless
+ * as not pausing: the run stops and nobody finds out until someone checks
+ * manually.
  */
-export interface Aviso {
+export interface PauseNotification {
   /** `telegram::send_message`, `discord::send_message`, … */
   integrationId: string;
-  /** Config del destino, tal como la espera esa integración. */
+  /**
+   * Destination config, in the format expected by that integration.
+   */
   input: Record<string, unknown>;
 }
 
-/** Separa el workspace del secreto. No aparece en un cuid2 (alfanumérico). */
-const SEPARADOR = ".";
+/**
+ * Separates the workspace from the secret. Does not occur in a cuid2 (alphanumeric).
+ */
+const SEPARATOR = ".";
 
 /**
- * El secreto que viaja en el enlace de aprobación.
+ * The secret carried in the approval link.
  *
- * Sin él, aprobar dependería de adivinar un `runId` — y lo que está del otro
- * lado de esa decisión puede ser un merge a producción. Es de un solo uso: al
- * resolverse la pausa se borra, así que un enlace reenviado por mail no sirve
- * dos veces.
+ * Without it, approval would depend on guessing a `runId` — and the other side
+ * of that decision could be a production merge. It is single-use: resolving
+ * the pause clears it, so a link forwarded by email cannot be used twice.
  *
- * **Por qué lleva el workspace adelante.** Quien aprueba no tiene sesión: el
- * token es todo lo que trae. Pero para buscar el run hay que consultar
- * `flow_run`, y con FORCE RLS una consulta sin `app.workspace_id` no devuelve
- * filas — la primera versión guardaba un token opaco y buscaba con un `getDb()`
- * pelado, así que en cualquier deploy con RLS encendido TODA aprobación habría
- * contestado "este enlace no es válido", sin error y sin rastro. Con el
- * workspace adelante, la ruta establece el contexto antes de tocar la base.
+ * **Why the workspace comes first.** The approver has no session: the token is
+ * all they bring. But finding the run requires querying `flow_run`, and with
+ * FORCE RLS a query without `app.workspace_id` returns no rows — the first
+ * version stored an opaque token and queried with a bare `getDb()`, so EVERY
+ * approval on a deployment with RLS enabled would have answered "this link is
+ * invalid", without an error or a trace. With the workspace first, the route
+ * establishes context before touching the database.
  *
- * El workspace no es el permiso: la búsqueda sigue comparando el token
- * completo, así que conocer un workspaceId —que aparece en cualquier URL de la
- * aplicación— no acerca a nadie a adivinar los dos cuid2 del secreto.
+ * The workspace is not the permission: the lookup still compares the entire
+ * token, so knowing a workspaceId — present in any application URL — gets
+ * nobody closer to guessing the secret's two cuid2 values.
  */
-export function nuevoTokenDeAprobacion(workspaceId: string): string {
-  return `apr_${workspaceId}${SEPARADOR}${createId()}${createId()}`;
+export function createApprovalToken(workspaceId: string): string {
+  return `apr_${workspaceId}${SEPARATOR}${createId()}${createId()}`;
 }
 
 /**
- * De qué workspace es este token, para poder consultar la base con contexto.
+ * Which workspace this token belongs to, so the database can be queried with context.
  *
- * Devuelve `undefined` si el token no tiene la forma esperada — un enlace
- * recortado por un cliente de mail, o inventado. Quien llama trata ese caso
- * igual que "no existe": nunca consulta sin workspace.
+ * Returns `undefined` if the token does not have the expected shape — a link
+ * truncated by an email client, or a fabricated one. The caller treats this
+ * like "does not exist": it never queries without a workspace.
  */
-export function workspaceDelToken(token: string): string | undefined {
+export function workspaceFromApprovalToken(token: string): string | undefined {
   if (!token.startsWith("apr_")) return undefined;
-  const corte = token.indexOf(SEPARADOR);
-  if (corte <= "apr_".length) return undefined;
-  const ws = token.slice("apr_".length, corte);
-  // Un secreto sin workspace, o un workspace sin secreto, no sirven.
-  return ws && token.length > corte + 1 ? ws : undefined;
+  const separatorIndex = token.indexOf(SEPARATOR);
+  if (separatorIndex <= "apr_".length) return undefined;
+  const ws = token.slice("apr_".length, separatorIndex);
+  // A secret without a workspace, or a workspace without a secret, is unusable.
+  return ws && token.length > separatorIndex + 1 ? ws : undefined;
 }
 
-/** Las dos únicas respuestas que el motor entiende. */
-export type Decision = "aprobado" | "rechazado";
+/**
+ * The only two responses the engine understands.
+ */
+export type ApprovalDecision = "aprobado" | "rechazado";
 
-export function esDecision(v: unknown): v is Decision {
+export function isApprovalDecision(v: unknown): v is ApprovalDecision {
   return v === "aprobado" || v === "rechazado";
 }

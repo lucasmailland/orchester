@@ -6,16 +6,16 @@ import { toast } from "sonner";
 
 interface Props {
   token: string;
-  pausa: {
+  pause: {
     runId: string;
     flowId: string;
-    mensaje: string;
+    message: string;
     /** ISO string: a Date cannot cross the server/client boundary. */
-    pausadoEn: string | null;
+    pausedAt: string | null;
   };
 }
 
-type Decision = "aprobado" | "rechazado";
+type ApprovalDecision = "aprobado" | "rechazado";
 
 /**
  * The two buttons on the other side of a `wait_human` pause.
@@ -36,25 +36,25 @@ type Decision = "aprobado" | "rechazado";
  *     works. The run is still paused — the write is guarded by
  *     `status = 'paused'` — so retrying is safe and is the right move.
  */
-export function ApprovalClient({ token, pausa }: Props) {
+export function ApprovalClient({ token, pause }: Props) {
   const t = useTranslations("approvals");
-  const [enviando, setEnviando] = useState<Decision | null>(null);
-  const [resuelto, setResuelto] = useState<Decision | null>(null);
-  const [quien, setQuien] = useState("");
+  const [submitting, setSubmitting] = useState<ApprovalDecision | null>(null);
+  const [resolved, setResolved] = useState<ApprovalDecision | null>(null);
+  const [approver, setApprover] = useState("");
 
-  async function decidir(decision: Decision) {
-    setEnviando(decision);
+  async function submitDecision(decision: ApprovalDecision) {
+    setSubmitting(decision);
     try {
       const r = await fetch(`/api/approvals/${encodeURIComponent(token)}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           decision,
-          ...(quien.trim() ? { quien: quien.trim() } : {}),
+          ...(approver.trim() ? { quien: approver.trim() } : {}),
         }),
       });
       if (r.ok) {
-        setResuelto(decision);
+        setResolved(decision);
         toast.success(decision === "aprobado" ? t("approved") : t("rejected"));
         return;
       }
@@ -66,24 +66,24 @@ export function ApprovalClient({ token, pausa }: Props) {
     } catch {
       toast.error(t("failed"));
     } finally {
-      setEnviando(null);
+      setSubmitting(null);
     }
   }
 
-  if (resuelto) {
+  if (resolved) {
     return (
       <div className="max-w-md rounded-2xl border border-violet-500/30 bg-zinc-900/50 p-6 text-center">
         <h1 className="text-lg font-semibold text-zinc-100">
-          {resuelto === "aprobado" ? t("approved") : t("rejected")}
+          {resolved === "aprobado" ? t("approved") : t("rejected")}
         </h1>
         <p className="mt-1.5 font-mono text-xs text-zinc-500">
-          {t("runLabel")} {pausa.runId}
+          {t("runLabel")} {pause.runId}
         </p>
       </div>
     );
   }
 
-  const ocupado = enviando !== null;
+  const busy = submitting !== null;
 
   return (
     <div className="w-full max-w-md rounded-2xl border border-violet-500/30 bg-zinc-900/50 p-6">
@@ -91,18 +91,18 @@ export function ApprovalClient({ token, pausa }: Props) {
 
       {/* The flow author's own words. `whitespace-pre-line` because the
           message is written in a flow editor and its line breaks are meant. */}
-      <p className="mt-3 whitespace-pre-line text-sm text-zinc-300">{pausa.mensaje}</p>
+      <p className="mt-3 whitespace-pre-line text-sm text-zinc-300">{pause.message}</p>
 
       <dl className="mt-4 space-y-1 text-xs text-zinc-500">
         <div className="flex gap-2">
           <dt>{t("flowLabel")}</dt>
-          <dd className="font-mono text-zinc-400">{pausa.flowId}</dd>
+          <dd className="font-mono text-zinc-400">{pause.flowId}</dd>
         </div>
         <div className="flex gap-2">
           <dt>{t("runLabel")}</dt>
-          <dd className="font-mono text-zinc-400">{pausa.runId}</dd>
+          <dd className="font-mono text-zinc-400">{pause.runId}</dd>
         </div>
-        {pausa.pausadoEn ? (
+        {pause.pausedAt ? (
           <div className="flex gap-2">
             <dt>{t("pausedAt")}</dt>
             {/* The server renders UTC and the browser renders local time, which
@@ -110,7 +110,7 @@ export function ApprovalClient({ token, pausa }: Props) {
                 is the documented escape for exactly this: a value that is
                 *supposed* to differ between server and client. */}
             <dd className="text-zinc-400" suppressHydrationWarning>
-              {new Date(pausa.pausadoEn).toLocaleString()}
+              {new Date(pause.pausedAt).toLocaleString()}
             </dd>
           </div>
         ) : null}
@@ -120,11 +120,11 @@ export function ApprovalClient({ token, pausa }: Props) {
         <span className="text-xs text-zinc-400">{t("whoLabel")}</span>
         <input
           type="text"
-          value={quien}
-          onChange={(e) => setQuien(e.target.value)}
+          value={approver}
+          onChange={(e) => setApprover(e.target.value)}
           placeholder={t("whoPlaceholder")}
           maxLength={200}
-          disabled={ocupado}
+          disabled={busy}
           className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-violet-500 focus:outline-none disabled:opacity-50"
         />
       </label>
@@ -132,19 +132,19 @@ export function ApprovalClient({ token, pausa }: Props) {
       <div className="mt-5 flex gap-3">
         <button
           type="button"
-          onClick={() => decidir("aprobado")}
-          disabled={ocupado}
+          onClick={() => submitDecision("aprobado")}
+          disabled={busy}
           className="flex-1 rounded-lg bg-violet-500 px-4 py-2 text-sm font-medium text-white hover:bg-violet-400 disabled:opacity-50"
         >
-          {enviando === "aprobado" ? t("deciding") : t("approve")}
+          {submitting === "aprobado" ? t("deciding") : t("approve")}
         </button>
         <button
           type="button"
-          onClick={() => decidir("rechazado")}
-          disabled={ocupado}
+          onClick={() => submitDecision("rechazado")}
+          disabled={busy}
           className="flex-1 rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 hover:border-zinc-500 hover:text-zinc-100 disabled:opacity-50"
         >
-          {enviando === "rechazado" ? t("deciding") : t("reject")}
+          {submitting === "rechazado" ? t("deciding") : t("reject")}
         </button>
       </div>
 

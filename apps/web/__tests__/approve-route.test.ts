@@ -11,10 +11,10 @@ import { isNonWorkspaceTopLevel, extractLocaleAndSlug } from "../lib/tenant/midd
  * breaks the page for a *different* half of the audience — which is why both
  * are pinned here.
  */
-describe("/aprobar is reachable without a session", () => {
+describe("/approve is reachable without a session", () => {
   it("is not a protected path, so no redirect to login", () => {
-    expect(isProtectedPath("/aprobar")).toBe(false);
-    expect(isProtectedPath("/aprobar/apr_ws_abc.secreto")).toBe(false);
+    expect(isProtectedPath("/approve")).toBe(false);
+    expect(isProtectedPath("/approve/apr_ws_abc.secret")).toBe(false);
   });
 
   it("is exempt from the workspace redirect, so a logged-in approver is not bounced", () => {
@@ -22,14 +22,14 @@ describe("/aprobar is reachable without a session", () => {
     // middleware.ts only fires when there IS a session. Without this entry the
     // link works for a stranger and 404s for the team, which is the worst
     // possible way for it to break.
-    expect(isNonWorkspaceTopLevel("aprobar")).toBe(true);
+    expect(isNonWorkspaceTopLevel("approve")).toBe(true);
   });
 
   it("is not read as a workspace slug", () => {
-    const { locale, slug, rest } = extractLocaleAndSlug("/en/aprobar/apr_ws_abc.secreto");
+    const { locale, slug, rest } = extractLocaleAndSlug("/en/approve/apr_ws_abc.secret");
     expect(locale).toBe("en");
     expect(slug).toBeNull();
-    expect(rest).toContain("aprobar");
+    expect(rest).toContain("approve");
   });
 
   it("still protects the paths it should", () => {
@@ -48,10 +48,10 @@ describe("/aprobar is reachable without a session", () => {
  */
 describe("the approvals namespace is complete in every locale", () => {
   const dir = path.join(__dirname, "..", "messages");
-  const cargar = (loc: string) =>
+  const loadMessages = (loc: string) =>
     JSON.parse(fs.readFileSync(path.join(dir, `${loc}.json`), "utf8"));
 
-  const en = cargar("en").approvals as Record<string, string>;
+  const en = loadMessages("en").approvals as Record<string, string>;
 
   it("exists in en", () => {
     expect(en).toBeTypeOf("object");
@@ -59,10 +59,10 @@ describe("the approvals namespace is complete in every locale", () => {
   });
 
   it.each(["es", "pt"])("%s has the same keys as en, and none empty", (loc) => {
-    const otro = cargar(loc).approvals as Record<string, string>;
-    expect(otro).toBeTypeOf("object");
-    expect(Object.keys(otro).sort()).toEqual(Object.keys(en).sort());
-    for (const [k, v] of Object.entries(otro)) {
+    const other = loadMessages(loc).approvals as Record<string, string>;
+    expect(other).toBeTypeOf("object");
+    expect(Object.keys(other).sort()).toEqual(Object.keys(en).sort());
+    for (const [k, v] of Object.entries(other)) {
       expect(typeof v, `${loc}.approvals.${k}`).toBe("string");
       expect(v.trim().length, `${loc}.approvals.${k} is empty`).toBeGreaterThan(0);
     }
@@ -71,16 +71,16 @@ describe("the approvals namespace is complete in every locale", () => {
   it("covers every key the page and the client actually ask for", () => {
     // A key renamed in the catalog but not in the component fails only when a
     // person opens the page. This reads the two files and checks the calls.
-    const archivos = [
-      path.join(__dirname, "..", "app", "[locale]", "aprobar", "[token]", "page.tsx"),
+    const files = [
+      path.join(__dirname, "..", "app", "[locale]", "approve", "[token]", "page.tsx"),
       path.join(__dirname, "..", "components", "approvals", "ApprovalClient.tsx"),
     ];
-    const usadas = new Set<string>();
-    for (const f of archivos) {
+    const usedKeys = new Set<string>();
+    for (const f of files) {
       const src = fs.readFileSync(f, "utf8");
-      for (const m of src.matchAll(/\bt\("([A-Za-z0-9_]+)"\)/g)) usadas.add(m[1]!);
+      for (const m of src.matchAll(/\bt\("([A-Za-z0-9_]+)"\)/g)) usedKeys.add(m[1]!);
     }
-    expect(usadas.size).toBeGreaterThan(5);
-    expect([...usadas].filter((k) => !(k in en))).toEqual([]);
+    expect(usedKeys.size).toBeGreaterThan(5);
+    expect([...usedKeys].filter((k) => !(k in en))).toEqual([]);
   });
 });

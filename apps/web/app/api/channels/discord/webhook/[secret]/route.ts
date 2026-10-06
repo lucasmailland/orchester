@@ -1,5 +1,5 @@
 import { isSenderAllowed } from "@/lib/channels/allowlist";
-import { lugarPermitido } from "@/lib/channels/lugar";
+import { checkCommandPlace } from "@/lib/channels/place";
 import { NextResponse, after } from "next/server";
 import { schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
@@ -115,22 +115,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
   // `config.publicReplies` on would have the agent's answer posted for that
   // whole server to read. Until now `guild_id` and `channel_id` were only
   // written to the conversation metadata, never checked.
-  const lugar = lugarPermitido(channel.config, {
+  const place = checkCommandPlace(channel.config, {
     guildId: interaction.guild_id,
     channelId: interaction.channel_id,
     // A thread is a channel with its own id. Discord's docs do not say whether
     // an interaction inside one reports the thread or its parent as
     // `channel_id`, but they do say the partial `channel` object carries
     // `parent_id` — so both are passed and the gate accepts either. Without
-    // this, allowlisting #dev-alerts would refuse every thread opened in it.
+    // this, allowlisting a channel would refuse every thread opened inside it.
     parentId: interaction.channel?.parent_id,
   });
-  if (lugar !== "ok") {
+  if (place !== "ok") {
     // The id goes back so whoever configures the channel can add it without
     // digging through Discord's developer mode, and it is ephemeral so the
     // rest of the server does not see the refusal.
     return ephemeral(
-      lugar === "guild-no-permitido"
+      place === "guild-not-allowed"
         ? `This channel does not answer in this server. Server ID: ${interaction.guild_id ?? "none (direct message)"}.`
         : `This channel does not answer in this Discord channel. Channel ID: ${interaction.channel_id ?? "unknown"}.`
     );
