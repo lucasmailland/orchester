@@ -1208,7 +1208,7 @@
         }
       },
       "allowlistLabel": "Remitentes permitidos",
-      "allowlistHelp": "Una lista vacía permite el acceso a todos. Ingresá un remitente por línea.",
+      "allowlistHelp": "Una lista vacía bloquea a todos. Un remitente por línea, o abrí el canal más abajo.",
       "allowlistTelegram": "Usá un ID de chat de Telegram o un nombre de usuario (con o sin @). Un ID de grupo permite el acceso a todos los miembros.",
       "allowlistSlack": "Usá un ID de usuario de Slack (U…) o de canal (C…). Un ID de canal permite el acceso a todos sus miembros.",
       "allowlistDiscord": "Usá un ID de usuario de Discord (clic derecho en un miembro → Copiar ID de usuario, con el Modo desarrollador activado). También sirve el nombre de usuario.",
@@ -1225,9 +1225,17 @@
       "discordCommandRegistered": "{command} quedó registrado. Pegá la URL del endpoint en Discord para terminar.",
       "discordEndpointLabel": "URL del endpoint de interacciones",
       "discordEndpointHelp": "Pegala en tu app de Discord, en General Information → Interactions Endpoint URL.",
-      "allowlistWarning": "Este canal está abierto a todos y su agente tiene herramientas. Agregá remitentes permitidos para restringir el acceso.",
+      "allowlistWarning": "Este canal está abierto a cualquiera y su agente tiene herramientas. Agregá remitentes permitidos para restringirlo.",
       "allowlistLimit": "Ingresá hasta 200 entradas de hasta 256 caracteres cada una.",
-      "allowlistSaved": "Remitentes permitidos guardados."
+      "allowlistSaved": "Remitentes permitidos guardados.",
+      "allowAnyLabel": "Dejar que cualquiera hable con este canal",
+      "allowAnyHelp": "Apagado por defecto. A un bot de Discord lo alcanza cualquiera que comparta servidor, y por acá puede viajar un enlace de aprobación, así que un canal sin configurar queda cerrado.",
+      "placeLabel": "Dónde se puede usar el comando",
+      "placeHelp": "Sólo Discord, y opcional: vacío es sin restricción. Un ID por línea. Un hilo cuenta como el canal donde se abrió.",
+      "guildsLabel": "Servidores permitidos",
+      "channelsLabel": "Canales permitidos",
+      "placeSaved": "Lugares permitidos guardados.",
+      "placeLimit": "Sólo IDs: dígitos, hasta 100 servidores y 200 canales."
     },
     "integrations": {
       "title": "Integraciones",

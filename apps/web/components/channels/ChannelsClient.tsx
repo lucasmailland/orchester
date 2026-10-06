@@ -478,7 +478,21 @@ function ConnectedChannelRow({
   const [allowedSendersInput, setAllowedSendersInput] = useState(() =>
     persistedAllowlist.join("\n")
   );
+  // An empty list DENIES. Opening the channel is an explicit decision and
+  // needs a control of its own — without this the screen can create a channel
+  // nobody can ever talk to, with no way to fix it from the UI.
+  const [allowAnySender, setAllowAnySender] = useState(channel.config["allowAnySender"] === true);
   const [savingAllowlist, setSavingAllowlist] = useState(false);
+
+  // Where the command may be used. Discord only: a thread is a channel with
+  // its own id, and the gate accepts a thread whose parent is listed.
+  const listaDe = (clave: string) =>
+    Array.isArray(channel.config[clave])
+      ? (channel.config[clave] as unknown[]).filter((e): e is string => typeof e === "string")
+      : [];
+  const [guildsInput, setGuildsInput] = useState(() => listaDe("allowedGuilds").join("\n"));
+  const [channelsInput, setChannelsInput] = useState(() => listaDe("allowedChannels").join("\n"));
+  const [savingPlace, setSavingPlace] = useState(false);
   const hasTools = agents.find((agent) => agent.id === agentId)?.hasTools ?? false;
 
   async function saveAllowlist() {
@@ -495,7 +509,7 @@ function ConnectedChannelRow({
       const response = await fetch(`/api/channels/${channel.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ config: { allowedSenders } }),
+        body: JSON.stringify({ config: { allowedSenders, allowAnySender } }),
       });
       if (!response.ok) throw new Error("Unable to save allowlist");
       setAllowedSendersInput(allowedSenders.join("\n"));
@@ -505,6 +519,44 @@ function ConnectedChannelRow({
       toast.error(t("saveError"));
     } finally {
       setSavingAllowlist(false);
+    }
+  }
+
+  async function savePlace() {
+    const lineas = (s: string) =>
+      s
+        .split("\n")
+        .map((e) => e.trim())
+        .filter(Boolean);
+    const allowedGuilds = lineas(guildsInput);
+    const allowedChannels = lineas(channelsInput);
+    // Same shape the server validates. Catching it here means the operator
+    // gets told what is wrong instead of a generic save error — and a server
+    // name typed where an ID goes would otherwise look accepted.
+    const esId = (e: string) => /^\d{5,}$/.test(e);
+    if (
+      allowedGuilds.length > 100 ||
+      allowedChannels.length > 200 ||
+      !allowedGuilds.every(esId) ||
+      !allowedChannels.every(esId)
+    ) {
+      toast.error(t("placeLimit"));
+      return;
+    }
+    setSavingPlace(true);
+    try {
+      const response = await fetch(`/api/channels/${channel.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ config: { allowedGuilds, allowedChannels } }),
+      });
+      if (!response.ok) throw new Error("Unable to save places");
+      toast.success(t("placeSaved"));
+      router.refresh();
+    } catch {
+      toast.error(t("saveError"));
+    } finally {
+      setSavingPlace(false);
     }
   }
 
@@ -657,7 +709,10 @@ function ConnectedChannelRow({
         </button>
       </div>
 
-      {supportsAllowlist && persistedAllowlist.length === 0 && hasTools && (
+      {/* Fires on the channel being OPEN, not on the list being empty. An empty
+          list now denies, so the old condition showed "open to everyone"
+          exactly when the channel was shut. */}
+      {supportsAllowlist && channel.config["allowAnySender"] === true && hasTools && (
         <p
           role="status"
           className="mt-3 rounded-lg bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-300"
@@ -710,6 +765,22 @@ function ConnectedChannelRow({
                 disabled={savingAllowlist}
                 className="mt-2 w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none focus:border-violet-500/60"
               />
+              {/* The switch that makes an open channel a decision instead of the
+                  state a channel is born in. It saves with the list because
+                  the two answer the same question together: who may talk. */}
+              <label className="mt-2 flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={allowAnySender}
+                  onChange={(event) => setAllowAnySender(event.target.checked)}
+                  disabled={savingAllowlist}
+                  className="mt-0.5 accent-violet-500"
+                />
+                <span>
+                  <span className="text-strong">{t("allowAnyLabel")}</span>
+                  <span className="mt-0.5 block text-faint">{t("allowAnyHelp")}</span>
+                </span>
+              </label>
               <button
                 type="button"
                 onClick={saveAllowlist}
@@ -717,6 +788,47 @@ function ConnectedChannelRow({
                 className="mt-1 flex items-center gap-1 rounded-lg bg-violet-500 px-3 py-1.5 text-xs text-white hover:bg-violet-400 disabled:opacity-40"
               >
                 {savingAllowlist && <Loader2 className="h-3 w-3 animate-spin" />}
+                {t("save")}
+              </button>
+            </div>
+          )}
+
+          {channel.type === "discord" && (
+            <div>
+              <label className="block text-muted">{t("placeLabel")}</label>
+              <p className="mt-1 text-faint">{t("placeHelp")}</p>
+
+              <label htmlFor={`guilds-${channel.id}`} className="mt-2 block text-muted">
+                {t("guildsLabel")}
+              </label>
+              <textarea
+                id={`guilds-${channel.id}`}
+                value={guildsInput}
+                onChange={(event) => setGuildsInput(event.target.value)}
+                rows={2}
+                disabled={savingPlace}
+                className="mt-1 w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none focus:border-violet-500/60"
+              />
+
+              <label htmlFor={`channels-${channel.id}`} className="mt-2 block text-muted">
+                {t("channelsLabel")}
+              </label>
+              <textarea
+                id={`channels-${channel.id}`}
+                value={channelsInput}
+                onChange={(event) => setChannelsInput(event.target.value)}
+                rows={2}
+                disabled={savingPlace}
+                className="mt-1 w-full rounded-lg border border-line bg-elevated px-2 py-1.5 font-mono text-strong outline-none focus:border-violet-500/60"
+              />
+
+              <button
+                type="button"
+                onClick={savePlace}
+                disabled={savingPlace}
+                className="mt-1 flex items-center gap-1 rounded-lg bg-violet-500 px-3 py-1.5 text-xs text-white hover:bg-violet-400 disabled:opacity-40"
+              >
+                {savingPlace && <Loader2 className="h-3 w-3 animate-spin" />}
                 {t("save")}
               </button>
             </div>

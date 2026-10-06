@@ -1208,7 +1208,7 @@
         }
       },
       "allowlistLabel": "Remetentes permitidos",
-      "allowlistHelp": "Uma lista vazia permite o acesso de todos. Insira um remetente por linha.",
+      "allowlistHelp": "Uma lista vazia bloqueia todos. Um remetente por linha, ou abra o canal abaixo.",
       "allowlistTelegram": "Use um ID de chat do Telegram ou nome de usuário (com ou sem @). Um ID de grupo permite o acesso de todos os membros.",
       "allowlistSlack": "Use um ID de usuário do Slack (U…) ou de canal (C…). Um ID de canal permite o acesso de todos os membros.",
       "allowlistDiscord": "Use um ID de usuário do Discord (clique com o botão direito em um membro → Copiar ID de usuário, com o Modo desenvolvedor ativado). O nome de usuário também funciona.",
@@ -1225,9 +1225,17 @@
       "discordCommandRegistered": "{command} foi registrado. Cole a URL do endpoint no Discord para concluir.",
       "discordEndpointLabel": "URL do endpoint de interações",
       "discordEndpointHelp": "Cole no seu app do Discord, em General Information → Interactions Endpoint URL.",
-      "allowlistWarning": "Este canal está aberto a todos e seu agente tem ferramentas. Adicione remetentes permitidos para restringir o acesso.",
+      "allowlistWarning": "Este canal está aberto a qualquer um e seu agente tem ferramentas. Adicione remetentes permitidos para restringir o acesso.",
       "allowlistLimit": "Insira até 200 entradas com até 256 caracteres cada.",
-      "allowlistSaved": "Remetentes permitidos salvos."
+      "allowlistSaved": "Remetentes permitidos salvos.",
+      "allowAnyLabel": "Deixar qualquer pessoa falar com este canal",
+      "allowAnyHelp": "Desligado por padrão. Um bot do Discord é alcançável por qualquer um que compartilhe o servidor, e um link de aprovação pode passar por aqui, então um canal não configurado fica fechado.",
+      "placeLabel": "Onde o comando pode ser usado",
+      "placeHelp": "Só Discord, e opcional: vazio significa sem restrição. Um ID por linha. Uma thread conta como o canal onde foi aberta.",
+      "guildsLabel": "Servidores permitidos",
+      "channelsLabel": "Canais permitidos",
+      "placeSaved": "Lugares permitidos salvos.",
+      "placeLimit": "Só IDs: dígitos, até 100 servidores e 200 canais."
     },
     "integrations": {
       "title": "Integrações",
