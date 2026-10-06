@@ -17,5 +17,32 @@ export const channelConfigSchema = z
       .optional(),
     /** Discord: post answers for the whole channel to read. Default private. */
     publicReplies: z.boolean().optional(),
+    /**
+     * Discord: which servers the command answers in. Snowflakes.
+     *
+     * Absent means no restriction — unlike `allowedSenders`, where empty
+     * denies. `allowedSenders` has already decided *who*; this narrows
+     * *where*, and it matters most with `publicReplies` on, where the agent's
+     * answer is posted for a whole server to read.
+     */
+    allowedGuilds: z
+      .array(
+        z
+          .string()
+          .trim()
+          .regex(/^\d{5,}$/)
+      )
+      .max(100)
+      .optional(),
+    /** Discord: which channels inside those servers. Same semantics. */
+    allowedChannels: z
+      .array(
+        z
+          .string()
+          .trim()
+          .regex(/^\d{5,}$/)
+      )
+      .max(200)
+      .optional(),
   })
   .catchall(z.unknown());

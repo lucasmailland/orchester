@@ -1,4 +1,5 @@
 import { isSenderAllowed } from "@/lib/channels/allowlist";
+import { lugarPermitido } from "@/lib/channels/lugar";
 import { NextResponse, after } from "next/server";
 import { schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
@@ -107,6 +108,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
     // The refusal needs no agent, so it answers straight away — and only the
     // person who ran the command sees their own ID.
     return ephemeral(`You do not have access. Your ID: ${sender.id}.`);
+  }
+
+  // Who may ask is not the same question as where they may ask it. An
+  // allowlisted person running this in a public channel with
+  // `config.publicReplies` on would have the agent's answer posted for that
+  // whole server to read. Until now `guild_id` and `channel_id` were only
+  // written to the conversation metadata, never checked.
+  const lugar = lugarPermitido(channel.config, {
+    guildId: interaction.guild_id,
+    channelId: interaction.channel_id,
+  });
+  if (lugar !== "ok") {
+    // The id goes back so whoever configures the channel can add it without
+    // digging through Discord's developer mode, and it is ephemeral so the
+    // rest of the server does not see the refusal.
+    return ephemeral(
+      lugar === "guild-no-permitido"
+        ? `This channel does not answer in this server. Server ID: ${interaction.guild_id ?? "none (direct message)"}.`
+        : `This channel does not answer in this Discord channel. Channel ID: ${interaction.channel_id ?? "unknown"}.`
+    );
   }
 
   const text = interactionText(interaction, DISCORD_OPTION_NAME);
