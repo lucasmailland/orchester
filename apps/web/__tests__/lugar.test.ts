@@ -89,3 +89,54 @@ describe("a malformed list fails closed", () => {
     );
   });
 });
+
+describe("a thread inside an allowed channel gets in", () => {
+  // This is the case the whole feature hangs on: an incident is posted to
+  // #dev-alerts and a thread is opened on it to talk to the agent. A thread is
+  // a channel with its own id, so without this an allowlist of #dev-alerts
+  // would refuse every single one of those conversations — the filter working
+  // exactly backwards from what it is for.
+  const HILO = "777777777777777777";
+
+  it("accepts the thread when its parent is the allowed channel", () => {
+    expect(lugarPermitido({ allowedChannels: [CANAL] }, { channelId: HILO, parentId: CANAL })).toBe(
+      "ok"
+    );
+  });
+
+  it("accepts it the other way round too, because the docs do not say which id arrives", () => {
+    // Discord documents that the partial channel object carries `parent_id`,
+    // but not whether an interaction's `channel_id` is the thread or the
+    // parent. Checking both means the answer does not matter.
+    expect(
+      lugarPermitido({ allowedChannels: [CANAL] }, { channelId: CANAL, parentId: CANAL })
+    ).toBe("ok");
+  });
+
+  it("still refuses a thread whose parent is NOT allowed", () => {
+    expect(lugarPermitido({ allowedChannels: [CANAL] }, { channelId: HILO, parentId: OTRO })).toBe(
+      "canal-no-permitido"
+    );
+  });
+
+  it("accepts a thread listed on its own, without its parent", () => {
+    expect(lugarPermitido({ allowedChannels: [HILO] }, { channelId: HILO, parentId: OTRO })).toBe(
+      "ok"
+    );
+  });
+
+  it("a malformed list still fails closed, parent or no parent", () => {
+    expect(
+      lugarPermitido({ allowedChannels: "no-soy-una-lista" }, { channelId: HILO, parentId: CANAL })
+    ).toBe("canal-no-permitido");
+  });
+
+  it("the guild check runs first, parent or no parent", () => {
+    expect(
+      lugarPermitido(
+        { allowedGuilds: [GUILD], allowedChannels: [CANAL] },
+        { guildId: OTRO, channelId: HILO, parentId: CANAL }
+      )
+    ).toBe("guild-no-permitido");
+  });
+});
