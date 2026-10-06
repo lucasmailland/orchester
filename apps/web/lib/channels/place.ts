@@ -24,17 +24,17 @@
 /** A Discord snowflake: digits only, 17-19 of them in practice. */
 const SNOWFLAKE = /^\d{5,}$/;
 
-export type LugarCheck = "ok" | "guild-no-permitido" | "canal-no-permitido";
+export type PlaceCheck = "ok" | "guild-not-allowed" | "channel-not-allowed";
 
-function permite(lista: unknown, valor: string | undefined): boolean {
+function allowsValue(list: unknown, value: string | undefined): boolean {
   // Not configured at all: no restriction on this dimension.
-  if (lista === undefined) return true;
+  if (list === undefined) return true;
   // Malformed config (this is a free-form jsonb column, so it is reachable
   // without a code change). Fail closed, same as the sender gate.
-  if (!Array.isArray(lista)) return false;
-  if (lista.length === 0) return true;
-  if (!valor) return false;
-  return lista.some((e) => typeof e === "string" && e.trim() === valor && SNOWFLAKE.test(valor));
+  if (!Array.isArray(list)) return false;
+  if (list.length === 0) return true;
+  if (!value) return false;
+  return list.some((e) => typeof e === "string" && e.trim() === value && SNOWFLAKE.test(value));
 }
 
 /**
@@ -44,20 +44,20 @@ function permite(lista: unknown, valor: string | undefined): boolean {
  * different wording for the person to know what to do about it, and a caller
  * that only sees `false` ends up writing "not allowed" for both.
  */
-export function lugarPermitido(
+export function checkCommandPlace(
   config: Record<string, unknown> | null | undefined,
   // `| undefined` written out because the repo runs with
   // `exactOptionalPropertyTypes`: a caller reading these off a parsed Discord
   // payload has them as `string | undefined`, and `?:` alone rejects that.
-  lugar: {
+  place: {
     guildId?: string | undefined;
     channelId?: string | undefined;
     /**
      * The thread's parent channel, when the command ran inside a thread.
      *
-     * A thread is a channel with its own id, so allowlisting `#dev-alerts`
-     * would otherwise refuse every thread opened inside it — the filter would
-     * work backwards for the one place we most want a conversation to happen.
+     * A thread is a channel with its own id, so allowlisting a channel would
+     * otherwise refuse every thread opened inside it — the filter working
+     * backwards from the one place a conversation is most wanted.
      *
      * Discord's docs do not say whether an interaction's `channel_id` is the
      * thread or the parent. They do say the partial `channel` object carries
@@ -66,11 +66,11 @@ export function lugarPermitido(
      */
     parentId?: string | undefined;
   }
-): LugarCheck {
-  if (!permite(config?.["allowedGuilds"], lugar.guildId)) return "guild-no-permitido";
-  const canalOk =
-    permite(config?.["allowedChannels"], lugar.channelId) ||
-    (lugar.parentId !== undefined && permite(config?.["allowedChannels"], lugar.parentId));
-  if (!canalOk) return "canal-no-permitido";
+): PlaceCheck {
+  if (!allowsValue(config?.["allowedGuilds"], place.guildId)) return "guild-not-allowed";
+  const channelOk =
+    allowsValue(config?.["allowedChannels"], place.channelId) ||
+    (place.parentId !== undefined && allowsValue(config?.["allowedChannels"], place.parentId));
+  if (!channelOk) return "channel-not-allowed";
   return "ok";
 }

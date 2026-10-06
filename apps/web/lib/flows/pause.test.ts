@@ -1,72 +1,72 @@
 import { describe, it, expect } from "vitest";
-import { nuevoTokenDeAprobacion, workspaceDelToken, esDecision } from "./pause";
+import { createApprovalToken, workspaceFromApprovalToken, isApprovalDecision } from "./pause";
 
 /**
- * El token de aprobación es la única credencial de quien aprueba, y además es
- * de dónde sale el workspace para poder consultar la base con contexto. Si
- * `workspaceDelToken` devuelve `undefined` donde debería devolver el workspace,
- * la aprobación contesta "este enlace no es válido" y el run queda pausado para
- * siempre; si devuelve algo donde debería devolver `undefined`, una consulta
- * sale con un workspace inventado.
+ * The approval token is the approver's only credential, and also provides the
+ * workspace needed to query the database with context. If
+ * `workspaceFromApprovalToken` returns `undefined` instead of the workspace,
+ * approval answers "this link is invalid" and the run stays paused forever;
+ * if it returns something instead of `undefined`, a query runs with a
+ * fabricated workspace.
  */
-describe("token de aprobación", () => {
-  it("devuelve el workspace que se le puso", () => {
-    const token = nuevoTokenDeAprobacion("ws_abc123");
-    expect(workspaceDelToken(token)).toBe("ws_abc123");
+describe("approval token", () => {
+  it("returns the workspace it was given", () => {
+    const token = createApprovalToken("ws_abc123");
+    expect(workspaceFromApprovalToken(token)).toBe("ws_abc123");
   });
 
-  it("deja el secreto después del workspace, y es largo", () => {
-    const token = nuevoTokenDeAprobacion("ws_abc123");
-    const secreto = token.slice(token.indexOf(".") + 1);
-    // Dos cuid2 pegados. El prefijo de workspace es público; esto no.
-    expect(secreto.length).toBeGreaterThanOrEqual(40);
+  it("places a long secret after the workspace", () => {
+    const token = createApprovalToken("ws_abc123");
+    const secret = token.slice(token.indexOf(".") + 1);
+    // Two concatenated cuid2 values. The workspace prefix is public; this is not.
+    expect(secret.length).toBeGreaterThanOrEqual(40);
   });
 
-  it("dos tokens del mismo workspace no se repiten", () => {
-    const a = nuevoTokenDeAprobacion("ws_abc123");
-    const b = nuevoTokenDeAprobacion("ws_abc123");
+  it("does not repeat tokens for the same workspace", () => {
+    const a = createApprovalToken("ws_abc123");
+    const b = createApprovalToken("ws_abc123");
     expect(a).not.toBe(b);
   });
 
-  it("sobrevive al viaje por una URL sin que se le escape nada", () => {
-    const token = nuevoTokenDeAprobacion("ws_abc123");
+  it("survives a URL round trip without escaping", () => {
+    const token = createApprovalToken("ws_abc123");
     expect(encodeURIComponent(token)).toBe(token);
   });
 
-  // Todo lo de abajo tiene que dar `undefined`: quien llama trata ese caso
-  // igual que "no existe" y NO consulta la base.
+  // Everything below must return `undefined`: the caller treats that case
+  // as "does not exist" and does NOT query the database.
   it.each([
-    ["vacío", ""],
-    ["sin el prefijo apr_", "ws_abc123.secretosecreto"],
-    ["prefijo de otra cosa", "exp_ws_abc123.secreto"],
-    ["sin separador", "apr_ws_abc123secretosecreto"],
-    ["workspace vacío", "apr_.secretosecreto"],
-    ["secreto vacío", "apr_ws_abc123."],
-    ["sólo el prefijo", "apr_"],
-    ["el separador justo donde arranca el workspace", "apr_."],
-  ])("rechaza un token %s", (_caso, token) => {
-    expect(workspaceDelToken(token)).toBeUndefined();
+    ["empty", ""],
+    ["without the apr_ prefix", "ws_abc123.secretsecret"],
+    ["with an unrelated prefix", "exp_ws_abc123.secret"],
+    ["without a separator", "apr_ws_abc123secretsecret"],
+    ["empty workspace", "apr_.secretsecret"],
+    ["empty secret", "apr_ws_abc123."],
+    ["with only the prefix", "apr_"],
+    ["with the separator where the workspace starts", "apr_."],
+  ])("rejects a token %s", (_case, token) => {
+    expect(workspaceFromApprovalToken(token)).toBeUndefined();
   });
 
-  it("corta en el PRIMER separador, así un secreto con puntos no mueve el workspace", () => {
-    expect(workspaceDelToken("apr_ws_abc123.algo.con.puntos")).toBe("ws_abc123");
+  it("splits at the FIRST separator so dots in the secret do not shift the workspace", () => {
+    expect(workspaceFromApprovalToken("apr_ws_abc123.something.with.dots")).toBe("ws_abc123");
   });
 });
 
-describe("esDecision", () => {
-  it("acepta sólo las dos respuestas que el motor entiende", () => {
-    expect(esDecision("aprobado")).toBe(true);
-    expect(esDecision("rechazado")).toBe(true);
+describe("isApprovalDecision", () => {
+  it("accepts only the two responses the engine understands", () => {
+    expect(isApprovalDecision("aprobado")).toBe(true);
+    expect(isApprovalDecision("rechazado")).toBe(true);
   });
 
-  it.each([["aprobada"], ["APROBADO"], [""], ["sí"], ["true"]])("rechaza %s", (v) => {
-    expect(esDecision(v)).toBe(false);
+  it.each([["aprobada"], ["APROBADO"], [""], ["sí"], ["true"]])("rejects %s", (v) => {
+    expect(isApprovalDecision(v)).toBe(false);
   });
 
-  it("rechaza lo que no es un string", () => {
-    expect(esDecision(true)).toBe(false);
-    expect(esDecision(null)).toBe(false);
-    expect(esDecision(undefined)).toBe(false);
-    expect(esDecision({ decision: "aprobado" })).toBe(false);
+  it("rejects non-string values", () => {
+    expect(isApprovalDecision(true)).toBe(false);
+    expect(isApprovalDecision(null)).toBe(false);
+    expect(isApprovalDecision(undefined)).toBe(false);
+    expect(isApprovalDecision({ decision: "aprobado" })).toBe(false);
   });
 });

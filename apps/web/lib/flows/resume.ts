@@ -1,51 +1,51 @@
 import "server-only";
 import { and, eq } from "drizzle-orm";
 import { schema } from "@orchester/db";
-import { continuarFlowPausado, withFlowTx } from "../flow-engine";
-import { workspaceDelToken, type Decision } from "./pause";
+import { resumePausedFlow, withFlowTx } from "../flow-engine";
+import { workspaceFromApprovalToken, type ApprovalDecision } from "./pause";
 
 /**
- * Busca el run de una pausa, con el contexto de workspace puesto.
+ * Finds the run for a pause with workspace context established.
  *
- * El workspace sale del propio token (ver `nuevoTokenDeAprobacion`), porque
- * quien aprueba no tiene sesión. Sin esto la consulta corría fuera de
- * `withFlowTx` y con FORCE RLS no devolvía filas: toda aprobación habría
- * contestado "este enlace no es válido".
+ * The workspace comes from the token itself (see `createApprovalToken`),
+ * because the approver has no session. Without this, the query ran outside
+ * `withFlowTx` and returned no rows under FORCE RLS: every approval would have
+ * answered "this link is invalid".
  *
- * El `WHERE` compara el token completo, así que el prefijo de workspace no
- * afloja nada: el permiso sigue siendo el secreto.
+ * The `WHERE` compares the entire token, so the workspace prefix weakens
+ * nothing: the secret remains the permission.
  */
-async function buscarPorToken(token: string) {
-  const workspaceId = workspaceDelToken(token);
+async function findRunByApprovalToken(token: string) {
+  const workspaceId = workspaceFromApprovalToken(token);
   if (!workspaceId) return undefined;
-  const filas = await withFlowTx(workspaceId, (tx) =>
+  const rows = await withFlowTx(workspaceId, (tx) =>
     tx.select().from(schema.flowRuns).where(eq(schema.flowRuns.approvalToken, token)).limit(1)
   );
-  return filas[0];
+  return rows[0];
 }
 
 /**
- * Retoma un run que estaba esperando a una persona.
+ * Resumes a run that was waiting for a person.
  *
- * El token es el único permiso: viaja en el enlace de aprobación y no se
- * guarda en ningún lado del lado del aprobador. Se busca por token y no por
- * runId **a propósito** — un runId se puede adivinar, y del otro lado de esta
- * decisión puede haber un merge a producción.
+ * The token is the only permission: it travels in the approval link and is
+ * not stored anywhere on the approver's side. Looking up by token rather than
+ * runId is **deliberate** — a runId can be guessed, and the other side of this
+ * decision could be a production merge.
  */
 /**
- * Qué se está por aprobar, sin tocar nada.
+ * What is about to be approved, without changing anything.
  *
- * Existe separada de `retomarPorToken` a propósito: una función que decide no
- * puede servir también para mirar. La primera versión de la ruta hacía el GET
- * llamando a retomar con "aprobado" — un GET que aprobaba.
+ * Deliberately separate from `resumeByToken`: a function that decides cannot
+ * also serve as a read operation. The route's first version implemented GET
+ * by calling resume with "aprobado" — a GET that approved.
  */
-export async function mirarPorToken(
+export async function getApprovalByToken(
   token: string
 ): Promise<
-  | { ok: true; runId: string; flowId: string; mensaje: string; pausadoEn: Date | null }
+  | { ok: true; runId: string; flowId: string; message: string; pausedAt: Date | null }
   | { ok: false }
 > {
-  const run = await buscarPorToken(token);
+  const run = await findRunByApprovalToken(token);
   if (!run || run.status !== "paused") return { ok: false };
   const vars = (run.pausedVariables ?? {}) as Record<string, unknown>;
   const pend = vars["_pendingApproval"] as { message?: string } | undefined;
@@ -53,47 +53,48 @@ export async function mirarPorToken(
     ok: true,
     runId: run.id,
     flowId: run.flowId,
-    mensaje: pend?.message ?? "Se necesita una aprobación",
-    pausadoEn: run.pausedAt ?? null,
+    message: pend?.message ?? "Se necesita una aprobación",
+    pausedAt: run.pausedAt ?? null,
   };
 }
 
-export async function retomarPorToken(
+export async function resumeByToken(
   token: string,
-  decision: Decision,
-  quien: string
+  decision: ApprovalDecision,
+  resolvedBy: string
 ): Promise<
-  { ok: true; runId: string; status: string } | { ok: false; motivo: "no-existe" | "ya-resuelto" }
+  | { ok: true; runId: string; status: string }
+  | { ok: false; reason: "not-found" | "already-resolved" }
 > {
-  const run = await buscarPorToken(token);
-  if (!run) return { ok: false, motivo: "no-existe" };
+  const run = await findRunByApprovalToken(token);
+  if (!run) return { ok: false, reason: "not-found" };
 
-  // Un enlace reenviado por mail no debe servir dos veces. Si el run ya no
-  // está pausado, alguien decidió antes: no es un error del aprobador, pero
-  // tampoco se vuelve a ejecutar.
-  if (run.status !== "paused") return { ok: false, motivo: "ya-resuelto" };
+  // A link forwarded by email must not work twice. If the run is no longer
+  // paused, someone already decided: it is not the approver's fault, but
+  // the run must not execute again either.
+  if (run.status !== "paused") return { ok: false, reason: "already-resolved" };
 
-  // El token se borra en el mismo movimiento en que se marca la decisión. Dos
-  // clics simultáneos: el segundo encuentra `status !== paused` y rebota.
-  const actualizadas = await withFlowTx(run.workspaceId, (tx) =>
+  // The token is cleared in the same operation that records the decision.
+  // With two simultaneous clicks, the second finds `status !== paused` and fails.
+  const updatedRows = await withFlowTx(run.workspaceId, (tx) =>
     tx
       .update(schema.flowRuns)
       .set({
         status: "running",
         approvalToken: null,
-        resolvedBy: quien,
+        resolvedBy: resolvedBy,
         resolvedDecision: decision,
       })
       .where(and(eq(schema.flowRuns.id, run.id), eq(schema.flowRuns.status, "paused")))
       .returning({ id: schema.flowRuns.id })
   );
-  if (actualizadas.length === 0) return { ok: false, motivo: "ya-resuelto" };
+  if (updatedRows.length === 0) return { ok: false, reason: "already-resolved" };
 
-  const r = await continuarFlowPausado({
+  const r = await resumePausedFlow({
     runId: run.id,
     workspaceId: run.workspaceId,
     flowId: run.flowId,
-    desdeNodo: run.pausedNodeId ?? "",
+    fromNodeId: run.pausedNodeId ?? "",
     variables: (run.pausedVariables ?? {}) as Record<string, unknown>,
     decision,
   });
