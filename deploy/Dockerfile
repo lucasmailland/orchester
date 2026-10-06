@@ -24,9 +24,6 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json apps/web/
 COPY packages/db/package.json packages/db/
-# pnpm `patchedDependencies` (better-auth/kysely-adapter) requires the patch
-# file at install time, otherwise --frozen-lockfile fails.
-COPY patches/ patches/
 
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 RUN pnpm install --frozen-lockfile --prod=false
