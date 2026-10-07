@@ -104,9 +104,9 @@ describe("project tasks are reachable without the escape hatch", () => {
 
   it("routes each to its connector action", async () => {
     const cases: [string, string, Record<string, unknown>][] = [
-      ["odoo_get_task", "get_task", { id: 20122 }],
+      ["odoo_get_task", "get_task", { id: 7 }],
       ["odoo_search_tasks", "search_tasks", { project_id: 9 }],
-      ["odoo_get_task_notes", "get_task_notes", { id: 20122 }],
+      ["odoo_get_task_notes", "get_task_notes", { id: 7 }],
     ];
     for (const [tool, action, input] of cases) {
       runIntegrationActionMock.mockClear();
