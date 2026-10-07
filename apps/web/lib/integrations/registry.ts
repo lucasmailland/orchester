@@ -673,6 +673,11 @@ const TASK_FIELDS = [
   "priority",
   "stage_id",
   "project_id",
+  // A support ticket is often a subtask of a parent that groups the same
+  // complaint across customers, and that parent's description is often empty.
+  // Without these an agent reads an empty task and stops there.
+  "parent_id",
+  "child_ids",
   "user_ids",
   "partner_id",
   "tag_ids",
@@ -884,13 +889,14 @@ const odoo: Connector = {
 
     search_tasks: {
       description:
-        "Search project tasks. Narrow with project_id, stage_id or a title substring. Returns the task fields, not its notes — use get_task_notes for those.",
+        "Search project tasks. Narrow with project_id, stage_id, parent_id or a title substring. Returns the task fields, not its notes — use get_task_notes for those.",
       inputSchema: {
         type: "object",
         properties: {
           query: { type: "string", description: "Matched against the task title." },
           project_id: { type: "number", description: "Restrict to one project." },
           stage_id: { type: "number", description: "Restrict to one stage." },
+          parent_id: { type: "number", description: "Only the subtasks of this task." },
           created_since: {
             type: "string",
             description:
@@ -906,6 +912,7 @@ const odoo: Connector = {
         }
         if (input.project_id != null) domain.push(["project_id", "=", Number(input.project_id)]);
         if (input.stage_id != null) domain.push(["stage_id", "=", Number(input.stage_id)]);
+        if (input.parent_id != null) domain.push(["parent_id", "=", Number(input.parent_id)]);
         if (typeof input.created_since === "string" && input.created_since.trim()) {
           // Odoo rejects the `T` and the trailing `Z` of an ISO timestamp, so
           // the value is reshaped rather than passed through. A bad date here
