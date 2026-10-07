@@ -82,7 +82,9 @@ describe("every connector tool is wired on both sides", () => {
   it("declares a schema for each tool that routes to a connector", async () => {
     const names = listAllTools().map((t) => t.name);
     const connectorNames = names.filter((n) => CONNECTOR_PREFIXES.some((p) => n.startsWith(p)));
-    expect(connectorNames.length).toBeGreaterThanOrEqual(9);
+    // Raise this when connector tools are added. It exists so a rename that
+    // empties the list cannot make the loop below pass by iterating nothing.
+    expect(connectorNames.length).toBeGreaterThanOrEqual(12);
 
     for (const name of connectorNames) {
       // A tool with a schema but no route throws "Unknown tool"; one that

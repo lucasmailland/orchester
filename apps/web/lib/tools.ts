@@ -333,6 +333,53 @@ const BUILTINS: Record<string, ToolDefinition> = {
       required: ["id", "body_text"],
     },
   },
+  // ── Odoo project tasks ────────────────────────────────────────────────────
+  // Tasks are a different model from helpdesk tickets, and the ticket tools do
+  // not reach them. Without these the only route was `run_integration` with
+  // Odoo's `execute`, which calls any method on any model: reading one project
+  // meant holding a write primitive for the whole database.
+  odoo_get_task: {
+    name: "odoo_get_task",
+    description:
+      "Read one Odoo project task by id. This is the record an incident lives in — the id is the last segment of its URL, /odoo/project/<p>/tasks/<id>. It returns the task's own fields; its evidence is in the notes, via `odoo_get_task_notes`.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "number", description: "Numeric task id." } },
+      required: ["id"],
+    },
+  },
+  odoo_search_tasks: {
+    name: "odoo_search_tasks",
+    description:
+      "Search Odoo project tasks by title, project, stage or creation date. Use it to find whether an incident is already filed, and to find its neighbours — the same defect reported three times is three tasks with near-identical titles.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Matched against the task title." },
+        project_id: { type: "number", description: "Restrict to one project." },
+        stage_id: { type: "number", description: "Restrict to one stage." },
+        created_since: {
+          type: "string",
+          description:
+            "ISO 8601, in UTC. Odoo stores create_date in UTC; a local time shifts the window silently.",
+        },
+        limit: { type: "number", description: "Max rows, capped at 100. Defaults to 20." },
+      },
+    },
+  },
+  odoo_get_task_notes: {
+    name: "odoo_get_task_notes",
+    description:
+      "The notes on a project task, newest first. The pipeline leaves its evidence here — errors, trace and deploys — so read this before going to New Relic: the answer may already be on the ticket.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Numeric task id." },
+        limit: { type: "number", description: "Max notes, capped at 100. Defaults to 20." },
+      },
+      required: ["id"],
+    },
+  },
   odoo_search_tickets: {
     name: "odoo_search_tickets",
     description:
@@ -481,6 +528,9 @@ const CONNECTOR_TOOLS: Record<string, { integrationId: string; action: string }>
   odoo_create_ticket: { integrationId: "odoo", action: "create_ticket" },
   odoo_post_note: { integrationId: "odoo", action: "post_note" },
   odoo_search_tickets: { integrationId: "odoo", action: "search_tickets" },
+  odoo_get_task: { integrationId: "odoo", action: "get_task" },
+  odoo_search_tasks: { integrationId: "odoo", action: "search_tasks" },
+  odoo_get_task_notes: { integrationId: "odoo", action: "get_task_notes" },
   newrelic_get_errors: { integrationId: "newrelic", action: "get_errors" },
   newrelic_get_logs_for_trace: { integrationId: "newrelic", action: "get_logs_for_trace" },
   newrelic_get_deployments: { integrationId: "newrelic", action: "get_deployments" },
