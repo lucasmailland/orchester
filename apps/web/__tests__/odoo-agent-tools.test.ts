@@ -126,6 +126,48 @@ describe("project tasks are reachable without the escape hatch", () => {
     for (const forbidden of ["odoo_update_task", "odoo_create_task", "odoo_delete_task"]) {
       expect(names).not.toContain(forbidden);
     }
+    // The context tools added later must not widen that: nothing named like a
+    // mutation of a task may appear, whatever the verb.
+    const mutation = /^odoo_(update|create|delete|move|write|unlink|set)_(task|stage|partner)/;
+    expect(names.filter((n) => mutation.test(n))).toEqual([]);
+  });
+
+  it("exposes the context tools and routes each to its action", async () => {
+    const cases: [string, string, Record<string, unknown>][] = [
+      ["odoo_get_ticket", "get_ticket", { id: 42 }],
+      ["odoo_get_task_attachments", "get_task_attachments", { id: 42 }],
+      ["odoo_get_partner", "get_partner", { id: 42 }],
+      ["odoo_list_stages", "list_stages", { project_id: 42 }],
+    ];
+    const names = listAllTools().map((t) => t.name);
+    for (const [tool, action, input] of cases) {
+      expect(names).toContain(tool);
+      runIntegrationActionMock.mockClear();
+      await executeTool(tool, input, CTX);
+      const [, integrationId, calledAction, passed] = runIntegrationActionMock.mock.calls[0]!;
+      expect(integrationId).toBe("odoo");
+      expect(calledAction).toBe(action);
+      expect(passed).toEqual(input);
+    }
+  });
+
+  it("tells the model that a partner's vat is the link to the HR platform company", () => {
+    const [def] = getToolDefinitions(["odoo_get_partner"]);
+    expect(def!.description).toMatch(/vat/);
+    expect(def!.description).toMatch(/fiscal code/i);
+  });
+
+  it("tells the model to list stages instead of hardcoding ids", () => {
+    const [def] = getToolDefinitions(["odoo_list_stages"]);
+    expect(def!.description).toMatch(/hardcod/i);
+  });
+
+  it("offers the new search_tasks filters to the model", () => {
+    const [def] = getToolDefinitions(["odoo_search_tasks"]);
+    const props = def!.inputSchema.properties as Record<string, unknown>;
+    expect(Object.keys(props)).toEqual(
+      expect.arrayContaining(["description_query", "tag_id", "user_id", "project_ids"])
+    );
   });
 
   it("lets the model list a task's subtasks and siblings", () => {
