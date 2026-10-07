@@ -17,6 +17,22 @@ export interface InboundMessage {
   customerName?: string;
   customerEmail?: string;
   metadata?: Record<string, unknown>;
+  /**
+   * What the conversation is already about, supplied by the channel adapter and
+   * not by the person writing. A Discord thread opened on an incident card is
+   * the case this exists for: the card carries the incident, the conversation
+   * starts empty, and nothing connected the two — the agent's first answer was
+   * "I have no context", which was true.
+   *
+   * It belongs to the PLACE, not to the person. `externalId` is
+   * `<thread>:<sender>`, so seeding one conversation would leave the next
+   * person in the same thread starting blank. Passing it on every turn also
+   * keeps it current when the source changes.
+   *
+   * It is retrieved content: it reaches the prompt inside `<untrusted_context>`
+   * like memory and tool output, never as instructions.
+   */
+  context?: string;
 }
 
 export interface OutboundResponse {
@@ -59,6 +75,8 @@ interface ConvCtx {
   conversation: Conversation;
   /** messageCount tal como se leyó al ubicar la conversación (pre +1 del user msg). */
   baseMessageCount: number;
+  /** `InboundMessage.context` — what this place is about. See that field. */
+  context?: string | undefined;
 }
 
 /**
@@ -258,7 +276,7 @@ async function resolveInbound(
 
   return {
     kind: "conversational",
-    ctx: { workspaceId, channel, agent, conversation, baseMessageCount },
+    ctx: { workspaceId, channel, agent, conversation, baseMessageCount, context: msg.context },
   };
 }
 
@@ -335,7 +353,12 @@ async function buildConversationContext(
   chatMsgs: ChatMessage[];
   systemPrompt: string;
 }> {
-  const { workspaceId, agent, conversation } = ctx;
+  // `channel` is destructured because the Brain block below reads `channel.type`.
+  // It used to reference a bare `channel` that was never in scope: a
+  // ReferenceError on every single turn, swallowed by the `catch` further down,
+  // so the Brain block was always empty and nothing ever said so. The file
+  // carries `@ts-nocheck`, which is why the compiler never caught it either.
+  const { workspaceId, channel, agent, conversation, context } = ctx;
   const db = tx;
   const fullHistory = await db
     .select()
@@ -407,10 +430,22 @@ async function buildConversationContext(
     // bloque etiquetado y agregamos la línea de guardrail al system prompt.
     systemPrompt:
       agent.systemPrompt +
+      wrapChannelContext(context) +
       wrapMemoryBlock(formatMemoriesAsPromptBlock(memories)) +
       brainBlock +
       UNTRUSTED_CONTENT_GUARDRAIL,
   };
+}
+
+/**
+ * Wraps what the channel adapter says this place is about. Same treatment as
+ * memory: it is content someone else wrote, so it is data, never instructions.
+ * Empty input returns "" so an agent with no channel context gets the exact
+ * prompt it got before.
+ */
+function wrapChannelContext(context: string | undefined): string {
+  if (!context?.trim()) return "";
+  return "\n\n" + wrapUntrusted(context.trim(), "channel-context");
 }
 
 /**

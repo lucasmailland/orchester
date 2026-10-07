@@ -662,6 +662,28 @@ const TICKET_FIELDS = [
   "write_date",
 ];
 
+// `project.task` is a different model from `helpdesk.ticket`, with different
+// columns: no team_id, and the assignees are `user_ids` (many) rather than
+// `user_id`. Asking for a field a model does not have makes Odoo fail the whole
+// read, so these lists cannot be shared.
+const TASK_FIELDS = [
+  "id",
+  "name",
+  "description",
+  "priority",
+  "stage_id",
+  "project_id",
+  "user_ids",
+  "partner_id",
+  "tag_ids",
+  "date_deadline",
+  "create_date",
+  "write_date",
+];
+
+// A note on a task is a `mail.message` row. `body` is HTML.
+const MESSAGE_FIELDS = ["id", "date", "author_id", "message_type", "subtype_id", "body"];
+
 function ticketValues(input: Record<string, unknown>): Record<string, unknown> {
   const values: Record<string, unknown> = {};
   if (typeof input.name === "string") values.name = input.name;
@@ -835,6 +857,100 @@ const odoo: Connector = {
           limit,
         });
         return { tickets };
+      },
+    },
+
+    // ── project.task ────────────────────────────────────────────────────────
+    // Helpdesk tickets and project tasks are different models, and the three
+    // actions above only ever touch `helpdesk.ticket`. An agent that works on
+    // tasks had `execute` as its only route — which can call any method on any
+    // model, so a read of one project became a write primitive for the whole
+    // database. These three cover what reading a task actually needs.
+
+    get_task: {
+      description: "Read one project task by id.",
+      inputSchema: {
+        type: "object",
+        properties: { id: { type: "number" } },
+        required: ["id"],
+      },
+      async run(config, input) {
+        const rows = (await odooExecute(config, "project.task", "read", [[Number(input.id)]], {
+          fields: TASK_FIELDS,
+        })) as unknown[];
+        return { task: rows?.[0] ?? null };
+      },
+    },
+
+    search_tasks: {
+      description:
+        "Search project tasks. Narrow with project_id, stage_id or a title substring. Returns the task fields, not its notes — use get_task_notes for those.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Matched against the task title." },
+          project_id: { type: "number", description: "Restrict to one project." },
+          stage_id: { type: "number", description: "Restrict to one stage." },
+          created_since: {
+            type: "string",
+            description:
+              "ISO 8601. Compared against create_date, which Odoo stores in UTC — pass UTC or the window silently shifts.",
+          },
+          limit: { type: "number", description: "Max rows, capped at 100. Defaults to 20." },
+        },
+      },
+      async run(config, input) {
+        const domain: unknown[] = [];
+        if (typeof input.query === "string" && input.query.trim()) {
+          domain.push(["name", "ilike", input.query.trim()]);
+        }
+        if (input.project_id != null) domain.push(["project_id", "=", Number(input.project_id)]);
+        if (input.stage_id != null) domain.push(["stage_id", "=", Number(input.stage_id)]);
+        if (typeof input.created_since === "string" && input.created_since.trim()) {
+          // Odoo rejects the `T` and the trailing `Z` of an ISO timestamp, so
+          // the value is reshaped rather than passed through. A bad date here
+          // does not error: it silently matches nothing.
+          const d = new Date(input.created_since.trim());
+          if (Number.isNaN(d.getTime()))
+            throw new Error(`created_since is not a date: ${input.created_since}`);
+          domain.push(["create_date", ">=", d.toISOString().slice(0, 19).replace("T", " ")]);
+        }
+        const limit = Math.min(Math.max(Number(input.limit ?? 20), 1), 100);
+        const tasks = await odooExecute(config, "project.task", "search_read", [domain], {
+          fields: TASK_FIELDS,
+          limit,
+          order: "create_date desc",
+        });
+        return { tasks };
+      },
+    },
+
+    get_task_notes: {
+      description:
+        "The notes posted on a project task, newest first. This is where the pipeline leaves its evidence, so it is where an analysis of an incident starts.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: { type: "number", description: "Task id." },
+          limit: { type: "number", description: "Max notes, capped at 100. Defaults to 20." },
+        },
+        required: ["id"],
+      },
+      async run(config, input) {
+        const limit = Math.min(Math.max(Number(input.limit ?? 20), 1), 100);
+        const notes = await odooExecute(
+          config,
+          "mail.message",
+          "search_read",
+          [
+            [
+              ["model", "=", "project.task"],
+              ["res_id", "=", Number(input.id)],
+            ],
+          ],
+          { fields: MESSAGE_FIELDS, limit, order: "date desc" }
+        );
+        return { notes };
       },
     },
 

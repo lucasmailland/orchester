@@ -89,3 +89,48 @@ describe("odoo tool execution", () => {
     await expect(executeTool("odoo_delete_everything", {}, CTX)).rejects.toThrow(/Unknown tool/);
   });
 });
+
+describe("project tasks are reachable without the escape hatch", () => {
+  // A project task is not a helpdesk ticket: different model, different
+  // columns. Until these existed, an agent working on tasks had only
+  // `run_integration` + Odoo's `execute`, which calls any method on any model.
+  // Reading one project meant holding a write primitive for the database.
+  it("exposes read tools for tasks and their notes", () => {
+    const names = listAllTools().map((t) => t.name);
+    expect(names).toContain("odoo_get_task");
+    expect(names).toContain("odoo_search_tasks");
+    expect(names).toContain("odoo_get_task_notes");
+  });
+
+  it("routes each to its connector action", async () => {
+    const cases: [string, string, Record<string, unknown>][] = [
+      ["odoo_get_task", "get_task", { id: 7 }],
+      ["odoo_search_tasks", "search_tasks", { project_id: 9 }],
+      ["odoo_get_task_notes", "get_task_notes", { id: 7 }],
+    ];
+    for (const [tool, action, input] of cases) {
+      runIntegrationActionMock.mockClear();
+      await executeTool(tool, input, CTX);
+      const [, integrationId, calledAction, passed] = runIntegrationActionMock.mock.calls[0]!;
+      expect(integrationId).toBe("odoo");
+      expect(calledAction).toBe(action);
+      expect(passed).toEqual(input);
+    }
+  });
+
+  it("keeps the task tools read-only", () => {
+    // Writing to a task goes through `odoo_post_note`, which only posts an
+    // internal message. Nothing here should offer to change a task's fields:
+    // an agent that can move a stage can close an incident nobody fixed.
+    const names = listAllTools().map((t) => t.name);
+    for (const forbidden of ["odoo_update_task", "odoo_create_task", "odoo_delete_task"]) {
+      expect(names).not.toContain(forbidden);
+    }
+  });
+
+  it("names the UTC trap in the date filter, where a wrong value matches nothing", () => {
+    const [def] = getToolDefinitions(["odoo_search_tasks"]);
+    const props = def!.inputSchema.properties as Record<string, { description?: string }>;
+    expect(props.created_since?.description).toMatch(/UTC/);
+  });
+});
