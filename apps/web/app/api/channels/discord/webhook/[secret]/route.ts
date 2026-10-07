@@ -18,6 +18,7 @@ import {
   discordCommandName,
   discordEditReply,
   discordRepliesArePublic,
+  discordThreadContext,
   interactionSender,
   interactionText,
   verifyDiscordSignature,
@@ -158,12 +159,35 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
         safeLogError("Discord edit reply failed:", e);
       }
     };
+    // What this thread is about, read from the message it was opened on.
+    // `parent_id` is present only inside a thread, and it is also what tells us
+    // the channel to fetch that message from — a thread carries the id of its
+    // starter message, but the message itself lives in the parent.
+    //
+    // Fetched every turn rather than seeded once: `externalId` is
+    // `<thread>:<sender>`, so a conversation seeded for one person leaves the
+    // next person in the same thread starting blank. Re-reading also keeps the
+    // answer current if the card is edited.
+    //
+    // It never blocks a reply: on failure it comes back undefined and the turn
+    // proceeds exactly as it did before.
+    const parentId = interaction.channel?.parent_id;
+    const threadContext =
+      parentId && interaction.channel_id
+        ? await discordThreadContext({
+            botToken: creds.botToken,
+            parentId,
+            threadId: interaction.channel_id,
+          })
+        : undefined;
+
     try {
       const result = await handleInbound(channel.workspaceId, {
         channelId: channel.id,
         // One conversation per person per Discord channel.
         externalId: conversationKey,
         text,
+        ...(threadContext ? { context: threadContext } : {}),
         ...(sender.username ? { customerName: sender.username } : {}),
         metadata: {
           source: "discord",

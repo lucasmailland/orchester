@@ -7,6 +7,13 @@ const DISCORD_TIMEOUT_MS = 15_000;
 const DISCORD_API = "https://discord.com/api/v10";
 /** Discord rejects message content longer than this. */
 const MAX_CONTENT = 2000;
+/**
+ * Discord sits behind Cloudflare, which answers some clients with
+ * `403 error code: 1010` — an HTML block page, not an API error, so it reads
+ * like a permissions problem. Measured against the live API on 2026-10-06 with
+ * a client that sent no `user-agent`. Discord documents this format for bots.
+ */
+const DISCORD_USER_AGENT = "DiscordBot (https://github.com/lucasmailland/orchester, 0.1)";
 
 /**
  * Discord channel adapter — slash commands via the Interactions endpoint.
@@ -220,6 +227,91 @@ export async function discordPostToChannel(
   if (!r.ok) {
     throw new Error(`Discord post message ${r.status}: ${await r.text().catch(() => "")}`);
   }
+}
+
+/** How much of the opening message we are willing to put in a prompt. */
+const THREAD_CONTEXT_LIMIT = 4000;
+
+/**
+ * The message a thread was opened on, rendered as plain text.
+ *
+ * A thread opened on an incident card is a conversation about that card, but
+ * the card lives in Discord and the conversation lives in our database, and
+ * nothing joined them: the agent answered "I have no context", correctly.
+ * This is the join.
+ *
+ * Two things measured against the live API on 2026-10-06, neither obvious:
+ *
+ *   - The starter message is fetched from the PARENT channel, not the thread.
+ *     `GET /channels/{thread}/messages/{thread}` returns 404 Unknown Message
+ *     even though a thread carries the id of the message it was opened on.
+ *   - Discord sits behind Cloudflare, which answers a request with no
+ *     `user-agent` with `403 error code: 1010` — an HTML page, not an API
+ *     error, so it reads like a permissions problem and is not one.
+ *
+ * Returns undefined whenever there is nothing useful to say, including on
+ * failure: context is an improvement to the answer, never a precondition for
+ * one. A thread the bot cannot read must still get a reply.
+ */
+export async function discordThreadContext(params: {
+  botToken: string;
+  /** `interaction.channel.parent_id` — the channel the thread hangs from. */
+  parentId: string;
+  /** The thread's id, which is also its starter message's id. */
+  threadId: string;
+}): Promise<string | undefined> {
+  const { botToken, parentId, threadId } = params;
+  try {
+    const r = await fetchWithTimeout(
+      `${DISCORD_API}/channels/${encodeURIComponent(parentId)}/messages/${encodeURIComponent(threadId)}`,
+      {
+        headers: {
+          authorization: `Bot ${botToken}`,
+          "user-agent": DISCORD_USER_AGENT,
+        },
+      },
+      DISCORD_TIMEOUT_MS
+    );
+    if (!r.ok) return undefined;
+    const msg = (await r.json()) as DiscordMessage;
+    const text = renderMessage(msg);
+    return text ? text.slice(0, THREAD_CONTEXT_LIMIT) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+interface DiscordEmbed {
+  title?: string;
+  description?: string;
+  fields?: Array<{ name?: string; value?: string }>;
+}
+interface DiscordMessage {
+  content?: string;
+  embeds?: DiscordEmbed[];
+}
+
+/**
+ * Flattens a message into the text an agent can read. Most of what matters on
+ * an incident card is in the embed, not in `content`, which is usually empty —
+ * reading only `content` would hand the agent a blank string and look like the
+ * fetch failed.
+ */
+function renderMessage(msg: DiscordMessage): string {
+  const parts: string[] = [];
+  if (msg.content?.trim()) parts.push(msg.content.trim());
+  for (const embed of msg.embeds ?? []) {
+    if (embed.title?.trim()) parts.push(`# ${embed.title.trim()}`);
+    if (embed.description?.trim()) parts.push(embed.description.trim());
+    for (const field of embed.fields ?? []) {
+      const name = field.name?.trim();
+      const value = field.value?.trim();
+      if (!value) continue;
+      // Discord uses a zero-width space as the name of an unlabelled field.
+      parts.push(name && name !== "​" ? `${name}: ${value}` : value);
+    }
+  }
+  return parts.join("\n");
 }
 
 /** Command names Discord accepts: lowercase, no spaces, 1-32 characters. */

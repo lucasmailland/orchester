@@ -109,7 +109,13 @@ const BUILTINS: Record<string, ToolDefinition> = {
   },
   flow_call: {
     name: "flow_call",
-    description: "Triggers another flow in this workspace and returns its output.",
+    // It used to say "and returns its output". It does not: `enqueueFlowRun`
+    // queues the run and answers `{runId, status: "pending"}`. A description is
+    // the only thing the model reads when deciding what a tool gives back, so
+    // that sentence did not mislead a reader — it instructed the model to
+    // report results it had never seen. Say what comes back.
+    description:
+      "Queue another flow in this workspace. Returns only a run id: the flow has NOT run yet and its output is NOT available here. Never describe results from a flow you called with this — you have none. Tell the person it was queued, and give them the run id.",
     inputSchema: {
       type: "object",
       properties: {
@@ -393,6 +399,77 @@ const BUILTINS: Record<string, ToolDefinition> = {
       required: ["app_name"],
     },
   },
+
+  // ── GitLab ────────────────────────────────────────────────────────────────
+  // Read-only, and narrow on purpose. The connector exposes these actions
+  // already; what was missing was a named tool for each, so the alternative
+  // was handing the agent `run_integration` — which reaches ANY action of ANY
+  // integration, including Odoo's `execute`, i.e. arbitrary model methods.
+  // A tool per capability is the difference between a key and a master key.
+  //
+  // There is no blame action and the API has no blame endpoint here, so "when
+  // did this line appear" is answered with `gitlab_list_commits` on the file's
+  // path. That is the history of the file, not of the line: say so rather than
+  // presenting the newest commit as the one that introduced it.
+  gitlab_search_code: {
+    name: "gitlab_search_code",
+    description:
+      "Search source code across a project or a group. Use the error message or the symbol from a stack trace verbatim — searching for the error CLASS finds the thrower, searching for the MESSAGE finds the line.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        scope: {
+          type: "string",
+          enum: ["project", "group"],
+          description: "Search one project or a whole group.",
+        },
+        id: {
+          type: "string",
+          description: "Project or group, as a numeric id or a full path like 'team/service'.",
+        },
+        query: { type: "string", description: "Matched against file contents." },
+        onlySource: {
+          type: "boolean",
+          description: "Drop hits in tests, fixtures and lock files. Defaults to true.",
+        },
+        ref: { type: "string", description: "Branch or tag. Defaults to the default branch." },
+        limit: { type: "number", description: "Max hits." },
+      },
+      required: ["scope", "id", "query"],
+    },
+  },
+  gitlab_read_file: {
+    name: "gitlab_read_file",
+    description:
+      "Read a file from a repository. Pass `aroundLine` to get just the window around a line instead of the whole file — a stack trace gives you that number, and a whole file spends context you will want for the analysis.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project: { type: "string", description: "Numeric id or full path like 'team/service'." },
+        path: { type: "string", description: "Path inside the repository." },
+        aroundLine: { type: "number", description: "Centre the window on this line." },
+        contextLines: { type: "number", description: "Lines each side of `aroundLine`." },
+        ref: { type: "string", description: "Branch, tag or commit SHA." },
+      },
+      required: ["project", "path"],
+    },
+  },
+  gitlab_list_commits: {
+    name: "gitlab_list_commits",
+    description:
+      "Commits that touched a path, newest first. This is how you date a change: pass the file's path and the window around the incident. It returns no diffs, and it is the history of the FILE — the newest commit touching it is not necessarily the one that introduced the line.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project: { type: "string", description: "Numeric id or full path like 'team/service'." },
+        path: { type: "string", description: "Restrict to commits touching this path." },
+        since: { type: "string", description: "ISO 8601 lower bound." },
+        until: { type: "string", description: "ISO 8601 upper bound." },
+        limit: { type: "number", description: "Max commits." },
+      },
+      required: ["project"],
+    },
+  },
 };
 
 /**
@@ -407,6 +484,9 @@ const CONNECTOR_TOOLS: Record<string, { integrationId: string; action: string }>
   newrelic_get_errors: { integrationId: "newrelic", action: "get_errors" },
   newrelic_get_logs_for_trace: { integrationId: "newrelic", action: "get_logs_for_trace" },
   newrelic_get_deployments: { integrationId: "newrelic", action: "get_deployments" },
+  gitlab_search_code: { integrationId: "gitlab", action: "search_code" },
+  gitlab_read_file: { integrationId: "gitlab", action: "read_file" },
+  gitlab_list_commits: { integrationId: "gitlab", action: "list_commits" },
 };
 
 export function getToolDefinitions(enabledIds: string[]): ToolDefinition[] {
