@@ -48,6 +48,7 @@ const db = {
             for: async () => rows.slice(0, n),
           }),
         groupBy: async () => rows,
+        orderBy: async () => rows,
         then: (resolve: (v: unknown) => unknown) => Promise.resolve(rows).then(resolve),
       };
       return q;
@@ -89,6 +90,17 @@ const agent = {
 };
 const team = { id: "t1", name: "Support", description: "Keep description", avatarColor: "#123456" };
 const flow = { id: "f1", name: "Workflow", enabled: false, nodes: [] };
+const webhook = {
+  id: "w1",
+  flowId: "f1",
+  workspaceId: "ws_a",
+  secret: "s3cr3t-path",
+  hmacKey: "hmac-s3cr3t",
+  enabled: true,
+  lastTriggeredAt: null,
+  triggerCount: 0,
+  createdAt: new Date(0),
+};
 const { callMcpTool, listMcpTools } = await import("@/lib/mcp/server");
 const call = (name: string, input: Record<string, unknown>, scopes: string[] = []) =>
   callMcpTool(name, input, { workspaceId: "ws_a", keyId: "key_a", scopes });
@@ -99,10 +111,12 @@ beforeEach(() => {
   state.writes.length = 0;
   state.predicates.length = 0;
   state.audit.mockReset();
+  state.audit.mockResolvedValue({ rotatedAtSeq: null });
   state.execute.mockReset();
   state.rows.set("agent", [{ ...agent }]);
   state.rows.set("team", [{ ...team }]);
   state.rows.set("flow", [{ ...flow }]);
+  state.rows.set("flow_webhook", [{ ...webhook }]);
 });
 
 const tools = [
@@ -115,6 +129,8 @@ const tools = [
   ["delete_agent", "agents", "delete", { agentId: "a1", confirm: "Helper" }],
   ["get_flow_delete_impact", "flows", "read", { flowId: "f1" }],
   ["delete_flow", "flows", "delete", { flowId: "f1", confirm: "Workflow" }],
+  ["update_flow_webhook", "flows", "write", { webhookId: "w1", enabled: false }],
+  ["delete_flow_webhook", "flows", "delete", { webhookId: "w1", confirm: "w1" }],
 ] as const;
 
 describe("workspace administration over MCP", () => {
@@ -172,6 +188,71 @@ describe("workspace administration over MCP", () => {
       }
     );
   }
+  describe("flow webhooks", () => {
+    it("update_flow_webhook toggles enabled, audits it, and returns no secret", async () => {
+      const r = await call("update_flow_webhook", { webhookId: "w1", enabled: false }, [
+        "flows:write",
+      ]);
+      expect(r.isError, r.content[0]?.text).toBeFalsy();
+      expect(state.writes[0]).toMatchObject({ table: "flow_webhook", data: { enabled: false } });
+      expect(json(r)).toMatchObject({ id: "w1", enabled: false, hmac: true });
+      const out = r.content[0]!.text + JSON.stringify(r.structuredContent);
+      expect(out).not.toContain("s3cr3t");
+      expect(state.audit).toHaveBeenCalledTimes(1);
+      expect(state.audit.mock.calls[0]![2]).toMatchObject({
+        action: "flow_webhook.update",
+        targetType: "flow_webhook",
+        targetId: "w1",
+        meta: { apiKeyId: "key_a", after: { enabled: false } },
+      });
+    });
+    it("update_flow_webhook refuses a webhook of another workspace", async () => {
+      state.rows.set("flow_webhook", []);
+      const r = await call("update_flow_webhook", { webhookId: "w1", enabled: false }, [
+        "flows:write",
+      ]);
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/not found/i);
+      expect(state.writes).toHaveLength(0);
+      expect(state.audit).not.toHaveBeenCalled();
+    });
+    it("update_flow_webhook rejects a non-boolean enabled", async () => {
+      const r = await call("update_flow_webhook", { webhookId: "w1", enabled: "no" }, [
+        "flows:write",
+      ]);
+      expect(r.isError).toBe(true);
+      expect(state.writes).toHaveLength(0);
+    });
+    it("delete_flow_webhook deletes, audits and returns no secret", async () => {
+      const r = await call("delete_flow_webhook", { webhookId: "w1", confirm: "w1" }, [
+        "flows:delete",
+      ]);
+      expect(r.isError, r.content[0]?.text).toBeFalsy();
+      expect(json(r)).toEqual({ ok: true, id: "w1" });
+      expect(r.content[0]!.text).not.toContain("s3cr3t");
+      expect(state.audit.mock.calls[0]![2]).toMatchObject({
+        action: "flow_webhook.delete",
+        targetId: "w1",
+      });
+    });
+    it("delete_flow_webhook refuses a webhook of another workspace", async () => {
+      state.rows.set("flow_webhook", []);
+      const r = await call("delete_flow_webhook", { webhookId: "w1", confirm: "w1" }, [
+        "flows:delete",
+      ]);
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/not found/i);
+      expect(state.writes).toHaveLength(0);
+      expect(state.audit).not.toHaveBeenCalled();
+    });
+    it("list_flow_webhooks shows enabled and no secret", async () => {
+      state.rows.set("flow", [{ ...flow }]);
+      const r = await call("list_flow_webhooks", { flowId: "f1" }, ["flows:read"]);
+      expect(r.isError, r.content[0]?.text).toBeFalsy();
+      expect(json(r).webhooks[0]).toMatchObject({ id: "w1", enabled: true });
+      expect(r.content[0]!.text).not.toContain("s3cr3t");
+    });
+  });
   it("get_agent returns the complete config", async () => {
     expect(json(await call("get_agent", { agentId: "a1" }))).toMatchObject(agent);
   });

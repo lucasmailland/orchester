@@ -453,7 +453,9 @@ Beyond `list_flows` and `run_flow`, the client can author and troubleshoot flows
 | `get_flow_run`        | read   | State, input, output and error of one run, with its steps in order.                                                 |
 | `list_flow_runs`      | read   | Latest runs of a flow, without steps. Default 20, max 100.                                                          |
 | `create_flow_webhook` | write  | Creates an inbound webhook for the flow and returns its URL.                                                        |
-| `list_flow_webhooks`  | read   | Webhooks of a flow: id, date and whether they use HMAC.                                                             |
+| `list_flow_webhooks`  | read   | Webhooks of a flow: id, `enabled`, date and whether they use HMAC.                                                  |
+| `update_flow_webhook` | write  | Pauses or resumes a webhook (`enabled`). A paused webhook answers inbound calls with 404. Never returns secrets.    |
+| `delete_flow_webhook` | delete | Deletes a webhook for good. Needs `flows:delete` and `confirm` equal to the webhook id.                             |
 
 ##### Flow kind and external callers
 
@@ -471,7 +473,7 @@ An `action` must be deterministic and self-contained. The validator (`validate_f
 > [!IMPORTANT]
 > The MCP server runs with the **same RBAC + quota stack as the REST API**. A read-only API key sees read-only tools. A workspace-scoped key cannot see another workspace's flows. This is enforced by the invariants guard — not by review.
 >
-> The `create_flow`, `update_flow`, and `create_flow_webhook` tools use a stricter scope rule than the rest: they accept a key that is **unscoped** (legacy full access) or holds **`write`** or **`flows:write`**. A `readonly` key always refuses, and so does an `agents:write` key — being allowed to run agents does not grant editing flows.
+> The `create_flow`, `update_flow`, `create_flow_webhook`, and `update_flow_webhook` tools use a stricter scope rule than the rest: they accept a key that is **unscoped** (legacy full access) or holds **`write`** or **`flows:write`**. A `readonly` key always refuses, and so does an `agents:write` key — being allowed to run agents does not grant editing flows.
 >
 > `run_flow` is not scope-gated: any non-readonly workspace key can execute any flow in that workspace.
 >

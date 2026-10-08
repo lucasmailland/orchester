@@ -70,6 +70,8 @@ describe("flow MCP tools", async () => {
       "list_flow_runs",
       "create_flow_webhook",
       "list_flow_webhooks",
+      "update_flow_webhook",
+      "delete_flow_webhook",
     ]) {
       expect(names).toContain(n);
     }

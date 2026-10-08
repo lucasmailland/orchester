@@ -25,6 +25,7 @@ export interface RedactedFlowWebhook {
   id: string;
   flowId: string;
   hmac: boolean;
+  enabled: boolean;
   createdAt: Date;
 }
 
@@ -337,8 +338,77 @@ export function listFlowWebhooks(
       id: w.id,
       flowId: w.flowId,
       hmac: Boolean(w.hmacKey),
+      enabled: w.enabled,
       createdAt: w.createdAt,
     }));
+  });
+}
+
+const redactWebhook = (w: FlowWebhook): RedactedFlowWebhook => ({
+  id: w.id,
+  flowId: w.flowId,
+  hmac: Boolean(w.hmacKey),
+  enabled: w.enabled,
+  createdAt: w.createdAt,
+});
+
+/** Webhook changes are audited in the same transaction, for API keys and users alike. */
+async function auditWebhook(
+  repo: FlowRepo,
+  actor: FlowActor,
+  action: "update" | "delete",
+  hook: FlowWebhook,
+  state: Record<string, unknown>
+) {
+  await repo.audit(actor.workspaceId, {
+    action: `flow_webhook.${action}`,
+    actorUserId: actor.kind === "user" ? actor.userId : null,
+    actorKind: actor.kind === "apiKey" ? "api_key" : "user",
+    targetType: "flow_webhook",
+    targetId: hook.id,
+    meta: {
+      ...(actor.kind === "apiKey" ? { apiKeyId: actor.keyId } : {}),
+      flowId: hook.flowId,
+      [action === "delete" ? "before" : "after"]: state,
+    },
+  });
+}
+
+/** Pause or resume a webhook. The secret and HMAC key are never returned. */
+export function updateFlowWebhook(
+  actor: FlowActor,
+  webhookId: string,
+  patch: { enabled?: boolean | undefined }
+): Promise<RedactedFlowWebhook> {
+  return withRepo(actor, async (repo) => {
+    const hook = await repo.findWebhook(webhookId, actor.workspaceId);
+    if (!hook) throw notFound("Webhook");
+    const changes: Partial<FlowWebhook> = {};
+    if (patch.enabled !== undefined) changes.enabled = patch.enabled;
+    if (Object.keys(changes).length === 0) return redactWebhook(hook);
+    const updated = await repo.updateWebhook(webhookId, actor.workspaceId, changes);
+    if (!updated) throw notFound("Webhook");
+    await auditWebhook(repo, actor, "update", updated, { enabled: updated.enabled });
+    return redactWebhook(updated);
+  });
+}
+
+/** Remove a webhook for good. `confirm` must equal its id exactly. */
+export function deleteFlowWebhook(
+  actor: FlowActor,
+  webhookId: string,
+  confirm: unknown
+): Promise<{ ok: true; id: string }> {
+  return withRepo(actor, async (repo) => {
+    const hook = await repo.findWebhook(webhookId, actor.workspaceId);
+    if (!hook) throw notFound("Webhook");
+    if (confirm !== hook.id) {
+      throw new FlowServiceError("invalid", "confirm must equal the webhook id exactly.");
+    }
+    const deleted = await repo.deleteWebhook(webhookId, actor.workspaceId);
+    if (!deleted) throw notFound("Webhook");
+    await auditWebhook(repo, actor, "delete", hook, { enabled: hook.enabled });
+    return { ok: true as const, id: hook.id };
   });
 }
 

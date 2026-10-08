@@ -5,6 +5,7 @@ const h = vi.hoisted(() => ({
   inserts: [] as Array<Record<string, unknown>>,
   enqueued: [] as unknown[],
   counterUpdates: 0,
+  webhookEnabled: true,
 }));
 
 vi.mock("@orchester/db", () => {
@@ -52,7 +53,13 @@ vi.mock("@/lib/tenant/cron", () => ({
         from: () => ({
           where: () => ({
             limit: async () => [
-              { id: "wh_1", flowId: "flow_1", workspaceId: "ws_1", enabled: true, hmacKey: null },
+              {
+                id: "wh_1",
+                flowId: "flow_1",
+                workspaceId: "ws_1",
+                enabled: h.webhookEnabled,
+                hmacKey: null,
+              },
             ],
           }),
         }),
@@ -72,6 +79,7 @@ beforeEach(() => {
   h.inserts = [];
   h.enqueued = [];
   h.counterUpdates = 0;
+  h.webhookEnabled = true;
 });
 
 const webhook = async () => {
@@ -86,6 +94,17 @@ describe("webhook", () => {
     const res = await webhook();
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: "flow is disabled" });
+    expect(h.inserts).toHaveLength(0);
+    expect(h.enqueued).toHaveLength(0);
+    expect(h.counterUpdates).toBe(0);
+  });
+
+  it("answers 404 for a disabled webhook and creates no run, even if the flow is enabled", async () => {
+    h.webhookEnabled = false;
+    h.flow.enabled = true;
+    const res = await webhook();
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Webhook not found" });
     expect(h.inserts).toHaveLength(0);
     expect(h.enqueued).toHaveLength(0);
     expect(h.counterUpdates).toBe(0);

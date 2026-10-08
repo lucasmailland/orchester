@@ -402,7 +402,8 @@ export const FLOW_TOOLS: McpToolDef[] = [
   {
     name: "list_flow_webhooks",
     title: "List flow webhooks",
-    description: "Webhooks de un flujo: id, fecha y si usa HMAC. Nunca devuelve secretos.",
+    description:
+      "Webhooks de un flujo: id, si están habilitados, fecha y si usan HMAC. Nunca devuelve secretos.",
     access: "read",
     domain: "flows",
     inputSchema: {
@@ -418,6 +419,50 @@ export const FLOW_TOOLS: McpToolDef[] = [
           redact: true,
         }),
       };
+    },
+  },
+  {
+    name: "update_flow_webhook",
+    title: "Pause or resume a flow webhook",
+    description:
+      "Habilita o pausa un webhook (enabled). Un webhook pausado rechaza con 404 las llamadas entrantes. Devuelve el webhook sin secretos.",
+    access: "write",
+    domain: "flows",
+    inputSchema: {
+      type: "object",
+      properties: { webhookId: { type: "string" }, enabled: { type: "boolean" } },
+      required: ["webhookId"],
+    },
+    async handler(input, auth) {
+      if (input.enabled !== undefined && typeof input.enabled !== "boolean") {
+        throw new Error("enabled must be a boolean");
+      }
+      return (await svc()).updateFlowWebhook(actorOf(auth), str(input.webhookId, "webhookId"), {
+        enabled: input.enabled,
+      });
+    },
+  },
+  {
+    name: "delete_flow_webhook",
+    title: "Delete a flow webhook",
+    description:
+      "Elimina un webhook de forma definitiva (para pausarlo usá update_flow_webhook). Requiere flows:delete y confirm con el id exacto del webhook.",
+    access: "delete",
+    domain: "flows",
+    inputSchema: {
+      type: "object",
+      properties: {
+        webhookId: { type: "string" },
+        confirm: { type: "string", description: "Id exacto del webhook." },
+      },
+      required: ["webhookId", "confirm"],
+    },
+    async handler(input, auth) {
+      return (await svc()).deleteFlowWebhook(
+        actorOf(auth),
+        str(input.webhookId, "webhookId"),
+        input.confirm
+      );
     },
   },
 ];

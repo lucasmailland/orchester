@@ -114,6 +114,33 @@ function repo(tx: Tx, onRotate: (seq: bigint) => void) {
         .from(schema.flowWebhooks)
         .where(and(eq(schema.flowWebhooks.workspaceId, ws), eq(schema.flowWebhooks.flowId, flowId)))
         .orderBy(desc(schema.flowWebhooks.createdAt)),
+    findWebhook: async (id: string, ws: string) =>
+      (
+        await tx
+          .select()
+          .from(schema.flowWebhooks)
+          .where(and(eq(schema.flowWebhooks.workspaceId, ws), eq(schema.flowWebhooks.id, id)))
+          .limit(1)
+      )[0],
+    updateWebhook: async (
+      id: string,
+      ws: string,
+      patch: Partial<typeof schema.flowWebhooks.$inferInsert>
+    ) =>
+      (
+        await tx
+          .update(schema.flowWebhooks)
+          .set(patch)
+          .where(and(eq(schema.flowWebhooks.workspaceId, ws), eq(schema.flowWebhooks.id, id)))
+          .returning()
+      )[0],
+    deleteWebhook: async (id: string, ws: string) =>
+      (
+        await tx
+          .delete(schema.flowWebhooks)
+          .where(and(eq(schema.flowWebhooks.workspaceId, ws), eq(schema.flowWebhooks.id, id)))
+          .returning({ id: schema.flowWebhooks.id })
+      )[0],
     findTemplate: async (id: string, ws: string) =>
       (
         await tx
