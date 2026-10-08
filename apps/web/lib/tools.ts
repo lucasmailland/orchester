@@ -384,8 +384,29 @@ const BUILTINS: Record<string, ToolDefinition> = {
           description:
             "ISO 8601, in UTC. Odoo stores create_date in UTC; a local time shifts the window silently.",
         },
+        include_archived: {
+          type: "boolean",
+          description:
+            "Also search archived tasks. Done cards are archived, so set this to find earlier occurrences of an issue. Defaults to false.",
+        },
         limit: { type: "number", description: "Max rows, capped at 100. Defaults to 20." },
       },
+    },
+  },
+  odoo_get_case: {
+    name: "odoo_get_case",
+    description:
+      "Read a whole bug case in ONE call: the task, its parent, its subtasks (up to 20), its siblings when it is a subtask, the latest notes of the task and of each subtask as plain text, and attachment counts per task (no file contents). Use it first when you start working a case, instead of chaining odoo_get_task, a children search and odoo_get_task_notes. Use odoo_get_task only for a single record, and odoo_get_task_attachments when you need the screenshots themselves.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Numeric task id." },
+        notes_per_task: {
+          type: "number",
+          description: "Latest notes kept per task, max 20. Defaults to 5.",
+        },
+      },
+      required: ["id"],
     },
   },
   odoo_get_task_notes: {
@@ -599,6 +620,7 @@ const CONNECTOR_TOOLS: Record<string, { integrationId: string; action: string }>
   odoo_get_task: { integrationId: "odoo", action: "get_task" },
   odoo_search_tasks: { integrationId: "odoo", action: "search_tasks" },
   odoo_get_task_notes: { integrationId: "odoo", action: "get_task_notes" },
+  odoo_get_case: { integrationId: "odoo", action: "get_case" },
   newrelic_get_errors: { integrationId: "newrelic", action: "get_errors" },
   newrelic_get_logs_for_trace: { integrationId: "newrelic", action: "get_logs_for_trace" },
   newrelic_get_deployments: { integrationId: "newrelic", action: "get_deployments" },

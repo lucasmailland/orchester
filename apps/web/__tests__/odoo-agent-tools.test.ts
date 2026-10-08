@@ -107,6 +107,7 @@ describe("project tasks are reachable without the escape hatch", () => {
       ["odoo_get_task", "get_task", { id: 7 }],
       ["odoo_search_tasks", "search_tasks", { project_id: 9 }],
       ["odoo_get_task_notes", "get_task_notes", { id: 7 }],
+      ["odoo_get_case", "get_case", { id: 7 }],
     ];
     for (const [tool, action, input] of cases) {
       runIntegrationActionMock.mockClear();

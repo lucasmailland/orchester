@@ -18,6 +18,7 @@ import {
   TICKET_PRIORITY,
   type TicketPriority,
 } from "./odoo-client";
+import { htmlToText } from "./html-text";
 import {
   nerdgraph,
   runNrql,
@@ -733,6 +734,14 @@ const TASK_FIELDS = [
 ];
 
 // A note on a task is a `mail.message` row. `body` is HTML.
+// Bounds for `get_case`: one call must stay small enough to read in full.
+const CASE_MAX_CHILDREN = 20;
+const CASE_MAX_SIBLINGS = 20;
+const CASE_DEFAULT_NOTES_PER_TASK = 5;
+const CASE_MAX_NOTES_PER_TASK = 20;
+const CASE_NOTE_CHARS = 1500;
+const CASE_DESCRIPTION_CHARS = 4000;
+
 const MESSAGE_FIELDS = ["id", "date", "author_id", "message_type", "subtype_id", "body"];
 
 // `execute` runs with the integration user's credentials, which in practice are
@@ -941,6 +950,8 @@ const odoo: Connector = {
 
     get_task: {
       effect: "read",
+      // `read` by id does not apply Odoo's active_test, so an archived (Done)
+      // task is returned without any context override.
       description: "Read one project task by id.",
       inputSchema: {
         type: "object",
@@ -979,6 +990,11 @@ const odoo: Connector = {
             description:
               "ISO 8601. Compared against create_date, which Odoo stores in UTC — pass UTC or the window silently shifts.",
           },
+          include_archived: {
+            type: "boolean",
+            description:
+              "Also search archived tasks. Done cards are archived, so without this the history of a recurring issue is invisible. Defaults to false.",
+          },
           limit: { type: "number", description: "Max rows, capped at 100. Defaults to 20." },
         },
       },
@@ -1015,8 +1031,173 @@ const odoo: Connector = {
           fields: TASK_FIELDS,
           limit,
           order: "create_date desc",
+          // `=== true`: a string "false" from a sloppy caller must not widen the search.
+          ...(input.include_archived === true && { context: { active_test: false } }),
         });
         return { tasks };
+      },
+    },
+
+    get_case: {
+      effect: "read",
+      description:
+        "Read a whole bug case in one call: the task, its parent, its subtasks, its siblings, the latest notes of the task and of each subtask, and attachment counts per task (never file contents).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: { type: "number", description: "Task id." },
+          notes_per_task: {
+            type: "number",
+            description: `Latest notes kept per task, capped at ${CASE_MAX_NOTES_PER_TASK}. Defaults to ${CASE_DEFAULT_NOTES_PER_TASK}.`,
+          },
+        },
+        required: ["id"],
+      },
+      async run(config, input) {
+        const id = Number(input.id);
+        const notesPerTask = Math.min(
+          Math.max(Math.trunc(Number(input.notes_per_task ?? CASE_DEFAULT_NOTES_PER_TASK)) || 1, 1),
+          CASE_MAX_NOTES_PER_TASK
+        );
+        const archived = { context: { active_test: false } };
+        type Row = Record<string, unknown> & { id: number };
+        const idList = (v: unknown): number[] =>
+          Array.isArray(v) ? v.filter((n): n is number => typeof n === "number") : [];
+        const many = (v: unknown): number | null =>
+          Array.isArray(v) && typeof v[0] === "number" ? v[0] : null;
+        const withText = (r: Row): Row => ({
+          ...r,
+          description: htmlToText(r.description, CASE_DESCRIPTION_CHARS),
+        });
+        const summary = (r: Row) => ({
+          id: r.id,
+          name: r.name,
+          stage_id: r.stage_id,
+          project_id: r.project_id,
+          priority: r.priority,
+          create_date: r.create_date,
+          write_date: r.write_date,
+        });
+
+        // `read` ignores active_test, so an archived task comes back as is.
+        const taskRows = (await odooExecute(config, "project.task", "read", [[id]], {
+          fields: TASK_FIELDS,
+        })) as Row[];
+        const task = taskRows?.[0];
+        if (!task) {
+          return {
+            task: null,
+            parent: null,
+            children: [],
+            siblings: [],
+            notes: {},
+            attachments: {},
+          };
+        }
+        const parentId = many(task.parent_id);
+        const allChildIds = idList(task.child_ids);
+        const childIds = allChildIds.slice(0, CASE_MAX_CHILDREN);
+
+        // Parent and children in ONE read. The ids are bounded above, so the
+        // limit never truncates; archived rows are included on purpose, since
+        // Done cards are archived.
+        const batchIds: unknown[] = [];
+        if (childIds.length > 0) batchIds.push(["id", "in", childIds]);
+        if (parentId != null) batchIds.push(["id", "=", parentId]);
+        let parentRow: Row | undefined;
+        let children: Row[] = [];
+        if (batchIds.length > 0) {
+          const domain = batchIds.length === 2 ? ["|", ...batchIds] : batchIds;
+          const rows = (await odooExecute(config, "project.task", "search_read", [domain], {
+            fields: TASK_FIELDS,
+            limit: childIds.length + 1,
+            order: "id asc",
+            ...archived,
+          })) as Row[];
+          parentRow = rows.find((r) => r.id === parentId);
+          children = rows.filter((r) => r.id !== parentId).slice(0, CASE_MAX_CHILDREN);
+        }
+
+        let siblings: Row[] = [];
+        if (parentId != null) {
+          siblings = (await odooExecute(
+            config,
+            "project.task",
+            "search_read",
+            [
+              [
+                ["parent_id", "=", parentId],
+                ["id", "!=", id],
+              ],
+            ],
+            {
+              fields: TASK_FIELDS,
+              limit: CASE_MAX_SIBLINGS,
+              order: "id asc",
+              ...archived,
+            }
+          )) as Row[];
+        }
+
+        const caseIds = [id, ...children.map((c) => c.id)];
+        // Chatter: tracking rows are `notification`; the notes a person or the
+        // pipeline wrote are `comment` or `email`.
+        const messages = (await odooExecute(
+          config,
+          "mail.message",
+          "search_read",
+          [
+            [
+              ["model", "=", "project.task"],
+              ["res_id", "in", caseIds],
+              ["message_type", "in", ["comment", "email"]],
+            ],
+          ],
+          {
+            fields: [...MESSAGE_FIELDS, "res_id"],
+            limit: Math.min(caseIds.length * notesPerTask * 3, 500),
+            order: "date desc",
+          }
+        )) as Row[];
+        const notes: Record<string, unknown[]> = {};
+        for (const m of messages) {
+          const key = String(m.res_id);
+          const list = (notes[key] ??= []);
+          if (list.length >= notesPerTask) continue;
+          const { res_id: _resId, ...rest } = m;
+          void _resId;
+          list.push({ ...rest, body: htmlToText(m.body, CASE_NOTE_CHARS) });
+        }
+
+        // Metadata only: `datas` is the file body and is never requested.
+        const files = (await odooExecute(
+          config,
+          "ir.attachment",
+          "search_read",
+          [
+            [
+              ["res_model", "=", "project.task"],
+              ["res_id", "in", caseIds],
+            ],
+          ],
+          { fields: ["id", "res_id", "mimetype", "file_size"], limit: 500 }
+        )) as Array<{ res_id: number; mimetype?: string }>;
+        const attachments: Record<string, { count: number; images: number }> = {};
+        for (const f of files) {
+          const a = (attachments[String(f.res_id)] ??= { count: 0, images: 0 });
+          a.count++;
+          if (f.mimetype?.startsWith("image/")) a.images++;
+        }
+
+        return {
+          task: withText(task),
+          parent: parentRow ? summary(parentRow) : null,
+          children: children.map(withText),
+          childrenTotal: allChildIds.length,
+          siblings: siblings.map(summary),
+          notes,
+          attachments,
+        };
       },
     },
 
