@@ -689,6 +689,23 @@ const TASK_FIELDS = [
 // A note on a task is a `mail.message` row. `body` is HTML.
 const MESSAGE_FIELDS = ["id", "date", "author_id", "message_type", "subtype_id", "body"];
 
+// `execute` runs with the integration user's credentials, which in practice are
+// an admin's. Left open it is a write primitive for the whole database, so it
+// is limited to the model/method pairs the production flows actually use.
+// Anything else needs its own typed action, reviewed on its own.
+const EXECUTE_ALLOWLIST: Record<string, readonly string[]> = {
+  "project.task": ["search_read", "read", "search_count", "create", "write", "message_post"],
+  "mail.message": ["search_read", "read"],
+};
+
+// Identity fields only. A partner row carries addresses, phones and banking
+// data that an incident analysis has no use for, so the read is explicit.
+const PARTNER_FIELDS = ["id", "name", "vat", "is_company", "parent_id", "email", "country_id"];
+
+// Metadata only: `datas` is the base64 file body. Tool results reach the model
+// as text, so the contents would be noise at best and a token bomb at worst.
+const ATTACHMENT_FIELDS = ["id", "name", "mimetype", "file_size", "create_date"];
+
 function ticketValues(input: Record<string, unknown>): Record<string, unknown> {
   const values: Record<string, unknown> = {};
   if (typeof input.name === "string") values.name = input.name;
@@ -894,7 +911,15 @@ const odoo: Connector = {
         type: "object",
         properties: {
           query: { type: "string", description: "Matched against the task title." },
+          description_query: { type: "string", description: "Matched against the task body." },
           project_id: { type: "number", description: "Restrict to one project." },
+          project_ids: {
+            type: "array",
+            items: { type: "number" },
+            description: "Restrict to any of these projects.",
+          },
+          tag_id: { type: "number", description: "Only tasks carrying this tag." },
+          user_id: { type: "number", description: "Only tasks assigned to this user." },
           stage_id: { type: "number", description: "Restrict to one stage." },
           parent_id: { type: "number", description: "Only the subtasks of this task." },
           created_since: {
@@ -910,7 +935,18 @@ const odoo: Connector = {
         if (typeof input.query === "string" && input.query.trim()) {
           domain.push(["name", "ilike", input.query.trim()]);
         }
+        if (typeof input.description_query === "string" && input.description_query.trim()) {
+          // The same complaint is often filed per customer; the title varies
+          // but the body repeats, so the body is the better key to find siblings.
+          domain.push(["description", "ilike", input.description_query.trim()]);
+        }
         if (input.project_id != null) domain.push(["project_id", "=", Number(input.project_id)]);
+        if (Array.isArray(input.project_ids) && input.project_ids.length > 0) {
+          domain.push(["project_id", "in", input.project_ids.map(Number)]);
+        }
+        if (input.tag_id != null) domain.push(["tag_ids", "in", [Number(input.tag_id)]]);
+        // Tasks have many assignees (`user_ids`), so `=` would never match.
+        if (input.user_id != null) domain.push(["user_ids", "in", [Number(input.user_id)]]);
         if (input.stage_id != null) domain.push(["stage_id", "=", Number(input.stage_id)]);
         if (input.parent_id != null) domain.push(["parent_id", "=", Number(input.parent_id)]);
         if (typeof input.created_since === "string" && input.created_since.trim()) {
@@ -961,6 +997,66 @@ const odoo: Connector = {
       },
     },
 
+    get_task_attachments: {
+      description:
+        "List the files attached to a project task (name, type, size). Metadata only — the contents are not returned.",
+      inputSchema: {
+        type: "object",
+        properties: { id: { type: "number", description: "Task id." } },
+        required: ["id"],
+      },
+      async run(config, input) {
+        const attachments = await odooExecute(
+          config,
+          "ir.attachment",
+          "search_read",
+          [
+            [
+              ["res_model", "=", "project.task"],
+              ["res_id", "=", Number(input.id)],
+            ],
+          ],
+          { fields: ATTACHMENT_FIELDS }
+        );
+        return { attachments };
+      },
+    },
+
+    get_partner: {
+      description: "Read one customer (res.partner) by id: identity fields only.",
+      inputSchema: {
+        type: "object",
+        properties: { id: { type: "number" } },
+        required: ["id"],
+      },
+      async run(config, input) {
+        const rows = (await odooExecute(config, "res.partner", "read", [[Number(input.id)]], {
+          fields: PARTNER_FIELDS,
+        })) as unknown[];
+        return { partner: rows?.[0] ?? null };
+      },
+    },
+
+    list_stages: {
+      description: "List the stages of a project, in board order.",
+      inputSchema: {
+        type: "object",
+        properties: { project_id: { type: "number" } },
+        required: ["project_id"],
+      },
+      async run(config, input) {
+        if (input.project_id == null) throw new Error("list_stages needs a project_id.");
+        const stages = await odooExecute(
+          config,
+          "project.task.type",
+          "search_read",
+          [[["project_ids", "in", [Number(input.project_id)]]]],
+          { fields: ["id", "name", "sequence", "fold"], order: "sequence" }
+        );
+        return { stages };
+      },
+    },
+
     post_note: {
       description:
         "Post an INTERNAL note on a ticket or task. Internal means the customer never sees it — use it for the full technical report.",
@@ -1006,10 +1102,17 @@ const odoo: Connector = {
         required: ["model", "method"],
       },
       async run(config, input) {
+        const model = String(input.model);
+        const method = String(input.method);
+        // Checked before any RPC, so a refused call costs no round trip and
+        // leaves no trace in Odoo.
+        if (!EXECUTE_ALLOWLIST[model]?.includes(method)) {
+          throw new Error(`execute: ${model}.${method} is not allowed. Use a dedicated action.`);
+        }
         const result = await odooExecute(
           config,
-          String(input.model),
-          String(input.method),
+          model,
+          method,
           Array.isArray(input.args) ? input.args : [],
           (input.kwargs as Record<string, unknown>) ?? {}
         );

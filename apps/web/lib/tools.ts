@@ -356,7 +356,19 @@ const BUILTINS: Record<string, ToolDefinition> = {
       type: "object",
       properties: {
         query: { type: "string", description: "Matched against the task title." },
+        description_query: {
+          type: "string",
+          description:
+            "Matched against the task body. Finds the same complaint filed under a different title.",
+        },
         project_id: { type: "number", description: "Restrict to one project." },
+        project_ids: {
+          type: "array",
+          items: { type: "number" },
+          description: "Restrict to any of these projects.",
+        },
+        tag_id: { type: "number", description: "Only tasks carrying this tag." },
+        user_id: { type: "number", description: "Only tasks assigned to this user." },
         stage_id: { type: "number", description: "Restrict to one stage." },
         parent_id: {
           type: "number",
@@ -383,6 +395,46 @@ const BUILTINS: Record<string, ToolDefinition> = {
         limit: { type: "number", description: "Max notes, capped at 100. Defaults to 20." },
       },
       required: ["id"],
+    },
+  },
+  odoo_get_task_attachments: {
+    name: "odoo_get_task_attachments",
+    description:
+      "List the files attached to an Odoo project task: name, mime type, size and date. Metadata only — you cannot open the files, but their names and count tell you whether screenshots or logs exist, and a human can be pointed at them.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "number", description: "Numeric task id." } },
+      required: ["id"],
+    },
+  },
+  odoo_get_ticket: {
+    name: "odoo_get_ticket",
+    description:
+      "Read one Odoo helpdesk ticket by id. Tickets are a different model from project tasks: use `odoo_get_task` for the latter.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "number", description: "Numeric ticket id." } },
+      required: ["id"],
+    },
+  },
+  odoo_get_partner: {
+    name: "odoo_get_partner",
+    description:
+      "Read one Odoo customer (res.partner) by id: name, vat, is_company, parent_id, email and country. The `vat` is the link to the company in the HR platform: it is that company's fiscal code, so match on it rather than on the name.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "number", description: "Numeric partner id." } },
+      required: ["id"],
+    },
+  },
+  odoo_list_stages: {
+    name: "odoo_list_stages",
+    description:
+      "List the stages of an Odoo project in board order (id, name, sequence, folded). Use it instead of hardcoding stage ids, which differ per project and change when the board is edited.",
+    inputSchema: {
+      type: "object",
+      properties: { project_id: { type: "number", description: "Numeric project id." } },
+      required: ["project_id"],
     },
   },
   odoo_search_tickets: {
@@ -533,6 +585,10 @@ const CONNECTOR_TOOLS: Record<string, { integrationId: string; action: string }>
   odoo_create_ticket: { integrationId: "odoo", action: "create_ticket" },
   odoo_post_note: { integrationId: "odoo", action: "post_note" },
   odoo_search_tickets: { integrationId: "odoo", action: "search_tickets" },
+  odoo_get_ticket: { integrationId: "odoo", action: "get_ticket" },
+  odoo_get_task_attachments: { integrationId: "odoo", action: "get_task_attachments" },
+  odoo_get_partner: { integrationId: "odoo", action: "get_partner" },
+  odoo_list_stages: { integrationId: "odoo", action: "list_stages" },
   odoo_get_task: { integrationId: "odoo", action: "get_task" },
   odoo_search_tasks: { integrationId: "odoo", action: "search_tasks" },
   odoo_get_task_notes: { integrationId: "odoo", action: "get_task_notes" },
