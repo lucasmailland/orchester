@@ -1002,7 +1002,10 @@
         "runJsonLabel": "Dados (JSON)",
         "cancel": "Cancelar",
         "runButton": "Executar",
-        "documentation": "Documentação"
+        "documentation": "Documentação",
+        "deleteBlockedExternal": "Chamado de fora do produto: {names}. Esvazie primeiro a lista de chamadores externos nas configurações do fluxo.",
+        "kindSettings": "Tipo de fluxo e chamadores externos",
+        "kindBadgeAction": "Ação"
       },
       "inspector": {
         "deleteNodeAria": "Excluir nó",
@@ -1031,6 +1034,31 @@
         "close": "Fechar",
         "useTemplate": "Usar modelo",
         "placeholder": "O que este fluxo faz, o que o dispara, o que ele escreve fora e o que acontece se falhar."
+      },
+      "kind": {
+        "title": "Tipo de fluxo",
+        "close": "Fechar",
+        "kindLabel": "Tipo",
+        "pipeline": "Pipeline",
+        "pipelineHelp": "Um fluxo de nível superior: é disparado por conta própria e pode usar qualquer passo.",
+        "action": "Ação",
+        "actionHelp": "Um bloco reutilizável que os pipelines chamam. Sem passos de IA, sem aprovação humana, sem chamadas a outros fluxos e sem variáveis no nível do fluxo.",
+        "contractTitle": "Este fluxo não cumpre o contrato de uma ação:",
+        "externalTitle": "Chamadores externos",
+        "externalHelp": "Scripts ou sistemas fora do produto que chamam este fluxo pelo id. Enquanto a lista tiver entradas, o fluxo não pode ser excluído.",
+        "externalEmpty": "Sem chamadores externos.",
+        "namePlaceholder": "Nome (por exemplo, script noturno)",
+        "notePlaceholder": "Nota (opcional)",
+        "add": "Adicionar chamador",
+        "remove": "Remover chamador",
+        "limit": "Até {max} chamadores.",
+        "save": "Salvar",
+        "saved": "Tipo de fluxo salvo",
+        "saveError": "Não foi possível salvar o tipo de fluxo",
+        "violationAi": "\"{label}\" usa um modelo de IA.",
+        "violationHuman": "\"{label}\" espera por uma pessoa.",
+        "violationFlowCall": "\"{label}\" chama outro fluxo.",
+        "violationVariables": "O fluxo define variáveis no nível do fluxo."
       }
     },
     "knowledge": {
@@ -2331,7 +2359,13 @@
       "nextStepAddKnowledge": {
         "title": "Adicione uma base de conhecimento",
         "body": "Dê aos seus agentes documentos para embasar as respostas, em vez de depender só do modelo base."
-      }
+      },
+      "kindAction": "Ação",
+      "kindFilterLabel": "Filtrar por tipo",
+      "kindFilterAll": "Todos",
+      "kindFilterPipelines": "Pipelines",
+      "kindFilterActions": "Ações",
+      "noFlowsOfKind": "Não há fluxos deste tipo."
     },
     "knowledgeBases": {
       "heroTitle": "Bases de conhecimento",

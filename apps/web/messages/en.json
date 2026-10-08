@@ -1002,7 +1002,10 @@
         "runJsonLabel": "Data (JSON)",
         "cancel": "Cancel",
         "runButton": "Run",
-        "documentation": "Documentation"
+        "documentation": "Documentation",
+        "deleteBlockedExternal": "Called from outside the product: {names}. Clear the external callers list in the flow settings first.",
+        "kindSettings": "Flow type and external callers",
+        "kindBadgeAction": "Action"
       },
       "inspector": {
         "deleteNodeAria": "Delete node",
@@ -1031,6 +1034,31 @@
         "close": "Close",
         "useTemplate": "Use template",
         "placeholder": "What this flow does, what starts it, what it writes elsewhere and what happens when it fails."
+      },
+      "kind": {
+        "title": "Flow type",
+        "close": "Close",
+        "kindLabel": "Type",
+        "pipeline": "Pipeline",
+        "pipelineHelp": "A top-level flow: it is triggered on its own and can use any step.",
+        "action": "Action",
+        "actionHelp": "A reusable building block that pipelines call. No AI steps, no human approval, no calls to other flows and no flow-level variables.",
+        "contractTitle": "This flow does not meet the action contract:",
+        "externalTitle": "External callers",
+        "externalHelp": "Scripts or systems outside the product that call this flow by id. While the list has entries, the flow cannot be deleted.",
+        "externalEmpty": "No external callers.",
+        "namePlaceholder": "Name (for example, nightly script)",
+        "notePlaceholder": "Note (optional)",
+        "add": "Add caller",
+        "remove": "Remove caller",
+        "limit": "Up to {max} callers.",
+        "save": "Save",
+        "saved": "Flow type saved",
+        "saveError": "Could not save the flow type",
+        "violationAi": "\"{label}\" uses an AI model.",
+        "violationHuman": "\"{label}\" waits for a person.",
+        "violationFlowCall": "\"{label}\" calls another flow.",
+        "violationVariables": "The flow defines flow-level variables."
       }
     },
     "knowledge": {
@@ -2331,7 +2359,13 @@
       "nextStepAddKnowledge": {
         "title": "Add a knowledge base",
         "body": "Give your agents documents to ground their answers in, instead of relying on the base model alone."
-      }
+      },
+      "kindAction": "Action",
+      "kindFilterLabel": "Filter by type",
+      "kindFilterAll": "All",
+      "kindFilterPipelines": "Pipelines",
+      "kindFilterActions": "Actions",
+      "noFlowsOfKind": "No flows of this type."
     },
     "knowledgeBases": {
       "heroTitle": "Knowledge bases",

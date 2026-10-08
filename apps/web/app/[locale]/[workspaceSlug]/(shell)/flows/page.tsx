@@ -34,6 +34,7 @@ export default async function FlowsPage({
           name: r.name,
           description: r.description ?? null,
           status: r.status,
+          kind: r.kind ?? "pipeline",
           nodeCount: (r.nodes as unknown[] | null)?.length ?? 0,
           lastRunAt: r.lastRunAt?.toISOString() ?? null,
           aiStepCount: nature.counts.ai,

@@ -99,6 +99,36 @@ describe("DeleteFlowDialog", () => {
     expect(screen.getAllByRole("button", { name: /^close$/i }).length).toBeGreaterThan(0);
   });
 
+  it("blocks on external callers, naming them", async () => {
+    fetchMock.mockReturnValue(
+      json({
+        ...clean,
+        blockers: {
+          ...clean.blockers,
+          externalCallers: [{ name: "nightly-script" }, { name: "ops-bot", note: "cron" }],
+        },
+      })
+    );
+    renderDialog();
+    expect(await screen.findByText(/outside the product/i)).toHaveTextContent(
+      "nightly-script, ops-bot"
+    );
+    expect(screen.queryByRole("button", { name: /delete permanently/i })).toBeNull();
+  });
+
+  it("shows the external-callers refusal when the server rejects the delete", async () => {
+    const reason =
+      "Callers outside orchester are registered. Clear the list first with update_flow.";
+    fetchMock.mockImplementation((url: string, init?: RequestInit) =>
+      init?.method === "DELETE"
+        ? json({ error: reason, code: "flow_external_callers" }, 409)
+        : json(clean)
+    );
+    renderDialog();
+    fireEvent.click(await screen.findByRole("button", { name: /delete permanently/i }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(reason));
+  });
+
   it("does not offer to delete when the impact could not be loaded", async () => {
     fetchMock.mockReturnValue(json({ error: "boom" }, 500));
     renderDialog();
