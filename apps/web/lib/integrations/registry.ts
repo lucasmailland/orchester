@@ -1173,6 +1173,51 @@ const odoo: Connector = {
       },
     },
 
+    move_task: {
+      effect: "write",
+      description:
+        'Move a project task to another stage, narrowly. Moves only if the task is still in from_stage_id (a card a person already moved is left alone and { moved: false, reason: "not_in_expected_stage", current_stage_id } is returned) and only to a stage of the task\'s own project (otherwise it throws). Writes stage_id and nothing else. Meant for flow steps; agents do not get it as a tool.',
+      inputSchema: {
+        type: "object",
+        properties: {
+          task_id: { type: "number" },
+          from_stage_id: { type: "number", description: "Stage the task must currently be in." },
+          to_stage_id: { type: "number", description: "Destination stage, same project." },
+        },
+        required: ["task_id", "from_stage_id", "to_stage_id"],
+      },
+      async run(config, input) {
+        if (input.task_id == null) throw new Error("move_task needs a task_id.");
+        if (input.from_stage_id == null) throw new Error("move_task needs a from_stage_id.");
+        if (input.to_stage_id == null) throw new Error("move_task needs a to_stage_id.");
+        const taskId = Number(input.task_id);
+        const fromStage = Number(input.from_stage_id);
+        const toStage = Number(input.to_stage_id);
+
+        const tasks = (await odooExecute(config, "project.task", "read", [[taskId]], {
+          fields: ["id", "project_id", "stage_id"],
+        })) as { project_id: [number, string] | false; stage_id: [number, string] | false }[];
+        const task = tasks[0];
+        if (!task) throw new Error(`move_task: task ${taskId} not found.`);
+
+        const currentStage = task.stage_id ? task.stage_id[0] : null;
+        if (currentStage !== fromStage) {
+          return { moved: false, reason: "not_in_expected_stage", current_stage_id: currentStage };
+        }
+
+        const stages = (await odooExecute(config, "project.task.type", "read", [[toStage]], {
+          fields: ["id", "project_ids"],
+        })) as { project_ids: number[] }[];
+        const projectId = task.project_id ? task.project_id[0] : null;
+        if (projectId == null || !stages[0]?.project_ids.includes(projectId)) {
+          throw new Error(`move_task: stage ${toStage} does not belong to the task's project.`);
+        }
+
+        await odooExecute(config, "project.task", "write", [[taskId], { stage_id: toStage }]);
+        return { moved: true, task_id: taskId, from_stage_id: fromStage, to_stage_id: toStage };
+      },
+    },
+
     execute: {
       effect: (input) => (ODOO_READ_METHODS.has(String(input.method)) ? "read" : "write"),
       description:

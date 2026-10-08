@@ -239,6 +239,70 @@ describe("odoo connector", () => {
     expect(domain).toContainEqual(["parent_id", "=", 4242]);
   });
 
+  describe("move_task", () => {
+    // Fixture: task 4242 lives in project 7, currently in stage 100.
+    // Stage 101 belongs to project 7, stage 900 to project 8.
+    function board(taskStage = 100) {
+      const writes: { model: string; args: unknown[] }[] = [];
+      const mock = mockOdoo({
+        execute: (model, method, args) => {
+          if (model === "project.task" && method === "read") {
+            return [{ id: 4242, project_id: [7, "P"], stage_id: [taskStage, "S"] }];
+          }
+          if (model === "project.task.type" && method === "read") {
+            const id = (args[0] as number[])[0];
+            return [{ id, project_ids: id === 900 ? [8] : [7, 9] }];
+          }
+          if (method === "write") writes.push({ model, args });
+          return true;
+        },
+      });
+      return { ...mock, writes };
+    }
+    const move = (input: Record<string, unknown>) =>
+      getConnector("odoo")!.actions.move_task!.run(CONFIG, input);
+
+    it("moves a task that is still in the expected stage, writing only stage_id", async () => {
+      const { writes } = board(100);
+      const out = await move({ task_id: 4242, from_stage_id: 100, to_stage_id: 101 });
+      expect(out).toEqual({ moved: true, task_id: 4242, from_stage_id: 100, to_stage_id: 101 });
+      expect(writes).toEqual([{ model: "project.task", args: [[4242], { stage_id: 101 }] }]);
+    });
+
+    it("does not move or write when a person already moved the task", async () => {
+      const { writes } = board(105);
+      const out = await move({ task_id: 4242, from_stage_id: 100, to_stage_id: 101 });
+      expect(out).toEqual({ moved: false, reason: "not_in_expected_stage", current_stage_id: 105 });
+      expect(writes).toHaveLength(0);
+    });
+
+    it("refuses a destination stage from another project, without writing", async () => {
+      const { writes } = board(100);
+      await expect(move({ task_id: 4242, from_stage_id: 100, to_stage_id: 900 })).rejects.toThrow(
+        /project/i
+      );
+      expect(writes).toHaveLength(0);
+    });
+
+    it("requires from_stage_id", async () => {
+      const { writes } = board(100);
+      await expect(move({ task_id: 4242, to_stage_id: 101 })).rejects.toThrow(/from_stage_id/);
+      expect(writes).toHaveLength(0);
+    });
+
+    it("declares effect write so dry run simulates it", () => {
+      expect(getConnector("odoo")!.actions.move_task!.effect).toBe("write");
+    });
+
+    it("does not widen the execute allowlist", async () => {
+      mockOdoo({ execute: () => true });
+      const odoo = getConnector("odoo")!;
+      await expect(
+        odoo.actions.execute!.run(CONFIG, { model: "project.task.type", method: "write", args: [] })
+      ).rejects.toThrow(/not allowed/i);
+    });
+  });
+
   describe("execute allowlist", () => {
     // `execute` runs with the integration user's credentials, which are admin
     // in practice. Without a guard an agent holding it can write to any model
