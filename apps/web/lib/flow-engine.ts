@@ -90,6 +90,8 @@ export interface RunContext {
    * that write are reported as `wouldCall` and skipped. See `lib/flows/dry-run`.
    */
   dryRun?: boolean;
+  /** Flow ids of the subflow calls leading to this run, this flow last. */
+  callChain?: readonly string[];
 }
 
 /**
@@ -320,6 +322,24 @@ async function runFormula(formula: string, variables: Record<string, unknown>): 
   }
 }
 
+/**
+ * Most flows in one subflow chain, the entry flow included. A chain this long
+ * is almost certainly a mistake, and without a bound a cycle runs until the
+ * reaper. (Not related to the node-graph depth bound in `runFromNode`.)
+ */
+export const SUBFLOW_MAX_DEPTH = 5;
+
+/** Refuses to enter `flowId` when it would repeat in `chain` or make it too long. */
+function assertSubflowChain(chain: readonly string[], flowId: string): void {
+  const path = [...chain, flowId].join(" -> ");
+  if (chain.includes(flowId)) {
+    throw new Error(`Subflow cycle refused: ${path}`);
+  }
+  if (chain.length + 1 > SUBFLOW_MAX_DEPTH) {
+    throw new Error(`Subflow chain deeper than ${SUBFLOW_MAX_DEPTH} refused: ${path}`);
+  }
+}
+
 export async function executeFlow({
   flowId,
   workspaceId,
@@ -330,11 +350,17 @@ export async function executeFlow({
   signal,
   dryRun: dryRunOpt,
   manual = false,
+  callChain = [],
 }: {
   flowId: string;
   workspaceId: string;
   triggerSource: string;
   input: Record<string, unknown>;
+  /**
+   * Internal: the flow ids of the subflow calls above this run, outermost
+   * first. Set only by the `subflow` step; never part of the run input.
+   */
+  callChain?: readonly string[];
   /**
    * A person started this run from the app. Only then may a disabled flow
    * run (besides dry runs). See `assertFlowRunnable`.
@@ -369,6 +395,10 @@ export async function executeFlow({
   /** Only with `paused`: the secret that permits approval or rejection. */
   approvalToken?: string;
 }> {
+  // Before any row is written, so a refused call leaves no child run behind.
+  assertSubflowChain(callChain, flowId);
+  const chain = [...callChain, flowId];
+
   // R2-C: re-verify flow ownership + create/transition flow_run all under
   // the workspace GUC (FORCE RLS).
   const flow = await withFlowTx(workspaceId, async (tx) => {
@@ -438,6 +468,7 @@ export async function executeFlow({
     ...(onEvent ? { emit: onEvent } : {}),
     ...(signal ? { signal } : {}),
     ...(dryRun ? { dryRun: true } : {}),
+    callChain: chain,
   };
 
   const nodes = (flow.nodes ?? []) as FlowNode[];
@@ -1577,6 +1608,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       workspaceId,
       triggerSource: `parent_run:${runId}`,
       input: ctx.variables,
+      callChain: ctx.callChain ?? [],
       // The child inherits the parent's mode, and the mark lands on its row.
       ...(ctx.dryRun ? { dryRun: true } : {}),
     });

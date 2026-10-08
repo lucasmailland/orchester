@@ -265,15 +265,15 @@ describe("dry run: subflow", () => {
     effectOf.mockResolvedValue("write");
     const inserted: Array<Record<string, unknown>> = [];
     state.insertedRuns = inserted;
-    // The harness serves the same flow for every lookup, so the child is the
-    // flow itself. The parent marks `isChild` before calling it; the child
+    // The harness serves the same flow for every lookup, so the child is a
+    // second copy of it under another id (a flow cannot call itself). The parent marks `isChild` before calling it; the child
     // sees the mark in its input and takes the write branch instead.
     const r = await dry(
       [
         trigger,
         step("c", "condition", { left: "{{isChild}}", op: "==", right: "1" }),
         step("m", "transform", { template: { isChild: "1" } }),
-        step("sub", "subflow", { flowId: "flow_test" }),
+        step("sub", "subflow", { flowId: "child_flow" }),
         step("w", "integration", { integrationId: "odoo::create_ticket", input: {} }),
       ],
       [
