@@ -780,6 +780,31 @@ const PARTNER_FIELDS = ["id", "name", "vat", "is_company", "parent_id", "email",
 // as text, so the contents would be noise at best and a token bomb at worst.
 const ATTACHMENT_FIELDS = ["id", "name", "mimetype", "file_size", "create_date"];
 
+/**
+ * A page URI from the browser agent can carry credentials, tokens in the query
+ * and personal data in the path. Keep only origin and path: drop userinfo,
+ * query and fragment, decode and mask each segment, and replace opaque ids.
+ */
+function sanitizeUri(raw: string): string {
+  const head = raw.slice(0, 2000).replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/]*@/i, "$1");
+  const cut = head.search(/[?#]/);
+  const noQuery = cut === -1 ? head : head.slice(0, cut);
+  const prefix = /^[a-z][a-z0-9+.-]*:\/\/[^/]*/i.exec(noQuery)?.[0] ?? "";
+  const path = noQuery.slice(prefix.length);
+  const OPAQUE =
+    /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|(?=.*\d)[A-Za-z0-9_+=-]{16,})$/i;
+  const segments = path.split("/").map((seg) => {
+    let decoded = seg;
+    try {
+      decoded = decodeURIComponent(seg);
+    } catch {
+      /* keep the raw segment */
+    }
+    return OPAQUE.test(decoded) ? "[id]" : maskSensitive(decoded);
+  });
+  return (prefix + segments.join("/")).slice(0, 300);
+}
+
 function ticketValues(input: Record<string, unknown>): Record<string, unknown> {
   const values: Record<string, unknown> = {};
   if (typeof input.name === "string") values.name = input.name;
@@ -1909,7 +1934,7 @@ const newrelic: Connector = {
             ).slice(0, 300),
             count: Number(r.count ?? 0),
             last_seen: r.last_seen ?? null,
-            sample_uri: r.sample_uri == null ? null : String(r.sample_uri).slice(0, 300),
+            sample_uri: r.sample_uri == null ? null : sanitizeUri(String(r.sample_uri)),
           })),
           since_hours: sinceHours,
           truncated: rows.length >= BROWSER_ERRORS_LIMIT,

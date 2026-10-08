@@ -141,6 +141,27 @@ describe("get_browser_errors action", () => {
     expect(String(row.message).length).toBeLessThanOrEqual(300);
   });
 
+  it.each([
+    [
+      "https://app.example.com/users/ana.perez@example.com/profile",
+      "https://app.example.com/users/[email]/profile",
+    ],
+    ["/reset?token=abc123secret&u=1", "/reset"],
+    ["/page?x=1#access_token=zzz", "/page"],
+    ["https://bob:hunter2@app.example.com/home", "https://app.example.com/home"],
+    ["/orders/3f2b8c1e-9a4d-4e7b-8c3a-1b2c3d4e5f60/items", "/orders/[id]/items"],
+    ["/s/9f86d081884c7d659a2feaa0c55ad015a3bf4f1b/view", "/s/[id]/view"],
+    ["/dni/12345678/x", "/dni/[num]/x"],
+    ["/settings/customer-dashboard-preferences", "/settings/customer-dashboard-preferences"],
+    ["/home", "/home"],
+  ])("masks sample_uri %s", async (uri, expected) => {
+    mockRows([{ errorClass: "E", errorMessage: "m", count: 1, sample_uri: uri }]);
+    const out = (await getConnector("newrelic")!.actions.get_browser_errors!.run(CONFIG, {
+      appName: "dash",
+    })) as { errors: { sample_uri: string }[] };
+    expect(out.errors[0]!.sample_uri).toBe(expected);
+  });
+
   it("flags truncation when the row cap is reached", async () => {
     mockRows(
       Array.from({ length: 20 }, (_, i) => ({ errorClass: "E", errorMessage: `m${i}`, count: 1 }))
