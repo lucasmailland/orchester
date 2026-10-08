@@ -2,7 +2,7 @@ import "server-only";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and, inArray, lt, count, sql } from "drizzle-orm";
-import { llmCall } from "./llm-call";
+import { llmCall, type ChatMessage } from "./llm-call";
 import { enqueue, JOB_FLOW_RUN } from "./queue";
 import { assertPublicUrl } from "./net-guard";
 import { logWithContext, recordMetric } from "./observability";
@@ -769,33 +769,100 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       return aRows[0];
     });
     if (!agent) throw new Error(`agent not found: ${agentId}`);
-    // Este nodo usa `llmCall` directo (no runChat), así que el guard y el
-    // metering se hacen acá explícitamente (D4-1 / E3-1).
+    const { getToolDefinitions, executeTool } = await import("./tools");
+    const { wrapUntrusted, UNTRUSTED_CONTENT_GUARDRAIL } = await import("./agent-runtime");
+    // Handoff mutates a conversation and throws without conversationId.
+    // Memory tools accept optional conversation scope and still work with agentId.
+    const tools = getToolDefinitions(agent.tools ?? []).filter((t) => t.name !== "agent_handoff");
+    const systemPrompt = agent.systemPrompt + (tools.length > 0 ? UNTRUSTED_CONTENT_GUARDRAIL : "");
+    const messages: ChatMessage[] = [{ role: "user", content: userMessage }];
+    // Mirror channels/router.ts runConversationalTurn's safetyCounter < 5.
+    const maxSteps = tools.length > 0 ? 5 : 1;
     const { assertWithinSpend } = await import("./cost-alerts");
-    await withFlowTx(workspaceId, (tx) => assertWithinSpend(workspaceId, tx));
-    const result = await withFlowTx(workspaceId, (tx) =>
-      llmCall({
-        workspaceId,
-        model: agent.model,
-        systemPrompt: agent.systemPrompt,
-        messages: [{ role: "user", content: userMessage }],
-        temperature: agent.temperature ? Number(agent.temperature) : 0.7,
-        ...(agent.maxTokens != null && { maxTokens: agent.maxTokens }),
-        tx,
-      })
-    );
     const { recordAiUsage, chargeFor } = await import("./ai/run");
-    const cargo = chargeFor(result);
-    await recordAiUsage({
-      workspaceId,
-      capability: "chat",
-      model: result.model,
-      ...cargo,
-    });
+    let content = "";
+    let model = agent.model;
+    let tokensUsed = 0;
+    const cargo = { tokensIn: 0, tokensOut: 0, costUsd: 0 };
+    const toolsUsed: string[] = [];
+
+    for (let step = 0; step < maxSteps; step++) {
+      // Guard and meter every call, including intermediate tool turns.
+      await withFlowTx(workspaceId, (tx) => assertWithinSpend(workspaceId, tx));
+      const result = await withFlowTx(workspaceId, (tx) =>
+        llmCall({
+          workspaceId,
+          model: agent.model,
+          systemPrompt,
+          messages,
+          temperature: agent.temperature ? Number(agent.temperature) : 0.7,
+          ...(agent.maxTokens != null && { maxTokens: agent.maxTokens }),
+          ...(tools.length > 0 && { tools }),
+          tx,
+        })
+      );
+      const charge = chargeFor(result);
+      await recordAiUsage({ workspaceId, capability: "chat", model: result.model, ...charge });
+      model = result.model;
+      tokensUsed += result.tokensUsed;
+      cargo.tokensIn += charge.tokensIn;
+      cargo.tokensOut += charge.tokensOut;
+      cargo.costUsd += charge.costUsd;
+
+      if (tools.length === 0 || !result.toolCalls?.length) {
+        content = result.content;
+        break;
+      }
+      messages.push({ role: "assistant", content: result.content, toolCalls: result.toolCalls });
+      const toolResults = [];
+      for (const tc of result.toolCalls) {
+        toolsUsed.push(tc.name);
+        try {
+          const out = await withFlowTx(workspaceId, (tx) =>
+            executeTool(tc.name, tc.input as Record<string, unknown>, {
+              workspaceId,
+              tx,
+              variables: agent.variables ?? {},
+              agentId: agent.id,
+            })
+          );
+          toolResults.push({
+            id: tc.id,
+            name: tc.name,
+            input: tc.input,
+            output: wrapUntrusted(
+              typeof out === "string" ? out : JSON.stringify(out ?? null),
+              `tool_${tc.name}`
+            ),
+          });
+        } catch (e) {
+          // As in the router, tool failures are feedback for the model.
+          toolResults.push({
+            id: tc.id,
+            name: tc.name,
+            input: tc.input,
+            error: e instanceof Error ? e.message : String(e),
+          });
+        }
+      }
+      messages.push({ role: "tool", content: "", toolResults });
+    }
+    // Match the router's empty-reply/cap fallback; preserve plain-call behavior.
+    if (tools.length > 0 && !content && agent.fallback) content = agent.fallback;
     const outputVar = (cfg.outputVar as string) ?? "agentResult";
-    ctx.variables[outputVar] = result.content;
-    ctx.variables[`${outputVar}Meta`] = firma(result, cargo, agent.name);
-    helpers.setOutput({ content: result.content, tokensUsed: result.tokensUsed });
+    ctx.variables[outputVar] = content;
+    ctx.variables[`${outputVar}Meta`] = {
+      ...firma({ model, tokensUsed }, cargo, agent.name),
+      toolsUsed,
+    };
+    helpers.setOutput({
+      content,
+      tokensUsed,
+      agentId: agent.id,
+      agentName: agent.name,
+      model,
+      toolsUsed,
+    });
   },
 
   condition: async ({ cfg, ctx, helpers }) => {
