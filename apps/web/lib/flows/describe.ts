@@ -5,7 +5,7 @@ import { nodeNature, type NodeNature } from "./node-nature";
 import { normalizeFlowNodes } from "./normalize";
 import { actionContractIssues } from "./validate-stored";
 import type { ValidationIssue } from "./validate";
-import { isRecord, nodeVariableFacts, text, type Unresolved } from "./variable-facts";
+import { nodeVariableFacts, text, type Unresolved } from "./variable-facts";
 
 /**
  * Flow "fact sheet": what a flow is, computed from its graph so it cannot
