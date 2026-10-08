@@ -1032,3 +1032,53 @@ describe("compare_refs", () => {
     });
   });
 });
+
+describe("gitlab secret paths", () => {
+  const SECRET = [
+    ".env",
+    ".env.local",
+    "config/prod.env",
+    "a/b/.env.local",
+    "keys/server.key",
+    "certs/server.pem",
+    "config/.npmrc",
+    "deploy/credentials.json",
+    "home/.ssh/id_rsa",
+  ];
+  // `credentials-guide.md` does not match: credentials(.json)? is anchored at the end of
+  // the file name, so documentation about credentials is still readable.
+  const PLAIN = ["env.ts", "environment.md", "src/keyboard.ts", "docs/credentials-guide.md"];
+
+  it.each(SECRET)("read_file refuses %s without calling GitLab", async (path) => {
+    const calls = mockGitLab();
+    await expect(run("read_file", { project: 12, path })).rejects.toThrow(
+      "This file usually holds credentials; its content is not returned."
+    );
+    expect(calls).toHaveLength(0);
+  });
+  it.each(PLAIN)("read_file still reads %s", async (path) => {
+    mockGitLab({ payload: { content: "eA==", encoding: "base64", size: 1 } });
+    expect(await run("read_file", { project: 12, path })).toEqual({ content: "x", size: 1 });
+  });
+  it("search_code keeps metadata but drops the snippet of secret paths", async () => {
+    mockGitLab({
+      payload: [
+        { path: "config/prod.env", startline: 3, data: "API_KEY=live-123" },
+        { path: "keys/server.key", startline: 1, data: "-----BEGIN KEY-----" },
+        { path: "src/keyboard.ts", startline: 9, data: "const key = 1" },
+      ],
+    });
+    const out = (await run("search_code", { scope: "project", id: 12, query: "key" })) as {
+      matches: Record<string, unknown>[];
+    };
+    const byPath = Object.fromEntries(out.matches.map((m) => [m.path, m]));
+    for (const p of ["config/prod.env", "keys/server.key"]) {
+      expect(byPath[p]).toMatchObject({ content_withheld: true });
+      expect(byPath[p]).not.toHaveProperty("snippet");
+    }
+    expect(byPath["config/prod.env"]).toMatchObject({ startline: 3 });
+    expect(JSON.stringify(out)).not.toContain("live-123");
+    expect(byPath["src/keyboard.ts"]).toMatchObject({ snippet: "const key = 1" });
+    expect(byPath["src/keyboard.ts"]).not.toHaveProperty("content_withheld");
+  });
+});

@@ -167,7 +167,7 @@ export async function gitlabSearchCode(
       return {
         path: row.path,
         startline: row.startline,
-        snippet: row.data,
+        ...(isSecretPath(row.path) ? { content_withheld: true } : { snippet: row.data }),
         ...(projectId !== undefined ? { projectId } : {}),
         ...(projectPath ? { projectPath } : {}),
         ...(webUrl ? { webUrl } : {}),
@@ -180,6 +180,9 @@ export async function gitlabReadFile(
   config: Record<string, string>,
   input: Record<string, unknown>
 ) {
+  if (isSecretPath(typeof input.path === "string" ? input.path : "")) {
+    throw new Error("This file usually holds credentials; its content is not returned.");
+  }
   const { data } = await get<{ size: number; encoding: string; content: string }>(
     config,
     `projects/${segment(input.project, "project")}/repository/files/${segment(input.path, "path")}`,
@@ -456,14 +459,19 @@ interface DiffRow {
   too_large?: boolean;
 }
 
-// Files that usually hold credentials. Their diff is withheld (path and flags
-// still listed) because a committed secret would otherwise reach the model and
-// whatever it writes, such as a ticket note.
+// Files that usually hold credentials. Their content is withheld (path and flags still
+// listed) because a committed secret would otherwise reach the model and whatever it
+// writes, such as a ticket note. The match is on the file name only: `credentials.json`
+// matches, `docs/credentials-guide.md` does not.
 const SECRET_FILE =
   /(^|\/)(\.env(\.[^/]*)?|[^/]*\.env|\.npmrc|\.pypirc|\.netrc|\.git-credentials|id_(rsa|dsa|ecdsa|ed25519)|credentials(\.json)?|[^/]*\.(pem|key|p12|pfx|jks|keystore))$/i;
 
+export function isSecretPath(path: string | null | undefined): boolean {
+  return SECRET_FILE.test(path ?? "");
+}
+
 function isSecretFile(d: DiffRow): boolean {
-  return SECRET_FILE.test(d.new_path ?? "") || SECRET_FILE.test(d.old_path ?? "");
+  return isSecretPath(d.new_path) || isSecretPath(d.old_path);
 }
 
 function clipBytes(text: string, max: number): { text: string; clipped: boolean } {
