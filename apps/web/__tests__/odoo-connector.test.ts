@@ -218,6 +218,27 @@ describe("odoo connector", () => {
     expect(kwargs.subtype_xmlid).toBe("mail.mt_note");
   });
 
+  it("get_task returns the parent and the subtasks, where a task's context often lives", async () => {
+    // A support ticket filed per customer is usually a subtask of one parent that
+    // groups them, and the parent's own description is often empty. Without
+    // these two fields an agent reads an empty task and never finds the report.
+    const { calls } = mockOdoo({ execute: () => [{ id: 7 }] });
+    const odoo = getConnector("odoo")!;
+    await odoo.actions.get_task!.run(CONFIG, { id: 7 });
+    const call = calls.find((c) => c.method === "execute_kw")!;
+    const kwargs = call.args[6] as { fields: string[] };
+    expect(kwargs.fields).toEqual(expect.arrayContaining(["parent_id", "child_ids"]));
+  });
+
+  it("search_tasks narrows to the subtasks of one parent", async () => {
+    const { calls } = mockOdoo({ execute: () => [] });
+    const odoo = getConnector("odoo")!;
+    await odoo.actions.search_tasks!.run(CONFIG, { parent_id: 4242 });
+    const call = calls.find((c) => c.method === "execute_kw")!;
+    const domain = (call.args[5] as unknown[])[0] as unknown[];
+    expect(domain).toContainEqual(["parent_id", "=", 4242]);
+  });
+
   it("test() succeeds when the credentials authenticate", async () => {
     mockOdoo({});
     const odoo = getConnector("odoo")!;

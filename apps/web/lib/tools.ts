@@ -341,7 +341,7 @@ const BUILTINS: Record<string, ToolDefinition> = {
   odoo_get_task: {
     name: "odoo_get_task",
     description:
-      "Read one Odoo project task by id. This is the record an incident lives in — the id is the last segment of its URL, /odoo/project/<p>/tasks/<id>. It returns the task's own fields; its evidence is in the notes, via `odoo_get_task_notes`.",
+      "Read one Odoo project task by id. This is the record an incident lives in — the id is the last segment of its URL, /odoo/project/<p>/tasks/<id>. It returns the task's own fields, including `parent_id` and `child_ids`; its evidence is in the notes, via `odoo_get_task_notes`. When the description is empty, the report is usually in a subtask: read the children. A parent often groups the same complaint from several customers, so the siblings widen the picture.",
     inputSchema: {
       type: "object",
       properties: { id: { type: "number", description: "Numeric task id." } },
@@ -358,6 +358,11 @@ const BUILTINS: Record<string, ToolDefinition> = {
         query: { type: "string", description: "Matched against the task title." },
         project_id: { type: "number", description: "Restrict to one project." },
         stage_id: { type: "number", description: "Restrict to one stage." },
+        parent_id: {
+          type: "number",
+          description:
+            "Only the subtasks of this task. Pass a task's own parent_id to list its siblings.",
+        },
         created_since: {
           type: "string",
           description:

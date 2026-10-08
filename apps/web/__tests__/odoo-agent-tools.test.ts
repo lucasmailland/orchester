@@ -128,6 +128,12 @@ describe("project tasks are reachable without the escape hatch", () => {
     }
   });
 
+  it("lets the model list a task's subtasks and siblings", () => {
+    const [def] = getToolDefinitions(["odoo_search_tasks"]);
+    const props = def!.inputSchema.properties as Record<string, unknown>;
+    expect(Object.keys(props)).toContain("parent_id");
+  });
+
   it("names the UTC trap in the date filter, where a wrong value matches nothing", () => {
     const [def] = getToolDefinitions(["odoo_search_tasks"]);
     const props = def!.inputSchema.properties as Record<string, { description?: string }>;
