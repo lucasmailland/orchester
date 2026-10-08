@@ -278,6 +278,86 @@ function firstSheet(read: (n: string) => string | null): { name: string; xml: st
   return { name, xml };
 }
 
+const MALFORMED = "Unsupported xlsx: malformed worksheet.";
+const OPEN_ROW = /<row[\s>/]/;
+const OPEN_CELL = /<c[\s>/]/;
+const HAS_VALUE = /<(?:v|t)\b[^>]*>\s*[^<\s]/;
+
+/**
+ * Forward-only element scanner: finds each `<name ...>` opening at or after
+ * `from` and its matching close (or self-closing end). It never looks back,
+ * so total work is linear in the input. An opening without a close, or one
+ * that nests another opening of the same element, is malformed.
+ */
+function* elements(
+  xml: string,
+  name: string,
+  from: number,
+  to: number,
+  nested: RegExp
+): Generator<{ tag: string; body: string | null }> {
+  const open = `<${name}`;
+  let pos = from;
+  while (pos < to) {
+    const i = xml.indexOf(open, pos);
+    if (i === -1 || i >= to) return;
+    const after = xml.charCodeAt(i + open.length);
+    // `<c` must not match `<cols`, `<row` must not match `<rowBreaks`.
+    if (!(
+      after === 32 ||
+      after === 62 ||
+      after === 47 ||
+      after === 9 ||
+      after === 10 ||
+      after === 13
+    )) {
+      pos = i + open.length;
+      continue;
+    }
+    const gt = xml.indexOf(">", i);
+    if (gt === -1 || gt >= to) throw new Error(MALFORMED);
+    const tag = xml.slice(i, gt + 1);
+    if (xml.charCodeAt(gt - 1) === 47) {
+      yield { tag, body: null };
+      pos = gt + 1;
+      continue;
+    }
+    const close = xml.indexOf(`</${name}>`, gt + 1);
+    if (close === -1 || close >= to) throw new Error(MALFORMED);
+    const body = xml.slice(gt + 1, close);
+    if (nested.test(body)) throw new Error(MALFORMED);
+    yield { tag, body };
+    pos = close + name.length + 3;
+  }
+}
+
+function readCells(rowBody: string, strings: string[]): string[] {
+  const cells: string[] = [];
+  let next = 0;
+  for (const c of elements(rowBody, "c", 0, rowBody.length, OPEN_CELL)) {
+    const idx = colIndex(attr(c.tag, "r")) ?? next;
+    next = idx + 1;
+    if (idx >= TABLE_MAX_COLUMNS + 1) continue;
+    const type = attr(c.tag, "t");
+    const inner = c.body ?? "";
+    let value = "";
+    if (type === "inlineStr")
+      value = textRuns(/<is\b[^>]*>([\s\S]*?)<\/is>/.exec(inner)?.[1] ?? "");
+    else {
+      const v = /<v\b[^>]*>([\s\S]*?)<\/v>/.exec(inner)?.[1];
+      if (v !== undefined) {
+        if (type === "s") {
+          value = strings[Number(v)] ?? "";
+        } else if (type === "b") value = v.trim() === "1" ? "TRUE" : "FALSE";
+        else value = decodeXml(v);
+      }
+    }
+    while (cells.length < idx) cells.push("");
+    cells[idx] = value;
+  }
+  return cells;
+}
+
 export function readXlsx(zip: Buffer): SheetTable {
   if (zip.length < 22) throw new Error(ZIP_ERR);
   const read = makeReader(zip);
@@ -286,34 +366,17 @@ export function readXlsx(zip: Buffer): SheetTable {
   const matrix: string[][] = [];
   const keep = TABLE_MAX_ROWS + 1;
   let nonEmpty = 0;
-  for (const rowMatch of xml.matchAll(/<row\b[^>]*?(?:\/>|>([\s\S]*?)<\/row>)/g)) {
-    const body = rowMatch[1];
-    if (!body) continue;
-    const cells: string[] = [];
-    let next = 0;
-    for (const c of body.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
-      const idx = colIndex(attr(c[1]!, "r")) ?? next;
-      next = idx + 1;
-      if (idx >= TABLE_MAX_COLUMNS + 1) continue;
-      const type = attr(c[1]!, "t");
-      const inner = c[2] ?? "";
-      let value = "";
-      if (type === "inlineStr")
-        value = textRuns(/<is\b[^>]*>([\s\S]*?)<\/is>/.exec(inner)?.[1] ?? "");
-      else {
-        const v = /<v\b[^>]*>([\s\S]*?)<\/v>/.exec(inner)?.[1];
-        if (v !== undefined) {
-          if (type === "s") value = strings[Number(v)] ?? "";
-          else if (type === "b") value = v.trim() === "1" ? "TRUE" : "FALSE";
-          else value = decodeXml(v);
-        }
-      }
-      while (cells.length < idx) cells.push("");
-      cells[idx] = value;
+  for (const row of elements(xml, "row", 0, xml.length, OPEN_ROW)) {
+    if (!row.body) continue;
+    if (matrix.length >= keep) {
+      // Past the output cap: only count, cheaply, without building cells.
+      if (HAS_VALUE.test(row.body)) nonEmpty++;
+      continue;
     }
+    const cells = readCells(row.body, strings);
     if (!cells.some((v) => v.trim() !== "")) continue;
     nonEmpty++;
-    if (matrix.length < keep) matrix.push(cells);
+    matrix.push(cells);
   }
   const t = shape(matrix);
   const dataRows = Math.max(nonEmpty - 1, 0);

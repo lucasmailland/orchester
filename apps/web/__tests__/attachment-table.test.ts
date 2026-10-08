@@ -134,4 +134,57 @@ describe("readXlsx", () => {
     const zip = buildZip([...filler, { name: "xl/workbook.xml", data: Buffer.from("<x/>") }]);
     expect(() => readXlsx(zip)).toThrow(/workbook/i);
   });
+
+  describe("worksheet scanning is linear and strict", () => {
+    const sheetZip = (sheetXml: string) =>
+      buildZip([
+        {
+          name: "xl/workbook.xml",
+          data: Buffer.from(`<workbook><sheets><sheet name="S"/></sheets></workbook>`),
+        },
+        { name: "xl/worksheets/sheet1.xml", data: Buffer.from(sheetXml) },
+      ]);
+    const unclosed = (bytes: number) => {
+      const row = `<row r="1"><c r="A1"><v>1</v></c>`;
+      return sheetZip(
+        `<worksheet><sheetData>${row.repeat(Math.ceil(bytes / row.length))}</sheetData></worksheet>`
+      );
+    };
+    const time = (zip: Buffer) => {
+      const t0 = performance.now();
+      try {
+        readXlsx(zip);
+      } catch {
+        /* rejection is fine */
+      }
+      return performance.now() - t0;
+    };
+    it("rejects a 2 MB worksheet of unclosed <row> quickly", () => {
+      const zip = unclosed(2 * 1024 * 1024);
+      const t0 = performance.now();
+      expect(() => readXlsx(zip)).toThrow(/malformed worksheet/i);
+      expect(performance.now() - t0).toBeLessThan(200);
+    }, 30_000);
+    it("grows roughly linearly with input size", () => {
+      time(unclosed(50_000)); // warm up
+      const small = Math.max(time(unclosed(100_000)), 1);
+      const big = time(unclosed(400_000));
+      expect(big).toBeLessThan(small * 6 + 5);
+    }, 60_000);
+    it("rejects an unclosed <c>", () => {
+      const zip = sheetZip(
+        `<worksheet><sheetData><row r="1"><c r="A1"><v>1</v></row></sheetData></worksheet>`
+      );
+      expect(() => readXlsx(zip)).toThrow(/malformed worksheet/i);
+    });
+    it("still counts rows past the cap and handles self-closing rows", () => {
+      let rows = `<row r="1"/>`;
+      for (let i = 0; i < 120; i++)
+        rows += `<row r="${i + 2}"><c r="A${i + 2}"><v>${i}</v></c></row>`;
+      const t = readXlsx(sheetZip(`<worksheet><sheetData>${rows}</sheetData></worksheet>`));
+      expect(t.rows).toHaveLength(50);
+      expect(t.total_rows).toBe(119);
+      expect(t.truncated).toBe(true);
+    });
+  });
 });
