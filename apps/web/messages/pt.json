@@ -1440,9 +1440,10 @@
         "addWebhook": "Adicionar webhook",
         "apiHint": "Use sua API key com",
         "scopesLegend": "Permissões",
-        "scopesHelp": "A chave só alcança o que você marcar aqui. Conceder escrita inclui leitura.",
-        "scopeFullAccess": "acesso total",
+        "scopesHelp": "Escrever e excluir incluem leitura. A exclusão exige permissão explícita e o nome exato do recurso.",
+        "scopeFullAccess": "acesso de leitura/escrita",
         "scopeDomain": {
+          "teams": "Equipes",
           "agents": "Agentes",
           "flows": "Flows",
           "conversations": "Conversas",
@@ -1451,6 +1452,7 @@
           "memory": "Memória"
         },
         "scopeAccess": {
+          "delete": "Excluir (perigoso)",
           "read": "ler",
           "write": "escrever"
         }

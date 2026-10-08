@@ -1,4 +1,5 @@
 import { getDb, schema } from "@orchester/db";
+import type { AdminDb } from "@/lib/workspace-admin";
 import { and, count, eq, ne } from "drizzle-orm";
 
 export interface FlowDeleteCounts {
@@ -59,9 +60,9 @@ export function blockersMessage(b: FlowDeleteBlockers): string {
 /** Null when the flow does not exist in this workspace. */
 export async function loadFlowDeleteContext(
   workspaceId: string,
-  flowId: string
+  flowId: string,
+  db: AdminDb | ReturnType<typeof getDb> = getDb()
 ): Promise<FlowDeleteContext | null> {
-  const db = getDb();
   const flow = (
     await db
       .select({

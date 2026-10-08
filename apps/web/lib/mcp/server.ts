@@ -3,6 +3,7 @@ import { getDb, schema } from "@orchester/db";
 import { createId } from "@paralleldrive/cuid2";
 import { and, desc, eq } from "drizzle-orm";
 import { getMnemoClient } from "@/lib/mnemo/client";
+import { ADMIN_TOOLS } from "./admin-tools";
 import { FLOW_TOOLS, actorOf, FlowToolValidationError } from "./flow-tools";
 
 /**
@@ -600,6 +601,7 @@ const TOOLS: McpToolDef[] = [
     },
   },
   ...FLOW_TOOLS,
+  ...ADMIN_TOOLS,
 ];
 
 const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]));
