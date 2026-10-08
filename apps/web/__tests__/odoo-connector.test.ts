@@ -331,7 +331,9 @@ describe("odoo connector", () => {
         expect.arrayContaining([
           ["model", "=", "project.task"],
           ["res_id", "=", 7],
-          ["body", "ilike", "[[orchester:triage-1]]"],
+          ["message_type", "=", "comment"],
+          ["subtype_id.internal", "=", true],
+          ["body", "=ilike", "%[[orchester:triage-1]]%"],
         ])
       );
     });
@@ -345,7 +347,12 @@ describe("odoo connector", () => {
 
     it("does nothing when the marker is already there", async () => {
       const r = run({ model: "project.task", id: 7, body_text: "hi", marker: "triage-1" }, [
-        { id: 5 },
+        {
+          id: 5,
+          body: "<p>[[orchester:triage-1]]</p><p>hi</p>",
+          message_type: "comment",
+          subtype_id: [2, "Note"],
+        },
       ]);
       expect(await r.out).toEqual({ posted: false, reason: "duplicate" });
       expect(r.posts).toHaveLength(0);

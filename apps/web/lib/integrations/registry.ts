@@ -1415,7 +1415,16 @@ const odoo: Connector = {
             throw new Error("post_note: marker may only use letters, digits, . _ : - (max 100).");
           }
           const tag = `[[orchester:${marker}]]`;
-          const existing = (await odooExecute(
+          // Candidates come from a loose substring query (`=ilike` leaves the
+          // wildcards to us, so `_`, `%` and `\` in the marker are escaped and
+          // stay literal). Only internal notes count: the message type and
+          // subtype are what `post_note` itself creates, so a customer email
+          // quoting the marker can never suppress a report. The author is not
+          // checked: the connector has no cheap way to know its own partner id
+          // (it would cost a res.users read on every call), and the internal
+          // note restriction already excludes everything a customer can send.
+          const pattern = `%${tag.replace(/[\\%_]/g, "\\$&")}%`;
+          const candidates = (await odooExecute(
             config,
             "mail.message",
             "search_read",
@@ -1423,14 +1432,31 @@ const odoo: Connector = {
               [
                 ["model", "=", model],
                 ["res_id", "=", Number(input.id)],
-                ["body", "ilike", tag],
+                ["message_type", "=", "comment"],
+                ["subtype_id.internal", "=", true],
+                ["body", "=ilike", pattern],
               ],
             ],
-            { fields: ["id"], limit: 1 }
-          )) as unknown[];
-          if (existing.length > 0) return { posted: false, reason: "duplicate" };
+            { fields: ["id", "body", "message_type", "subtype_id"], limit: 50 }
+          )) as { body?: unknown; message_type?: unknown; subtype_id?: unknown }[];
+          // Exact, case-sensitive match of the whole marker line.
+          const duplicate = candidates.some(
+            (m) =>
+              m.message_type === "comment" &&
+              Boolean(m.subtype_id) &&
+              htmlToText(m.body, 100_000)
+                .split("\n")
+                .some((line) => line.trim() === tag)
+          );
+          if (duplicate) return { posted: false, reason: "duplicate" };
           body = `<p>${tag}</p>${body}`;
         }
+        // Known, accepted race: the marker lookup and this post are separate
+        // Odoo calls, so two concurrent requests with the same marker can both
+        // see "absent" and both post. Closing it needs an Odoo-side method that
+        // checks and posts atomically; for now the duplicate is an extra
+        // internal note, never customer-visible, and sequential retries are
+        // already deduplicated.
         const messageId = await odooExecute(config, model, "message_post", [[Number(input.id)]], {
           body,
           message_type: "comment",
@@ -1481,6 +1507,12 @@ const odoo: Connector = {
           throw new Error(`move_task: stage ${toStage} does not belong to the task's project.`);
         }
 
+        // Known, accepted race: the stage check above and this write are two
+        // separate Odoo calls, so a person who moves the card between them is
+        // overwritten. Closing it needs a server-side compare-and-set method in
+        // Odoo (JSON-RPC offers no conditional write); until that exists the
+        // window is a few hundred milliseconds and the worst case is a card
+        // landing in the stage the flow intended.
         await odooExecute(config, "project.task", "write", [[taskId], { stage_id: toStage }]);
         return { moved: true, task_id: taskId, from_stage_id: fromStage, to_stage_id: toStage };
       },
