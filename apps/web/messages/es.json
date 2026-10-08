@@ -804,6 +804,8 @@
           "deleteStarterAria": "Eliminar sugerencia {n}",
           "noStarters": "Sin sugerencias",
           "maxTurnsLabel": "Máximo de turnos (corta el chat tras N intercambios)",
+          "maxToolCallsLabel": "Máximo de llamadas al modelo por turno (bucle de tools)",
+          "maxToolCallsHint": "De 1 a 15. Cada llamada se controla y se factura por separado. Por defecto 5.",
           "responseSectionTitle": "Formato de respuesta",
           "responseSectionSubtitle": "Cómo debe estructurar la salida",
           "responseText": "Texto plano",

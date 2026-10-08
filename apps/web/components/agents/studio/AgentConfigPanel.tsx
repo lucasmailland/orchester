@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { Bot, Workflow, Sparkles, Plus, Trash2, Wrench } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import {
+  DEFAULT_MAX_TOOL_CALLS,
+  MIN_MAX_TOOL_CALLS,
+  MAX_MAX_TOOL_CALLS,
+} from "@/lib/agents/tool-call-cap";
 
 interface FlowOption {
   id: string;
@@ -30,6 +35,7 @@ export interface AgentConfigState {
   avatarUrl: string;
   color: string;
   maxTurns: number;
+  maxToolCalls: number;
   responseFormat: "text" | "json" | "markdown";
   outputSchema: string; // JSON string for editing
 }
@@ -177,6 +183,32 @@ export function AgentConfigPanel({ value, onChange }: Props) {
               ))}
             </div>
           )}
+          <div className="mt-4">
+            <label
+              htmlFor="max-tool-calls"
+              className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted"
+            >
+              {t("maxToolCallsLabel")}
+            </label>
+            <input
+              id="max-tool-calls"
+              type="number"
+              min={MIN_MAX_TOOL_CALLS}
+              max={MAX_MAX_TOOL_CALLS}
+              step={1}
+              value={value.maxToolCalls}
+              onChange={(e) => {
+                const n = Math.trunc(Number(e.target.value));
+                onChange({
+                  maxToolCalls: Number.isFinite(n)
+                    ? Math.min(Math.max(n, MIN_MAX_TOOL_CALLS), MAX_MAX_TOOL_CALLS)
+                    : DEFAULT_MAX_TOOL_CALLS,
+                });
+              }}
+              className="w-32 rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-sm text-strong outline-none focus:border-violet-500/60"
+            />
+            <p className="mt-1 text-[10px] text-faint">{t("maxToolCallsHint")}</p>
+          </div>
         </Section>
       )}
 

@@ -6,6 +6,7 @@ import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { updateAgentSchema } from "@/lib/agents/schemas";
 import { deleteAgent } from "@/lib/agents/admin-service";
+import { mergeAgentConfig } from "@/lib/agents/tool-call-cap";
 import { adminErrorResponse } from "@/lib/workspace-admin";
 import { unknownKbIds, withAgentKbIds } from "@/lib/agents/knowledge-bases";
 import { logAudit } from "@/lib/audit";
@@ -52,11 +53,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     avatarUrl,
     color,
     maxTurns,
+    maxToolCalls,
     responseFormat,
     outputSchema,
   } = parsed.data;
 
   const db = getDb();
+  // `config` is shared by several settings (knowledge bases, tool-call cap):
+  // each one is merged into the stored object instead of replacing it.
   let config: Record<string, unknown> | undefined;
   if (knowledgeBaseIds !== undefined) {
     const unknown = await unknownKbIds(ctx.workspace.id, knowledgeBaseIds);
@@ -65,13 +69,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         { error: `Unknown knowledge bases: ${unknown.join(", ")}` },
         { status: 400 }
       );
+  }
+  if (knowledgeBaseIds !== undefined || maxToolCalls !== undefined) {
     const [current] = await db
       .select({ config: schema.agents.config })
       .from(schema.agents)
       .where(and(eq(schema.agents.id, id), eq(schema.agents.workspaceId, ctx.workspace.id)))
       .limit(1);
     if (!current) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    config = withAgentKbIds(current.config, knowledgeBaseIds);
+    let next: Record<string, unknown> | unknown = current.config;
+    if (knowledgeBaseIds !== undefined) next = withAgentKbIds(next, knowledgeBaseIds);
+    if (maxToolCalls !== undefined) next = mergeAgentConfig(next, { maxToolCalls });
+    config = next as Record<string, unknown>;
   }
   const updated = await db
     .update(schema.agents)

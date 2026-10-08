@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { maxToolCallsSchema } from "./tool-call-cap";
 
 /**
  * Body accepted by PATCH /api/agents/[id].
@@ -27,6 +28,8 @@ export const updateAgentSchema = z.object({
   avatarUrl: z.string().nullable().optional(),
   color: z.string().optional(),
   maxTurns: z.number().optional(),
+  // Stored in `config.maxToolCalls`, merged by the services; 1-15, default 5.
+  maxToolCalls: maxToolCallsSchema.optional(),
   responseFormat: z.enum(["text", "json", "markdown"]).optional(),
   // outputSchema es un JSON Schema arbitrario definido por el usuario.
   // Nullable because null is what GET returns for an agent without one, and

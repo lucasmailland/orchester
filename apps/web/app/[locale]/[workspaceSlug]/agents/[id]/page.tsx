@@ -44,6 +44,7 @@ export default async function AgentStudioPage({
         avatarUrl: agent.avatarUrl,
         color: agent.color,
         maxTurns: agent.maxTurns,
+        config: agent.config,
         responseFormat: agent.responseFormat,
         outputSchema: agent.outputSchema,
       }}

@@ -2,6 +2,7 @@ import "server-only";
 import { schema } from "@orchester/db";
 import { and, eq } from "drizzle-orm";
 import { updateAgentSchema } from "./schemas";
+import { mergeAgentConfig } from "./tool-call-cap";
 import { agentDeleteBlockers, agentBlockersMessage } from "./delete-impact";
 import { unknownKbIds, withAgentKbIds } from "./knowledge-bases";
 import { requireTeam } from "@/lib/teams/service";
@@ -26,6 +27,7 @@ export const agentAdminPatchSchema = updateAgentSchema
     knowledgeBaseIds: true,
     temperature: true,
     maxTokens: true,
+    maxToolCalls: true,
   })
   .partial();
 
@@ -59,16 +61,20 @@ export async function updateAgent(actor: AdminActor, id: string, input: Record<s
       if (unknown.length)
         throw new AdminError(`Unknown knowledge bases: ${unknown.join(", ")}`, 400);
     }
-    const { temperature, knowledgeBaseIds, ...fields } = data;
+    const { temperature, knowledgeBaseIds, maxToolCalls, ...fields } = data;
+    // Merged, not replaced: `config` carries keys owned by several features, and
+    // both may change in the same update.
+    let nextConfig: unknown = current.config;
+    if (knowledgeBaseIds !== undefined) nextConfig = withAgentKbIds(nextConfig, knowledgeBaseIds);
+    if (maxToolCalls !== undefined) nextConfig = mergeAgentConfig(nextConfig, { maxToolCalls });
+    const configChanged = knowledgeBaseIds !== undefined || maxToolCalls !== undefined;
     const [agent] = await tx
       .update(schema.agents)
       .set({
         ...fields,
         ...(data.systemPrompt !== undefined && { systemPrompt: data.systemPrompt.trim() }),
         ...(data.teamId !== undefined && { teamId: data.teamId || null }),
-        ...(knowledgeBaseIds !== undefined && {
-          config: withAgentKbIds(current.config, knowledgeBaseIds),
-        }),
+        ...(configChanged && { config: nextConfig as Record<string, unknown> }),
         ...(temperature !== undefined && { temperature: String(temperature) }),
         updatedAt: new Date(),
       })

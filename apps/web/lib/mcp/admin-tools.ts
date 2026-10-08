@@ -118,6 +118,13 @@ export const ADMIN_TOOLS: McpToolDef[] = [
         },
         temperature: { type: ["number", "string"] },
         maxTokens: { type: "number" },
+        maxToolCalls: {
+          type: "integer",
+          minimum: 1,
+          maximum: 15,
+          description:
+            "Max model calls per turn while the agent uses tools. Default 5; merged into config.",
+        },
       },
       required: ["agentId"],
     },

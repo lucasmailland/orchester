@@ -804,6 +804,8 @@
           "deleteStarterAria": "Delete suggestion {n}",
           "noStarters": "No suggestions",
           "maxTurnsLabel": "Max turns (ends the chat after N exchanges)",
+          "maxToolCallsLabel": "Max model calls per turn (tools loop)",
+          "maxToolCallsHint": "1 to 15. Each call is guarded and billed on its own. Default 5.",
           "responseSectionTitle": "Response format",
           "responseSectionSubtitle": "How it should structure the output",
           "responseText": "Plain text",

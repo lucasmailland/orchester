@@ -49,6 +49,7 @@ export async function withFlowTx<T>(workspaceId: string, fn: (tx: WsDb) => Promi
 export { FLOW_NODE_TYPES, type FlowNodeType } from "./flows/node-types";
 import type { FlowNodeType } from "./flows/node-types";
 import { assertCodeExecutionAllowed } from "@/lib/flows/code-execution";
+import { resolveMaxToolCalls } from "@/lib/agents/tool-call-cap";
 
 export interface FlowNode {
   id: string;
@@ -870,8 +871,8 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     ).filter((t) => t.name !== "agent_handoff");
     const systemPrompt = agent.systemPrompt + (tools.length > 0 ? UNTRUSTED_CONTENT_GUARDRAIL : "");
     const messages: ChatMessage[] = [{ role: "user", content: userMessage }];
-    // Mirror channels/router.ts runConversationalTurn's safetyCounter < 5.
-    const maxSteps = tools.length > 0 ? 5 : 1;
+    // Same per-agent cap as channels/router.ts and agent-runtime.ts (default 5).
+    const maxSteps = tools.length > 0 ? resolveMaxToolCalls(agent.config) : 1;
     const { assertWithinSpend } = await import("./cost-alerts");
     const { recordAiUsage, chargeFor } = await import("./ai/run");
     let content = "";

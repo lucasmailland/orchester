@@ -65,6 +65,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         tools: agent.tools,
         responseFormat: agent.responseFormat,
         maxTurns: agent.maxTurns,
+        config: agent.config,
       },
       messages,
       overrides,

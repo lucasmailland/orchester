@@ -1,5 +1,6 @@
 "use client";
 
+import { resolveMaxToolCalls } from "@/lib/agents/tool-call-cap";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Save, Loader2, Workflow as WorkflowIcon } from "lucide-react";
@@ -37,6 +38,7 @@ interface AgentDTO {
   avatarUrl: string | null;
   color: string | null;
   maxTurns: number | null;
+  config?: Record<string, unknown> | null;
   responseFormat: "text" | "json" | "markdown";
   outputSchema: Record<string, unknown> | null;
 }
@@ -69,6 +71,7 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
     avatarUrl: agent.avatarUrl ?? "",
     color: agent.color ?? "#8b5cf6",
     maxTurns: agent.maxTurns ?? 20,
+    maxToolCalls: resolveMaxToolCalls(agent.config),
     responseFormat: agent.responseFormat,
     outputSchema: agent.outputSchema ? JSON.stringify(agent.outputSchema, null, 2) : "",
   });
@@ -114,6 +117,7 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
         avatarUrl: config.avatarUrl,
         color: config.color,
         maxTurns: config.maxTurns,
+        maxToolCalls: config.maxToolCalls,
         responseFormat: config.responseFormat,
         outputSchema: parsedOutputSchema,
       }),

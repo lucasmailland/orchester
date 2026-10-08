@@ -804,6 +804,8 @@
           "deleteStarterAria": "Excluir sugestão {n}",
           "noStarters": "Sem sugestões",
           "maxTurnsLabel": "Máximo de turnos (encerra o chat após N trocas)",
+          "maxToolCallsLabel": "Máximo de chamadas ao modelo por turno (loop de tools)",
+          "maxToolCallsHint": "De 1 a 15. Cada chamada é controlada e cobrada separadamente. Padrão 5.",
           "responseSectionTitle": "Formato da resposta",
           "responseSectionSubtitle": "Como deve estruturar a saída",
           "responseText": "Texto puro",

@@ -22,4 +22,13 @@ describe("updateAgentSchema", () => {
   it("still requires name and role", () => {
     expect(updateAgentSchema.safeParse({ model: "x" }).success).toBe(false);
   });
+
+  it("accepts maxToolCalls from 1 to 15", () => {
+    for (const n of [1, 5, 15])
+      expect(updateAgentSchema.safeParse({ ...base, maxToolCalls: n }).success).toBe(true);
+  });
+
+  it.each([0, 16, 2.5, "8", null, -1])("rejects maxToolCalls %j", (n) => {
+    expect(updateAgentSchema.safeParse({ ...base, maxToolCalls: n }).success).toBe(false);
+  });
 });

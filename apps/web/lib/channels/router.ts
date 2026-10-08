@@ -60,6 +60,7 @@ type WsTx = Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 // file is untouched.
 import { withWorkspaceTx } from "@/lib/tenant/context";
 import { allowsPassiveMemoryRecall } from "@/lib/channels/public-channels";
+import { resolveMaxToolCalls } from "@/lib/agents/tool-call-cap";
 
 /**
  * Contexto resuelto para una conversación conversacional lista para invocar LLM.
@@ -495,7 +496,10 @@ async function runConversationalTurn(
   let tokens = 0;
   let safetyCounter = 0;
   let handoffCount = 0; // protege contra ping-pong infinito entre agentes
-  while (safetyCounter < 5) {
+  // Per-agent cap (default 5). Fixed by the agent that opened the turn: a handoff
+  // changes who answers, not how long this turn may run.
+  const maxModelCalls = resolveMaxToolCalls(agent.config);
+  while (safetyCounter < maxModelCalls) {
     safetyCounter++;
     // Spend cap / kill-switch (E1-1/E3-1): aplica también al chat entrante.
     // El bypass de este check fue el principal hallazgo de la meta-auditoría.

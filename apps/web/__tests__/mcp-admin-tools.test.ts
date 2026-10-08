@@ -231,6 +231,47 @@ describe("workspace administration over MCP", () => {
       expect(state.writes).toHaveLength(0);
     }
   );
+  it("update_agent sets maxToolCalls inside config, keeping the other config keys", async () => {
+    state.rows.set("agent", [{ ...agent, config: { knowledgeBaseIds: ["kb1"], note: "x" } }]);
+    const r = await call("update_agent", { agentId: "a1", maxToolCalls: 8 });
+    expect(r.isError, r.content[0]?.text).toBeFalsy();
+    expect(state.writes[0]?.data).toEqual({
+      config: { knowledgeBaseIds: ["kb1"], note: "x", maxToolCalls: 8 },
+      updatedAt: expect.any(Date),
+    });
+    expect(state.writes[0]?.data).not.toHaveProperty("maxToolCalls");
+  });
+  it("update_agent applies knowledge bases and maxToolCalls together without one dropping the other", async () => {
+    // Both settings live in `config`; merging each from the stored value would
+    // let the second overwrite the first.
+    state.rows.set("agent", [{ ...agent, config: { keep: true } }]);
+    state.rows.set("knowledge_base", [{ id: "kb1", name: "IT" }]);
+    const r = await call("update_agent", {
+      agentId: "a1",
+      knowledgeBaseIds: ["kb1"],
+      maxToolCalls: 9,
+    });
+    expect(r.isError, r.content[0]?.text).toBeFalsy();
+    expect(state.writes.at(-1)?.data?.config).toEqual({
+      keep: true,
+      knowledgeBaseIds: ["kb1"],
+      maxToolCalls: 9,
+    });
+  });
+  it("update_agent creates config when the agent has none", async () => {
+    state.rows.set("agent", [{ ...agent, config: null }]);
+    await call("update_agent", { agentId: "a1", maxToolCalls: 15 });
+    expect(state.writes[0]?.data?.config).toEqual({ maxToolCalls: 15 });
+  });
+  it("update_agent leaves config alone when maxToolCalls is not sent", async () => {
+    await call("update_agent", { agentId: "a1", teamId: "t1" });
+    expect(state.writes[0]?.data).not.toHaveProperty("config");
+  });
+  it.each([0, 16, 2.5, "8", null, -1])("update_agent rejects maxToolCalls %j", async (value) => {
+    const r = await call("update_agent", { agentId: "a1", maxToolCalls: value });
+    expect(r.isError).toBe(true);
+    expect(state.writes).toHaveLength(0);
+  });
   it("update_team is partial", async () => {
     const r = await call("update_team", { teamId: "t1", description: "Changed" });
     expect(r.isError).toBeFalsy();

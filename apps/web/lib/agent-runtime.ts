@@ -12,6 +12,7 @@ import { executeTool, resolveToolDefinitions, type ToolCall } from "./tools";
 import { assertWithinSpend } from "./cost-alerts";
 import { recordAiUsage } from "./ai/run";
 import { calculateChatCostUsd } from "./pricing";
+import { resolveMaxToolCalls } from "./agents/tool-call-cap";
 import { safeLogError } from "./safe-log";
 import { FlowDisabledError } from "./flows/run-gate";
 import { getAgentMemoryPolicy, type AgentMemoryPolicy } from "./policy/agent-memory";
@@ -61,6 +62,8 @@ export interface RunAgentParams {
     /** Schema opcional (almacenado como JSON) para validar la salida JSON (L4). */
     outputSchema?: Record<string, unknown> | null;
     maxTurns: number | null;
+    /** Free-form per-agent settings; `maxToolCalls` caps the tool loop. */
+    config?: Record<string, unknown> | null;
   };
   messages: ChatMessage[];
   /** Override for the live test chat where the user is editing the prompt unsaved. */
@@ -520,7 +523,8 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
   const toolCalls: RunAgentResult["toolCalls"] = [];
   let messages = [...p.messages];
   let totalTokens = 0;
-  const maxToolIterations = Math.min(5, p.agent.maxTurns ?? 5);
+  const toolCallCap = resolveMaxToolCalls(p.agent.config);
+  const maxToolIterations = Math.min(toolCallCap, p.agent.maxTurns ?? toolCallCap);
 
   for (let i = 0; i < maxToolIterations; i++) {
     const callOpts: Parameters<typeof llmCall>[0] = {
