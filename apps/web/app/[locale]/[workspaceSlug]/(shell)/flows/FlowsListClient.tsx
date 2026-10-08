@@ -21,7 +21,7 @@
 import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { Workflow, Plus, KeyRound, BookOpenText, MoreVertical, Trash2 } from "lucide-react";
+import { Workflow, Bot, Plus, KeyRound, BookOpenText, MoreVertical, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/react";
 
@@ -57,6 +57,10 @@ interface Item {
   status: FlowStatus;
   nodeCount: number;
   lastRunAt: string | null;
+  /** Steps that call a model. Optional so older callers keep working. */
+  aiStepCount?: number;
+  /** A sub-flow call reaches AI even when this flow has none itself. */
+  aiViaSubflow?: boolean;
 }
 
 const STATUS_BADGE_CLASSES: Record<FlowStatus, string> = {
@@ -281,6 +285,17 @@ export function FlowsListClient({ flows: initialFlows }: { flows: Item[] }) {
                           <span className="truncate font-medium text-strong">{f.name}</span>
                         </div>
                         <p className="line-clamp-2 text-xs text-muted">{f.description ?? "—"}</p>
+                        {(f.aiStepCount ?? 0) > 0 || f.aiViaSubflow ? (
+                          <p
+                            data-testid="flow-ai-steps"
+                            className="mt-2 inline-flex items-center gap-1 text-[11px] text-violet-700 dark:text-violet-300"
+                          >
+                            <Bot className="h-3 w-3" aria-hidden="true" />
+                            {(f.aiStepCount ?? 0) > 0
+                              ? t("aiSteps", { count: f.aiStepCount ?? 0 })
+                              : t("aiViaSubflow")}
+                          </p>
+                        ) : null}
                         <div className="mt-3 flex items-center justify-between text-[10px] text-faint">
                           <span>{t("nodesLabel", { count: f.nodeCount })}</span>
                           <span

@@ -98,6 +98,29 @@ function pickInput(input: Record<string, unknown>, create = false): FlowInput {
   return parsed.data;
 }
 
+/** Per-node nature plus the flow summary, transitive across the workspace's subflows. */
+async function describeNature(actor: ReturnType<typeof actorOf>, flowId: string, nodes: unknown) {
+  const { nodeNature, summarizeFlowNatureTransitive } = await import("@/lib/flows/node-nature");
+  const list = Array.isArray(nodes) ? (nodes as Array<Record<string, unknown>>) : [];
+  const nodesWithNature = list.map((n) => ({ ...n, nature: nodeNature({ type: String(n.type) }) }));
+  const all = await (await svc()).listFlows(actor);
+  const flows = all.map((f) => ({ id: f.id, nodes: toNatureNodes(f.nodes) }));
+  if (!flows.some((f) => f.id === flowId)) flows.push({ id: flowId, nodes: toNatureNodes(nodes) });
+  return { nodesWithNature, summary: summarizeFlowNatureTransitive(flowId, flows) };
+}
+
+function toNatureNodes(nodes: unknown) {
+  return (Array.isArray(nodes) ? nodes : []).map((n) => {
+    const r = n as Record<string, unknown>;
+    return {
+      id: String(r.id),
+      type: String(r.type),
+      label: typeof r.label === "string" ? r.label : undefined,
+      config: (r.config ?? undefined) as Record<string, unknown> | undefined,
+    };
+  });
+}
+
 export const FLOW_TOOLS: McpToolDef[] = [
   {
     name: "get_flow_delete_impact",
@@ -163,6 +186,8 @@ export const FLOW_TOOLS: McpToolDef[] = [
         variables,
         version,
       } = f;
+      // `nature` is additive: where the AI is (ai | code | human | control).
+      const { nodesWithNature, summary } = await describeNature(actorOf(auth), id, nodes);
       return {
         id,
         name,
@@ -171,10 +196,11 @@ export const FLOW_TOOLS: McpToolDef[] = [
         status,
         enabled,
         trigger,
-        nodes,
+        nodes: nodesWithNature,
         edges,
         variables,
         version,
+        natureSummary: summary,
       };
     },
   },

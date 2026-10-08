@@ -959,6 +959,9 @@
         "deleteClose": "Cerrar",
         "deleteError": "No se pudo eliminar el flujo",
         "flowActions": "Acciones del flujo",
+        "natureAi": "Paso de IA: llama a un modelo",
+        "natureHuman": "Paso humano: espera a una persona",
+        "aiStepsSummary": "Pasos de IA: {ai} de {total}",
         "tidyLayout": "Ordenar los pasos automáticamente",
         "autoLayout": "Layout automático",
         "undo": "Deshacer (Cmd/Ctrl+Z)",
@@ -2335,6 +2338,8 @@
       "firstFlowTip": "Empieza simple: con un disparador y dos o tres pasos ya puedes ver un flujo correr de principio a fin. Lo amplías cuando lo básico funcione.",
       "firstFlowTipTitle": "Consejo para tu primer flujo",
       "nodesLabel": "{count, plural, one {# paso} other {# pasos}}",
+      "aiSteps": "{count, plural, one {# paso de IA} other {# pasos de IA}}",
+      "aiViaSubflow": "IA mediante subflujo",
       "statusLabel": "Estado",
       "groups": {
         "active": "Activos · {count}",

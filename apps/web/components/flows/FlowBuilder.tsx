@@ -35,6 +35,7 @@ import { NodePalette } from "./NodePalette";
 import { CopilotPanel } from "./CopilotPanel";
 import { toCanvasNode, type StoredNodeDTO } from "./node-mapping";
 import { getNodeDef, type Locale } from "@/lib/flows/node-registry";
+import { nodeNature, summarizeFlowNature } from "@/lib/flows/node-nature";
 import { autoLayout } from "@/lib/flows/layout";
 import { validateFlow, type ValidationIssue } from "@/lib/flows/validate";
 import { buildGraphFromSpec } from "@/lib/flows/copilot-tools";
@@ -57,6 +58,7 @@ import {
   ShieldCheck,
   BookText,
   Trash2,
+  Bot,
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -541,8 +543,16 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
           : st === "running"
             ? "flow-node-running"
             : undefined;
-    return { ...n, ...(cls ? { className: cls } : {}), data: { ...n.data, badge, subtitle } };
+    const nature = nodeNature({ type: String(n.type) });
+    const natureLabel =
+      nature === "ai" ? t("natureAi") : nature === "human" ? t("natureHuman") : undefined;
+    return {
+      ...n,
+      ...(cls ? { className: cls } : {}),
+      data: { ...n.data, badge, subtitle, nature, natureLabel },
+    };
   });
+  const natureSummary = summarizeFlowNature(nodes.map((n) => ({ id: n.id, type: String(n.type) })));
 
   return (
     <ReactFlowProvider>
@@ -557,6 +567,15 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               <ArrowLeft className="h-4 w-4" />
             </button>
             <span className="text-sm font-medium">{flow.name}</span>
+            {natureSummary.total > 0 && (
+              <span
+                data-testid="ai-steps-summary"
+                className="inline-flex items-center gap-1 rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-[11px] text-violet-700 dark:text-violet-300"
+              >
+                <Bot className="h-3 w-3" aria-hidden="true" />
+                {t("aiStepsSummary", { ai: natureSummary.counts.ai, total: natureSummary.total })}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {feedback && <span className="text-[11px] text-muted">{feedback}</span>}
@@ -1270,8 +1289,7 @@ function graphSpec(nodes: Node[], edges: Edge[]): { nodes: unknown[]; edges: unk
   return {
     nodes: nodes.map((n) => {
       const d = n.data as
-        | { nodeId?: string; label?: string; config?: Record<string, unknown> }
-        | undefined;
+        { nodeId?: string; label?: string; config?: Record<string, unknown> } | undefined;
       return {
         id: n.id,
         nodeId: d?.nodeId ?? n.type,

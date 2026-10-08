@@ -959,6 +959,9 @@
         "deleteClose": "Close",
         "deleteError": "Couldn't delete the flow",
         "flowActions": "Flow actions",
+        "natureAi": "AI step: calls a model",
+        "natureHuman": "Human step: waits for a person",
+        "aiStepsSummary": "AI steps: {ai} of {total}",
         "tidyLayout": "Auto-arrange steps",
         "autoLayout": "Auto layout",
         "undo": "Undo (Cmd/Ctrl+Z)",
@@ -2335,6 +2338,8 @@
       "firstFlowTip": "Start small: one trigger and two or three steps is enough to see a flow run end-to-end. You can expand it once the basics work.",
       "firstFlowTipTitle": "Tip for your first flow",
       "nodesLabel": "{count, plural, one {# step} other {# steps}}",
+      "aiSteps": "{count, plural, one {# AI step} other {# AI steps}}",
+      "aiViaSubflow": "AI via sub-flow",
       "statusLabel": "Status",
       "groups": {
         "active": "Active · {count}",

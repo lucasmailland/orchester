@@ -959,6 +959,9 @@
         "deleteClose": "Fechar",
         "deleteError": "Não foi possível excluir o fluxo",
         "flowActions": "Ações do fluxo",
+        "natureAi": "Passo de IA: chama um modelo",
+        "natureHuman": "Passo humano: espera uma pessoa",
+        "aiStepsSummary": "Passos de IA: {ai} de {total}",
         "tidyLayout": "Organizar os passos automaticamente",
         "autoLayout": "Layout automático",
         "undo": "Desfazer (Cmd/Ctrl+Z)",
@@ -2335,6 +2338,8 @@
       "firstFlowTip": "Comece simples: um gatilho e dois ou três passos já bastam para ver um fluxo rodar de ponta a ponta. Você expande depois que o básico estiver funcionando.",
       "firstFlowTipTitle": "Dica para o seu primeiro fluxo",
       "nodesLabel": "{count, plural, one {# passo} other {# passos}}",
+      "aiSteps": "{count, plural, one {# passo de IA} other {# passos de IA}}",
+      "aiViaSubflow": "IA via subfluxo",
       "statusLabel": "Status",
       "groups": {
         "active": "Ativos · {count}",

@@ -75,6 +75,68 @@ describe("flow MCP tools", async () => {
     }
   });
 
+  it("get_flow adds nature per node and a summary, keeping existing fields", async () => {
+    svc.getFlow.mockResolvedValueOnce({
+      id: "f1",
+      name: "One",
+      description: null,
+      spec: "",
+      status: "draft",
+      enabled: false,
+      trigger: "manual",
+      nodes: [
+        { id: "a", type: "llm_prompt", label: "Ask", config: {} },
+        { id: "b", type: "http", label: "Fetch", config: {} },
+        { id: "c", type: "subflow", label: "Sub", config: { flowId: "f9" } },
+      ],
+      edges: [],
+      variables: {},
+      version: 1,
+    } as never);
+    svc.listFlows.mockResolvedValueOnce([
+      { id: "f9", name: "Sub", status: "draft", nodes: [{ id: "x", type: "agent" }], edges: [] },
+    ] as never);
+    const out = JSON.parse(
+      (await call("get_flow", { flowId: "f1" }, ["flows:read"])).content[0]!.text
+    ) as {
+      nodes: Array<{ id: string; nature: string; label: string }>;
+      natureSummary: { counts: { ai: number }; reachesAi: boolean; aiSubflowNodeIds: string[] };
+      version: number;
+    };
+    expect(out.nodes.map((n) => [n.id, n.nature, n.label])).toEqual([
+      ["a", "ai", "Ask"],
+      ["b", "code", "Fetch"],
+      ["c", "code", "Sub"],
+    ]);
+    expect(out.natureSummary.counts.ai).toBe(1);
+    expect(out.natureSummary.aiSubflowNodeIds).toEqual(["c"]);
+    expect(out.version).toBe(1);
+  });
+
+  it("list_flows adds the AI step count", async () => {
+    svc.listFlows.mockResolvedValueOnce([
+      {
+        id: "f1",
+        name: "One",
+        status: "draft",
+        nodes: [
+          { id: "a", type: "agent" },
+          { id: "b", type: "http" },
+        ],
+        edges: [],
+      },
+    ] as never);
+    const out = JSON.parse((await call("list_flows", {}, ["flows:read"])).content[0]!.text) as {
+      flows: Array<{ id: string; ai: { steps: number; of: number; viaSubflow: boolean } }>;
+    };
+    expect(out.flows[0]).toMatchObject({
+      id: "f1",
+      name: "One",
+      status: "draft",
+      ai: { steps: 1, of: 2, viaSubflow: false },
+    });
+  });
+
   it.each([["readonly"], ["agents:read"], ["agents:write"], ["flows:read"]])(
     "write tools refuse a key with only %s",
     async (scope) => {

@@ -1,11 +1,14 @@
 "use client";
 import { Handle, Position } from "@xyflow/react";
-import type { LucideIcon } from "lucide-react";
+import { Bot, User, type LucideIcon } from "lucide-react";
 
 interface NodeData {
   label: string;
   subtitle?: string | undefined;
   badge?: string | null | undefined;
+  /** Design-time nature of the step; only `ai` and `human` get a mark. */
+  nature?: "ai" | "code" | "human" | "control" | undefined;
+  natureLabel?: string | undefined;
 }
 
 export function SimpleNode({
@@ -32,6 +35,24 @@ export function SimpleNode({
           title={data.badge}
         >
           !
+        </div>
+      )}
+      {(data.nature === "ai" || data.nature === "human") && (
+        <div
+          data-testid={`nature-badge-${data.nature}`}
+          title={data.natureLabel}
+          aria-label={data.natureLabel}
+          className={
+            data.nature === "ai"
+              ? "absolute -left-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-violet-600 text-white shadow"
+              : "absolute -left-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-sky-600 text-white shadow"
+          }
+        >
+          {data.nature === "ai" ? (
+            <Bot className="h-3 w-3" aria-hidden="true" />
+          ) : (
+            <User className="h-3 w-3" aria-hidden="true" />
+          )}
         </div>
       )}
       {showTargetHandle && <Handle type="target" position={Position.Left} />}

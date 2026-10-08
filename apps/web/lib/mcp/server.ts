@@ -254,7 +254,31 @@ const TOOLS: McpToolDef[] = [
     async handler(_input, auth) {
       const { listFlows } = await import("@/lib/flows/service");
       const rows = await listFlows(actorOf(auth));
-      return { flows: rows.map(({ id, name, status }) => ({ id, name, status })) };
+      const { summarizeFlowNatureTransitive } = await import("@/lib/flows/node-nature");
+      const graphs = rows.map((r) => ({
+        id: r.id,
+        nodes: ((r.nodes as unknown[] | null) ?? []).map((n) => {
+          const x = n as {
+            id: string;
+            type: string;
+            label?: string;
+            config?: Record<string, unknown>;
+          };
+          return { id: x.id, type: x.type, label: x.label, config: x.config };
+        }),
+      }));
+      return {
+        flows: rows.map(({ id, name, status }) => {
+          const s = summarizeFlowNatureTransitive(id, graphs);
+          // `ai` is additive: how many steps call a model, and whether a subflow reaches one.
+          return {
+            id,
+            name,
+            status,
+            ai: { steps: s.counts.ai, of: s.total, viaSubflow: s.aiSubflowNodeIds.length > 0 },
+          };
+        }),
+      };
     },
   },
   {

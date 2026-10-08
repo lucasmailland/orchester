@@ -65,3 +65,27 @@ describe("FlowsListClient delete", () => {
     expect(screen.getByText("Flow B")).toBeInTheDocument();
   });
 });
+
+describe("FlowsListClient AI steps", () => {
+  const renderList = (list: Array<(typeof flows)[number] & Record<string, unknown>>) =>
+    render(
+      <NextIntlClientProvider locale="en" messages={messages as unknown as AbstractIntlMessages}>
+        <FlowsListClient flows={list} />
+      </NextIntlClientProvider>
+    );
+
+  it("shows the AI step count on a card, and nothing when there are none", () => {
+    renderList([
+      { ...flows[0]!, aiStepCount: 2 },
+      { ...flows[1]!, aiStepCount: 0 },
+    ]);
+    const marks = screen.getAllByTestId("flow-ai-steps");
+    expect(marks).toHaveLength(1);
+    expect(marks[0]).toHaveTextContent("2 AI steps");
+  });
+
+  it("flags AI reached through a sub-flow", () => {
+    renderList([{ ...flows[0]!, aiStepCount: 0, aiViaSubflow: true }]);
+    expect(screen.getByTestId("flow-ai-steps")).toHaveTextContent("AI via sub-flow");
+  });
+});
