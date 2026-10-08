@@ -90,3 +90,38 @@ describe("subflow: recursion guard", () => {
     expect(r.status).toBe("succeeded");
   });
 });
+
+describe("subflow: recursion guard across an approval", () => {
+  it("still refuses A: trigger -> wait_human -> subflow(A) after the approval", async () => {
+    const graph = [
+      trigger,
+      node("w", "wait_human", { instructions: "ok?" }),
+      callerGraph("flow_test")[1]!,
+    ];
+    const edges = [
+      edge("t", "w"),
+      { id: "w-sub", source: "w", target: "sub", sourceHandle: "aprobado" },
+    ];
+    state.flowQueue = [];
+    const paused = await runFlowGraph(graph, edges);
+    expect(paused.status).toBe("paused");
+    const saved = state.runUpdates.at(-1)?.pausedVariables as Record<string, unknown>;
+    expect(saved).toBeDefined();
+
+    state.runUpdates = [];
+    const { resumePausedFlow } = await import("../lib/flow-engine");
+    state.flow = { ...state.flow, nodes: graph, edges };
+    const r = await resumePausedFlow({
+      runId: paused.runId,
+      workspaceId: "ws_test",
+      flowId: "flow_test",
+      fromNodeId: "w",
+      variables: saved,
+      decision: "aprobado",
+    });
+    expect(r.status).toBe("failed");
+    expect(String(state.runUpdates.at(-1)?.error)).toContain("cycle refused");
+    // The reserved key never reaches the flow's own variables.
+    expect(state.runUpdates.at(-1)?.output ?? {}).not.toHaveProperty("_callChain");
+  });
+});

@@ -532,7 +532,7 @@ export async function executeFlow({
           .set({
             status: "paused",
             pausedNodeId: e.nodeId,
-            pausedVariables: redactToolImages(ctx.variables),
+            pausedVariables: pausedSnapshot(ctx),
             pausedAt: new Date(),
             approvalToken: token,
           })
@@ -583,6 +583,34 @@ export async function executeFlow({
 }
 
 /**
+ * Reserved key inside `pausedVariables` that carries the subflow call chain of the paused run.
+ * The recursion guard must survive the pause: without it `A: wait_human -> subflow(A)` starts
+ * a fresh chain after the approval and loops. It lives in the existing jsonb so no migration
+ * is needed. It is always (re)written from the trusted `ctx.callChain`, overwriting anything a
+ * caller put under that name in the run input, and removed again before the flow sees the bag.
+ */
+const PAUSED_CALL_CHAIN_KEY = "_callChain";
+
+function pausedSnapshot(ctx: RunContext): Record<string, unknown> {
+  return {
+    ...redactToolImages(ctx.variables),
+    [PAUSED_CALL_CHAIN_KEY]: [...(ctx.callChain ?? [])],
+  };
+}
+
+/** Splits the saved bag into the flow's variables and the trusted call chain (with `flowId`). */
+function restorePausedState(
+  saved: Record<string, unknown>,
+  flowId: string
+): { variables: Record<string, unknown>; callChain: string[] } {
+  const { [PAUSED_CALL_CHAIN_KEY]: rawChain, ...variables } = saved;
+  const chain = Array.isArray(rawChain)
+    ? rawChain.filter((x): x is string => typeof x === "string")
+    : [];
+  return { variables, callChain: chain.includes(flowId) ? chain : [...chain, flowId] };
+}
+
+/**
  * Continues a run paused at a `wait_human`, from that node's outgoing edges.
  *
  * The decision selects the path: `wait_human` branches like a `condition`,
@@ -624,10 +652,12 @@ export async function resumePausedFlow({
   const db = getDb();
   const nodes = (flow.nodes ?? []) as FlowNode[];
   const edges = (flow.edges ?? []) as FlowEdge[];
+  const restored = restorePausedState(variables, flowId);
   const ctx: RunContext = {
-    variables: { ...variables, _decision: decision },
+    variables: { ...restored.variables, _decision: decision },
     output: {},
     ...(dryRun ? { dryRun: true } : {}),
+    callChain: restored.callChain,
   };
 
   const outgoingEdges = edges.filter(
@@ -666,7 +696,7 @@ export async function resumePausedFlow({
           .set({
             status: "paused",
             pausedNodeId: e.nodeId,
-            pausedVariables: redactToolImages(ctx.variables),
+            pausedVariables: pausedSnapshot(ctx),
             pausedAt: new Date(),
             approvalToken: token,
           })
