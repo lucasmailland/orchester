@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { BookText, X } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { Markdown } from "@/components/ui/Markdown";
 
 /**
  * Documentación del flujo en markdown: qué hace, qué lo dispara y qué pasa si
- * falla. La vista previa arma nodos de React con un subconjunto seguro de
- * markdown (títulos, viñetas, párrafos): nunca inyecta HTML, así que un texto
- * pegado de cualquier lado no puede ejecutar nada.
+ * falla. La vista previa usa el componente Markdown compartido, que nunca
+ * renderiza HTML crudo, así que un texto pegado de cualquier lado no puede
+ * ejecutar nada.
  */
 
 export const SPEC_TEMPLATE = [
@@ -25,33 +26,6 @@ export const SPEC_TEMPLATE = [
   "## Dependencies",
   "",
 ].join("\n");
-
-function Preview({ text }: { text: string }) {
-  const blocks = text.split("\n");
-  return (
-    <div className="space-y-1 text-xs text-body">
-      {blocks.map((line, i) => {
-        const h = /^(#{1,3})\s+(.*)$/.exec(line);
-        if (h) {
-          const Tag = `h${h[1]!.length + 2}` as "h3" | "h4" | "h5";
-          return (
-            <Tag key={i} className="mt-2 font-semibold text-strong">
-              {h[2]}
-            </Tag>
-          );
-        }
-        const li = /^\s*[-*]\s+(.*)$/.exec(line);
-        if (li)
-          return (
-            <li key={i} className="ml-4 list-disc">
-              {li[1]}
-            </li>
-          );
-        return line.trim() ? <p key={i}>{line}</p> : null;
-      })}
-    </div>
-  );
-}
 
 export function FlowDocsPanel({
   spec,
@@ -113,7 +87,7 @@ export function FlowDocsPanel({
             className="h-full min-h-[400px] w-full resize-none rounded-lg border border-line bg-elevated p-2 font-mono text-xs text-strong outline-none focus:border-violet-500/60"
           />
         ) : (
-          <Preview text={spec} />
+          <Markdown content={spec} className="text-xs text-body" />
         )}
       </div>
     </aside>

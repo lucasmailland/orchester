@@ -1,5 +1,6 @@
 "use client";
 
+import { Markdown } from "@/components/ui/Markdown";
 import { useCallback, useEffect, useId, useState } from "react";
 import {
   Search,
@@ -740,7 +741,7 @@ function ConversationDrawer({
                     <DollarSign className="h-2.5 w-2.5" /> {t("drawer.budgetExceeded")}
                   </div>
                 )}
-                <div className="whitespace-pre-wrap">{m.content}</div>
+                <Markdown content={m.content} />
                 {/* Footer: tokens + cost + model. Only on agent messages that actually
                     consumed LLM (budget_exceeded shown via red banner). */}
                 {m.role === "assistant" && !m.fromOperator && (m.tokensUsed ?? 0) > 0 && (

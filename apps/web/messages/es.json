@@ -833,6 +833,8 @@
         },
         "promptEditor": {
           "templates": "Plantillas",
+          "preview": "Vista previa",
+          "edit": "Editar",
           "generate": "Generar con IA",
           "placeholder": "Escribí el system prompt del agente o usá el generador con IA…",
           "chars": "{n} chars",
