@@ -12,12 +12,22 @@ import type { ValidationIssue } from "./validate";
 import type { ExternalCaller, FlowKind } from "./kind";
 import { storedActionIssues } from "./action-guard";
 import {
+  buildExtraction,
+  extractionBlockMessage,
+  extractionSpec,
+  planExtraction,
+  type ExtractionBlock,
+  type ExtractionMeta,
+  type ExtractionPlan,
+} from "./extract";
+import {
   canonicalGroups,
   flowGroupsSchema,
   groupIssues,
   normalizeFlowGroups,
   pruneFlowGroups,
   type FlowGroup,
+  type FlowGroupIcon,
 } from "./groups";
 
 /**
@@ -320,6 +330,133 @@ export async function updateFlow(
     return { flow, warnings };
   });
   await auditUser(actor, "flow.update", result.flow);
+  return result;
+}
+
+/** What to extract: a group, or steps; the new flow's name and looks default to the group's. */
+export interface ExtractInput {
+  groupId?: string | undefined;
+  nodeIds?: string[] | undefined;
+  name?: string | undefined;
+  description?: string | undefined;
+  icon?: FlowGroupIcon | undefined;
+}
+
+export type ExtractionPreview =
+  | { ok: true; plan: ExtractionPlan }
+  | { ok: false; blocks: ExtractionBlock[]; issues: ValidationIssue[] };
+
+const blockIssues = (blocks: ExtractionBlock[]): ValidationIssue[] =>
+  blocks.map((b) => ({
+    level: "error" as const,
+    ...(b.nodeId ? { nodeId: b.nodeId } : {}),
+    message: extractionBlockMessage(b),
+  }));
+
+function planFor(flow: Flow, input: ExtractInput) {
+  return planExtraction(
+    flow,
+    input.groupId !== undefined ? { groupId: input.groupId } : { nodeIds: input.nodeIds ?? [] }
+  );
+}
+
+/** Plans an extraction on the stored flow without writing anything. */
+export function previewExtraction(
+  actor: FlowActor,
+  flowId: string,
+  input: ExtractInput
+): Promise<ExtractionPreview> {
+  return withRepo(actor, async (repo) => {
+    const flow = await requireFlow(repo, actor, flowId);
+    const planned = planFor(flow, input);
+    return planned.ok
+      ? planned
+      : { ok: false, blocks: planned.blocks, issues: blockIssues(planned.blocks) };
+  });
+}
+
+/**
+ * Moves a block of steps into a new flow and calls it from where the block
+ * was, in one transaction: the new flow is inserted, the parent's current
+ * state is saved as a version (so the extraction can be restored), and the
+ * parent is updated with one `subflow` step in place of the block.
+ *
+ * The new flow is created enabled and active: a disabled flow refuses calls
+ * from other flows, so a disabled one would break every automated run of the
+ * parent. Its kind is `action` when the block passes the action contract.
+ */
+export async function extractToFlow(
+  actor: FlowActor,
+  flowId: string,
+  input: ExtractInput
+): Promise<{ plan: ExtractionPlan; child: Flow; parent: Flow }> {
+  const quota = await checkQuota(actor.workspaceId, "flows");
+  if (!quota.allowed) {
+    throw new FlowServiceError("quota", quota.reason ?? "Flow quota exceeded for your plan");
+  }
+  const result = await withRepo(actor, async (repo) => {
+    const current = await requireFlow(repo, actor, flowId);
+    const planned = planFor(current, input);
+    if (!planned.ok) {
+      throw new FlowServiceError(
+        "invalid",
+        "These steps cannot be extracted",
+        blockIssues(planned.blocks)
+      );
+    }
+    const { plan } = planned;
+    const group = plan.sourceGroupId
+      ? normalizeFlowGroups(current.groups).find((g) => g.id === plan.sourceGroupId)
+      : undefined;
+    const name = input.name?.trim() || group?.name;
+    if (!name) {
+      throw new FlowServiceError("invalid", "Give the new flow a name", [
+        { level: "error", message: "name is required when extracting steps that are not a group" },
+      ]);
+    }
+    const description = input.description?.trim() || group?.description;
+    const icon = input.icon ?? group?.icon;
+    const meta: ExtractionMeta = {
+      name,
+      ...(description ? { description } : {}),
+      ...(icon ? { icon } : {}),
+    };
+    const childId = createId();
+    const { parent, child } = buildExtraction(current, plan, meta, {
+      childFlowId: childId,
+      subflowNodeId: createId(),
+    });
+    const childFlow = await repo.insertFlow({
+      id: childId,
+      workspaceId: actor.workspaceId,
+      name,
+      description: description ?? null,
+      spec: extractionSpec(plan, meta, current.name),
+      nodes: child.nodes as never,
+      edges: child.edges as never,
+      variables: {},
+      kind: plan.kind,
+      externalCallers: [],
+      groups: child.groups,
+      enabled: true,
+      status: "active",
+    });
+    if (!childFlow) throw new FlowServiceError("internal", "Insert failed");
+    const version = await repo.snapshotFlow(current, actor.workspaceId, quienCambio(actor));
+    const updated = await repo.updateFlow(flowId, actor.workspaceId, {
+      version,
+      nodes: parent.nodes as never,
+      edges: parent.edges as never,
+      groups: parent.groups,
+      updatedAt: new Date(),
+    });
+    if (!updated) throw notFound("Flow");
+    await auditApiKey(repo, actor, "flow.create", childFlow);
+    await auditApiKey(repo, actor, "flow.update", updated);
+    return { plan, child: childFlow, parent: updated };
+  });
+  await auditUser(actor, "flow.create", result.child);
+  await auditUser(actor, "flow.update", result.parent);
   return result;
 }
 

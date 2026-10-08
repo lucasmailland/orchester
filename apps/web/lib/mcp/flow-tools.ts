@@ -360,6 +360,53 @@ export const FLOW_TOOLS: McpToolDef[] = [
     },
   },
   {
+    name: "extract_to_flow",
+    title: "Extract steps into their own flow",
+    description:
+      "Mueve un grupo de pasos (groupId) o una selección (nodeIds + name) a un flujo nuevo y lo llama desde donde estaba, con un paso subflow, en una sola transacción. Sólo si el bloque se ejecuta igual después: una sola conexión entra y una sola sale, sin el disparador ni wait_human adentro, y todas las ramas se juntan antes de la salida. inputs = variables que el bloque lee de antes; outputs = variables que produce y que los pasos posteriores leen. El flujo nuevo queda habilitado y activo (uno deshabilitado rechaza las llamadas de otros flujos), es action si cumple el contrato y pipeline si no. Guarda una versión del flujo original, así que se puede restaurar. Con preview: true sólo devuelve el plan (o por qué no se puede), sin escribir nada.",
+    access: "write",
+    domain: "flows",
+    inputSchema: {
+      type: "object",
+      properties: {
+        flowId: { type: "string" },
+        groupId: { type: "string", description: "A group of the flow (see get_flow groups)." },
+        nodeIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "Steps to extract, when they are not a group. Needs name.",
+        },
+        name: { type: "string", maxLength: GROUP_NAME_MAX },
+        description: { type: "string", maxLength: GROUP_DESCRIPTION_MAX },
+        icon: { type: "string", enum: [...FLOW_GROUP_ICONS] },
+        preview: { type: "boolean" },
+      },
+      required: ["flowId"],
+    },
+    async handler(input, auth) {
+      const flowId = str(input.flowId, "flowId");
+      const { extractRequestSchema } = await import("@/lib/flows/extract-request");
+      const { flowId: _flowId, ...rest } = input;
+      const parsed = extractRequestSchema.safeParse(rest);
+      if (!parsed.success) {
+        throw new Error(
+          parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
+        );
+      }
+      const { preview, ...request } = parsed.data;
+      const s = await svc();
+      if (preview) return s.previewExtraction(actorOf(auth), flowId, request);
+      return guard(async () => {
+        const { plan, child, parent } = await s.extractToFlow(actorOf(auth), flowId, request);
+        return {
+          childFlow: { id: child.id, name: child.name, kind: child.kind, enabled: child.enabled },
+          parent: { id: parent.id, version: parent.version },
+          plan,
+        };
+      });
+    },
+  },
+  {
     name: "list_flow_versions",
     title: "List flow versions",
     description:

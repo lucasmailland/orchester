@@ -57,6 +57,7 @@ import {
  */
 
 export type ExtractionBlockCode =
+  | "parent_is_action"
   | "empty"
   | "unknown_group"
   | "unknown_step"
@@ -122,6 +123,8 @@ export interface ExtractionGraph {
   nodes: unknown;
   edges: unknown;
   groups?: unknown;
+  /** The parent's kind: an action may not call another flow, so it cannot be split. */
+  kind?: unknown;
 }
 
 const PROTO_KEYS = new Set(["__proto__", "constructor", "prototype"]);
@@ -199,6 +202,10 @@ export function planExtraction(
     blocks.push(b);
   };
   const refuse = (): ExtractionResult => ({ ok: false, blocks });
+  if (graph.kind === "action") {
+    block({ code: "parent_is_action" });
+    return refuse();
+  }
 
   let sourceGroupId: string | null = null;
   let selected: string[];
@@ -622,4 +629,41 @@ export function extractionSpec(plan: ExtractionPlan, meta: ExtractionMeta, paren
     "## Outputs",
     list(plan.outputs, "- Every variable this flow ends with."),
   ].join("\n");
+}
+
+/** Why a block cannot be extracted, in plain English, for API and MCP callers. */
+export function extractionBlockMessage(b: ExtractionBlock): string {
+  const step = b.nodeId ? `"${b.nodeId}"` : "a step";
+  switch (b.code) {
+    case "parent_is_action":
+      return "This flow is an action, and actions cannot call other flows. Make it a pipeline first.";
+    case "empty":
+      return "Choose the steps to extract.";
+    case "unknown_group":
+      return `There is no group "${b.groupId ?? ""}" in this flow.`;
+    case "unknown_step":
+      return `Step ${step} is not in this flow.`;
+    case "trigger_inside":
+      return `Step ${step} is the trigger; it stays in this flow.`;
+    case "wait_human_inside":
+      return `Step ${step} waits for a person; a pause inside a called flow cannot resume this one.`;
+    case "group_split":
+      return `The selection takes only part of group "${b.groupId ?? ""}"; take all of it or none.`;
+    case "entries":
+      return `Exactly one connection must enter the steps; there are ${b.count ?? 0}.`;
+    case "exits":
+      return `Exactly one connection must leave the steps; there are ${b.count ?? 0}.`;
+    case "cycle":
+      return `Step ${step} leads back to itself.`;
+    case "branch_ends":
+      return `A path from step ${step} ends inside the steps instead of reaching the way out.`;
+    case "fan_out":
+      return `Step ${step} continues on several paths at once.`;
+    case "exit_on_branch":
+      return `The way out is taken on only one branch of step ${step}; every branch must rejoin first.`;
+    case "exit_in_branch":
+      return `The way out is inside a try, loop or parallel branch of step ${step}.`;
+    case "unreachable":
+      return `Step ${step} is never reached from where the steps start.`;
+  }
 }

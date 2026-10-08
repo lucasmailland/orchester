@@ -85,6 +85,17 @@ describe("which blocks can be extracted", () => {
     expect(codes(planOf(nodes, edges, ["w", "b"]))).toContain("wait_human_inside");
   });
 
+  it("refuses to split an action: actions cannot call other flows", () => {
+    const r = planExtraction({ ...linear, kind: "action" }, { nodeIds: ["b", "c"] });
+    expect(codes(r)).toEqual(["parent_is_action"]);
+  });
+
+  it("explains every refusal in plain words", async () => {
+    const { extractionBlockMessage } = await import("./extract");
+    expect(extractionBlockMessage({ code: "exits", count: 2 })).toContain("there are 2");
+    expect(extractionBlockMessage({ code: "fan_out", nodeId: "a" })).toContain('"a"');
+  });
+
   it("refuses unknown steps and an unknown group", () => {
     expect(codes(planOf(linear.nodes, linear.edges, ["b", "ghost"]))).toEqual(["unknown_step"]);
     const r = planExtraction(linear, { groupId: "nope" });

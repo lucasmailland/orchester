@@ -32,6 +32,12 @@ const svc = vi.hoisted(() => ({
     { id: "w1", flowId: "f1", hmac: true, createdAt: new Date(0) },
   ]),
   webhookUrl: (s: string) => `https://example.com/api/webhooks/${s}`,
+  previewExtraction: vi.fn(async () => ({ ok: true, plan: { nodeIds: ["a", "b"] } })),
+  extractToFlow: vi.fn(async () => ({
+    plan: { nodeIds: ["a", "b"], inputs: ["x"], outputs: ["y"] },
+    child: { id: "f9", name: "Child", kind: "action", enabled: true, nodes: [{ id: "t" }] },
+    parent: { id: "f1", version: 4, nodes: [] },
+  })),
   FlowServiceError: class extends Error {
     constructor(
       public code: string,
@@ -631,6 +637,65 @@ describe("flow MCP tools", async () => {
       const broken = (await run([{ ...group, nodeIds: ["a", "ghost"] }])).issues;
       expect(broken.length).toBe(without.length + 1);
       expect(broken.some((i) => i.message.includes("ghost"))).toBe(true);
+    });
+  });
+
+  describe("extract_to_flow", () => {
+    it("is a write tool: a read-only key cannot use it", async () => {
+      const r = await call("extract_to_flow", { flowId: "f1", groupId: "g1" }, ["flows:read"]);
+      expect(r.isError).toBe(true);
+      expect(svc.extractToFlow).not.toHaveBeenCalled();
+    });
+
+    it("previews without extracting", async () => {
+      const r = await call("extract_to_flow", { flowId: "f1", groupId: "g1", preview: true });
+      expect(r.isError).toBeFalsy();
+      expect(svc.previewExtraction).toHaveBeenCalledWith(expect.anything(), "f1", {
+        groupId: "g1",
+      });
+      expect(svc.extractToFlow).not.toHaveBeenCalled();
+    });
+
+    it("extracts and returns the new flow, the parent's version and the plan", async () => {
+      const r = await call("extract_to_flow", {
+        flowId: "f1",
+        nodeIds: ["a", "b"],
+        name: "Child",
+        icon: "Globe",
+      });
+      expect(r.isError).toBeFalsy();
+      expect(svc.extractToFlow).toHaveBeenCalledWith(
+        { kind: "apiKey", workspaceId: "ws_a", keyId: "key_1" },
+        "f1",
+        { nodeIds: ["a", "b"], name: "Child", icon: "Globe" }
+      );
+      expect(r.structuredContent).toMatchObject({
+        childFlow: { id: "f9", kind: "action", enabled: true },
+        parent: { id: "f1", version: 4 },
+        plan: { inputs: ["x"], outputs: ["y"] },
+      });
+    });
+
+    it.each([
+      ["neither a group nor steps", {}],
+      ["both", { groupId: "g1", nodeIds: ["a"] }],
+      ["an unknown icon", { groupId: "g1", icon: "Rocket" }],
+    ])("rejects %s", async (_label, args) => {
+      const r = await call("extract_to_flow", { flowId: "f1", ...args });
+      expect(r.isError).toBe(true);
+      expect(svc.extractToFlow).not.toHaveBeenCalled();
+    });
+
+    it("returns why the steps cannot move as structured issues", async () => {
+      svc.extractToFlow.mockRejectedValueOnce(
+        new svc.FlowServiceError("invalid", "These steps cannot be extracted", [
+          { level: "error", message: "Exactly one connection must leave the steps; there are 0." },
+        ]) as never
+      );
+      const r = await call("extract_to_flow", { flowId: "f1", nodeIds: ["d"], name: "Tail" });
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toContain("Exactly one connection must leave");
+      expect(r.structuredContent).toMatchObject({ issues: [{ level: "error" }] });
     });
   });
 
