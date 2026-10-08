@@ -17,9 +17,12 @@ export function RegistryNode(p: NodeProps) {
     badge?: string | null;
     nature?: "ai" | "code" | "human" | "control";
     natureLabel?: string;
+    config?: Record<string, unknown>;
   };
   const def = getNodeDef(String(d.nodeId ?? p.type ?? ""));
-  const Icon = iconFor(def?.icon);
+  // A subflow step that replaced an extracted group keeps the group's icon.
+  const ownIcon = p.type === "subflow" ? d.config?.icon : undefined;
+  const Icon = iconFor(typeof ownIcon === "string" && ownIcon ? ownIcon : def?.icon);
   const accent = def?.accent ?? "#64748b";
   const isTrigger = (def?.engine ?? p.type) === "trigger";
   return (

@@ -120,44 +120,7 @@ export function GroupDialog({
           className="w-full rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-xs text-strong outline-none focus:border-violet-500/60"
         />
 
-        <p className="mb-1 mt-3 text-[11px] font-medium text-body">{t("iconLabel")}</p>
-        <div role="radiogroup" aria-label={t("iconLabel")} className="flex flex-wrap gap-1">
-          <button
-            type="button"
-            role="radio"
-            aria-checked={!icon}
-            onClick={() => setIcon(undefined)}
-            className={
-              !icon
-                ? "rounded-md border border-violet-500/60 bg-violet-500/10 px-2 py-1 text-[11px] text-violet-700 dark:text-violet-300"
-                : "rounded-md border border-line px-2 py-1 text-[11px] text-muted hover:bg-hover"
-            }
-          >
-            {t("noIcon")}
-          </button>
-          {FLOW_GROUP_ICONS.map((name) => {
-            const Icon = iconFor(name);
-            const on = icon === name;
-            return (
-              <button
-                key={name}
-                type="button"
-                role="radio"
-                aria-checked={on}
-                aria-label={name}
-                title={name}
-                onClick={() => setIcon(name)}
-                className={
-                  on
-                    ? "flex h-7 w-7 items-center justify-center rounded-md border border-violet-500/60 bg-violet-500/10 text-violet-700 dark:text-violet-300"
-                    : "flex h-7 w-7 items-center justify-center rounded-md border border-line text-muted hover:bg-hover"
-                }
-              >
-                <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
-            );
-          })}
-        </div>
+        <IconPicker value={icon} onChange={setIcon} />
 
         <div className="mt-5 flex justify-end gap-2">
           <button
@@ -176,5 +139,58 @@ export function GroupDialog({
         </div>
       </form>
     </div>
+  );
+}
+
+/** The icon of a group (or of the step that replaces it), from the step icon map. */
+export function IconPicker({
+  value,
+  onChange,
+}: {
+  value: FlowGroupIcon | undefined;
+  onChange: (icon: FlowGroupIcon | undefined) => void;
+}) {
+  const t = useTranslations("pages.flows.groups");
+  return (
+    <>
+      <p className="mb-1 mt-3 text-[11px] font-medium text-body">{t("iconLabel")}</p>
+      <div role="radiogroup" aria-label={t("iconLabel")} className="flex flex-wrap gap-1">
+        <button
+          type="button"
+          role="radio"
+          aria-checked={!value}
+          onClick={() => onChange(undefined)}
+          className={
+            !value
+              ? "rounded-md border border-violet-500/60 bg-violet-500/10 px-2 py-1 text-[11px] text-violet-700 dark:text-violet-300"
+              : "rounded-md border border-line px-2 py-1 text-[11px] text-muted hover:bg-hover"
+          }
+        >
+          {t("noIcon")}
+        </button>
+        {FLOW_GROUP_ICONS.map((name) => {
+          const Icon = iconFor(name);
+          const on = value === name;
+          return (
+            <button
+              key={name}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              aria-label={name}
+              title={name}
+              onClick={() => onChange(name)}
+              className={
+                on
+                  ? "flex h-7 w-7 items-center justify-center rounded-md border border-violet-500/60 bg-violet-500/10 text-violet-700 dark:text-violet-300"
+                  : "flex h-7 w-7 items-center justify-center rounded-md border border-line text-muted hover:bg-hover"
+              }
+            >
+              <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          );
+        })}
+      </div>
+    </>
   );
 }

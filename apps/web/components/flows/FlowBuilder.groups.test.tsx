@@ -196,6 +196,83 @@ describe("FlowBuilder with step groups", () => {
     expect(container.querySelector('[data-id="a"]')?.className).toContain("flow-node-ok");
   });
 
+  it("extracts a group into a new flow and shows the step that calls it", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const parentAfter = {
+        id: "flow_a",
+        nodes: [
+          flow.nodes[0],
+          {
+            id: "sub_1",
+            type: "subflow",
+            label: "Fetch and ask",
+            config: { flowId: "flow_new", inputs: {}, outputs: {}, icon: "Globe" },
+            position: { x: 300, y: 100 },
+          },
+          flow.nodes[3],
+        ],
+        edges: [
+          { id: "e1", source: "t", target: "sub_1" },
+          { id: "e3", source: "sub_1", target: "c" },
+        ],
+        groups: [],
+      };
+      fetchMock.mockImplementation(async (url: string, init?: RequestInit) =>
+        url === "/api/flows/flow_a/extract" && init?.method === "POST"
+          ? new Response(
+              JSON.stringify({
+                plan: {},
+                child: { id: "flow_new", name: "Fetch and ask", kind: "pipeline", enabled: true },
+                parent: parentAfter,
+              }),
+              { status: 201 }
+            )
+          : new Response("[]")
+      );
+      renderBuilder();
+      const block = await screen.findByTestId("flow-group-block");
+      fireEvent.click(within(block).getByLabelText("Extract to flow"));
+      const dialog = await screen.findByRole("dialog");
+      // The AI step makes it a pipeline, and the preview says why.
+      expect(within(dialog).getByTestId("extract-kind").textContent).toContain('"Step b" uses AI');
+      fireEvent.click(within(dialog).getByRole("button", { name: "Create flow" }));
+      expect(await screen.findByText("Fetch and ask")).toBeTruthy();
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      const post = fetchMock.mock.calls.find(([url]) => url === "/api/flows/flow_a/extract")!;
+      expect(JSON.parse(post[1].body as string)).toEqual({
+        groupId: "g1",
+        name: "Fetch and ask",
+        description: "Gets data",
+        icon: "Globe",
+      });
+      expect(screen.queryByTestId("flow-group-block")).toBeNull();
+      expect(toast.success).toHaveBeenCalledWith(
+        'Created the flow "Fetch and ask".',
+        expect.objectContaining({ action: expect.anything() })
+      );
+      // The server already stored this graph: nothing is saved back.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2500);
+      });
+      expect(fetchMock.mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("disables extraction of a group that cannot move, saying why", async () => {
+    // A group at the end of the flow: no connection leaves it.
+    renderBuilder({
+      ...flow,
+      groups: [{ id: "g2", name: "Tail", nodeIds: ["b", "c"] }],
+    });
+    const block = await screen.findByTestId("flow-group-block");
+    const button = within(block).getByLabelText("Extract to flow");
+    expect(button.hasAttribute("disabled")).toBe(true);
+    expect(button.getAttribute("title")).toContain("there are 0");
+  });
+
   it("refuses to group fewer than two steps, saying why", async () => {
     renderBuilder({ ...flow, groups: [] });
     const button = await screen.findByTestId("group-steps");

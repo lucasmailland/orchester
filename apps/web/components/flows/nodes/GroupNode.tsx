@@ -12,6 +12,7 @@ import {
   Minimize2,
   Pencil,
   Ungroup,
+  FolderOutput,
   XCircle,
   CheckCircle2,
 } from "lucide-react";
@@ -26,6 +27,10 @@ export interface GroupActions {
   toggle: (groupId: string) => void;
   edit: (groupId: string) => void;
   ungroup: (groupId: string) => void;
+  /** Opens "Extract to flow" for the group. Optional so the block works without it. */
+  extract?: ((groupId: string) => void) | undefined;
+  /** Why the group cannot be extracted, or null when it can. */
+  extractProblem?: ((groupId: string) => string | null) | undefined;
 }
 
 export const GroupActionsContext = createContext<GroupActions | null>(null);
@@ -41,24 +46,43 @@ function ActionButton({
   label,
   onClick,
   children,
+  disabledReason,
 }: {
   label: string;
   onClick: () => void;
   children: ReactNode;
+  /** When set the button is disabled, and this says why. */
+  disabledReason?: string | null | undefined;
 }) {
   return (
     <button
       type="button"
-      title={label}
+      title={disabledReason ? `${label}: ${disabledReason}` : label}
       aria-label={label}
+      disabled={Boolean(disabledReason)}
       onClick={(e) => {
         e.stopPropagation();
         onClick();
       }}
-      className="nodrag flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-strong"
+      className="nodrag flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-strong disabled:cursor-not-allowed disabled:opacity-30"
     >
       {children}
     </button>
+  );
+}
+
+function ExtractButton({ groupId, actions }: { groupId: string; actions: GroupActions }) {
+  const t = useTranslations("pages.flows.extract");
+  if (!actions.extract) return null;
+  const extract = actions.extract;
+  return (
+    <ActionButton
+      label={t("button")}
+      disabledReason={actions.extractProblem?.(groupId)}
+      onClick={() => extract(groupId)}
+    >
+      <FolderOutput className="h-3.5 w-3.5" />
+    </ActionButton>
   );
 }
 
@@ -161,6 +185,7 @@ export function GroupBlockNode(p: NodeProps) {
           <ActionButton label={t("ungroup")} onClick={() => actions.ungroup(d.groupId)}>
             <Ungroup className="h-3.5 w-3.5" />
           </ActionButton>
+          <ExtractButton groupId={d.groupId} actions={actions} />
         </div>
       )}
       <Handle type="source" position={Position.Right} isConnectable={false} />
@@ -200,6 +225,7 @@ export function GroupFrameNode(p: NodeProps) {
             <ActionButton label={t("ungroup")} onClick={() => actions.ungroup(d.groupId)}>
               <Ungroup className="h-3.5 w-3.5" />
             </ActionButton>
+            <ExtractButton groupId={d.groupId} actions={actions} />
           </div>
         )}
       </div>

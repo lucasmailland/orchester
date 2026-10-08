@@ -33,6 +33,7 @@ import { FlowKindPanel } from "./FlowKindPanel";
 import type { FlowRelations } from "@/lib/flows/relations";
 import { DeleteFlowDialog } from "./DeleteFlowDialog";
 import { GroupDialog, type GroupMeta } from "./GroupDialog";
+import { ExtractDialog, blockText } from "./ExtractDialog";
 import { GroupActionsContext, GroupBlockNode, GroupFrameNode } from "./nodes/GroupNode";
 import {
   groupIdOfViewNode,
@@ -57,6 +58,7 @@ import { runInputsNeeded } from "@/lib/flows/run-inputs";
 import { normalizeFlowNodes, normalizeFlowEdges } from "@/lib/flows/normalize";
 import { buildFlowPayload, flowSignature } from "@/lib/flows/payload";
 import { normalizeFlowGroups, pruneFlowGroups, type FlowGroup } from "@/lib/flows/groups";
+import { planExtraction, type ExtractionSelection } from "@/lib/flows/extract";
 import {
   Save,
   Play,
@@ -75,6 +77,7 @@ import {
   Bot,
   Tag,
   Group as GroupIcon,
+  FolderOutput,
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -143,20 +146,14 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const t = useTranslations("pages.flows.builder");
   const tKind = useTranslations("pages.flows.kind");
   const tGroups = useTranslations("pages.flows.groups");
+  const tExtract = useTranslations("pages.flows.extract");
   const rawLocale = useLocale();
   const LOCALE: Locale =
     rawLocale === "es" || rawLocale === "pt" || rawLocale === "en" ? (rawLocale as Locale) : "es";
   // Normalized on open, so a flow stored in an older shape opens instead of
   // crashing the editor (and is saved back in the current shape).
   const [nodes, setNodes] = useState<Node[]>(normalizeFlowNodes(flow.nodes).map(toCanvasNode));
-  const [edges, setEdges] = useState<Edge[]>(
-    normalizeFlowEdges(flow.edges).map((e) => {
-      const edge: Edge = { id: e.id, source: e.source, target: e.target };
-      if (e.sourceHandle) edge.sourceHandle = e.sourceHandle;
-      if (e.label) edge.label = e.label;
-      return edge;
-    })
-  );
+  const [edges, setEdges] = useState<Edge[]>(toCanvasEdges(flow.edges));
   const [selected, setSelected] = useState<Node | null>(null);
   const [variables, setVariables] = useState<Record<string, unknown>>(flow.variables ?? {});
   const [varsOpen, setVarsOpen] = useState(false);
@@ -189,6 +186,8 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     { mode: "create"; nodeIds: string[] } | { mode: "edit"; groupId: string } | null
   >(null);
   const [focusedGroup, setFocusedGroup] = useState<string | null>(null);
+  // "Extract to flow": the group or steps being previewed.
+  const [extractTarget, setExtractTarget] = useState<ExtractionSelection | null>(null);
   // Members that were deleted drop out here, and so does a group left with one step.
   const liveGroups = useMemo(
     () =>
@@ -430,7 +429,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     [nodes, edges, variables, spec, liveGroups]
   );
 
-  async function save({ silent }: { silent?: boolean } = {}) {
+  async function save({ silent }: { silent?: boolean } = {}): Promise<boolean> {
     if (!silent) setSaving(true);
     if (silent) setAutoSaveStatus("saving");
     setFeedback(null);
@@ -451,6 +450,89 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
       if (silent) setAutoSaveStatus("error");
       else toast.error(t("saveError"));
     }
+    return r.ok;
+  }
+
+  // What the server would plan on: the graph as it is about to be stored.
+  const extractionGraph = useMemo(
+    () => ({ ...buildFlowPayload(nodes, edges, variables, spec || null, liveGroups), kind }),
+    [nodes, edges, variables, spec, liveGroups, kind]
+  );
+  const stepLabel = (id: string) => {
+    const label = (nodes.find((n) => n.id === id)?.data as { label?: unknown } | undefined)?.label;
+    return typeof label === "string" && label.trim() ? label : id;
+  };
+  // Why each group cannot be extracted (null when it can), shown on its button.
+  const extractProblems = useMemo(() => {
+    const out = new Map<string, string | null>();
+    for (const g of liveGroups) {
+      const r = planExtraction(extractionGraph, { groupId: g.id });
+      out.set(g.id, r.ok ? null : blockText(tExtract, r.blocks[0]!, stepLabel));
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [extractionGraph, liveGroups]);
+  const selectionExtract =
+    selectedIds.length > 0 ? planExtraction(extractionGraph, { nodeIds: selectedIds }) : null;
+  const selectionExtractProblem =
+    selectionExtract === null
+      ? tExtract("block_empty")
+      : selectionExtract.ok
+        ? null
+        : blockText(tExtract, selectionExtract.blocks[0]!, stepLabel);
+
+  /** Takes the flow as the server left it, without saving it back or keeping undo across it. */
+  function adoptServerFlow(stored: { nodes: unknown; edges: unknown; groups: unknown }) {
+    const nextNodes = normalizeFlowNodes(stored.nodes).map(toCanvasNode);
+    const nextEdges = toCanvasEdges(stored.edges);
+    const nextGroups = normalizeFlowGroups(stored.groups);
+    savedSignatureRef.current = flowSignature(
+      buildFlowPayload(nextNodes, nextEdges, variables, spec || null, nextGroups)
+    );
+    dirtyRef.current = false;
+    historyRef.current = { past: [], future: [] };
+    setCanUndo(false);
+    setCanRedo(false);
+    setNodes(nextNodes);
+    setEdges(nextEdges);
+    setGroups(nextGroups);
+    setSelected(null);
+    setFocusedGroup(null);
+  }
+
+  /** Resolves with an error message for the dialog, or null when the flow was extracted. */
+  async function extract(meta: GroupMeta): Promise<string | null> {
+    if (!extractTarget) return null;
+    // The server plans on the stored graph: store what is on screen first.
+    if (dirtyRef.current && !(await save({ silent: true }))) return tExtract("saveFirst");
+    const r = await fetch(`/api/flows/${flow.id}/extract`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...extractTarget, ...meta }),
+    });
+    const body = (await r.json().catch(() => ({}))) as {
+      error?: string;
+      issues?: Array<{ message: string }>;
+      child?: { id: string; name: string };
+      parent?: { nodes: unknown; edges: unknown; groups: unknown };
+    };
+    if (!r.ok || !body.parent || !body.child) {
+      const details = (body.issues ?? []).map((i) => i.message).join(" ");
+      return [body.error ?? tExtract("error"), details].filter(Boolean).join(": ");
+    }
+    adoptServerFlow(body.parent);
+    setExtractTarget(null);
+    const child = body.child;
+    toast.success(tExtract("extracted", { name: child.name }), {
+      action: {
+        label: tExtract("openFlow"),
+        onClick: () =>
+          router.push(
+            `/${routeParams?.locale ?? rawLocale}/${routeParams?.workspaceSlug ?? ""}/flows/${child.id}`
+          ),
+      },
+    });
+    return null;
   }
 
   // Auto-save with 2s debounce after any change that alters the stored flow
@@ -844,6 +926,21 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             </button>
             <button
               type="button"
+              onClick={() => setExtractTarget({ nodeIds: selectedIds })}
+              disabled={selectionExtractProblem !== null}
+              className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover disabled:opacity-30"
+              title={
+                selectionExtractProblem
+                  ? `${tExtract("button")}: ${selectionExtractProblem}`
+                  : tExtract("tooltip")
+              }
+              aria-label={tExtract("button")}
+              data-testid="extract-selection"
+            >
+              <FolderOutput className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
               onClick={runAutoLayout}
               className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover"
               title={t("tidyLayout")}
@@ -980,6 +1077,8 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
                 toggle: toggleGroup,
                 edit: (groupId) => setGroupDialog({ mode: "edit", groupId }),
                 ungroup,
+                extract: (groupId) => setExtractTarget({ groupId }),
+                extractProblem: (groupId) => extractProblems.get(groupId) ?? null,
               }}
             >
               <ReactFlow
@@ -1120,6 +1219,19 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             onClose={() => setGroupDialog(null)}
           />
         )}
+        {extractTarget && (
+          <ExtractDialog
+            result={planExtraction(extractionGraph, extractTarget)}
+            initial={
+              "groupId" in extractTarget
+                ? liveGroups.find((g) => g.id === extractTarget.groupId)
+                : undefined
+            }
+            labelOf={stepLabel}
+            onConfirm={extract}
+            onClose={() => setExtractTarget(null)}
+          />
+        )}
         {runModalOpen && (
           <div
             role="dialog"
@@ -1241,6 +1353,16 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
       </div>
     </ReactFlowProvider>
   );
+}
+
+/** Stored edges as canvas edges. */
+function toCanvasEdges(raw: unknown): Edge[] {
+  return normalizeFlowEdges(raw).map((e) => {
+    const edge: Edge = { id: e.id, source: e.source, target: e.target };
+    if (e.sourceHandle) edge.sourceHandle = e.sourceHandle;
+    if (e.label) edge.label = e.label;
+    return edge;
+  });
 }
 
 /** Guía amigable cuando el lienzo está vacío: plantillas + cómo arrancar de cero. */
