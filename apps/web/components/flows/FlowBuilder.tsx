@@ -381,6 +381,13 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   }
 
   function toggleGroup(groupId: string) {
+    if (expandedGroups.has(groupId)) {
+      // Collapsing hides the steps: they must not stay selected for Group or Extract.
+      const members = new Set(liveGroups.find((g) => g.id === groupId)?.nodeIds ?? []);
+      setNodes((nds) =>
+        nds.map((n) => (n.selected && members.has(n.id) ? { ...n, selected: false } : n))
+      );
+    }
     setExpandedGroups((s) => {
       const next = new Set(s);
       if (next.has(groupId)) next.delete(groupId);

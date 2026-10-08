@@ -105,6 +105,24 @@ describe("FlowBuilder with step groups", () => {
     await waitFor(() => expect(screen.queryByText("Step a")).toBeNull());
   });
 
+  it("collapsing a group drops the selection of the steps it hides", async () => {
+    const { container } = renderBuilder();
+    fireEvent.click(await byRole("Expand"));
+    await waitFor(() => expect(container.querySelector('[data-id="a"]')).not.toBeNull());
+    fireEvent.click(container.querySelector('[data-id="a"]') as HTMLElement);
+    await waitFor(() =>
+      expect(screen.getByTestId("extract-selection").getAttribute("title")).not.toMatch(
+        /Choose the steps/
+      )
+    );
+    fireEvent.click(await byRole("Collapse"));
+    await waitFor(() =>
+      expect(screen.getByTestId("extract-selection").getAttribute("title")).toMatch(
+        /Choose the steps/
+      )
+    );
+  });
+
   it("ungrouping keeps the steps and saves a flow without the group", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
