@@ -109,7 +109,7 @@ describe("workspace MCP tool registry", () => {
     ).toHaveLength(2);
     for (const source of [runtime, router])
       expect(source).toMatch(
-        /const wrapped = wrapUntrusted\(\s*typeof out === "string" \? out : JSON.stringify\(out \?\? null\)/
+        /const wrapped = (?:wrapUntrusted\(\s*typeof out === "string" \? out : JSON.stringify\(out \?\? null\)|mapToolOutputText\(out, \(text\) => wrapUntrusted\(text,)/
       );
   });
 });

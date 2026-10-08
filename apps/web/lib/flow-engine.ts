@@ -2,6 +2,7 @@ import "server-only";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and, inArray, lt, count, sql } from "drizzle-orm";
+import { mapToolOutputText, redactToolImages } from "./tool-output";
 import { llmCall, type ChatMessage } from "./llm-call";
 import { enqueue, JOB_FLOW_RUN } from "./queue";
 import { assertPublicUrl } from "./net-guard";
@@ -388,7 +389,7 @@ export async function executeFlow({
         workspaceId,
         status: "running",
         triggerSource: dryRun ? markDryRun(triggerSource) : triggerSource,
-        input,
+        input: redactToolImages(input),
       });
     }
   });
@@ -430,7 +431,11 @@ export async function executeFlow({
     await withFlowTx(workspaceId, async (tx) => {
       await tx
         .update(schema.flowRuns)
-        .set({ status: "succeeded", output: ctx.variables, completedAt: new Date() })
+        .set({
+          status: "succeeded",
+          output: redactToolImages(ctx.variables),
+          completedAt: new Date(),
+        })
         .where(eq(schema.flowRuns.id, runId));
       // A dry run is not a run of the flow: it must not move `lastRunAt`.
       if (!dryRun) {
@@ -460,7 +465,7 @@ export async function executeFlow({
           .set({
             status: "paused",
             pausedNodeId: e.nodeId,
-            pausedVariables: ctx.variables,
+            pausedVariables: redactToolImages(ctx.variables),
             pausedAt: new Date(),
             approvalToken: token,
           })
@@ -569,7 +574,11 @@ export async function resumePausedFlow({
     await withFlowTx(workspaceId, async (tx) => {
       await tx
         .update(schema.flowRuns)
-        .set({ status: "succeeded", output: ctx.variables, completedAt: new Date() })
+        .set({
+          status: "succeeded",
+          output: redactToolImages(ctx.variables),
+          completedAt: new Date(),
+        })
         .where(eq(schema.flowRuns.id, runId));
       if (!dryRun) {
         await tx
@@ -590,7 +599,7 @@ export async function resumePausedFlow({
           .set({
             status: "paused",
             pausedNodeId: e.nodeId,
-            pausedVariables: ctx.variables,
+            pausedVariables: redactToolImages(ctx.variables),
             pausedAt: new Date(),
             approvalToken: token,
           })
@@ -638,7 +647,7 @@ async function runFromNode(
       nodeId: node.id,
       nodeType: node.type,
       status: "running",
-      input: { ...ctx.variables },
+      input: redactToolImages(ctx.variables),
     })
   );
   ctx.emit?.({ type: "step_start", nodeId: node.id, nodeType: node.type });
@@ -682,7 +691,7 @@ async function runFromNode(
         .update(schema.flowRunSteps)
         .set({
           status: "succeeded",
-          output: stepOutput,
+          output: redactToolImages(stepOutput, ctx.variables),
           completedAt: new Date(),
           ...traceColumns(),
         })
@@ -720,7 +729,9 @@ async function runFromNode(
         .set({
           status: "failed",
           error: msg,
-          ...(e instanceof StepFailure ? { output: e.output } : {}),
+          ...(e instanceof StepFailure
+            ? { output: redactToolImages(e.output, ctx.variables) }
+            : {}),
           completedAt: new Date(),
           // A failed AI step that already spent tokens must still show them.
           ...traceColumns(),
@@ -837,11 +848,16 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     if (agent.status !== "active") {
       throw new Error(`agent "${agent.name}" is not active (status: ${agent.status})`);
     }
-    const { getToolDefinitions, executeTool, toolEffect } = await import("./tools");
+    const { resolveToolDefinitions, executeTool, toolEffect } = await import("./tools");
     const { wrapUntrusted, UNTRUSTED_CONTENT_GUARDRAIL } = await import("./agent-runtime");
     // Handoff mutates a conversation and throws without conversationId.
     // Memory tools accept optional conversation scope and still work with agentId.
-    const tools = getToolDefinitions(agent.tools ?? []).filter((t) => t.name !== "agent_handoff");
+    // Built-ins plus the workspace's remote MCP tools the agent has enabled.
+    const tools = (
+      await withFlowTx(workspaceId, (tx) =>
+        resolveToolDefinitions(workspaceId, agent.tools ?? [], tx)
+      )
+    ).filter((t) => t.name !== "agent_handoff");
     const systemPrompt = agent.systemPrompt + (tools.length > 0 ? UNTRUSTED_CONTENT_GUARDRAIL : "");
     const messages: ChatMessage[] = [{ role: "user", content: userMessage }];
     // Mirror channels/router.ts runConversationalTurn's safetyCounter < 5.
@@ -856,6 +872,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     const simulatedTools: string[] = [];
 
     for (let step = 0; step < maxSteps; step++) {
+      if (ctx.signal?.aborted) throw new DOMException("Flow execution cancelled", "AbortError");
       // Guard and meter every call, including intermediate tool turns.
       await withFlowTx(workspaceId, (tx) => assertWithinSpend(workspaceId, tx));
       const result = await withFlowTx(workspaceId, (tx) =>
@@ -896,14 +913,19 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       for (const tc of result.toolCalls) {
         toolsUsed.push(tc.name);
         try {
+          // A model can name a tool it was not given; never run it.
+          if (!tools.some((tool) => tool.name === tc.name)) {
+            throw new Error(`Tool not enabled: ${tc.name}`);
+          }
           const input = tc.input as Record<string, unknown>;
           // In a dry run the agent still reads, but a tool that writes is only
           // reported: the model sees what it would have done, nothing changes.
           if (
             ctx.dryRun &&
-            (await withFlowTx(workspaceId, (tx) =>
-              toolEffect(tc.name, input, { workspaceId, tx })
-            )) === "write"
+            (tools.find((t) => t.name === tc.name)?.effect ??
+              (await withFlowTx(workspaceId, (tx) =>
+                toolEffect(tc.name, input, { workspaceId, tx })
+              ))) === "write"
           ) {
             simulatedTools.push(tc.name);
             toolResults.push({
@@ -929,10 +951,8 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
             id: tc.id,
             name: tc.name,
             input: tc.input,
-            output: wrapUntrusted(
-              typeof out === "string" ? out : JSON.stringify(out ?? null),
-              `tool_${tc.name}`
-            ),
+            // Text is wrapped as untrusted; images (if any) pass through.
+            output: mapToolOutputText(out, (text) => wrapUntrusted(text, `tool_${tc.name}`)),
           });
         } catch (e) {
           // As in the router, tool failures are feedback for the model.
@@ -1663,7 +1683,7 @@ export async function enqueueFlowRun({
       workspaceId,
       status: "pending",
       triggerSource,
-      input,
+      input: redactToolImages(input),
     });
   });
 
@@ -1675,7 +1695,7 @@ export async function enqueueFlowRun({
   try {
     await enqueue(
       JOB_FLOW_RUN,
-      { runId, flowId, workspaceId, triggerSource, input },
+      { runId, flowId, workspaceId, triggerSource, input: redactToolImages(input) },
       // retryLimit 0: NO reintentamos el flow completo automáticamente, para no
       // re-disparar side-effects (http POST, notify, integraciones, IA paga).
       // Los fallos transitorios se reintentan a nivel de llamada externa.

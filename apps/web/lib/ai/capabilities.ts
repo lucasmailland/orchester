@@ -16,6 +16,16 @@ export interface ToolUseBlock {
   name: string;
   input: unknown;
 }
+/** Transient image evidence: never persist base64 bytes. */
+export interface ToolImagePart {
+  mediaType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+  base64: string;
+  name?: string;
+}
+export interface ImageToolOutput {
+  text?: string;
+  images?: ToolImagePart[];
+}
 /** Resultado de la ejecución de un tool, devuelto al modelo en la próxima vuelta. */
 export interface ToolResultBlock {
   id: string;

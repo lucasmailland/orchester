@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck — Phase 3: recall path stubbed; channels routing still active.
 import "server-only";
+import { mapToolOutputText } from "@/lib/tool-output";
 import { createId } from "@paralleldrive/cuid2";
 import { eq, and, desc } from "drizzle-orm";
 import { schema, type DbClient, type Conversation, type Agent, type Channel } from "@orchester/db";
@@ -530,10 +531,7 @@ async function runConversationalTurn(
           // L1/F2: el output de la tool es contenido no confiable → delimitado
           // (y con PII redactada si el operador hizo opt-in) antes de mandarlo
           // al modelo.
-          const wrapped = wrapUntrusted(
-            typeof out === "string" ? out : JSON.stringify(out ?? null),
-            `tool_${tc.name}`
-          );
+          const wrapped = mapToolOutputText(out, (text) => wrapUntrusted(text, `tool_${tc.name}`));
           toolResults.push({ id: tc.id, name: tc.name, input: tc.input, output: wrapped });
           if (tc.name === "agent_handoff" && (out as { ok?: boolean })?.ok) {
             didHandoff = true;

@@ -1,4 +1,5 @@
 import "server-only";
+import { MAX_TOOL_IMAGE_BYTES, MAX_TOOL_IMAGES, normalizeToolOutput } from "../tool-output";
 import { discordWebhookUrl, discordSendMessage, discordSendEmbed } from "./discord-client";
 import { telegramTest, telegramSendMessage } from "./telegram-client";
 import {
@@ -1052,14 +1053,17 @@ const odoo: Connector = {
     get_task_attachments: {
       effect: "read",
       description:
-        "List the files attached to a project task (name, type, size). Metadata only — the contents are not returned.",
+        "List all task attachment metadata. Set include_images=true to inspect screenshot evidence (up to four newest PNG/JPEG/GIF/WebP images, 1 MB each).",
       inputSchema: {
         type: "object",
-        properties: { id: { type: "number", description: "Task id." } },
+        properties: {
+          id: { type: "number", description: "Task id." },
+          include_images: { type: "boolean", default: false },
+        },
         required: ["id"],
       },
       async run(config, input) {
-        const attachments = await odooExecute(
+        const attachments = (await odooExecute(
           config,
           "ir.attachment",
           "search_read",
@@ -1069,9 +1073,34 @@ const odoo: Connector = {
               ["res_id", "=", Number(input.id)],
             ],
           ],
-          { fields: ATTACHMENT_FIELDS }
-        );
-        return { attachments };
+          { fields: ATTACHMENT_FIELDS, order: "create_date desc, id desc" }
+        )) as Array<{ id: number; name: string; mimetype: string; file_size: number }>;
+        if (input.include_images !== true) return { attachments };
+        const selected: typeof attachments = [];
+        const notes: string[] = [];
+        for (const attachment of attachments) {
+          if (!attachment.mimetype?.startsWith("image/")) continue;
+          let reason: string | undefined;
+          if (!["image/png", "image/jpeg", "image/gif", "image/webp"].includes(attachment.mimetype))
+            reason = "unsupported MIME type";
+          else if (attachment.file_size > MAX_TOOL_IMAGE_BYTES) reason = "exceeds 1 MB";
+          else if (selected.length >= MAX_TOOL_IMAGES) reason = "limit of 4 images";
+          if (reason) notes.push(`[image omitted: ${attachment.name}, ${reason}]`);
+          else selected.push(attachment);
+        }
+        const data = selected.length
+          ? ((await odooExecute(config, "ir.attachment", "read", [selected.map((a) => a.id)], {
+              fields: ["id", "datas"],
+            })) as Array<{ id: number; datas: string | false }>)
+          : [];
+        return normalizeToolOutput({
+          text: [JSON.stringify({ attachments }), ...notes].join("\n"),
+          images: selected.map((a) => ({
+            name: a.name,
+            mediaType: a.mimetype,
+            base64: data.find((d) => d.id === a.id)?.datas ?? "",
+          })),
+        });
       },
     },
 

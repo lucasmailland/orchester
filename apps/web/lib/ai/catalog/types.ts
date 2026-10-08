@@ -75,6 +75,8 @@ export interface ModelDef {
    * sonnet-4-6 los sigue aceptando.
    */
   noSampling?: boolean;
+  /** Accepts image input. Unset/unknown models are text-only. */
+  supportsVision?: boolean;
   notes?: string;
 }
 

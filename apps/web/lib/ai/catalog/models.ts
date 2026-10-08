@@ -19,6 +19,7 @@ function m(
     cin?: number;
     cout?: number;
     noSampling?: boolean;
+    supportsVision?: boolean;
   } = {}
 ): ModelDef {
   const d: ModelDef = { id: `${provider}:${model}`, provider, name, capability };
@@ -27,6 +28,7 @@ function m(
   // cin/cout = USD por 1k tokens (input/output) — pricing A4.
   if (opts.cin != null) d.costPer1kIn = opts.cin;
   if (opts.cout != null) d.costPer1kOut = opts.cout;
+  if (opts.supportsVision) d.supportsVision = true;
   if (opts.noSampling) d.noSampling = true;
   if (opts.notes) d.notes = opts.notes;
   return d;
@@ -34,27 +36,43 @@ function m(
 
 export const MODELS: ModelDef[] = [
   // ── Chat ─────────────────────────────────────────────────────────────────────
-  m("openai", "gpt-4o", "GPT-4o", "chat", { tier: "smart", ctx: 128_000, cin: 0.0025, cout: 0.01 }),
+  m("openai", "gpt-4o", "GPT-4o", "chat", {
+    supportsVision: true,
+    tier: "smart",
+    ctx: 128_000,
+    cin: 0.0025,
+    cout: 0.01,
+  }),
   m("openai", "gpt-4o-mini", "GPT-4o mini", "chat", {
+    supportsVision: true,
     tier: "fast",
     ctx: 128_000,
     cin: 0.00015,
     cout: 0.0006,
   }),
   m("openai", "gpt-4.1", "GPT-4.1", "chat", {
+    supportsVision: true,
     tier: "smart",
     ctx: 1_000_000,
     cin: 0.002,
     cout: 0.008,
   }),
-  m("openai", "o3", "o3", "chat", { tier: "powerful", ctx: 200_000, cin: 0.002, cout: 0.008 }),
+  m("openai", "o3", "o3", "chat", {
+    supportsVision: true,
+    tier: "powerful",
+    ctx: 200_000,
+    cin: 0.002,
+    cout: 0.008,
+  }),
   m("openai", "o4-mini", "o4-mini", "chat", {
+    supportsVision: true,
     tier: "fast",
     ctx: 200_000,
     cin: 0.0011,
     cout: 0.0044,
   }),
   m("anthropic", "claude-opus-4-7", "Claude Opus 4.7", "chat", {
+    supportsVision: true,
     tier: "powerful",
     ctx: 200_000,
     cin: 0.015,
@@ -64,12 +82,14 @@ export const MODELS: ModelDef[] = [
     noSampling: true,
   }),
   m("anthropic", "claude-sonnet-4-6", "Claude Sonnet 4.6", "chat", {
+    supportsVision: true,
     tier: "smart",
     ctx: 200_000,
     cin: 0.003,
     cout: 0.015,
   }),
   m("anthropic", "claude-haiku-4-5", "Claude Haiku 4.5", "chat", {
+    supportsVision: true,
     tier: "fast",
     ctx: 200_000,
     cin: 0.0008,
@@ -92,6 +112,7 @@ export const MODELS: ModelDef[] = [
   // Verificados USABLES en la cuenta de Fichap (2026-08-24). opus-4-7 lleva
   // noSampling: con temperature devuelve 400.
   m("bedrock", "us.anthropic.claude-opus-4-7", "Claude Opus 4.7 (Bedrock)", "chat", {
+    supportsVision: true,
     tier: "powerful",
     ctx: 200_000,
     cin: 0.015,
@@ -99,12 +120,14 @@ export const MODELS: ModelDef[] = [
     noSampling: true,
   }),
   m("bedrock", "us.anthropic.claude-sonnet-4-6", "Claude Sonnet 4.6 (Bedrock)", "chat", {
+    supportsVision: true,
     tier: "smart",
     ctx: 200_000,
     cin: 0.0033,
     cout: 0.0165,
   }),
   m("bedrock", "us.anthropic.claude-opus-5", "Claude Opus 5 (Bedrock)", "chat", {
+    supportsVision: true,
     tier: "powerful",
     ctx: 200_000,
     cin: 0.005,
@@ -113,6 +136,7 @@ export const MODELS: ModelDef[] = [
     notes: "Requiere habilitar el acceso al modelo en la consola de Bedrock.",
   }),
   m("bedrock", "us.anthropic.claude-sonnet-5", "Claude Sonnet 5 (Bedrock)", "chat", {
+    supportsVision: true,
     tier: "smart",
     ctx: 200_000,
     cin: 0.003,
@@ -130,6 +154,7 @@ export const MODELS: ModelDef[] = [
     "Claude Haiku 4.5 (Bedrock)",
     "chat",
     {
+      supportsVision: true,
       tier: "fast",
       ctx: 200_000,
       cin: 0.0011,
@@ -156,12 +181,14 @@ export const MODELS: ModelDef[] = [
     cout: 0.00014,
   }),
   m("bedrock", "amazon.nova-lite-v1:0", "Nova Lite (Bedrock)", "chat", {
+    supportsVision: true,
     tier: "fast",
     ctx: 300_000,
     cin: 0.00006,
     cout: 0.00024,
   }),
   m("bedrock", "amazon.nova-pro-v1:0", "Nova Pro (Bedrock)", "chat", {
+    supportsVision: true,
     tier: "smart",
     ctx: 300_000,
     cin: 0.0008,

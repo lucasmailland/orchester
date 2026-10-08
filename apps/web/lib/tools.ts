@@ -28,6 +28,8 @@ export interface ToolDefinition {
   inputSchema: Record<string, unknown>;
 }
 
+export type { ImageToolOutput, ToolImagePart } from "./ai/capabilities";
+
 export interface ToolCall {
   id: string;
   name: string;
@@ -402,10 +404,13 @@ const BUILTINS: Record<string, ToolDefinition> = {
   odoo_get_task_attachments: {
     name: "odoo_get_task_attachments",
     description:
-      "List the files attached to an Odoo project task: name, mime type, size and date. Metadata only — you cannot open the files, but their names and count tell you whether screenshots or logs exist, and a human can be pointed at them.",
+      "List all Odoo task attachment metadata. Set include_images=true when screenshots are evidence you need to inspect: returns up to four newest PNG/JPEG/GIF/WebP images (1 MB each) for visual analysis.",
     inputSchema: {
       type: "object",
-      properties: { id: { type: "number", description: "Numeric task id." } },
+      properties: {
+        id: { type: "number", description: "Numeric task id." },
+        include_images: { type: "boolean", default: false },
+      },
       required: ["id"],
     },
   },
