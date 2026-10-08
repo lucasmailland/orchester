@@ -887,6 +887,50 @@ describe("compare_refs", () => {
       ]);
       expectGet(calls);
     });
+    it("withholds the content of files that usually hold secrets", async () => {
+      mockGitLab({
+        payload: [
+          file({ old_path: ".env", new_path: ".env", diff: "+API_KEY=live-123\n" }),
+          file({ old_path: "deploy/prod.env", new_path: "deploy/prod.env", diff: "+X=1\n" }),
+          file({ old_path: "certs/server.pem", new_path: "certs/server.pem", diff: "+-----\n" }),
+          file({
+            old_path: "config/.npmrc",
+            new_path: "config/.npmrc",
+            diff: "+//r:_authToken=t\n",
+          }),
+          file({ old_path: "a/.env.example", new_path: "a/.env.example", diff: "+API_KEY=\n" }),
+          file(),
+        ],
+      });
+      const out = (await run("get_diff", { project: 12, commit_sha: "abcdef1" })) as {
+        files: Record<string, unknown>[];
+      };
+      const byPath = Object.fromEntries(out.files.map((f) => [f.new_path, f]));
+      for (const p of [
+        ".env",
+        "deploy/prod.env",
+        "certs/server.pem",
+        "config/.npmrc",
+        "a/.env.example",
+      ]) {
+        expect(byPath[p]).toMatchObject({ diff: "", diff_withheld: true });
+      }
+      expect(JSON.stringify(out)).not.toContain("live-123");
+      expect(JSON.stringify(out)).not.toContain("_authToken");
+      expect(byPath["a.ts"]).not.toHaveProperty("diff_withheld");
+      expect(byPath["a.ts"]!.diff).toBe("@@ -1 +1 @@\n-a\n+b\n");
+    });
+    it("withholds a renamed secret file by its old path too", async () => {
+      mockGitLab({
+        payload: [
+          file({ old_path: ".env", new_path: "notes.txt", renamed_file: true, diff: "+K=v\n" }),
+        ],
+      });
+      const out = (await run("get_diff", { project: 12, commit_sha: "abcdef1" })) as {
+        files: Record<string, unknown>[];
+      };
+      expect(out.files[0]).toMatchObject({ diff: "", diff_withheld: true });
+    });
     it("reads a merge request diff", async () => {
       const calls = mockGitLab({ payload: [file()] });
       await run("get_diff", { project: 12, mr_iid: 7 });

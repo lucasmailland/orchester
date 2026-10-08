@@ -456,6 +456,16 @@ interface DiffRow {
   too_large?: boolean;
 }
 
+// Files that usually hold credentials. Their diff is withheld (path and flags
+// still listed) because a committed secret would otherwise reach the model and
+// whatever it writes, such as a ticket note.
+const SECRET_FILE =
+  /(^|\/)(\.env(\.[^/]*)?|[^/]*\.env|\.npmrc|\.pypirc|\.netrc|\.git-credentials|id_(rsa|dsa|ecdsa|ed25519)|credentials(\.json)?|[^/]*\.(pem|key|p12|pfx|jks|keystore))$/i;
+
+function isSecretFile(d: DiffRow): boolean {
+  return SECRET_FILE.test(d.new_path ?? "") || SECRET_FILE.test(d.old_path ?? "");
+}
+
 function clipBytes(text: string, max: number): { text: string; clipped: boolean } {
   const buf = Buffer.from(text, "utf8");
   if (buf.length <= max) return { text, clipped: false };
@@ -509,11 +519,13 @@ export async function gitlabGetDiff(
       omitted++;
       continue;
     }
-    const raw = typeof d.diff === "string" ? d.diff : "";
+    const withheld = isSecretFile(d);
+    const raw = !withheld && typeof d.diff === "string" ? d.diff : "";
     const { text, clipped } = clipBytes(raw, Math.min(DIFF_MAX_FILE_BYTES, budget));
     budget -= Buffer.byteLength(text, "utf8");
     if (clipped) truncated = true;
-    const unavailable = d.too_large === true || (raw === "" && d.renamed_file !== true);
+    const unavailable =
+      !withheld && (d.too_large === true || (raw === "" && d.renamed_file !== true));
     files.push({
       old_path: d.old_path,
       new_path: d.new_path,
@@ -523,6 +535,7 @@ export async function gitlabGetDiff(
       diff: text,
       ...(clipped ? { diff_truncated: true } : {}),
       ...(unavailable ? { diff_unavailable: true } : {}),
+      ...(withheld ? { diff_withheld: true } : {}),
     });
   }
   if (omitted > 0) truncated = true;
