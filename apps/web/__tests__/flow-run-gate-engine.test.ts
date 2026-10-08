@@ -109,7 +109,58 @@ describe("run gate: executeFlow", () => {
     expect((await run({ manual: true })).status).toBe("succeeded");
   });
 
-  it("does not re-check a run the queue already admitted", async () => {
+  it("does not re-check a run admitted as manual", async () => {
+    state.runRow = { triggerSource: "manual:u1" };
     expect((await run({ runId: "run_admitted" })).status).toBe("succeeded");
+  });
+});
+
+describe("run gate: queued run of a since-disabled flow", () => {
+  const pickUp = async (triggerSource: string, opts: Record<string, unknown> = {}) => {
+    const { executeFlow } = await import("../lib/flow-engine");
+    state.flow = { ...state.flow, enabled: false, name: "Off Flow", nodes: [trigger], edges: [] };
+    state.steps = [];
+    state.runUpdates = [];
+    state.runRow = { triggerSource };
+    return executeFlow({
+      flowId: "flow_test",
+      workspaceId: "ws_test",
+      triggerSource,
+      input: {},
+      runId: "run_queued",
+      ...opts,
+    });
+  };
+
+  it("cancels an automated run and does nothing else", async () => {
+    const r = await pickUp("webhook:wh_1");
+    expect(r).toMatchObject({ runId: "run_queued", status: "cancelled" });
+    expect(r.error).toContain("disabled");
+    expect(state.steps).toHaveLength(0);
+    expect(state.runUpdates).toHaveLength(1);
+    expect(state.runUpdates[0]).toMatchObject({ status: "cancelled" });
+    expect(String(state.runUpdates[0]!.error)).toContain("disabled");
+  });
+
+  it("still runs a queued manual run", async () => {
+    expect((await pickUp("manual:u1")).status).toBe("succeeded");
+  });
+
+  it("still runs a queued dry run", async () => {
+    expect((await pickUp("webhook:wh_1:dry-run")).status).toBe("succeeded");
+  });
+
+  it("runs a queued automated run when the flow is still enabled", async () => {
+    const { executeFlow } = await import("../lib/flow-engine");
+    state.flow = { ...state.flow, enabled: true, nodes: [trigger], edges: [] };
+    state.runRow = { triggerSource: "webhook:wh_1" };
+    const r = await executeFlow({
+      flowId: "flow_test",
+      workspaceId: "ws_test",
+      triggerSource: "webhook:wh_1",
+      input: {},
+      runId: "run_queued",
+    });
+    expect(r.status).toBe("succeeded");
   });
 });

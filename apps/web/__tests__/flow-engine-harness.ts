@@ -37,6 +37,8 @@ export const state = {
   flowQueue: [] as Array<Record<string, unknown>>,
   /** When set, every flow_run row the engine inserts is pushed here. */
   insertedRuns: undefined as Array<Record<string, unknown>> | undefined,
+  /** The flow_run row a queued run (executeFlow with a runId) reads back. */
+  runRow: undefined as Record<string, unknown> | undefined,
 };
 
 let idCounter = 0;
@@ -64,16 +66,22 @@ function applySet(set: Record<string, unknown>) {
 
 function makeTx() {
   let pendingSet: Record<string, unknown> | null = null;
+  let table: unknown;
   const tx: Record<string, unknown> = {
     execute: vi.fn(async () => ({ rows: [] })),
     select: () => tx,
-    from: () => tx,
+    from: (t: unknown) => {
+      table = t;
+      return tx;
+    },
     where: () => {
       if (pendingSet) {
         applySet(pendingSet);
         pendingSet = null;
         return Promise.resolve([]);
       }
+      if (table === dbMock.schema.flowRuns)
+        return { limit: async () => (state.runRow ? [state.runRow] : []) };
       return { limit: async () => [state.flowQueue.shift() ?? state.flow] };
     },
     insert: () => tx,

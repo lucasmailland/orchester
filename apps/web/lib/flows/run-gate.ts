@@ -10,8 +10,9 @@
  * channels) passes neither, so it is refused.
  *
  * Both `enqueueFlowRun` and `executeFlow` call this, so no entry point can
- * skip it. Only the queue worker bypasses it, because the run it picks up was
- * already admitted when it was enqueued.
+ * skip it. The queue worker does not repeat the check at enqueue time, but it
+ * re-checks when it picks the run up: a flow disabled while the run waited
+ * cancels every run that was not admitted as manual or dry.
  */
 export class FlowDisabledError extends Error {
   readonly flowId: string;
@@ -29,4 +30,14 @@ export function assertFlowRunnable(
   if (flow.enabled !== false) return;
   if (opts.dryRun || opts.manual) return;
   throw new FlowDisabledError(flow);
+}
+
+/**
+ * Whether a run was admitted as a manual run, judged from the
+ * `flow_run.trigger_source` it was queued with (`manual:<userId>`, optionally
+ * followed by the dry-run mark). No column records it: the REST run route is
+ * the only writer of the `manual:` prefix.
+ */
+export function isManualSource(source: string | null | undefined): boolean {
+  return typeof source === "string" && (source === "manual" || source.startsWith("manual:"));
 }

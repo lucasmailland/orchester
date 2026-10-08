@@ -11,7 +11,7 @@ import { evaluateExpression } from "./flows/filters";
 import { parseRetryConfig, runWithRetry, StepFailure } from "./flows/retry";
 import { createApprovalToken, PauseRequested } from "./flows/pause";
 import { isDryRunSource, markDryRun, redactUrl, simulated } from "./flows/dry-run";
-import { assertFlowRunnable } from "./flows/run-gate";
+import { assertFlowRunnable, isManualSource } from "./flows/run-gate";
 
 /**
  * R2-C: Flow execution writes to tenant tables (flow_runs,
@@ -385,6 +385,30 @@ export async function executeFlow({
   // A run that already has a row was admitted by `enqueueFlowRun` (the queue
   // worker path); everything else is checked here.
   if (!existingRunId) assertFlowRunnable(flow, { dryRun, manual });
+  else if (flow.enabled === false && !dryRun) {
+    // The flow was switched off while the run waited in the queue. Only a run
+    // admitted as manual (a person testing it) or as a dry run may proceed;
+    // the stored trigger source is what says so.
+    const queued = await withFlowTx(workspaceId, async (tx) => {
+      const rows = await tx
+        .select({ triggerSource: schema.flowRuns.triggerSource })
+        .from(schema.flowRuns)
+        .where(eq(schema.flowRuns.id, existingRunId))
+        .limit(1);
+      return rows[0];
+    });
+    const source = queued?.triggerSource ?? null;
+    if (!manual && !isManualSource(source) && !isDryRunSource(source)) {
+      const reason = `Cancelled: flow "${flow.name || flow.id}" was disabled before this queued run started.`;
+      await withFlowTx(workspaceId, (tx) =>
+        tx
+          .update(schema.flowRuns)
+          .set({ status: "cancelled", error: reason, completedAt: new Date() })
+          .where(eq(schema.flowRuns.id, existingRunId))
+      );
+      return { runId: existingRunId, status: "cancelled", error: reason };
+    }
+  }
   const runId = existingRunId ?? createId();
   const runStartedAt = Date.now(); // sólo para la métrica de duración (D2)
   await withFlowTx(workspaceId, async (tx) => {
