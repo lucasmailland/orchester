@@ -462,6 +462,11 @@ export const NODE_DOCS: Record<string, NodeDocs> = {
       "When you repeat the same series of steps across flows: build it once and reuse it.",
       "Quando repete a mesma série de passos em vários fluxos: monte uma vez e reutilize."
     ),
+    tip: i(
+      'Sin configurar nada, el sub-flujo ve todos los datos y todo lo suyo vuelve. Para llamar una acción sin pasos de más, usá «Datos que le pasás» (inputs) y «Datos que te devuelve» (outputs): { inputs: { cliente: "{{contact.name}}" }, outputs: { total: "result.total" } }. Con inputs, el sub-flujo recibe sólo esos datos; con outputs, vuelven sólo esos. Si una ruta de outputs no existe, esa variable no se escribe.',
+      'With nothing configured, the sub-flow sees every variable and everything it produces comes back. To call an action without extra steps, use inputs and outputs: { inputs: { customer: "{{contact.name}}" }, outputs: { total: "result.total" } }. With inputs the sub-flow receives only those variables; with outputs only those come back. If an outputs path does not exist, that variable is not written.',
+      'Sem configurar nada, o subfluxo vê todos os dados e tudo o que ele produz volta. Para chamar uma ação sem passos extras, use inputs e outputs: { inputs: { cliente: "{{contact.name}}" }, outputs: { total: "result.total" } }. Com inputs, o subfluxo recebe só esses dados; com outputs, voltam só esses. Se um caminho de outputs não existir, essa variável não é escrita.'
+    ),
   },
   note: {
     whatFor: i(

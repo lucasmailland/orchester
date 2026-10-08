@@ -1026,7 +1026,24 @@
         "cronMonthly": "On day 1 of every month",
         "purposeLabel": "What this step is for",
         "purposeHelp": "One line. Helps people and agents understand the flow without opening every step.",
-        "purposePlaceholder": "e.g. finds the incident's task"
+        "purposePlaceholder": "e.g. finds the incident's task",
+        "addEntry": "+ Add",
+        "fields": {
+          "subflowInputs": {
+            "label": "Data you pass in",
+            "help": "Optional. Name in the sub-flow = value from this flow. When set, the sub-flow receives only these variables, not the whole flow.",
+            "example": "customer = {{contact.name}}",
+            "keyPlaceholder": "name in the sub-flow",
+            "valuePlaceholder": "{{value}} from this flow"
+          },
+          "subflowOutputs": {
+            "label": "Data you get back",
+            "help": "Optional. Name in this flow = path in the sub-flow result. When set, only these variables come back; everything else stays in the sub-flow.",
+            "example": "total = result.total",
+            "keyPlaceholder": "name in this flow",
+            "valuePlaceholder": "path in the result"
+          }
+        }
       },
       "docs": {
         "title": "Flow documentation",

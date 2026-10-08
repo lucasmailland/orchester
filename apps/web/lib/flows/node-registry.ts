@@ -1000,6 +1000,22 @@ export const NODE_REGISTRY: Record<string, NodeDef> = {
         required: true,
         help: "El id del flujo a ejecutar.",
       },
+      {
+        key: "inputs",
+        label: "Datos que le pasás",
+        type: "key-value",
+        i18n: "subflowInputs",
+        help: "Opcional. Nombre en el sub-flujo = dato de este flujo. Si lo completás, el sub-flujo recibe sólo estos datos.",
+        example: "cliente = {{contact.name}}",
+      },
+      {
+        key: "outputs",
+        label: "Datos que te devuelve",
+        type: "key-value",
+        i18n: "subflowOutputs",
+        help: "Opcional. Nombre en este flujo = ruta en el resultado del sub-flujo. Si lo completás, vuelven sólo estos datos.",
+        example: "total = result.total",
+      },
     ],
   },
   note: {

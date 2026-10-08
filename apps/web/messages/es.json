@@ -1026,7 +1026,24 @@
         "cronMonthly": "El día 1 de cada mes",
         "purposeLabel": "Para qué está este paso",
         "purposeHelp": "Una línea. Ayuda a personas y agentes a entender el flujo sin abrir cada paso.",
-        "purposePlaceholder": "Ej.: busca la tarea del incidente en Odoo"
+        "purposePlaceholder": "Ej.: busca la tarea del incidente en Odoo",
+        "addEntry": "+ Agregar",
+        "fields": {
+          "subflowInputs": {
+            "label": "Datos que le pasás",
+            "help": "Opcional. Nombre en el sub-flujo = dato de este flujo. Si lo completás, el sub-flujo recibe sólo estas variables, no todo el flujo.",
+            "example": "cliente = {{contact.name}}",
+            "keyPlaceholder": "nombre en el sub-flujo",
+            "valuePlaceholder": "{{dato}} de este flujo"
+          },
+          "subflowOutputs": {
+            "label": "Datos que te devuelve",
+            "help": "Opcional. Nombre en este flujo = ruta en el resultado del sub-flujo. Si lo completás, vuelven sólo estas variables; el resto queda en el sub-flujo.",
+            "example": "total = result.total",
+            "keyPlaceholder": "nombre en este flujo",
+            "valuePlaceholder": "ruta en el resultado"
+          }
+        }
       },
       "docs": {
         "title": "Documentación del flujo",

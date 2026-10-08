@@ -50,6 +50,12 @@ export interface FieldDef {
   options?: FieldOption[];
   /** Mostrar este campo sólo si otro campo tiene cierto valor. */
   dependsOn?: { key: string; value: string };
+  /**
+   * Name of a `pages.flows.inspector.fields.<name>` message group (label, help, example,
+   * keyPlaceholder, valuePlaceholder). When set, the inspector shows the translated copy
+   * and `label`/`help` stay as the fallback. An empty map is saved as no value.
+   */
+  i18n?: string;
   /** Para `model-picker`: qué capacidad listar (chat/image/embedding/…). */
   capability?: string;
 }

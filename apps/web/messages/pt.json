@@ -1026,7 +1026,24 @@
         "cronMonthly": "No dia 1 de cada mês",
         "purposeLabel": "Para que serve este passo",
         "purposeHelp": "Uma linha. Ajuda pessoas e agentes a entender o fluxo sem abrir cada passo.",
-        "purposePlaceholder": "Ex.: busca a tarefa do incidente"
+        "purposePlaceholder": "Ex.: busca a tarefa do incidente",
+        "addEntry": "+ Adicionar",
+        "fields": {
+          "subflowInputs": {
+            "label": "Dados que você envia",
+            "help": "Opcional. Nome no subfluxo = dado deste fluxo. Se preenchido, o subfluxo recebe apenas estas variáveis, não o fluxo inteiro.",
+            "example": "cliente = {{contact.name}}",
+            "keyPlaceholder": "nome no subfluxo",
+            "valuePlaceholder": "{{dado}} deste fluxo"
+          },
+          "subflowOutputs": {
+            "label": "Dados que ele devolve",
+            "help": "Opcional. Nome neste fluxo = caminho no resultado do subfluxo. Se preenchido, voltam apenas estas variáveis; o resto fica no subfluxo.",
+            "example": "total = result.total",
+            "keyPlaceholder": "nome neste fluxo",
+            "valuePlaceholder": "caminho no resultado"
+          }
+        }
       },
       "docs": {
         "title": "Documentação do fluxo",
