@@ -78,6 +78,15 @@ describe("odoo tool execution", () => {
     expect(action).toBe("post_note");
   });
 
+  it("exposes body_markdown on odoo_post_note and recommends Markdown", () => {
+    const tool = listAllTools().find((t) => t.name === "odoo_post_note")!;
+    const props = (tool.inputSchema as { properties: Record<string, unknown>; required: string[] })
+      .properties;
+    expect(props).toHaveProperty("body_markdown");
+    expect(tool.description).toMatch(/markdown/i);
+    expect((tool.inputSchema as { required: string[] }).required).toEqual(["id"]);
+  });
+
   it("routes search_tickets to the odoo connector action", async () => {
     await executeTool("odoo_search_tickets", { query: "user-service" }, CTX);
     const [, integrationId, action] = runIntegrationActionMock.mock.calls[0]!;

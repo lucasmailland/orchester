@@ -28,6 +28,7 @@ import {
   type TicketPriority,
 } from "./odoo-client";
 import { htmlToText } from "./html-text";
+import { markdownToHtml } from "@/lib/text/markdown-html";
 import {
   nerdgraph,
   runNrql,
@@ -1596,8 +1597,16 @@ const odoo: Connector = {
             description: "helpdesk.ticket or project.task. Defaults to helpdesk.ticket.",
           },
           id: { type: "number" },
+          body_markdown: {
+            type: "string",
+            description:
+              "Note as Markdown (preferred): paragraphs, # headings, **bold**, *italic*, `code`, lists, [text](https://url), ---. Rendered to safe HTML; raw HTML in it is shown as text. Overrides body_text.",
+          },
           body_text: { type: "string", description: "Note as plain text." },
-          body: { type: "string", description: "Note as HTML. Overrides body_text." },
+          body: {
+            type: "string",
+            description: "Note as raw HTML, posted as is. Overrides body_markdown and body_text.",
+          },
           marker: {
             type: "string",
             description:
@@ -1608,8 +1617,13 @@ const odoo: Connector = {
       },
       async run(config, input) {
         const model = String(input.model ?? "helpdesk.ticket");
+        // Precedence: body (raw HTML) > body_markdown > body_text.
         let body =
-          typeof input.body === "string" ? input.body : htmlFromText(String(input.body_text ?? ""));
+          typeof input.body === "string"
+            ? input.body
+            : typeof input.body_markdown === "string"
+              ? markdownToHtml(input.body_markdown)
+              : htmlFromText(String(input.body_text ?? ""));
         if (!body.trim()) throw new Error("A note needs a body.");
         if (input.marker != null) {
           // The marker is plain text on purpose: Odoo's HTML sanitiser strips
@@ -1664,8 +1678,8 @@ const odoo: Connector = {
         // already deduplicated.
         const messageId = await odooExecute(config, model, "message_post", [[Number(input.id)]], {
           body,
-          // `body` is always HTML here (input.body, or body_text escaped by
-          // htmlFromText). Over RPC, Odoo 17+ escapes a body it is not told is
+          // `body` is always HTML here (input.body, body_markdown rendered by
+          // markdownToHtml, or body_text escaped by htmlFromText). Over RPC, Odoo 17+ escapes a body it is not told is
           // HTML, and the note shows literal <br/> tags.
           body_is_html: true,
           message_type: "comment",

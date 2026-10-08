@@ -143,3 +143,44 @@ describe("odoo post_note body", () => {
     expect(msg.kwargs.body_is_html).toBe(true);
   });
 });
+
+describe("odoo post_note body_markdown", () => {
+  it("renders body_markdown as HTML", async () => {
+    const calls = mockOdoo(() => 99);
+    await post({ body_text: undefined, body_markdown: "**bold**\n\n- a\n- b" });
+    const msg = calls.find((c) => c.method === "message_post")!;
+    expect(msg.kwargs.body).toBe("<p><b>bold</b></p><ul><li>a</li><li>b</li></ul>");
+    expect(msg.kwargs.body_is_html).toBe(true);
+  });
+
+  it("escapes raw HTML inside body_markdown", async () => {
+    const calls = mockOdoo(() => 99);
+    await post({ body_text: undefined, body_markdown: "<img src=x onerror=1>" });
+    const msg = calls.find((c) => c.method === "message_post")!;
+    expect(msg.kwargs.body).toBe("<p>&lt;img src=x onerror=1&gt;</p>");
+  });
+
+  it("prefers body over body_markdown over body_text", async () => {
+    const both = { body_markdown: "**md**", body_text: "plain" };
+    let calls = mockOdoo(() => 99);
+    await post({ ...both, body: "<p>raw</p>" });
+    expect(calls.find((c) => c.method === "message_post")!.kwargs.body).toBe("<p>raw</p>");
+    calls = mockOdoo(() => 99);
+    await post(both);
+    expect(calls.find((c) => c.method === "message_post")!.kwargs.body).toBe("<p><b>md</b></p>");
+  });
+
+  it("still prefixes the marker line", async () => {
+    const calls = mockOdoo((e) => (e.model === "mail.message" ? [] : 99));
+    await post({ body_text: undefined, body_markdown: "x", marker: "m1" });
+    const msg = calls.find((c) => c.method === "message_post")!;
+    expect(msg.kwargs.body).toBe("<p>[[orchester:m1]]</p><p>x</p>");
+  });
+
+  it("rejects a markdown body that renders to nothing", async () => {
+    mockOdoo(() => 99);
+    await expect(post({ body_text: undefined, body_markdown: "  " })).rejects.toThrow(
+      /needs a body/
+    );
+  });
+});

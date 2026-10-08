@@ -277,3 +277,23 @@ describe("after y before", () => {
     expect(evaluateExpression("falta | after:+", {})).toBe("");
   });
 });
+
+describe("markdown", () => {
+  it("renders markdown as HTML", () => {
+    expect(evaluateExpression("note | markdown", { note: "**a**\n\n- b" })).toBe(
+      "<p><b>a</b></p><ul><li>b</li></ul>"
+    );
+  });
+
+  it("escapes raw HTML and treats missing values as empty", () => {
+    expect(evaluateExpression("note | markdown", { note: "<script>x</script>" })).toBe(
+      "<p>&lt;script&gt;x&lt;/script&gt;</p>"
+    );
+    expect(evaluateExpression("nothing | markdown", {})).toBe("");
+  });
+
+  it("takes no arguments", () => {
+    expect(findTemplateErrors("{{ note | markdown }}")).toEqual([]);
+    expect(findTemplateErrors("{{ note | markdown:2 }}")).toHaveLength(1);
+  });
+});

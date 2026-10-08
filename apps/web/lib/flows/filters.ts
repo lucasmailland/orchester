@@ -1,4 +1,5 @@
 import { nrqlEscape, htmlEscape } from "@/lib/text/escape";
+import { markdownToHtml } from "@/lib/text/markdown-html";
 
 /**
  * `{{ path | filter:arg:arg }}` — pure, deterministic value derivation for
@@ -247,6 +248,8 @@ const FILTERS: Record<string, FilterSpec> = {
   },
   nrql: { arity: [0, 0], apply: (v) => nrqlEscape(asText(v)) },
   html: { arity: [0, 0], apply: (v) => htmlEscape(asText(v)) },
+  // Markdown to safe HTML for Odoo notes: raw HTML in the value is escaped.
+  markdown: { arity: [0, 0], apply: (v) => markdownToHtml(asText(v)) },
   redact: {
     arity: [1, 1],
     apply: (v, [max]) => {
