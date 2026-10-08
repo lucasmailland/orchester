@@ -9,6 +9,7 @@ import { normalizeFlowNodes, normalizeFlowEdges } from "./normalize";
 import { validateStoredFlow, hasErrors } from "./validate-stored";
 import { changesTheGraph, restorePatch } from "./versions";
 import type { ValidationIssue } from "./validate";
+import type { ExternalCaller, FlowKind } from "./kind";
 
 /**
  * Workspace-scoped flow operations shared by the session routes and the MCP
@@ -55,6 +56,8 @@ export interface FlowInput {
   triggerConfig?: Record<string, unknown> | undefined;
   enabled?: boolean | undefined;
   templateId?: string | undefined;
+  kind?: FlowKind | undefined;
+  externalCallers?: ExternalCaller[] | undefined;
 }
 
 const notFound = (what: string) => new FlowServiceError("not_found", `${what} not found`);
@@ -103,10 +106,11 @@ function checkGraph(
   nodes: unknown[],
   edges: unknown[],
   spec: string | null,
-  strict: boolean
+  strict: boolean,
+  contract: { kind: FlowKind; variables: unknown }
 ): ValidationIssue[] {
   if (!strict) return [];
-  const issues = validateStoredFlow(nodes, edges, { spec });
+  const issues = validateStoredFlow(nodes, edges, { spec, ...contract });
   if (hasErrors(issues)) {
     throw new FlowServiceError(
       "invalid",
@@ -148,7 +152,8 @@ export async function createFlow(
       variables = (t.variables as Record<string, unknown>) ?? {};
     }
     const spec = input.spec ?? null;
-    const warnings = checkGraph(nodes, edges, spec, strict);
+    const kind = input.kind ?? "pipeline";
+    const warnings = checkGraph(nodes, edges, spec, strict, { kind, variables });
     // Whatever the source, store only a graph the editor can open.
     const flow = await repo.insertFlow({
       id: createId(),
@@ -159,6 +164,8 @@ export async function createFlow(
       nodes: normalizeFlowNodes(nodes) as never,
       edges: normalizeFlowEdges(edges) as never,
       variables,
+      kind,
+      externalCallers: input.externalCallers ?? [],
     });
     if (!flow) throw new FlowServiceError("internal", "Insert failed");
     await auditApiKey(repo, actor, "flow.create", flow);
@@ -193,7 +200,11 @@ export async function updateFlow(
         input.nodes ?? (current.nodes as unknown[]) ?? [],
         input.edges ?? (current.edges as unknown[]) ?? [],
         input.spec !== undefined ? input.spec : current.spec,
-        strict
+        strict,
+        {
+          kind: input.kind ?? current.kind ?? "pipeline",
+          variables: input.variables ?? current.variables,
+        }
       );
     }
     // El estado anterior se guarda ANTES de pisarlo, en esta misma
@@ -214,6 +225,8 @@ export async function updateFlow(
       ...(input.edges !== undefined && { edges: normalizeFlowEdges(input.edges) as never }),
       ...(input.variables !== undefined && { variables: input.variables }),
       ...(input.enabled !== undefined && { enabled: input.enabled }),
+      ...(input.kind !== undefined && { kind: input.kind }),
+      ...(input.externalCallers !== undefined && { externalCallers: input.externalCallers }),
       updatedAt: new Date(),
     });
     if (!flow) throw notFound("Flow");
@@ -255,7 +268,11 @@ export async function restoreFlowVersion(
 export function validateFlowById(actor: FlowActor, flowId: string): Promise<ValidationIssue[]> {
   return withRepo(actor, async (repo) => {
     const flow = await requireFlow(repo, actor, flowId);
-    return validateStoredFlow(flow.nodes, flow.edges, { spec: flow.spec });
+    return validateStoredFlow(flow.nodes, flow.edges, {
+      spec: flow.spec,
+      kind: flow.kind ?? "pipeline",
+      variables: flow.variables,
+    });
   });
 }
 

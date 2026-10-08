@@ -3,6 +3,8 @@ import { normalizeFlowNodes, normalizeFlowEdges, registryIdOf } from "./normaliz
 import { validateFlow, type ValidationIssue, type VNode } from "./validate";
 import { findTemplateErrors } from "./filters";
 import { FLOW_NODE_TYPES } from "./node-types";
+import { actionViolations, type ActionViolation } from "./action-contract";
+import type { FlowKind } from "./kind";
 
 /**
  * Validation for flows as they are stored ({ id, type, label, config, ... }),
@@ -27,10 +29,44 @@ export function hasErrors(issues: ValidationIssue[]): boolean {
   return issues.some((i) => i.level === "error");
 }
 
+const ACTION_REASON: Record<ActionViolation["code"], string> = {
+  ai: "usa un modelo de IA (las acciones no pueden)",
+  human: "espera a una persona (las acciones no pueden)",
+  flow_call: "llama a otro flujo (las acciones nunca lo hacen)",
+  variables: "",
+};
+
+/** Action contract violations as validation issues, in the same shape as the rest. */
+function actionContractIssues(
+  nodes: ReadonlyArray<{ id: string; type: string; label: string }>,
+  variables: unknown
+): ValidationIssue[] {
+  return actionViolations(nodes, variables).map((v): ValidationIssue =>
+    v.code === "variables"
+      ? {
+          level: "error",
+          message:
+            "Una acción no puede tener variables a nivel de flujo: recibe todo por su entrada. Vaciá las variables o cambiá el tipo del flujo.",
+        }
+      : {
+          level: "error",
+          ...(v.nodeId ? { nodeId: v.nodeId } : {}),
+          message: `"${v.label}" ${ACTION_REASON[v.code]}: movelo a un pipeline o cambiá el tipo del flujo.`,
+        }
+  );
+}
+
 export function validateStoredFlow(
   rawNodes: unknown,
   rawEdges: unknown,
-  opts: { spec?: string | null; locale?: Locale } = {}
+  opts: {
+    spec?: string | null;
+    locale?: Locale;
+    /** Flow kind; only `action` adds the action contract. Defaults to pipeline. */
+    kind?: FlowKind | undefined;
+    /** Flow-level variables, checked only for actions. */
+    variables?: unknown;
+  } = {}
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const raw = Array.isArray(rawNodes) ? rawNodes : [];
@@ -47,6 +83,7 @@ export function validateStoredFlow(
   if (hasErrors(issues)) return issues;
 
   const nodes = normalizeFlowNodes(raw);
+  if (opts.kind === "action") issues.push(...actionContractIssues(nodes, opts.variables));
   const edges = normalizeFlowEdges(rawEdges);
   const vnodes: VNode[] = nodes.map((n) => ({
     id: n.id,

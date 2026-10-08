@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
+import { externalCallersSchema, flowKindSchema } from "@/lib/flows/kind";
 import { logAudit } from "@/lib/audit";
 import {
   blockersMessage,
@@ -26,6 +27,8 @@ const updateFlowSchema = z.object({
   edges: z.array(z.record(z.string(), z.unknown())).optional(),
   variables: z.record(z.string(), z.unknown()).optional(),
   enabled: z.boolean().optional(),
+  kind: flowKindSchema.optional(),
+  externalCallers: externalCallersSchema.optional(),
 });
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -75,9 +78,16 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json(
       {
         error: blockersMessage(blockers),
-        code: blockers.enabled ? "flow_enabled" : "flow_referenced",
+        code: blockers.enabled
+          ? "flow_enabled"
+          : blockers.externalCallers.length > 0 &&
+              blockers.agents.length === 0 &&
+              blockers.flows.length === 0
+            ? "flow_external_callers"
+            : "flow_referenced",
         agents: blockers.agents,
         flows: blockers.flows,
+        externalCallers: blockers.externalCallers,
       },
       { status: 409 }
     );

@@ -89,6 +89,34 @@ describe("DELETE /api/flows/[id]", () => {
     expect(body.flows).toEqual([{ id: "flow_b", name: "Caller B" }]);
   });
 
+  it("refuses while external callers are registered, telling how to clear them", async () => {
+    mocks.load.mockResolvedValue(
+      ctxFor({
+        flow: {
+          id: "flow_a",
+          name: "Flow A",
+          enabled: false,
+          externalCallers: [{ name: "nightly-script", note: "cron on the ops box" }],
+        },
+      })
+    );
+    const res = await call(DELETE);
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.code).toBe("flow_external_callers");
+    expect(body.error).toContain("nightly-script");
+    expect(body.error).toContain("update_flow");
+    expect(body.externalCallers).toEqual([{ name: "nightly-script", note: "cron on the ops box" }]);
+    expect(mocks.returning).not.toHaveBeenCalled();
+  });
+
+  it("deletes once the external callers are cleared", async () => {
+    mocks.load.mockResolvedValue(
+      ctxFor({ flow: { id: "flow_a", name: "Flow A", enabled: false, externalCallers: [] } })
+    );
+    expect((await call(DELETE)).status).toBe(200);
+  });
+
   it("deletes a clean, disabled flow and writes the audit log", async () => {
     mocks.load.mockResolvedValue(ctxFor());
     const res = await call(DELETE);
@@ -131,7 +159,7 @@ describe("GET /api/flows/[id]/delete-impact", () => {
     expect(await res.json()).toEqual({
       flow: { id: "flow_a", name: "Flow A" },
       counts,
-      blockers: { enabled: false, agents: [], flows: [] },
+      blockers: { enabled: false, agents: [], flows: [], externalCallers: [] },
     });
   });
 
@@ -148,7 +176,23 @@ describe("GET /api/flows/[id]/delete-impact", () => {
       enabled: true,
       agents: [{ id: "agent_1", name: "Agent One" }],
       flows: [{ id: "flow_b", name: "Caller B" }],
+      externalCallers: [],
     });
+  });
+
+  it("reports external callers", async () => {
+    mocks.load.mockResolvedValue(
+      ctxFor({
+        flow: {
+          id: "flow_a",
+          name: "Flow A",
+          enabled: false,
+          externalCallers: [{ name: "nightly" }],
+        },
+      })
+    );
+    const body = await (await get()).json();
+    expect(body.blockers.externalCallers).toEqual([{ name: "nightly" }]);
   });
 
   it("returns 404 for another workspace's flow", async () => {

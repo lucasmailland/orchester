@@ -334,6 +334,126 @@ describe("flow MCP tools", async () => {
     expect(svc.listFlowWebhooks).toHaveBeenCalledWith(expect.anything(), "f1", { redact: true });
   });
 
+  describe("flow kind and external callers", () => {
+    const rows = [
+      { id: "p1", name: "Pipe", status: "draft", kind: "pipeline", nodes: [], edges: [] },
+      { id: "a1", name: "Act", status: "draft", kind: "action", nodes: [], edges: [] },
+    ];
+    type Listed = { flows: Array<{ id: string; kind: string }> };
+    const list = async (args: Record<string, unknown>) =>
+      JSON.parse((await call("list_flows", args, ["flows:read"])).content[0]!.text) as Listed;
+
+    it("list_flows returns the kind of every flow", async () => {
+      svc.listFlows.mockResolvedValueOnce(rows as never);
+      const out = await list({});
+      expect(out.flows.map((f) => [f.id, f.kind])).toEqual([
+        ["p1", "pipeline"],
+        ["a1", "action"],
+      ]);
+    });
+
+    it.each([
+      ["action", ["a1"]],
+      ["pipeline", ["p1"]],
+    ])("list_flows filters by kind=%s", async (kind, ids) => {
+      svc.listFlows.mockResolvedValueOnce(rows as never);
+      expect((await list({ kind })).flows.map((f) => f.id)).toEqual(ids);
+    });
+
+    it("list_flows rejects an unknown kind", async () => {
+      const r = await call("list_flows", { kind: "macro" }, ["flows:read"]);
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toContain("kind");
+    });
+
+    it("get_flow returns kind and externalCallers", async () => {
+      svc.getFlow.mockResolvedValueOnce({
+        id: "a1",
+        name: "Act",
+        description: null,
+        spec: null,
+        status: "draft",
+        enabled: false,
+        trigger: "manual",
+        nodes: [],
+        edges: [],
+        variables: {},
+        version: 1,
+        kind: "action",
+        externalCallers: [{ name: "cron", note: "nightly" }],
+      } as never);
+      const out = JSON.parse(
+        (await call("get_flow", { flowId: "a1" }, ["flows:read"])).content[0]!.text
+      );
+      expect(out.kind).toBe("action");
+      expect(out.externalCallers).toEqual([{ name: "cron", note: "nightly" }]);
+    });
+
+    it.each(["create_flow", "update_flow"])(
+      "%s forwards kind and externalCallers",
+      async (tool) => {
+        const payload = {
+          name: "Act",
+          kind: "action",
+          externalCallers: [{ name: "cron", note: "nightly" }],
+        };
+        const r = await call(tool, { flowId: "f1", ...payload });
+        expect(r.isError).toBeFalsy();
+        const service = tool === "create_flow" ? svc.createFlow : svc.updateFlow;
+        expect(service).toHaveBeenCalledWith(
+          expect.anything(),
+          ...(tool === "update_flow" ? ["f1"] : []),
+          payload,
+          { strict: true }
+        );
+      }
+    );
+
+    it("validate_flow applies the action contract to an unsaved graph", async () => {
+      const node = {
+        id: "m",
+        type: "wait_human",
+        label: "M",
+        config: {},
+        position: { x: 0, y: 0 },
+      };
+      const run = async (kind: string) =>
+        JSON.parse(
+          (await call("validate_flow", { nodes: [node], edges: [], kind }, ["flows:read"]))
+            .content[0]!.text
+        ) as { issues: Array<{ nodeId?: string; message: string }> };
+      expect((await run("action")).issues.some((i) => /acci/i.test(i.message))).toBe(true);
+      expect((await run("pipeline")).issues.some((i) => /acci/i.test(i.message))).toBe(false);
+    });
+
+    it("update_flow can clear the external callers", async () => {
+      await call("update_flow", { flowId: "f1", externalCallers: [] });
+      expect(svc.updateFlow).toHaveBeenCalledWith(
+        expect.anything(),
+        "f1",
+        { externalCallers: [] },
+        { strict: true }
+      );
+    });
+
+    it.each([
+      ["kind", "macro"],
+      ["externalCallers", [{ name: "" }]],
+      ["externalCallers", [{ name: "a".repeat(81) }]],
+      ["externalCallers", [{ name: "a", note: "n".repeat(201) }]],
+      ["externalCallers", Array.from({ length: 11 }, (_, i) => ({ name: `c${i}` }))],
+      ["externalCallers", "cron"],
+    ])("rejects invalid %s (%j)", async (field, value) => {
+      for (const tool of ["create_flow", "update_flow"]) {
+        const r = await call(tool, { flowId: "f1", name: "x", [field]: value });
+        expect(r.isError).toBe(true);
+        expect(r.content[0]!.text).toContain(field);
+      }
+      expect(svc.createFlow).not.toHaveBeenCalled();
+      expect(svc.updateFlow).not.toHaveBeenCalled();
+    });
+  });
+
   it("list_flows goes through the service", async () => {
     await call("list_flows", {}, ["flows:read"]);
     expect(svc.listFlows).toHaveBeenCalled();

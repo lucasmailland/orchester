@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import type { ValidationIssue } from "@/lib/flows/validate";
 import type { FlowInput } from "@/lib/flows/service";
+import { externalCallersSchema, flowKindSchema, readExternalCallers } from "@/lib/flows/kind";
 import type { McpAuth, McpToolDef } from "./server";
 
 /**
@@ -72,6 +73,26 @@ const graphProps = {
     description: "Markdown: Purpose, Trigger, Steps, Side effects, Failure handling, Dependencies.",
   },
   description: { type: ["string", "null"] },
+  kind: {
+    type: "string",
+    enum: ["pipeline", "action"],
+    description:
+      "pipeline (default): a top-level flow. action: a reusable building block that pipelines call; it may not use AI nodes, wait_human, subflow/flow_call nodes or flow-level variables.",
+  },
+  externalCallers: {
+    type: "array",
+    maxItems: 10,
+    items: {
+      type: "object",
+      properties: {
+        name: { type: "string", maxLength: 80 },
+        note: { type: "string", maxLength: 200 },
+      },
+      required: ["name"],
+    },
+    description:
+      "Callers OUTSIDE orchester (e.g. a script calling run_flow by id). delete_flow refuses while this list is non-empty; clear it with update_flow ([]) first.",
+  },
 };
 
 const updateInputSchema = z.object({
@@ -83,6 +104,8 @@ const updateInputSchema = z.object({
   variables: z.record(z.string(), z.unknown()).optional(),
   status: z.enum(["draft", "active", "paused"]).optional(),
   enabled: z.boolean().optional(),
+  kind: flowKindSchema.optional(),
+  externalCallers: externalCallersSchema.optional(),
 });
 
 const createInputSchema = updateInputSchema.omit({ status: true, enabled: true }).extend({
@@ -126,7 +149,7 @@ export const FLOW_TOOLS: McpToolDef[] = [
     name: "get_flow_delete_impact",
     title: "Get flow deletion impact",
     description:
-      "Muestra qué bloquea la eliminación de un flujo y cuántas corridas, versiones, webhooks y schedules se eliminan en cascada.",
+      "Muestra qué bloquea la eliminación de un flujo (incluidos los llamadores externos declarados) y cuántas corridas, versiones, webhooks y schedules se eliminan en cascada.",
     domain: "flows",
     access: "read",
     inputSchema: {
@@ -143,7 +166,7 @@ export const FLOW_TOOLS: McpToolDef[] = [
     name: "delete_flow",
     title: "Delete a flow",
     description:
-      "Elimina un flujo deshabilitado y sin referencias de agentes u otros flujos. Requiere flows:delete y confirm con su nombre exacto. Devuelve los conteos eliminados en cascada.",
+      "Elimina un flujo deshabilitado, sin referencias de agentes u otros flujos y sin llamadores externos declarados (vaciá externalCallers con update_flow antes). Requiere flows:delete y confirm con su nombre exacto. Devuelve los conteos eliminados en cascada.",
     domain: "flows",
     access: "delete",
     inputSchema: {
@@ -163,7 +186,7 @@ export const FLOW_TOOLS: McpToolDef[] = [
     name: "get_flow",
     title: "Get a flow",
     description:
-      "Devuelve un flujo completo: spec, pasos (con su propósito), conexiones, variables y estado.",
+      "Devuelve un flujo completo: tipo (pipeline | action), llamadores externos, spec, pasos (con su propósito), conexiones, variables y estado.",
     access: "read",
     domain: "flows",
     inputSchema: {
@@ -185,6 +208,8 @@ export const FLOW_TOOLS: McpToolDef[] = [
         edges,
         variables,
         version,
+        kind,
+        externalCallers,
       } = f;
       // `nature` is additive: where the AI is (ai | code | human | control).
       const { nodesWithNature, summary } = await describeNature(actorOf(auth), id, nodes);
@@ -200,6 +225,8 @@ export const FLOW_TOOLS: McpToolDef[] = [
         edges,
         variables,
         version,
+        kind: kind ?? "pipeline",
+        externalCallers: readExternalCallers(externalCallers),
         natureSummary: summary,
       };
     },
@@ -216,11 +243,15 @@ export const FLOW_TOOLS: McpToolDef[] = [
       if (typeof input.flowId === "string" && input.flowId) {
         return { issues: await (await svc()).validateFlowById(actorOf(auth), input.flowId) };
       }
-      const graph = updateInputSchema.pick({ nodes: true, edges: true, spec: true }).parse(input);
+      const graph = updateInputSchema
+        .pick({ nodes: true, edges: true, spec: true, kind: true, variables: true })
+        .parse(input);
       const { validateStoredFlow } = await import("@/lib/flows/validate-stored");
       return {
         issues: validateStoredFlow(graph.nodes ?? [], graph.edges ?? [], {
           spec: graph.spec ?? null,
+          kind: graph.kind,
+          variables: graph.variables,
         }),
       };
     },

@@ -336,6 +336,27 @@ describe("workspace administration over MCP", () => {
     );
     expect(state.writes).toHaveLength(0);
   });
+  it("delete_flow refuses while external callers are registered, then allows after clearing", async () => {
+    state.rows.set("agent", []);
+    state.rows.set("flow", [{ ...flow, externalCallers: [{ name: "nightly-script" }] }]);
+    const refused = await call("delete_flow", { flowId: "f1", confirm: "Workflow" }, [
+      "flows:delete",
+    ]);
+    expect(refused.isError).toBe(true);
+    expect(refused.content[0]!.text).toContain("nightly-script");
+    expect(refused.content[0]!.text).toContain("update_flow");
+    expect(state.writes).toHaveLength(0);
+
+    state.rows.set("flow", [{ ...flow, externalCallers: [] }]);
+    const ok = await call("delete_flow", { flowId: "f1", confirm: "Workflow" }, ["flows:delete"]);
+    expect(ok.isError, ok.content[0]?.text).toBeFalsy();
+    expect(state.writes.map((w) => w.table)).toContain("flow");
+  });
+  it("get_flow_delete_impact reports external callers", async () => {
+    state.rows.set("flow", [{ ...flow, externalCallers: [{ name: "nightly-script", note: "n" }] }]);
+    const r = await call("get_flow_delete_impact", { flowId: "f1" }, ["flows:read"]);
+    expect(json(r).blockers.externalCallers).toEqual([{ name: "nightly-script", note: "n" }]);
+  });
   it("flow delete impact reports cascade counts", async () => {
     state.rows.set("flow_run", [{ n: 3 }]);
     const r = await call("get_flow_delete_impact", { flowId: "f1" }, ["flows:read"]);
