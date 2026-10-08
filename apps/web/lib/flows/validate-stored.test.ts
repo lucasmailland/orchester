@@ -310,3 +310,48 @@ describe("validateStoredFlow: action contract", () => {
     expect(actionErrors(run("transform", { kind: "action" }))).toEqual([]);
   });
 });
+
+describe("validateStoredFlow: subflow inputs/outputs", () => {
+  const sub = (config: Record<string, unknown>) => ({
+    id: "s",
+    type: "subflow",
+    label: "Call",
+    config: { flowId: "child", ...config },
+    position: { x: 0, y: 0 },
+    purpose: "Call an action",
+  });
+  const run = (config: Record<string, unknown>) =>
+    validateStoredFlow([trigger, sub(config)], [{ id: "e", source: "t", target: "s" }], {
+      spec: "x",
+    }).filter((i) => i.nodeId === "s");
+
+  it("accepts valid mappings and none at all", () => {
+    expect(run({})).toEqual([]);
+    expect(run({ inputs: { a_1: "{{x.y}}" }, outputs: { total: "result.total" } })).toEqual([]);
+  });
+  it("rejects names that are not identifiers", () => {
+    const issues = run({ inputs: { "1bad": "{{x}}", "a-b": "{{x}}" }, outputs: { "a b": "x" } });
+    expect(issues.filter((i) => i.level === "error")).toHaveLength(3);
+    expect(issues[0]!.message).toMatch(/nombre de variable/);
+  });
+  it("rejects empty, non-string and oversized expressions", () => {
+    expect(hasErrors(run({ inputs: { a: "  " } }))).toBe(true);
+    expect(hasErrors(run({ outputs: { a: 5 } }))).toBe(true);
+    expect(hasErrors(run({ inputs: { a: "x".repeat(501) } }))).toBe(true);
+    expect(hasErrors(run({ inputs: { a: "x".repeat(500) } }))).toBe(false);
+  });
+  it("rejects more than 30 entries", () => {
+    const many = Object.fromEntries(Array.from({ length: 31 }, (_, i) => [`v${i}`, "x"]));
+    expect(hasErrors(run({ inputs: many }))).toBe(true);
+    expect(hasErrors(run({ outputs: Object.fromEntries(Object.entries(many).slice(1)) }))).toBe(
+      false
+    );
+  });
+  it("rejects a mapping that is not an object", () => {
+    expect(hasErrors(run({ inputs: ["a"] }))).toBe(true);
+    expect(hasErrors(run({ outputs: "a" }))).toBe(true);
+  });
+  it("rejects unknown filters in a bare output path", () => {
+    expect(hasErrors(run({ outputs: { a: "x | nope" } }))).toBe(true);
+  });
+});

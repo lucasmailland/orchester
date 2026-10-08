@@ -8,6 +8,7 @@ import { enqueue, JOB_FLOW_RUN } from "./queue";
 import { assertPublicUrl } from "./net-guard";
 import { logWithContext, recordMetric } from "./observability";
 import { evaluateExpression } from "./flows/filters";
+import { buildSubflowInput, hasSubflowMap, readSubflowOutputs } from "./flows/subflow-io";
 import { parseRetryConfig, runWithRetry, StepFailure } from "./flows/retry";
 import { createApprovalToken, PauseRequested } from "./flows/pause";
 import { isDryRunSource, markDryRun, redactUrl, simulated } from "./flows/dry-run";
@@ -1603,11 +1604,15 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
   subflow: async ({ cfg, ctx, workspaceId, runId, db, helpers }) => {
     const subId = cfg.flowId as string | undefined;
     if (!subId) throw new Error("subflow: missing flowId");
+    // With `inputs` the child gets only those variables; without it, the whole bag.
+    const childInput = hasSubflowMap(cfg.inputs)
+      ? buildSubflowInput(cfg.inputs, ctx.variables, resolveValue)
+      : ctx.variables;
     const result = await executeFlow({
       flowId: subId,
       workspaceId,
       triggerSource: `parent_run:${runId}`,
-      input: ctx.variables,
+      input: childInput,
       callChain: ctx.callChain ?? [],
       // The child inherits the parent's mode, and the mark lands on its row.
       ...(ctx.dryRun ? { dryRun: true } : {}),
@@ -1634,6 +1639,17 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       tx.select().from(schema.flowRuns).where(eq(schema.flowRuns.id, result.runId)).limit(1)
     );
     const subOut = (subRuns[0]?.output as Record<string, unknown>) ?? {};
+    if (hasSubflowMap(cfg.outputs)) {
+      // Only the mapped variables come back; the rest of the child's bag stays there.
+      const { values, missing } = readSubflowOutputs(cfg.outputs, subOut, resolveValue);
+      Object.assign(ctx.variables, values);
+      helpers.setOutput({
+        subRunId: result.runId,
+        mappedKeys: Object.keys(values),
+        ...(missing.length ? { missingKeys: missing } : {}),
+      });
+      return;
+    }
     Object.assign(ctx.variables, subOut);
     helpers.setOutput({ subRunId: result.runId, mergedKeys: Object.keys(subOut) });
   },

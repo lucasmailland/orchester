@@ -1,5 +1,6 @@
 import { getNodeDef, type Locale } from "./node-registry";
 import type { FieldDef } from "./field-types";
+import { subflowMapProblems } from "./subflow-io";
 
 /**
  * Validación del flujo en lenguaje simple. Pura y testeable. Detecta problemas
@@ -75,6 +76,22 @@ export function validateFlow(
           level: "error",
           nodeId: n.id,
           message: `Al paso "${labelOf(n)}" le falta completar "${f.label}".`,
+        });
+      }
+    }
+  }
+
+  // 2b. Mapeo de entradas/salidas de un sub-flujo.
+  for (const n of nodes) {
+    const def = getNodeDef(String(n.data?.nodeId ?? n.type ?? ""));
+    if ((def?.engine ?? n.type) !== "subflow") continue;
+    const config = n.data?.config ?? {};
+    for (const field of ["inputs", "outputs"] as const) {
+      for (const problem of subflowMapProblems(field, config[field])) {
+        issues.push({
+          level: "error",
+          nodeId: n.id,
+          message: `En el paso "${labelOf(n)}": ${problem}`,
         });
       }
     }

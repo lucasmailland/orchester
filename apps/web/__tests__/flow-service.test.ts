@@ -111,6 +111,37 @@ describe("flow service", () => {
     });
   });
 
+  it("strict create carries subflow inputs/outputs and rejects malformed ones", async () => {
+    const call = (config: Record<string, unknown>) => ({
+      id: "s",
+      type: "subflow",
+      label: "Call",
+      config: { flowId: "child", ...config },
+      position: { x: 0, y: 0 },
+    });
+    const edges = [{ id: "e", source: "t", target: "s" }];
+    const { flow } = await svc.createFlow(
+      key,
+      {
+        name: "ok",
+        nodes: [trigger, call({ inputs: { a: "{{x}}" }, outputs: { b: "r.total" } })],
+        edges,
+      },
+      { strict: true }
+    );
+    const stored = (flow.nodes as Array<{ id: string; config: Record<string, unknown> }>).find(
+      (n) => n.id === "s"
+    );
+    expect(stored?.config).toMatchObject({ inputs: { a: "{{x}}" }, outputs: { b: "r.total" } });
+    await expect(
+      svc.createFlow(
+        key,
+        { name: "bad", nodes: [trigger, call({ inputs: { "bad name": "x" } })], edges },
+        { strict: true }
+      )
+    ).rejects.toMatchObject({ code: "invalid" });
+  });
+
   it("non-strict create keeps saving drafts, normalized", async () => {
     const { flow } = await svc.createFlow(user, {
       name: " Draft ",
