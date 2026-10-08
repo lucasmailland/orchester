@@ -9,7 +9,7 @@ import { logWithContext, recordMetric } from "./observability";
 import { evaluateExpression } from "./flows/filters";
 import { parseRetryConfig, runWithRetry, StepFailure } from "./flows/retry";
 import { createApprovalToken, PauseRequested } from "./flows/pause";
-import { isDryRunSource, markDryRun, simulated } from "./flows/dry-run";
+import { isDryRunSource, markDryRun, redactUrl, simulated } from "./flows/dry-run";
 
 /**
  * R2-C: Flow execution writes to tenant tables (flow_runs,
@@ -1013,7 +1013,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     if (ctx.dryRun && method !== "GET" && method !== "HEAD") {
       const sim = simulated({
         method,
-        url,
+        url: redactUrl(url),
         ...(init.body ? { body: String(init.body) } : {}),
       });
       ctx.variables[(cfg.outputVar as string) ?? "httpResult"] = sim;

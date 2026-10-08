@@ -183,6 +183,24 @@ describe("dry run: http steps", () => {
     });
     expect(JSON.stringify(out)).not.toMatch(/s3cr3t|tok/);
   });
+
+  it("simulates POST without keeping secrets carried in the URL", async () => {
+    const r = await dry(
+      [
+        trigger,
+        step("h", "http", {
+          method: "POST",
+          url: "https://user:hunter2@x.test/a?token=abc123&page=2",
+        }),
+      ],
+      [edge("t", "h")]
+    );
+    const out = r.steps.find((s) => s.nodeId === "h")?.output as {
+      wouldCall: { url: string };
+    };
+    expect(out.wouldCall.url).toBe("https://x.test/a?token=***&page=***");
+    expect(JSON.stringify(out)).not.toMatch(/hunter2|abc123|user/);
+  });
 });
 
 describe("dry run: LLM steps", () => {

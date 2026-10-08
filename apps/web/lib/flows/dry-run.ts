@@ -28,3 +28,24 @@ export interface SimulatedCall {
 export function simulated(wouldCall: Record<string, unknown>): SimulatedCall {
   return { dryRun: true, wouldCall };
 }
+
+/**
+ * The URL a simulated request would hit, safe to store in run history: query
+ * values and embedded credentials are masked, because tokens often travel
+ * there and the history outlives the run. Keys stay visible so the report
+ * still says what the call carried.
+ */
+export function redactUrl(raw: string): string {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return "[unparseable url]";
+  }
+  u.username = "";
+  u.password = "";
+  const keys = [...u.searchParams.keys()];
+  if (keys.length === 0) return u.toString();
+  const query = keys.map((k) => `${encodeURIComponent(k)}=***`).join("&");
+  return `${u.origin}${u.pathname}?${query}${u.hash ? "#…" : ""}`;
+}
