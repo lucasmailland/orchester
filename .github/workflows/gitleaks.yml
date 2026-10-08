@@ -29,7 +29,7 @@ jobs:
           # Need full history for scheduled / push scans on main.
           fetch-depth: 0
 
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # `.gitleaks.toml` at repo root provides the allowlist + extra rules.
