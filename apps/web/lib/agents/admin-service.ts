@@ -31,12 +31,13 @@ export const agentAdminPatchSchema = updateAgentSchema
   })
   .partial();
 
-async function requireAgent(tx: AdminDb, workspaceId: string, id: string) {
-  const [agent] = await tx
+async function requireAgent(tx: AdminDb, workspaceId: string, id: string, lock = false) {
+  const query = tx
     .select()
     .from(schema.agents)
     .where(and(eq(schema.agents.id, id), eq(schema.agents.workspaceId, workspaceId)))
     .limit(1);
+  const [agent] = await (lock ? query.for("update") : query);
   if (!agent) throw new AdminError("Agent not found", 404);
   return agent;
 }
@@ -54,7 +55,10 @@ export async function updateAgent(actor: AdminActor, id: string, input: Record<s
     if (unknown.length) throw new AdminError(`Unknown tools: ${unknown.join(", ")}`, 400);
   }
   return withAdminTx(actor, async (tx) => {
-    const current = await requireAgent(tx, actor.workspaceId, id);
+    // Row lock: `config` is merged from this read and written back below, so a
+    // concurrent update of another key must wait for this transaction instead
+    // of being overwritten by it.
+    const current = await requireAgent(tx, actor.workspaceId, id, true);
     if (data.teamId) await requireTeam(tx, actor.workspaceId, data.teamId);
     if (data.knowledgeBaseIds?.length) {
       const unknown = await unknownKbIds(actor.workspaceId, data.knowledgeBaseIds, tx);
