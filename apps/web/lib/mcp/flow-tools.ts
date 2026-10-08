@@ -3,6 +3,14 @@ import { z } from "zod";
 import type { ValidationIssue } from "@/lib/flows/validate";
 import type { FlowInput } from "@/lib/flows/service";
 import { externalCallersSchema, flowKindSchema, readExternalCallers } from "@/lib/flows/kind";
+import {
+  FLOW_GROUP_ICONS,
+  GROUP_DESCRIPTION_MAX,
+  GROUP_NAME_MAX,
+  MAX_GROUPS,
+  flowGroupsSchema,
+  normalizeFlowGroups,
+} from "@/lib/flows/groups";
 import type { McpAuth, McpToolDef } from "./server";
 
 /**
@@ -93,6 +101,23 @@ const graphProps = {
     description:
       "Callers OUTSIDE orchester (e.g. a script calling run_flow by id). delete_flow refuses while this list is non-empty; clear it with update_flow ([]) first.",
   },
+  groups: {
+    type: "array",
+    maxItems: MAX_GROUPS,
+    items: {
+      type: "object",
+      properties: {
+        id: { type: "string", pattern: "^[A-Za-z0-9_-]{1,64}$" },
+        name: { type: "string", maxLength: GROUP_NAME_MAX },
+        description: { type: "string", maxLength: GROUP_DESCRIPTION_MAX },
+        icon: { type: "string", enum: [...FLOW_GROUP_ICONS] },
+        nodeIds: { type: "array", minItems: 2, items: { type: "string" } },
+      },
+      required: ["id", "name", "nodeIds"],
+    },
+    description:
+      "Named groups of steps the editor draws as one block, e.g. { id, name: 'Fetch monitoring data', description (one line), icon, nodeIds }. Presentation only: groups never change what the flow runs. Every nodeId must be a step of the flow and a step can be in one group only (no nesting). Send the full list to replace it ([] clears it); when only nodes are sent, groups lose the steps that were removed.",
+  },
 };
 
 const updateInputSchema = z.object({
@@ -106,6 +131,7 @@ const updateInputSchema = z.object({
   enabled: z.boolean().optional(),
   kind: flowKindSchema.optional(),
   externalCallers: externalCallersSchema.optional(),
+  groups: flowGroupsSchema.optional(),
 });
 
 const createInputSchema = updateInputSchema.omit({ status: true, enabled: true }).extend({
@@ -186,7 +212,7 @@ export const FLOW_TOOLS: McpToolDef[] = [
     name: "get_flow",
     title: "Get a flow",
     description:
-      "Devuelve un flujo completo: tipo (pipeline | action), llamadores externos, spec, pasos (con su propósito), conexiones, variables y estado.",
+      "Devuelve un flujo completo: tipo (pipeline | action), llamadores externos, spec, pasos (con su propósito), conexiones, variables, grupos de pasos (bloques con nombre, sólo presentación) y estado.",
     access: "read",
     domain: "flows",
     inputSchema: {
@@ -210,6 +236,7 @@ export const FLOW_TOOLS: McpToolDef[] = [
         version,
         kind,
         externalCallers,
+        groups,
       } = f;
       // `nature` is additive: where the AI is (ai | code | human | control).
       const { nodesWithNature, summary } = await describeNature(actorOf(auth), id, nodes);
@@ -227,6 +254,8 @@ export const FLOW_TOOLS: McpToolDef[] = [
         version,
         kind: kind ?? "pipeline",
         externalCallers: readExternalCallers(externalCallers),
+        // Presentation only: which steps the editor draws as one named block.
+        groups: normalizeFlowGroups(groups),
         natureSummary: summary,
       };
     },
@@ -252,7 +281,7 @@ export const FLOW_TOOLS: McpToolDef[] = [
     name: "validate_flow",
     title: "Validate a flow",
     description:
-      "Valida un flujo guardado (flowId) o un grafo sin guardar ({ nodes, edges, spec }). Devuelve errores y avisos.",
+      "Valida un flujo guardado (flowId) o un grafo sin guardar ({ nodes, edges, spec, groups }). Devuelve errores y avisos.",
     access: "read",
     domain: "flows",
     inputSchema: { type: "object", properties: { flowId: { type: "string" }, ...graphProps } },
@@ -261,16 +290,26 @@ export const FLOW_TOOLS: McpToolDef[] = [
         return { issues: await (await svc()).validateFlowById(actorOf(auth), input.flowId) };
       }
       const graph = updateInputSchema
-        .pick({ nodes: true, edges: true, spec: true, kind: true, variables: true })
+        .pick({ nodes: true, edges: true, spec: true, kind: true, variables: true, groups: true })
         .parse(input);
       const { validateStoredFlow } = await import("@/lib/flows/validate-stored");
-      return {
-        issues: validateStoredFlow(graph.nodes ?? [], graph.edges ?? [], {
-          spec: graph.spec ?? null,
-          kind: graph.kind,
-          variables: graph.variables,
-        }),
-      };
+      const issues = validateStoredFlow(graph.nodes ?? [], graph.edges ?? [], {
+        spec: graph.spec ?? null,
+        kind: graph.kind,
+        variables: graph.variables,
+      });
+      // Groups do not change the graph's issues; only their own references are checked.
+      if (graph.groups) {
+        const { groupIssues } = await import("@/lib/flows/groups");
+        const { normalizeFlowNodes } = await import("@/lib/flows/normalize");
+        issues.push(
+          ...groupIssues(
+            graph.groups,
+            normalizeFlowNodes(graph.nodes ?? []).map((n) => n.id)
+          )
+        );
+      }
+      return { issues };
     },
   },
   {
@@ -321,6 +360,53 @@ export const FLOW_TOOLS: McpToolDef[] = [
     },
   },
   {
+    name: "extract_to_flow",
+    title: "Extract steps into their own flow",
+    description:
+      "Mueve un grupo de pasos (groupId) o una selección (nodeIds + name) a un flujo nuevo y lo llama desde donde estaba, con un paso subflow, en una sola transacción. Sólo si el bloque se ejecuta igual después: una sola conexión entra y una sola sale, sin el disparador ni wait_human adentro, y todas las ramas se juntan antes de la salida. inputs = variables que el bloque lee de antes; outputs = variables que produce y que los pasos posteriores leen. El flujo nuevo queda habilitado y activo (uno deshabilitado rechaza las llamadas de otros flujos), es action si cumple el contrato y pipeline si no. Guarda una versión del flujo original, así que se puede restaurar. Con preview: true sólo devuelve el plan (o por qué no se puede), sin escribir nada.",
+    access: "write",
+    domain: "flows",
+    inputSchema: {
+      type: "object",
+      properties: {
+        flowId: { type: "string" },
+        groupId: { type: "string", description: "A group of the flow (see get_flow groups)." },
+        nodeIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "Steps to extract, when they are not a group. Needs name.",
+        },
+        name: { type: "string", maxLength: GROUP_NAME_MAX },
+        description: { type: "string", maxLength: GROUP_DESCRIPTION_MAX },
+        icon: { type: "string", enum: [...FLOW_GROUP_ICONS] },
+        preview: { type: "boolean" },
+      },
+      required: ["flowId"],
+    },
+    async handler(input, auth) {
+      const flowId = str(input.flowId, "flowId");
+      const { extractRequestSchema } = await import("@/lib/flows/extract-request");
+      const { flowId: _flowId, ...rest } = input;
+      const parsed = extractRequestSchema.safeParse(rest);
+      if (!parsed.success) {
+        throw new Error(
+          parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
+        );
+      }
+      const { preview, ...request } = parsed.data;
+      const s = await svc();
+      if (preview) return s.previewExtraction(actorOf(auth), flowId, request);
+      return guard(async () => {
+        const { plan, child, parent } = await s.extractToFlow(actorOf(auth), flowId, request);
+        return {
+          childFlow: { id: child.id, name: child.name, kind: child.kind, enabled: child.enabled },
+          parent: { id: parent.id, version: parent.version },
+          plan,
+        };
+      });
+    },
+  },
+  {
     name: "list_flow_versions",
     title: "List flow versions",
     description:
@@ -343,7 +429,7 @@ export const FLOW_TOOLS: McpToolDef[] = [
     name: "restore_flow_version",
     title: "Restore a flow version",
     description:
-      "Devuelve el flujo a una versión guardada: nodos, aristas, variables y spec. Deja su propia versión del estado descartado, así que restaurar también se puede deshacer.",
+      "Devuelve el flujo a una versión guardada: nodos, aristas, variables, spec y grupos de pasos. Deja su propia versión del estado descartado, así que restaurar también se puede deshacer.",
     access: "write",
     domain: "flows",
     inputSchema: {

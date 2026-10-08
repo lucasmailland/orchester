@@ -36,7 +36,9 @@ import { TermDef } from "@/components/compass/TermDef";
 import { TourSpot } from "@/components/compass/TourSpot";
 import type { CompassTemplate, FlowTemplatePayload } from "@/lib/compass/templates";
 import { groupFlowsByStatus, type FlowStatus } from "@/lib/flows/group-by-status";
+import { FlowRelationChips } from "@/components/flows/FlowRelations";
 import type { FlowKind } from "@/lib/flows/kind";
+import type { FlowRelations } from "@/lib/flows/relations";
 import { useTemplateCreateFlow } from "@/lib/compass/use-template-create-flow";
 
 // Prefill captured from a TemplatePicker selection. Name + description seed
@@ -64,6 +66,8 @@ interface Item {
   aiStepCount?: number;
   /** A sub-flow call reaches AI even when this flow has none itself. */
   aiViaSubflow?: boolean;
+  /** Who calls this flow and whom it calls. Optional: older callers omit it. */
+  relations?: FlowRelations | undefined;
 }
 
 const STATUS_BADGE_CLASSES: Record<FlowStatus, string> = {
@@ -80,6 +84,8 @@ export function FlowsListClient({ flows: initialFlows }: { flows: Item[] }) {
   // server component to re-render.
   const [flows, setFlows] = useState<Item[]>(initialFlows);
   const [deleting, setDeleting] = useState<Item | null>(null);
+  // The card whose relations popover is open sits above its neighbours.
+  const [raisedId, setRaisedId] = useState<string | null>(null);
   const [kindFilter, setKindFilter] = useState<"all" | FlowKind>("all");
   const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "es";
@@ -305,38 +311,54 @@ export function FlowsListClient({ flows: initialFlows }: { flows: Item[] }) {
                       key={f.id}
                       initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="relative"
+                      className={`relative ${raisedId === f.id ? "z-20" : ""}`}
                     >
-                      <button
-                        type="button"
-                        onClick={() => router.push(`/${locale}/${workspaceSlug}/flows/${f.id}`)}
-                        className="block w-full rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
-                      >
-                        <div className="mb-2 flex items-center gap-2 pr-8">
-                          <Workflow className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-                          <span className="truncate font-medium text-strong">{f.name}</span>
-                          {f.kind === "action" ? (
-                            <span
-                              data-testid="flow-kind-badge"
-                              className="shrink-0 rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300"
+                      <div className="rounded-2xl border border-line bg-card hover:border-violet-500/40">
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/${locale}/${workspaceSlug}/flows/${f.id}`)}
+                          className="block w-full rounded-t-2xl p-4 pb-0 text-left"
+                        >
+                          <div className="mb-2 flex items-center gap-2 pr-8">
+                            <Workflow className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                            <span className="truncate font-medium text-strong">{f.name}</span>
+                            {f.kind === "action" ? (
+                              <span
+                                data-testid="flow-kind-badge"
+                                className="shrink-0 rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300"
+                              >
+                                {t("kindAction")}
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="line-clamp-2 text-xs text-muted">{f.description ?? "—"}</p>
+                          {(f.aiStepCount ?? 0) > 0 || f.aiViaSubflow ? (
+                            <p
+                              data-testid="flow-ai-steps"
+                              className="mt-2 inline-flex items-center gap-1 text-[11px] text-violet-700 dark:text-violet-300"
                             >
-                              {t("kindAction")}
-                            </span>
+                              <Bot className="h-3 w-3" aria-hidden="true" />
+                              {(f.aiStepCount ?? 0) > 0
+                                ? t("aiSteps", { count: f.aiStepCount ?? 0 })
+                                : t("aiViaSubflow")}
+                            </p>
                           ) : null}
-                        </div>
-                        <p className="line-clamp-2 text-xs text-muted">{f.description ?? "—"}</p>
-                        {(f.aiStepCount ?? 0) > 0 || f.aiViaSubflow ? (
-                          <p
-                            data-testid="flow-ai-steps"
-                            className="mt-2 inline-flex items-center gap-1 text-[11px] text-violet-700 dark:text-violet-300"
-                          >
-                            <Bot className="h-3 w-3" aria-hidden="true" />
-                            {(f.aiStepCount ?? 0) > 0
-                              ? t("aiSteps", { count: f.aiStepCount ?? 0 })
-                              : t("aiViaSubflow")}
-                          </p>
+                        </button>
+                        {f.relations ? (
+                          <div className="px-4 pt-2">
+                            <FlowRelationChips
+                              relations={f.relations}
+                              onOpenChange={(open) =>
+                                setRaisedId((cur) => (open ? f.id : cur === f.id ? null : cur))
+                              }
+                            />
+                          </div>
                         ) : null}
-                        <div className="mt-3 flex items-center justify-between text-[10px] text-faint">
+                        {/* Mouse convenience only: keyboard users reach the flow through the button above. */}
+                        <div
+                          onClick={() => router.push(`/${locale}/${workspaceSlug}/flows/${f.id}`)}
+                          className="flex cursor-pointer items-center justify-between rounded-b-2xl px-4 pb-4 pt-3 text-[10px] text-faint"
+                        >
                           <span>{t("nodesLabel", { count: f.nodeCount })}</span>
                           <span
                             className={`rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASSES[f.status]}`}
@@ -344,7 +366,7 @@ export function FlowsListClient({ flows: initialFlows }: { flows: Item[] }) {
                             {t(`statuses.${f.status}`)}
                           </span>
                         </div>
-                      </button>
+                      </div>
                       <Dropdown placement="bottom-end">
                         <DropdownTrigger>
                           <button

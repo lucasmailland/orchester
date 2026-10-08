@@ -9,6 +9,8 @@
  * identity keeps auto-save for changes that actually alter what is stored.
  */
 
+import { canonicalGroups, type FlowGroup } from "./groups";
+
 /** A React Flow node, narrowed to the fields that end up stored. */
 export interface BuilderNode {
   id: string;
@@ -41,13 +43,16 @@ export interface FlowPayload {
   edges: Record<string, unknown>[];
   variables: Record<string, unknown>;
   spec: string | null;
+  /** Step groups, in canonical shape. Absent when the caller does not manage groups. */
+  groups?: FlowGroup[];
 }
 
 export function buildFlowPayload(
   nodes: readonly BuilderNode[],
   edges: readonly BuilderEdge[],
   variables: Record<string, unknown>,
-  spec: string | null
+  spec: string | null,
+  groups?: readonly FlowGroup[]
 ): FlowPayload {
   return {
     nodes: nodes.map((n) => {
@@ -74,6 +79,7 @@ export function buildFlowPayload(
     }),
     variables,
     spec,
+    ...(groups ? { groups: canonicalGroups(groups) } : {}),
   };
 }
 

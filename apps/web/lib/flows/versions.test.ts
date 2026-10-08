@@ -15,6 +15,7 @@ describe("flow versions carry the spec", () => {
       edges: [],
       variables: {},
       spec: "## Purpose",
+      groups: [],
     });
   });
   it("restores the spec with the graph, including a null spec", () => {
@@ -23,7 +24,33 @@ describe("flow versions carry the spec", () => {
       edges: [],
       variables: { a: 1 },
       spec: null,
+      groups: [],
     });
+  });
+});
+
+describe("flow versions carry the groups", () => {
+  const group = { id: "g1", name: "Fetch data", icon: "Globe", nodeIds: ["a", "b"] };
+
+  it("snapshots and restores the groups with the graph", () => {
+    const flow = { nodes: [{ id: "a" }, { id: "b" }], edges: [], variables: {}, spec: null };
+    expect(versionSnapshot({ ...flow, groups: [group] }).groups).toEqual([group]);
+    expect(restorePatch({ ...flow, groups: [group] }).groups).toEqual([group]);
+  });
+
+  it("restores a version saved before groups existed as a flow without groups", () => {
+    // The column defaults to [] for old rows; a missing or malformed value reads the same way.
+    const old = { nodes: [], edges: [], variables: {}, spec: null };
+    expect(restorePatch(old).groups).toEqual([]);
+    expect(restorePatch({ ...old, groups: "junk" }).groups).toEqual([]);
+  });
+
+  it("a change in the groups deserves a version; the same groups do not", () => {
+    const current = { nodes: [], edges: [], variables: {}, spec: null, groups: [group] };
+    expect(changesTheGraph(current, { groups: [{ ...group, name: "Renamed" }] })).toBe(true);
+    expect(changesTheGraph(current, { groups: [] })).toBe(true);
+    expect(changesTheGraph(current, { groups: [{ ...group }] })).toBe(false);
+    expect(changesTheGraph(current, {})).toBe(false);
   });
 });
 

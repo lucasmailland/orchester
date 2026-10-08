@@ -47,6 +47,10 @@ export const MANIFEST = [
     "0062_flow_kind.sql",
     "etiquetado de flows: flow.kind (pipeline | action) y flow.external_callers (quién los llama desde afuera)",
   ],
+  [
+    "0063_flow_groups.sql",
+    "grupos de pasos con nombre en flow.groups y flow_version.groups (sólo presentación)",
+  ],
   // Sin número: ajuste del deploy single-tenant, no historia de upstream.
   // 0049 deja `org` con FORCE RLS y sólo una política de SELECT, así que ningún
   // INSERT pasa y crear un workspace da 500. Ver el header del archivo.

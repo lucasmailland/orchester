@@ -1,9 +1,11 @@
 import { computeBlockers } from "./delete-impact";
+import { flowCallOf } from "./flow-calls";
 import { readExternalCallers, type ExternalCaller, type FlowKind } from "./kind";
 import { nodeNature, type NodeNature } from "./node-nature";
 import { normalizeFlowNodes } from "./normalize";
 import { actionContractIssues } from "./validate-stored";
 import type { ValidationIssue } from "./validate";
+import { nodeVariableFacts, text, type Unresolved } from "./variable-facts";
 
 /**
  * Flow "fact sheet": what a flow is, computed from its graph so it cannot
@@ -46,10 +48,7 @@ export interface DescribeAiStep extends DescribeNodeRef {
   model?: string;
 }
 
-export interface Unresolved {
-  nodeId: string;
-  reason: string;
-}
+export type { Unresolved };
 
 export type ActionEffectFact = "read" | "write" | "unknown";
 
@@ -107,60 +106,6 @@ export interface DescribeContext {
   effects: Readonly<Record<string, "read" | "write" | undefined>>;
 }
 
-const TEMPLATE = /\{\{([^}]+)\}\}/g;
-const ROOT = /^([A-Za-z_][A-Za-z0-9_]*)/;
-const LITERAL = /^(["'\d-])/;
-
-/** Default `outputVar` per node type, from the engine's handlers. `meta` also sets `<var>Meta`. */
-const OUTPUT_DEFAULTS: Record<string, { name: string; meta?: boolean }> = {
-  agent: { name: "agentResult", meta: true },
-  http: { name: "httpResult" },
-  kb_search: { name: "knowledge" },
-  generate_image: { name: "image" },
-  embed_text: { name: "vector" },
-  llm_prompt: { name: "texto", meta: true },
-  generate_video: { name: "video" },
-  text_to_speech: { name: "audio" },
-  transcribe: { name: "texto" },
-  generate_avatar: { name: "video" },
-  generate_music: { name: "musica" },
-  ocr_extract: { name: "texto" },
-  rerank: { name: "ranked" },
-  integration: { name: "appResult" },
-  spreadsheet: { name: "result" },
-};
-
-const FLOW_CALL_TYPES = new Set(["subflow", "flow_call"]);
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-
-const text = (v: unknown, fallback: string): string =>
-  typeof v === "string" && v.trim() ? v.trim() : fallback;
-
-/** Every string in a config, optionally skipping top-level keys. */
-function strings(value: unknown, skip: ReadonlySet<string> = new Set(), out: string[] = []) {
-  if (typeof value === "string") out.push(value);
-  else if (Array.isArray(value)) value.forEach((v) => strings(v, new Set(), out));
-  else if (isRecord(value)) {
-    for (const [k, v] of Object.entries(value)) if (!skip.has(k)) strings(v, new Set(), out);
-  }
-  return out;
-}
-
-function parseTemplateObject(value: unknown): Record<string, unknown> | "dynamic" {
-  let tpl = value;
-  if (typeof tpl === "string") {
-    try {
-      tpl = JSON.parse(tpl);
-    } catch {
-      return "dynamic";
-    }
-  }
-  return isRecord(tpl) ? tpl : "dynamic";
-}
-
 export function describeFlow(flow: DescribeFlowInput, ctx: DescribeContext): FlowSheet {
   const nodes = normalizeFlowNodes(flow.nodes);
   const kind: FlowKind = flow.kind === "action" ? "action" : "pipeline";
@@ -190,70 +135,17 @@ export function describeFlow(flow: DescribeFlowInput, ctx: DescribeContext): Flo
       human.push({ nodeId: n.id, label, type: n.type });
     }
 
-    // Reads: templates anywhere in the config. A subflow's `outputs` run on the child.
-    const skip = new Set(FLOW_CALL_TYPES.has(n.type) ? ["outputs"] : []);
-    for (const s of strings(cfg, skip)) {
-      for (const m of s.matchAll(TEMPLATE)) {
-        const path = (m[1] ?? "").split("|")[0]?.trim() ?? "";
-        const root = ROOT.exec(path)?.[1];
-        if (root) reads.add(root);
-        else if (!LITERAL.test(path)) {
-          readsUnknown.push({ nodeId: n.id, reason: `unreadable expression {{${path}}}` });
-        }
-      }
-    }
-    if (n.type === "loop_for_each" && cfg.items === undefined) {
-      reads.add(text(cfg.arrayVar, "items"));
-    }
-    if (n.type === "spreadsheet" && (cfg.formula || cfg.grid)) {
-      readsUnknown.push({ nodeId: n.id, reason: "spreadsheet formulas name variables freely" });
-    }
-    if (n.type === "code" && typeof cfg.code === "string" && cfg.code.trim()) {
-      readsUnknown.push({ nodeId: n.id, reason: "javascript step reads input.*" });
-      writesUnknown.push({ nodeId: n.id, reason: "javascript step returns an object" });
-    }
+    // Reads and writes: the per-step analysis shared with the extraction planner.
+    const facts = nodeVariableFacts(n);
+    facts.reads.forEach((v) => reads.add(v));
+    facts.writes.forEach((v) => writes.add(v));
+    readsUnknown.push(...facts.readsUnknown);
+    writesUnknown.push(...facts.writesUnknown);
 
-    // Writes.
-    const def = OUTPUT_DEFAULTS[n.type];
-    if (def) {
-      const name = text(cfg.outputVar, def.name);
-      writes.add(name);
-      if (def.meta) writes.add(`${name}Meta`);
-    }
-    if (n.type === "transform") {
-      if (cfg.template !== undefined) {
-        const tpl = parseTemplateObject(cfg.template);
-        if (tpl === "dynamic") {
-          writesUnknown.push({ nodeId: n.id, reason: "template is not a literal object" });
-        } else {
-          Object.keys(tpl).forEach((k) => writes.add(k));
-        }
-      } else {
-        writes.add(text(cfg.target, "result"));
-      }
-    }
-    if (n.type === "code" && !(typeof cfg.code === "string" && cfg.code.trim())) {
-      for (const line of String(cfg.source ?? "").split("\n")) {
-        const m = /^\s*set\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=/.exec(line);
-        if (m?.[1]) writes.add(m[1]);
-      }
-    }
-    if (n.type === "loop_for_each") {
-      writes.add(text(cfg.itemVar, "item"));
-      writes.add(text(cfg.outputVar, "loopResults"));
-    }
-    if (n.type === "try_catch") writes.add(text(cfg.errorVar, "error"));
-
-    if (FLOW_CALL_TYPES.has(n.type)) {
-      const inputs = isRecord(cfg.inputs) ? Object.keys(cfg.inputs).sort() : [];
-      const outputs = isRecord(cfg.outputs) ? Object.keys(cfg.outputs).sort() : [];
-      subflows.push({ nodeId: n.id, flowId: text(cfg.flowId, ""), inputs, outputs });
-      if (isRecord(cfg.outputs)) outputs.forEach((k) => writes.add(k));
-      else
-        writesUnknown.push({
-          nodeId: n.id,
-          reason: "subflow without outputs merges the child's variables",
-        });
+    const call = flowCallOf(n);
+    if (call) {
+      const { inputs, outputs } = call;
+      subflows.push({ nodeId: n.id, flowId: call.flowId, inputs, outputs });
     }
     if (n.type === "integration") {
       const raw = text(cfg.integrationId, "");
