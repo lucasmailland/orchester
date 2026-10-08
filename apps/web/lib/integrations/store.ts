@@ -108,6 +108,8 @@ export async function upsertIntegration(
           eq(schema.workspaceIntegrations.workspaceId, args.workspaceId)
         )
       );
+    const { invalidateMcpTools } = await import("./mcp-client");
+    invalidateMcpTools(args.workspaceId, args.id);
     return {
       id: args.id,
       status,

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { listWorkspaceMcpTools } from "@/lib/integrations/mcp-tools";
 import { listAllTools } from "@/lib/tools";
 import { getCurrentWorkspace } from "@/lib/workspace";
 
@@ -21,5 +22,14 @@ export async function GET() {
     category: BUILTIN_META[t.name]?.category ?? "Otros",
     builtin: true,
   }));
-  return NextResponse.json(tools);
+  const remote = (await listWorkspaceMcpTools(ws.workspace.id)).map((tool) => ({
+    id: tool.name,
+    name: tool.name,
+    description: tool.description,
+    label: tool.remoteName,
+    category: tool.integrationName,
+    builtin: false,
+    effect: tool.effect,
+  }));
+  return NextResponse.json([...tools, ...remote]);
 }

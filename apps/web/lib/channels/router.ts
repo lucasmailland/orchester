@@ -5,7 +5,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { eq, and, desc } from "drizzle-orm";
 import { schema, type DbClient, type Conversation, type Agent, type Channel } from "@orchester/db";
 import { llmCall, llmStream, type ChatMessage } from "@/lib/llm-call";
-import { getToolDefinitions, executeTool } from "@/lib/tools";
+import { resolveToolDefinitions, executeTool } from "@/lib/tools";
 import { executeFlow } from "@/lib/flow-engine";
 import { assertWithinSpend } from "@/lib/cost-alerts";
 import { UNTRUSTED_CONTENT_GUARDRAIL, wrapUntrusted } from "@/lib/agent-runtime";
@@ -477,7 +477,7 @@ async function runConversationalTurn(
   // pivotea `conversation.agentId` → en la próxima iteración tenemos que
   // recargar el agente y reconstruir prompt/tools/temperature acordes.
   let activeAgent = agent;
-  let activeTools = getToolDefinitions(activeAgent.tools ?? []);
+  let activeTools = await resolveToolDefinitions(workspaceId, activeAgent.tools ?? [], tx);
   let activeSystemPrompt = systemPrompt;
   let reply = "";
   let tokens = 0;
@@ -570,7 +570,7 @@ async function runConversationalTurn(
             .limit(1);
           if (newAgentRows[0]) {
             activeAgent = newAgentRows[0];
-            activeTools = getToolDefinitions(activeAgent.tools ?? []);
+            activeTools = await resolveToolDefinitions(workspaceId, activeAgent.tools ?? [], tx);
             // Re-inyectá memorias del nuevo agente (cambia el contexto).
             // Phase F.1 fix: thread `tx` so the SELECT runs under the
             // turn's tenant context.

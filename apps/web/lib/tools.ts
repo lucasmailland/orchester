@@ -20,6 +20,8 @@ type WsDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 const HTTP_REQUEST_TIMEOUT_MS = 30_000;
 
 export interface ToolDefinition {
+  /** MCP annotations, conservatively classified for execution policies. */
+  effect?: "read" | "write";
   name: string;
   description: string;
   /** JSON Schema describing the tool's input. */
@@ -604,6 +606,18 @@ export function getToolDefinitions(enabledIds: string[]): ToolDefinition[] {
   return enabledIds.map((id) => BUILTINS[id]).filter(Boolean) as ToolDefinition[];
 }
 
+export async function resolveToolDefinitions(
+  workspaceId: string,
+  enabledIds: string[],
+  tx?: WsDb
+): Promise<ToolDefinition[]> {
+  const builtins = getToolDefinitions(enabledIds);
+  if (!enabledIds.some((id) => id.startsWith("mcp__"))) return builtins;
+  const { listWorkspaceMcpTools } = await import("./integrations/mcp-tools");
+  const remote = await listWorkspaceMcpTools(workspaceId, tx);
+  return [...builtins, ...remote.filter((tool) => enabledIds.includes(tool.name))];
+}
+
 export function listAllTools(): ToolDefinition[] {
   return Object.values(BUILTINS);
 }
@@ -760,6 +774,10 @@ export async function executeTool(
   input: Record<string, unknown>,
   ctx: ToolContext
 ): Promise<unknown> {
+  if (name.startsWith("mcp__")) {
+    const { executeWorkspaceMcpTool } = await import("./integrations/mcp-tools");
+    return executeWorkspaceMcpTool(name, input, ctx);
+  }
   if (name === "current_time") {
     const tz = (input.timezone as string) ?? "UTC";
     try {

@@ -43,6 +43,7 @@
     "@heroui/react": "^2.7.6",
     "@hookform/resolvers": "^5.4.0",
     "@mnemo-ai/client-ts": "^3.6.2",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "@paralleldrive/cuid2": "^3.3.0",
     "@xyflow/react": "^12.11.0",
     "archiver": "^7.0.1",

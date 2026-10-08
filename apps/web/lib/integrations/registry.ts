@@ -1473,7 +1473,50 @@ const gitlab: Connector = {
   },
 };
 
+const mcp: Connector = {
+  id: "mcp",
+  name: "MCP server",
+  description: "Connect a Streamable HTTP MCP server and enable its tools for agents.",
+  category: "custom",
+  authType: "token",
+  fields: [
+    {
+      key: "url",
+      label: "Server URL",
+      type: "url",
+      required: true,
+      placeholder: "https://mcp.example.com/mcp",
+    },
+    {
+      key: "authHeader",
+      label: "Authorization header",
+      type: "password",
+      help: "Optional complete Authorization value, such as Bearer followed by a token.",
+    },
+    {
+      key: "toolAllowlist",
+      label: "Tool allowlist",
+      type: "text",
+      placeholder: '["search", "read_document"]',
+      help: "Optional JSON array of exact remote tool names. Explicitly listed tools may write or delete data. An empty array disables all tools.",
+    },
+    {
+      key: "timeoutMs",
+      label: "Timeout (milliseconds)",
+      type: "text",
+      placeholder: "20000",
+      help: "Default 20000, maximum 60000; covers initialization and the operation.",
+    },
+  ],
+  async test(config) {
+    const { testMcpConnection } = await import("./mcp-client");
+    return testMcpConnection(config);
+  },
+  actions: {},
+};
+
 export const CONNECTORS: Record<string, Connector> = {
+  mcp,
   stripe,
   notion,
   postgres,
