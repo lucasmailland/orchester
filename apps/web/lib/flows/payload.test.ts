@@ -163,3 +163,25 @@ describe("flowSignature", () => {
     expect(flowSignature(buildFlowPayload(nodes, edges, { message: "hola" }, null))).not.toBe(base);
   });
 });
+
+describe("step groups in the payload", () => {
+  const group = { id: "g1", name: "Start", nodeIds: ["n1", "n2"] };
+
+  it("leaves groups out unless the caller manages them", () => {
+    expect(buildFlowPayload(nodes, edges, variables, null)).not.toHaveProperty("groups");
+    expect(buildFlowPayload(nodes, edges, variables, null, []).groups).toEqual([]);
+  });
+
+  it("stores groups in canonical shape, whatever order the editor built them in", () => {
+    const messy = [{ nodeIds: ["n1", "n2"], description: "", name: "Start", id: "g1" }];
+    expect(buildFlowPayload(nodes, edges, variables, null, messy).groups).toEqual([group]);
+  });
+
+  it("changes the signature when a group changes, not when it is rebuilt equal", () => {
+    const sig = (groups: Array<typeof group>) =>
+      flowSignature(buildFlowPayload(nodes, edges, variables, null, groups));
+    expect(sig([group])).toBe(sig([{ ...group }]));
+    expect(sig([group])).not.toBe(sig([{ ...group, name: "Renamed" }]));
+    expect(sig([group])).not.toBe(sig([]));
+  });
+});

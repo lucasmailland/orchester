@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -32,6 +32,15 @@ import { FlowDocsPanel } from "./FlowDocsPanel";
 import { FlowKindPanel } from "./FlowKindPanel";
 import type { FlowRelations } from "@/lib/flows/relations";
 import { DeleteFlowDialog } from "./DeleteFlowDialog";
+import { GroupDialog, type GroupMeta } from "./GroupDialog";
+import { GroupActionsContext, GroupBlockNode, GroupFrameNode } from "./nodes/GroupNode";
+import {
+  groupIdOfViewNode,
+  groupingProblem,
+  groupOfStep,
+  projectGroups,
+  type GroupRunStatus,
+} from "./group-view";
 import { InspectorForm } from "./inspector/InspectorForm";
 import { NodePalette } from "./NodePalette";
 import { CopilotPanel } from "./CopilotPanel";
@@ -47,6 +56,7 @@ import { FLOW_TEMPLATES, type FlowTemplate } from "@/lib/flows/templates";
 import { runInputsNeeded } from "@/lib/flows/run-inputs";
 import { normalizeFlowNodes, normalizeFlowEdges } from "@/lib/flows/normalize";
 import { buildFlowPayload, flowSignature } from "@/lib/flows/payload";
+import { normalizeFlowGroups, pruneFlowGroups, type FlowGroup } from "@/lib/flows/groups";
 import {
   Save,
   Play,
@@ -64,6 +74,7 @@ import {
   Trash2,
   Bot,
   Tag,
+  Group as GroupIcon,
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -99,6 +110,9 @@ const nodeTypes = {
   generate_avatar: RegistryNode,
   generate_music: RegistryNode,
   ocr_extract: RegistryNode,
+  // Drawing only: a collapsed group of steps, and the frame of an expanded one.
+  flowGroup: GroupBlockNode,
+  flowGroupFrame: GroupFrameNode,
 };
 
 export interface FlowDTO {
@@ -116,6 +130,8 @@ export interface FlowDTO {
   spec?: string | null;
   kind?: FlowKind;
   externalCallers?: ExternalCaller[];
+  /** Step groups as stored; read through `normalizeFlowGroups`. */
+  groups?: unknown;
 }
 
 export function FlowBuilder({ flow }: { flow: FlowDTO }) {
@@ -126,6 +142,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const isLight = resolvedTheme === "light";
   const t = useTranslations("pages.flows.builder");
   const tKind = useTranslations("pages.flows.kind");
+  const tGroups = useTranslations("pages.flows.groups");
   const rawLocale = useLocale();
   const LOCALE: Locale =
     rawLocale === "es" || rawLocale === "pt" || rawLocale === "en" ? (rawLocale as Locale) : "es";
@@ -163,9 +180,31 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   >([]);
   const [runInspectorOpen, setRunInspectorOpen] = useState(false);
   const [validationOpen, setValidationOpen] = useState(false);
+  // Step groups: presentation only. The real nodes and edges stay in their own
+  // state and are what gets saved and run; groups only change the drawing.
+  const [groups, setGroups] = useState<FlowGroup[]>(() => normalizeFlowGroups(flow.groups));
+  // Groups render collapsed by default; this is the viewer's choice, not stored.
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
+  const [groupDialog, setGroupDialog] = useState<
+    { mode: "create"; nodeIds: string[] } | { mode: "edit"; groupId: string } | null
+  >(null);
+  const [focusedGroup, setFocusedGroup] = useState<string | null>(null);
+  // Members that were deleted drop out here, and so does a group left with one step.
+  const liveGroups = useMemo(
+    () =>
+      pruneFlowGroups(
+        groups,
+        nodes.map((n) => n.id)
+      ),
+    [groups, nodes]
+  );
+  const liveGroupsRef = useRef(liveGroups);
+  liveGroupsRef.current = liveGroups;
+  // Where each group block/frame was last drawn, to turn a drag into a move of its steps.
+  const viewPositionsRef = useRef(new Map<string, { x: number; y: number }>());
   const historyRef = useRef<{
-    past: Array<{ nodes: Node[]; edges: Edge[] }>;
-    future: Array<{ nodes: Node[]; edges: Edge[] }>;
+    past: Array<{ nodes: Node[]; edges: Edge[]; groups: FlowGroup[] }>;
+    future: Array<{ nodes: Node[]; edges: Edge[]; groups: FlowGroup[] }>;
   }>({ past: [], future: [] });
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
@@ -189,7 +228,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
 
   function pushHistory() {
     const h = historyRef.current;
-    h.past.push({ nodes, edges });
+    h.past.push({ nodes, edges, groups: liveGroups });
     if (h.past.length > 50) h.past.shift();
     h.future = [];
     setCanUndo(true);
@@ -199,9 +238,10 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     const h = historyRef.current;
     const prev = h.past.pop();
     if (!prev) return;
-    h.future.push({ nodes, edges });
+    h.future.push({ nodes, edges, groups: liveGroups });
     setNodes(prev.nodes);
     setEdges(prev.edges);
+    setGroups(prev.groups);
     setSelected(null);
     setCanUndo(h.past.length > 0);
     setCanRedo(true);
@@ -210,9 +250,10 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     const h = historyRef.current;
     const next = h.future.pop();
     if (!next) return;
-    h.past.push({ nodes, edges });
+    h.past.push({ nodes, edges, groups: liveGroups });
     setNodes(next.nodes);
     setEdges(next.edges);
+    setGroups(next.groups);
     setSelected(null);
     setCanUndo(true);
     setCanRedo(h.future.length > 0);
@@ -247,18 +288,112 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const savedSignatureRef = useRef<string | null>(null);
   const dirtyRef = useRef(false);
 
-  const onNodesChange = useCallback(
-    (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
-    []
-  );
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
+    // Group blocks and frames are drawn, not stored: dragging one moves its
+    // steps; anything else React Flow reports about them is ignored.
+    const real: NodeChange[] = [];
+    const moves: Array<{ groupId: string; dx: number; dy: number }> = [];
+    for (const c of changes) {
+      const groupId = "id" in c ? groupIdOfViewNode(c.id) : null;
+      if (groupId === null) {
+        real.push(c);
+        continue;
+      }
+      if (c.type === "position" && c.position) {
+        const prev = viewPositionsRef.current.get(c.id);
+        if (prev) {
+          moves.push({ groupId, dx: c.position.x - prev.x, dy: c.position.y - prev.y });
+          viewPositionsRef.current.set(c.id, c.position);
+        }
+      }
+    }
+    if (real.length === 0 && moves.length === 0) return;
+    setNodes((nds) => {
+      let next = real.length > 0 ? applyNodeChanges(real, nds) : nds;
+      for (const m of moves) {
+        const members = new Set(
+          liveGroupsRef.current.find((g) => g.id === m.groupId)?.nodeIds ?? []
+        );
+        next = next.map((n) =>
+          members.has(n.id)
+            ? { ...n, position: { x: n.position.x + m.dx, y: n.position.y + m.dy } }
+            : n
+        );
+      }
+      return next;
+    });
+  }, []);
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)),
     []
   );
-  const onConnect = useCallback(
-    (c: Connection) => setEdges((eds) => addEdge({ ...c, id: createId() }, eds)),
-    []
-  );
+  const onConnect = useCallback((c: Connection) => {
+    // A collapsed group is not a step: connect its steps after expanding it.
+    if (groupIdOfViewNode(c.source) || groupIdOfViewNode(c.target)) return;
+    setEdges((eds) => addEdge({ ...c, id: createId() }, eds));
+  }, []);
+
+  const selectedIds = nodes.filter((n) => n.selected).map((n) => n.id);
+  const groupProblem = groupingProblem(liveGroups, selectedIds);
+  const groupProblemText =
+    groupProblem === "too_few"
+      ? tGroups("needTwo")
+      : groupProblem === "already_grouped"
+        ? tGroups("alreadyGrouped")
+        : null;
+
+  function openGroupDialog() {
+    if (groupProblemText) {
+      toast.error(groupProblemText);
+      return;
+    }
+    setGroupDialog({ mode: "create", nodeIds: selectedIds });
+  }
+
+  function submitGroup(meta: GroupMeta) {
+    if (!groupDialog) return;
+    pushHistory();
+    if (groupDialog.mode === "create") {
+      const id = createId();
+      setGroups([...liveGroups, { id, ...meta, nodeIds: groupDialog.nodeIds }]);
+      setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false } : n)));
+      setFocusedGroup(id);
+      toast.success(tGroups("grouped"));
+    } else {
+      const editing = groupDialog.groupId;
+      setGroups(
+        liveGroups.map((g) => (g.id === editing ? { id: g.id, ...meta, nodeIds: g.nodeIds } : g))
+      );
+    }
+    setGroupDialog(null);
+  }
+
+  /** Removes the group; its steps stay where they are. */
+  function ungroup(groupId: string) {
+    pushHistory();
+    setGroups(liveGroups.filter((g) => g.id !== groupId));
+    setExpandedGroups((s) => {
+      const next = new Set(s);
+      next.delete(groupId);
+      return next;
+    });
+    if (focusedGroup === groupId) setFocusedGroup(null);
+    toast.success(tGroups("ungrouped"));
+  }
+
+  function toggleGroup(groupId: string) {
+    setExpandedGroups((s) => {
+      const next = new Set(s);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  }
+
+  function revealStep(id: string) {
+    const g = groupOfStep(liveGroups, id);
+    if (g && !expandedGroups.has(g.id)) setExpandedGroups((s) => new Set(s).add(g.id));
+  }
 
   function addNode(nodeId: string, at?: { x: number; y: number }) {
     const def = getNodeDef(nodeId);
@@ -291,8 +426,8 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   }
 
   const buildPayload = useCallback(
-    () => buildFlowPayload(nodes, edges, variables, spec || null),
-    [nodes, edges, variables, spec]
+    () => buildFlowPayload(nodes, edges, variables, spec || null, liveGroups),
+    [nodes, edges, variables, spec, liveGroups]
   );
 
   async function save({ silent }: { silent?: boolean } = {}) {
@@ -336,7 +471,9 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   }, [kindOpen, flow.id]);
 
   useEffect(() => {
-    const signature = flowSignature(buildFlowPayload(nodes, edges, variables, spec || null));
+    const signature = flowSignature(
+      buildFlowPayload(nodes, edges, variables, spec || null, liveGroups)
+    );
     if (savedSignatureRef.current === null) {
       // First render: this is what the server already has.
       savedSignatureRef.current = signature;
@@ -356,7 +493,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, variables, spec]);
+  }, [nodes, edges, variables, spec, liveGroups]);
 
   // Atajos de teclado: Cmd/Ctrl+Z deshacer, Cmd/Ctrl+Shift+Z rehacer.
   useEffect(() => {
@@ -381,12 +518,23 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
       } else if (mod && key === "d" && selected) {
         e.preventDefault();
         duplicateFrom(selected);
+      } else if (mod && key === "g") {
+        // Cmd/Ctrl+G groups the selected steps; with Shift it ungroups the
+        // focused group (or the group of the selected step).
+        e.preventDefault();
+        if (e.shiftKey) {
+          const target =
+            focusedGroup ?? (selected ? groupOfStep(liveGroups, selected.id)?.id : undefined);
+          if (target) ungroup(target);
+        } else {
+          openGroupDialog();
+        }
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, selected]);
+  }, [nodes, edges, selected, liveGroups, focusedGroup]);
 
   // Al abrir un flujo guardado, si los pasos se superponen, los ordenamos una vez
   // para que se vea prolijo (no tocamos flujos ya bien acomodados a mano).
@@ -400,7 +548,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
       // state so it doesn't auto-save on its own. A later real edit stores the
       // tidied positions along with it.
       savedSignatureRef.current = flowSignature(
-        buildFlowPayload(tidied, edges, variables, spec || null)
+        buildFlowPayload(tidied, edges, variables, spec || null, liveGroups)
       );
       setNodes(tidied);
     }
@@ -602,6 +750,18 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     )
   );
   const natureSummary = summarizeFlowNature(nodes.map((n) => ({ id: n.id, type: String(n.type) })));
+  const view = projectGroups({
+    nodes: displayNodes,
+    edges,
+    groups: liveGroups,
+    expanded: expandedGroups,
+    runStatus: runStatus as Record<string, GroupRunStatus | undefined>,
+    issues: issuesByNode,
+    sizeOf: nodeSize,
+  });
+  viewPositionsRef.current = new Map(
+    view.nodes.filter((n) => groupIdOfViewNode(n.id) !== null).map((n) => [n.id, n.position])
+  );
 
   return (
     <ReactFlowProvider>
@@ -670,6 +830,17 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               title={t("redo")}
             >
               <Redo2 className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={openGroupDialog}
+              disabled={groupProblem !== null}
+              className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover disabled:opacity-30"
+              title={groupProblemText ?? tGroups("groupTooltip")}
+              aria-label={tGroups("group")}
+              data-testid="group-steps"
+            >
+              <GroupIcon className="h-3.5 w-3.5" />
             </button>
             <button
               type="button"
@@ -804,26 +975,50 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               addNode(nodeId, pos ?? { x: e.clientX, y: e.clientY });
             }}
           >
-            <ReactFlow
-              nodes={displayNodes}
-              edges={edges}
-              onInit={(inst) => {
-                rfRef.current = inst;
+            <GroupActionsContext.Provider
+              value={{
+                toggle: toggleGroup,
+                edit: (groupId) => setGroupDialog({ mode: "edit", groupId }),
+                ungroup,
               }}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onNodeClick={(_, n) => setSelected(n)}
-              onPaneClick={() => setSelected(null)}
-              nodeTypes={nodeTypes}
-              fitView
-              colorMode={isLight ? "light" : "dark"}
-              proOptions={{ hideAttribution: true }}
             >
-              <Background color={isLight ? "#d4d4d8" : "#27272a"} gap={20} />
-              <Controls className="!border-line !bg-surface" />
-              <MiniMap pannable zoomable className="!border-line !bg-surface" />
-            </ReactFlow>
+              <ReactFlow
+                nodes={view.nodes}
+                edges={view.edges}
+                onInit={(inst) => {
+                  rfRef.current = inst;
+                }}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onNodeClick={(_, n) => {
+                  const groupId = groupIdOfViewNode(n.id);
+                  if (groupId) {
+                    setSelected(null);
+                    setFocusedGroup(groupId);
+                    return;
+                  }
+                  setFocusedGroup(null);
+                  setSelected(n);
+                }}
+                onNodeDoubleClick={(_, n) => {
+                  const groupId = n.type === "flowGroup" ? groupIdOfViewNode(n.id) : null;
+                  if (groupId) toggleGroup(groupId);
+                }}
+                onPaneClick={() => {
+                  setSelected(null);
+                  setFocusedGroup(null);
+                }}
+                nodeTypes={nodeTypes}
+                fitView
+                colorMode={isLight ? "light" : "dark"}
+                proOptions={{ hideAttribution: true }}
+              >
+                <Background color={isLight ? "#d4d4d8" : "#27272a"} gap={20} />
+                <Controls className="!border-line !bg-surface" />
+                <MiniMap pannable zoomable className="!border-line !bg-surface" />
+              </ReactFlow>
+            </GroupActionsContext.Provider>
             {nodes.length === 0 && <EmptyCanvasGuide onAdd={addNode} onUseTemplate={useTemplate} />}
           </div>
           <div className="w-72 shrink-0 overflow-y-auto border-l border-line bg-surface">
@@ -868,6 +1063,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               log={runLog}
               running={running}
               nodes={nodes}
+              groupNameOf={(id) => groupOfStep(liveGroups, id)?.name}
               onClose={() => setRunInspectorOpen(false)}
               locale={LOCALE}
             />
@@ -880,6 +1076,8 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               spec={spec}
               onClose={() => setValidationOpen(false)}
               onSelect={(id) => {
+                // A problem inside a collapsed group opens the group to show the step.
+                revealStep(id);
                 const n = nodes.find((x) => x.id === id);
                 if (n) setSelected(n);
               }}
@@ -905,6 +1103,23 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             <FlowDocsPanel spec={spec} onChange={setSpec} onClose={() => setDocsOpen(false)} />
           )}
         </div>
+        {groupDialog && (
+          <GroupDialog
+            mode={groupDialog.mode}
+            stepCount={
+              groupDialog.mode === "create"
+                ? groupDialog.nodeIds.length
+                : (liveGroups.find((g) => g.id === groupDialog.groupId)?.nodeIds.length ?? 0)
+            }
+            initial={
+              groupDialog.mode === "edit"
+                ? liveGroups.find((g) => g.id === groupDialog.groupId)
+                : undefined
+            }
+            onSubmit={submitGroup}
+            onClose={() => setGroupDialog(null)}
+          />
+        )}
         {runModalOpen && (
           <div
             role="dialog"
@@ -1189,22 +1404,29 @@ function RunInspector({
   log,
   running,
   nodes,
+  groupNameOf,
   onClose,
   locale,
 }: {
   log: Array<{ nodeId: string; status: "running" | "succeeded" | "failed"; error?: string }>;
   running: boolean;
   nodes: Node[];
+  /** The group a step belongs to, so a failure reads "Group › Step". */
+  groupNameOf: (nodeId: string) => string | undefined;
   onClose: () => void;
   locale: Locale;
 }) {
   const t = useTranslations("pages.flows.builder");
-  const labelOf = (id: string) => {
+  const stepLabel = (id: string) => {
     const n = nodes.find((x) => x.id === id);
     const d = n?.data as { label?: string; nodeId?: string } | undefined;
     if (d?.label) return d.label;
     const def = getNodeDef(String(d?.nodeId ?? n?.type ?? ""));
     return def ? def.title[locale] : id;
+  };
+  const labelOf = (id: string) => {
+    const group = groupNameOf(id);
+    return group ? `${group} › ${stepLabel(id)}` : stepLabel(id);
   };
   const icon = (s: string) => (s === "succeeded" ? "✅" : s === "failed" ? "❌" : "⏳");
   return (

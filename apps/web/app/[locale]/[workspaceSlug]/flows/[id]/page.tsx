@@ -32,6 +32,7 @@ export default async function FlowDetailPage({
         spec: f.spec,
         kind: f.kind ?? "pipeline",
         externalCallers: readExternalCallers(f.externalCallers),
+        groups: f.groups,
       }}
     />
   );
