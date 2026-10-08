@@ -256,7 +256,7 @@ describe("get_case", () => {
       notes_per_task: 3,
     })) as any;
     expect(out2.notes["100"][2].body.length).toBeLessThan(1700);
-    expect(JSON.stringify(out2.notes)).not.toMatch(/<p>|<script>/);
+    expect(JSON.stringify(out2.notes)).not.toMatch(/<p>|<script/i);
   });
 
   it("skips parent and sibling reads for a top-level task", async () => {
