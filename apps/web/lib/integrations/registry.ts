@@ -1664,6 +1664,10 @@ const odoo: Connector = {
         // already deduplicated.
         const messageId = await odooExecute(config, model, "message_post", [[Number(input.id)]], {
           body,
+          // `body` is always HTML here (input.body, or body_text escaped by
+          // htmlFromText). Over RPC, Odoo 17+ escapes a body it is not told is
+          // HTML, and the note shows literal <br/> tags.
+          body_is_html: true,
           message_type: "comment",
           // Without mt_note the message goes out to the customer as an email.
           subtype_xmlid: "mail.mt_note",

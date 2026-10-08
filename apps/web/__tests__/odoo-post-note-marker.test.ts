@@ -123,3 +123,23 @@ describe("post_note marker idempotency", () => {
     expect(result).toMatchObject({ ok: true });
   });
 });
+
+describe("odoo post_note body", () => {
+  // Odoo 17+ treats a message_post body that arrives over RPC as plain text and
+  // escapes it unless body_is_html is set: the note then shows literal <br/>.
+  it("posts the body as HTML", async () => {
+    const calls = mockOdoo(() => 99);
+    await post({ body_text: "line one\nline two" });
+    const msg = calls.find((c) => c.method === "message_post")!;
+    expect(msg.kwargs.body).toBe("line one<br/>line two");
+    expect(msg.kwargs.body_is_html).toBe(true);
+  });
+
+  it("escapes plain text before it is posted as HTML", async () => {
+    const calls = mockOdoo(() => 99);
+    await post({ body_text: "a <script>x</script> & b" });
+    const msg = calls.find((c) => c.method === "message_post")!;
+    expect(msg.kwargs.body).toBe("a &lt;script&gt;x&lt;/script&gt; &amp; b");
+    expect(msg.kwargs.body_is_html).toBe(true);
+  });
+});
