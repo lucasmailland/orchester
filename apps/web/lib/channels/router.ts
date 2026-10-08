@@ -471,10 +471,13 @@ function wrapMemoryBlock(memoryBlock: string): string {
  * Turno conversacional bloqueante: loop LLM + tools + handoff, luego persiste.
  * Comportamiento idéntico al `handleInbound` histórico.
  */
-async function runConversationalTurn(ctx: ConvCtx, tx: WsTx): Promise<OutboundResponse> {
+async function runConversationalTurn(ctx: ConvCtx): Promise<OutboundResponse> {
+  // The accumulator lives outside the transaction: the failure is metered only after the
+  // turn's transaction has rejected (rolled back or failed to commit) and released its
+  // connection. Metering from inside would hold two pool connections per failing turn.
   const spent: TurnSpend = { tokens: 0, costUsd: 0, model: ctx.agent.model };
   try {
-    return await runConversationalLoop(ctx, tx, spent);
+    return await withWorkspaceTx(ctx.workspaceId, (tx) => runConversationalLoop(ctx, tx, spent));
   } catch (e) {
     await recordFailedTurnUsage(ctx, spent, e);
     throw e;
@@ -704,7 +707,7 @@ export async function handleInbound(
       tokensUsed: res.tokensUsed,
     };
   }
-  const result = await withWorkspaceTx(workspaceId, (tx) => runConversationalTurn(res.ctx, tx));
+  const result = await runConversationalTurn(res.ctx);
 
   // Phase 3 — host-side brain extraction retired. Mnemosyne service
   // ingests turns via its own pipeline; orchester no longer enqueues
@@ -787,7 +790,7 @@ export async function* handleInboundStream(
   // resultado como un solo bloque. Persistencia idéntica.
   if (hasTools) {
     try {
-      const out = await withWorkspaceTx(wsId, (tx) => runConversationalTurn(ctx, tx));
+      const out = await runConversationalTurn(ctx);
       if (out.reply) yield { type: "text", delta: out.reply };
       yield {
         type: "done",

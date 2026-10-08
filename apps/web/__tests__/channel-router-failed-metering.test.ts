@@ -5,6 +5,8 @@ import { calculateCostUsd } from "@/lib/pricing";
 const h2 = vi.hoisted(() => ({
   pending: [] as { table: string; values: Record<string, unknown> }[],
   committed: [] as { table: string; values: Record<string, unknown> }[],
+  open: 0,
+  maxOpen: 0,
 }));
 const h = vi.hoisted(() => {
   const agent = {
@@ -78,11 +80,14 @@ vi.mock("@/lib/tenant/context", () => ({
   withWorkspaceTx: async (_id: string, fn: (tx: unknown) => unknown) => {
     const outer = h2.pending;
     h2.pending = [];
+    h2.open++;
+    h2.maxOpen = Math.max(h2.maxOpen, h2.open);
     try {
       const out = await fn(h.tx);
       h2.committed.push(...h2.pending);
       return out;
     } finally {
+      h2.open--;
       h2.pending = outer;
     }
   },
@@ -137,6 +142,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   h2.pending = [];
   h2.committed = [];
+  h2.open = 0;
+  h2.maxOpen = 0;
   h.agent.config = {};
   h.tool.mockResolvedValue({ ok: true });
 });
@@ -171,6 +178,13 @@ describe("channel turn usage metering", () => {
     await expect(channel()).rejects.toThrow("cap");
     expect(usageEvents()).toHaveLength(1);
     expect(usageEvents()[0]).toMatchObject({ metadata: { tokens: 1000, failed: true } });
+  });
+  it("never holds two workspace transactions at once while metering a failed turn", async () => {
+    h.llm.mockResolvedValueOnce(toolTurn).mockRejectedValueOnce(new Error("boom"));
+    await expect(channel()).rejects.toThrow("boom");
+    expect(usageEvents()).toHaveLength(1);
+    // resolveInbound and the turn each use one; metering must run after the turn released its own.
+    expect(h2.maxOpen).toBe(1);
   });
   it("records nothing when it fails before any model call", async () => {
     h.llm.mockRejectedValueOnce(new Error("boom"));
