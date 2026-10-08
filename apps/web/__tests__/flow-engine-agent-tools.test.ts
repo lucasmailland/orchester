@@ -236,12 +236,27 @@ describe("flow agent tools", () => {
 });
 
 describe("flow agent node: status, dry run and trace", () => {
-  it.each(["draft", "inactive"])("does not run an agent that is %s", async (status) => {
-    // Status is the kill switch: turning an agent off must stop it in flows too.
-    fixture.agent.status = status;
+  it("refuses a draft agent in a real run, naming the rule", async () => {
+    fixture.agent.status = "draft";
     const result = await run();
     expect(result.status).toBe("failed");
     expect(llmCall).not.toHaveBeenCalled();
+    expect(JSON.stringify(result.steps)).toContain("only draft agents can run in a dry run");
+  });
+
+  it("runs a draft agent in a dry run", async () => {
+    fixture.agent.status = "draft";
+    expect((await run({ dryRun: true })).status).toBe("succeeded");
+    expect(llmCall).toHaveBeenCalled();
+  });
+
+  it.each([false, true])("refuses an inactive agent (dryRun=%s)", async (dryRun) => {
+    // Status is the kill switch: turning an agent off must stop it in flows too.
+    fixture.agent.status = "inactive";
+    const result = await run({ dryRun });
+    expect(result.status).toBe("failed");
+    expect(llmCall).not.toHaveBeenCalled();
+    expect(JSON.stringify(result.steps)).toContain("inactive");
   });
 
   it("simulates a write tool in a dry run and still runs read tools", async () => {

@@ -8,9 +8,13 @@ import { enqueue, JOB_FLOW_RUN } from "./queue";
 import { assertPublicUrl } from "./net-guard";
 import { logWithContext, recordMetric } from "./observability";
 import { evaluateExpression } from "./flows/filters";
+import { buildSubflowInput, readSubflowMap, readSubflowOutputs } from "./flows/subflow-io";
 import { parseRetryConfig, runWithRetry, StepFailure } from "./flows/retry";
 import { createApprovalToken, PauseRequested } from "./flows/pause";
+import { issuesSummary, storedActionIssues } from "./flows/action-guard";
+import type { ValidationIssue } from "./flows/validate";
 import { isDryRunSource, markDryRun, redactUrl, simulated } from "./flows/dry-run";
+import { assertFlowRunnable, isManualSource } from "./flows/run-gate";
 
 /**
  * R2-C: Flow execution writes to tenant tables (flow_runs,
@@ -48,6 +52,7 @@ export async function withFlowTx<T>(workspaceId: string, fn: (tx: WsDb) => Promi
 export { FLOW_NODE_TYPES, type FlowNodeType } from "./flows/node-types";
 import type { FlowNodeType } from "./flows/node-types";
 import { assertCodeExecutionAllowed } from "@/lib/flows/code-execution";
+import { resolveMaxToolCalls } from "@/lib/agents/tool-call-cap";
 
 export interface FlowNode {
   id: string;
@@ -88,6 +93,8 @@ export interface RunContext {
    * that write are reported as `wouldCall` and skipped. See `lib/flows/dry-run`.
    */
   dryRun?: boolean;
+  /** Flow ids of the subflow calls leading to this run, this flow last. */
+  callChain?: readonly string[];
 }
 
 /**
@@ -318,6 +325,24 @@ async function runFormula(formula: string, variables: Record<string, unknown>): 
   }
 }
 
+/**
+ * Most flows in one subflow chain, the entry flow included. A chain this long
+ * is almost certainly a mistake, and without a bound a cycle runs until the
+ * reaper. (Not related to the node-graph depth bound in `runFromNode`.)
+ */
+export const SUBFLOW_MAX_DEPTH = 5;
+
+/** Refuses to enter `flowId` when it would repeat in `chain` or make it too long. */
+function assertSubflowChain(chain: readonly string[], flowId: string): void {
+  const path = [...chain, flowId].join(" -> ");
+  if (chain.includes(flowId)) {
+    throw new Error(`Subflow cycle refused: ${path}`);
+  }
+  if (chain.length + 1 > SUBFLOW_MAX_DEPTH) {
+    throw new Error(`Subflow chain deeper than ${SUBFLOW_MAX_DEPTH} refused: ${path}`);
+  }
+}
+
 export async function executeFlow({
   flowId,
   workspaceId,
@@ -327,11 +352,23 @@ export async function executeFlow({
   runId: existingRunId,
   signal,
   dryRun: dryRunOpt,
+  manual = false,
+  callChain = [],
 }: {
   flowId: string;
   workspaceId: string;
   triggerSource: string;
   input: Record<string, unknown>;
+  /**
+   * Internal: the flow ids of the subflow calls above this run, outermost
+   * first. Set only by the `subflow` step; never part of the run input.
+   */
+  callChain?: readonly string[];
+  /**
+   * A person started this run from the app. Only then may a disabled flow
+   * run (besides dry runs). See `assertFlowRunnable`.
+   */
+  manual?: boolean;
   onEvent?: FlowEmit;
   /**
    * Si se provee, la fila `flow_run` ya existe (creada por `enqueueFlowRun` con
@@ -360,7 +397,13 @@ export async function executeFlow({
   error?: string;
   /** Only with `paused`: the secret that permits approval or rejection. */
   approvalToken?: string;
+  /** Action contract violations of the stored graph (always set when a real run is refused). */
+  contractIssues?: ValidationIssue[];
 }> {
+  // Before any row is written, so a refused call leaves no child run behind.
+  assertSubflowChain(callChain, flowId);
+  const chain = [...callChain, flowId];
+
   // R2-C: re-verify flow ownership + create/transition flow_run all under
   // the workspace GUC (FORCE RLS).
   const flow = await withFlowTx(workspaceId, async (tx) => {
@@ -374,6 +417,33 @@ export async function executeFlow({
   if (!flow) throw new Error("Flow not found");
 
   const dryRun = dryRunOpt ?? isDryRunSource(triggerSource);
+  // A run that already has a row was admitted by `enqueueFlowRun` (the queue
+  // worker path); everything else is checked here.
+  if (!existingRunId) assertFlowRunnable(flow, { dryRun, manual });
+  else if (flow.enabled === false && !dryRun) {
+    // The flow was switched off while the run waited in the queue. Only a run
+    // admitted as manual (a person testing it) or as a dry run may proceed;
+    // the stored trigger source is what says so.
+    const queued = await withFlowTx(workspaceId, async (tx) => {
+      const rows = await tx
+        .select({ triggerSource: schema.flowRuns.triggerSource })
+        .from(schema.flowRuns)
+        .where(eq(schema.flowRuns.id, existingRunId))
+        .limit(1);
+      return rows[0];
+    });
+    const source = queued?.triggerSource ?? null;
+    if (!manual && !isManualSource(source) && !isDryRunSource(source)) {
+      const reason = `Cancelled: flow "${flow.name || flow.id}" was disabled before this queued run started.`;
+      await withFlowTx(workspaceId, (tx) =>
+        tx
+          .update(schema.flowRuns)
+          .set({ status: "cancelled", error: reason, completedAt: new Date() })
+          .where(eq(schema.flowRuns.id, existingRunId))
+      );
+      return { runId: existingRunId, status: "cancelled", error: reason };
+    }
+  }
   const runId = existingRunId ?? createId();
   const runStartedAt = Date.now(); // sólo para la métrica de duración (D2)
   await withFlowTx(workspaceId, async (tx) => {
@@ -403,10 +473,26 @@ export async function executeFlow({
     ...(onEvent ? { emit: onEvent } : {}),
     ...(signal ? { signal } : {}),
     ...(dryRun ? { dryRun: true } : {}),
+    callChain: chain,
   };
 
   const nodes = (flow.nodes ?? []) as FlowNode[];
   const edges = (flow.edges ?? []) as FlowEdge[];
+  // REST saves are non-strict, so a stored action can violate its contract. A real run is
+  // refused; a dry run proceeds (authors need to test) and its result carries the issues.
+  const contractIssues = storedActionIssues(flow);
+  const withIssues = dryRun && contractIssues.length > 0 ? { contractIssues } : {};
+  if (contractIssues.length > 0 && !dryRun) {
+    const err = `Esta acción no cumple el contrato de acciones y no se puede ejecutar: ${issuesSummary(contractIssues)}`;
+    await withFlowTx(workspaceId, (tx) =>
+      tx
+        .update(schema.flowRuns)
+        .set({ status: "failed", error: err, completedAt: new Date() })
+        .where(eq(schema.flowRuns.id, runId))
+    );
+    onEvent?.({ type: "run_finish", status: "failed", error: err });
+    return { runId, status: "failed", error: err, contractIssues };
+  }
   const start = nodes.find((n) => n.type === "trigger");
   if (!start) {
     const err =
@@ -450,7 +536,7 @@ export async function executeFlow({
       flowId,
       status: "succeeded",
     });
-    return { runId, status: "succeeded" };
+    return { runId, status: "succeeded", ...withIssues };
   } catch (e) {
     // The run reached a `wait_human`. It has not finished: it is waiting for
     // a person, perhaps for days. Save where to resume — the node and ALL
@@ -465,7 +551,7 @@ export async function executeFlow({
           .set({
             status: "paused",
             pausedNodeId: e.nodeId,
-            pausedVariables: redactToolImages(ctx.variables),
+            pausedVariables: pausedSnapshot(ctx),
             pausedAt: new Date(),
             approvalToken: token,
           })
@@ -489,7 +575,7 @@ export async function executeFlow({
         const { notifyPause } = await import("./flows/notify-pause");
         await notifyPause(workspaceId, runId, token, e.approvalMessage, e.notification);
       }
-      return { runId, status: "paused", approvalToken: token };
+      return { runId, status: "paused", approvalToken: token, ...withIssues };
     }
     // F-B1/F-1: si la causa fue un abort (cliente desconectado o timeout
     // inline), marcamos `cancelled` (no `failed`) para que las métricas no
@@ -511,8 +597,36 @@ export async function executeFlow({
       flowId,
       status: cancelled ? "cancelled" : "failed",
     });
-    return { runId, status: cancelled ? "cancelled" : "failed", error: msg };
+    return { runId, status: cancelled ? "cancelled" : "failed", error: msg, ...withIssues };
   }
+}
+
+/**
+ * Reserved key inside `pausedVariables` that carries the subflow call chain of the paused run.
+ * The recursion guard must survive the pause: without it `A: wait_human -> subflow(A)` starts
+ * a fresh chain after the approval and loops. It lives in the existing jsonb so no migration
+ * is needed. It is always (re)written from the trusted `ctx.callChain`, overwriting anything a
+ * caller put under that name in the run input, and removed again before the flow sees the bag.
+ */
+const PAUSED_CALL_CHAIN_KEY = "_callChain";
+
+function pausedSnapshot(ctx: RunContext): Record<string, unknown> {
+  return {
+    ...redactToolImages(ctx.variables),
+    [PAUSED_CALL_CHAIN_KEY]: [...(ctx.callChain ?? [])],
+  };
+}
+
+/** Splits the saved bag into the flow's variables and the trusted call chain (with `flowId`). */
+function restorePausedState(
+  saved: Record<string, unknown>,
+  flowId: string
+): { variables: Record<string, unknown>; callChain: string[] } {
+  const { [PAUSED_CALL_CHAIN_KEY]: rawChain, ...variables } = saved;
+  const chain = Array.isArray(rawChain)
+    ? rawChain.filter((x): x is string => typeof x === "string")
+    : [];
+  return { variables, callChain: chain.includes(flowId) ? chain : [...chain, flowId] };
 }
 
 /**
@@ -557,10 +671,12 @@ export async function resumePausedFlow({
   const db = getDb();
   const nodes = (flow.nodes ?? []) as FlowNode[];
   const edges = (flow.edges ?? []) as FlowEdge[];
+  const restored = restorePausedState(variables, flowId);
   const ctx: RunContext = {
-    variables: { ...variables, _decision: decision },
+    variables: { ...restored.variables, _decision: decision },
     output: {},
     ...(dryRun ? { dryRun: true } : {}),
+    callChain: restored.callChain,
   };
 
   const outgoingEdges = edges.filter(
@@ -599,7 +715,7 @@ export async function resumePausedFlow({
           .set({
             status: "paused",
             pausedNodeId: e.nodeId,
-            pausedVariables: redactToolImages(ctx.variables),
+            pausedVariables: pausedSnapshot(ctx),
             pausedAt: new Date(),
             approvalToken: token,
           })
@@ -843,10 +959,15 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       return aRows[0];
     });
     if (!agent) throw new Error(`agent not found: ${agentId}`);
-    // Status is the kill switch: an agent set to draft or inactive must stop
-    // running everywhere, flows included, not only in conversations.
-    if (agent.status !== "active") {
-      throw new Error(`agent "${agent.name}" is not active (status: ${agent.status})`);
+    // Status is the kill switch: an agent that is not active must stop running
+    // everywhere, flows included. The one exception is a draft in a dry run, so
+    // a new agent can be tested before it is activated; inactive never runs.
+    if (agent.status !== "active" && !(ctx.dryRun && agent.status === "draft")) {
+      const rule =
+        agent.status === "draft"
+          ? "only draft agents can run in a dry run; activate it to run for real"
+          : "inactive agents never run";
+      throw new Error(`agent "${agent.name}" is not active (status: ${agent.status}); ${rule}`);
     }
     const { resolveToolDefinitions, executeTool, toolEffect } = await import("./tools");
     const { wrapUntrusted, UNTRUSTED_CONTENT_GUARDRAIL } = await import("./agent-runtime");
@@ -855,13 +976,13 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     // Built-ins plus the workspace's remote MCP tools the agent has enabled.
     const tools = (
       await withFlowTx(workspaceId, (tx) =>
-        resolveToolDefinitions(workspaceId, agent.tools ?? [], tx)
+        resolveToolDefinitions(workspaceId, agent.tools ?? [], tx, agent)
       )
     ).filter((t) => t.name !== "agent_handoff");
     const systemPrompt = agent.systemPrompt + (tools.length > 0 ? UNTRUSTED_CONTENT_GUARDRAIL : "");
     const messages: ChatMessage[] = [{ role: "user", content: userMessage }];
-    // Mirror channels/router.ts runConversationalTurn's safetyCounter < 5.
-    const maxSteps = tools.length > 0 ? 5 : 1;
+    // Same per-agent cap as channels/router.ts and agent-runtime.ts (default 5).
+    const maxSteps = tools.length > 0 ? resolveMaxToolCalls(agent.config) : 1;
     const { assertWithinSpend } = await import("./cost-alerts");
     const { recordAiUsage, chargeFor } = await import("./ai/run");
     let content = "";
@@ -1398,16 +1519,16 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     const retry = parseRetryConfig(cfg.retry);
     const outputVar = (cfg.outputVar as string) ?? "appResult";
     if (ctx.dryRun) {
-      // Anything that is not provably a read is simulated, including when the
-      // effect cannot be resolved (unknown integration, lookup failure): in a
-      // dry run, doubt means "do not execute".
-      let effect: "read" | "write" = "write";
-      try {
-        const { getIntegrationActionEffect } = await import("./integrations/store");
-        effect = await getIntegrationActionEffect(workspaceId, integrationId, action, input);
-      } catch {
-        effect = "write";
-      }
+      // Anything resolvable that is not a read is simulated. An action that
+      // cannot be resolved is NOT simulated: the lookup throws the same error
+      // the real run would raise, so the dry run cannot be green while the
+      // real run would fail.
+      const { getIntegrationActionEffect } = await import("./integrations/store");
+      // Inside a workspace transaction: under FORCE RLS the integration row is invisible
+      // without the GUC and a valid action would look missing.
+      const effect = await withFlowTx(workspaceId, (tx) =>
+        getIntegrationActionEffect(workspaceId, integrationId, action, input, tx)
+      );
       if (effect !== "read") {
         const sim = simulated({ integrationId, action, input });
         ctx.variables[outputVar] = sim;
@@ -1536,21 +1657,55 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
   subflow: async ({ cfg, ctx, workspaceId, runId, db, helpers }) => {
     const subId = cfg.flowId as string | undefined;
     if (!subId) throw new Error("subflow: missing flowId");
+    // With `inputs` the child gets only those variables; without it, the whole bag.
+    // Validated before anything runs: a malformed mapping must not look like an absent one.
+    const inputs = readSubflowMap("inputs", cfg.inputs);
+    const outputs = readSubflowMap("outputs", cfg.outputs);
+    const childInput = inputs
+      ? buildSubflowInput(inputs, ctx.variables, resolveValue)
+      : ctx.variables;
     const result = await executeFlow({
       flowId: subId,
       workspaceId,
       triggerSource: `parent_run:${runId}`,
-      input: ctx.variables,
+      input: childInput,
+      callChain: ctx.callChain ?? [],
       // The child inherits the parent's mode, and the mark lands on its row.
       ...(ctx.dryRun ? { dryRun: true } : {}),
     });
     if (result.status === "failed") throw new Error(`subflow failed: ${result.error}`);
-    const subRuns = await db
-      .select()
-      .from(schema.flowRuns)
-      .where(eq(schema.flowRuns.id, result.runId))
-      .limit(1);
+    if (result.status !== "succeeded") {
+      // A paused or cancelled child has no output to return. Failing the step
+      // lets a `try_catch` around it decide whether the parent carries on.
+      const name = await withFlowTx(workspaceId, async (tx) => {
+        const rows = await tx
+          .select()
+          .from(schema.flows)
+          .where(and(eq(schema.flows.id, subId), eq(schema.flows.workspaceId, workspaceId)))
+          .limit(1);
+        return rows[0]?.name || subId;
+      });
+      throw new Error(
+        `Subflow ${name} ended ${result.status}; only a succeeded subflow returns output`
+      );
+    }
+    // Under FORCE RLS a read outside a workspace transaction sees zero rows,
+    // which would silently hand the parent an empty output.
+    const subRuns = await withFlowTx(workspaceId, (tx) =>
+      tx.select().from(schema.flowRuns).where(eq(schema.flowRuns.id, result.runId)).limit(1)
+    );
     const subOut = (subRuns[0]?.output as Record<string, unknown>) ?? {};
+    if (outputs) {
+      // Only the mapped variables come back; the rest of the child's bag stays there.
+      const { values, missing } = readSubflowOutputs(outputs, subOut, resolveValue);
+      Object.assign(ctx.variables, values);
+      helpers.setOutput({
+        subRunId: result.runId,
+        mappedKeys: Object.keys(values),
+        ...(missing.length ? { missingKeys: missing } : {}),
+      });
+      return;
+    }
     Object.assign(ctx.variables, subOut);
     helpers.setOutput({ subRunId: result.runId, mergedKeys: Object.keys(subOut) });
   },
@@ -1567,8 +1722,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     // `PauseRequested` unwinds recursion and lets `executeFlow` persist
     // where to resume.
     const notificationConfig = cfg.notify as
-      | { integrationId?: string; input?: Record<string, unknown> }
-      | undefined;
+      { integrationId?: string; input?: Record<string, unknown> } | undefined;
     const notification =
       notificationConfig?.integrationId && notificationConfig.input
         ? {
@@ -1617,6 +1771,7 @@ export async function enqueueFlowRun({
   triggerSource: rawTriggerSource,
   input,
   dryRun = false,
+  manual = false,
 }: {
   flowId: string;
   workspaceId: string;
@@ -1624,6 +1779,8 @@ export async function enqueueFlowRun({
   input: Record<string, unknown>;
   /** Marks the run in `triggerSource`; the worker reads the mark back. */
   dryRun?: boolean;
+  /** A person started this run from the app; see `assertFlowRunnable`. */
+  manual?: boolean;
 }): Promise<{
   runId: string;
   /**
@@ -1638,11 +1795,12 @@ export async function enqueueFlowRun({
   const triggerSource = dryRun ? markDryRun(rawTriggerSource) : rawTriggerSource;
   const db = getDb();
   const flowRows = await db
-    .select({ id: schema.flows.id })
+    .select({ id: schema.flows.id, name: schema.flows.name, enabled: schema.flows.enabled })
     .from(schema.flows)
     .where(and(eq(schema.flows.id, flowId), eq(schema.flows.workspaceId, workspaceId)))
     .limit(1);
   if (!flowRows[0]) throw new Error("Flow not found");
+  assertFlowRunnable(flowRows[0], { dryRun, manual });
 
   // B3: cap de concurrencia por flow.
   //
@@ -1731,8 +1889,7 @@ export async function enqueueFlowRun({
  * FORCE RLS rejects them.
  */
 type DbOrTx =
-  | ReturnType<typeof getDb>
-  | Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+  ReturnType<typeof getDb> | Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 export async function reapStaleRuns(maxAgeMs = 15 * 60_000, db?: DbOrTx): Promise<number> {
   const exec = db ?? getDb();
   const cutoff = new Date(Date.now() - maxAgeMs);

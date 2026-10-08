@@ -21,7 +21,7 @@
 import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { Workflow, Plus, KeyRound, BookOpenText, MoreVertical, Trash2 } from "lucide-react";
+import { Workflow, Bot, Plus, KeyRound, BookOpenText, MoreVertical, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/react";
 
@@ -36,6 +36,7 @@ import { TermDef } from "@/components/compass/TermDef";
 import { TourSpot } from "@/components/compass/TourSpot";
 import type { CompassTemplate, FlowTemplatePayload } from "@/lib/compass/templates";
 import { groupFlowsByStatus, type FlowStatus } from "@/lib/flows/group-by-status";
+import type { FlowKind } from "@/lib/flows/kind";
 import { useTemplateCreateFlow } from "@/lib/compass/use-template-create-flow";
 
 // Prefill captured from a TemplatePicker selection. Name + description seed
@@ -55,8 +56,14 @@ interface Item {
   name: string;
   description: string | null;
   status: FlowStatus;
+  /** Optional so older callers keep working: a missing kind is a pipeline. */
+  kind?: FlowKind;
   nodeCount: number;
   lastRunAt: string | null;
+  /** Steps that call a model. Optional so older callers keep working. */
+  aiStepCount?: number;
+  /** A sub-flow call reaches AI even when this flow has none itself. */
+  aiViaSubflow?: boolean;
 }
 
 const STATUS_BADGE_CLASSES: Record<FlowStatus, string> = {
@@ -73,6 +80,7 @@ export function FlowsListClient({ flows: initialFlows }: { flows: Item[] }) {
   // server component to re-render.
   const [flows, setFlows] = useState<Item[]>(initialFlows);
   const [deleting, setDeleting] = useState<Item | null>(null);
+  const [kindFilter, setKindFilter] = useState<"all" | FlowKind>("all");
   const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "es";
   const workspaceSlug = params?.workspaceSlug ?? "";
@@ -146,6 +154,14 @@ export function FlowsListClient({ flows: initialFlows }: { flows: Item[] }) {
       setSubmitting(false);
     }
   }
+
+  const visibleFlows =
+    kindFilter === "all" ? flows : flows.filter((f) => (f.kind ?? "pipeline") === kindFilter);
+  const kindFilters: Array<{ value: "all" | FlowKind; label: string }> = [
+    { value: "all", label: t("kindFilterAll") },
+    { value: "pipeline", label: t("kindFilterPipelines") },
+    { value: "action", label: t("kindFilterActions") },
+  ];
 
   const heroSubtitle = (
     <>
@@ -255,7 +271,27 @@ export function FlowsListClient({ flows: initialFlows }: { flows: Item[] }) {
           bodyKey="compass.tours.flows.step3.body"
         >
           <div className="space-y-6">
-            {groupFlowsByStatus(flows).map((group) => (
+            <div role="group" aria-label={t("kindFilterLabel")} className="flex items-center gap-1">
+              {kindFilters.map((k) => (
+                <button
+                  key={k.value}
+                  type="button"
+                  aria-pressed={kindFilter === k.value}
+                  onClick={() => setKindFilter(k.value)}
+                  className={
+                    kindFilter === k.value
+                      ? "rounded-full border border-violet-500/40 bg-violet-500/10 px-3 py-1 text-xs font-medium text-violet-700 dark:text-violet-300"
+                      : "rounded-full border border-line px-3 py-1 text-xs text-muted hover:bg-hover"
+                  }
+                >
+                  {k.label}
+                </button>
+              ))}
+            </div>
+            {visibleFlows.length === 0 && (
+              <p className="text-xs text-muted">{t("noFlowsOfKind")}</p>
+            )}
+            {groupFlowsByStatus(visibleFlows).map((group) => (
               <section key={group.status} aria-labelledby={`flows-${group.status}-title`}>
                 <h2
                   id={`flows-${group.status}-title`}
@@ -279,8 +315,27 @@ export function FlowsListClient({ flows: initialFlows }: { flows: Item[] }) {
                         <div className="mb-2 flex items-center gap-2 pr-8">
                           <Workflow className="h-4 w-4 text-violet-600 dark:text-violet-400" />
                           <span className="truncate font-medium text-strong">{f.name}</span>
+                          {f.kind === "action" ? (
+                            <span
+                              data-testid="flow-kind-badge"
+                              className="shrink-0 rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300"
+                            >
+                              {t("kindAction")}
+                            </span>
+                          ) : null}
                         </div>
                         <p className="line-clamp-2 text-xs text-muted">{f.description ?? "—"}</p>
+                        {(f.aiStepCount ?? 0) > 0 || f.aiViaSubflow ? (
+                          <p
+                            data-testid="flow-ai-steps"
+                            className="mt-2 inline-flex items-center gap-1 text-[11px] text-violet-700 dark:text-violet-300"
+                          >
+                            <Bot className="h-3 w-3" aria-hidden="true" />
+                            {(f.aiStepCount ?? 0) > 0
+                              ? t("aiSteps", { count: f.aiStepCount ?? 0 })
+                              : t("aiViaSubflow")}
+                          </p>
+                        ) : null}
                         <div className="mt-3 flex items-center justify-between text-[10px] text-faint">
                           <span>{t("nodesLabel", { count: f.nodeCount })}</span>
                           <span

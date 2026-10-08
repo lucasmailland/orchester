@@ -123,6 +123,22 @@ export const flows = pgTable("flow", {
   description: text("description"),
   /** Markdown specification: what the flow does and why. */
   spec: text("spec"),
+  /**
+   * `pipeline` = top-level flow; `action` = reusable building block that
+   * pipelines call. The action contract is enforced by the application
+   * validator; the CHECK constraint lives in migration 0062.
+   */
+  kind: text("kind", { enum: ["pipeline", "action"] })
+    .notNull()
+    .default("pipeline"),
+  /**
+   * Callers outside the product (e.g. a script calling run_flow by id). Blocks
+   * deletion while non-empty. Max 10 entries, validated by the application.
+   */
+  externalCallers: jsonb("external_callers")
+    .$type<Array<{ name: string; note?: string | undefined }>>()
+    .notNull()
+    .default([]),
   status: flowStatusEnum("status").notNull().default("draft"),
   trigger: flowTriggerEnum("trigger").notNull().default("manual"),
   triggerConfig: jsonb("trigger_config").$type<Record<string, unknown>>().default({}),

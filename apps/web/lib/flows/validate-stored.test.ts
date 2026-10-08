@@ -252,3 +252,106 @@ describe("ramas que no se pueden olvidar", () => {
     expect(r.filter((i) => i.nodeId === "w" && i.level === "error")).toHaveLength(0);
   });
 });
+
+describe("validateStoredFlow: action contract", () => {
+  const node = (id: string, type: string) => ({
+    id,
+    type,
+    label: id,
+    config: {},
+    position: { x: 0, y: 0 },
+    purpose: "p",
+  });
+  const withNode = (type: string) => [trigger, node("x", type)];
+  const edges = [{ id: "e", source: "t", target: "x" }];
+  const run = (type: string, opts: Record<string, unknown>) =>
+    validateStoredFlow(withNode(type), edges, { spec: "x", ...opts });
+  const actionErrors = (issues: ReturnType<typeof run>) =>
+    issues.filter((i) => i.level === "error" && /acci[oó]n/i.test(i.message));
+
+  it.each([["llm_prompt"], ["agent"], ["kb_search"], ["transcribe"]])(
+    "rejects the AI node %s in an action",
+    (type) => {
+      const errs = actionErrors(run(type, { kind: "action" }));
+      expect(errs.some((i) => i.nodeId === "x")).toBe(true);
+      expect(actionErrors(run(type, { kind: "pipeline" }))).toEqual([]);
+      expect(actionErrors(run(type, {}))).toEqual([]);
+    }
+  );
+
+  it("rejects wait_human in an action", () => {
+    expect(actionErrors(run("wait_human", { kind: "action" })).some((i) => i.nodeId === "x")).toBe(
+      true
+    );
+    expect(actionErrors(run("wait_human", { kind: "pipeline" }))).toEqual([]);
+  });
+
+  it("rejects subflow and flow_call in an action", () => {
+    expect(actionErrors(run("subflow", { kind: "action" })).some((i) => i.nodeId === "x")).toBe(
+      true
+    );
+    expect(actionErrors(run("subflow", { kind: "pipeline" }))).toEqual([]);
+    const legacy = validateStoredFlow(
+      [trigger, { ...node("x", "subflow"), type: "flow_call" }],
+      edges,
+      { spec: "x", kind: "action" }
+    );
+    expect(hasErrors(legacy)).toBe(true);
+  });
+
+  it("rejects flow-level variables in an action, not in a pipeline", () => {
+    const withVars = run("transform", { kind: "action", variables: { a: 1 } });
+    expect(actionErrors(withVars).some((i) => i.nodeId === undefined)).toBe(true);
+    expect(actionErrors(run("transform", { kind: "action", variables: {} }))).toEqual([]);
+    expect(actionErrors(run("transform", { kind: "pipeline", variables: { a: 1 } }))).toEqual([]);
+  });
+
+  it("accepts a plain code action", () => {
+    expect(actionErrors(run("transform", { kind: "action" }))).toEqual([]);
+  });
+});
+
+describe("validateStoredFlow: subflow inputs/outputs", () => {
+  const sub = (config: Record<string, unknown>) => ({
+    id: "s",
+    type: "subflow",
+    label: "Call",
+    config: { flowId: "child", ...config },
+    position: { x: 0, y: 0 },
+    purpose: "Call an action",
+  });
+  const run = (config: Record<string, unknown>) =>
+    validateStoredFlow([trigger, sub(config)], [{ id: "e", source: "t", target: "s" }], {
+      spec: "x",
+    }).filter((i) => i.nodeId === "s");
+
+  it("accepts valid mappings and none at all", () => {
+    expect(run({})).toEqual([]);
+    expect(run({ inputs: { a_1: "{{x.y}}" }, outputs: { total: "result.total" } })).toEqual([]);
+  });
+  it("rejects names that are not identifiers", () => {
+    const issues = run({ inputs: { "1bad": "{{x}}", "a-b": "{{x}}" }, outputs: { "a b": "x" } });
+    expect(issues.filter((i) => i.level === "error")).toHaveLength(3);
+    expect(issues[0]!.message).toMatch(/nombre de variable/);
+  });
+  it("rejects empty, non-string and oversized expressions", () => {
+    expect(hasErrors(run({ inputs: { a: "  " } }))).toBe(true);
+    expect(hasErrors(run({ outputs: { a: 5 } }))).toBe(true);
+    expect(hasErrors(run({ inputs: { a: "x".repeat(501) } }))).toBe(true);
+    expect(hasErrors(run({ inputs: { a: "x".repeat(500) } }))).toBe(false);
+  });
+  it("rejects more than 30 entries", () => {
+    const many = Object.fromEntries(Array.from({ length: 31 }, (_, i) => [`v${i}`, "x"]));
+    expect(hasErrors(run({ inputs: many }))).toBe(true);
+    expect(hasErrors(run({ outputs: Object.fromEntries(Object.entries(many).slice(1)) }))).toBe(
+      false
+    );
+  });
+  it("rejects a mapping that is not an object", () => {
+    expect(hasErrors(run({ inputs: ["a"] }))).toBe(true);
+    expect(hasErrors(run({ outputs: "a" }))).toBe(true);
+  });
+  it("rejects unknown filters in a bare output path", () => {
+    expect(hasErrors(run({ outputs: { a: "x | nope" } }))).toBe(true);
+  });
+});

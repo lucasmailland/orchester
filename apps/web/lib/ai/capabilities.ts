@@ -25,6 +25,8 @@ export interface ToolImagePart {
 export interface ImageToolOutput {
   text?: string;
   images?: ToolImagePart[];
+  /** Images accepted at the model boundary: above the default of 4, up to 8. */
+  maxImages?: number;
 }
 /** Resultado de la ejecución de un tool, devuelto al modelo en la próxima vuelta. */
 export interface ToolResultBlock {

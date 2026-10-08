@@ -41,6 +41,10 @@ vi.mock("@/lib/flows/flow-repo", () => ({
         db.failInsert ? undefined : (db.webhooks.push(row), row),
       listWebhooks: async (flowId: string, ws: string) =>
         db.webhooks.filter((w) => w.flowId === flowId && w.workspaceId === ws),
+      findVersion: async (id: string, flowId: string, ws: string) =>
+        db.versions.find(
+          (v) => v["id"] === id && v["flowId"] === flowId && v["workspaceId"] === ws
+        ),
       findTemplate: async () => undefined,
       audit: async (_ws: string, entry: Record<string, unknown>) => {
         if (db.failAudit) throw new Error("audit down");
@@ -111,6 +115,37 @@ describe("flow service", () => {
     });
   });
 
+  it("strict create carries subflow inputs/outputs and rejects malformed ones", async () => {
+    const call = (config: Record<string, unknown>) => ({
+      id: "s",
+      type: "subflow",
+      label: "Call",
+      config: { flowId: "child", ...config },
+      position: { x: 0, y: 0 },
+    });
+    const edges = [{ id: "e", source: "t", target: "s" }];
+    const { flow } = await svc.createFlow(
+      key,
+      {
+        name: "ok",
+        nodes: [trigger, call({ inputs: { a: "{{x}}" }, outputs: { b: "r.total" } })],
+        edges,
+      },
+      { strict: true }
+    );
+    const stored = (flow.nodes as Array<{ id: string; config: Record<string, unknown> }>).find(
+      (n) => n.id === "s"
+    );
+    expect(stored?.config).toMatchObject({ inputs: { a: "{{x}}" }, outputs: { b: "r.total" } });
+    await expect(
+      svc.createFlow(
+        key,
+        { name: "bad", nodes: [trigger, call({ inputs: { "bad name": "x" } })], edges },
+        { strict: true }
+      )
+    ).rejects.toMatchObject({ code: "invalid" });
+  });
+
   it("non-strict create keeps saving drafts, normalized", async () => {
     const { flow } = await svc.createFlow(user, {
       name: " Draft ",
@@ -135,6 +170,133 @@ describe("flow service", () => {
       { strict: true }
     );
     expect(updated.spec).toBe("## Purpose");
+  });
+
+  describe("flow kind and external callers", () => {
+    const code = {
+      id: "x",
+      type: "transform",
+      label: "X",
+      config: { template: "a" },
+      position: { x: 0, y: 0 },
+      purpose: "p",
+    };
+    const ai = { ...code, id: "m", type: "llm_prompt", label: "M", config: {} };
+
+    it("creates a pipeline without external callers by default", async () => {
+      const { flow } = await svc.createFlow(key, { name: "p", nodes: [trigger] });
+      expect(flow.kind).toBe("pipeline");
+      expect(flow.externalCallers).toEqual([]);
+    });
+
+    it("round-trips kind and externalCallers through create and update", async () => {
+      const { flow } = await svc.createFlow(
+        key,
+        { name: "a", kind: "action", nodes: [trigger, code], externalCallers: [{ name: "cron" }] },
+        { strict: true }
+      );
+      expect(flow.kind).toBe("action");
+      expect(flow.externalCallers).toEqual([{ name: "cron" }]);
+      const { flow: updated } = await svc.updateFlow(
+        key,
+        flow.id as string,
+        { externalCallers: [] },
+        { strict: true }
+      );
+      expect(updated.externalCallers).toEqual([]);
+      expect(updated.kind).toBe("action");
+    });
+
+    it("strict create enforces the action contract", async () => {
+      await expect(
+        svc.createFlow(key, { name: "a", kind: "action", nodes: [trigger, ai] }, { strict: true })
+      ).rejects.toMatchObject({
+        code: "invalid",
+        issues: expect.arrayContaining([expect.objectContaining({ nodeId: "m" })]),
+      });
+    });
+
+    it("strict update re-checks the stored graph when the kind changes", async () => {
+      const { flow } = await svc.createFlow(key, { name: "p", nodes: [trigger, ai] });
+      await expect(
+        svc.updateFlow(key, flow.id as string, { kind: "action" }, { strict: true })
+      ).rejects.toMatchObject({ code: "invalid" });
+    });
+
+    it("strict update rejects flow variables on an action", async () => {
+      const { flow } = await svc.createFlow(key, { name: "a", kind: "action", nodes: [trigger] });
+      await expect(
+        svc.updateFlow(key, flow.id as string, { variables: { a: 1 } }, { strict: true })
+      ).rejects.toMatchObject({ code: "invalid" });
+    });
+
+    describe("action contract on executable flows (REST is non-strict)", () => {
+      const seed = async (over: Record<string, unknown> = {}) => {
+        const { flow } = await svc.createFlow(key, { name: "p", nodes: [trigger, ai] });
+        Object.assign(
+          db.flows.find((f) => f.id === flow.id)!,
+          over
+        );
+        return flow.id as string;
+      };
+
+      it("keeps drafts editable: kind=action on a disabled flow is saved", async () => {
+        const id = await seed({ enabled: false });
+        const { flow } = await svc.updateFlow(user, id, { kind: "action" });
+        expect(flow.kind).toBe("action");
+      });
+      it("refuses kind=action + enabled=true while the graph violates the contract", async () => {
+        const id = await seed({ enabled: true });
+        await expect(svc.updateFlow(user, id, { kind: "action" })).rejects.toMatchObject({
+          code: "invalid",
+          issues: expect.arrayContaining([expect.objectContaining({ nodeId: "m" })]),
+        });
+        expect(db.flows.find((f) => f.id === id)!.kind).toBe("pipeline");
+      });
+      it("refuses to enable a violating action", async () => {
+        const id = await seed({ enabled: false, kind: "action" });
+        await expect(svc.updateFlow(user, id, { enabled: true })).rejects.toMatchObject({
+          code: "invalid",
+        });
+      });
+      it("refuses a graph edit that breaks an enabled action", async () => {
+        const id = await seed({ enabled: true, kind: "action", nodes: [trigger, code] });
+        await expect(svc.updateFlow(user, id, { nodes: [trigger, ai] })).rejects.toMatchObject({
+          code: "invalid",
+        });
+      });
+      it("allows enabling an action that satisfies the contract, and disabling a violating one", async () => {
+        const ok = await seed({ enabled: false, kind: "action", nodes: [trigger, code] });
+        await expect(svc.updateFlow(user, ok, { enabled: true })).resolves.toBeDefined();
+        const bad = await seed({ enabled: true, kind: "action" });
+        await expect(svc.updateFlow(user, bad, { enabled: false })).resolves.toBeDefined();
+      });
+      it("restore re-checks the contract of an enabled action", async () => {
+        const id = await seed({ enabled: true, kind: "action", nodes: [trigger, code] });
+        db.versions.push({
+          id: "v1",
+          flowId: id,
+          workspaceId: "ws_a",
+          nodes: [trigger, ai],
+          edges: [],
+          variables: {},
+          spec: null,
+        });
+        await expect(svc.restoreFlowVersion(key, id, "v1")).rejects.toMatchObject({
+          code: "invalid",
+        });
+      });
+    });
+
+    it("validateFlowById applies the action contract", async () => {
+      const { flow } = await svc.createFlow(key, {
+        name: "a",
+        kind: "action",
+        nodes: [trigger, ai],
+      });
+      const issues = await svc.validateFlowById(key, flow.id as string);
+      expect(issues.some((i) => i.level === "error" && i.nodeId === "m")).toBe(true);
+    });
   });
 
   it("audits API-key writes with the key id and no user", async () => {

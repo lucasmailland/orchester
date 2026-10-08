@@ -15,6 +15,8 @@ export function RegistryNode(p: NodeProps) {
     label?: string;
     subtitle?: string;
     badge?: string | null;
+    nature?: "ai" | "code" | "human" | "control";
+    natureLabel?: string;
   };
   const def = getNodeDef(String(d.nodeId ?? p.type ?? ""));
   const Icon = iconFor(def?.icon);
@@ -22,7 +24,13 @@ export function RegistryNode(p: NodeProps) {
   const isTrigger = (def?.engine ?? p.type) === "trigger";
   return (
     <SimpleNode
-      data={{ label: d.label ?? def?.title.es ?? "Paso", subtitle: d.subtitle, badge: d.badge }}
+      data={{
+        label: d.label ?? def?.title.es ?? "Paso",
+        subtitle: d.subtitle,
+        badge: d.badge,
+        nature: d.nature,
+        natureLabel: d.natureLabel,
+      }}
       Icon={Icon}
       accent={accent}
       showTargetHandle={!isTrigger}

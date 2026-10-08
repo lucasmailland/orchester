@@ -26,12 +26,10 @@
 //
 // Configurability
 // ---------------
-// Per-workspace override knob: a row in `mnemo_cron_schedule` for the
-// future `extract` job (not currently wired into the
-// cron-policy.ts gate — extraction is event-driven, not cron-driven)
-// would let the operator opt OUT of warm-up. For now the threshold
-// is global; we can promote it to a per-workspace setting when a
-// real ask shows up.
+// There is no per-workspace override: warm-up is event-driven, and
+// orchester no longer owns any cron scheduling (mnemosyne runs its own).
+// For now the threshold is global; we can promote it to a per-workspace
+// setting when a real ask shows up.
 //
 // Observability
 // -------------

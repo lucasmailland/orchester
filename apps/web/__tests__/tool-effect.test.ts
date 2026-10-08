@@ -29,6 +29,8 @@ describe("toolEffect", () => {
     expect(await toolEffect("odoo_get_task", { id: 1 }, CTX)).toBe("read");
     expect(await toolEffect("odoo_search_tasks", {}, CTX)).toBe("read");
     expect(await toolEffect("gitlab_read_file", {}, CTX)).toBe("read");
+    expect(await toolEffect("gitlab_list_merge_requests", {}, CTX)).toBe("read");
+    expect(await toolEffect("gitlab_get_diff", {}, CTX)).toBe("read");
     expect(await toolEffect("odoo_post_note", { id: 1, body_text: "x" }, CTX)).toBe("write");
     expect(await toolEffect("odoo_create_ticket", { name: "x" }, CTX)).toBe("write");
   });
@@ -61,18 +63,28 @@ describe("toolEffect", () => {
     );
   });
 
-  it("asks the store for run_integration, and fails safe to write", async () => {
+  it("asks the store for run_integration", async () => {
     getIntegrationActionEffectMock.mockResolvedValueOnce("read");
     expect(await toolEffect("run_integration", { integrationId: "i1", action: "query" }, CTX)).toBe(
       "read"
     );
+  });
+
+  it("rejects run_integration when the action cannot be resolved", async () => {
     getIntegrationActionEffectMock.mockRejectedValueOnce(new Error("not connected"));
-    expect(await toolEffect("run_integration", { integrationId: "i1", action: "query" }, CTX)).toBe(
-      "write"
+    await expect(
+      toolEffect("run_integration", { integrationId: "i1", action: "query" }, CTX)
+    ).rejects.toThrow("not connected");
+  });
+
+  it("rejects an unknown tool name instead of simulating a write", async () => {
+    await expect(toolEffect("something_new", {}, CTX)).rejects.toThrow(
+      "Unknown tool: something_new"
     );
   });
 
-  it("treats an unknown tool as a write", async () => {
-    expect(await toolEffect("something_new", {}, CTX)).toBe("write");
+  it("keeps workspace MCP tools and unclassified built-ins as writes", async () => {
+    expect(await toolEffect("mcp__srv__do", {}, CTX)).toBe("write");
+    expect(await toolEffect("flow_call", {}, CTX)).toBe("write");
   });
 });

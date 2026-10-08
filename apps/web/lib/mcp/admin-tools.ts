@@ -110,8 +110,21 @@ export const ADMIN_TOOLS: McpToolDef[] = [
         status: { type: "string", enum: ["draft", "active", "inactive"] },
         teamId: { type: ["string", "null"] },
         tools: { type: "array", items: { type: "string" } },
+        knowledgeBaseIds: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Knowledge bases of this workspace the agent may search with knowledge_search. Replaces the list; [] clears it.",
+        },
         temperature: { type: ["number", "string"] },
         maxTokens: { type: "number" },
+        maxToolCalls: {
+          type: "integer",
+          minimum: 1,
+          maximum: 15,
+          description:
+            "Max model calls per turn while the agent uses tools. Default 5; merged into config.",
+        },
       },
       required: ["agentId"],
     },

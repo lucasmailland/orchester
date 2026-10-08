@@ -49,6 +49,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           flowId: id,
           workspaceId: ctx.workspace.id,
           triggerSource: "manual",
+          // A person testing from the app may run a flow that is not enabled yet.
+          manual: true,
           input,
           onEvent: send,
           signal: abort.signal,

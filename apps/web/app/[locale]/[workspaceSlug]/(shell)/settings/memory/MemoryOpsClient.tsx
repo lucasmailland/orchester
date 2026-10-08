@@ -46,11 +46,8 @@ import { NextStep, NextStepGroup } from "@/components/compass/NextStep";
 import { PageHero } from "@/components/compass/PageHero";
 import { TermDef } from "@/components/compass/TermDef";
 import { TourSpot } from "@/components/compass/TourSpot";
-import { CronScheduleEditor, type CronSchedule } from "@/components/mnemo/CronScheduleEditor";
 import { useBrainHealthLatest } from "@/lib/hooks/use-brain-health";
-import { useCronSchedules } from "@/lib/hooks/use-cron-schedules";
 import { notify } from "@/lib/toast";
-import { Pencil } from "lucide-react";
 
 // ---- task definitions ------------------------------------------------------
 
@@ -170,13 +167,6 @@ export function MemoryOpsClient({ workspace, isAdmin }: Props): ReactNode {
 
   const [pendingKey, setPendingKey] = useState<TaskKey | null>(null);
   const [confirmTask, setConfirmTask] = useState<TaskDef | null>(null);
-  // Per-job schedule overrides — null while loading, then one row per
-  // task. Pencil-button on each card opens the editor below.
-  const { schedules, mutate: mutateSchedules } = useCronSchedules();
-  const [editingTask, setEditingTask] = useState<TaskDef | null>(null);
-  const editingSchedule: CronSchedule | null =
-    editingTask && schedules ? (schedules.find((s) => s.jobKey === editingTask.key) ?? null) : null;
-
   const healthLastRun = readSnapshotAt(snapshot);
 
   async function runTask(task: TaskDef): Promise<void> {
@@ -273,8 +263,6 @@ export function MemoryOpsClient({ workspace, isAdmin }: Props): ReactNode {
                 lastRunIso={task.key === "healthSnapshot" ? healthLastRun : null}
                 locale={locale}
                 onRequestRun={() => setConfirmTask(task)}
-                onEditSchedule={() => setEditingTask(task)}
-                scheduleMode={schedules?.find((s) => s.jobKey === task.key)?.mode ?? null}
                 workspaceSlug={workspace.slug}
               />
             );
@@ -389,22 +377,6 @@ export function MemoryOpsClient({ workspace, isAdmin }: Props): ReactNode {
           if (confirmTask) return runTask(confirmTask);
         }}
       />
-
-      {/* Periodicity editor — controlled by `editingTask`. Mounts only
-          when a task is selected so we don't carry a hidden Modal in
-          the DOM for the common case. */}
-      {editingTask && editingSchedule ? (
-        <CronScheduleEditor
-          schedule={editingSchedule}
-          taskName={t(`tasks.${editingTask.key}.name`)}
-          locale={locale}
-          isOpen={editingTask !== null}
-          onClose={() => setEditingTask(null)}
-          onSaved={async () => {
-            await mutateSchedules();
-          }}
-        />
-      ) : null}
     </div>
   );
 }
@@ -421,13 +393,6 @@ interface TaskCardProps {
   workspaceSlug: string;
   onRequestRun: () => void;
   /** Open the periodicity editor for this task. */
-  onEditSchedule: () => void;
-  /**
-   * Current override mode for this task, surfaced in the card as a
-   * tiny pill so the operator can tell at a glance whether their
-   * workspace runs the default schedule, a slower one, or nothing.
-   */
-  scheduleMode: import("@/lib/mnemo/cron-policy").CronMode | null;
 }
 
 function TaskCard({
@@ -439,8 +404,6 @@ function TaskCard({
   locale,
   workspaceSlug,
   onRequestRun,
-  onEditSchedule,
-  scheduleMode,
 }: TaskCardProps): ReactNode {
   const t = useTranslations("compass.memoryOps");
   const tTask = useTranslations(`compass.memoryOps.tasks.${task.key}`);
@@ -522,33 +485,6 @@ function TaskCard({
         </dl>
         {task.perAgent ? null : (
           <div className="flex items-center gap-2">
-            {/* Schedule edit pencil — visible only to admins, hidden on
-                the per-agent task that doesn't have a schedule. The
-                tiny mode pill next to the button shows the current
-                override at a glance. */}
-            {isAdmin && scheduleMode && scheduleMode !== "default" ? (
-              <span
-                className={
-                  scheduleMode === "disabled"
-                    ? "rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-300"
-                    : "rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-violet-700 dark:text-violet-300"
-                }
-              >
-                {t(`schedule.modes.${scheduleMode}`)}
-              </span>
-            ) : null}
-            {isAdmin ? (
-              <Button
-                size="sm"
-                isIconOnly
-                variant="light"
-                aria-label={t("schedule.editAria", { name: tCommonNamePill(t, task.key) })}
-                onPress={onEditSchedule}
-                isDisabled={anyPending}
-              >
-                <Pencil className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
-              </Button>
-            ) : null}
             {task.key === "dedup" ? (
               <TourSpot
                 tourId="memory-ops"
@@ -561,7 +497,7 @@ function TaskCard({
                     size="sm"
                     variant="flat"
                     color="primary"
-                    isDisabled={!isAdmin || (anyPending && !pending) || scheduleMode === "disabled"}
+                    isDisabled={!isAdmin || (anyPending && !pending)}
                     isLoading={pending}
                     onPress={onRequestRun}
                   >
@@ -574,7 +510,7 @@ function TaskCard({
                 size="sm"
                 variant="flat"
                 color="primary"
-                isDisabled={!isAdmin || (anyPending && !pending) || scheduleMode === "disabled"}
+                isDisabled={!isAdmin || (anyPending && !pending)}
                 isLoading={pending}
                 onPress={onRequestRun}
               >
@@ -586,19 +522,6 @@ function TaskCard({
       </footer>
     </li>
   );
-}
-
-/**
- * Tiny helper to materialize the per-task name for the pencil's
- * aria-label without instantiating a second useTranslations() call
- * inside an already-rendered loop. We just pull it from the same
- * `t` namespace using the task key.
- */
-function tCommonNamePill(
-  t: ReturnType<typeof useTranslations<"compass.memoryOps">>,
-  key: TaskKey
-): string {
-  return t(`tasks.${key}.name`);
 }
 
 // ---- jargon wrapping -------------------------------------------------------

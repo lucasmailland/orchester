@@ -43,6 +43,10 @@ export const MANIFEST = [
     "0061_flow_step_trace.sql",
     "trazabilidad por paso: agent_id, agent_name, model, tokens_used, cost_usd en flow_run_step",
   ],
+  [
+    "0062_flow_kind.sql",
+    "etiquetado de flows: flow.kind (pipeline | action) y flow.external_callers (quién los llama desde afuera)",
+  ],
   // Sin número: ajuste del deploy single-tenant, no historia de upstream.
   // 0049 deja `org` con FORCE RLS y sólo una política de SELECT, así que ningún
   // INSERT pasa y crear un workspace da 500. Ver el header del archivo.

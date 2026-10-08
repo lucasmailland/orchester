@@ -167,7 +167,7 @@ export async function gitlabSearchCode(
       return {
         path: row.path,
         startline: row.startline,
-        snippet: row.data,
+        ...(isSecretPath(row.path) ? { content_withheld: true } : { snippet: row.data }),
         ...(projectId !== undefined ? { projectId } : {}),
         ...(projectPath ? { projectPath } : {}),
         ...(webUrl ? { webUrl } : {}),
@@ -180,6 +180,9 @@ export async function gitlabReadFile(
   config: Record<string, string>,
   input: Record<string, unknown>
 ) {
+  if (isSecretPath(typeof input.path === "string" ? input.path : "")) {
+    throw new Error("This file usually holds credentials; its content is not returned.");
+  }
   const { data } = await get<{ size: number; encoding: string; content: string }>(
     config,
     `projects/${segment(input.project, "project")}/repository/files/${segment(input.path, "path")}`,
@@ -353,5 +356,203 @@ export async function gitlabCompareRefs(
     totalCommits: commits.length,
     totalFiles: archivos.length,
     truncated: commits.length > limit || archivos.length > MAX_COMPARE_FILES,
+  };
+}
+
+const MR_STATES = ["opened", "merged", "closed", "all"];
+
+function boundedInt(value: unknown, name: string, min: number, max: number, dflt: number): number {
+  if (value === undefined) return dflt;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < min || value > max) {
+    throw new Error(`GitLab ${name} must be an integer between ${min} and ${max}.`);
+  }
+  return value;
+}
+
+interface MergeRequestRow {
+  iid: number;
+  title: string;
+  state: string;
+  author?: { username?: string } | null;
+  source_branch: string;
+  target_branch: string;
+  merged_at: string | null;
+  created_at: string;
+  web_url: string;
+  merge_commit_sha: string | null;
+}
+
+/**
+ * Merge requests of one project, one page, metadata only. Descriptions are
+ * deliberately not returned: they are long, user-written and not needed to
+ * date a change.
+ */
+export async function gitlabListMergeRequests(
+  config: Record<string, string>,
+  input: Record<string, unknown>
+) {
+  const project = segment(input.project, "project");
+  const state = input.state === undefined ? "merged" : input.state;
+  if (typeof state !== "string" || !MR_STATES.includes(state)) {
+    throw new Error("GitLab state must be one of opened, merged, closed or all.");
+  }
+  const limit = boundedInt(input.limit, "limit", 1, 30, 10);
+  const params: Record<string, string> = {
+    state,
+    order_by: "updated_at",
+    sort: "desc",
+    per_page: String(limit),
+  };
+  let sinceMs: number | undefined;
+  if (input.merged_since !== undefined) {
+    sinceMs = typeof input.merged_since === "string" ? Date.parse(input.merged_since) : NaN;
+    if (!Number.isFinite(sinceMs)) throw new Error("GitLab merged_since must be an ISO 8601 date.");
+    // A merged MR was last updated at or after its merge, so this never drops a match;
+    // the exact bound is applied below on merged_at.
+    params.updated_after = new Date(sinceMs).toISOString();
+    params.per_page = "100";
+  }
+  if (input.search !== undefined) {
+    const search = requiredText(input.search, "search");
+    if (search.length > 100) throw new Error("GitLab search must be at most 100 characters.");
+    params.search = search;
+  }
+  if (input.target_branch !== undefined) {
+    params.target_branch = requiredText(input.target_branch, "target_branch");
+  }
+  const { data } = await get<MergeRequestRow[]>(
+    config,
+    `projects/${project}/merge_requests`,
+    params
+  );
+  const rows =
+    sinceMs === undefined
+      ? data
+      : data.filter((r) => r.merged_at && Date.parse(r.merged_at) >= sinceMs!);
+  return {
+    merge_requests: rows.slice(0, limit).map((r) => ({
+      iid: r.iid,
+      title: String(r.title ?? "").slice(0, 200),
+      state: r.state,
+      author: r.author?.username ?? null,
+      source_branch: r.source_branch,
+      target_branch: r.target_branch,
+      merged_at: r.merged_at ?? null,
+      created_at: r.created_at,
+      web_url: r.web_url,
+      merge_commit_sha: r.merge_commit_sha ?? null,
+    })),
+  };
+}
+
+const DIFF_MAX_FILES = 20;
+const DIFF_MAX_FILE_BYTES = 8 * 1024;
+const DIFF_MAX_TOTAL_BYTES = 40 * 1024;
+
+interface DiffRow {
+  old_path: string;
+  new_path: string;
+  new_file?: boolean;
+  deleted_file?: boolean;
+  renamed_file?: boolean;
+  diff?: string;
+  too_large?: boolean;
+}
+
+// Files that usually hold credentials. Their content is withheld (path and flags still
+// listed) because a committed secret would otherwise reach the model and whatever it
+// writes, such as a ticket note. The match is on the file name only: `credentials.json`
+// matches, `docs/credentials-guide.md` does not.
+const SECRET_FILE =
+  /(^|\/)(\.env(\.[^/]*)?|[^/]*\.env|\.npmrc|\.pypirc|\.netrc|\.git-credentials|id_(rsa|dsa|ecdsa|ed25519)|credentials(\.json)?|[^/]*\.(pem|key|p12|pfx|jks|keystore))$/i;
+
+export function isSecretPath(path: string | null | undefined): boolean {
+  return SECRET_FILE.test(path ?? "");
+}
+
+function isSecretFile(d: DiffRow): boolean {
+  return isSecretPath(d.new_path) || isSecretPath(d.old_path);
+}
+
+function clipBytes(text: string, max: number): { text: string; clipped: boolean } {
+  const buf = Buffer.from(text, "utf8");
+  if (buf.length <= max) return { text, clipped: false };
+  return {
+    text: buf
+      .subarray(0, max)
+      .toString("utf8")
+      .replace(/\uFFFD+$/, ""),
+    clipped: true,
+  };
+}
+
+/**
+ * Diff of one commit or one merge request, hard-capped: 20 files, 8 KB per
+ * file, 40 KB overall. One page only; whatever does not fit is counted in
+ * `files_omitted` rather than fetched.
+ */
+export async function gitlabGetDiff(
+  config: Record<string, string>,
+  input: Record<string, unknown>
+) {
+  const project = segment(input.project, "project");
+  const hasSha = input.commit_sha !== undefined;
+  const hasIid = input.mr_iid !== undefined;
+  if (hasSha === hasIid) throw new Error("GitLab needs exactly one of commit_sha or mr_iid.");
+  let path: string;
+  if (hasSha) {
+    const sha = input.commit_sha;
+    if (typeof sha !== "string" || !/^[0-9a-fA-F]{7,40}$/.test(sha)) {
+      throw new Error("GitLab commit_sha must be 7 to 40 hex characters.");
+    }
+    path = `projects/${project}/repository/commits/${sha}/diff`;
+  } else {
+    const iid = input.mr_iid;
+    if (typeof iid !== "number" || !Number.isSafeInteger(iid) || iid < 1) {
+      throw new Error("GitLab mr_iid must be a positive integer.");
+    }
+    path = `projects/${project}/merge_requests/${iid}/diffs`;
+  }
+  const filter = input.path === undefined ? undefined : requiredText(input.path, "path");
+  const { data, nextPage } = await get<DiffRow[]>(config, path, { per_page: "100" });
+  const morePages = nextPage !== null && nextPage !== "";
+  const rows = filter
+    ? data.filter((d) => d.new_path?.includes(filter) || d.old_path?.includes(filter))
+    : data;
+  const files: Record<string, unknown>[] = [];
+  let budget = DIFF_MAX_TOTAL_BYTES;
+  let truncated = false;
+  let omitted = 0;
+  for (const d of rows) {
+    if (files.length >= DIFF_MAX_FILES || budget <= 0) {
+      omitted++;
+      continue;
+    }
+    const withheld = isSecretFile(d);
+    const raw = !withheld && typeof d.diff === "string" ? d.diff : "";
+    const { text, clipped } = clipBytes(raw, Math.min(DIFF_MAX_FILE_BYTES, budget));
+    budget -= Buffer.byteLength(text, "utf8");
+    if (clipped) truncated = true;
+    const unavailable =
+      !withheld && (d.too_large === true || (raw === "" && d.renamed_file !== true));
+    files.push({
+      old_path: d.old_path,
+      new_path: d.new_path,
+      new_file: d.new_file === true,
+      deleted_file: d.deleted_file === true,
+      renamed_file: d.renamed_file === true,
+      diff: text,
+      ...(clipped ? { diff_truncated: true } : {}),
+      ...(unavailable ? { diff_unavailable: true } : {}),
+      ...(withheld ? { diff_withheld: true } : {}),
+    });
+  }
+  if (omitted > 0 || morePages) truncated = true;
+  return {
+    files,
+    truncated,
+    ...(omitted > 0 ? { files_omitted: omitted } : {}),
+    // Only the first page of 100 files is read: files_omitted does not cover the rest.
+    ...(morePages ? { more_pages: true } : {}),
   };
 }

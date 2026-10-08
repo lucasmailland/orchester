@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { Bot, Workflow, Sparkles, Plus, Trash2, Wrench } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import {
+  DEFAULT_MAX_TOOL_CALLS,
+  MIN_MAX_TOOL_CALLS,
+  MAX_MAX_TOOL_CALLS,
+} from "@/lib/agents/tool-call-cap";
 
 interface FlowOption {
   id: string;
@@ -23,12 +28,14 @@ export interface AgentConfigState {
   flowId: string | null;
   variables: Record<string, string>;
   tools: string[];
+  knowledgeBaseIds: string[];
   greeting: string;
   fallback: string;
   starters: string[];
   avatarUrl: string;
   color: string;
   maxTurns: number;
+  maxToolCalls: number;
   responseFormat: "text" | "json" | "markdown";
   outputSchema: string; // JSON string for editing
 }
@@ -53,6 +60,7 @@ export function AgentConfigPanel({ value, onChange }: Props) {
   const t = useTranslations("pages.agents.studio.config");
   const [flows, setFlows] = useState<FlowOption[]>([]);
   const [tools, setTools] = useState<ToolDef[]>([]);
+  const [kbs, setKbs] = useState<FlowOption[]>([]);
 
   useEffect(() => {
     fetch("/api/flows")
@@ -61,6 +69,12 @@ export function AgentConfigPanel({ value, onChange }: Props) {
         setFlows((Array.isArray(d) ? d : []).map((f) => ({ id: f.id, name: f.name })))
       )
       .catch(() => setFlows([]));
+    fetch("/api/knowledge-bases")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d: Array<{ id: string; name: string }>) =>
+        setKbs((Array.isArray(d) ? d : []).map((k) => ({ id: k.id, name: k.name })))
+      )
+      .catch(() => setKbs([]));
     fetch("/api/tools")
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setTools(Array.isArray(d) ? d : []))
@@ -167,6 +181,69 @@ export function AgentConfigPanel({ value, onChange }: Props) {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+          <div className="mt-4">
+            <label
+              htmlFor="max-tool-calls"
+              className="mb-1.5 block text-[11px] uppercase tracking-wider text-muted"
+            >
+              {t("maxToolCallsLabel")}
+            </label>
+            <input
+              id="max-tool-calls"
+              type="number"
+              min={MIN_MAX_TOOL_CALLS}
+              max={MAX_MAX_TOOL_CALLS}
+              step={1}
+              value={value.maxToolCalls}
+              onChange={(e) => {
+                const n = Math.trunc(Number(e.target.value));
+                onChange({
+                  maxToolCalls: Number.isFinite(n)
+                    ? Math.min(Math.max(n, MIN_MAX_TOOL_CALLS), MAX_MAX_TOOL_CALLS)
+                    : DEFAULT_MAX_TOOL_CALLS,
+                });
+              }}
+              className="w-32 rounded-lg border border-line bg-elevated px-2.5 py-1.5 text-sm text-strong outline-none focus:border-violet-500/60"
+            />
+            <p className="mt-1 text-[10px] text-faint">{t("maxToolCallsHint")}</p>
+          </div>
+        </Section>
+      )}
+
+      {/* Knowledge bases (only for conversational) */}
+      {value.kind === "conversational" && (
+        <Section title={t("kbSectionTitle")} subtitle={t("kbSectionSubtitle")}>
+          {kbs.length === 0 ? (
+            <div className="text-xs text-muted">{t("kbEmpty")}</div>
+          ) : (
+            <div className="grid grid-cols-2 gap-1.5">
+              {kbs.map((kb) => {
+                const selected = value.knowledgeBaseIds.includes(kb.id);
+                return (
+                  <button
+                    key={kb.id}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() =>
+                      onChange({
+                        knowledgeBaseIds: selected
+                          ? value.knowledgeBaseIds.filter((id) => id !== kb.id)
+                          : [...value.knowledgeBaseIds, kb.id],
+                      })
+                    }
+                    className={cn(
+                      "rounded-lg border px-2.5 py-2 text-left text-xs transition",
+                      selected
+                        ? "border-violet-500/40 bg-violet-500/10 text-strong"
+                        : "border-line bg-card text-muted hover:bg-elevated"
+                    )}
+                  >
+                    {kb.name}
+                  </button>
+                );
+              })}
             </div>
           )}
         </Section>

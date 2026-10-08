@@ -12,7 +12,9 @@ import { executeTool, resolveToolDefinitions, type ToolCall } from "./tools";
 import { assertWithinSpend } from "./cost-alerts";
 import { recordAiUsage } from "./ai/run";
 import { calculateChatCostUsd } from "./pricing";
+import { resolveMaxToolCalls } from "./agents/tool-call-cap";
 import { safeLogError } from "./safe-log";
+import { FlowDisabledError } from "./flows/run-gate";
 import { getAgentMemoryPolicy, type AgentMemoryPolicy } from "./policy/agent-memory";
 import type { RecallResponse } from "@mnemo-ai/client-ts";
 import { recallForWorkspace } from "@/lib/mnemo/recall";
@@ -60,6 +62,8 @@ export interface RunAgentParams {
     /** Schema opcional (almacenado como JSON) para validar la salida JSON (L4). */
     outputSchema?: Record<string, unknown> | null;
     maxTurns: number | null;
+    /** Free-form per-agent settings; `maxToolCalls` caps the tool loop. */
+    config?: Record<string, unknown> | null;
   };
   messages: ChatMessage[];
   /** Override for the live test chat where the user is editing the prompt unsaved. */
@@ -74,6 +78,8 @@ export interface RunAgentParams {
   /** Optional context — enables memory_* tools to scope per-conversation/employee. */
   conversationId?: string;
   employeeId?: string;
+  /** Set by the agent page's test chat: handoffs are simulated, not persisted. */
+  testChat?: boolean;
   /**
    * Workspace transaction handle (R2-C). When the caller is already
    * inside `withWorkspaceTx`, threading `tx` keeps the agent loadup,
@@ -375,17 +381,22 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
     const t = setTimeout(() => abort.abort(), FLOW_AGENT_INLINE_TIMEOUT_MS);
     let result;
     try {
-      result = await executeFlow({
-        flowId: p.agent.flowId,
-        workspaceId: p.workspaceId,
-        triggerSource: `agent:${p.agent.id}`,
-        input: {
-          message: lastUser?.content ?? "",
-          history: p.messages,
-          variables,
-        },
-        signal: abort.signal,
-      });
+      try {
+        result = await executeFlow({
+          flowId: p.agent.flowId,
+          workspaceId: p.workspaceId,
+          triggerSource: `agent:${p.agent.id}`,
+          input: {
+            message: lastUser?.content ?? "",
+            history: p.messages,
+            variables,
+          },
+          signal: abort.signal,
+        });
+      } catch (e) {
+        if (!(e instanceof FlowDisabledError)) throw e;
+        return { content: `_(${e.message})_`, tokensUsed: 0, model: "flow" };
+      }
     } finally {
       clearTimeout(t);
     }
@@ -508,11 +519,14 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
 
   // Tool-calling loop (currently Anthropic only — others fall through to plain chat)
   const toolDefs =
-    enabledTools.length > 0 ? await resolveToolDefinitions(p.workspaceId, enabledTools, p.tx) : [];
+    enabledTools.length > 0
+      ? await resolveToolDefinitions(p.workspaceId, enabledTools, p.tx, p.agent)
+      : [];
   const toolCalls: RunAgentResult["toolCalls"] = [];
   let messages = [...p.messages];
   let totalTokens = 0;
-  const maxToolIterations = Math.min(5, p.agent.maxTurns ?? 5);
+  const toolCallCap = resolveMaxToolCalls(p.agent.config);
+  const maxToolIterations = Math.min(toolCallCap, p.agent.maxTurns ?? toolCallCap);
 
   for (let i = 0; i < maxToolIterations; i++) {
     const callOpts: Parameters<typeof llmCall>[0] = {
@@ -579,6 +593,7 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
             agentId: p.agent.id,
             ...(p.conversationId ? { conversationId: p.conversationId } : {}),
             ...(p.employeeId ? { employeeId: p.employeeId } : {}),
+            ...(p.testChat ? { testChat: true } : {}),
             ...(p.tx ? { tx: p.tx } : {}),
           });
         }

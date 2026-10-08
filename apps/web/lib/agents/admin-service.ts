@@ -2,7 +2,9 @@ import "server-only";
 import { schema } from "@orchester/db";
 import { and, eq } from "drizzle-orm";
 import { updateAgentSchema } from "./schemas";
+import { mergeAgentConfig } from "./tool-call-cap";
 import { agentDeleteBlockers, agentBlockersMessage } from "./delete-impact";
+import { unknownKbIds, withAgentKbIds } from "./knowledge-bases";
 import { requireTeam } from "@/lib/teams/service";
 import {
   AdminError,
@@ -22,17 +24,20 @@ export const agentAdminPatchSchema = updateAgentSchema
     status: true,
     teamId: true,
     tools: true,
+    knowledgeBaseIds: true,
     temperature: true,
     maxTokens: true,
+    maxToolCalls: true,
   })
   .partial();
 
-async function requireAgent(tx: AdminDb, workspaceId: string, id: string) {
-  const [agent] = await tx
+async function requireAgent(tx: AdminDb, workspaceId: string, id: string, lock = false) {
+  const query = tx
     .select()
     .from(schema.agents)
     .where(and(eq(schema.agents.id, id), eq(schema.agents.workspaceId, workspaceId)))
     .limit(1);
+  const [agent] = await (lock ? query.for("update") : query);
   if (!agent) throw new AdminError("Agent not found", 404);
   return agent;
 }
@@ -50,15 +55,30 @@ export async function updateAgent(actor: AdminActor, id: string, input: Record<s
     if (unknown.length) throw new AdminError(`Unknown tools: ${unknown.join(", ")}`, 400);
   }
   return withAdminTx(actor, async (tx) => {
-    await requireAgent(tx, actor.workspaceId, id);
+    // Row lock: `config` is merged from this read and written back below, so a
+    // concurrent update of another key must wait for this transaction instead
+    // of being overwritten by it.
+    const current = await requireAgent(tx, actor.workspaceId, id, true);
     if (data.teamId) await requireTeam(tx, actor.workspaceId, data.teamId);
-    const { temperature, ...fields } = data;
+    if (data.knowledgeBaseIds?.length) {
+      const unknown = await unknownKbIds(actor.workspaceId, data.knowledgeBaseIds, tx);
+      if (unknown.length)
+        throw new AdminError(`Unknown knowledge bases: ${unknown.join(", ")}`, 400);
+    }
+    const { temperature, knowledgeBaseIds, maxToolCalls, ...fields } = data;
+    // Merged, not replaced: `config` carries keys owned by several features, and
+    // both may change in the same update.
+    let nextConfig: unknown = current.config;
+    if (knowledgeBaseIds !== undefined) nextConfig = withAgentKbIds(nextConfig, knowledgeBaseIds);
+    if (maxToolCalls !== undefined) nextConfig = mergeAgentConfig(nextConfig, { maxToolCalls });
+    const configChanged = knowledgeBaseIds !== undefined || maxToolCalls !== undefined;
     const [agent] = await tx
       .update(schema.agents)
       .set({
         ...fields,
         ...(data.systemPrompt !== undefined && { systemPrompt: data.systemPrompt.trim() }),
         ...(data.teamId !== undefined && { teamId: data.teamId || null }),
+        ...(configChanged && { config: nextConfig as Record<string, unknown> }),
         ...(temperature !== undefined && { temperature: String(temperature) }),
         updatedAt: new Date(),
       })

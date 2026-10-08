@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { maxToolCallsSchema } from "./tool-call-cap";
 
 /**
  * Body accepted by PATCH /api/agents/[id].
@@ -18,6 +19,8 @@ export const updateAgentSchema = z.object({
   kind: z.enum(["conversational", "flow"]).optional(),
   flowId: z.string().nullable().optional(),
   tools: z.array(z.string()).optional(),
+  // Knowledge bases the agent may search; stored in agent.config.knowledgeBaseIds.
+  knowledgeBaseIds: z.array(z.string()).optional(),
   variables: z.record(z.string(), z.string()).optional(),
   greeting: z.string().nullable().optional(),
   fallback: z.string().nullable().optional(),
@@ -25,6 +28,8 @@ export const updateAgentSchema = z.object({
   avatarUrl: z.string().nullable().optional(),
   color: z.string().optional(),
   maxTurns: z.number().optional(),
+  // Stored in `config.maxToolCalls`, merged by the services; 1-15, default 5.
+  maxToolCalls: maxToolCallsSchema.optional(),
   responseFormat: z.enum(["text", "json", "markdown"]).optional(),
   // outputSchema es un JSON Schema arbitrario definido por el usuario.
   // Nullable because null is what GET returns for an agent without one, and

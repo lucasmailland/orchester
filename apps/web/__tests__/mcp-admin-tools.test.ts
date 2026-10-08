@@ -42,8 +42,13 @@ const db = {
           state.predicates.push(predicate);
           return q;
         },
-        limit: async (n: number) => rows.slice(0, n),
+        limit: (n: number) =>
+          Object.assign(Promise.resolve(rows.slice(0, n)), {
+            // `.for("update")` row locks resolve to the same rows.
+            for: async () => rows.slice(0, n),
+          }),
         groupBy: async () => rows,
+        orderBy: async () => rows,
         then: (resolve: (v: unknown) => unknown) => Promise.resolve(rows).then(resolve),
       };
       return q;
@@ -85,6 +90,17 @@ const agent = {
 };
 const team = { id: "t1", name: "Support", description: "Keep description", avatarColor: "#123456" };
 const flow = { id: "f1", name: "Workflow", enabled: false, nodes: [] };
+const webhook = {
+  id: "w1",
+  flowId: "f1",
+  workspaceId: "ws_a",
+  secret: "s3cr3t-path",
+  hmacKey: "hmac-s3cr3t",
+  enabled: true,
+  lastTriggeredAt: null,
+  triggerCount: 0,
+  createdAt: new Date(0),
+};
 const { callMcpTool, listMcpTools } = await import("@/lib/mcp/server");
 const call = (name: string, input: Record<string, unknown>, scopes: string[] = []) =>
   callMcpTool(name, input, { workspaceId: "ws_a", keyId: "key_a", scopes });
@@ -95,10 +111,12 @@ beforeEach(() => {
   state.writes.length = 0;
   state.predicates.length = 0;
   state.audit.mockReset();
+  state.audit.mockResolvedValue({ rotatedAtSeq: null });
   state.execute.mockReset();
   state.rows.set("agent", [{ ...agent }]);
   state.rows.set("team", [{ ...team }]);
   state.rows.set("flow", [{ ...flow }]);
+  state.rows.set("flow_webhook", [{ ...webhook }]);
 });
 
 const tools = [
@@ -111,6 +129,8 @@ const tools = [
   ["delete_agent", "agents", "delete", { agentId: "a1", confirm: "Helper" }],
   ["get_flow_delete_impact", "flows", "read", { flowId: "f1" }],
   ["delete_flow", "flows", "delete", { flowId: "f1", confirm: "Workflow" }],
+  ["update_flow_webhook", "flows", "write", { webhookId: "w1", enabled: false }],
+  ["delete_flow_webhook", "flows", "delete", { webhookId: "w1", confirm: "w1" }],
 ] as const;
 
 describe("workspace administration over MCP", () => {
@@ -168,6 +188,71 @@ describe("workspace administration over MCP", () => {
       }
     );
   }
+  describe("flow webhooks", () => {
+    it("update_flow_webhook toggles enabled, audits it, and returns no secret", async () => {
+      const r = await call("update_flow_webhook", { webhookId: "w1", enabled: false }, [
+        "flows:write",
+      ]);
+      expect(r.isError, r.content[0]?.text).toBeFalsy();
+      expect(state.writes[0]).toMatchObject({ table: "flow_webhook", data: { enabled: false } });
+      expect(json(r)).toMatchObject({ id: "w1", enabled: false, hmac: true });
+      const out = r.content[0]!.text + JSON.stringify(r.structuredContent);
+      expect(out).not.toContain("s3cr3t");
+      expect(state.audit).toHaveBeenCalledTimes(1);
+      expect(state.audit.mock.calls[0]![2]).toMatchObject({
+        action: "flow_webhook.update",
+        targetType: "flow_webhook",
+        targetId: "w1",
+        meta: { apiKeyId: "key_a", after: { enabled: false } },
+      });
+    });
+    it("update_flow_webhook refuses a webhook of another workspace", async () => {
+      state.rows.set("flow_webhook", []);
+      const r = await call("update_flow_webhook", { webhookId: "w1", enabled: false }, [
+        "flows:write",
+      ]);
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/not found/i);
+      expect(state.writes).toHaveLength(0);
+      expect(state.audit).not.toHaveBeenCalled();
+    });
+    it("update_flow_webhook rejects a non-boolean enabled", async () => {
+      const r = await call("update_flow_webhook", { webhookId: "w1", enabled: "no" }, [
+        "flows:write",
+      ]);
+      expect(r.isError).toBe(true);
+      expect(state.writes).toHaveLength(0);
+    });
+    it("delete_flow_webhook deletes, audits and returns no secret", async () => {
+      const r = await call("delete_flow_webhook", { webhookId: "w1", confirm: "w1" }, [
+        "flows:delete",
+      ]);
+      expect(r.isError, r.content[0]?.text).toBeFalsy();
+      expect(json(r)).toEqual({ ok: true, id: "w1" });
+      expect(r.content[0]!.text).not.toContain("s3cr3t");
+      expect(state.audit.mock.calls[0]![2]).toMatchObject({
+        action: "flow_webhook.delete",
+        targetId: "w1",
+      });
+    });
+    it("delete_flow_webhook refuses a webhook of another workspace", async () => {
+      state.rows.set("flow_webhook", []);
+      const r = await call("delete_flow_webhook", { webhookId: "w1", confirm: "w1" }, [
+        "flows:delete",
+      ]);
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/not found/i);
+      expect(state.writes).toHaveLength(0);
+      expect(state.audit).not.toHaveBeenCalled();
+    });
+    it("list_flow_webhooks shows enabled and no secret", async () => {
+      state.rows.set("flow", [{ ...flow }]);
+      const r = await call("list_flow_webhooks", { flowId: "f1" }, ["flows:read"]);
+      expect(r.isError, r.content[0]?.text).toBeFalsy();
+      expect(json(r).webhooks[0]).toMatchObject({ id: "w1", enabled: true });
+      expect(r.content[0]!.text).not.toContain("s3cr3t");
+    });
+  });
   it("get_agent returns the complete config", async () => {
     expect(json(await call("get_agent", { agentId: "a1" }))).toMatchObject(agent);
   });
@@ -205,6 +290,23 @@ describe("workspace administration over MCP", () => {
     expect(r.isError).toBeFalsy();
     expect(state.writes[0]?.data?.tools).toEqual(["calculator"]);
   });
+  it("update_agent stores knowledge bases in config, keeping other keys", async () => {
+    state.rows.set("agent", [{ ...agent, config: { keep: true } }]);
+    state.rows.set("knowledge_base", [{ id: "kb1", name: "IT" }]);
+    const r = await call("update_agent", { agentId: "a1", knowledgeBaseIds: ["kb1"] });
+    expect(r.isError, r.content[0]?.text).toBeFalsy();
+    expect(state.writes.at(-1)?.data).toEqual({
+      config: { keep: true, knowledgeBaseIds: ["kb1"] },
+      updatedAt: expect.any(Date),
+    });
+  });
+  it("update_agent rejects knowledge bases that are not in the workspace", async () => {
+    state.rows.set("knowledge_base", [{ id: "kb1", name: "IT" }]);
+    const r = await call("update_agent", { agentId: "a1", knowledgeBaseIds: ["kb1", "foreign"] });
+    expect(r.isError).toBe(true);
+    expect(r.content[0]!.text).toContain("foreign");
+    expect(state.writes).toHaveLength(0);
+  });
   it.each([{ name: " " }, { role: "" }, { status: "bogus" }, { maxTokens: "10" }, { tools: null }])(
     "update_agent validates %j",
     async (fields) => {
@@ -214,6 +316,47 @@ describe("workspace administration over MCP", () => {
       expect(state.writes).toHaveLength(0);
     }
   );
+  it("update_agent sets maxToolCalls inside config, keeping the other config keys", async () => {
+    state.rows.set("agent", [{ ...agent, config: { knowledgeBaseIds: ["kb1"], note: "x" } }]);
+    const r = await call("update_agent", { agentId: "a1", maxToolCalls: 8 });
+    expect(r.isError, r.content[0]?.text).toBeFalsy();
+    expect(state.writes[0]?.data).toEqual({
+      config: { knowledgeBaseIds: ["kb1"], note: "x", maxToolCalls: 8 },
+      updatedAt: expect.any(Date),
+    });
+    expect(state.writes[0]?.data).not.toHaveProperty("maxToolCalls");
+  });
+  it("update_agent applies knowledge bases and maxToolCalls together without one dropping the other", async () => {
+    // Both settings live in `config`; merging each from the stored value would
+    // let the second overwrite the first.
+    state.rows.set("agent", [{ ...agent, config: { keep: true } }]);
+    state.rows.set("knowledge_base", [{ id: "kb1", name: "IT" }]);
+    const r = await call("update_agent", {
+      agentId: "a1",
+      knowledgeBaseIds: ["kb1"],
+      maxToolCalls: 9,
+    });
+    expect(r.isError, r.content[0]?.text).toBeFalsy();
+    expect(state.writes.at(-1)?.data?.config).toEqual({
+      keep: true,
+      knowledgeBaseIds: ["kb1"],
+      maxToolCalls: 9,
+    });
+  });
+  it("update_agent creates config when the agent has none", async () => {
+    state.rows.set("agent", [{ ...agent, config: null }]);
+    await call("update_agent", { agentId: "a1", maxToolCalls: 15 });
+    expect(state.writes[0]?.data?.config).toEqual({ maxToolCalls: 15 });
+  });
+  it("update_agent leaves config alone when maxToolCalls is not sent", async () => {
+    await call("update_agent", { agentId: "a1", teamId: "t1" });
+    expect(state.writes[0]?.data).not.toHaveProperty("config");
+  });
+  it.each([0, 16, 2.5, "8", null, -1])("update_agent rejects maxToolCalls %j", async (value) => {
+    const r = await call("update_agent", { agentId: "a1", maxToolCalls: value });
+    expect(r.isError).toBe(true);
+    expect(state.writes).toHaveLength(0);
+  });
   it("update_team is partial", async () => {
     const r = await call("update_team", { teamId: "t1", description: "Changed" });
     expect(r.isError).toBeFalsy();
@@ -273,6 +416,27 @@ describe("workspace administration over MCP", () => {
       blocker === "enabled" ? "enabled" : blocker === "agent" ? "Dependent agent" : "Caller"
     );
     expect(state.writes).toHaveLength(0);
+  });
+  it("delete_flow refuses while external callers are registered, then allows after clearing", async () => {
+    state.rows.set("agent", []);
+    state.rows.set("flow", [{ ...flow, externalCallers: [{ name: "nightly-script" }] }]);
+    const refused = await call("delete_flow", { flowId: "f1", confirm: "Workflow" }, [
+      "flows:delete",
+    ]);
+    expect(refused.isError).toBe(true);
+    expect(refused.content[0]!.text).toContain("nightly-script");
+    expect(refused.content[0]!.text).toContain("update_flow");
+    expect(state.writes).toHaveLength(0);
+
+    state.rows.set("flow", [{ ...flow, externalCallers: [] }]);
+    const ok = await call("delete_flow", { flowId: "f1", confirm: "Workflow" }, ["flows:delete"]);
+    expect(ok.isError, ok.content[0]?.text).toBeFalsy();
+    expect(state.writes.map((w) => w.table)).toContain("flow");
+  });
+  it("get_flow_delete_impact reports external callers", async () => {
+    state.rows.set("flow", [{ ...flow, externalCallers: [{ name: "nightly-script", note: "n" }] }]);
+    const r = await call("get_flow_delete_impact", { flowId: "f1" }, ["flows:read"]);
+    expect(json(r).blockers.externalCallers).toEqual([{ name: "nightly-script", note: "n" }]);
   });
   it("flow delete impact reports cascade counts", async () => {
     state.rows.set("flow_run", [{ n: 3 }]);

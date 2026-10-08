@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import type { ValidationIssue } from "@/lib/flows/validate";
 import type { FlowInput } from "@/lib/flows/service";
+import { externalCallersSchema, flowKindSchema, readExternalCallers } from "@/lib/flows/kind";
 import type { McpAuth, McpToolDef } from "./server";
 
 /**
@@ -72,6 +73,26 @@ const graphProps = {
     description: "Markdown: Purpose, Trigger, Steps, Side effects, Failure handling, Dependencies.",
   },
   description: { type: ["string", "null"] },
+  kind: {
+    type: "string",
+    enum: ["pipeline", "action"],
+    description:
+      "pipeline (default): a top-level flow. action: a reusable building block that pipelines call; it may not use AI nodes, wait_human, subflow/flow_call nodes or flow-level variables.",
+  },
+  externalCallers: {
+    type: "array",
+    maxItems: 10,
+    items: {
+      type: "object",
+      properties: {
+        name: { type: "string", maxLength: 80 },
+        note: { type: "string", maxLength: 200 },
+      },
+      required: ["name"],
+    },
+    description:
+      "Callers OUTSIDE orchester (e.g. a script calling run_flow by id). delete_flow refuses while this list is non-empty; clear it with update_flow ([]) first.",
+  },
 };
 
 const updateInputSchema = z.object({
@@ -83,6 +104,8 @@ const updateInputSchema = z.object({
   variables: z.record(z.string(), z.unknown()).optional(),
   status: z.enum(["draft", "active", "paused"]).optional(),
   enabled: z.boolean().optional(),
+  kind: flowKindSchema.optional(),
+  externalCallers: externalCallersSchema.optional(),
 });
 
 const createInputSchema = updateInputSchema.omit({ status: true, enabled: true }).extend({
@@ -98,12 +121,35 @@ function pickInput(input: Record<string, unknown>, create = false): FlowInput {
   return parsed.data;
 }
 
+/** Per-node nature plus the flow summary, transitive across the workspace's subflows. */
+async function describeNature(actor: ReturnType<typeof actorOf>, flowId: string, nodes: unknown) {
+  const { nodeNature, summarizeFlowNatureTransitive } = await import("@/lib/flows/node-nature");
+  const list = Array.isArray(nodes) ? (nodes as Array<Record<string, unknown>>) : [];
+  const nodesWithNature = list.map((n) => ({ ...n, nature: nodeNature({ type: String(n.type) }) }));
+  const all = await (await svc()).listFlows(actor);
+  const flows = all.map((f) => ({ id: f.id, nodes: toNatureNodes(f.nodes) }));
+  if (!flows.some((f) => f.id === flowId)) flows.push({ id: flowId, nodes: toNatureNodes(nodes) });
+  return { nodesWithNature, summary: summarizeFlowNatureTransitive(flowId, flows) };
+}
+
+function toNatureNodes(nodes: unknown) {
+  return (Array.isArray(nodes) ? nodes : []).map((n) => {
+    const r = n as Record<string, unknown>;
+    return {
+      id: String(r.id),
+      type: String(r.type),
+      label: typeof r.label === "string" ? r.label : undefined,
+      config: (r.config ?? undefined) as Record<string, unknown> | undefined,
+    };
+  });
+}
+
 export const FLOW_TOOLS: McpToolDef[] = [
   {
     name: "get_flow_delete_impact",
     title: "Get flow deletion impact",
     description:
-      "Muestra qué bloquea la eliminación de un flujo y cuántas corridas, versiones, webhooks y schedules se eliminan en cascada.",
+      "Muestra qué bloquea la eliminación de un flujo (incluidos los llamadores externos declarados) y cuántas corridas, versiones, webhooks y schedules se eliminan en cascada.",
     domain: "flows",
     access: "read",
     inputSchema: {
@@ -120,7 +166,7 @@ export const FLOW_TOOLS: McpToolDef[] = [
     name: "delete_flow",
     title: "Delete a flow",
     description:
-      "Elimina un flujo deshabilitado y sin referencias de agentes u otros flujos. Requiere flows:delete y confirm con su nombre exacto. Devuelve los conteos eliminados en cascada.",
+      "Elimina un flujo deshabilitado, sin referencias de agentes u otros flujos y sin llamadores externos declarados (vaciá externalCallers con update_flow antes). Requiere flows:delete y confirm con su nombre exacto. Devuelve los conteos eliminados en cascada.",
     domain: "flows",
     access: "delete",
     inputSchema: {
@@ -140,7 +186,7 @@ export const FLOW_TOOLS: McpToolDef[] = [
     name: "get_flow",
     title: "Get a flow",
     description:
-      "Devuelve un flujo completo: spec, pasos (con su propósito), conexiones, variables y estado.",
+      "Devuelve un flujo completo: tipo (pipeline | action), llamadores externos, spec, pasos (con su propósito), conexiones, variables y estado.",
     access: "read",
     domain: "flows",
     inputSchema: {
@@ -162,7 +208,11 @@ export const FLOW_TOOLS: McpToolDef[] = [
         edges,
         variables,
         version,
+        kind,
+        externalCallers,
       } = f;
+      // `nature` is additive: where the AI is (ai | code | human | control).
+      const { nodesWithNature, summary } = await describeNature(actorOf(auth), id, nodes);
       return {
         id,
         name,
@@ -171,11 +221,31 @@ export const FLOW_TOOLS: McpToolDef[] = [
         status,
         enabled,
         trigger,
-        nodes,
+        nodes: nodesWithNature,
         edges,
         variables,
         version,
+        kind: kind ?? "pipeline",
+        externalCallers: readExternalCallers(externalCallers),
+        natureSummary: summary,
       };
+    },
+  },
+  {
+    name: "describe_flow",
+    title: "Describe a flow (fact sheet)",
+    description:
+      "Ficha de un flujo calculada desde su grafo (no puede desactualizarse): tipo, habilitado, llamadores externos, pasos por naturaleza (IA, humano, código, control) con la lista de pasos de IA y humanos, variables que lee sin definir (sus entradas de hecho) y que escribe (sus salidas), subflujos y acciones de integración que usa (con su efecto read | write | unknown), quién lo llama (flujos, llamadores externos, webhooks) y, para acciones, los incumplimientos del contrato. Lo que no se puede resolver de forma estática va en `unknown`.",
+    access: "read",
+    domain: "flows",
+    inputSchema: {
+      type: "object",
+      properties: { flowId: { type: "string" } },
+      required: ["flowId"],
+    },
+    async handler(input, auth) {
+      const { loadFlowSheet } = await import("@/lib/flows/describe-load");
+      return loadFlowSheet(actorOf(auth), str(input.flowId, "flowId"));
     },
   },
   {
@@ -190,11 +260,15 @@ export const FLOW_TOOLS: McpToolDef[] = [
       if (typeof input.flowId === "string" && input.flowId) {
         return { issues: await (await svc()).validateFlowById(actorOf(auth), input.flowId) };
       }
-      const graph = updateInputSchema.pick({ nodes: true, edges: true, spec: true }).parse(input);
+      const graph = updateInputSchema
+        .pick({ nodes: true, edges: true, spec: true, kind: true, variables: true })
+        .parse(input);
       const { validateStoredFlow } = await import("@/lib/flows/validate-stored");
       return {
         issues: validateStoredFlow(graph.nodes ?? [], graph.edges ?? [], {
           spec: graph.spec ?? null,
+          kind: graph.kind,
+          variables: graph.variables,
         }),
       };
     },
@@ -345,7 +419,8 @@ export const FLOW_TOOLS: McpToolDef[] = [
   {
     name: "list_flow_webhooks",
     title: "List flow webhooks",
-    description: "Webhooks de un flujo: id, fecha y si usa HMAC. Nunca devuelve secretos.",
+    description:
+      "Webhooks de un flujo: id, si están habilitados, fecha y si usan HMAC. Nunca devuelve secretos.",
     access: "read",
     domain: "flows",
     inputSchema: {
@@ -361,6 +436,50 @@ export const FLOW_TOOLS: McpToolDef[] = [
           redact: true,
         }),
       };
+    },
+  },
+  {
+    name: "update_flow_webhook",
+    title: "Pause or resume a flow webhook",
+    description:
+      "Habilita o pausa un webhook (enabled). Un webhook pausado rechaza con 404 las llamadas entrantes. Devuelve el webhook sin secretos.",
+    access: "write",
+    domain: "flows",
+    inputSchema: {
+      type: "object",
+      properties: { webhookId: { type: "string" }, enabled: { type: "boolean" } },
+      required: ["webhookId"],
+    },
+    async handler(input, auth) {
+      if (input.enabled !== undefined && typeof input.enabled !== "boolean") {
+        throw new Error("enabled must be a boolean");
+      }
+      return (await svc()).updateFlowWebhook(actorOf(auth), str(input.webhookId, "webhookId"), {
+        enabled: input.enabled,
+      });
+    },
+  },
+  {
+    name: "delete_flow_webhook",
+    title: "Delete a flow webhook",
+    description:
+      "Elimina un webhook de forma definitiva (para pausarlo usá update_flow_webhook). Requiere flows:delete y confirm con el id exacto del webhook.",
+    access: "delete",
+    domain: "flows",
+    inputSchema: {
+      type: "object",
+      properties: {
+        webhookId: { type: "string" },
+        confirm: { type: "string", description: "Id exacto del webhook." },
+      },
+      required: ["webhookId", "confirm"],
+    },
+    async handler(input, auth) {
+      return (await svc()).deleteFlowWebhook(
+        actorOf(auth),
+        str(input.webhookId, "webhookId"),
+        input.confirm
+      );
     },
   },
 ];

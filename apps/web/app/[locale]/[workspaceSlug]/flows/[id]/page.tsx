@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { getCurrentWorkspaceBySlug } from "@/lib/workspace";
+import { readExternalCallers } from "@/lib/flows/kind";
 import { FlowBuilderLazy } from "@/components/flows/FlowBuilderLazy";
 
 export default async function FlowDetailPage({
@@ -29,6 +30,8 @@ export default async function FlowDetailPage({
         edges: (f.edges ?? []) as never,
         variables: (f.variables ?? {}) as Record<string, unknown>,
         spec: f.spec,
+        kind: f.kind ?? "pipeline",
+        externalCallers: readExternalCallers(f.externalCallers),
       }}
     />
   );

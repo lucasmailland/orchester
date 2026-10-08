@@ -3,8 +3,8 @@
 /**
  * Confirmation for deleting a flow. Asks the server what the delete would
  * destroy (`GET /api/flows/:id/delete-impact`) and says so in plain words; if
- * something blocks the delete (flow enabled, agents or other flows that
- * depend on it) it lists the blockers instead of offering the confirm button.
+ * something blocks the delete (flow enabled, agents, other flows or external
+ * callers that depend on it) it lists the blockers instead of offering the confirm button.
  * The DELETE route enforces the same rules, so this is guidance, not the gate.
  */
 
@@ -20,13 +20,13 @@ interface DeleteImpact {
     enabled: boolean;
     agents: Array<{ id: string; name: string }>;
     flows: Array<{ id: string; name: string }>;
+    /** Optional: servers that predate flow labelling do not send it. */
+    externalCallers?: Array<{ name: string; note?: string }>;
   };
 }
 
 type LoadState =
-  | { status: "loading" }
-  | { status: "error" }
-  | { status: "ready"; impact: DeleteImpact };
+  { status: "loading" } | { status: "error" } | { status: "ready"; impact: DeleteImpact };
 
 export interface DeleteFlowDialogProps {
   open: boolean;
@@ -87,7 +87,9 @@ export function DeleteFlowDialog({
 
   const impact = state.status === "ready" ? state.impact : null;
   const b = impact?.blockers;
-  const blocked = !!b && (b.enabled || b.agents.length > 0 || b.flows.length > 0);
+  const external = b?.externalCallers ?? [];
+  const blocked =
+    !!b && (b.enabled || b.agents.length > 0 || b.flows.length > 0 || external.length > 0);
   const names = (list: Array<{ name: string }>) => list.map((x) => x.name).join(", ");
 
   return (
@@ -130,6 +132,9 @@ export function DeleteFlowDialog({
                 )}
                 {b.flows.length > 0 && (
                   <li>{t("deleteBlockedFlows", { names: names(b.flows) })}</li>
+                )}
+                {external.length > 0 && (
+                  <li>{t("deleteBlockedExternal", { names: names(external) })}</li>
                 )}
               </ul>
             </div>

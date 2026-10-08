@@ -21,6 +21,8 @@ vi.mock("@/lib/workspace", () => ({
 }));
 import * as tools from "@/lib/tools";
 import { GET } from "@/app/api/tools/route";
+import { mcpHashedToolName } from "@/lib/integrations/mcp-policy";
+import { listWorkspaceMcpTools } from "@/lib/integrations/mcp-tools";
 const definition = {
   name: "mcp__integration_test__read",
   remoteName: "read",
@@ -75,6 +77,117 @@ describe("workspace MCP tool registry", () => {
       { query: "test" }
     );
   });
+  describe("name collisions across integrations", () => {
+    // key "a_" + tool "b" and key "a" + tool "_b" both read mcp__a___b.
+    const a = { ...integration, id: "a_", name: "A" };
+    const b = { ...integration, id: "a", name: "B" };
+    const setup = (order: (typeof a)[]) => {
+      mocks.list.mockResolvedValue(order);
+      mocks.load.mockImplementation(async (_w: string, id: string) =>
+        order.find((i) => i.id === id)
+      );
+      mocks.discover.mockImplementation(async (identity: { integrationId: string }) => {
+        const remote = identity.integrationId === "a_" ? "b" : "_b";
+        return [{ ...definition, name: "mcp__a___b", remoteName: remote }];
+      });
+    };
+    it("hashes every colliding entry, independent of list order", async () => {
+      setup([a, b]);
+      const first = await listWorkspaceMcpTools("workspace-test");
+      setup([b, a]);
+      const second = await listWorkspaceMcpTools("workspace-test");
+      const names = (list: typeof first) =>
+        Object.fromEntries(list.map((t) => [t.integrationId, t.name]));
+      expect(names(first)).toEqual(names(second));
+      expect(names(first)["a_"]).toBe(mcpHashedToolName("a_", "b"));
+      expect(names(first)["a"]).toBe(mcpHashedToolName("a", "_b"));
+      expect(new Set(first.map((t) => t.name)).size).toBe(2);
+    });
+    it("routes both hashed names to the exact integration and remote tool", async () => {
+      setup([a, b]);
+      const ctx = { workspaceId: "workspace-test", variables: {} };
+      await tools.executeTool(mcpHashedToolName("a_", "b"), { q: 1 }, ctx);
+      expect(mocks.call).toHaveBeenLastCalledWith(
+        { workspaceId: "workspace-test", integrationId: "a_" },
+        a.config,
+        "b",
+        { q: 1 }
+      );
+      await tools.executeTool(mcpHashedToolName("a", "_b"), {}, ctx);
+      expect(mocks.call).toHaveBeenLastCalledWith(
+        { workspaceId: "workspace-test", integrationId: "a" },
+        b.config,
+        "_b",
+        {}
+      );
+      await expect(tools.executeTool("mcp__a___b", {}, ctx)).rejects.toThrow();
+    });
+  });
+  it("routes readable and hashed names alike", async () => {
+    const hashed = mcpHashedToolName("integration-test", "read.docs");
+    mocks.discover.mockResolvedValue([
+      { ...definition, name: "mcp__integration-test__read_docs", remoteName: "read_docs" },
+      { ...definition, name: hashed, remoteName: "read.docs" },
+    ]);
+    const ctx = { workspaceId: "workspace-test", variables: {} };
+    await tools.executeTool("mcp__integration-test__read_docs", {}, ctx);
+    expect(mocks.call).toHaveBeenLastCalledWith(
+      expect.anything(),
+      integration.config,
+      "read_docs",
+      {}
+    );
+    await tools.executeTool(hashed, {}, ctx);
+    expect(mocks.call).toHaveBeenLastCalledWith(
+      expect.anything(),
+      integration.config,
+      "read.docs",
+      {}
+    );
+  });
+  describe("agents that saved the legacy hashed name", () => {
+    // Readable names replaced hashed ones; selections stored before keep working.
+    const readable = "mcp__integration-test__read_docs";
+    const legacy = mcpHashedToolName("integration-test", "read_docs");
+    const ctx = { workspaceId: "workspace-test", variables: {} };
+    beforeEach(() => {
+      mocks.discover.mockResolvedValue([
+        { ...definition, name: readable, remoteName: "read_docs" },
+      ]);
+    });
+    it("offers the tool under the name the agent stored", async () => {
+      const defs = await tools.resolveToolDefinitions("workspace-test", [legacy]);
+      expect(defs.map((d) => d.name)).toEqual([legacy]);
+    });
+    it("offers it once, under the readable name, when both are stored", async () => {
+      const defs = await tools.resolveToolDefinitions("workspace-test", [legacy, readable]);
+      expect(defs.map((d) => d.name)).toEqual([readable]);
+    });
+    it("offers the readable name to an agent that stored it", async () => {
+      const defs = await tools.resolveToolDefinitions("workspace-test", [readable]);
+      expect(defs.map((d) => d.name)).toEqual([readable]);
+    });
+    it("executes the legacy name against the same remote tool", async () => {
+      await tools.executeTool(legacy, { q: 1 }, ctx);
+      expect(mocks.call).toHaveBeenLastCalledWith(
+        { workspaceId: "workspace-test", integrationId: "integration-test" },
+        integration.config,
+        "read_docs",
+        { q: 1 }
+      );
+      await tools.executeTool(readable, {}, ctx);
+      expect(mocks.call).toHaveBeenLastCalledWith(
+        expect.anything(),
+        integration.config,
+        "read_docs",
+        {}
+      );
+    });
+    it("does not list the alias in the picker API", async () => {
+      const catalog = await (await GET()).json();
+      expect(catalog.map((t: { id: string }) => t.id)).not.toContain(legacy);
+    });
+  });
   it("refuses unavailable or disabled tools at execution", async () => {
     mocks.discover.mockResolvedValue([]);
     await expect(
@@ -103,9 +216,13 @@ describe("workspace MCP tool registry", () => {
   it("uses async resolution in agent runtime and both channel paths, retaining untrusted wrappers", () => {
     const runtime = readFileSync(new URL("../lib/agent-runtime.ts", import.meta.url), "utf8");
     const router = readFileSync(new URL("../lib/channels/router.ts", import.meta.url), "utf8");
-    expect(runtime).toContain("await resolveToolDefinitions(p.workspaceId, enabledTools, p.tx)");
+    expect(runtime).toContain(
+      "await resolveToolDefinitions(p.workspaceId, enabledTools, p.tx, p.agent)"
+    );
     expect(
-      router.match(/await resolveToolDefinitions\(workspaceId, activeAgent.tools \?\? \[\], tx\)/g)
+      router.match(
+        /await resolveToolDefinitions\(\s*workspaceId,\s*activeAgent.tools \?\? \[\],\s*tx,\s*activeAgent\s*\)/g
+      )
     ).toHaveLength(2);
     for (const source of [runtime, router])
       expect(source).toMatch(

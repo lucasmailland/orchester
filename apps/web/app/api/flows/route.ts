@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
+import { externalCallersSchema, flowKindSchema } from "@/lib/flows/kind";
 import { createFlow, listFlows, serviceErrorResponse } from "@/lib/flows/service";
 
 const createFlowSchema = z.object({
@@ -17,6 +18,8 @@ const createFlowSchema = z.object({
   nodes: z.array(z.unknown()).optional(),
   edges: z.array(z.unknown()).optional(),
   variables: z.record(z.string(), z.unknown()).optional(),
+  kind: flowKindSchema.optional(),
+  externalCallers: externalCallersSchema.optional(),
 });
 
 export async function GET() {

@@ -9,6 +9,8 @@ import { normalizeFlowNodes, normalizeFlowEdges } from "./normalize";
 import { validateStoredFlow, hasErrors } from "./validate-stored";
 import { changesTheGraph, restorePatch } from "./versions";
 import type { ValidationIssue } from "./validate";
+import type { ExternalCaller, FlowKind } from "./kind";
+import { storedActionIssues } from "./action-guard";
 
 /**
  * Workspace-scoped flow operations shared by the session routes and the MCP
@@ -24,6 +26,7 @@ export interface RedactedFlowWebhook {
   id: string;
   flowId: string;
   hmac: boolean;
+  enabled: boolean;
   createdAt: Date;
 }
 
@@ -55,6 +58,8 @@ export interface FlowInput {
   triggerConfig?: Record<string, unknown> | undefined;
   enabled?: boolean | undefined;
   templateId?: string | undefined;
+  kind?: FlowKind | undefined;
+  externalCallers?: ExternalCaller[] | undefined;
 }
 
 const notFound = (what: string) => new FlowServiceError("not_found", `${what} not found`);
@@ -103,10 +108,11 @@ function checkGraph(
   nodes: unknown[],
   edges: unknown[],
   spec: string | null,
-  strict: boolean
+  strict: boolean,
+  contract: { kind: FlowKind; variables: unknown }
 ): ValidationIssue[] {
   if (!strict) return [];
-  const issues = validateStoredFlow(nodes, edges, { spec });
+  const issues = validateStoredFlow(nodes, edges, { spec, ...contract });
   if (hasErrors(issues)) {
     throw new FlowServiceError(
       "invalid",
@@ -148,7 +154,8 @@ export async function createFlow(
       variables = (t.variables as Record<string, unknown>) ?? {};
     }
     const spec = input.spec ?? null;
-    const warnings = checkGraph(nodes, edges, spec, strict);
+    const kind = input.kind ?? "pipeline";
+    const warnings = checkGraph(nodes, edges, spec, strict, { kind, variables });
     // Whatever the source, store only a graph the editor can open.
     const flow = await repo.insertFlow({
       id: createId(),
@@ -159,6 +166,8 @@ export async function createFlow(
       nodes: normalizeFlowNodes(nodes) as never,
       edges: normalizeFlowEdges(edges) as never,
       variables,
+      kind,
+      externalCallers: input.externalCallers ?? [],
     });
     if (!flow) throw new FlowServiceError("internal", "Insert failed");
     await auditApiKey(repo, actor, "flow.create", flow);
@@ -193,8 +202,39 @@ export async function updateFlow(
         input.nodes ?? (current.nodes as unknown[]) ?? [],
         input.edges ?? (current.edges as unknown[]) ?? [],
         input.spec !== undefined ? input.spec : current.spec,
-        strict
+        strict,
+        {
+          kind: input.kind ?? current.kind ?? "pipeline",
+          variables: input.variables ?? current.variables,
+        }
       );
+    }
+    // Drafts stay editable, but an action that is (or becomes) enabled must satisfy its
+    // contract whatever the caller's strictness: REST saves are non-strict, so this is the
+    // only gate between a violating graph and the scheduler/webhooks. Restores come through
+    // here too. Only checked when the change touches what the contract is about.
+    if (
+      input.kind !== undefined ||
+      input.enabled !== undefined ||
+      input.nodes !== undefined ||
+      input.variables !== undefined
+    ) {
+      const finalKind = input.kind ?? current.kind ?? "pipeline";
+      const finalEnabled = input.enabled ?? current.enabled;
+      if (finalKind === "action" && finalEnabled === true) {
+        const issues = storedActionIssues({
+          kind: finalKind,
+          nodes: input.nodes ?? current.nodes,
+          variables: input.variables ?? current.variables,
+        });
+        if (issues.length > 0) {
+          throw new FlowServiceError(
+            "invalid",
+            "An enabled action must satisfy the action contract; disable it or fix the graph",
+            issues
+          );
+        }
+      }
     }
     // El estado anterior se guarda ANTES de pisarlo, en esta misma
     // transacción: si el update falla, no queda una versión fantasma de algo
@@ -214,6 +254,8 @@ export async function updateFlow(
       ...(input.edges !== undefined && { edges: normalizeFlowEdges(input.edges) as never }),
       ...(input.variables !== undefined && { variables: input.variables }),
       ...(input.enabled !== undefined && { enabled: input.enabled }),
+      ...(input.kind !== undefined && { kind: input.kind }),
+      ...(input.externalCallers !== undefined && { externalCallers: input.externalCallers }),
       updatedAt: new Date(),
     });
     if (!flow) throw notFound("Flow");
@@ -255,7 +297,11 @@ export async function restoreFlowVersion(
 export function validateFlowById(actor: FlowActor, flowId: string): Promise<ValidationIssue[]> {
   return withRepo(actor, async (repo) => {
     const flow = await requireFlow(repo, actor, flowId);
-    return validateStoredFlow(flow.nodes, flow.edges, { spec: flow.spec });
+    return validateStoredFlow(flow.nodes, flow.edges, {
+      spec: flow.spec,
+      kind: flow.kind ?? "pipeline",
+      variables: flow.variables,
+    });
   });
 }
 
@@ -320,8 +366,77 @@ export function listFlowWebhooks(
       id: w.id,
       flowId: w.flowId,
       hmac: Boolean(w.hmacKey),
+      enabled: w.enabled,
       createdAt: w.createdAt,
     }));
+  });
+}
+
+const redactWebhook = (w: FlowWebhook): RedactedFlowWebhook => ({
+  id: w.id,
+  flowId: w.flowId,
+  hmac: Boolean(w.hmacKey),
+  enabled: w.enabled,
+  createdAt: w.createdAt,
+});
+
+/** Webhook changes are audited in the same transaction, for API keys and users alike. */
+async function auditWebhook(
+  repo: FlowRepo,
+  actor: FlowActor,
+  action: "update" | "delete",
+  hook: FlowWebhook,
+  state: Record<string, unknown>
+) {
+  await repo.audit(actor.workspaceId, {
+    action: `flow_webhook.${action}`,
+    actorUserId: actor.kind === "user" ? actor.userId : null,
+    actorKind: actor.kind === "apiKey" ? "api_key" : "user",
+    targetType: "flow_webhook",
+    targetId: hook.id,
+    meta: {
+      ...(actor.kind === "apiKey" ? { apiKeyId: actor.keyId } : {}),
+      flowId: hook.flowId,
+      [action === "delete" ? "before" : "after"]: state,
+    },
+  });
+}
+
+/** Pause or resume a webhook. The secret and HMAC key are never returned. */
+export function updateFlowWebhook(
+  actor: FlowActor,
+  webhookId: string,
+  patch: { enabled?: boolean | undefined }
+): Promise<RedactedFlowWebhook> {
+  return withRepo(actor, async (repo) => {
+    const hook = await repo.findWebhook(webhookId, actor.workspaceId);
+    if (!hook) throw notFound("Webhook");
+    const changes: Partial<FlowWebhook> = {};
+    if (patch.enabled !== undefined) changes.enabled = patch.enabled;
+    if (Object.keys(changes).length === 0) return redactWebhook(hook);
+    const updated = await repo.updateWebhook(webhookId, actor.workspaceId, changes);
+    if (!updated) throw notFound("Webhook");
+    await auditWebhook(repo, actor, "update", updated, { enabled: updated.enabled });
+    return redactWebhook(updated);
+  });
+}
+
+/** Remove a webhook for good. `confirm` must equal its id exactly. */
+export function deleteFlowWebhook(
+  actor: FlowActor,
+  webhookId: string,
+  confirm: unknown
+): Promise<{ ok: true; id: string }> {
+  return withRepo(actor, async (repo) => {
+    const hook = await repo.findWebhook(webhookId, actor.workspaceId);
+    if (!hook) throw notFound("Webhook");
+    if (confirm !== hook.id) {
+      throw new FlowServiceError("invalid", "confirm must equal the webhook id exactly.");
+    }
+    const deleted = await repo.deleteWebhook(webhookId, actor.workspaceId);
+    if (!deleted) throw notFound("Webhook");
+    await auditWebhook(repo, actor, "delete", hook, { enabled: hook.enabled });
+    return { ok: true as const, id: hook.id };
   });
 }
 

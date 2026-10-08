@@ -29,12 +29,16 @@ import {
 } from "./nodes/BranchNode";
 import { FlowRunsPanel } from "./FlowRunsPanel";
 import { FlowDocsPanel } from "./FlowDocsPanel";
+import { FlowKindPanel } from "./FlowKindPanel";
 import { DeleteFlowDialog } from "./DeleteFlowDialog";
 import { InspectorForm } from "./inspector/InspectorForm";
 import { NodePalette } from "./NodePalette";
 import { CopilotPanel } from "./CopilotPanel";
 import { toCanvasNode, type StoredNodeDTO } from "./node-mapping";
 import { getNodeDef, type Locale } from "@/lib/flows/node-registry";
+import { nodeNature, summarizeFlowNature } from "@/lib/flows/node-nature";
+import { actionViolations } from "@/lib/flows/action-contract";
+import type { ExternalCaller, FlowKind } from "@/lib/flows/kind";
 import { autoLayout } from "@/lib/flows/layout";
 import { validateFlow, type ValidationIssue } from "@/lib/flows/validate";
 import { buildGraphFromSpec } from "@/lib/flows/copilot-tools";
@@ -57,6 +61,8 @@ import {
   ShieldCheck,
   BookText,
   Trash2,
+  Bot,
+  Tag,
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -107,6 +113,8 @@ export interface FlowDTO {
   }>;
   variables?: Record<string, unknown>;
   spec?: string | null;
+  kind?: FlowKind;
+  externalCallers?: ExternalCaller[];
 }
 
 export function FlowBuilder({ flow }: { flow: FlowDTO }) {
@@ -116,6 +124,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const { resolvedTheme } = useTheme();
   const isLight = resolvedTheme === "light";
   const t = useTranslations("pages.flows.builder");
+  const tKind = useTranslations("pages.flows.kind");
   const rawLocale = useLocale();
   const LOCALE: Locale =
     rawLocale === "es" || rawLocale === "pt" || rawLocale === "en" ? (rawLocale as Locale) : "es";
@@ -135,6 +144,11 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const [varsOpen, setVarsOpen] = useState(false);
   const [spec, setSpec] = useState(flow.spec ?? "");
   const [docsOpen, setDocsOpen] = useState(false);
+  const [kind, setKind] = useState<FlowKind>(flow.kind ?? "pipeline");
+  const [externalCallers, setExternalCallers] = useState<ExternalCaller[]>(
+    flow.externalCallers ?? []
+  );
+  const [kindOpen, setKindOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
@@ -541,8 +555,35 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
           : st === "running"
             ? "flow-node-running"
             : undefined;
-    return { ...n, ...(cls ? { className: cls } : {}), data: { ...n.data, badge, subtitle } };
+    const nature = nodeNature({ type: String(n.type) });
+    const natureLabel =
+      nature === "ai" ? t("natureAi") : nature === "human" ? t("natureHuman") : undefined;
+    return {
+      ...n,
+      ...(cls ? { className: cls } : {}),
+      data: { ...n.data, badge, subtitle, nature, natureLabel },
+    };
   });
+  const contractIssues = actionViolations(
+    nodes.map((n) => ({
+      id: n.id,
+      type: String(n.type),
+      label: (n.data as { label?: string } | undefined)?.label,
+    })),
+    variables
+  ).map((v) =>
+    tKind(
+      v.code === "ai"
+        ? "violationAi"
+        : v.code === "human"
+          ? "violationHuman"
+          : v.code === "flow_call"
+            ? "violationFlowCall"
+            : "violationVariables",
+      { label: v.label ?? "" }
+    )
+  );
+  const natureSummary = summarizeFlowNature(nodes.map((n) => ({ id: n.id, type: String(n.type) })));
 
   return (
     <ReactFlowProvider>
@@ -557,6 +598,23 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               <ArrowLeft className="h-4 w-4" />
             </button>
             <span className="text-sm font-medium">{flow.name}</span>
+            {kind === "action" && (
+              <span
+                data-testid="flow-kind-badge"
+                className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[11px] text-sky-700 dark:text-sky-300"
+              >
+                {t("kindBadgeAction")}
+              </span>
+            )}
+            {natureSummary.total > 0 && (
+              <span
+                data-testid="ai-steps-summary"
+                className="inline-flex items-center gap-1 rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-[11px] text-violet-700 dark:text-violet-300"
+              >
+                <Bot className="h-3 w-3" aria-hidden="true" />
+                {t("aiStepsSummary", { ai: natureSummary.counts.ai, total: natureSummary.total })}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {feedback && <span className="text-[11px] text-muted">{feedback}</span>}
@@ -622,6 +680,15 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               title={t("copilotTooltip")}
             >
               <Sparkles className="h-3.5 w-3.5" /> {t("copilot")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setKindOpen((o) => !o)}
+              className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover"
+              title={t("kindSettings")}
+              aria-label={t("kindSettings")}
+            >
+              <Tag className="h-3.5 w-3.5" />
             </button>
             <button
               type="button"
@@ -801,6 +868,20 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             />
           )}
           <FlowRunsPanel flowId={flow.id} open={runsOpen} onClose={() => setRunsOpen(false)} />
+          {kindOpen && (
+            <FlowKindPanel
+              flowId={flow.id}
+              kind={kind}
+              externalCallers={externalCallers}
+              contractIssues={contractIssues}
+              onSaved={(k, callers) => {
+                setKind(k);
+                setExternalCallers(callers);
+                setKindOpen(false);
+              }}
+              onClose={() => setKindOpen(false)}
+            />
+          )}
           {docsOpen && (
             <FlowDocsPanel spec={spec} onChange={setSpec} onClose={() => setDocsOpen(false)} />
           )}
@@ -1270,8 +1351,7 @@ function graphSpec(nodes: Node[], edges: Edge[]): { nodes: unknown[]; edges: unk
   return {
     nodes: nodes.map((n) => {
       const d = n.data as
-        | { nodeId?: string; label?: string; config?: Record<string, unknown> }
-        | undefined;
+        { nodeId?: string; label?: string; config?: Record<string, unknown> } | undefined;
       return {
         id: n.id,
         nodeId: d?.nodeId ?? n.type,

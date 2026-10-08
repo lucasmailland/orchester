@@ -1,6 +1,7 @@
 import { getDb, schema } from "@orchester/db";
 import type { AdminDb } from "@/lib/workspace-admin";
 import { and, count, eq, ne } from "drizzle-orm";
+import { formatExternalCallers, readExternalCallers, type ExternalCaller } from "./kind";
 
 export interface FlowDeleteCounts {
   runs: number;
@@ -10,7 +11,7 @@ export interface FlowDeleteCounts {
 }
 
 export interface FlowDeleteContext {
-  flow: { id: string; name: string; enabled: boolean };
+  flow: { id: string; name: string; enabled: boolean; externalCallers?: unknown };
   /** Agents in the workspace driven by this flow (`agent.flow_id`). */
   agents: Array<{ id: string; name: string }>;
   /** Every other flow in the workspace, with its graph, to look for references. */
@@ -22,6 +23,8 @@ export interface FlowDeleteBlockers {
   enabled: boolean;
   agents: Array<{ id: string; name: string }>;
   flows: Array<{ id: string; name: string }>;
+  /** Callers outside the product, declared on the flow; only the owner can clear them. */
+  externalCallers: ExternalCaller[];
 }
 
 /**
@@ -37,11 +40,12 @@ export function computeBlockers(ctx: FlowDeleteContext): FlowDeleteBlockers {
     flows: ctx.otherFlows
       .filter((f) => JSON.stringify(f.nodes ?? []).includes(ctx.flow.id))
       .map((f) => ({ id: f.id, name: f.name })),
+    externalCallers: readExternalCallers(ctx.flow.externalCallers),
   };
 }
 
 export function hasBlockers(b: FlowDeleteBlockers): boolean {
-  return b.enabled || b.agents.length > 0 || b.flows.length > 0;
+  return b.enabled || b.agents.length > 0 || b.flows.length > 0 || b.externalCallers.length > 0;
 }
 
 /** Human message for the 409, in the order the user should fix things. */
@@ -53,6 +57,12 @@ export function blockersMessage(b: FlowDeleteBlockers): string {
   }
   if (b.flows.length > 0) {
     parts.push(`Flows that call this flow: ${b.flows.map((f) => f.name).join(", ")}.`);
+  }
+  if (b.externalCallers.length > 0) {
+    parts.push(
+      `Callers outside orchester are registered for this flow: ${formatExternalCallers(b.externalCallers)}. ` +
+        "Clear the list first with update_flow (externalCallers: []) once they no longer call it."
+    );
   }
   return parts.join(" ");
 }
@@ -69,6 +79,7 @@ export async function loadFlowDeleteContext(
         id: schema.flows.id,
         name: schema.flows.name,
         enabled: schema.flows.enabled,
+        externalCallers: schema.flows.externalCallers,
       })
       .from(schema.flows)
       .where(and(eq(schema.flows.id, flowId), eq(schema.flows.workspaceId, workspaceId)))

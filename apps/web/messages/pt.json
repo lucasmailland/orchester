@@ -751,6 +751,7 @@
           "genericError": "Erro",
           "ranByFlow": "_(executado pelo fluxo)_",
           "errorBadge": "erro",
+          "simulatedHandoff": "transferência simulada → {name}",
           "flowRun": "flow run:"
         },
         "memory": {
@@ -779,6 +780,9 @@
           "flowResponseHint": "O fluxo deve retornar uma variável `response` para o agente responder.",
           "toolsSectionTitle": "Ferramentas",
           "toolsSectionSubtitle": "O agente pode chamá-las durante a conversa",
+          "kbSectionTitle": "Bases de conhecimento",
+          "kbSectionSubtitle": "As bases que este agente pode consultar com knowledge_search. Sem nenhuma, é preciso indicar qual usar",
+          "kbEmpty": "Ainda não há bases de conhecimento neste workspace",
           "loading": "Carregando…",
           "variablesSectionTitle": "Variáveis",
           "variablesSectionSubtitle": "Cada variável é referenciada no prompt pelo seu nome entre chaves duplas",
@@ -801,6 +805,8 @@
           "deleteStarterAria": "Excluir sugestão {n}",
           "noStarters": "Sem sugestões",
           "maxTurnsLabel": "Máximo de turnos (encerra o chat após N trocas)",
+          "maxToolCallsLabel": "Máximo de chamadas ao modelo por turno (loop de tools)",
+          "maxToolCallsHint": "De 1 a 15. Cada chamada é controlada e cobrada separadamente. Padrão 5.",
           "responseSectionTitle": "Formato da resposta",
           "responseSectionSubtitle": "Como deve estruturar a saída",
           "responseText": "Texto puro",
@@ -959,6 +965,9 @@
         "deleteClose": "Fechar",
         "deleteError": "Não foi possível excluir o fluxo",
         "flowActions": "Ações do fluxo",
+        "natureAi": "Passo de IA: chama um modelo",
+        "natureHuman": "Passo humano: espera uma pessoa",
+        "aiStepsSummary": "Passos de IA: {ai} de {total}",
         "tidyLayout": "Organizar os passos automaticamente",
         "autoLayout": "Layout automático",
         "undo": "Desfazer (Cmd/Ctrl+Z)",
@@ -994,7 +1003,10 @@
         "runJsonLabel": "Dados (JSON)",
         "cancel": "Cancelar",
         "runButton": "Executar",
-        "documentation": "Documentação"
+        "documentation": "Documentação",
+        "deleteBlockedExternal": "Chamado de fora do produto: {names}. Esvazie primeiro a lista de chamadores externos nas configurações do fluxo.",
+        "kindSettings": "Tipo de fluxo e chamadores externos",
+        "kindBadgeAction": "Ação"
       },
       "inspector": {
         "deleteNodeAria": "Excluir nó",
@@ -1014,7 +1026,24 @@
         "cronMonthly": "No dia 1 de cada mês",
         "purposeLabel": "Para que serve este passo",
         "purposeHelp": "Uma linha. Ajuda pessoas e agentes a entender o fluxo sem abrir cada passo.",
-        "purposePlaceholder": "Ex.: busca a tarefa do incidente"
+        "purposePlaceholder": "Ex.: busca a tarefa do incidente",
+        "addEntry": "+ Adicionar",
+        "fields": {
+          "subflowInputs": {
+            "label": "Dados que você envia",
+            "help": "Opcional. Nome no subfluxo = dado deste fluxo. Se preenchido, o subfluxo recebe apenas estas variáveis, não o fluxo inteiro.",
+            "example": "cliente = {{contact.name}}",
+            "keyPlaceholder": "nome no subfluxo",
+            "valuePlaceholder": "{{dado}} deste fluxo"
+          },
+          "subflowOutputs": {
+            "label": "Dados que ele devolve",
+            "help": "Opcional. Nome neste fluxo = caminho no resultado do subfluxo. Se preenchido, voltam apenas estas variáveis; o resto fica no subfluxo.",
+            "example": "total = result.total",
+            "keyPlaceholder": "nome neste fluxo",
+            "valuePlaceholder": "caminho no resultado"
+          }
+        }
       },
       "docs": {
         "title": "Documentação do fluxo",
@@ -1023,6 +1052,31 @@
         "close": "Fechar",
         "useTemplate": "Usar modelo",
         "placeholder": "O que este fluxo faz, o que o dispara, o que ele escreve fora e o que acontece se falhar."
+      },
+      "kind": {
+        "title": "Tipo de fluxo",
+        "close": "Fechar",
+        "kindLabel": "Tipo",
+        "pipeline": "Pipeline",
+        "pipelineHelp": "Um fluxo de nível superior: é disparado por conta própria e pode usar qualquer passo.",
+        "action": "Ação",
+        "actionHelp": "Um bloco reutilizável que os pipelines chamam. Sem passos de IA, sem aprovação humana, sem chamadas a outros fluxos e sem variáveis no nível do fluxo.",
+        "contractTitle": "Este fluxo não cumpre o contrato de uma ação:",
+        "externalTitle": "Chamadores externos",
+        "externalHelp": "Scripts ou sistemas fora do produto que chamam este fluxo pelo id. Enquanto a lista tiver entradas, o fluxo não pode ser excluído.",
+        "externalEmpty": "Sem chamadores externos.",
+        "namePlaceholder": "Nome (por exemplo, script noturno)",
+        "notePlaceholder": "Nota (opcional)",
+        "add": "Adicionar chamador",
+        "remove": "Remover chamador",
+        "limit": "Até {max} chamadores.",
+        "save": "Salvar",
+        "saved": "Tipo de fluxo salvo",
+        "saveError": "Não foi possível salvar o tipo de fluxo",
+        "violationAi": "\"{label}\" usa um modelo de IA.",
+        "violationHuman": "\"{label}\" espera por uma pessoa.",
+        "violationFlowCall": "\"{label}\" chama outro fluxo.",
+        "violationVariables": "O fluxo define variáveis no nível do fluxo."
       }
     },
     "knowledge": {
@@ -2215,41 +2269,6 @@
           "modelPlaceholderCohere": "embed-v4.0",
           "modelPlaceholderEmpty": "Escolha primeiro um provedor"
         }
-      },
-      "schedule": {
-        "editLabel": "Editar periodicidade",
-        "editAria": "Editar periodicidade de {name}",
-        "modalTitle": "Periodicidade de {name}",
-        "modalSubtitle": "Escolha quando você quer que esta tarefa rode neste workspace.",
-        "globalLabel": "Padrão do sistema",
-        "modesLabel": "Quando rodar",
-        "modes": {
-          "default": "Padrão",
-          "defaultHint": "Usa o agendamento do sistema. Recomendado.",
-          "disabled": "Desativada",
-          "disabledHint": "Não roda nunca para este workspace.",
-          "hourly": "A cada hora",
-          "hourlyHint": "Mínimo 1 hora entre execuções (sujeito ao global).",
-          "daily": "Diária",
-          "dailyHint": "Mínimo 24h entre execuções (sujeito ao global).",
-          "weekly": "Semanal",
-          "weeklyHint": "Mínimo 7 dias entre execuções.",
-          "monthly": "Mensal",
-          "monthlyHint": "Mínimo 30 dias entre execuções.",
-          "custom": "Personalizada",
-          "customHint": "Uma expressão cron (5 campos). O gate trata como diária."
-        },
-        "customInputLabel": "Expressão cron",
-        "customPlaceholder": "0 3 * * 0",
-        "customHelp": "Formato padrão de 5 campos: minuto hora dia-do-mês mês dia-da-semana.",
-        "maxFreqNote": "Sua escolha atua como um máximo: não pode rodar mais frequente que o cron global.",
-        "lastRunLabel": "Última execução",
-        "lastRunNever": "Ainda não rodou",
-        "savedToast": "Periodicidade salva",
-        "saveErrorToast": "Não foi possível salvar a periodicidade",
-        "save": "Salvar",
-        "cancel": "Cancelar",
-        "disabledWarning": "Esta tarefa não vai ser executada para este workspace. Ative novamente quando quiser."
       }
     },
     "empty": {
@@ -2335,6 +2354,8 @@
       "firstFlowTip": "Comece simples: um gatilho e dois ou três passos já bastam para ver um fluxo rodar de ponta a ponta. Você expande depois que o básico estiver funcionando.",
       "firstFlowTipTitle": "Dica para o seu primeiro fluxo",
       "nodesLabel": "{count, plural, one {# passo} other {# passos}}",
+      "aiSteps": "{count, plural, one {# passo de IA} other {# passos de IA}}",
+      "aiViaSubflow": "IA via subfluxo",
       "statusLabel": "Status",
       "groups": {
         "active": "Ativos · {count}",
@@ -2356,7 +2377,13 @@
       "nextStepAddKnowledge": {
         "title": "Adicione uma base de conhecimento",
         "body": "Dê aos seus agentes documentos para embasar as respostas, em vez de depender só do modelo base."
-      }
+      },
+      "kindAction": "Ação",
+      "kindFilterLabel": "Filtrar por tipo",
+      "kindFilterAll": "Todos",
+      "kindFilterPipelines": "Pipelines",
+      "kindFilterActions": "Ações",
+      "noFlowsOfKind": "Não há fluxos deste tipo."
     },
     "knowledgeBases": {
       "heroTitle": "Bases de conhecimento",

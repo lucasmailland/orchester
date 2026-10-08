@@ -1,5 +1,12 @@
 import "server-only";
-import { MAX_TOOL_IMAGE_BYTES, MAX_TOOL_IMAGES, normalizeToolOutput } from "../tool-output";
+import {
+  MAX_TOOL_IMAGE_BYTES,
+  MAX_TOOL_IMAGES,
+  MAX_TOOL_IMAGES_HARD,
+  MIN_TOOL_IMAGE_BYTES,
+  normalizeToolOutput,
+} from "../tool-output";
+import { MAX_TABLE_FILE_BYTES, maskSensitive, readXlsx, tableFromCsv } from "./attachment-table";
 import { discordWebhookUrl, discordSendMessage, discordSendEmbed } from "./discord-client";
 import { telegramTest, telegramSendMessage } from "./telegram-client";
 import {
@@ -9,6 +16,8 @@ import {
   gitlabCompareRefs,
   gitlabListCommits,
   gitlabGetMergeRequest,
+  gitlabListMergeRequests,
+  gitlabGetDiff,
 } from "./gitlab-client";
 import {
   odooAuthenticate,
@@ -18,6 +27,7 @@ import {
   TICKET_PRIORITY,
   type TicketPriority,
 } from "./odoo-client";
+import { htmlToText } from "./html-text";
 import {
   nerdgraph,
   runNrql,
@@ -25,6 +35,10 @@ import {
   buildErrorsQuery,
   buildTraceLogsQuery,
   buildDeploymentsQuery,
+  buildBrowserErrorsQuery,
+  buildSearchLogsQuery,
+  BROWSER_ERRORS_LIMIT,
+  LOG_LEVELS,
 } from "./newrelic-client";
 
 /**
@@ -728,11 +742,25 @@ const TASK_FIELDS = [
   "partner_id",
   "tag_ids",
   "date_deadline",
+  // Done cards are archived: `active` tells a reader which of the results is.
+  "active",
+  // Odoo has no dedicated close timestamp on a task (`date_end` is a manual
+  // planning field). The last stage change is the closest honest signal of
+  // when a card reached Done, and it is what `closed_since` filters on.
+  "date_last_stage_update",
   "create_date",
   "write_date",
 ];
 
 // A note on a task is a `mail.message` row. `body` is HTML.
+// Bounds for `get_case`: one call must stay small enough to read in full.
+const CASE_MAX_CHILDREN = 20;
+const CASE_MAX_SIBLINGS = 20;
+const CASE_DEFAULT_NOTES_PER_TASK = 5;
+const CASE_MAX_NOTES_PER_TASK = 20;
+const CASE_NOTE_CHARS = 1500;
+const CASE_DESCRIPTION_CHARS = 4000;
+
 const MESSAGE_FIELDS = ["id", "date", "author_id", "message_type", "subtype_id", "body"];
 
 // `execute` runs with the integration user's credentials, which in practice are
@@ -751,6 +779,31 @@ const PARTNER_FIELDS = ["id", "name", "vat", "is_company", "parent_id", "email",
 // Metadata only: `datas` is the base64 file body. Tool results reach the model
 // as text, so the contents would be noise at best and a token bomb at worst.
 const ATTACHMENT_FIELDS = ["id", "name", "mimetype", "file_size", "create_date"];
+
+/**
+ * A page URI from the browser agent can carry credentials, tokens in the query
+ * and personal data in the path. Keep only origin and path: drop userinfo,
+ * query and fragment, decode and mask each segment, and replace opaque ids.
+ */
+function sanitizeUri(raw: string): string {
+  const head = raw.slice(0, 2000).replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/]*@/i, "$1");
+  const cut = head.search(/[?#]/);
+  const noQuery = cut === -1 ? head : head.slice(0, cut);
+  const prefix = /^[a-z][a-z0-9+.-]*:\/\/[^/]*/i.exec(noQuery)?.[0] ?? "";
+  const path = noQuery.slice(prefix.length);
+  const OPAQUE =
+    /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|(?=.*\d)[A-Za-z0-9_+=-]{16,})$/i;
+  const segments = path.split("/").map((seg) => {
+    let decoded = seg;
+    try {
+      decoded = decodeURIComponent(seg);
+    } catch {
+      /* keep the raw segment */
+    }
+    return OPAQUE.test(decoded) ? "[id]" : maskSensitive(decoded);
+  });
+  return (prefix + segments.join("/")).slice(0, 300);
+}
 
 function ticketValues(input: Record<string, unknown>): Record<string, unknown> {
   const values: Record<string, unknown> = {};
@@ -941,6 +994,8 @@ const odoo: Connector = {
 
     get_task: {
       effect: "read",
+      // `read` by id does not apply Odoo's active_test, so an archived (Done)
+      // task is returned without any context override.
       description: "Read one project task by id.",
       inputSchema: {
         type: "object",
@@ -973,11 +1028,32 @@ const odoo: Connector = {
           tag_id: { type: "number", description: "Only tasks carrying this tag." },
           user_id: { type: "number", description: "Only tasks assigned to this user." },
           stage_id: { type: "number", description: "Restrict to one stage." },
+          stage_ids: {
+            type: "array",
+            items: { type: "number" },
+            description:
+              "Restrict to any of these stages. Stage names change with the user's language, so key on ids (see list_stages).",
+          },
           parent_id: { type: "number", description: "Only the subtasks of this task." },
           created_since: {
             type: "string",
             description:
               "ISO 8601. Compared against create_date, which Odoo stores in UTC — pass UTC or the window silently shifts.",
+          },
+          closed_since: {
+            type: "string",
+            description:
+              "ISO 8601, UTC. Tasks whose last stage change (date_last_stage_update) is at or after this instant. Combine with stage_ids of the Done stage and include_archived to list recent closures.",
+          },
+          name_prefix: {
+            type: "string",
+            description:
+              "Catalogue code the title starts with, e.g. '1.2.28'. Matched at the start of the title only; % and _ are literal.",
+          },
+          include_archived: {
+            type: "boolean",
+            description:
+              "Also search archived tasks. Done cards are archived, so without this the history of a recurring issue is invisible. Defaults to false.",
           },
           limit: { type: "number", description: "Max rows, capped at 100. Defaults to 20." },
         },
@@ -1000,7 +1076,26 @@ const odoo: Connector = {
         // Tasks have many assignees (`user_ids`), so `=` would never match.
         if (input.user_id != null) domain.push(["user_ids", "in", [Number(input.user_id)]]);
         if (input.stage_id != null) domain.push(["stage_id", "=", Number(input.stage_id)]);
+        if (Array.isArray(input.stage_ids) && input.stage_ids.length > 0) {
+          domain.push(["stage_id", "in", input.stage_ids.map(Number)]);
+        }
         if (input.parent_id != null) domain.push(["parent_id", "=", Number(input.parent_id)]);
+        if (typeof input.name_prefix === "string" && input.name_prefix.trim()) {
+          // `=ilike` is a LIKE pattern: a code such as "1.2_8" must not treat
+          // `_` or `%` as wildcards. Backslash is Odoo's LIKE escape.
+          const escaped = input.name_prefix.trim().replace(/[\\%_]/g, "\\$&");
+          domain.push(["name", "=ilike", `${escaped}%`]);
+        }
+        if (typeof input.closed_since === "string" && input.closed_since.trim()) {
+          const d = new Date(input.closed_since.trim());
+          if (Number.isNaN(d.getTime()))
+            throw new Error(`closed_since is not a date: ${input.closed_since}`);
+          domain.push([
+            "date_last_stage_update",
+            ">=",
+            d.toISOString().slice(0, 19).replace("T", " "),
+          ]);
+        }
         if (typeof input.created_since === "string" && input.created_since.trim()) {
           // Odoo rejects the `T` and the trailing `Z` of an ISO timestamp, so
           // the value is reshaped rather than passed through. A bad date here
@@ -1015,8 +1110,185 @@ const odoo: Connector = {
           fields: TASK_FIELDS,
           limit,
           order: "create_date desc",
+          // `=== true`: a string "false" from a sloppy caller must not widen the search.
+          ...(input.include_archived === true && { context: { active_test: false } }),
         });
         return { tasks };
+      },
+    },
+
+    get_case: {
+      effect: "read",
+      description:
+        "Read a whole bug case in one call: the task, its parent, its subtasks, its siblings, the latest notes of the task and of each subtask, and attachment counts per task (never file contents).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: { type: "number", description: "Task id." },
+          notes_per_task: {
+            type: "number",
+            description: `Latest notes kept per task, capped at ${CASE_MAX_NOTES_PER_TASK}. Defaults to ${CASE_DEFAULT_NOTES_PER_TASK}.`,
+          },
+        },
+        required: ["id"],
+      },
+      async run(config, input) {
+        const id = Number(input.id);
+        const notesPerTask = Math.min(
+          Math.max(Math.trunc(Number(input.notes_per_task ?? CASE_DEFAULT_NOTES_PER_TASK)) || 1, 1),
+          CASE_MAX_NOTES_PER_TASK
+        );
+        const archived = { context: { active_test: false } };
+        type Row = Record<string, unknown> & { id: number };
+        const idList = (v: unknown): number[] =>
+          Array.isArray(v) ? v.filter((n): n is number => typeof n === "number") : [];
+        const many = (v: unknown): number | null =>
+          Array.isArray(v) && typeof v[0] === "number" ? v[0] : null;
+        const withText = (r: Row): Row => ({
+          ...r,
+          description: htmlToText(r.description, CASE_DESCRIPTION_CHARS),
+        });
+        const summary = (r: Row) => ({
+          id: r.id,
+          name: r.name,
+          stage_id: r.stage_id,
+          project_id: r.project_id,
+          priority: r.priority,
+          create_date: r.create_date,
+          write_date: r.write_date,
+        });
+
+        // `read` ignores active_test, so an archived task comes back as is.
+        const taskRows = (await odooExecute(config, "project.task", "read", [[id]], {
+          fields: TASK_FIELDS,
+        })) as Row[];
+        const task = taskRows?.[0];
+        if (!task) {
+          return {
+            task: null,
+            parent: null,
+            children: [],
+            siblings: [],
+            notes: {},
+            attachments: {},
+          };
+        }
+        const parentId = many(task.parent_id);
+        const allChildIds = idList(task.child_ids);
+        const childIds = allChildIds.slice(0, CASE_MAX_CHILDREN);
+
+        // Parent and children in ONE read. The ids are bounded above, so the
+        // limit never truncates; archived rows are included on purpose, since
+        // Done cards are archived.
+        const batchIds: unknown[] = [];
+        if (childIds.length > 0) batchIds.push(["id", "in", childIds]);
+        if (parentId != null) batchIds.push(["id", "=", parentId]);
+        let parentRow: Row | undefined;
+        let children: Row[] = [];
+        if (batchIds.length > 0) {
+          const domain = batchIds.length === 2 ? ["|", ...batchIds] : batchIds;
+          const rows = (await odooExecute(config, "project.task", "search_read", [domain], {
+            fields: TASK_FIELDS,
+            limit: childIds.length + 1,
+            order: "id asc",
+            ...archived,
+          })) as Row[];
+          parentRow = rows.find((r) => r.id === parentId);
+          children = rows.filter((r) => r.id !== parentId).slice(0, CASE_MAX_CHILDREN);
+        }
+
+        let siblings: Row[] = [];
+        if (parentId != null) {
+          siblings = (await odooExecute(
+            config,
+            "project.task",
+            "search_read",
+            [
+              [
+                ["parent_id", "=", parentId],
+                ["id", "!=", id],
+              ],
+            ],
+            {
+              fields: TASK_FIELDS,
+              limit: CASE_MAX_SIBLINGS,
+              order: "id asc",
+              ...archived,
+            }
+          )) as Row[];
+        }
+
+        const caseIds = [id, ...children.map((c) => c.id)];
+        // Chatter: tracking rows are `notification`; the notes a person or the
+        // pipeline wrote are `comment` or `email`. One read per task (the task
+        // and its children; siblings get none), each with its own quota, so a
+        // busy task cannot crowd the notes of a quiet one out of a shared
+        // newest-first window. One extra row per task tells us whether its
+        // quota was hit.
+        const notes: Record<string, unknown[]> = {};
+        const notesTruncated: Record<string, boolean> = {};
+        const perTask = await Promise.all(
+          caseIds.map(
+            (taskId) =>
+              odooExecute(
+                config,
+                "mail.message",
+                "search_read",
+                [
+                  [
+                    ["model", "=", "project.task"],
+                    ["res_id", "=", taskId],
+                    ["message_type", "in", ["comment", "email"]],
+                  ],
+                ],
+                {
+                  fields: [...MESSAGE_FIELDS, "res_id"],
+                  limit: notesPerTask + 1,
+                  order: "date desc, id desc",
+                }
+              ) as Promise<Row[]>
+          )
+        );
+        caseIds.forEach((taskId, i) => {
+          const own = perTask[i]!.filter((m) => m.res_id === taskId);
+          notesTruncated[String(taskId)] = own.length > notesPerTask;
+          notes[String(taskId)] = own.slice(0, notesPerTask).map((m) => {
+            const { res_id: _resId, ...rest } = m;
+            void _resId;
+            return { ...rest, body: htmlToText(m.body, CASE_NOTE_CHARS) };
+          });
+        });
+
+        // Metadata only: `datas` is the file body and is never requested.
+        const files = (await odooExecute(
+          config,
+          "ir.attachment",
+          "search_read",
+          [
+            [
+              ["res_model", "=", "project.task"],
+              ["res_id", "in", caseIds],
+            ],
+          ],
+          { fields: ["id", "res_id", "mimetype", "file_size"], limit: 500 }
+        )) as Array<{ res_id: number; mimetype?: string }>;
+        const attachments: Record<string, { count: number; images: number }> = {};
+        for (const f of files) {
+          const a = (attachments[String(f.res_id)] ??= { count: 0, images: 0 });
+          a.count++;
+          if (f.mimetype?.startsWith("image/")) a.images++;
+        }
+
+        return {
+          task: withText(task),
+          parent: parentRow ? summary(parentRow) : null,
+          children: children.map(withText),
+          childrenTotal: allChildIds.length,
+          siblings: siblings.map(summary),
+          notes,
+          notesTruncated,
+          attachments,
+        };
       },
     },
 
@@ -1029,23 +1301,39 @@ const odoo: Connector = {
         properties: {
           id: { type: "number", description: "Task id." },
           limit: { type: "number", description: "Max notes, capped at 100. Defaults to 20." },
+          exclude_tracking: {
+            type: "boolean",
+            description:
+              "Keep only human-written messages (comment, email) and drop field-change tracking and system notifications, which otherwise drown the notes. Defaults to false here so existing flows keep their behaviour; the agent tool defaults it to true.",
+          },
+          subtype: {
+            type: ["number", "string"],
+            description:
+              "Only messages of this subtype: a subtype id (stable) or its display name (translated with the user's language, so prefer the id).",
+          },
         },
         required: ["id"],
       },
       async run(config, input) {
         const limit = Math.min(Math.max(Number(input.limit ?? 20), 1), 100);
-        const notes = await odooExecute(
-          config,
-          "mail.message",
-          "search_read",
-          [
-            [
-              ["model", "=", "project.task"],
-              ["res_id", "=", Number(input.id)],
-            ],
-          ],
-          { fields: MESSAGE_FIELDS, limit, order: "date desc" }
-        );
+        const domain: unknown[] = [
+          ["model", "=", "project.task"],
+          ["res_id", "=", Number(input.id)],
+        ];
+        // `=== true`: a string "false" must not switch the filter on.
+        if (input.exclude_tracking === true) {
+          domain.push(["message_type", "in", ["comment", "email"]]);
+        }
+        if (typeof input.subtype === "number") {
+          domain.push(["subtype_id", "=", input.subtype]);
+        } else if (typeof input.subtype === "string" && input.subtype.trim()) {
+          domain.push(["subtype_id.name", "=", input.subtype.trim()]);
+        }
+        const notes = await odooExecute(config, "mail.message", "search_read", [domain], {
+          fields: MESSAGE_FIELDS,
+          limit,
+          order: "date desc",
+        });
         return { notes };
       },
     },
@@ -1053,38 +1341,85 @@ const odoo: Connector = {
     get_task_attachments: {
       effect: "read",
       description:
-        "List all task attachment metadata. Set include_images=true to inspect screenshot evidence (up to four newest PNG/JPEG/GIF/WebP images, 1 MB each).",
+        "List all task attachment metadata. Set include_images=true to inspect screenshot evidence (newest PNG/JPEG/GIF/WebP images, 1 MB each, up to max_images, default four; images under 10 KB are listed but not shown). Set include_case=true to cover the task, its parent and its subtasks, each row tagged with its task_id.",
       inputSchema: {
         type: "object",
         properties: {
           id: { type: "number", description: "Task id." },
           include_images: { type: "boolean", default: false },
+          include_case: {
+            type: "boolean",
+            default: false,
+            description:
+              "Also read the attachments of the parent task and the subtasks (the same ids odoo get_case uses). Each row carries task_id.",
+          },
+          max_images: {
+            type: "number",
+            description: "Images returned when include_images is true, 1 to 8. Defaults to 4.",
+          },
         },
         required: ["id"],
       },
       async run(config, input) {
-        const attachments = (await odooExecute(
+        const id = Number(input.id);
+        let taskIds = [id];
+        const withCase = input.include_case === true;
+        if (withCase) {
+          const rows = (await odooExecute(config, "project.task", "read", [[id]], {
+            fields: ["id", "parent_id", "child_ids"],
+          })) as Array<{ parent_id?: unknown; child_ids?: unknown }>;
+          const t = rows?.[0];
+          const parent =
+            Array.isArray(t?.parent_id) && typeof t.parent_id[0] === "number"
+              ? [t.parent_id[0]]
+              : [];
+          const kids = Array.isArray(t?.child_ids)
+            ? t.child_ids
+                .filter((n): n is number => typeof n === "number")
+                .slice(0, CASE_MAX_CHILDREN)
+            : [];
+          taskIds = [...new Set([id, ...parent, ...kids])];
+        }
+        const found = (await odooExecute(
           config,
           "ir.attachment",
           "search_read",
           [
             [
               ["res_model", "=", "project.task"],
-              ["res_id", "=", Number(input.id)],
+              withCase ? ["res_id", "in", taskIds] : ["res_id", "=", id],
             ],
           ],
-          { fields: ATTACHMENT_FIELDS, order: "create_date desc, id desc" }
-        )) as Array<{ id: number; name: string; mimetype: string; file_size: number }>;
+          {
+            fields: withCase ? [...ATTACHMENT_FIELDS, "res_id"] : ATTACHMENT_FIELDS,
+            order: "create_date desc, id desc",
+            ...(withCase ? { limit: 500 } : {}),
+          }
+        )) as Array<{
+          id: number;
+          name: string;
+          mimetype: string;
+          file_size: number;
+          res_id?: number;
+        }>;
+        const attachments = withCase
+          ? found.map(({ res_id, ...rest }) => ({ ...rest, task_id: res_id }))
+          : found;
         if (input.include_images !== true) return { attachments };
-        const selected: typeof attachments = [];
+        const maxRaw = Math.trunc(Number(input.max_images));
+        const maxImages = Number.isFinite(maxRaw)
+          ? Math.min(Math.max(maxRaw, 1), MAX_TOOL_IMAGES_HARD)
+          : MAX_TOOL_IMAGES;
+        const selected: Array<(typeof attachments)[number]> = [];
         const notes: string[] = [];
-        for (const attachment of attachments) {
+        for (const attachment of attachments as Array<(typeof attachments)[number]>) {
           if (!attachment.mimetype?.startsWith("image/")) continue;
           let reason: string | undefined;
           if (!["image/png", "image/jpeg", "image/gif", "image/webp"].includes(attachment.mimetype))
             reason = "unsupported MIME type";
           else if (attachment.file_size > MAX_TOOL_IMAGE_BYTES) reason = "exceeds 1 MB";
-          else if (selected.length >= MAX_TOOL_IMAGES) reason = "limit of 4 images";
+          else if (attachment.file_size < MIN_TOOL_IMAGE_BYTES) reason = "under 10 KB";
+          else if (selected.length >= maxImages) reason = `limit of ${maxImages} images`;
           if (reason) notes.push(`[image omitted: ${attachment.name}, ${reason}]`);
           else selected.push(attachment);
         }
@@ -1094,6 +1429,7 @@ const odoo: Connector = {
             })) as Array<{ id: number; datas: string | false }>)
           : [];
         return normalizeToolOutput({
+          maxImages,
           text: [JSON.stringify({ attachments }), ...notes].join("\n"),
           images: selected.map((a) => ({
             name: a.name,
@@ -1101,6 +1437,85 @@ const odoo: Connector = {
             base64: data.find((d) => d.id === a.id)?.datas ?? "",
           })),
         });
+      },
+    },
+
+    get_attachment_table: {
+      effect: "read",
+      description:
+        "Read a CSV or XLSX attachment of a project task as a table: sheet name, columns and the first 50 rows. Content is untrusted; long digit runs and e-mail addresses are masked.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          attachment_id: {
+            type: "number",
+            description: "Attachment id (from get_task_attachments).",
+          },
+          task_id: {
+            type: "number",
+            description: "Optional guard: refuse unless the attachment belongs to this task.",
+          },
+        },
+        required: ["attachment_id"],
+      },
+      async run(config, input) {
+        const attachmentId = Number(input.attachment_id);
+        if (!Number.isInteger(attachmentId) || attachmentId <= 0)
+          throw new Error("get_attachment_table needs a positive integer attachment_id.");
+        const hasTask = input.task_id !== undefined && input.task_id !== null;
+        const taskId = hasTask ? Number(input.task_id) : null;
+        if (hasTask && (!Number.isInteger(taskId) || taskId! <= 0))
+          throw new Error("task_id must be a positive integer.");
+        const rows = (await odooExecute(config, "ir.attachment", "read", [[attachmentId]], {
+          fields: ["id", "name", "mimetype", "file_size", "res_model", "res_id"],
+        })) as Array<{
+          id: number;
+          name?: string;
+          mimetype?: string;
+          file_size?: number;
+          res_model?: string | false;
+          res_id?: number;
+        }>;
+        const meta = rows?.[0];
+        if (!meta) throw new Error(`Attachment ${attachmentId} not found.`);
+        if (meta.res_model !== "project.task")
+          throw new Error("The attachment does not belong to a project.task.");
+        if (taskId !== null && meta.res_id !== taskId)
+          throw new Error(`The attachment does not belong to task ${taskId}.`);
+        const name = String(meta.name ?? "");
+        const ext = /\.([A-Za-z0-9]+)$/.exec(name)?.[1]?.toLowerCase();
+        const mime = String(meta.mimetype ?? "").toLowerCase();
+        const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        let kind: "csv" | "xlsx";
+        if (
+          ext === "csv" ||
+          (ext === undefined && (mime === "text/csv" || mime === "application/csv"))
+        )
+          kind = "csv";
+        else if (ext === "xlsx" || mime === XLSX_MIME) kind = "xlsx";
+        else if (ext === "xls" || mime === "application/vnd.ms-excel")
+          throw new Error("Unsupported format: legacy .xls. Ask for the file as xlsx or csv.");
+        else if (mime === "text/csv" || mime === "application/csv") kind = "csv";
+        else throw new Error("Unsupported format: only csv and xlsx attachments can be read.");
+        if (!(Number(meta.file_size) <= MAX_TABLE_FILE_BYTES))
+          throw new Error("The attachment is larger than 5 MB.");
+        const data = (await odooExecute(config, "ir.attachment", "read", [[attachmentId]], {
+          fields: ["id", "datas"],
+        })) as Array<{ datas?: string | false }>;
+        const b64 = data?.[0]?.datas;
+        if (!b64) throw new Error("The attachment has no content.");
+        if (b64.length > Math.ceil((MAX_TABLE_FILE_BYTES * 4) / 3) + 8)
+          throw new Error("The attachment is larger than 5 MB.");
+        const buf = Buffer.from(b64, "base64");
+        if (buf.length > MAX_TABLE_FILE_BYTES)
+          throw new Error("The attachment is larger than 5 MB.");
+        const table = kind === "csv" ? tableFromCsv(buf) : readXlsx(buf);
+        return {
+          attachment_id: attachmentId,
+          name: maskSensitive(name),
+          ...("sheet" in table ? {} : { sheet: null }),
+          ...table,
+        };
       },
     },
 
@@ -1155,14 +1570,70 @@ const odoo: Connector = {
           id: { type: "number" },
           body_text: { type: "string", description: "Note as plain text." },
           body: { type: "string", description: "Note as HTML. Overrides body_text." },
+          marker: {
+            type: "string",
+            description:
+              "Idempotency key (letters, digits, . _ : -, up to 100). The note starts with a visible line [[orchester:<marker>]]; if a message on this record already carries it, nothing is posted and { posted: false, reason: 'duplicate' } is returned.",
+          },
         },
         required: ["id"],
       },
       async run(config, input) {
         const model = String(input.model ?? "helpdesk.ticket");
-        const body =
+        let body =
           typeof input.body === "string" ? input.body : htmlFromText(String(input.body_text ?? ""));
         if (!body.trim()) throw new Error("A note needs a body.");
+        if (input.marker != null) {
+          // The marker is plain text on purpose: Odoo's HTML sanitiser strips
+          // comments and unknown attributes, so a hidden carrier would not
+          // survive the round trip and the duplicate check would never match.
+          const marker = String(input.marker);
+          if (!/^[A-Za-z0-9._:-]{1,100}$/.test(marker)) {
+            throw new Error("post_note: marker may only use letters, digits, . _ : - (max 100).");
+          }
+          const tag = `[[orchester:${marker}]]`;
+          // Candidates come from a loose substring query (`=ilike` leaves the
+          // wildcards to us, so `_`, `%` and `\` in the marker are escaped and
+          // stay literal). Only internal notes count: the message type and
+          // subtype are what `post_note` itself creates, so a customer email
+          // quoting the marker can never suppress a report. The author is not
+          // checked: the connector has no cheap way to know its own partner id
+          // (it would cost a res.users read on every call), and the internal
+          // note restriction already excludes everything a customer can send.
+          const pattern = `%${tag.replace(/[\\%_]/g, "\\$&")}%`;
+          const candidates = (await odooExecute(
+            config,
+            "mail.message",
+            "search_read",
+            [
+              [
+                ["model", "=", model],
+                ["res_id", "=", Number(input.id)],
+                ["message_type", "=", "comment"],
+                ["subtype_id.internal", "=", true],
+                ["body", "=ilike", pattern],
+              ],
+            ],
+            { fields: ["id", "body", "message_type", "subtype_id"], limit: 50 }
+          )) as { body?: unknown; message_type?: unknown; subtype_id?: unknown }[];
+          // Exact, case-sensitive match of the whole marker line.
+          const duplicate = candidates.some(
+            (m) =>
+              m.message_type === "comment" &&
+              Boolean(m.subtype_id) &&
+              htmlToText(m.body, 100_000)
+                .split("\n")
+                .some((line) => line.trim() === tag)
+          );
+          if (duplicate) return { posted: false, reason: "duplicate" };
+          body = `<p>${tag}</p>${body}`;
+        }
+        // Known, accepted race: the marker lookup and this post are separate
+        // Odoo calls, so two concurrent requests with the same marker can both
+        // see "absent" and both post. Closing it needs an Odoo-side method that
+        // checks and posts atomically; for now the duplicate is an extra
+        // internal note, never customer-visible, and sequential retries are
+        // already deduplicated.
         const messageId = await odooExecute(config, model, "message_post", [[Number(input.id)]], {
           body,
           message_type: "comment",
@@ -1170,6 +1641,99 @@ const odoo: Connector = {
           subtype_xmlid: "mail.mt_note",
         });
         return { ok: true, message_id: messageId };
+      },
+    },
+
+    move_task: {
+      effect: "write",
+      description:
+        'Move a project task to another stage, narrowly. Moves only if the task is still in from_stage_id (a card a person already moved is left alone and { moved: false, reason: "not_in_expected_stage", current_stage_id } is returned) and only to a stage of the task\'s own project (otherwise it throws). Writes stage_id and nothing else. Meant for flow steps; agents do not get it as a tool.',
+      inputSchema: {
+        type: "object",
+        properties: {
+          task_id: { type: "number" },
+          from_stage_id: { type: "number", description: "Stage the task must currently be in." },
+          to_stage_id: { type: "number", description: "Destination stage, same project." },
+        },
+        required: ["task_id", "from_stage_id", "to_stage_id"],
+      },
+      async run(config, input) {
+        if (input.task_id == null) throw new Error("move_task needs a task_id.");
+        if (input.from_stage_id == null) throw new Error("move_task needs a from_stage_id.");
+        if (input.to_stage_id == null) throw new Error("move_task needs a to_stage_id.");
+        const taskId = Number(input.task_id);
+        const fromStage = Number(input.from_stage_id);
+        const toStage = Number(input.to_stage_id);
+
+        const tasks = (await odooExecute(config, "project.task", "read", [[taskId]], {
+          fields: ["id", "project_id", "stage_id"],
+        })) as { project_id: [number, string] | false; stage_id: [number, string] | false }[];
+        const task = tasks[0];
+        if (!task) throw new Error(`move_task: task ${taskId} not found.`);
+
+        const currentStage = task.stage_id ? task.stage_id[0] : null;
+        if (currentStage !== fromStage) {
+          return { moved: false, reason: "not_in_expected_stage", current_stage_id: currentStage };
+        }
+
+        const stages = (await odooExecute(config, "project.task.type", "read", [[toStage]], {
+          fields: ["id", "project_ids"],
+        })) as { project_ids: number[] }[];
+        const projectId = task.project_id ? task.project_id[0] : null;
+        if (projectId == null || !stages[0]?.project_ids.includes(projectId)) {
+          throw new Error(`move_task: stage ${toStage} does not belong to the task's project.`);
+        }
+
+        // Known, accepted race: the stage check above and this write are two
+        // separate Odoo calls, so a person who moves the card between them is
+        // overwritten. Closing it needs a server-side compare-and-set method in
+        // Odoo (JSON-RPC offers no conditional write); until that exists the
+        // window is a few hundred milliseconds and the worst case is a card
+        // landing in the stage the flow intended.
+        await odooExecute(config, "project.task", "write", [[taskId], { stage_id: toStage }]);
+        return { moved: true, task_id: taskId, from_stage_id: fromStage, to_stage_id: toStage };
+      },
+    },
+
+    set_task_tags: {
+      effect: "write",
+      description:
+        "Add and/or remove tags on ONE project task, restricted to tags whose name starts with 'ag:'. Any other tag makes the call fail before anything is written. Writes tag_ids and nothing else. Meant for flow steps; agents do not get it as a tool.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          task_id: { type: "number" },
+          add: { type: "array", items: { type: "number" }, description: "Tag ids to attach." },
+          remove: { type: "array", items: { type: "number" }, description: "Tag ids to detach." },
+        },
+        required: ["task_id"],
+      },
+      async run(config, input) {
+        if (input.task_id == null) throw new Error("set_task_tags needs a task_id.");
+        const taskId = Number(input.task_id);
+        const toIds = (v: unknown) => (Array.isArray(v) ? [...new Set(v.map(Number))] : []);
+        const add = toIds(input.add);
+        const remove = toIds(input.remove);
+        if (add.length + remove.length === 0) {
+          throw new Error("set_task_tags needs an add or remove list.");
+        }
+        const wanted = [...new Set([...add, ...remove])];
+        // Read through odooExecute, not the `execute` allowlist: the allowlist
+        // stays closed to project.tags.
+        const rows = (await odooExecute(config, "project.tags", "read", [wanted], {
+          fields: ["id", "name"],
+        })) as { id: number; name: string | false }[];
+        const names = new Map(rows.map((r) => [r.id, r.name]));
+        for (const id of wanted) {
+          const name = names.get(id);
+          if (typeof name !== "string") throw new Error(`set_task_tags: tag ${id} not found.`);
+          if (!name.startsWith("ag:")) {
+            throw new Error(`set_task_tags: tag ${id} is not an 'ag:' tag; refusing.`);
+          }
+        }
+        const commands = [...add.map((id) => [4, id, 0]), ...remove.map((id) => [3, id, 0])];
+        await odooExecute(config, "project.task", "write", [[taskId], { tag_ids: commands }]);
+        return { ok: true, task_id: taskId, added: add, removed: remove };
       },
     },
 
@@ -1323,6 +1887,110 @@ const newrelic: Connector = {
       },
     },
 
+    get_browser_errors: {
+      effect: "read",
+      description:
+        "Browser (JavaScript) errors for one Browser application, grouped by class and message, most frequent first. Fixed query on JavaScriptError; max 20 groups.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          appName: {
+            type: "string",
+            description: "Browser application name as New Relic reports it.",
+          },
+          since_hours: {
+            type: "integer",
+            minimum: 1,
+            maximum: 168,
+            description: "Window in hours. Default 24.",
+          },
+          message_contains: {
+            type: "string",
+            maxLength: 120,
+            description: "Substring of the error message. Cannot contain %.",
+          },
+          page_contains: {
+            type: "string",
+            maxLength: 120,
+            description: "Substring of the page URI. Cannot contain %.",
+          },
+        },
+        required: ["appName"],
+      },
+      async run(config, input) {
+        const sinceHours = input.since_hours === undefined ? 24 : Number(input.since_hours);
+        const query = buildBrowserErrorsQuery({
+          appName: input.appName as string,
+          sinceHours,
+          messageContains: input.message_contains as string | undefined,
+          pageContains: input.page_contains as string | undefined,
+        });
+        const rows = await runNrql(config, query);
+        return {
+          errors: rows.map((r) => ({
+            error_class: String(r.errorClass ?? (r.facet as unknown[] | undefined)?.[0] ?? ""),
+            message: maskSensitive(
+              String(r.errorMessage ?? (r.facet as unknown[] | undefined)?.[1] ?? "")
+            ).slice(0, 300),
+            count: Number(r.count ?? 0),
+            last_seen: r.last_seen ?? null,
+            sample_uri: r.sample_uri == null ? null : sanitizeUri(String(r.sample_uri)),
+          })),
+          since_hours: sinceHours,
+          truncated: rows.length >= BROWSER_ERRORS_LIMIT,
+        };
+      },
+    },
+
+    search_logs: {
+      effect: "read",
+      description:
+        "Recent log lines for one service (filters service.name), newest first, health probes excluded. Fixed query on Log; messages are masked.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          service: { type: "string", description: "Value of service.name." },
+          since_minutes: {
+            type: "integer",
+            minimum: 5,
+            maximum: 1440,
+            description: "Window in minutes. Default 60.",
+          },
+          message_contains: {
+            type: "string",
+            maxLength: 120,
+            description: "Substring of the message. Cannot contain %.",
+          },
+          level: { type: "string", enum: [...LOG_LEVELS] },
+          limit: {
+            type: "integer",
+            minimum: 1,
+            maximum: 100,
+            description: "Max rows. Default 30.",
+          },
+        },
+        required: ["service"],
+      },
+      async run(config, input) {
+        const query = buildSearchLogsQuery({
+          service: input.service as string,
+          sinceMinutes: input.since_minutes as number | undefined,
+          messageContains: input.message_contains as string | undefined,
+          level: input.level as (typeof LOG_LEVELS)[number] | undefined,
+          limit: input.limit as number | undefined,
+        });
+        const rows = await runNrql(config, query);
+        return {
+          logs: rows.map((r) => ({
+            timestamp: r.timestamp ?? null,
+            level: r.level == null ? null : String(r.level),
+            message: maskSensitive(String(r.message ?? "")).slice(0, 500),
+            trace_id: r.trace_id == null ? null : String(r.trace_id),
+          })),
+        };
+      },
+    },
+
     nrql: {
       effect: "read",
       description:
@@ -1467,6 +2135,51 @@ const gitlab: Connector = {
         required: ["project"],
       },
       run: gitlabListCommits,
+    },
+    list_merge_requests: {
+      effect: "read",
+      description:
+        "List merge requests of a project (one page, metadata only: iid, title, state, author username, branches, merged_at, created_at, web_url, merge_commit_sha). Use merged_since to find what shipped around an incident.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project: {
+            ...gitlabIdSchema,
+            description:
+              "Numeric ID or full namespace path. Accepts projectId from a search_code match.",
+          },
+          state: { type: "string", enum: ["opened", "merged", "closed", "all"], default: "merged" },
+          merged_since: { type: "string", description: "ISO 8601 lower bound on merged_at." },
+          search: { type: "string", maxLength: 100, description: "Matched against title." },
+          target_branch: { type: "string" },
+          limit: { type: "integer", minimum: 1, maximum: 30, default: 10 },
+        },
+        required: ["project"],
+      },
+      run: gitlabListMergeRequests,
+    },
+    get_diff: {
+      effect: "read",
+      description:
+        "Read the diff of one commit (commit_sha) or one merge request (mr_iid), never both. Capped at 20 files, 8 KB per file and 40 KB in total; `truncated` and `files_omitted` say what was left out, and `diff_unavailable` marks binary or too-large files. Only the first page of 100 files is read: when `more_pages` is true the diff has further files that were not read, so a `path` filter that matches nothing does not prove the file is absent. Use `path` to narrow to the files that matter.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project: {
+            ...gitlabIdSchema,
+            description:
+              "Numeric ID or full namespace path. Accepts projectId from a search_code match.",
+          },
+          commit_sha: { type: "string", pattern: "^[0-9a-fA-F]{7,40}$" },
+          mr_iid: { type: "integer", minimum: 1 },
+          path: {
+            type: "string",
+            description: "Keep only files whose old or new path contains this.",
+          },
+        },
+        required: ["project"],
+      },
+      run: gitlabGetDiff,
     },
     compare_refs: {
       effect: "read",

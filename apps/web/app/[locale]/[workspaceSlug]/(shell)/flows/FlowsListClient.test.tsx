@@ -65,3 +65,82 @@ describe("FlowsListClient delete", () => {
     expect(screen.getByText("Flow B")).toBeInTheDocument();
   });
 });
+
+describe("FlowsListClient AI steps", () => {
+  const renderList = (list: Array<(typeof flows)[number] & Record<string, unknown>>) =>
+    render(
+      <NextIntlClientProvider locale="en" messages={messages as unknown as AbstractIntlMessages}>
+        <FlowsListClient flows={list} />
+      </NextIntlClientProvider>
+    );
+
+  it("shows the AI step count on a card, and nothing when there are none", () => {
+    renderList([
+      { ...flows[0]!, aiStepCount: 2 },
+      { ...flows[1]!, aiStepCount: 0 },
+    ]);
+    const marks = screen.getAllByTestId("flow-ai-steps");
+    expect(marks).toHaveLength(1);
+    expect(marks[0]).toHaveTextContent("2 AI steps");
+  });
+
+  it("flags AI reached through a sub-flow", () => {
+    renderList([{ ...flows[0]!, aiStepCount: 0, aiViaSubflow: true }]);
+    expect(screen.getByTestId("flow-ai-steps")).toHaveTextContent("AI via sub-flow");
+  });
+});
+
+describe("FlowsListClient kind", () => {
+  const mixed = [
+    { ...flows[0]!, kind: "pipeline" as const },
+    { ...flows[1]!, kind: "action" as const },
+  ];
+  const renderList = () =>
+    render(
+      <NextIntlClientProvider locale="en" messages={messages as unknown as AbstractIntlMessages}>
+        <FlowsListClient flows={mixed} />
+      </NextIntlClientProvider>
+    );
+
+  it("badges actions only", () => {
+    renderList();
+    const badges = screen.getAllByTestId("flow-kind-badge");
+    expect(badges).toHaveLength(1);
+    expect(badges[0]).toHaveTextContent("Action");
+    expect(badges[0]!.closest("div")).toHaveTextContent("Flow B");
+  });
+
+  it("filters All / Pipelines / Actions", () => {
+    renderList();
+    const filter = screen.getByRole("group", { name: /filter by type/i });
+    expect(within(filter).getByRole("button", { name: "All" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.getByText("Flow A")).toBeInTheDocument();
+    expect(screen.getByText("Flow B")).toBeInTheDocument();
+
+    fireEvent.click(within(filter).getByRole("button", { name: "Actions" }));
+    expect(screen.queryByText("Flow A")).toBeNull();
+    expect(screen.getByText("Flow B")).toBeInTheDocument();
+
+    fireEvent.click(within(filter).getByRole("button", { name: "Pipelines" }));
+    expect(screen.getByText("Flow A")).toBeInTheDocument();
+    expect(screen.queryByText("Flow B")).toBeNull();
+
+    fireEvent.click(within(filter).getByRole("button", { name: "All" }));
+    expect(screen.getByText("Flow B")).toBeInTheDocument();
+  });
+
+  it("treats a flow without kind as a pipeline", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages as unknown as AbstractIntlMessages}>
+        <FlowsListClient flows={[flows[0]!]} />
+      </NextIntlClientProvider>
+    );
+    expect(screen.queryByTestId("flow-kind-badge")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Actions" }));
+    expect(screen.queryByText("Flow A")).toBeNull();
+    expect(screen.getByText(/no flows of this type/i)).toBeInTheDocument();
+  });
+});

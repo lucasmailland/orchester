@@ -13,6 +13,7 @@ import crypto from "node:crypto";
 import { schema } from "@orchester/db";
 import { eq, sql } from "drizzle-orm";
 import { enqueueFlowRun } from "@/lib/flow-engine";
+import { FlowDisabledError } from "@/lib/flows/run-gate";
 import { rateLimit } from "@/lib/rate-limit";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 
@@ -105,6 +106,25 @@ async function handle(req: Request, p: { secret: string }) {
     _headers: safeHeaders,
   };
 
+  // Encolamos la ejecución (async) en vez de correrla inline: un webhook no debe
+  // mantener abierta la conexión HTTP mientras el flow hace polling de video/IA.
+  // The flow itself may be switched off even though this webhook row is
+  // enabled: refuse before any run row exists.
+  let result;
+  try {
+    result = await enqueueFlowRun({
+      flowId: wh.flowId,
+      workspaceId: wh.workspaceId,
+      triggerSource: "webhook",
+      input,
+    });
+  } catch (e) {
+    if (e instanceof FlowDisabledError) {
+      return NextResponse.json({ error: "flow is disabled" }, { status: 409 });
+    }
+    throw e;
+  }
+
   // Update counters (fire and forget). Also FORCE RLS — bypass for the
   // bookkeeping update.
   void withCrossTenantAdmin("webhook.inbound", async (tx) => {
@@ -117,13 +137,5 @@ async function handle(req: Request, p: { secret: string }) {
       .where(eq(schema.flowWebhooks.id, wh.id));
   }).catch(() => {});
 
-  // Encolamos la ejecución (async) en vez de correrla inline: un webhook no debe
-  // mantener abierta la conexión HTTP mientras el flow hace polling de video/IA.
-  const result = await enqueueFlowRun({
-    flowId: wh.flowId,
-    workspaceId: wh.workspaceId,
-    triggerSource: "webhook",
-    input,
-  });
   return NextResponse.json(result, { status: 202 });
 }

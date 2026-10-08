@@ -230,7 +230,7 @@ function DataPicker({ data, onPick }: { data: string[]; onPick: (name: string) =
 }
 
 function FieldRenderer({
-  field,
+  field: rawField,
   value,
   onChange,
   availableData = [],
@@ -241,6 +241,15 @@ function FieldRenderer({
   availableData?: string[];
 }) {
   const t = useTranslations("pages.flows.inspector");
+  // Fields with `i18n` carry their copy in the message files; label/help stay as fallback.
+  const field: FieldDef = rawField.i18n
+    ? {
+        ...rawField,
+        label: t(`fields.${rawField.i18n}.label`),
+        help: t(`fields.${rawField.i18n}.help`),
+        example: t(`fields.${rawField.i18n}.example`),
+      }
+    : rawField;
   const common = (
     <FieldLabel
       label={field.label}
@@ -496,6 +505,7 @@ function StringListField({
 }
 
 function KeyValueField({
+  field,
   value,
   onChange,
   label,
@@ -508,16 +518,31 @@ function KeyValueField({
   const t = useTranslations("pages.flows.inspector");
   const obj = (value && typeof value === "object" ? value : {}) as Record<string, string>;
   const entries = Object.entries(obj);
+  const keyPlaceholder = field.i18n
+    ? t(`fields.${field.i18n}.keyPlaceholder`)
+    : t("keyPlaceholder");
+  const valuePlaceholder = field.i18n
+    ? t(`fields.${field.i18n}.valuePlaceholder`)
+    : t("valuePlaceholder");
+  // An empty map on a field with `i18n` is "not set": for the subflow mappings an empty
+  // object would mean "pass nothing", which is not what clearing the list should do.
+  const emit = (next: Record<string, string>) =>
+    onChange(field.i18n && Object.keys(next).length === 0 ? undefined : next);
   function setEntry(k: string, v: string, oldK?: string) {
     const next = { ...obj };
     if (oldK && oldK !== k) delete next[oldK];
     next[k] = v;
-    onChange(next);
+    emit(next);
   }
   function remove(k: string) {
     const next = { ...obj };
     delete next[k];
-    onChange(next);
+    emit(next);
+  }
+  function addEntry() {
+    let n = entries.length + 1;
+    while (`clave${n}` in obj) n += 1;
+    setEntry(`clave${n}`, "");
   }
   return (
     <div>
@@ -528,13 +553,13 @@ function KeyValueField({
             <input
               defaultValue={k}
               onBlur={(e) => setEntry(e.target.value, v, k)}
-              placeholder={t("keyPlaceholder")}
+              placeholder={keyPlaceholder}
               className={`${inputCls} flex-1`}
             />
             <input
               value={v}
               onChange={(e) => setEntry(k, e.target.value)}
-              placeholder={t("valuePlaceholder")}
+              placeholder={valuePlaceholder}
               className={`${inputCls} flex-1`}
             />
             <button
@@ -548,10 +573,10 @@ function KeyValueField({
         ))}
         <button
           type="button"
-          onClick={() => setEntry(`clave${entries.length + 1}`, "")}
+          onClick={addEntry}
           className="text-[11px] text-violet-600 dark:text-violet-400 hover:underline"
         >
-          + Agregar
+          {t("addEntry")}
         </button>
       </div>
     </div>

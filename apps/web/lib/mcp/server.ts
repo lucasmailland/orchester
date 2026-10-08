@@ -247,14 +247,58 @@ const TOOLS: McpToolDef[] = [
   {
     name: "list_flows",
     title: "List flows",
-    description: "Lista los flujos (workflows) del workspace que se pueden ejecutar.",
+    description:
+      "Lista los flujos (workflows) del workspace que se pueden ejecutar. Cada uno trae su tipo: pipeline (de nivel superior) o action (bloque reutilizable). Filtrable con kind.",
     access: "read",
     domain: "flows",
-    inputSchema: { type: "object", properties: {} },
-    async handler(_input, auth) {
+    inputSchema: {
+      type: "object",
+      properties: {
+        kind: {
+          type: "string",
+          enum: ["pipeline", "action"],
+          description: "Sólo flujos de este tipo.",
+        },
+      },
+    },
+    async handler(input, auth) {
       const { listFlows } = await import("@/lib/flows/service");
-      const rows = await listFlows(actorOf(auth));
-      return { flows: rows.map(({ id, name, status }) => ({ id, name, status })) };
+      const { flowKindSchema } = await import("@/lib/flows/kind");
+      const parsedKind = flowKindSchema.optional().safeParse(input.kind);
+      if (!parsedKind.success) throw new Error("kind: must be pipeline or action");
+      const kindFilter = parsedKind.data;
+      const all = await listFlows(actorOf(auth));
+      // Natures are computed over every flow (a subflow can live in another kind);
+      // the filter only narrows what is returned.
+      const rows = all;
+      const { summarizeFlowNatureTransitive } = await import("@/lib/flows/node-nature");
+      const graphs = rows.map((r) => ({
+        id: r.id,
+        nodes: ((r.nodes as unknown[] | null) ?? []).map((n) => {
+          const x = n as {
+            id: string;
+            type: string;
+            label?: string;
+            config?: Record<string, unknown>;
+          };
+          return { id: x.id, type: x.type, label: x.label, config: x.config };
+        }),
+      }));
+      return {
+        flows: rows
+          .filter((r) => !kindFilter || (r.kind ?? "pipeline") === kindFilter)
+          .map(({ id, name, status, kind }) => {
+            const s = summarizeFlowNatureTransitive(id, graphs);
+            // `ai` is additive: how many steps call a model, and whether a subflow reaches one.
+            return {
+              id,
+              name,
+              status,
+              kind: kind ?? "pipeline",
+              ai: { steps: s.counts.ai, of: s.total, viaSubflow: s.aiSubflowNodeIds.length > 0 },
+            };
+          }),
+      };
     },
   },
   {

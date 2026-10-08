@@ -54,6 +54,34 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("dry run: integration steps", () => {
+  it("fails (no wouldCall) when the action cannot be resolved", async () => {
+    effectOf.mockRejectedValue(new Error("Acción desconocida: get_case"));
+    const r = await dry(
+      [trigger, step("s", "integration", { integrationId: "odoo::get_case", input: {} })],
+      [edge("t", "s")]
+    );
+    expect(r.status).toBe("failed");
+    expect(runAction).not.toHaveBeenCalled();
+    const st = r.steps.find((x) => x.nodeId === "s");
+    expect(st?.status).toBe("failed");
+    expect(JSON.stringify(st)).toContain("Acción desconocida: get_case");
+    expect(JSON.stringify(st)).not.toContain("wouldCall");
+  });
+
+  it("looks the action effect up inside a workspace transaction", async () => {
+    // Under FORCE RLS an integration row is invisible without the workspace GUC.
+    effectOf.mockImplementation(async (...a: unknown[]) => {
+      if (!a[4]) throw new Error("Integración no encontrada");
+      return "write";
+    });
+    const r = await dry(
+      [trigger, step("s", "integration", { integrationId: "odoo::create", input: {} })],
+      [edge("t", "s")]
+    );
+    expect(r.status).toBe("succeeded");
+    expect(runAction).not.toHaveBeenCalled();
+  });
+
   it("executes a read action", async () => {
     effectOf.mockResolvedValue("read");
     runAction.mockResolvedValue({ rows: [1] });
@@ -120,18 +148,9 @@ describe("dry run: integration steps", () => {
       "ws_test",
       "odoo",
       "execute",
-      expect.objectContaining({ method: "write" })
+      expect.objectContaining({ method: "write" }),
+      expect.anything()
     );
-  });
-
-  it("treats an effect that cannot be resolved as write", async () => {
-    effectOf.mockRejectedValue(new Error("boom"));
-    const r = await dry(
-      [trigger, step("s", "integration", { integrationId: "odoo::create_ticket", input: {} })],
-      [edge("t", "s")]
-    );
-    expect(runAction).not.toHaveBeenCalled();
-    expect(r.steps.find((s) => s.nodeId === "s")?.output).toMatchObject({ dryRun: true });
   });
 
   it("outside dry run a write action still executes", async () => {
@@ -261,15 +280,15 @@ describe("dry run: subflow", () => {
     effectOf.mockResolvedValue("write");
     const inserted: Array<Record<string, unknown>> = [];
     state.insertedRuns = inserted;
-    // The harness serves the same flow for every lookup, so the child is the
-    // flow itself. The parent marks `isChild` before calling it; the child
+    // The harness serves the same flow for every lookup, so the child is a
+    // second copy of it under another id (a flow cannot call itself). The parent marks `isChild` before calling it; the child
     // sees the mark in its input and takes the write branch instead.
     const r = await dry(
       [
         trigger,
         step("c", "condition", { left: "{{isChild}}", op: "==", right: "1" }),
         step("m", "transform", { template: { isChild: "1" } }),
-        step("sub", "subflow", { flowId: "flow_test" }),
+        step("sub", "subflow", { flowId: "child_flow" }),
         step("w", "integration", { integrationId: "odoo::create_ticket", input: {} }),
       ],
       [

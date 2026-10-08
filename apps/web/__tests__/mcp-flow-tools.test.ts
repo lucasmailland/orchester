@@ -43,6 +43,20 @@ const svc = vi.hoisted(() => ({
   },
 }));
 vi.mock("@/lib/flows/service", () => svc);
+const store = vi.hoisted(() => ({
+  // Like FORCE RLS: the integration row is only visible inside a workspace transaction.
+  getIntegrationActionEffect: vi.fn(
+    async (_ws: string, _id: string, action: string, _input: unknown, tx?: unknown) => {
+      if (!tx) throw new Error("Integración no encontrada");
+      if (action === "gone") throw new Error("Integración no encontrada");
+      return action === "get" ? "read" : "write";
+    }
+  ),
+}));
+vi.mock("@/lib/tenant/context", () => ({
+  withWorkspaceTx: async (_ws: string, fn: (tx: unknown) => unknown) => fn({ tx: true }),
+}));
+vi.mock("@/lib/integrations/store", () => store);
 vi.mock("@/lib/mnemo/client", () => ({ getMnemoClient: vi.fn() }));
 
 const auth = (scopes: string[]) => ({ workspaceId: "ws_a", keyId: "key_1", scopes });
@@ -63,6 +77,7 @@ describe("flow MCP tools", async () => {
     const names = listMcpTools().map((t) => t.name);
     for (const n of [
       "get_flow",
+      "describe_flow",
       "validate_flow",
       "create_flow",
       "update_flow",
@@ -70,9 +85,143 @@ describe("flow MCP tools", async () => {
       "list_flow_runs",
       "create_flow_webhook",
       "list_flow_webhooks",
+      "update_flow_webhook",
+      "delete_flow_webhook",
     ]) {
       expect(names).toContain(n);
     }
+  });
+
+  it("get_flow adds nature per node and a summary, keeping existing fields", async () => {
+    svc.getFlow.mockResolvedValueOnce({
+      id: "f1",
+      name: "One",
+      description: null,
+      spec: "",
+      status: "draft",
+      enabled: false,
+      trigger: "manual",
+      nodes: [
+        { id: "a", type: "llm_prompt", label: "Ask", config: {} },
+        { id: "b", type: "http", label: "Fetch", config: {} },
+        { id: "c", type: "subflow", label: "Sub", config: { flowId: "f9" } },
+      ],
+      edges: [],
+      variables: {},
+      version: 1,
+    } as never);
+    svc.listFlows.mockResolvedValueOnce([
+      { id: "f9", name: "Sub", status: "draft", nodes: [{ id: "x", type: "agent" }], edges: [] },
+    ] as never);
+    const out = JSON.parse(
+      (await call("get_flow", { flowId: "f1" }, ["flows:read"])).content[0]!.text
+    ) as {
+      nodes: Array<{ id: string; nature: string; label: string }>;
+      natureSummary: { counts: { ai: number }; reachesAi: boolean; aiSubflowNodeIds: string[] };
+      version: number;
+    };
+    expect(out.nodes.map((n) => [n.id, n.nature, n.label])).toEqual([
+      ["a", "ai", "Ask"],
+      ["b", "code", "Fetch"],
+      ["c", "code", "Sub"],
+    ]);
+    expect(out.natureSummary.counts.ai).toBe(1);
+    expect(out.natureSummary.aiSubflowNodeIds).toEqual(["c"]);
+    expect(out.version).toBe(1);
+  });
+
+  it("list_flows adds the AI step count", async () => {
+    svc.listFlows.mockResolvedValueOnce([
+      {
+        id: "f1",
+        name: "One",
+        status: "draft",
+        nodes: [
+          { id: "a", type: "agent" },
+          { id: "b", type: "http" },
+        ],
+        edges: [],
+      },
+    ] as never);
+    const out = JSON.parse((await call("list_flows", {}, ["flows:read"])).content[0]!.text) as {
+      flows: Array<{ id: string; ai: { steps: number; of: number; viaSubflow: boolean } }>;
+    };
+    expect(out.flows[0]).toMatchObject({
+      id: "f1",
+      name: "One",
+      status: "draft",
+      ai: { steps: 1, of: 2, viaSubflow: false },
+    });
+  });
+
+  describe("describe_flow", () => {
+    const stored = (nodes: unknown[]) => ({
+      id: "f1",
+      name: "One",
+      enabled: true,
+      kind: "pipeline",
+      externalCallers: [{ name: "script" }],
+      nodes,
+      edges: [],
+      variables: {},
+    });
+
+    it("is a read tool and refuses keys that cannot read flows", async () => {
+      for (const scope of ["readonly", "agents:read", "agents:write"]) {
+        const r = await call("describe_flow", { flowId: "f1" }, [scope]);
+        expect(r.isError).toBe(true);
+      }
+      expect(svc.getFlow).not.toHaveBeenCalled();
+      expect((await call("describe_flow", { flowId: "f1" }, ["flows:read"])).isError).toBeFalsy();
+    });
+
+    it("reads everything through the key's workspace and returns the sheet", async () => {
+      svc.getFlow.mockResolvedValueOnce(
+        stored([
+          { id: "c", type: "integration", label: "C", config: { integrationId: "crm::get" } },
+          { id: "d", type: "integration", label: "D", config: { integrationId: "crm::set" } },
+          { id: "e", type: "integration", label: "E", config: { integrationId: "crm::gone" } },
+          {
+            id: "t",
+            type: "integration",
+            label: "T",
+            config: { integrationId: "crm::get", input: { m: "{{method}}" } },
+          },
+        ]) as never
+      );
+      svc.listFlows.mockResolvedValueOnce([
+        { id: "f1", name: "One", nodes: [] },
+        {
+          id: "f2",
+          name: "Caller",
+          nodes: [{ id: "s", type: "subflow", config: { flowId: "f1" } }],
+        },
+      ] as never);
+      svc.listFlowWebhooks.mockResolvedValueOnce([{ id: "w1", enabled: false }] as never);
+      const out = JSON.parse(
+        (await call("describe_flow", { flowId: "f1" }, ["flows:read"])).content[0]!.text
+      ) as {
+        calls: { integrations: Array<{ nodeId: string; effect: string }> };
+        calledBy: { flows: unknown[]; webhooks: unknown[]; externalCallers: unknown[] };
+      };
+      const actor = { kind: "apiKey", workspaceId: "ws_a", keyId: "key_1" };
+      expect(svc.getFlow).toHaveBeenCalledWith(actor, "f1");
+      expect(svc.listFlows).toHaveBeenCalledWith(actor);
+      expect(svc.listFlowWebhooks).toHaveBeenCalledWith(actor, "f1", { redact: true });
+      expect(store.getIntegrationActionEffect.mock.calls.every((c) => c[0] === "ws_a")).toBe(true);
+      expect(out.calls.integrations.map((i) => [i.nodeId, i.effect])).toEqual([
+        ["c", "read"],
+        ["d", "write"],
+        ["e", "unknown"],
+        // A "read" that depends on a templated input is not trusted.
+        ["t", "unknown"],
+      ]);
+      expect(out.calledBy).toEqual({
+        flows: [{ id: "f2", name: "Caller" }],
+        externalCallers: [{ name: "script" }],
+        webhooks: [{ id: "w1", enabled: false }],
+      });
+    });
   });
 
   it.each([["readonly"], ["agents:read"], ["agents:write"], ["flows:read"]])(
@@ -270,6 +419,126 @@ describe("flow MCP tools", async () => {
     const listed = await call("list_flow_webhooks", { flowId: "f1" }, ["flows:read"]);
     expect(JSON.stringify(listed.structuredContent)).not.toContain("s3cr3t");
     expect(svc.listFlowWebhooks).toHaveBeenCalledWith(expect.anything(), "f1", { redact: true });
+  });
+
+  describe("flow kind and external callers", () => {
+    const rows = [
+      { id: "p1", name: "Pipe", status: "draft", kind: "pipeline", nodes: [], edges: [] },
+      { id: "a1", name: "Act", status: "draft", kind: "action", nodes: [], edges: [] },
+    ];
+    type Listed = { flows: Array<{ id: string; kind: string }> };
+    const list = async (args: Record<string, unknown>) =>
+      JSON.parse((await call("list_flows", args, ["flows:read"])).content[0]!.text) as Listed;
+
+    it("list_flows returns the kind of every flow", async () => {
+      svc.listFlows.mockResolvedValueOnce(rows as never);
+      const out = await list({});
+      expect(out.flows.map((f) => [f.id, f.kind])).toEqual([
+        ["p1", "pipeline"],
+        ["a1", "action"],
+      ]);
+    });
+
+    it.each([
+      ["action", ["a1"]],
+      ["pipeline", ["p1"]],
+    ])("list_flows filters by kind=%s", async (kind, ids) => {
+      svc.listFlows.mockResolvedValueOnce(rows as never);
+      expect((await list({ kind })).flows.map((f) => f.id)).toEqual(ids);
+    });
+
+    it("list_flows rejects an unknown kind", async () => {
+      const r = await call("list_flows", { kind: "macro" }, ["flows:read"]);
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toContain("kind");
+    });
+
+    it("get_flow returns kind and externalCallers", async () => {
+      svc.getFlow.mockResolvedValueOnce({
+        id: "a1",
+        name: "Act",
+        description: null,
+        spec: null,
+        status: "draft",
+        enabled: false,
+        trigger: "manual",
+        nodes: [],
+        edges: [],
+        variables: {},
+        version: 1,
+        kind: "action",
+        externalCallers: [{ name: "cron", note: "nightly" }],
+      } as never);
+      const out = JSON.parse(
+        (await call("get_flow", { flowId: "a1" }, ["flows:read"])).content[0]!.text
+      );
+      expect(out.kind).toBe("action");
+      expect(out.externalCallers).toEqual([{ name: "cron", note: "nightly" }]);
+    });
+
+    it.each(["create_flow", "update_flow"])(
+      "%s forwards kind and externalCallers",
+      async (tool) => {
+        const payload = {
+          name: "Act",
+          kind: "action",
+          externalCallers: [{ name: "cron", note: "nightly" }],
+        };
+        const r = await call(tool, { flowId: "f1", ...payload });
+        expect(r.isError).toBeFalsy();
+        const service = tool === "create_flow" ? svc.createFlow : svc.updateFlow;
+        expect(service).toHaveBeenCalledWith(
+          expect.anything(),
+          ...(tool === "update_flow" ? ["f1"] : []),
+          payload,
+          { strict: true }
+        );
+      }
+    );
+
+    it("validate_flow applies the action contract to an unsaved graph", async () => {
+      const node = {
+        id: "m",
+        type: "wait_human",
+        label: "M",
+        config: {},
+        position: { x: 0, y: 0 },
+      };
+      const run = async (kind: string) =>
+        JSON.parse(
+          (await call("validate_flow", { nodes: [node], edges: [], kind }, ["flows:read"]))
+            .content[0]!.text
+        ) as { issues: Array<{ nodeId?: string; message: string }> };
+      expect((await run("action")).issues.some((i) => /acci/i.test(i.message))).toBe(true);
+      expect((await run("pipeline")).issues.some((i) => /acci/i.test(i.message))).toBe(false);
+    });
+
+    it("update_flow can clear the external callers", async () => {
+      await call("update_flow", { flowId: "f1", externalCallers: [] });
+      expect(svc.updateFlow).toHaveBeenCalledWith(
+        expect.anything(),
+        "f1",
+        { externalCallers: [] },
+        { strict: true }
+      );
+    });
+
+    it.each([
+      ["kind", "macro"],
+      ["externalCallers", [{ name: "" }]],
+      ["externalCallers", [{ name: "a".repeat(81) }]],
+      ["externalCallers", [{ name: "a", note: "n".repeat(201) }]],
+      ["externalCallers", Array.from({ length: 11 }, (_, i) => ({ name: `c${i}` }))],
+      ["externalCallers", "cron"],
+    ])("rejects invalid %s (%j)", async (field, value) => {
+      for (const tool of ["create_flow", "update_flow"]) {
+        const r = await call(tool, { flowId: "f1", name: "x", [field]: value });
+        expect(r.isError).toBe(true);
+        expect(r.content[0]!.text).toContain(field);
+      }
+      expect(svc.createFlow).not.toHaveBeenCalled();
+      expect(svc.updateFlow).not.toHaveBeenCalled();
+    });
   });
 
   it("list_flows goes through the service", async () => {

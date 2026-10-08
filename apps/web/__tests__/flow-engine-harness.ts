@@ -22,11 +22,23 @@ export const state = {
     nodes: [] as unknown[],
     edges: [] as unknown[],
     variables: {},
+  } as {
+    id: string;
+    workspaceId: string;
+    nodes: unknown[];
+    edges: unknown[];
+    variables: Record<string, unknown>;
+    name?: string;
+    enabled?: boolean;
   },
   steps: [] as RecordedStep[],
   runUpdates: [] as Array<Record<string, unknown>>,
+  /** Flows handed out, in order, to successive lookups (parent, then child). */
+  flowQueue: [] as Array<Record<string, unknown>>,
   /** When set, every flow_run row the engine inserts is pushed here. */
   insertedRuns: undefined as Array<Record<string, unknown>> | undefined,
+  /** The flow_run row a queued run (executeFlow with a runId) reads back. */
+  runRow: undefined as Record<string, unknown> | undefined,
 };
 
 let idCounter = 0;
@@ -54,17 +66,23 @@ function applySet(set: Record<string, unknown>) {
 
 function makeTx() {
   let pendingSet: Record<string, unknown> | null = null;
+  let table: unknown;
   const tx: Record<string, unknown> = {
     execute: vi.fn(async () => ({ rows: [] })),
     select: () => tx,
-    from: () => tx,
+    from: (t: unknown) => {
+      table = t;
+      return tx;
+    },
     where: () => {
       if (pendingSet) {
         applySet(pendingSet);
         pendingSet = null;
         return Promise.resolve([]);
       }
-      return { limit: async () => [state.flow] };
+      if (table === dbMock.schema.flowRuns)
+        return { limit: async () => (state.runRow ? [state.runRow] : []) };
+      return { limit: async () => [state.flowQueue.shift() ?? state.flow] };
     },
     insert: () => tx,
     values: async (row: Record<string, unknown>) => {
@@ -82,8 +100,9 @@ function makeTx() {
 
 export const dbMock = {
   getDb: vi.fn(() => ({
-    // A subflow step reads the child run's output through the bare client.
-    select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ output: {} }] }) }) }),
+    // The bare client sees zero rows, like the app role under FORCE RLS: any
+    // read that matters must go through a workspace transaction (`makeTx`).
+    select: () => ({ from: () => ({ where: () => ({ limit: async () => [] }) }) }),
     transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(makeTx())),
   })),
   schema: {

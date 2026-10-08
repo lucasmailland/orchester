@@ -8,7 +8,10 @@ import { schema, type DbClient, type Conversation, type Agent, type Channel } fr
 import { llmCall, llmStream, type ChatMessage } from "@/lib/llm-call";
 import { resolveToolDefinitions, executeTool } from "@/lib/tools";
 import { executeFlow } from "@/lib/flow-engine";
+import { FlowDisabledError } from "@/lib/flows/run-gate";
 import { assertWithinSpend } from "@/lib/cost-alerts";
+import { logWithContext } from "@/lib/observability";
+import { calculateCostUsd } from "@/lib/pricing";
 import { UNTRUSTED_CONTENT_GUARDRAIL, wrapUntrusted } from "@/lib/agent-runtime";
 
 export interface InboundMessage {
@@ -60,6 +63,7 @@ type WsTx = Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 // file is untouched.
 import { withWorkspaceTx } from "@/lib/tenant/context";
 import { allowsPassiveMemoryRecall } from "@/lib/channels/public-channels";
+import { resolveMaxToolCalls } from "@/lib/agents/tool-call-cap";
 
 /**
  * Contexto resuelto para una conversación conversacional lista para invocar LLM.
@@ -244,18 +248,24 @@ async function resolveInbound(
     const t = setTimeout(() => abort.abort(), FLOW_AGENT_INLINE_TIMEOUT_MS);
     let result;
     try {
-      result = await executeFlow({
-        flowId: agent.flowId,
-        workspaceId,
-        triggerSource: `channel:${channel.id}`,
-        input: {
-          message: msg.text,
-          customerName: msg.customerName ?? "",
-          customerEmail: msg.customerEmail ?? "",
-          externalId: msg.externalId,
-        },
-        signal: abort.signal,
-      });
+      try {
+        result = await executeFlow({
+          flowId: agent.flowId,
+          workspaceId,
+          triggerSource: `channel:${channel.id}`,
+          input: {
+            message: msg.text,
+            customerName: msg.customerName ?? "",
+            customerEmail: msg.customerEmail ?? "",
+            externalId: msg.externalId,
+          },
+          signal: abort.signal,
+        });
+      } catch (e) {
+        // A disabled flow answers with the agent's fallback, like a failed run.
+        if (!(e instanceof FlowDisabledError)) throw e;
+        result = { runId: "", status: "failed" as const, error: e.message };
+      }
     } finally {
       clearTimeout(t);
     }
@@ -300,7 +310,6 @@ async function persistAssistantTurn(
 ): Promise<void> {
   const { workspaceId, baseMessageCount } = ctx;
   const db = tx;
-  const { calculateCostUsd } = await import("@/lib/pricing");
   const { recordMessageCost } = await import("@/lib/employee-budget");
   const messageId = createId();
   const costUsd = calculateCostUsd(activeAgent.model, tokens);
@@ -462,10 +471,61 @@ function wrapMemoryBlock(memoryBlock: string): string {
  * Turno conversacional bloqueante: loop LLM + tools + handoff, luego persiste.
  * Comportamiento idéntico al `handleInbound` histórico.
  */
-async function runConversationalTurn(
+async function runConversationalTurn(ctx: ConvCtx): Promise<OutboundResponse> {
+  // The accumulator lives outside the transaction: the failure is metered only after the
+  // turn's transaction has rejected (rolled back or failed to commit) and released its
+  // connection. Metering from inside would hold two pool connections per failing turn.
+  const spent: TurnSpend = { tokens: 0, costUsd: 0, model: ctx.agent.model };
+  try {
+    return await withWorkspaceTx(ctx.workspaceId, (tx) => runConversationalLoop(ctx, tx, spent));
+  } catch (e) {
+    await recordFailedTurnUsage(ctx, spent, e);
+    throw e;
+  }
+}
+
+/** What the model calls of one turn have cost so far (accumulated per call). */
+interface TurnSpend {
+  tokens: number;
+  costUsd: number;
+  model: string;
+}
+
+/**
+ * A turn that throws after paying for model calls still has to count against the monthly
+ * spend cap. The turn's own transaction rolls back on the throw, so the event is written
+ * in a separate one. Only the error class is stored: its message can carry user text.
+ * Never throws: metering must not mask the original error.
+ */
+async function recordFailedTurnUsage(ctx: ConvCtx, spent: TurnSpend, error: unknown) {
+  if (spent.tokens <= 0) return;
+  try {
+    await withWorkspaceTx(ctx.workspaceId, (tx) =>
+      tx.insert(schema.usageEvents).values({
+        id: createId(),
+        workspaceId: ctx.workspaceId,
+        kind: "agent_message",
+        amount: 1,
+        costUsd: String(spent.costUsd),
+        agentId: ctx.agent.id,
+        metadata: {
+          tokens: spent.tokens,
+          model: spent.model,
+          failed: true,
+          error: error instanceof Error ? error.constructor.name : typeof error,
+        },
+      })
+    );
+  } catch (e) {
+    logWithContext("error", "failed-turn usage event not recorded", { error: String(e) });
+  }
+}
+
+async function runConversationalLoop(
   ctx: ConvCtx,
   /** Tx con `app.workspace_id` SET LOCAL — usado por todas las queries del turno. */
-  tx: WsTx
+  tx: WsTx,
+  spent: TurnSpend
 ): Promise<OutboundResponse> {
   const { workspaceId, agent } = ctx;
   const db = tx;
@@ -478,13 +538,21 @@ async function runConversationalTurn(
   // pivotea `conversation.agentId` → en la próxima iteración tenemos que
   // recargar el agente y reconstruir prompt/tools/temperature acordes.
   let activeAgent = agent;
-  let activeTools = await resolveToolDefinitions(workspaceId, activeAgent.tools ?? [], tx);
+  let activeTools = await resolveToolDefinitions(
+    workspaceId,
+    activeAgent.tools ?? [],
+    tx,
+    activeAgent
+  );
   let activeSystemPrompt = systemPrompt;
   let reply = "";
   let tokens = 0;
   let safetyCounter = 0;
   let handoffCount = 0; // protege contra ping-pong infinito entre agentes
-  while (safetyCounter < 5) {
+  // Per-agent cap (default 5). Fixed by the agent that opened the turn: a handoff
+  // changes who answers, not how long this turn may run.
+  const maxModelCalls = resolveMaxToolCalls(agent.config);
+  while (safetyCounter < maxModelCalls) {
     safetyCounter++;
     // Spend cap / kill-switch (E1-1/E3-1): aplica también al chat entrante.
     // El bypass de este check fue el principal hallazgo de la meta-auditoría.
@@ -504,6 +572,9 @@ async function runConversationalTurn(
       ...(activeTools.length > 0 && { tools: activeTools }),
     });
     tokens += r.tokensUsed;
+    spent.tokens = tokens;
+    spent.costUsd += calculateCostUsd(activeAgent.model, r.tokensUsed);
+    spent.model = activeAgent.model;
     if (r.toolCalls && r.toolCalls.length > 0) {
       // Execute tool calls and feed results back
       chatMsgs.push({
@@ -568,7 +639,12 @@ async function runConversationalTurn(
             .limit(1);
           if (newAgentRows[0]) {
             activeAgent = newAgentRows[0];
-            activeTools = await resolveToolDefinitions(workspaceId, activeAgent.tools ?? [], tx);
+            activeTools = await resolveToolDefinitions(
+              workspaceId,
+              activeAgent.tools ?? [],
+              tx,
+              activeAgent
+            );
             // Re-inyectá memorias del nuevo agente (cambia el contexto).
             // Phase F.1 fix: thread `tx` so the SELECT runs under the
             // turn's tenant context.
@@ -631,7 +707,7 @@ export async function handleInbound(
       tokensUsed: res.tokensUsed,
     };
   }
-  const result = await withWorkspaceTx(workspaceId, (tx) => runConversationalTurn(res.ctx, tx));
+  const result = await runConversationalTurn(res.ctx);
 
   // Phase 3 — host-side brain extraction retired. Mnemosyne service
   // ingests turns via its own pipeline; orchester no longer enqueues
@@ -714,7 +790,7 @@ export async function* handleInboundStream(
   // resultado como un solo bloque. Persistencia idéntica.
   if (hasTools) {
     try {
-      const out = await withWorkspaceTx(wsId, (tx) => runConversationalTurn(ctx, tx));
+      const out = await runConversationalTurn(ctx);
       if (out.reply) yield { type: "text", delta: out.reply };
       yield {
         type: "done",

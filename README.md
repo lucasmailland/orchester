@@ -444,21 +444,43 @@ Orchester ships a built-in MCP server. Point Claude Desktop, Cursor, or any MCP-
 
 Beyond `list_flows` and `run_flow`, the client can author and troubleshoot flows without opening the Studio:
 
-| Tool                  | Access | What it does                                                                      |
-| --------------------- | ------ | --------------------------------------------------------------------------------- |
-| `get_flow`            | read   | The whole flow: spec, steps with their purpose, connections, variables, state.    |
-| `validate_flow`       | read   | Validates a saved flow (`flowId`) or an unsaved graph (`nodes`, `edges`, `spec`). |
-| `create_flow`         | write  | Creates a flow. A graph with errors is rejected and the issues come back.         |
-| `update_flow`         | write  | Partial update of a flow. A graph with errors is rejected.                        |
-| `get_flow_run`        | read   | State, input, output and error of one run, with its steps in order.               |
-| `list_flow_runs`      | read   | Latest runs of a flow, without steps. Default 20, max 100.                        |
-| `create_flow_webhook` | write  | Creates an inbound webhook for the flow and returns its URL.                      |
-| `list_flow_webhooks`  | read   | Webhooks of a flow: id, date and whether they use HMAC.                           |
+| Tool                  | Access | What it does                                                                                                                                                                  |
+| --------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_flow`            | read   | The whole flow: kind, external callers, spec, steps with their purpose, connections, variables, state.                                                                        |
+| `describe_flow`       | read   | Fact sheet computed from the graph: kind, steps by nature, variables read/written, subflows and integration actions called (with effect), callers, webhooks, contract issues. |
+| `validate_flow`       | read   | Validates a saved flow (`flowId`) or an unsaved graph (`nodes`, `edges`, `spec`).                                                                                             |
+| `create_flow`         | write  | Creates a flow (optionally `kind` and `externalCallers`). A graph with errors is rejected and the issues come back.                                                           |
+| `update_flow`         | write  | Partial update of a flow, including `kind` and `externalCallers`. A graph with errors is rejected.                                                                            |
+| `get_flow_run`        | read   | State, input, output and error of one run, with its steps in order.                                                                                                           |
+| `list_flow_runs`      | read   | Latest runs of a flow, without steps. Default 20, max 100.                                                                                                                    |
+| `create_flow_webhook` | write  | Creates an inbound webhook for the flow and returns its URL.                                                                                                                  |
+| `list_flow_webhooks`  | read   | Webhooks of a flow: id, `enabled`, date and whether they use HMAC.                                                                                                            |
+| `update_flow_webhook` | write  | Pauses or resumes a webhook (`enabled`). A paused webhook answers inbound calls with 404. Never returns secrets.                                                              |
+| `delete_flow_webhook` | delete | Deletes a webhook for good. Needs `flows:delete` and `confirm` equal to the webhook id.                                                                                       |
+
+##### Flow fact sheet
+
+`describe_flow` (and the REST `GET /api/flows/:id/describe`) returns a sheet computed from the graph, so it cannot drift from it: `kind`, `enabled`, `externalCallers`; `steps` (counts by `ai | human | code | control`, plus the AI and human steps); `reads` (variables read but never set inside the flow, its de-facto inputs) and `writes`; `calls` (subflows with their `inputs`/`outputs` keys, integration actions with `effect` = `read | write | unknown`); `calledBy` (flows, declared external callers, webhooks); and `contract` (action-contract issues, empty for pipelines).
+
+The variable analysis is static and conservative. It reads `{{expression}}` templates in every node config and each node's `outputVar` (or the engine default). What it cannot name goes to `unknown` instead of being guessed: spreadsheet formulas, JavaScript `code` steps, subflows without `outputs`, non-literal `transform` templates and unreadable expressions. Order is ignored, and an integration `effect` is `unknown` when the action cannot be resolved or when a `read` depends on a templated input.
+
+##### Flow kind and external callers
+
+Every flow has two labelling fields, readable with `get_flow` and writable with `create_flow` / `update_flow` (and the REST `POST /api/flows` / `PATCH /api/flows/:id`):
+
+| Field             | Values                                                               | Meaning                                                                                                                                              |
+| ----------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kind`            | `pipeline` (default) or `action`                                     | A `pipeline` is a top-level flow. An `action` is a reusable building block that pipelines call. `list_flows` returns it and accepts a `kind` filter. |
+| `externalCallers` | `[{ name, note? }]`, max 10 entries, `name` ≤ 80, `note` ≤ 200 chars | Callers **outside** the product, such as a script calling `run_flow` by id. The in-product reference check cannot see them.                          |
+
+An `action` must be deterministic and self-contained. The validator (`validate_flow`, `create_flow`, `update_flow`) rejects an action that has any AI step, a `wait_human` step, a `subflow` / `flow_call` step, or flow-level `variables`. Pipelines have no such restriction.
+
+`delete_flow` (and the REST `DELETE /api/flows/:id`) **refuses while `externalCallers` is non-empty**. `get_flow_delete_impact` reports them under `blockers.externalCallers`. Clear the list first with `update_flow` (`externalCallers: []`) once nothing outside calls the flow any more.
 
 > [!IMPORTANT]
 > The MCP server runs with the **same RBAC + quota stack as the REST API**. A read-only API key sees read-only tools. A workspace-scoped key cannot see another workspace's flows. This is enforced by the invariants guard — not by review.
 >
-> The `create_flow`, `update_flow`, and `create_flow_webhook` tools use a stricter scope rule than the rest: they accept a key that is **unscoped** (legacy full access) or holds **`write`** or **`flows:write`**. A `readonly` key always refuses, and so does an `agents:write` key — being allowed to run agents does not grant editing flows.
+> The `create_flow`, `update_flow`, `create_flow_webhook`, and `update_flow_webhook` tools use a stricter scope rule than the rest: they accept a key that is **unscoped** (legacy full access) or holds **`write`** or **`flows:write`**. A `readonly` key always refuses, and so does an `agents:write` key — being allowed to run agents does not grant editing flows.
 >
 > `run_flow` is not scope-gated: any non-readonly workspace key can execute any flow in that workspace.
 >

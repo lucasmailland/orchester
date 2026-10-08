@@ -2,6 +2,9 @@ import "server-only";
 import type { ImageToolOutput, ToolImagePart } from "./ai/capabilities";
 
 export const MAX_TOOL_IMAGES = 4;
+/** Hard ceiling: a tool may declare `maxImages` above the default, never above this. */
+export const MAX_TOOL_IMAGES_HARD = 8;
+export const MIN_TOOL_IMAGE_BYTES = 10 * 1024;
 export const MAX_TOOL_IMAGE_BYTES = 1024 * 1024;
 const MEDIA_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 
@@ -15,7 +18,11 @@ function isImageOutput(value: unknown): value is ImageToolOutput {
 }
 
 /** Validate at the model boundary too: arbitrary tools can return this shape. */
-export function normalizeToolOutput(output: unknown): { text: string; images: ToolImagePart[] } {
+export function normalizeToolOutput(output: unknown): {
+  text: string;
+  images: ToolImagePart[];
+  maxImages?: number;
+} {
   if (!isImageOutput(output)) {
     return {
       text: typeof output === "string" ? output : JSON.stringify(output ?? null),
@@ -24,6 +31,10 @@ export function normalizeToolOutput(output: unknown): { text: string; images: To
   }
   const notes: string[] = [];
   const images: ToolImagePart[] = [];
+  const declared = typeof output.maxImages === "number" ? Math.trunc(output.maxImages) : NaN;
+  const cap = Number.isFinite(declared)
+    ? Math.min(Math.max(declared, 1), MAX_TOOL_IMAGES_HARD)
+    : MAX_TOOL_IMAGES;
   for (const [index, image] of (output.images ?? []).entries()) {
     const name = image?.name || `image ${index + 1}`;
     let reason: string | undefined;
@@ -37,11 +48,15 @@ export function normalizeToolOutput(output: unknown): { text: string; images: To
       reason = "invalid base64";
     else if (Buffer.byteLength(image.base64, "base64") > MAX_TOOL_IMAGE_BYTES)
       reason = "exceeds 1 MB";
-    else if (images.length >= MAX_TOOL_IMAGES) reason = "limit of 4 images";
+    else if (images.length >= cap) reason = `limit of ${cap} images`;
     if (reason) notes.push(`[image omitted: ${name}, ${reason}]`);
     else images.push(image);
   }
-  return { text: [output.text ?? "", ...notes].filter(Boolean).join("\n"), images };
+  return {
+    text: [output.text ?? "", ...notes].filter(Boolean).join("\n"),
+    images,
+    ...(cap > MAX_TOOL_IMAGES ? { maxImages: cap } : {}),
+  };
 }
 
 /** Keep the existing trust wrapper on text; never stringify image bytes into it. */

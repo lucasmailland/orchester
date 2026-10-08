@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   assertMcpUrl,
+  mcpHashedToolName,
   mcpToolName,
   offeredMcpTools,
   parseMcpConfig,
@@ -61,6 +62,32 @@ describe("MCP tool policy", () => {
     for (const name of names) expect(name).toMatch(/^mcp__[a-zA-Z0-9_-]{1,59}$/);
     expect(mcpToolName("integration-test", "a.b")).toBe(names[0]);
     expect(mcpToolName("a/b", "read")).not.toBe(mcpToolName("a.b", "read"));
+  });
+  it("keeps clean names readable, with no hash suffix", () => {
+    expect(mcpToolName("crm-mcp", "get_company")).toBe("mcp__crm-mcp__get_company");
+    expect(mcpToolName("crm-mcp", "find_company_by_fiscal_code")).toBe(
+      "mcp__crm-mcp__find_company_by_fiscal_code"
+    );
+  });
+  it("falls back to the hashed form when the readable one would be unsafe or ambiguous", () => {
+    for (const [key, tool] of [
+      ["crm-mcp", "get.company"],
+      ["crm-mcp", "get company"],
+      ["crm-mcp", "get__company"],
+      ["crm__mcp", "get_company"],
+      ["crm-mcp", "x".repeat(60)],
+      ["crm-mcp", ""],
+    ] as const) {
+      const name = mcpToolName(key, tool);
+      expect(name).toBe(mcpHashedToolName(key, tool));
+      expect(name).toMatch(/_[0-9a-f]{16}$/);
+      expect(name.length).toBeLessThanOrEqual(64);
+    }
+  });
+  it("allows readable names up to exactly 64 characters", () => {
+    const tool = "t".repeat(64 - "mcp__crm-mcp__".length);
+    expect(mcpToolName("crm-mcp", tool)).toBe(`mcp__crm-mcp__${tool}`);
+    expect(mcpToolName("crm-mcp", tool + "t")).toMatch(/_[0-9a-f]{16}$/);
   });
   it("parses connector strings with timeout bounds and optional JSON allowlist", () => {
     const config = { url: "https://mcp.example.com/mcp" };
