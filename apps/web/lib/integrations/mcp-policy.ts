@@ -47,8 +47,7 @@ export function parseMcpConfig(config: Record<string, string>) {
 interface AnnotatedTool {
   name: string;
   annotations?:
-    | { readOnlyHint?: boolean | undefined; destructiveHint?: boolean | undefined }
-    | undefined;
+    { readOnlyHint?: boolean | undefined; destructiveHint?: boolean | undefined } | undefined;
 }
 
 export function offeredMcpTools<T extends AnnotatedTool>(tools: T[], allowlist?: string[]) {
@@ -65,12 +64,34 @@ export function offeredMcpTools<T extends AnnotatedTool>(tools: T[], allowlist?:
     }));
 }
 
+const MAX_PROVIDER_TOOL_NAME = 64;
+const SAFE_PART = /^[a-zA-Z0-9_-]+$/;
+
 /** Hash the original pair so sanitation/truncation collisions remain stable across list order. */
-export function mcpToolName(integrationKey: string, toolName: string): string {
+export function mcpHashedToolName(integrationKey: string, toolName: string): string {
   const clean = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, "_");
   const suffix = createHash("sha256")
     .update(JSON.stringify([integrationKey, toolName]))
     .digest("hex")
     .slice(0, 16);
   return `mcp__${clean(integrationKey).slice(0, 20)}__${clean(toolName).slice(0, 20)}_${suffix}`;
+}
+
+/**
+ * Readable `mcp__<key>__<tool>` when nothing needs sanitising or truncating and the `__`
+ * separator stays unambiguous; otherwise the hashed form. Names are persisted in
+ * `agent.tools`, so this scheme must not change for existing inputs.
+ */
+export function mcpToolName(integrationKey: string, toolName: string): string {
+  const readable = `mcp__${integrationKey}__${toolName}`;
+  if (
+    SAFE_PART.test(integrationKey) &&
+    SAFE_PART.test(toolName) &&
+    !integrationKey.includes("__") &&
+    !toolName.includes("__") &&
+    readable.length <= MAX_PROVIDER_TOOL_NAME
+  ) {
+    return readable;
+  }
+  return mcpHashedToolName(integrationKey, toolName);
 }

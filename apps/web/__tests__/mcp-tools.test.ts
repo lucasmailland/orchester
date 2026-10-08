@@ -21,6 +21,8 @@ vi.mock("@/lib/workspace", () => ({
 }));
 import * as tools from "@/lib/tools";
 import { GET } from "@/app/api/tools/route";
+import { mcpHashedToolName } from "@/lib/integrations/mcp-policy";
+import { listWorkspaceMcpTools } from "@/lib/integrations/mcp-tools";
 const definition = {
   name: "mcp__integration_test__read",
   remoteName: "read",
@@ -73,6 +75,74 @@ describe("workspace MCP tool registry", () => {
       integration.config,
       "read",
       { query: "test" }
+    );
+  });
+  describe("name collisions across integrations", () => {
+    // key "a_" + tool "b" and key "a" + tool "_b" both read mcp__a___b.
+    const a = { ...integration, id: "a_", name: "A" };
+    const b = { ...integration, id: "a", name: "B" };
+    const setup = (order: (typeof a)[]) => {
+      mocks.list.mockResolvedValue(order);
+      mocks.load.mockImplementation(async (_w: string, id: string) =>
+        order.find((i) => i.id === id)
+      );
+      mocks.discover.mockImplementation(async (identity: { integrationId: string }) => {
+        const remote = identity.integrationId === "a_" ? "b" : "_b";
+        return [{ ...definition, name: "mcp__a___b", remoteName: remote }];
+      });
+    };
+    it("hashes every colliding entry, independent of list order", async () => {
+      setup([a, b]);
+      const first = await listWorkspaceMcpTools("workspace-test");
+      setup([b, a]);
+      const second = await listWorkspaceMcpTools("workspace-test");
+      const names = (list: typeof first) =>
+        Object.fromEntries(list.map((t) => [t.integrationId, t.name]));
+      expect(names(first)).toEqual(names(second));
+      expect(names(first)["a_"]).toBe(mcpHashedToolName("a_", "b"));
+      expect(names(first)["a"]).toBe(mcpHashedToolName("a", "_b"));
+      expect(new Set(first.map((t) => t.name)).size).toBe(2);
+    });
+    it("routes both hashed names to the exact integration and remote tool", async () => {
+      setup([a, b]);
+      const ctx = { workspaceId: "workspace-test", variables: {} };
+      await tools.executeTool(mcpHashedToolName("a_", "b"), { q: 1 }, ctx);
+      expect(mocks.call).toHaveBeenLastCalledWith(
+        { workspaceId: "workspace-test", integrationId: "a_" },
+        a.config,
+        "b",
+        { q: 1 }
+      );
+      await tools.executeTool(mcpHashedToolName("a", "_b"), {}, ctx);
+      expect(mocks.call).toHaveBeenLastCalledWith(
+        { workspaceId: "workspace-test", integrationId: "a" },
+        b.config,
+        "_b",
+        {}
+      );
+      await expect(tools.executeTool("mcp__a___b", {}, ctx)).rejects.toThrow();
+    });
+  });
+  it("routes readable and hashed names alike", async () => {
+    const hashed = mcpHashedToolName("integration-test", "read.docs");
+    mocks.discover.mockResolvedValue([
+      { ...definition, name: "mcp__integration-test__read_docs", remoteName: "read_docs" },
+      { ...definition, name: hashed, remoteName: "read.docs" },
+    ]);
+    const ctx = { workspaceId: "workspace-test", variables: {} };
+    await tools.executeTool("mcp__integration-test__read_docs", {}, ctx);
+    expect(mocks.call).toHaveBeenLastCalledWith(
+      expect.anything(),
+      integration.config,
+      "read_docs",
+      {}
+    );
+    await tools.executeTool(hashed, {}, ctx);
+    expect(mocks.call).toHaveBeenLastCalledWith(
+      expect.anything(),
+      integration.config,
+      "read.docs",
+      {}
     );
   });
   it("refuses unavailable or disabled tools at execution", async () => {
