@@ -77,6 +77,12 @@ export type ActionEffect = "read" | "write";
 export interface ConnectorAction {
   description: string;
   effect: ActionEffect | ((input: Record<string, unknown>) => ActionEffect);
+  /**
+   * Input keys that decide a function `effect` (nothing else is read). Lets a
+   * static description trust the effect when those keys are literal even if
+   * other keys hold `{{templates}}`. Omitted: the whole input counts.
+   */
+  effectKeys?: readonly string[];
   inputSchema: JsonSchema;
   run: (config: Record<string, string>, input: Record<string, unknown>) => Promise<unknown>;
 }
@@ -102,6 +108,27 @@ export function actionEffect(
   const e = action?.effect as ConnectorAction["effect"] | undefined;
   if (typeof e === "function") return e(input) === "read" ? "read" : "write";
   return e === "read" ? "read" : "write";
+}
+
+/**
+ * The effect to report for a step whose input may still hold `{{templates}}`,
+ * or undefined when it cannot be told without running. Never guesses:
+ * - a fixed effect does not depend on the input, so it is always known;
+ * - a computed effect with `effectKeys` is known when those keys are literal;
+ * - a computed effect without `effectKeys` is trusted as `write`, and as
+ *   `read` only when no part of the input is templated.
+ */
+export function describedActionEffect(
+  action: Pick<ConnectorAction, "effect" | "effectKeys"> | undefined,
+  input: Record<string, unknown>
+): ActionEffect | undefined {
+  const effect = actionEffect(action, input);
+  if (typeof action?.effect !== "function") return effect;
+  const templated = (v: unknown) => /\{\{/.test(JSON.stringify(v) ?? "");
+  if (action.effectKeys) {
+    return action.effectKeys.some((k) => templated(input[k])) ? undefined : effect;
+  }
+  return effect === "write" || !templated(input) ? effect : undefined;
 }
 
 export interface TestResult {
@@ -465,6 +492,7 @@ const http: Connector = {
     request: {
       effect: (input) =>
         SAFE_HTTP_METHODS.has(String(input.method ?? "GET").toUpperCase()) ? "read" : "write",
+      effectKeys: ["method"],
       description:
         "Make an HTTP request to {baseUrl}{path}. method GET/POST/PUT/DELETE; optional JSON body.",
       inputSchema: {
@@ -1739,6 +1767,7 @@ const odoo: Connector = {
 
     execute: {
       effect: (input) => (ODOO_READ_METHODS.has(String(input.method)) ? "read" : "write"),
+      effectKeys: ["method"],
       description:
         "Escape hatch — call any model method (execute_kw). Use only when no dedicated action fits.",
       inputSchema: {

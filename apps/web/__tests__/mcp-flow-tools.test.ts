@@ -45,10 +45,12 @@ const svc = vi.hoisted(() => ({
 vi.mock("@/lib/flows/service", () => svc);
 const store = vi.hoisted(() => ({
   // Like FORCE RLS: the integration row is only visible inside a workspace transaction.
-  getIntegrationActionEffect: vi.fn(
+  describeIntegrationActionEffect: vi.fn(
     async (_ws: string, _id: string, action: string, _input: unknown, tx?: unknown) => {
       if (!tx) throw new Error("Integración no encontrada");
       if (action === "gone") throw new Error("Integración no encontrada");
+      // An action whose effect depends on a templated input cannot be told.
+      if (action === "dyn") return undefined;
       return action === "get" ? "read" : "write";
     }
   ),
@@ -185,7 +187,7 @@ describe("flow MCP tools", async () => {
             id: "t",
             type: "integration",
             label: "T",
-            config: { integrationId: "crm::get", input: { m: "{{method}}" } },
+            config: { integrationId: "crm::dyn", input: { m: "{{method}}" } },
           },
         ]) as never
       );
@@ -208,7 +210,9 @@ describe("flow MCP tools", async () => {
       expect(svc.getFlow).toHaveBeenCalledWith(actor, "f1");
       expect(svc.listFlows).toHaveBeenCalledWith(actor);
       expect(svc.listFlowWebhooks).toHaveBeenCalledWith(actor, "f1", { redact: true });
-      expect(store.getIntegrationActionEffect.mock.calls.every((c) => c[0] === "ws_a")).toBe(true);
+      expect(store.describeIntegrationActionEffect.mock.calls.every((c) => c[0] === "ws_a")).toBe(
+        true
+      );
       expect(out.calls.integrations.map((i) => [i.nodeId, i.effect])).toEqual([
         ["c", "read"],
         ["d", "write"],

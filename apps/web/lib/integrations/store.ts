@@ -3,7 +3,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { and, eq } from "drizzle-orm";
 import { encrypt, decrypt } from "@/lib/encryption";
-import { actionEffect, getConnector, type ActionEffect } from "./registry";
+import { actionEffect, describedActionEffect, getConnector, type ActionEffect } from "./registry";
 import { resolveIntegrationRef } from "./resolve";
 
 /**
@@ -254,4 +254,19 @@ export async function getIntegrationActionEffect(
 ): Promise<ActionEffect> {
   const { action } = await resolveConnectorAction(workspaceId, integrationId, actionKey, tx);
   return actionEffect(action, input);
+}
+
+/**
+ * Like `getIntegrationActionEffect`, for a step whose input may hold
+ * `{{templates}}`: undefined when the effect cannot be told without running.
+ */
+export async function describeIntegrationActionEffect(
+  workspaceId: string,
+  integrationId: string,
+  actionKey: string,
+  input: Record<string, unknown>,
+  tx?: WsDb
+): Promise<ActionEffect | undefined> {
+  const { action } = await resolveConnectorAction(workspaceId, integrationId, actionKey, tx);
+  return describedActionEffect(action, input);
 }

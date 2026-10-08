@@ -3,8 +3,6 @@ import { describeFlow, type FlowSheet } from "./describe";
 import { normalizeFlowNodes } from "./normalize";
 import type { FlowActor } from "./service";
 
-const TEMPLATE = /\{\{/;
-
 /**
  * Loads a flow, its callers and its webhooks through the workspace-bound
  * service and returns its fact sheet. Used by the MCP tool and the REST route
@@ -12,8 +10,9 @@ const TEMPLATE = /\{\{/;
  *
  * Effects are looked up per integration step and are never guessed: an action
  * that cannot be resolved (integration gone, disabled, ambiguous) stays
- * unknown, and a "read" is only trusted when the step's input has no template,
- * because some actions decide their effect from the input.
+ * unknown. An action with a fixed effect is always known; one that decides its
+ * effect from the input (`execute`, `request`) is known only when the keys that
+ * decide it hold no template (see `describedActionEffect`).
  */
 export async function loadFlowSheet(actor: FlowActor, flowId: string): Promise<FlowSheet> {
   const svc = await import("./service");
@@ -24,7 +23,7 @@ export async function loadFlowSheet(actor: FlowActor, flowId: string): Promise<F
   ]);
 
   const effects: Record<string, "read" | "write" | undefined> = {};
-  const { getIntegrationActionEffect } = await import("@/lib/integrations/store");
+  const { describeIntegrationActionEffect } = await import("@/lib/integrations/store");
   const { withWorkspaceTx } = await import("@/lib/tenant/context");
   for (const n of normalizeFlowNodes(flow.nodes)) {
     if (n.type !== "integration") continue;
@@ -39,11 +38,9 @@ export async function loadFlowSheet(actor: FlowActor, flowId: string): Promise<F
         : {};
     try {
       // Workspace transaction: FORCE RLS hides the integration row otherwise.
-      const effect = await withWorkspaceTx(actor.workspaceId, (tx) =>
-        getIntegrationActionEffect(actor.workspaceId, integrationId, action, input, tx)
+      effects[n.id] = await withWorkspaceTx(actor.workspaceId, (tx) =>
+        describeIntegrationActionEffect(actor.workspaceId, integrationId, action, input, tx)
       );
-      effects[n.id] =
-        effect === "write" || !TEMPLATE.test(JSON.stringify(input)) ? effect : undefined;
     } catch {
       effects[n.id] = undefined;
     }
