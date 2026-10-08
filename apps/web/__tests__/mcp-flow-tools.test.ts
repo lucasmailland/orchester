@@ -44,10 +44,17 @@ const svc = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/flows/service", () => svc);
 const store = vi.hoisted(() => ({
-  getIntegrationActionEffect: vi.fn(async (_ws: string, _id: string, action: string) => {
-    if (action === "gone") throw new Error("Integración no encontrada");
-    return action === "get" ? "read" : "write";
-  }),
+  // Like FORCE RLS: the integration row is only visible inside a workspace transaction.
+  getIntegrationActionEffect: vi.fn(
+    async (_ws: string, _id: string, action: string, _input: unknown, tx?: unknown) => {
+      if (!tx) throw new Error("Integración no encontrada");
+      if (action === "gone") throw new Error("Integración no encontrada");
+      return action === "get" ? "read" : "write";
+    }
+  ),
+}));
+vi.mock("@/lib/tenant/context", () => ({
+  withWorkspaceTx: async (_ws: string, fn: (tx: unknown) => unknown) => fn({ tx: true }),
 }));
 vi.mock("@/lib/integrations/store", () => store);
 vi.mock("@/lib/mnemo/client", () => ({ getMnemoClient: vi.fn() }));

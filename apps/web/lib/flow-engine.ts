@@ -1475,7 +1475,11 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       // the real run would raise, so the dry run cannot be green while the
       // real run would fail.
       const { getIntegrationActionEffect } = await import("./integrations/store");
-      const effect = await getIntegrationActionEffect(workspaceId, integrationId, action, input);
+      // Inside a workspace transaction: under FORCE RLS the integration row is invisible
+      // without the GUC and a valid action would look missing.
+      const effect = await withFlowTx(workspaceId, (tx) =>
+        getIntegrationActionEffect(workspaceId, integrationId, action, input, tx)
+      );
       if (effect !== "read") {
         const sim = simulated({ integrationId, action, input });
         ctx.variables[outputVar] = sim;

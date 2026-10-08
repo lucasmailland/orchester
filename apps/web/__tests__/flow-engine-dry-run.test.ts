@@ -68,6 +68,20 @@ describe("dry run: integration steps", () => {
     expect(JSON.stringify(st)).not.toContain("wouldCall");
   });
 
+  it("looks the action effect up inside a workspace transaction", async () => {
+    // Under FORCE RLS an integration row is invisible without the workspace GUC.
+    effectOf.mockImplementation(async (...a: unknown[]) => {
+      if (!a[4]) throw new Error("Integración no encontrada");
+      return "write";
+    });
+    const r = await dry(
+      [trigger, step("s", "integration", { integrationId: "odoo::create", input: {} })],
+      [edge("t", "s")]
+    );
+    expect(r.status).toBe("succeeded");
+    expect(runAction).not.toHaveBeenCalled();
+  });
+
   it("executes a read action", async () => {
     effectOf.mockResolvedValue("read");
     runAction.mockResolvedValue({ rows: [1] });
@@ -134,7 +148,8 @@ describe("dry run: integration steps", () => {
       "ws_test",
       "odoo",
       "execute",
-      expect.objectContaining({ method: "write" })
+      expect.objectContaining({ method: "write" }),
+      expect.anything()
     );
   });
 

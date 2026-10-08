@@ -25,6 +25,7 @@ export async function loadFlowSheet(actor: FlowActor, flowId: string): Promise<F
 
   const effects: Record<string, "read" | "write" | undefined> = {};
   const { getIntegrationActionEffect } = await import("@/lib/integrations/store");
+  const { withWorkspaceTx } = await import("@/lib/tenant/context");
   for (const n of normalizeFlowNodes(flow.nodes)) {
     if (n.type !== "integration") continue;
     const raw = typeof n.config.integrationId === "string" ? n.config.integrationId : "";
@@ -37,11 +38,9 @@ export async function loadFlowSheet(actor: FlowActor, flowId: string): Promise<F
         ? (n.config.input as Record<string, unknown>)
         : {};
     try {
-      const effect = await getIntegrationActionEffect(
-        actor.workspaceId,
-        integrationId,
-        action,
-        input
+      // Workspace transaction: FORCE RLS hides the integration row otherwise.
+      const effect = await withWorkspaceTx(actor.workspaceId, (tx) =>
+        getIntegrationActionEffect(actor.workspaceId, integrationId, action, input, tx)
       );
       effects[n.id] =
         effect === "write" || !TEMPLATE.test(JSON.stringify(input)) ? effect : undefined;
