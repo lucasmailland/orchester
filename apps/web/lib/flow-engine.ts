@@ -11,6 +11,7 @@ import { evaluateExpression } from "./flows/filters";
 import { parseRetryConfig, runWithRetry, StepFailure } from "./flows/retry";
 import { createApprovalToken, PauseRequested } from "./flows/pause";
 import { isDryRunSource, markDryRun, redactUrl, simulated } from "./flows/dry-run";
+import { assertFlowRunnable } from "./flows/run-gate";
 
 /**
  * R2-C: Flow execution writes to tenant tables (flow_runs,
@@ -327,11 +328,17 @@ export async function executeFlow({
   runId: existingRunId,
   signal,
   dryRun: dryRunOpt,
+  manual = false,
 }: {
   flowId: string;
   workspaceId: string;
   triggerSource: string;
   input: Record<string, unknown>;
+  /**
+   * A person started this run from the app. Only then may a disabled flow
+   * run (besides dry runs). See `assertFlowRunnable`.
+   */
+  manual?: boolean;
   onEvent?: FlowEmit;
   /**
    * Si se provee, la fila `flow_run` ya existe (creada por `enqueueFlowRun` con
@@ -374,6 +381,9 @@ export async function executeFlow({
   if (!flow) throw new Error("Flow not found");
 
   const dryRun = dryRunOpt ?? isDryRunSource(triggerSource);
+  // A run that already has a row was admitted by `enqueueFlowRun` (the queue
+  // worker path); everything else is checked here.
+  if (!existingRunId) assertFlowRunnable(flow, { dryRun, manual });
   const runId = existingRunId ?? createId();
   const runStartedAt = Date.now(); // sólo para la métrica de duración (D2)
   await withFlowTx(workspaceId, async (tx) => {
@@ -1616,6 +1626,7 @@ export async function enqueueFlowRun({
   triggerSource: rawTriggerSource,
   input,
   dryRun = false,
+  manual = false,
 }: {
   flowId: string;
   workspaceId: string;
@@ -1623,6 +1634,8 @@ export async function enqueueFlowRun({
   input: Record<string, unknown>;
   /** Marks the run in `triggerSource`; the worker reads the mark back. */
   dryRun?: boolean;
+  /** A person started this run from the app; see `assertFlowRunnable`. */
+  manual?: boolean;
 }): Promise<{
   runId: string;
   /**
@@ -1637,11 +1650,12 @@ export async function enqueueFlowRun({
   const triggerSource = dryRun ? markDryRun(rawTriggerSource) : rawTriggerSource;
   const db = getDb();
   const flowRows = await db
-    .select({ id: schema.flows.id })
+    .select({ id: schema.flows.id, name: schema.flows.name, enabled: schema.flows.enabled })
     .from(schema.flows)
     .where(and(eq(schema.flows.id, flowId), eq(schema.flows.workspaceId, workspaceId)))
     .limit(1);
   if (!flowRows[0]) throw new Error("Flow not found");
+  assertFlowRunnable(flowRows[0], { dryRun, manual });
 
   // B3: cap de concurrencia por flow.
   //

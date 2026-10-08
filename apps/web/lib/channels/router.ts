@@ -244,18 +244,24 @@ async function resolveInbound(
     const t = setTimeout(() => abort.abort(), FLOW_AGENT_INLINE_TIMEOUT_MS);
     let result;
     try {
-      result = await executeFlow({
-        flowId: agent.flowId,
-        workspaceId,
-        triggerSource: `channel:${channel.id}`,
-        input: {
-          message: msg.text,
-          customerName: msg.customerName ?? "",
-          customerEmail: msg.customerEmail ?? "",
-          externalId: msg.externalId,
-        },
-        signal: abort.signal,
-      });
+      try {
+        result = await executeFlow({
+          flowId: agent.flowId,
+          workspaceId,
+          triggerSource: `channel:${channel.id}`,
+          input: {
+            message: msg.text,
+            customerName: msg.customerName ?? "",
+            customerEmail: msg.customerEmail ?? "",
+            externalId: msg.externalId,
+          },
+          signal: abort.signal,
+        });
+      } catch (e) {
+        // A disabled flow answers with the agent's fallback, like a failed run.
+        if (!(e instanceof FlowDisabledError)) throw e;
+        result = { runId: "", status: "failed" as const, error: e.message };
+      }
     } finally {
       clearTimeout(t);
     }

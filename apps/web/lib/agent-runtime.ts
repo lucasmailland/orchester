@@ -13,6 +13,7 @@ import { assertWithinSpend } from "./cost-alerts";
 import { recordAiUsage } from "./ai/run";
 import { calculateChatCostUsd } from "./pricing";
 import { safeLogError } from "./safe-log";
+import { FlowDisabledError } from "./flows/run-gate";
 import { getAgentMemoryPolicy, type AgentMemoryPolicy } from "./policy/agent-memory";
 import type { RecallResponse } from "@mnemo-ai/client-ts";
 import { recallForWorkspace } from "@/lib/mnemo/recall";
@@ -375,17 +376,22 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
     const t = setTimeout(() => abort.abort(), FLOW_AGENT_INLINE_TIMEOUT_MS);
     let result;
     try {
-      result = await executeFlow({
-        flowId: p.agent.flowId,
-        workspaceId: p.workspaceId,
-        triggerSource: `agent:${p.agent.id}`,
-        input: {
-          message: lastUser?.content ?? "",
-          history: p.messages,
-          variables,
-        },
-        signal: abort.signal,
-      });
+      try {
+        result = await executeFlow({
+          flowId: p.agent.flowId,
+          workspaceId: p.workspaceId,
+          triggerSource: `agent:${p.agent.id}`,
+          input: {
+            message: lastUser?.content ?? "",
+            history: p.messages,
+            variables,
+          },
+          signal: abort.signal,
+        });
+      } catch (e) {
+        if (!(e instanceof FlowDisabledError)) throw e;
+        return { content: `_(${e.message})_`, tokensUsed: 0, model: "flow" };
+      }
     } finally {
       clearTimeout(t);
     }

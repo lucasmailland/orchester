@@ -22,9 +22,19 @@ export const state = {
     nodes: [] as unknown[],
     edges: [] as unknown[],
     variables: {},
+  } as {
+    id: string;
+    workspaceId: string;
+    nodes: unknown[];
+    edges: unknown[];
+    variables: Record<string, unknown>;
+    name?: string;
+    enabled?: boolean;
   },
   steps: [] as RecordedStep[],
   runUpdates: [] as Array<Record<string, unknown>>,
+  /** Flows handed out, in order, to successive lookups (parent, then child). */
+  flowQueue: [] as Array<Record<string, unknown>>,
   /** When set, every flow_run row the engine inserts is pushed here. */
   insertedRuns: undefined as Array<Record<string, unknown>> | undefined,
 };
@@ -64,7 +74,7 @@ function makeTx() {
         pendingSet = null;
         return Promise.resolve([]);
       }
-      return { limit: async () => [state.flow] };
+      return { limit: async () => [state.flowQueue.shift() ?? state.flow] };
     },
     insert: () => tx,
     values: async (row: Record<string, unknown>) => {
