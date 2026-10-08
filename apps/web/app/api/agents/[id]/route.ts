@@ -5,6 +5,8 @@ import { getCurrentWorkspace } from "@/lib/workspace";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { updateAgentSchema } from "@/lib/agents/schemas";
+import { deleteAgent } from "@/lib/agents/admin-service";
+import { adminErrorResponse } from "@/lib/workspace-admin";
 import { logAudit } from "@/lib/audit";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -99,27 +101,11 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!isAuthContext(ctx)) return ctx;
 
   const { id } = await params;
-  const db = getDb();
-  const before = (
-    await db
-      .select({ name: schema.agents.name })
-      .from(schema.agents)
-      .where(and(eq(schema.agents.id, id), eq(schema.agents.workspaceId, ctx.workspace.id)))
-      .limit(1)
-  )[0];
-  const deleted = await db
-    .delete(schema.agents)
-    .where(and(eq(schema.agents.id, id), eq(schema.agents.workspaceId, ctx.workspace.id)))
-    .returning({ id: schema.agents.id });
-
-  if (!deleted[0]) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  await logAudit({
-    workspaceId: ctx.workspace.id,
-    userId: ctx.user.id,
-    action: "agent.delete",
-    resource: "agent",
-    resourceId: id,
-    before: before ? { name: before.name } : undefined,
-  });
-  return NextResponse.json({ ok: true });
+  try {
+    return NextResponse.json(
+      await deleteAgent({ kind: "user", workspaceId: ctx.workspace.id, userId: ctx.user.id }, id)
+    );
+  } catch (e) {
+    return adminErrorResponse(e);
+  }
 }

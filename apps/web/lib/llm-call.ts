@@ -4,6 +4,7 @@ import { withWorkspaceTx } from "@/lib/tenant/context";
 import { eq, and } from "drizzle-orm";
 import { decrypt } from "./encryption";
 import { type ProviderType } from "./providers";
+import { normalizeToolOutput } from "./tool-output";
 import { resolveModel } from "./ai/catalog";
 import { fetchWithTimeout, fetchStreamWithConnectTimeout, withRetry, HttpError } from "./http-util";
 import { recordMetric, logWithContext } from "./observability";
@@ -211,6 +212,31 @@ async function getProviderKey(
   return { apiKey: decrypt(row.apiKey), endpoint: row.endpoint };
 }
 
+/** Some providers echo request fragments in validation errors. They must not reach logs or storage. */
+function redactImageError(text: string, messages: ChatMessage[]): string {
+  for (const message of messages) {
+    for (const result of message.toolResults ?? []) {
+      const output = result.output as { images?: Array<{ base64?: string; name?: string }> } | null;
+      if (!Array.isArray(output?.images)) continue;
+      for (const image of output.images) {
+        if (typeof image?.base64 === "string" && image.base64.length) {
+          text = text.split(image.base64).join(`[image: ${image.name ?? "unnamed"}]`);
+        }
+      }
+    }
+  }
+  return text;
+}
+
+function sanitizeImageError(error: unknown, messages: ChatMessage[]): unknown {
+  if (error instanceof Error) {
+    error.message = redactImageError(error.message, messages);
+    if (error.stack) error.stack = redactImageError(error.stack, messages);
+    return error;
+  }
+  return redactImageError(String(error), messages);
+}
+
 export async function llmCall(p: LlmCallParams): Promise<LlmCallResult> {
   const startedAt = Date.now();
   try {
@@ -221,7 +247,8 @@ export async function llmCall(p: LlmCallParams): Promise<LlmCallResult> {
       provider: providerOf(p.model),
     });
     return res;
-  } catch (e) {
+  } catch (caught) {
+    const e = sanitizeImageError(caught, p.messages);
     // Log correlacionado del error (D1) sin romper el flujo de propagación.
     logWithContext("error", "[llm-call] llmCall failed", {
       ...(p.correlationId ? { correlationId: p.correlationId } : {}),
@@ -246,7 +273,15 @@ async function llmCallInner(p: LlmCallParams): Promise<LlmCallResult> {
   if (!resolved || resolved.capability !== "chat")
     throw new Error(`No reconozco el modelo de chat "${p.model}".`);
   const { apiKey, endpoint } = await getProviderKey(p.workspaceId, resolved.provider.id, p.tx);
-  const params = { ...p, model: resolved.model };
+  const acceptsImages =
+    resolved.supportsVision === true &&
+    ["anthropic", "bedrock", "openai-compatible"].includes(resolved.provider.family) &&
+    resolved.provider.id !== "azure_openai";
+  const params = {
+    ...p,
+    messages: prepareToolImages(p.messages, acceptsImages),
+    model: resolved.model,
+  };
 
   if (resolved.provider.id === "azure_openai") return callAzure(params, apiKey, endpoint);
   switch (resolved.provider.family) {
@@ -264,6 +299,54 @@ async function llmCallInner(p: LlmCallParams): Promise<LlmCallResult> {
     default:
       throw new Error(`${resolved.provider.name} todavía no soporta chat.`);
   }
+}
+
+/** Apply caps and capability gating before stripping the canonical model id. */
+function prepareToolImages(messages: ChatMessage[], acceptsImages: boolean): ChatMessage[] {
+  return messages.map((m) =>
+    m.role !== "tool"
+      ? m
+      : {
+          ...m,
+          toolResults: (m.toolResults ?? []).map((tr) => {
+            const result = normalizeToolOutput(tr.output);
+            if (!acceptsImages && result.images.length) {
+              result.text += `\n${result.images.length} images omitted: model/provider does not accept images`;
+              result.images = [];
+            }
+            return { ...tr, output: result.images.length ? result : result.text };
+          }),
+        }
+  );
+}
+
+function anthropicToolContent(tr: ToolResultBlock) {
+  if (tr.error) return `Error: ${tr.error}`;
+  const { text, images } = normalizeToolOutput(tr.output);
+  return images.length
+    ? [
+        { type: "text", text: text || "Tool output images" },
+        ...images.map((image) => ({
+          type: "image",
+          source: { type: "base64", media_type: image.mediaType, data: image.base64 },
+        })),
+      ]
+    : text;
+}
+
+function bedrockToolContent(tr: ToolResultBlock) {
+  if (tr.error) return [{ text: `Error: ${tr.error}` }];
+  const { text, images } = normalizeToolOutput(tr.output);
+  // This adapter sends REST JSON, not SDK Uint8Arrays: blob bytes are base64 on the wire.
+  return [
+    { text: text || (images.length ? "Tool output images" : "") },
+    ...images.map((image) => ({
+      image: {
+        format: image.mediaType.slice(6),
+        source: { bytes: image.base64 },
+      },
+    })),
+  ];
 }
 
 /**
@@ -314,11 +397,7 @@ function toAnthropicMessages(p: LlmCallParams) {
         const blocks = (m.toolResults ?? []).map((tr) => ({
           type: "tool_result" as const,
           tool_use_id: tr.id,
-          content: tr.error
-            ? `Error: ${tr.error}`
-            : typeof tr.output === "string"
-              ? tr.output
-              : JSON.stringify(tr.output ?? null),
+          content: anthropicToolContent(tr),
           ...(tr.error ? { is_error: true } : {}),
         }));
         return { role: "user" as const, content: blocks };
@@ -500,15 +579,7 @@ function buildBedrockBody(p: LlmCallParams, noSampling: boolean): Record<string,
           content: (m.toolResults ?? []).map((tr) => ({
             toolResult: {
               toolUseId: tr.id,
-              content: [
-                {
-                  text: tr.error
-                    ? `Error: ${tr.error}`
-                    : typeof tr.output === "string"
-                      ? tr.output
-                      : JSON.stringify(tr.output ?? null),
-                },
-              ],
+              content: bedrockToolContent(tr),
               ...(tr.error && acceptsToolResultStatus(p.model) ? { status: "error" } : {}),
             },
           })),
@@ -671,17 +742,25 @@ function toOpenAIMessages(p: LlmCallParams) {
   const out: Array<Record<string, unknown>> = [{ role: "system", content: p.systemPrompt }];
   for (const m of p.messages) {
     if (m.role === "tool") {
+      const imageContent: Array<Record<string, unknown>> = [];
       for (const tr of m.toolResults ?? []) {
+        const { text, images } = normalizeToolOutput(tr.output);
         out.push({
           role: "tool",
           tool_call_id: tr.id,
-          content: tr.error
-            ? `Error: ${tr.error}`
-            : typeof tr.output === "string"
-              ? tr.output
-              : JSON.stringify(tr.output ?? null),
+          content: tr.error ? `Error: ${tr.error}` : text,
         });
+        if (!tr.error && images.length) {
+          imageContent.push({ type: "text", text: `Tool output: ${tr.name} (${tr.id})` });
+          imageContent.push(
+            ...images.map((image) => ({
+              type: "image_url",
+              image_url: { url: `data:${image.mediaType};base64,${image.base64}` },
+            }))
+          );
+        }
       }
+      if (imageContent.length) out.push({ role: "user", content: imageContent });
       continue;
     }
     if (m.role === "assistant" && m.toolCalls && m.toolCalls.length > 0) {
@@ -784,10 +863,21 @@ async function callGoogle(p: LlmCallParams, apiKey: string): Promise<LlmCallResu
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: p.systemPrompt }] },
           contents: p.messages
-            .filter((m) => m.role !== "tool" && m.role !== "system")
+            .filter((m) => m.role !== "system")
             .map((m) => ({
               role: m.role === "assistant" ? "model" : "user",
-              parts: [{ text: m.content }],
+              parts: [
+                {
+                  text:
+                    m.role === "tool"
+                      ? (m.toolResults ?? [])
+                          .map((tr) =>
+                            tr.error ? `Error: ${tr.error}` : normalizeToolOutput(tr.output).text
+                          )
+                          .join("\n")
+                      : m.content,
+                },
+              ],
             })),
           generationConfig: {
             temperature: p.temperature ?? 0.7,
@@ -819,9 +909,15 @@ async function callAzure(
   if (!endpoint) throw new Error("Azure endpoint not configured");
   const deployment = p.model.replace(/^azure\//, "");
   const url = `${endpoint.replace(/\/$/, "")}/openai/deployments/${deployment}/chat/completions?api-version=2024-02-01`;
-  const messages = p.messages
-    .filter((m) => m.role !== "tool")
-    .map((m) => ({ role: m.role as "user" | "assistant" | "system", content: m.content }));
+  const messages = p.messages.map((m) => ({
+    role: m.role === "tool" ? "user" : m.role,
+    content:
+      m.role === "tool"
+        ? (m.toolResults ?? [])
+            .map((tr) => (tr.error ? `Error: ${tr.error}` : normalizeToolOutput(tr.output).text))
+            .join("\n")
+        : m.content,
+  }));
   const j = await withRetry(async () => {
     const r = await fetchWithTimeout(
       url,
@@ -863,13 +959,33 @@ async function callAzure(
  *   }
  */
 export async function* llmStream(p: LlmCallParams): AsyncGenerator<LlmStreamChunk> {
+  try {
+    for await (const chunk of llmStreamInner(p)) {
+      yield chunk.type === "error"
+        ? { ...chunk, error: redactImageError(chunk.error, p.messages) }
+        : chunk;
+    }
+  } catch (error) {
+    throw sanitizeImageError(error, p.messages);
+  }
+}
+
+async function* llmStreamInner(p: LlmCallParams): AsyncGenerator<LlmStreamChunk> {
   const resolved = resolveModel(p.model);
   if (!resolved || resolved.capability !== "chat") {
     yield { type: "error", error: `No reconozco el modelo de chat "${p.model}".` };
     return;
   }
   const { apiKey } = await getProviderKey(p.workspaceId, resolved.provider.id, p.tx);
-  const params = { ...p, model: resolved.model };
+  const acceptsImages =
+    resolved.supportsVision === true &&
+    ["anthropic", "bedrock", "openai-compatible"].includes(resolved.provider.family) &&
+    resolved.provider.id !== "azure_openai";
+  const params = {
+    ...p,
+    messages: prepareToolImages(p.messages, acceptsImages),
+    model: resolved.model,
+  };
 
   if (resolved.provider.id !== "azure_openai" && resolved.provider.family === "anthropic") {
     yield* streamAnthropic(params, apiKey);
@@ -894,33 +1010,7 @@ export async function* llmStream(p: LlmCallParams): AsyncGenerator<LlmStreamChun
 }
 
 async function* streamAnthropic(p: LlmCallParams, apiKey: string): AsyncGenerator<LlmStreamChunk> {
-  // Build messages igual que el blocking call
-  const anthropicMessages = p.messages
-    .filter((m) => m.role !== "system")
-    .map((m) => {
-      if (m.role === "tool") {
-        const blocks = (m.toolResults ?? []).map((tr) => ({
-          type: "tool_result" as const,
-          tool_use_id: tr.id,
-          content: tr.error
-            ? `Error: ${tr.error}`
-            : typeof tr.output === "string"
-              ? tr.output
-              : JSON.stringify(tr.output ?? null),
-          ...(tr.error ? { is_error: true } : {}),
-        }));
-        return { role: "user" as const, content: blocks };
-      }
-      if (m.role === "assistant" && m.toolCalls && m.toolCalls.length > 0) {
-        const blocks: Array<Record<string, unknown>> = [];
-        if (m.content) blocks.push({ type: "text", text: m.content });
-        for (const tc of m.toolCalls) {
-          blocks.push({ type: "tool_use", id: tc.id, name: tc.name, input: tc.input });
-        }
-        return { role: "assistant" as const, content: blocks };
-      }
-      return { role: m.role, content: m.content };
-    });
+  const anthropicMessages = toAnthropicMessages(p);
 
   const body: Record<string, unknown> = {
     model: p.model,

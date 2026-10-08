@@ -2,6 +2,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { schema } from "@orchester/db";
 import { resumePausedFlow, withFlowTx } from "../flow-engine";
+import { isDryRunSource } from "./dry-run";
 import { workspaceFromApprovalToken, type ApprovalDecision } from "./pause";
 
 /**
@@ -97,6 +98,7 @@ export async function resumeByToken(
     fromNodeId: run.pausedNodeId ?? "",
     variables: (run.pausedVariables ?? {}) as Record<string, unknown>,
     decision,
+    dryRun: isDryRunSource(run.triggerSource),
   });
   return { ok: true, runId: run.id, status: r.status };
 }

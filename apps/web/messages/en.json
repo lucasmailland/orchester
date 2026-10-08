@@ -833,6 +833,8 @@
         },
         "promptEditor": {
           "templates": "Templates",
+          "preview": "Preview",
+          "edit": "Edit",
           "generate": "Generate with AI",
           "placeholder": "Write the agent's system prompt or use the AI generator…",
           "chars": "{n} chars",
@@ -910,7 +912,12 @@
         "noRuns": "No runs yet.",
         "back": "← Back",
         "stepsHeading": "Steps",
-        "trigger": "trigger"
+        "agentAria": "Agent",
+        "tokens": "{count, number} tokens",
+        "trigger": "trigger",
+        "dryRunBadge": "Dry run",
+        "dryRunHint": "Nothing was written: steps that write only show what they would do.",
+        "wouldCall": "Would call (not executed)"
       },
       "builder": {
         "save": "Save",
@@ -923,6 +930,9 @@
         "active": "Active",
         "paused": "Paused",
         "runFlow": "Run",
+        "dryRunLabel": "Dry run",
+        "dryRunHint": "Reads run for real; writes (create, update, send, POST) are not executed and are shown as “would call”.",
+        "dryRunButton": "Dry run",
         "running": "Running…",
         "runs": "Runs",
         "copilot": "Copilot",
@@ -1437,9 +1447,10 @@
         "addWebhook": "Add webhook",
         "apiHint": "Use your API key with",
         "scopesLegend": "Permissions",
-        "scopesHelp": "A key can only reach what you tick here. Granting write includes read.",
-        "scopeFullAccess": "full access",
+        "scopesHelp": "Write and delete each include read. Deletion requires an explicit delete permission and the exact resource name.",
+        "scopeFullAccess": "read/write access",
         "scopeDomain": {
+          "teams": "Teams",
           "agents": "Agents",
           "flows": "Flows",
           "conversations": "Conversations",
@@ -1448,6 +1459,7 @@
           "memory": "Memory"
         },
         "scopeAccess": {
+          "delete": "Delete (dangerous)",
           "read": "read",
           "write": "write"
         }

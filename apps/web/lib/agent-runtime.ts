@@ -4,10 +4,11 @@
 // keeps everything else: LLM call, tool dispatch, agent loadup, policy
 // load, prompt-injection guardrails, profile cache.
 import "server-only";
+import { mapToolOutputText, redactToolImages } from "@/lib/tool-output";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { llmCall, type ChatMessage } from "./llm-call";
-import { executeTool, getToolDefinitions, type ToolCall } from "./tools";
+import { executeTool, resolveToolDefinitions, type ToolCall } from "./tools";
 import { assertWithinSpend } from "./cost-alerts";
 import { recordAiUsage } from "./ai/run";
 import { calculateChatCostUsd } from "./pricing";
@@ -506,7 +507,8 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
   const cacheBoundary = cachedPrefix.length > 0 ? cachedPrefix.length : undefined;
 
   // Tool-calling loop (currently Anthropic only — others fall through to plain chat)
-  const toolDefs = enabledTools.length > 0 ? getToolDefinitions(enabledTools) : [];
+  const toolDefs =
+    enabledTools.length > 0 ? await resolveToolDefinitions(p.workspaceId, enabledTools, p.tx) : [];
   const toolCalls: RunAgentResult["toolCalls"] = [];
   let messages = [...p.messages];
   let totalTokens = 0;
@@ -580,14 +582,14 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
             ...(p.tx ? { tx: p.tx } : {}),
           });
         }
-        toolCalls.push({ name: tc.name, input: tc.input, output: out });
-        // L1/F2: el output de la tool es contenido no confiable → lo entregamos
-        // al modelo envuelto en un bloque delimitado (y con PII redactada si el
-        // operador hizo opt-in). El `toolCalls` de auditoría guarda el raw.
-        const wrapped = wrapUntrusted(
-          typeof out === "string" ? out : JSON.stringify(out ?? null),
-          `tool_${tc.name}`
-        );
+        toolCalls.push({
+          name: tc.name,
+          input: redactToolImages(tc.input),
+          output: redactToolImages(out),
+        });
+        // Tool text remains untrusted (and PII-redacted when enabled).
+        // Only the in-memory model history retains image bytes.
+        const wrapped = mapToolOutputText(out, (text) => wrapUntrusted(text, `tool_${tc.name}`));
         toolResults.push({ id: tc.id, name: tc.name, input: tc.input, output: wrapped });
       } catch (e) {
         const err = e instanceof Error ? e.message : String(e);

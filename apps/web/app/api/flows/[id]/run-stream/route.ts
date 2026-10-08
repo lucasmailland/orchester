@@ -6,6 +6,7 @@ import { executeFlow, type FlowRunEvent } from "@/lib/flow-engine";
 // `input` es JSON arbitrario definido por el trigger del flujo: no se restringe.
 const runStreamSchema = z.object({
   input: z.unknown().optional(),
+  dryRun: z.boolean().optional(),
 });
 
 export const dynamic = "force-dynamic";
@@ -51,6 +52,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           input,
           onEvent: send,
           signal: abort.signal,
+          ...(parsed.data.dryRun ? { dryRun: true } : {}),
         });
       } catch (e) {
         send({

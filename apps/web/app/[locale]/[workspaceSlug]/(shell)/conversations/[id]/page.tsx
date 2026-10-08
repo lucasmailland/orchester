@@ -12,6 +12,7 @@
 // gated by getCurrentWorkspaceBySlug (returns null when the caller isn't a
 // member → notFound).
 
+import { Markdown } from "@/components/ui/Markdown";
 import { getDb, schema } from "@orchester/db";
 import { and, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
@@ -112,9 +113,7 @@ export default async function ConversationDetailPage({
                     {new Date(m.createdAt).toLocaleString(locale)}
                   </span>
                 </div>
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-body">
-                  {m.content}
-                </p>
+                <Markdown content={m.content} className="mt-2 text-sm leading-relaxed text-body" />
               </div>
             );
           })

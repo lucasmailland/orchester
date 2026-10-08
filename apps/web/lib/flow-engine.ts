@@ -2,13 +2,15 @@ import "server-only";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and, inArray, lt, count, sql } from "drizzle-orm";
-import { llmCall } from "./llm-call";
+import { mapToolOutputText, redactToolImages } from "./tool-output";
+import { llmCall, type ChatMessage } from "./llm-call";
 import { enqueue, JOB_FLOW_RUN } from "./queue";
 import { assertPublicUrl } from "./net-guard";
 import { logWithContext, recordMetric } from "./observability";
 import { evaluateExpression } from "./flows/filters";
 import { parseRetryConfig, runWithRetry, StepFailure } from "./flows/retry";
 import { createApprovalToken, PauseRequested } from "./flows/pause";
+import { isDryRunSource, markDryRun, redactUrl, simulated } from "./flows/dry-run";
 
 /**
  * R2-C: Flow execution writes to tenant tables (flow_runs,
@@ -81,6 +83,11 @@ export interface RunContext {
   emit?: FlowEmit;
   /** Signal de cancelación (F-1/F-B1). Si abort, el motor para entre pasos. */
   signal?: AbortSignal;
+  /**
+   * Dry run: steps that read still execute (real context is the point), steps
+   * that write are reported as `wouldCall` and skipped. See `lib/flows/dry-run`.
+   */
+  dryRun?: boolean;
 }
 
 /**
@@ -319,6 +326,7 @@ export async function executeFlow({
   onEvent,
   runId: existingRunId,
   signal,
+  dryRun: dryRunOpt,
 }: {
   flowId: string;
   workspaceId: string;
@@ -339,6 +347,12 @@ export async function executeFlow({
    * para acotar el tiempo de respuesta inline.
    */
   signal?: AbortSignal;
+  /**
+   * Run without side effects (see `RunContext.dryRun`). When omitted it is
+   * read from `triggerSource`, so a run queued as a dry run stays one when the
+   * worker picks it up.
+   */
+  dryRun?: boolean;
 }): Promise<{
   runId: string;
   /** `paused` is not final: the run is waiting for a person and will continue. */
@@ -359,6 +373,7 @@ export async function executeFlow({
   });
   if (!flow) throw new Error("Flow not found");
 
+  const dryRun = dryRunOpt ?? isDryRunSource(triggerSource);
   const runId = existingRunId ?? createId();
   const runStartedAt = Date.now(); // sólo para la métrica de duración (D2)
   await withFlowTx(workspaceId, async (tx) => {
@@ -373,8 +388,8 @@ export async function executeFlow({
         flowId,
         workspaceId,
         status: "running",
-        triggerSource,
-        input,
+        triggerSource: dryRun ? markDryRun(triggerSource) : triggerSource,
+        input: redactToolImages(input),
       });
     }
   });
@@ -387,6 +402,7 @@ export async function executeFlow({
     output: {},
     ...(onEvent ? { emit: onEvent } : {}),
     ...(signal ? { signal } : {}),
+    ...(dryRun ? { dryRun: true } : {}),
   };
 
   const nodes = (flow.nodes ?? []) as FlowNode[];
@@ -415,12 +431,19 @@ export async function executeFlow({
     await withFlowTx(workspaceId, async (tx) => {
       await tx
         .update(schema.flowRuns)
-        .set({ status: "succeeded", output: ctx.variables, completedAt: new Date() })
+        .set({
+          status: "succeeded",
+          output: redactToolImages(ctx.variables),
+          completedAt: new Date(),
+        })
         .where(eq(schema.flowRuns.id, runId));
-      await tx
-        .update(schema.flows)
-        .set({ lastRunAt: new Date() })
-        .where(eq(schema.flows.id, flowId));
+      // A dry run is not a run of the flow: it must not move `lastRunAt`.
+      if (!dryRun) {
+        await tx
+          .update(schema.flows)
+          .set({ lastRunAt: new Date() })
+          .where(eq(schema.flows.id, flowId));
+      }
     });
     onEvent?.({ type: "run_finish", status: "succeeded" });
     recordMetric("flow.run.duration_ms", Date.now() - runStartedAt, {
@@ -442,7 +465,7 @@ export async function executeFlow({
           .set({
             status: "paused",
             pausedNodeId: e.nodeId,
-            pausedVariables: ctx.variables,
+            pausedVariables: redactToolImages(ctx.variables),
             pausedAt: new Date(),
             approvalToken: token,
           })
@@ -461,7 +484,8 @@ export async function executeFlow({
       // Notify AFTER persisting, and never throw. If the channel is down,
       // the pause is already saved and the message can be resent; reversing
       // this would let an intermittent Telegram connection fail healthy runs.
-      if (e.notification) {
+      // A dry run never notifies: that is a message to a real person.
+      if (e.notification && !dryRun) {
         const { notifyPause } = await import("./flows/notify-pause");
         await notifyPause(workspaceId, runId, token, e.approvalMessage, e.notification);
       }
@@ -509,6 +533,7 @@ export async function resumePausedFlow({
   fromNodeId,
   variables,
   decision,
+  dryRun = false,
 }: {
   runId: string;
   workspaceId: string;
@@ -516,6 +541,8 @@ export async function resumePausedFlow({
   fromNodeId: string;
   variables: Record<string, unknown>;
   decision: "aprobado" | "rechazado";
+  /** A run paused as a dry run keeps being one after the decision. */
+  dryRun?: boolean;
 }): Promise<{ runId: string; status: "succeeded" | "failed" | "paused" }> {
   const flow = await withFlowTx(workspaceId, async (tx) => {
     const rows = await tx
@@ -530,7 +557,11 @@ export async function resumePausedFlow({
   const db = getDb();
   const nodes = (flow.nodes ?? []) as FlowNode[];
   const edges = (flow.edges ?? []) as FlowEdge[];
-  const ctx: RunContext = { variables: { ...variables, _decision: decision }, output: {} };
+  const ctx: RunContext = {
+    variables: { ...variables, _decision: decision },
+    output: {},
+    ...(dryRun ? { dryRun: true } : {}),
+  };
 
   const outgoingEdges = edges.filter(
     (e) => e.source === fromNodeId && (e.sourceHandle ?? "aprobado") === decision
@@ -543,12 +574,18 @@ export async function resumePausedFlow({
     await withFlowTx(workspaceId, async (tx) => {
       await tx
         .update(schema.flowRuns)
-        .set({ status: "succeeded", output: ctx.variables, completedAt: new Date() })
+        .set({
+          status: "succeeded",
+          output: redactToolImages(ctx.variables),
+          completedAt: new Date(),
+        })
         .where(eq(schema.flowRuns.id, runId));
-      await tx
-        .update(schema.flows)
-        .set({ lastRunAt: new Date() })
-        .where(eq(schema.flows.id, flowId));
+      if (!dryRun) {
+        await tx
+          .update(schema.flows)
+          .set({ lastRunAt: new Date() })
+          .where(eq(schema.flows.id, flowId));
+      }
     });
     return { runId, status: "succeeded" };
   } catch (e) {
@@ -562,7 +599,7 @@ export async function resumePausedFlow({
           .set({
             status: "paused",
             pausedNodeId: e.nodeId,
-            pausedVariables: ctx.variables,
+            pausedVariables: redactToolImages(ctx.variables),
             pausedAt: new Date(),
             approvalToken: token,
           })
@@ -610,7 +647,7 @@ async function runFromNode(
       nodeId: node.id,
       nodeType: node.type,
       status: "running",
-      input: { ...ctx.variables },
+      input: redactToolImages(ctx.variables),
     })
   );
   ctx.emit?.({ type: "step_start", nodeId: node.id, nodeType: node.type });
@@ -624,6 +661,17 @@ async function runFromNode(
 
   let nextHandle: string | undefined;
   let stepOutput: Record<string, unknown> = {};
+  let stepTrace: StepTrace = {};
+  // Drizzle's numeric maps to string; undefined fields are left out of the SET.
+  const traceColumns = () => ({
+    ...(stepTrace.agentId !== undefined && { agentId: stepTrace.agentId }),
+    ...(stepTrace.agentName !== undefined && { agentName: stepTrace.agentName }),
+    ...(stepTrace.model !== undefined && { model: stepTrace.model }),
+    ...(stepTrace.tokensUsed !== undefined && { tokensUsed: stepTrace.tokensUsed }),
+    ...(stepTrace.costUsd !== undefined && {
+      costUsd: stepTrace.costUsd == null ? null : String(stepTrace.costUsd),
+    }),
+  });
 
   try {
     await executeNode(node, ctx, runId, workspaceId, nodes, edges, db, depth, {
@@ -633,12 +681,20 @@ async function runFromNode(
       setOutput: (o) => {
         stepOutput = o;
       },
+      setTrace: (t) => {
+        stepTrace = { ...stepTrace, ...t };
+      },
     });
 
     await withFlowTx(workspaceId, (tx) =>
       tx
         .update(schema.flowRunSteps)
-        .set({ status: "succeeded", output: stepOutput, completedAt: new Date() })
+        .set({
+          status: "succeeded",
+          output: redactToolImages(stepOutput, ctx.variables),
+          completedAt: new Date(),
+          ...traceColumns(),
+        })
         .where(eq(schema.flowRunSteps.id, stepId))
     );
     ctx.emit?.({ type: "step_finish", nodeId: node.id, status: "succeeded" });
@@ -673,8 +729,12 @@ async function runFromNode(
         .set({
           status: "failed",
           error: msg,
-          ...(e instanceof StepFailure ? { output: e.output } : {}),
+          ...(e instanceof StepFailure
+            ? { output: redactToolImages(e.output, ctx.variables) }
+            : {}),
           completedAt: new Date(),
+          // A failed AI step that already spent tokens must still show them.
+          ...traceColumns(),
         })
         .where(eq(schema.flowRunSteps.id, stepId))
     );
@@ -697,9 +757,23 @@ async function runFromNode(
   }
 }
 
+/**
+ * What an AI step reports about itself, persisted on the step row. Recorded
+ * there (not derived from the flow graph) because the graph can be edited after
+ * the run. `agentName` is a snapshot so the trail survives renames/deletions.
+ */
+export type StepTrace = {
+  agentId?: string | null;
+  agentName?: string | null;
+  model?: string | null;
+  tokensUsed?: number | null;
+  costUsd?: number | null;
+};
+
 interface ExecHelpers {
   setHandle: (h: string) => void;
   setOutput: (o: Record<string, unknown>) => void;
+  setTrace: (t: StepTrace) => void;
 }
 
 /**
@@ -769,33 +843,146 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       return aRows[0];
     });
     if (!agent) throw new Error(`agent not found: ${agentId}`);
-    // Este nodo usa `llmCall` directo (no runChat), así que el guard y el
-    // metering se hacen acá explícitamente (D4-1 / E3-1).
+    // Status is the kill switch: an agent set to draft or inactive must stop
+    // running everywhere, flows included, not only in conversations.
+    if (agent.status !== "active") {
+      throw new Error(`agent "${agent.name}" is not active (status: ${agent.status})`);
+    }
+    const { resolveToolDefinitions, executeTool, toolEffect } = await import("./tools");
+    const { wrapUntrusted, UNTRUSTED_CONTENT_GUARDRAIL } = await import("./agent-runtime");
+    // Handoff mutates a conversation and throws without conversationId.
+    // Memory tools accept optional conversation scope and still work with agentId.
+    // Built-ins plus the workspace's remote MCP tools the agent has enabled.
+    const tools = (
+      await withFlowTx(workspaceId, (tx) =>
+        resolveToolDefinitions(workspaceId, agent.tools ?? [], tx)
+      )
+    ).filter((t) => t.name !== "agent_handoff");
+    const systemPrompt = agent.systemPrompt + (tools.length > 0 ? UNTRUSTED_CONTENT_GUARDRAIL : "");
+    const messages: ChatMessage[] = [{ role: "user", content: userMessage }];
+    // Mirror channels/router.ts runConversationalTurn's safetyCounter < 5.
+    const maxSteps = tools.length > 0 ? 5 : 1;
     const { assertWithinSpend } = await import("./cost-alerts");
-    await withFlowTx(workspaceId, (tx) => assertWithinSpend(workspaceId, tx));
-    const result = await withFlowTx(workspaceId, (tx) =>
-      llmCall({
-        workspaceId,
-        model: agent.model,
-        systemPrompt: agent.systemPrompt,
-        messages: [{ role: "user", content: userMessage }],
-        temperature: agent.temperature ? Number(agent.temperature) : 0.7,
-        ...(agent.maxTokens != null && { maxTokens: agent.maxTokens }),
-        tx,
-      })
-    );
     const { recordAiUsage, chargeFor } = await import("./ai/run");
-    const cargo = chargeFor(result);
-    await recordAiUsage({
-      workspaceId,
-      capability: "chat",
-      model: result.model,
-      ...cargo,
-    });
+    let content = "";
+    let model = agent.model;
+    let tokensUsed = 0;
+    const cargo = { tokensIn: 0, tokensOut: 0, costUsd: 0 };
+    const toolsUsed: string[] = [];
+    const simulatedTools: string[] = [];
+
+    for (let step = 0; step < maxSteps; step++) {
+      if (ctx.signal?.aborted) throw new DOMException("Flow execution cancelled", "AbortError");
+      // Guard and meter every call, including intermediate tool turns.
+      await withFlowTx(workspaceId, (tx) => assertWithinSpend(workspaceId, tx));
+      const result = await withFlowTx(workspaceId, (tx) =>
+        llmCall({
+          workspaceId,
+          model: agent.model,
+          systemPrompt,
+          messages,
+          temperature: agent.temperature ? Number(agent.temperature) : 0.7,
+          ...(agent.maxTokens != null && { maxTokens: agent.maxTokens }),
+          ...(tools.length > 0 && { tools }),
+          tx,
+        })
+      );
+      const charge = chargeFor(result);
+      await recordAiUsage({ workspaceId, capability: "chat", model: result.model, ...charge });
+      model = result.model;
+      tokensUsed += result.tokensUsed;
+      cargo.tokensIn += charge.tokensIn;
+      cargo.tokensOut += charge.tokensOut;
+      cargo.costUsd += charge.costUsd;
+      // Cumulative, after every call: if a later call fails, the failed step
+      // still records the tokens already spent.
+      helpers.setTrace({
+        agentId,
+        agentName: agent.name,
+        model,
+        tokensUsed,
+        costUsd: cargo.costUsd,
+      });
+
+      if (tools.length === 0 || !result.toolCalls?.length) {
+        content = result.content;
+        break;
+      }
+      messages.push({ role: "assistant", content: result.content, toolCalls: result.toolCalls });
+      const toolResults = [];
+      for (const tc of result.toolCalls) {
+        toolsUsed.push(tc.name);
+        try {
+          // A model can name a tool it was not given; never run it.
+          if (!tools.some((tool) => tool.name === tc.name)) {
+            throw new Error(`Tool not enabled: ${tc.name}`);
+          }
+          const input = tc.input as Record<string, unknown>;
+          // In a dry run the agent still reads, but a tool that writes is only
+          // reported: the model sees what it would have done, nothing changes.
+          if (
+            ctx.dryRun &&
+            (tools.find((t) => t.name === tc.name)?.effect ??
+              (await withFlowTx(workspaceId, (tx) =>
+                toolEffect(tc.name, input, { workspaceId, tx })
+              ))) === "write"
+          ) {
+            simulatedTools.push(tc.name);
+            toolResults.push({
+              id: tc.id,
+              name: tc.name,
+              input: tc.input,
+              output: wrapUntrusted(
+                JSON.stringify(simulated({ tool: tc.name, input })),
+                `tool_${tc.name}`
+              ),
+            });
+            continue;
+          }
+          const out = await withFlowTx(workspaceId, (tx) =>
+            executeTool(tc.name, input, {
+              workspaceId,
+              tx,
+              variables: agent.variables ?? {},
+              agentId: agent.id,
+            })
+          );
+          toolResults.push({
+            id: tc.id,
+            name: tc.name,
+            input: tc.input,
+            // Text is wrapped as untrusted; images (if any) pass through.
+            output: mapToolOutputText(out, (text) => wrapUntrusted(text, `tool_${tc.name}`)),
+          });
+        } catch (e) {
+          // As in the router, tool failures are feedback for the model.
+          toolResults.push({
+            id: tc.id,
+            name: tc.name,
+            input: tc.input,
+            error: e instanceof Error ? e.message : String(e),
+          });
+        }
+      }
+      messages.push({ role: "tool", content: "", toolResults });
+    }
+    // Match the router's empty-reply/cap fallback; preserve plain-call behavior.
+    if (tools.length > 0 && !content && agent.fallback) content = agent.fallback;
     const outputVar = (cfg.outputVar as string) ?? "agentResult";
-    ctx.variables[outputVar] = result.content;
-    ctx.variables[`${outputVar}Meta`] = firma(result, cargo, agent.name);
-    helpers.setOutput({ content: result.content, tokensUsed: result.tokensUsed });
+    ctx.variables[outputVar] = content;
+    ctx.variables[`${outputVar}Meta`] = {
+      ...firma({ model, tokensUsed }, cargo, agent.name),
+      toolsUsed,
+    };
+    helpers.setOutput({
+      content,
+      tokensUsed,
+      agentId: agent.id,
+      agentName: agent.name,
+      model,
+      toolsUsed,
+      ...(ctx.dryRun ? { simulatedTools } : {}),
+    });
   },
 
   condition: async ({ cfg, ctx, helpers }) => {
@@ -867,6 +1054,19 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     const init: RequestInit = { method, headers };
     if (method !== "GET") {
       init.body = interpolate((cfg.body as string) ?? "", ctx.variables);
+    }
+
+    // Dry run: only GET/HEAD leave the server. Headers and auth are left out of
+    // the report on purpose — they are where the secrets live.
+    if (ctx.dryRun && method !== "GET" && method !== "HEAD") {
+      const sim = simulated({
+        method,
+        url: redactUrl(url),
+        ...(init.body ? { body: String(init.body) } : {}),
+      });
+      ctx.variables[(cfg.outputVar as string) ?? "httpResult"] = sim;
+      helpers.setOutput({ ...sim });
+      return;
     }
 
     const timeoutMs = Math.min(60000, Number(cfg.timeoutMs ?? 30000));
@@ -992,11 +1192,14 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
   },
 
   notify: async ({ cfg, ctx, helpers }) => {
-    helpers.setOutput({
+    const out = {
       to: cfg.to ? interpolate(cfg.to as string, ctx.variables) : undefined,
       channel: cfg.channel,
       message: interpolate((cfg.message as string) ?? "", ctx.variables),
-    });
+    };
+    // Today this step only records what it would send; in a dry run it says so
+    // in the same shape as every other simulated step.
+    helpers.setOutput(ctx.dryRun ? { ...out, ...simulated({ ...out }) } : out);
   },
 
   code: async ({ cfg, ctx, helpers }) => {
@@ -1077,13 +1280,16 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       messages: [{ role: "user", content: prompt }],
       ...(mandarTemp ? { temperature: temperatura } : {}),
     });
+    // Recorded before anything that can still throw: the tokens are spent.
+    const { chargeFor } = await import("./ai/run");
+    const cargo = chargeFor(res);
+    helpers.setTrace({ model: res.model, tokensUsed: res.tokensUsed, costUsd: cargo.costUsd });
     const outputVar = (cfg.outputVar as string) || "texto";
     ctx.variables[outputVar] = res.content;
     // Quién contestó, con qué y a qué costo, disponible para la plantilla. Sin
     // esto el dato existe en la corrida pero no llega a lo que el flujo
     // escribe, que es lo único que una persona termina leyendo.
-    const { chargeFor } = await import("./ai/run");
-    ctx.variables[`${outputVar}Meta`] = firma(res, chargeFor(res));
+    ctx.variables[`${outputVar}Meta`] = firma(res, cargo);
     helpers.setOutput({ tokensUsed: res.tokensUsed });
   },
 
@@ -1191,6 +1397,24 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     const { runIntegrationAction } = await import("./integrations/store");
     const retry = parseRetryConfig(cfg.retry);
     const outputVar = (cfg.outputVar as string) ?? "appResult";
+    if (ctx.dryRun) {
+      // Anything that is not provably a read is simulated, including when the
+      // effect cannot be resolved (unknown integration, lookup failure): in a
+      // dry run, doubt means "do not execute".
+      let effect: "read" | "write" = "write";
+      try {
+        const { getIntegrationActionEffect } = await import("./integrations/store");
+        effect = await getIntegrationActionEffect(workspaceId, integrationId, action, input);
+      } catch {
+        effect = "write";
+      }
+      if (effect !== "read") {
+        const sim = simulated({ integrationId, action, input });
+        ctx.variables[outputVar] = sim;
+        helpers.setOutput({ ...sim });
+        return;
+      }
+    }
     if (!retry) {
       const result = await runIntegrationAction(workspaceId, integrationId, action, input);
       ctx.variables[outputVar] = result;
@@ -1317,6 +1541,8 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       workspaceId,
       triggerSource: `parent_run:${runId}`,
       input: ctx.variables,
+      // The child inherits the parent's mode, and the mark lands on its row.
+      ...(ctx.dryRun ? { dryRun: true } : {}),
     });
     if (result.status === "failed") throw new Error(`subflow failed: ${result.error}`);
     const subRuns = await db
@@ -1388,13 +1614,16 @@ async function executeNode(
 export async function enqueueFlowRun({
   flowId,
   workspaceId,
-  triggerSource,
+  triggerSource: rawTriggerSource,
   input,
+  dryRun = false,
 }: {
   flowId: string;
   workspaceId: string;
   triggerSource: string;
   input: Record<string, unknown>;
+  /** Marks the run in `triggerSource`; the worker reads the mark back. */
+  dryRun?: boolean;
 }): Promise<{
   runId: string;
   /**
@@ -1406,6 +1635,7 @@ export async function enqueueFlowRun({
   error?: string;
   approvalToken?: string;
 }> {
+  const triggerSource = dryRun ? markDryRun(rawTriggerSource) : rawTriggerSource;
   const db = getDb();
   const flowRows = await db
     .select({ id: schema.flows.id })
@@ -1453,7 +1683,7 @@ export async function enqueueFlowRun({
       workspaceId,
       status: "pending",
       triggerSource,
-      input,
+      input: redactToolImages(input),
     });
   });
 
@@ -1465,7 +1695,7 @@ export async function enqueueFlowRun({
   try {
     await enqueue(
       JOB_FLOW_RUN,
-      { runId, flowId, workspaceId, triggerSource, input },
+      { runId, flowId, workspaceId, triggerSource, input: redactToolImages(input) },
       // retryLimit 0: NO reintentamos el flow completo automáticamente, para no
       // re-disparar side-effects (http POST, notify, integraciones, IA paga).
       // Los fallos transitorios se reintentan a nivel de llamada externa.

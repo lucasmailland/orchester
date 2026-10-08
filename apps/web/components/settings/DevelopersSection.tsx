@@ -71,7 +71,8 @@ export function DevelopersSection() {
       // Granting write grants read with it: a key that can rewrite a flow can
       // obviously see it, and making somebody tick both is a footgun.
       const domain = scope.split(":")[0];
-      return scope.endsWith(":write") && !current.includes(`${domain}:read`)
+      return (scope.endsWith(":write") || scope.endsWith(":delete")) &&
+        !current.includes(`${domain}:read`)
         ? [...current, `${domain}:read`, scope]
         : [...current, scope];
     });
@@ -267,7 +268,7 @@ export function DevelopersSection() {
                   <div key={domain} className="flex items-center justify-between gap-2">
                     <span className="text-xs text-body">{t(`scopeDomain.${domain}`)}</span>
                     <div className="flex gap-1">
-                      {(["read", "write"] as const).map((access) => {
+                      {(["read", "write", "delete"] as const).map((access) => {
                         const scope = `${domain}:${access}`;
                         const on = newKeyScopes.includes(scope);
                         return (
@@ -278,9 +279,16 @@ export function DevelopersSection() {
                             onClick={() => toggleScope(scope)}
                             className={cn(
                               "rounded-md border px-2 py-0.5 text-[11px]",
-                              on
-                                ? "border-violet-500/60 bg-violet-500/10 text-violet-700 dark:text-violet-200"
-                                : "border-line text-muted hover:text-body"
+                              access === "delete"
+                                ? cn(
+                                    "text-red-700 dark:text-red-300",
+                                    on
+                                      ? "border-red-500/60 bg-red-500/15"
+                                      : "border-line hover:bg-red-500/10"
+                                  )
+                                : on
+                                  ? "border-violet-500/60 bg-violet-500/10 text-violet-700 dark:text-violet-200"
+                                  : "border-line text-muted hover:text-body"
                             )}
                           >
                             {t(`scopeAccess.${access}`)}

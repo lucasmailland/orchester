@@ -125,9 +125,16 @@ export function TemplatePicker<K extends TemplateKind>({
   onClose,
   onSelect,
 }: TemplatePickerProps<K>) {
-  // Translator scoped to the kind so card lookups stay terse.
-  const t = useTranslations(`compass.templates.${kind}`);
+  // The namespace and keys are built at runtime from the generic `kind`, which
+  // next-intl 4 cannot type, so they go through the root translator with full
+  // paths and a plain string signature.
+  const tRoot = useTranslations() as unknown as ((key: string) => string) & {
+    raw: (key: string) => unknown;
+  };
   const tShell = useTranslations("compass.templates.shell");
+  const t = Object.assign((key: string) => tRoot(`compass.templates.${kind}.${key}`), {
+    raw: (key: string) => tRoot.raw(`compass.templates.${kind}.${key}`),
+  });
 
   const templates = useMemo(() => getTemplatesFor(kind), [kind]);
 
@@ -171,9 +178,11 @@ export function TemplatePicker<K extends TemplateKind>({
               id={`template-picker-title-${kind}`}
               className="text-base font-semibold text-strong"
             >
-              {tShell(`title.${kind}`)}
+              {tRoot(`compass.templates.shell.title.${kind}`)}
             </h2>
-            <p className="mt-1 text-sm text-muted">{tShell(`subtitle.${kind}`)}</p>
+            <p className="mt-1 text-sm text-muted">
+              {tRoot(`compass.templates.shell.subtitle.${kind}`)}
+            </p>
           </div>
           <button
             type="button"

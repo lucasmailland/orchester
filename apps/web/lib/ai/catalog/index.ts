@@ -39,6 +39,7 @@ export interface ResolvedModel {
   modelId: string;
   /** El modelo rechaza sampling params — ver ModelDef.noSampling. */
   noSampling?: boolean;
+  supportsVision?: boolean;
 }
 
 /**
@@ -53,6 +54,7 @@ export function resolveModel(modelId: string): ResolvedModel | null {
     return {
       provider,
       capability: known.capability,
+      supportsVision: known.supportsVision === true,
       model: stripPrefix(modelId, known.provider),
       modelId,
       ...(known.noSampling ? { noSampling: true } : {}),
@@ -75,7 +77,13 @@ export function resolveModel(modelId: string): ResolvedModel | null {
   if (legacy) {
     const provider = PROVIDERS_BY_ID[legacy];
     if (provider)
-      return { provider, capability: "chat", model: modelId, modelId: `${legacy}:${modelId}` };
+      return {
+        provider,
+        capability: "chat",
+        model: modelId,
+        modelId: `${legacy}:${modelId}`,
+        supportsVision: MODELS_BY_ID[`${legacy}:${modelId}`]?.supportsVision === true,
+      };
   }
   return null;
 }

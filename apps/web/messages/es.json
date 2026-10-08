@@ -833,6 +833,8 @@
         },
         "promptEditor": {
           "templates": "Plantillas",
+          "preview": "Vista previa",
+          "edit": "Editar",
           "generate": "Generar con IA",
           "placeholder": "Escribí el system prompt del agente o usá el generador con IA…",
           "chars": "{n} chars",
@@ -910,7 +912,12 @@
         "noRuns": "Aún no hubo ejecuciones.",
         "back": "← Volver",
         "stepsHeading": "Pasos",
-        "trigger": "trigger"
+        "agentAria": "Agente",
+        "tokens": "{count, number} tokens",
+        "trigger": "trigger",
+        "dryRunBadge": "Simulación",
+        "dryRunHint": "No se escribió nada: los pasos que escriben sólo muestran lo que harían.",
+        "wouldCall": "Llamaría (no se ejecutó)"
       },
       "builder": {
         "save": "Guardar",
@@ -923,6 +930,9 @@
         "active": "Activo",
         "paused": "Pausado",
         "runFlow": "Ejecutar",
+        "dryRunLabel": "Simulación (dry run)",
+        "dryRunHint": "Las lecturas se ejecutan de verdad; las escrituras (crear, actualizar, enviar, POST) no se ejecutan y se muestran como “llamaría”.",
+        "dryRunButton": "Simular",
         "running": "Ejecutando…",
         "runs": "Ejecuciones",
         "copilot": "Copiloto",
@@ -1438,9 +1448,10 @@
         "addWebhook": "Agregar webhook",
         "apiHint": "Usá tu API key con",
         "scopesLegend": "Permisos",
-        "scopesHelp": "La key sólo llega a lo que marques acá. Dar escritura incluye lectura.",
-        "scopeFullAccess": "acceso total",
+        "scopesHelp": "Escribir y eliminar incluyen lectura. Eliminar requiere un permiso explícito y el nombre exacto del recurso.",
+        "scopeFullAccess": "acceso de lectura/escritura",
         "scopeDomain": {
+          "teams": "Equipos",
           "agents": "Agentes",
           "flows": "Flows",
           "conversations": "Conversaciones",
@@ -1449,6 +1460,7 @@
           "memory": "Memoria"
         },
         "scopeAccess": {
+          "delete": "Eliminar (peligroso)",
           "read": "leer",
           "write": "escribir"
         }

@@ -833,6 +833,8 @@
         },
         "promptEditor": {
           "templates": "Templates",
+          "preview": "Visualizar",
+          "edit": "Editar",
           "generate": "Gerar com IA",
           "placeholder": "Escreva o system prompt do agente ou use o gerador com IA…",
           "chars": "{n} chars",
@@ -910,7 +912,12 @@
         "noRuns": "Nenhuma execução ainda.",
         "back": "← Voltar",
         "stepsHeading": "Passos",
-        "trigger": "trigger"
+        "agentAria": "Agente",
+        "tokens": "{count, number} tokens",
+        "trigger": "trigger",
+        "dryRunBadge": "Simulação",
+        "dryRunHint": "Nada foi gravado: os passos que gravam só mostram o que fariam.",
+        "wouldCall": "Chamaria (não executado)"
       },
       "builder": {
         "save": "Salvar",
@@ -923,6 +930,9 @@
         "active": "Ativo",
         "paused": "Pausado",
         "runFlow": "Executar",
+        "dryRunLabel": "Simulação (dry run)",
+        "dryRunHint": "As leituras são executadas de verdade; as gravações (criar, atualizar, enviar, POST) não são executadas e aparecem como “chamaria”.",
+        "dryRunButton": "Simular",
         "running": "Executando…",
         "runs": "Execuções",
         "copilot": "Copiloto",
@@ -1438,9 +1448,10 @@
         "addWebhook": "Adicionar webhook",
         "apiHint": "Use sua API key com",
         "scopesLegend": "Permissões",
-        "scopesHelp": "A chave só alcança o que você marcar aqui. Conceder escrita inclui leitura.",
-        "scopeFullAccess": "acesso total",
+        "scopesHelp": "Escrever e excluir incluem leitura. A exclusão exige permissão explícita e o nome exato do recurso.",
+        "scopeFullAccess": "acesso de leitura/escrita",
         "scopeDomain": {
+          "teams": "Equipes",
           "agents": "Agentes",
           "flows": "Flows",
           "conversations": "Conversas",
@@ -1449,6 +1460,7 @@
           "memory": "Memória"
         },
         "scopeAccess": {
+          "delete": "Excluir (perigoso)",
           "read": "ler",
           "write": "escrever"
         }

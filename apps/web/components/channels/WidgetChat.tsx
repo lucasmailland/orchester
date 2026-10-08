@@ -1,6 +1,14 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
+
+// Markdown pulls in the unified/remark stack; load it lazily so the widget's
+// first paint stays light, falling back to plain text while it loads.
+const Markdown = dynamic(() => import("@/components/ui/Markdown").then((m) => m.Markdown), {
+  ssr: false,
+  loading: () => null,
+});
 
 interface Msg {
   role: "user" | "assistant";
@@ -186,10 +194,10 @@ export function WidgetChat({ channelId, color, title, greeting, starters, placeh
                 lineHeight: 1.45,
                 background: m.role === "user" ? color : "rgba(255,255,255,0.08)",
                 color: m.role === "user" ? "white" : "#e4e4e7",
-                whiteSpace: "pre-wrap",
+                whiteSpace: m.role === "assistant" ? "normal" : "pre-wrap",
               }}
             >
-              {m.content}
+              {m.role === "assistant" && m.content ? <Markdown content={m.content} /> : m.content}
             </div>
           </div>
         ))}

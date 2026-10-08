@@ -20,11 +20,15 @@ type WsDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 const HTTP_REQUEST_TIMEOUT_MS = 30_000;
 
 export interface ToolDefinition {
+  /** MCP annotations, conservatively classified for execution policies. */
+  effect?: "read" | "write";
   name: string;
   description: string;
   /** JSON Schema describing the tool's input. */
   inputSchema: Record<string, unknown>;
 }
+
+export type { ImageToolOutput, ToolImagePart } from "./ai/capabilities";
 
 export interface ToolCall {
   id: string;
@@ -128,7 +132,7 @@ const BUILTINS: Record<string, ToolDefinition> = {
   agent_handoff: {
     name: "agent_handoff",
     description:
-      "Hand off the current conversation to another agent. Use this when the user's request is OUTSIDE your specialty and a teammate is better suited. The other agent receives the conversation history + your handoff note and continues the dialog. From the next turn forward, the other agent is the one responding.",
+      "Hand off the current conversation to another agent. Use this when the user's request is OUTSIDE your specialty and a teammate in your team is better suited (agents without a team can hand off to any agent in the workspace). The other agent receives the conversation history + your handoff note and continues the dialog. From the next turn forward, the other agent is the one responding.",
     inputSchema: {
       type: "object",
       properties: {
@@ -149,7 +153,7 @@ const BUILTINS: Record<string, ToolDefinition> = {
   agent_team_list: {
     name: "agent_team_list",
     description:
-      "Lists the teammates available in your workspace that you can hand off to (via `agent_handoff`). Returns id + name + role + short description for each.",
+      "Lists the teammates in your team that you can hand off to (via `agent_handoff`). If you do not belong to a team, lists every active agent in the workspace. Returns id + name + role + short description for each.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -400,10 +404,13 @@ const BUILTINS: Record<string, ToolDefinition> = {
   odoo_get_task_attachments: {
     name: "odoo_get_task_attachments",
     description:
-      "List the files attached to an Odoo project task: name, mime type, size and date. Metadata only — you cannot open the files, but their names and count tell you whether screenshots or logs exist, and a human can be pointed at them.",
+      "List all Odoo task attachment metadata. Set include_images=true when screenshots are evidence you need to inspect: returns up to four newest PNG/JPEG/GIF/WebP images (1 MB each) for visual analysis.",
     inputSchema: {
       type: "object",
-      properties: { id: { type: "number", description: "Numeric task id." } },
+      properties: {
+        id: { type: "number", description: "Numeric task id." },
+        include_images: { type: "boolean", default: false },
+      },
       required: ["id"],
     },
   },
@@ -604,6 +611,18 @@ export function getToolDefinitions(enabledIds: string[]): ToolDefinition[] {
   return enabledIds.map((id) => BUILTINS[id]).filter(Boolean) as ToolDefinition[];
 }
 
+export async function resolveToolDefinitions(
+  workspaceId: string,
+  enabledIds: string[],
+  tx?: WsDb
+): Promise<ToolDefinition[]> {
+  const builtins = getToolDefinitions(enabledIds);
+  if (!enabledIds.some((id) => id.startsWith("mcp__"))) return builtins;
+  const { listWorkspaceMcpTools } = await import("./integrations/mcp-tools");
+  const remote = await listWorkspaceMcpTools(workspaceId, tx);
+  return [...builtins, ...remote.filter((tool) => enabledIds.includes(tool.name))];
+}
+
 export function listAllTools(): ToolDefinition[] {
   return Object.values(BUILTINS);
 }
@@ -689,11 +708,81 @@ function safeEvalArithmetic(expr: string): number {
   return result;
 }
 
+/** Team of the calling agent, or null when it has none / cannot be found. */
+async function getCallerTeamId(
+  db: ReturnType<typeof getDb>,
+  agentId: string,
+  workspaceId: string
+): Promise<string | null> {
+  const rows = await db
+    .select({ teamId: schema.agents.teamId })
+    .from(schema.agents)
+    .where(and(eq(schema.agents.id, agentId), eq(schema.agents.workspaceId, workspaceId)))
+    .limit(1);
+  return rows[0]?.teamId ?? null;
+}
+
+/**
+ * Whether a tool call reads or writes, so a dry run can let reads through and
+ * simulate writes. Connector-backed tools inherit their action's declared
+ * effect; the rest are classified here. Anything not classified is `write`: an
+ * unclassified tool must never run in a dry run.
+ */
+const READ_TOOLS = new Set([
+  "current_time",
+  "calculator",
+  "agent_team_list",
+  "knowledge_search",
+  "memory_get",
+  "brain_recall",
+]);
+
+export async function toolEffect(
+  name: string,
+  input: Record<string, unknown>,
+  ctx: Pick<ToolContext, "workspaceId" | "tx">
+): Promise<"read" | "write"> {
+  if (READ_TOOLS.has(name)) return "read";
+  if (name === "http_request") {
+    const method = String(input.method ?? "GET").toUpperCase();
+    return method === "GET" || method === "HEAD" ? "read" : "write";
+  }
+  const route = CONNECTOR_TOOLS[name];
+  if (route) {
+    const { getConnector, actionEffect } = await import("@/lib/integrations/registry");
+    return actionEffect(getConnector(route.integrationId)?.actions[route.action], input);
+  }
+  if (name === "run_integration") {
+    const integrationId = String(input.integrationId ?? "");
+    const action = String(input.action ?? "");
+    if (!integrationId || !action) return "write";
+    try {
+      const { getIntegrationActionEffect } = await import("@/lib/integrations/store");
+      return await getIntegrationActionEffect(
+        ctx.workspaceId,
+        integrationId,
+        action,
+        (input.input as Record<string, unknown>) ?? {},
+        ctx.tx
+      );
+    } catch {
+      return "write";
+    }
+  }
+  // flow_call, agent_handoff, memory_set, memory_remove, mnemosyne_remember, and
+  // anything new until someone classifies it.
+  return "write";
+}
+
 export async function executeTool(
   name: string,
   input: Record<string, unknown>,
   ctx: ToolContext
 ): Promise<unknown> {
+  if (name.startsWith("mcp__")) {
+    const { executeWorkspaceMcpTool } = await import("./integrations/mcp-tools");
+    return executeWorkspaceMcpTool(name, input, ctx);
+  }
   if (name === "current_time") {
     const tz = (input.timezone as string) ?? "UTC";
     try {
@@ -767,7 +856,13 @@ export async function executeTool(
       eq(schema.agents.workspaceId, ctx.workspaceId),
       eq(schema.agents.status, "active"),
     ];
-    if (ctx.agentId) conds.push(ne(schema.agents.id, ctx.agentId));
+    if (ctx.agentId) {
+      conds.push(ne(schema.agents.id, ctx.agentId));
+      // Scope to the caller's team. An agent with no team (or a call with no
+      // agent context, e.g. from a flow) keeps the workspace-wide list.
+      const callerTeamId = await getCallerTeamId(db, ctx.agentId, ctx.workspaceId);
+      if (callerTeamId) conds.push(eq(schema.agents.teamId, callerTeamId));
+    }
     const teammates = await db
       .select({
         id: schema.agents.id,
@@ -806,6 +901,12 @@ export async function executeTool(
     if (!target) throw new Error(`target agent ${targetAgentId} not found in workspace`);
     if (target.status !== "active") {
       throw new Error(`target agent ${target.name} is not active (status=${target.status})`);
+    }
+    // Same scoping as agent_team_list: a caller in a team may only hand off
+    // within it, otherwise the model could use an id it saw elsewhere.
+    const callerTeamId = await getCallerTeamId(db, ctx.agentId, ctx.workspaceId);
+    if (callerTeamId && target.teamId !== callerTeamId) {
+      throw new Error(`target agent ${target.name} is not in your team`);
     }
 
     // Pivot the conversation to the new agent

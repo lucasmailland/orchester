@@ -1,4 +1,5 @@
 import "server-only";
+import { MAX_TOOL_IMAGE_BYTES, MAX_TOOL_IMAGES, normalizeToolOutput } from "../tool-output";
 import { discordWebhookUrl, discordSendMessage, discordSendEmbed } from "./discord-client";
 import { telegramTest, telegramSendMessage } from "./telegram-client";
 import {
@@ -51,10 +52,42 @@ export interface JsonSchema {
   required?: string[];
 }
 
+/**
+ * What an action does to the outside world. A dry run executes `read` actions
+ * (real context is the point) and simulates `write` ones. It may depend on the
+ * input — the generic `execute` and `request` actions are only as safe as the
+ * method they are given.
+ */
+export type ActionEffect = "read" | "write";
+
 export interface ConnectorAction {
   description: string;
+  effect: ActionEffect | ((input: Record<string, unknown>) => ActionEffect);
   inputSchema: JsonSchema;
   run: (config: Record<string, string>, input: Record<string, unknown>) => Promise<unknown>;
+}
+
+/** Odoo model methods that only read. Anything else through `execute` writes. */
+const ODOO_READ_METHODS: ReadonlySet<string> = new Set([
+  "search_read",
+  "read",
+  "search_count",
+  "fields_get",
+  "name_search",
+]);
+const SAFE_HTTP_METHODS: ReadonlySet<string> = new Set(["GET", "HEAD"]);
+
+/**
+ * Resolves an action's effect for a given input. A missing declaration is
+ * `write`: an action nobody classified must never run in a dry run.
+ */
+export function actionEffect(
+  action: Pick<ConnectorAction, "effect"> | undefined,
+  input: Record<string, unknown>
+): ActionEffect {
+  const e = action?.effect as ConnectorAction["effect"] | undefined;
+  if (typeof e === "function") return e(input) === "read" ? "read" : "write";
+  return e === "read" ? "read" : "write";
 }
 
 export interface TestResult {
@@ -131,6 +164,7 @@ const stripe: Connector = {
   },
   actions: {
     get_balance: {
+      effect: "read",
       description: "Return the available and pending balance of the Stripe account.",
       inputSchema: { type: "object", properties: {} },
       async run(config) {
@@ -141,6 +175,7 @@ const stripe: Connector = {
       },
     },
     list_customers: {
+      effect: "read",
       description: "List the most recent Stripe customers.",
       inputSchema: { type: "object", properties: { limit: { type: "number" } } },
       async run(config, input) {
@@ -152,6 +187,7 @@ const stripe: Connector = {
       },
     },
     list_invoices: {
+      effect: "read",
       description: "List the most recent Stripe invoices.",
       inputSchema: { type: "object", properties: { limit: { type: "number" } } },
       async run(config, input) {
@@ -192,6 +228,7 @@ const notion: Connector = {
   },
   actions: {
     search: {
+      effect: "read",
       description: "Search Notion pages and databases by text.",
       inputSchema: {
         type: "object",
@@ -212,6 +249,7 @@ const notion: Connector = {
       },
     },
     query_database: {
+      effect: "read",
       description: "Query a Notion database by its ID.",
       inputSchema: {
         type: "object",
@@ -275,6 +313,7 @@ const postgres: Connector = {
   },
   actions: {
     query: {
+      effect: "read",
       description:
         "Run a READ-ONLY SQL query (SELECT) against the external database. Write statements are rejected.",
       inputSchema: { type: "object", properties: { sql: { type: "string" } }, required: ["sql"] },
@@ -338,6 +377,7 @@ const resend: Connector = {
   },
   actions: {
     send_email: {
+      effect: "write",
       description: "Send an email via Resend.",
       inputSchema: {
         type: "object",
@@ -409,6 +449,8 @@ const http: Connector = {
   },
   actions: {
     request: {
+      effect: (input) =>
+        SAFE_HTTP_METHODS.has(String(input.method ?? "GET").toUpperCase()) ? "read" : "write",
       description:
         "Make an HTTP request to {baseUrl}{path}. method GET/POST/PUT/DELETE; optional JSON body.",
       inputSchema: {
@@ -496,6 +538,7 @@ const slack: Connector = {
   },
   actions: {
     post_message: {
+      effect: "write",
       description: "Post a message to a Slack channel.",
       inputSchema: {
         type: "object",
@@ -542,6 +585,7 @@ const discord: Connector = {
   },
   actions: {
     send_message: {
+      effect: "write",
       description: "Send a message to the webhook's channel or a thread.",
       inputSchema: {
         type: "object",
@@ -559,6 +603,7 @@ const discord: Connector = {
       run: discordSendMessage,
     },
     send_embed: {
+      effect: "write",
       description: "Send one simple Discord embed.",
       inputSchema: {
         type: "object",
@@ -624,6 +669,7 @@ const telegram: Connector = {
   },
   actions: {
     send_message: {
+      effect: "write",
       description: "Send a bot message to a chat or group.",
       inputSchema: {
         type: "object",
@@ -785,6 +831,7 @@ const odoo: Connector = {
   },
   actions: {
     create_ticket: {
+      effect: "write",
       description:
         "Create a helpdesk ticket. Use description_text for plain text (it is escaped and line breaks preserved) or description for HTML you already built.",
       inputSchema: {
@@ -817,6 +864,7 @@ const odoo: Connector = {
     },
 
     update_ticket: {
+      effect: "write",
       description: "Update fields on an existing helpdesk ticket.",
       inputSchema: {
         type: "object",
@@ -844,6 +892,7 @@ const odoo: Connector = {
     },
 
     get_ticket: {
+      effect: "read",
       description: "Read one helpdesk ticket by id.",
       inputSchema: {
         type: "object",
@@ -859,6 +908,7 @@ const odoo: Connector = {
     },
 
     search_tickets: {
+      effect: "read",
       description:
         "Search helpdesk tickets by title substring. Use it before creating a ticket to avoid filing a duplicate.",
       inputSchema: {
@@ -890,6 +940,7 @@ const odoo: Connector = {
     // database. These three cover what reading a task actually needs.
 
     get_task: {
+      effect: "read",
       description: "Read one project task by id.",
       inputSchema: {
         type: "object",
@@ -905,6 +956,7 @@ const odoo: Connector = {
     },
 
     search_tasks: {
+      effect: "read",
       description:
         "Search project tasks. Narrow with project_id, stage_id, parent_id or a title substring. Returns the task fields, not its notes — use get_task_notes for those.",
       inputSchema: {
@@ -969,6 +1021,7 @@ const odoo: Connector = {
     },
 
     get_task_notes: {
+      effect: "read",
       description:
         "The notes posted on a project task, newest first. This is where the pipeline leaves its evidence, so it is where an analysis of an incident starts.",
       inputSchema: {
@@ -998,15 +1051,19 @@ const odoo: Connector = {
     },
 
     get_task_attachments: {
+      effect: "read",
       description:
-        "List the files attached to a project task (name, type, size). Metadata only — the contents are not returned.",
+        "List all task attachment metadata. Set include_images=true to inspect screenshot evidence (up to four newest PNG/JPEG/GIF/WebP images, 1 MB each).",
       inputSchema: {
         type: "object",
-        properties: { id: { type: "number", description: "Task id." } },
+        properties: {
+          id: { type: "number", description: "Task id." },
+          include_images: { type: "boolean", default: false },
+        },
         required: ["id"],
       },
       async run(config, input) {
-        const attachments = await odooExecute(
+        const attachments = (await odooExecute(
           config,
           "ir.attachment",
           "search_read",
@@ -1016,13 +1073,39 @@ const odoo: Connector = {
               ["res_id", "=", Number(input.id)],
             ],
           ],
-          { fields: ATTACHMENT_FIELDS }
-        );
-        return { attachments };
+          { fields: ATTACHMENT_FIELDS, order: "create_date desc, id desc" }
+        )) as Array<{ id: number; name: string; mimetype: string; file_size: number }>;
+        if (input.include_images !== true) return { attachments };
+        const selected: typeof attachments = [];
+        const notes: string[] = [];
+        for (const attachment of attachments) {
+          if (!attachment.mimetype?.startsWith("image/")) continue;
+          let reason: string | undefined;
+          if (!["image/png", "image/jpeg", "image/gif", "image/webp"].includes(attachment.mimetype))
+            reason = "unsupported MIME type";
+          else if (attachment.file_size > MAX_TOOL_IMAGE_BYTES) reason = "exceeds 1 MB";
+          else if (selected.length >= MAX_TOOL_IMAGES) reason = "limit of 4 images";
+          if (reason) notes.push(`[image omitted: ${attachment.name}, ${reason}]`);
+          else selected.push(attachment);
+        }
+        const data = selected.length
+          ? ((await odooExecute(config, "ir.attachment", "read", [selected.map((a) => a.id)], {
+              fields: ["id", "datas"],
+            })) as Array<{ id: number; datas: string | false }>)
+          : [];
+        return normalizeToolOutput({
+          text: [JSON.stringify({ attachments }), ...notes].join("\n"),
+          images: selected.map((a) => ({
+            name: a.name,
+            mediaType: a.mimetype,
+            base64: data.find((d) => d.id === a.id)?.datas ?? "",
+          })),
+        });
       },
     },
 
     get_partner: {
+      effect: "read",
       description: "Read one customer (res.partner) by id: identity fields only.",
       inputSchema: {
         type: "object",
@@ -1038,6 +1121,7 @@ const odoo: Connector = {
     },
 
     list_stages: {
+      effect: "read",
       description: "List the stages of a project, in board order.",
       inputSchema: {
         type: "object",
@@ -1058,6 +1142,7 @@ const odoo: Connector = {
     },
 
     post_note: {
+      effect: "write",
       description:
         "Post an INTERNAL note on a ticket or task. Internal means the customer never sees it — use it for the full technical report.",
       inputSchema: {
@@ -1089,6 +1174,7 @@ const odoo: Connector = {
     },
 
     execute: {
+      effect: (input) => (ODOO_READ_METHODS.has(String(input.method)) ? "read" : "write"),
       description:
         "Escape hatch — call any model method (execute_kw). Use only when no dedicated action fits.",
       inputSchema: {
@@ -1170,6 +1256,7 @@ const newrelic: Connector = {
   },
   actions: {
     get_errors: {
+      effect: "read",
       description:
         "Top errors for an application in a recent window, grouped by class and message.",
       inputSchema: {
@@ -1195,6 +1282,7 @@ const newrelic: Connector = {
     },
 
     get_logs_for_trace: {
+      effect: "read",
       description:
         "Log lines for one distributed trace, oldest first. Use the trace_id carried by the alert payload.",
       inputSchema: {
@@ -1215,6 +1303,7 @@ const newrelic: Connector = {
     },
 
     get_deployments: {
+      effect: "read",
       description:
         "Recent deployments for an application. A spike that starts right after one is usually the rollout.",
       inputSchema: {
@@ -1235,6 +1324,7 @@ const newrelic: Connector = {
     },
 
     nrql: {
+      effect: "read",
       description:
         "Run an arbitrary NRQL query. Use it when no dedicated action fits; prefer the dedicated ones, whose queries are fixed and therefore reproducible.",
       inputSchema: {
@@ -1293,6 +1383,7 @@ const gitlab: Connector = {
   },
   actions: {
     search_code: {
+      effect: "read",
       description:
         "Search project or group code; return path, startline, snippet and projectId (numeric ID as a string) for chaining into read_file or list_commits. Include projectPath when supplied and webUrl when the project path, file path and ref are known. Group search requires advanced or exact code search. Ref support depends on the search backend.",
       inputSchema: {
@@ -1322,6 +1413,7 @@ const gitlab: Connector = {
       run: gitlabSearchCode,
     },
     read_file: {
+      effect: "read",
       description:
         "Read UTF-8 file text and full-file byte size. Pass a search_code match's startline as aroundLine to return a line window with fromLine, toLine, totalLines and truncated: true. Whole-file reads are limited to 200 KiB; all responses are capped at 8 MiB including base64 and JSON.",
       inputSchema: {
@@ -1357,6 +1449,7 @@ const gitlab: Connector = {
       run: gitlabReadFile,
     },
     list_commits: {
+      effect: "read",
       description: "List recent commit IDs, titles, author names and committed dates.",
       inputSchema: {
         type: "object",
@@ -1376,6 +1469,7 @@ const gitlab: Connector = {
       run: gitlabListCommits,
     },
     compare_refs: {
+      effect: "read",
       description:
         "Compare two refs (branch, tag or commit SHA) and return the commits between them plus the changed file paths. Use it to narrow suspects when you know the version where an error first appeared: pass the previous version's SHA as `from` and that version's SHA as `to`. Commits are capped by `limit` and files at 40; `truncated` says whether anything was left out.",
       inputSchema: {
@@ -1395,6 +1489,7 @@ const gitlab: Connector = {
       run: gitlabCompareRefs,
     },
     get_merge_request: {
+      effect: "read",
       description:
         "Read merge request metadata and unique changed file paths, including both sides of renames. No diffs are returned; GitLab server diff limits apply.",
       inputSchema: {
@@ -1407,7 +1502,50 @@ const gitlab: Connector = {
   },
 };
 
+const mcp: Connector = {
+  id: "mcp",
+  name: "MCP server",
+  description: "Connect a Streamable HTTP MCP server and enable its tools for agents.",
+  category: "custom",
+  authType: "token",
+  fields: [
+    {
+      key: "url",
+      label: "Server URL",
+      type: "url",
+      required: true,
+      placeholder: "https://mcp.example.com/mcp",
+    },
+    {
+      key: "authHeader",
+      label: "Authorization header",
+      type: "password",
+      help: "Optional complete Authorization value, such as Bearer followed by a token.",
+    },
+    {
+      key: "toolAllowlist",
+      label: "Tool allowlist",
+      type: "text",
+      placeholder: '["search", "read_document"]',
+      help: "Optional JSON array of exact remote tool names. Explicitly listed tools may write or delete data. An empty array disables all tools.",
+    },
+    {
+      key: "timeoutMs",
+      label: "Timeout (milliseconds)",
+      type: "text",
+      placeholder: "20000",
+      help: "Default 20000, maximum 60000; covers initialization and the operation.",
+    },
+  ],
+  async test(config) {
+    const { testMcpConnection } = await import("./mcp-client");
+    return testMcpConnection(config);
+  },
+  actions: {},
+};
+
 export const CONNECTORS: Record<string, Connector> = {
+  mcp,
   stripe,
   notion,
   postgres,
