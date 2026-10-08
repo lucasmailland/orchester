@@ -8,7 +8,7 @@ import { enqueue, JOB_FLOW_RUN } from "./queue";
 import { assertPublicUrl } from "./net-guard";
 import { logWithContext, recordMetric } from "./observability";
 import { evaluateExpression } from "./flows/filters";
-import { buildSubflowInput, hasSubflowMap, readSubflowOutputs } from "./flows/subflow-io";
+import { buildSubflowInput, readSubflowMap, readSubflowOutputs } from "./flows/subflow-io";
 import { parseRetryConfig, runWithRetry, StepFailure } from "./flows/retry";
 import { createApprovalToken, PauseRequested } from "./flows/pause";
 import { isDryRunSource, markDryRun, redactUrl, simulated } from "./flows/dry-run";
@@ -1609,8 +1609,11 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     const subId = cfg.flowId as string | undefined;
     if (!subId) throw new Error("subflow: missing flowId");
     // With `inputs` the child gets only those variables; without it, the whole bag.
-    const childInput = hasSubflowMap(cfg.inputs)
-      ? buildSubflowInput(cfg.inputs, ctx.variables, resolveValue)
+    // Validated before anything runs: a malformed mapping must not look like an absent one.
+    const inputs = readSubflowMap("inputs", cfg.inputs);
+    const outputs = readSubflowMap("outputs", cfg.outputs);
+    const childInput = inputs
+      ? buildSubflowInput(inputs, ctx.variables, resolveValue)
       : ctx.variables;
     const result = await executeFlow({
       flowId: subId,
@@ -1643,9 +1646,9 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       tx.select().from(schema.flowRuns).where(eq(schema.flowRuns.id, result.runId)).limit(1)
     );
     const subOut = (subRuns[0]?.output as Record<string, unknown>) ?? {};
-    if (hasSubflowMap(cfg.outputs)) {
+    if (outputs) {
       // Only the mapped variables come back; the rest of the child's bag stays there.
-      const { values, missing } = readSubflowOutputs(cfg.outputs, subOut, resolveValue);
+      const { values, missing } = readSubflowOutputs(outputs, subOut, resolveValue);
       Object.assign(ctx.variables, values);
       helpers.setOutput({
         subRunId: result.runId,

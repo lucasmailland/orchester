@@ -22,7 +22,8 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 
 /** Problems with one mapping, in the flow validator's language (Spanish). */
 export function subflowMapProblems(field: "inputs" | "outputs", value: unknown): string[] {
-  if (value === undefined || value === null) return [];
+  // Only an absent key (undefined) means "no mapping". null, arrays and strings are mistakes.
+  if (value === undefined) return [];
   if (!isRecord(value)) return [`"${field}" tiene que ser un objeto nombre → expresión.`];
   const problems: string[] = [];
   const entries = Object.entries(value);
@@ -53,8 +54,20 @@ export function subflowMapProblems(field: "inputs" | "outputs", value: unknown):
   return problems;
 }
 
-export function hasSubflowMap(value: unknown): value is Record<string, string> {
-  return isRecord(value);
+/**
+ * The mapping of a subflow node at execution time. `undefined` (key absent) keeps the legacy
+ * behaviour; a PRESENT key must be a valid object (`null`, `[]` or `"{}"` throw), otherwise a
+ * typo would silently hand the child the whole parent bag. An explicit `{}` is valid: the child
+ * gets nothing (inputs) or nothing comes back (outputs).
+ */
+export function readSubflowMap(
+  field: "inputs" | "outputs",
+  value: unknown
+): Record<string, string> | undefined {
+  if (value === undefined) return undefined;
+  const problems = subflowMapProblems(field, value);
+  if (problems.length > 0) throw new Error(`subflow: ${problems.join(" ")}`);
+  return value as Record<string, string>;
 }
 
 type Resolve = (template: unknown, ctx: Record<string, unknown>) => unknown;

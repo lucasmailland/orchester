@@ -150,3 +150,28 @@ describe("subflow inputs and outputs together", () => {
     expect(r.output).not.toHaveProperty("scratch");
   });
 });
+
+describe("malformed mappings fail the step instead of disabling isolation", () => {
+  // A key that is present must be a valid object. Only an absent key (undefined) means "legacy".
+  it.each([
+    ["inputs", []],
+    ["inputs", "{}"],
+    ["inputs", null],
+    ["inputs", { bad: 1 }],
+    ["outputs", []],
+    ["outputs", "{}"],
+    ["outputs", null],
+  ])("%s = %j", async (field, value) => {
+    const { r, inserted } = await callWith({ [field]: value }, { secret: 1 }, { out: 1 });
+    expect(r.status).toBe("failed");
+    expect(JSON.stringify(r.steps)).toContain(field);
+    // The child never ran with the whole parent bag.
+    expect(inserted.find((i) => i.flowId === "child")).toBeUndefined();
+  });
+  it("accepts an explicit empty object: the child gets nothing and nothing comes back", async () => {
+    const { r, childRun } = await callWith({ inputs: {}, outputs: {} }, { a: 1 }, { b: 2 });
+    expect(r.status).toBe("succeeded");
+    expect(childRun?.input).toEqual({});
+    expect(r.output).not.toHaveProperty("b");
+  });
+});
