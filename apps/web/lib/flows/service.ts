@@ -10,6 +10,7 @@ import { validateStoredFlow, hasErrors } from "./validate-stored";
 import { changesTheGraph, restorePatch } from "./versions";
 import type { ValidationIssue } from "./validate";
 import type { ExternalCaller, FlowKind } from "./kind";
+import { storedActionIssues } from "./action-guard";
 
 /**
  * Workspace-scoped flow operations shared by the session routes and the MCP
@@ -207,6 +208,33 @@ export async function updateFlow(
           variables: input.variables ?? current.variables,
         }
       );
+    }
+    // Drafts stay editable, but an action that is (or becomes) enabled must satisfy its
+    // contract whatever the caller's strictness: REST saves are non-strict, so this is the
+    // only gate between a violating graph and the scheduler/webhooks. Restores come through
+    // here too. Only checked when the change touches what the contract is about.
+    if (
+      input.kind !== undefined ||
+      input.enabled !== undefined ||
+      input.nodes !== undefined ||
+      input.variables !== undefined
+    ) {
+      const finalKind = input.kind ?? current.kind ?? "pipeline";
+      const finalEnabled = input.enabled ?? current.enabled;
+      if (finalKind === "action" && finalEnabled === true) {
+        const issues = storedActionIssues({
+          kind: finalKind,
+          nodes: input.nodes ?? current.nodes,
+          variables: input.variables ?? current.variables,
+        });
+        if (issues.length > 0) {
+          throw new FlowServiceError(
+            "invalid",
+            "An enabled action must satisfy the action contract; disable it or fix the graph",
+            issues
+          );
+        }
+      }
     }
     // El estado anterior se guarda ANTES de pisarlo, en esta misma
     // transacción: si el update falla, no queda una versión fantasma de algo

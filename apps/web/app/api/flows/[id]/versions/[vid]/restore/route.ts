@@ -3,6 +3,7 @@ import { getDb, schema } from "@orchester/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { restorePatch } from "@/lib/flows/versions";
+import { storedActionIssues } from "@/lib/flows/action-guard";
 
 export async function POST(
   _req: Request,
@@ -29,6 +30,24 @@ export async function POST(
     const v = versions[0];
     if (!v) return { kind: "version_not_found" as const };
 
+    const currentRows = await tx
+      .select()
+      .from(schema.flows)
+      .where(and(eq(schema.flows.id, id), eq(schema.flows.workspaceId, ctx.workspace.id)))
+      .limit(1);
+    const current = currentRows[0];
+    if (!current) return { kind: "flow_not_found" as const };
+    // An enabled action must keep satisfying its contract; the same rule as `updateFlow`.
+    if (current.kind === "action" && current.enabled) {
+      const patch = restorePatch(v);
+      const issues = storedActionIssues({
+        kind: "action",
+        nodes: patch.nodes,
+        variables: patch.variables,
+      });
+      if (issues.length > 0) return { kind: "contract" as const, issues };
+    }
+
     const updated = await tx
       .update(schema.flows)
       .set({
@@ -44,6 +63,15 @@ export async function POST(
 
   if (result.kind === "version_not_found")
     return NextResponse.json({ error: "Version not found" }, { status: 404 });
+  if (result.kind === "contract")
+    return NextResponse.json(
+      {
+        error:
+          "An enabled action must satisfy the action contract; disable it or pick another version",
+        issues: result.issues,
+      },
+      { status: 422 }
+    );
   if (result.kind === "flow_not_found")
     return NextResponse.json({ error: "Flow not found" }, { status: 404 });
   return NextResponse.json(result.row);

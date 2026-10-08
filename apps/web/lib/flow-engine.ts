@@ -11,6 +11,8 @@ import { evaluateExpression } from "./flows/filters";
 import { buildSubflowInput, readSubflowMap, readSubflowOutputs } from "./flows/subflow-io";
 import { parseRetryConfig, runWithRetry, StepFailure } from "./flows/retry";
 import { createApprovalToken, PauseRequested } from "./flows/pause";
+import { issuesSummary, storedActionIssues } from "./flows/action-guard";
+import type { ValidationIssue } from "./flows/validate";
 import { isDryRunSource, markDryRun, redactUrl, simulated } from "./flows/dry-run";
 import { assertFlowRunnable, isManualSource } from "./flows/run-gate";
 
@@ -395,6 +397,8 @@ export async function executeFlow({
   error?: string;
   /** Only with `paused`: the secret that permits approval or rejection. */
   approvalToken?: string;
+  /** Action contract violations of the stored graph (always set when a real run is refused). */
+  contractIssues?: ValidationIssue[];
 }> {
   // Before any row is written, so a refused call leaves no child run behind.
   assertSubflowChain(callChain, flowId);
@@ -474,6 +478,21 @@ export async function executeFlow({
 
   const nodes = (flow.nodes ?? []) as FlowNode[];
   const edges = (flow.edges ?? []) as FlowEdge[];
+  // REST saves are non-strict, so a stored action can violate its contract. A real run is
+  // refused; a dry run proceeds (authors need to test) and its result carries the issues.
+  const contractIssues = storedActionIssues(flow);
+  const withIssues = dryRun && contractIssues.length > 0 ? { contractIssues } : {};
+  if (contractIssues.length > 0 && !dryRun) {
+    const err = `Esta acción no cumple el contrato de acciones y no se puede ejecutar: ${issuesSummary(contractIssues)}`;
+    await withFlowTx(workspaceId, (tx) =>
+      tx
+        .update(schema.flowRuns)
+        .set({ status: "failed", error: err, completedAt: new Date() })
+        .where(eq(schema.flowRuns.id, runId))
+    );
+    onEvent?.({ type: "run_finish", status: "failed", error: err });
+    return { runId, status: "failed", error: err, contractIssues };
+  }
   const start = nodes.find((n) => n.type === "trigger");
   if (!start) {
     const err =
@@ -517,7 +536,7 @@ export async function executeFlow({
       flowId,
       status: "succeeded",
     });
-    return { runId, status: "succeeded" };
+    return { runId, status: "succeeded", ...withIssues };
   } catch (e) {
     // The run reached a `wait_human`. It has not finished: it is waiting for
     // a person, perhaps for days. Save where to resume — the node and ALL
@@ -556,7 +575,7 @@ export async function executeFlow({
         const { notifyPause } = await import("./flows/notify-pause");
         await notifyPause(workspaceId, runId, token, e.approvalMessage, e.notification);
       }
-      return { runId, status: "paused", approvalToken: token };
+      return { runId, status: "paused", approvalToken: token, ...withIssues };
     }
     // F-B1/F-1: si la causa fue un abort (cliente desconectado o timeout
     // inline), marcamos `cancelled` (no `failed`) para que las métricas no
@@ -578,7 +597,7 @@ export async function executeFlow({
       flowId,
       status: cancelled ? "cancelled" : "failed",
     });
-    return { runId, status: cancelled ? "cancelled" : "failed", error: msg };
+    return { runId, status: cancelled ? "cancelled" : "failed", error: msg, ...withIssues };
   }
 }
 
