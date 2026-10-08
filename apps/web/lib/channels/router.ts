@@ -8,6 +8,7 @@ import { schema, type DbClient, type Conversation, type Agent, type Channel } fr
 import { llmCall, llmStream, type ChatMessage } from "@/lib/llm-call";
 import { resolveToolDefinitions, executeTool } from "@/lib/tools";
 import { executeFlow } from "@/lib/flow-engine";
+import { FlowDisabledError } from "@/lib/flows/run-gate";
 import { assertWithinSpend } from "@/lib/cost-alerts";
 import { UNTRUSTED_CONTENT_GUARDRAIL, wrapUntrusted } from "@/lib/agent-runtime";
 
