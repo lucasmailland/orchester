@@ -21,10 +21,11 @@
 import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { Workflow, Plus, KeyRound, BookOpenText } from "lucide-react";
+import { Workflow, Plus, KeyRound, BookOpenText, MoreVertical, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { Button } from "@heroui/react";
+import { Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/react";
 
+import { DeleteFlowDialog } from "@/components/flows/DeleteFlowDialog";
 import { NoProviderBanner } from "@/components/common/NoProviderBanner";
 import { Callout } from "@/components/compass/Callout";
 import { EmptyState } from "@/components/compass/EmptyState";
@@ -64,9 +65,14 @@ const STATUS_BADGE_CLASSES: Record<FlowStatus, string> = {
   draft: "border-line text-muted",
 };
 
-export function FlowsListClient({ flows }: { flows: Item[] }) {
+export function FlowsListClient({ flows: initialFlows }: { flows: Item[] }) {
   const router = useRouter();
   const t = useTranslations("compass.flows");
+  const tb = useTranslations("pages.flows.builder");
+  // Local copy so a deleted card disappears at once, without waiting for the
+  // server component to re-render.
+  const [flows, setFlows] = useState<Item[]>(initialFlows);
+  const [deleting, setDeleting] = useState<Item | null>(null);
   const params = useParams<{ locale: string; workspaceSlug: string }>();
   const locale = params?.locale ?? "es";
   const workspaceSlug = params?.workspaceSlug ?? "";
@@ -259,28 +265,54 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
                 </h2>
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                   {group.flows.map((f) => (
-                    <motion.button
+                    <motion.div
                       key={f.id}
-                      type="button"
                       initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
-                      onClick={() => router.push(`/${locale}/${workspaceSlug}/flows/${f.id}`)}
-                      className="rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
+                      className="relative"
                     >
-                      <div className="mb-2 flex items-center gap-2">
-                        <Workflow className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-                        <span className="truncate font-medium text-strong">{f.name}</span>
-                      </div>
-                      <p className="line-clamp-2 text-xs text-muted">{f.description ?? "—"}</p>
-                      <div className="mt-3 flex items-center justify-between text-[10px] text-faint">
-                        <span>{t("nodesLabel", { count: f.nodeCount })}</span>
-                        <span
-                          className={`rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASSES[f.status]}`}
-                        >
-                          {t(`statuses.${f.status}`)}
-                        </span>
-                      </div>
-                    </motion.button>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/${locale}/${workspaceSlug}/flows/${f.id}`)}
+                        className="block w-full rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
+                      >
+                        <div className="mb-2 flex items-center gap-2 pr-8">
+                          <Workflow className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                          <span className="truncate font-medium text-strong">{f.name}</span>
+                        </div>
+                        <p className="line-clamp-2 text-xs text-muted">{f.description ?? "—"}</p>
+                        <div className="mt-3 flex items-center justify-between text-[10px] text-faint">
+                          <span>{t("nodesLabel", { count: f.nodeCount })}</span>
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASSES[f.status]}`}
+                          >
+                            {t(`statuses.${f.status}`)}
+                          </span>
+                        </div>
+                      </button>
+                      <Dropdown placement="bottom-end">
+                        <DropdownTrigger>
+                          <button
+                            type="button"
+                            aria-label={`${tb("flowActions")}: ${f.name}`}
+                            className="absolute right-2 top-2 rounded-lg p-1.5 text-muted hover:bg-hover hover:text-strong"
+                          >
+                            <MoreVertical className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                        </DropdownTrigger>
+                        <DropdownMenu aria-label={tb("flowActions")}>
+                          <DropdownItem
+                            key="delete"
+                            color="danger"
+                            className="text-danger"
+                            startContent={<Trash2 className="h-4 w-4" aria-hidden="true" />}
+                            onPress={() => setDeleting(f)}
+                          >
+                            {tb("deleteFlow")}
+                          </DropdownItem>
+                        </DropdownMenu>
+                      </Dropdown>
+                    </motion.div>
                   ))}
                 </div>
               </section>
@@ -288,6 +320,20 @@ export function FlowsListClient({ flows }: { flows: Item[] }) {
           </div>
         </TourSpot>
       )}
+
+      {deleting ? (
+        <DeleteFlowDialog
+          open
+          flowId={deleting.id}
+          flowName={deleting.name}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => {
+            setFlows((prev) => prev.filter((x) => x.id !== deleting.id));
+            setDeleting(null);
+            router.refresh();
+          }}
+        />
+      ) : null}
 
       <section aria-labelledby="flows-next-steps-title" className="pt-2">
         <h2 id="flows-next-steps-title" className="mb-3 text-sm font-semibold text-strong">
