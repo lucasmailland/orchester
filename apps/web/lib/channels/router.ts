@@ -10,6 +10,8 @@ import { resolveToolDefinitions, executeTool } from "@/lib/tools";
 import { executeFlow } from "@/lib/flow-engine";
 import { FlowDisabledError } from "@/lib/flows/run-gate";
 import { assertWithinSpend } from "@/lib/cost-alerts";
+import { logWithContext } from "@/lib/observability";
+import { calculateCostUsd } from "@/lib/pricing";
 import { UNTRUSTED_CONTENT_GUARDRAIL, wrapUntrusted } from "@/lib/agent-runtime";
 
 export interface InboundMessage {
@@ -308,7 +310,6 @@ async function persistAssistantTurn(
 ): Promise<void> {
   const { workspaceId, baseMessageCount } = ctx;
   const db = tx;
-  const { calculateCostUsd } = await import("@/lib/pricing");
   const { recordMessageCost } = await import("@/lib/employee-budget");
   const messageId = createId();
   const costUsd = calculateCostUsd(activeAgent.model, tokens);
@@ -470,10 +471,58 @@ function wrapMemoryBlock(memoryBlock: string): string {
  * Turno conversacional bloqueante: loop LLM + tools + handoff, luego persiste.
  * Comportamiento idéntico al `handleInbound` histórico.
  */
-async function runConversationalTurn(
+async function runConversationalTurn(ctx: ConvCtx, tx: WsTx): Promise<OutboundResponse> {
+  const spent: TurnSpend = { tokens: 0, costUsd: 0, model: ctx.agent.model };
+  try {
+    return await runConversationalLoop(ctx, tx, spent);
+  } catch (e) {
+    await recordFailedTurnUsage(ctx, spent, e);
+    throw e;
+  }
+}
+
+/** What the model calls of one turn have cost so far (accumulated per call). */
+interface TurnSpend {
+  tokens: number;
+  costUsd: number;
+  model: string;
+}
+
+/**
+ * A turn that throws after paying for model calls still has to count against the monthly
+ * spend cap. The turn's own transaction rolls back on the throw, so the event is written
+ * in a separate one. Only the error class is stored: its message can carry user text.
+ * Never throws: metering must not mask the original error.
+ */
+async function recordFailedTurnUsage(ctx: ConvCtx, spent: TurnSpend, error: unknown) {
+  if (spent.tokens <= 0) return;
+  try {
+    await withWorkspaceTx(ctx.workspaceId, (tx) =>
+      tx.insert(schema.usageEvents).values({
+        id: createId(),
+        workspaceId: ctx.workspaceId,
+        kind: "agent_message",
+        amount: 1,
+        costUsd: String(spent.costUsd),
+        agentId: ctx.agent.id,
+        metadata: {
+          tokens: spent.tokens,
+          model: spent.model,
+          failed: true,
+          error: error instanceof Error ? error.constructor.name : typeof error,
+        },
+      })
+    );
+  } catch (e) {
+    logWithContext("error", "failed-turn usage event not recorded", { error: String(e) });
+  }
+}
+
+async function runConversationalLoop(
   ctx: ConvCtx,
   /** Tx con `app.workspace_id` SET LOCAL — usado por todas las queries del turno. */
-  tx: WsTx
+  tx: WsTx,
+  spent: TurnSpend
 ): Promise<OutboundResponse> {
   const { workspaceId, agent } = ctx;
   const db = tx;
@@ -520,6 +569,9 @@ async function runConversationalTurn(
       ...(activeTools.length > 0 && { tools: activeTools }),
     });
     tokens += r.tokensUsed;
+    spent.tokens = tokens;
+    spent.costUsd += calculateCostUsd(activeAgent.model, r.tokensUsed);
+    spent.model = activeAgent.model;
     if (r.toolCalls && r.toolCalls.length > 0) {
       // Execute tool calls and feed results back
       chatMsgs.push({
