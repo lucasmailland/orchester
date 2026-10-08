@@ -910,6 +910,8 @@
         "noRuns": "Nenhuma execução ainda.",
         "back": "← Voltar",
         "stepsHeading": "Passos",
+        "agentAria": "Agente",
+        "tokens": "{count, number} tokens",
         "trigger": "trigger"
       },
       "builder": {

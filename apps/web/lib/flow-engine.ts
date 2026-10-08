@@ -624,6 +624,17 @@ async function runFromNode(
 
   let nextHandle: string | undefined;
   let stepOutput: Record<string, unknown> = {};
+  let stepTrace: StepTrace = {};
+  // Drizzle's numeric maps to string; undefined fields are left out of the SET.
+  const traceColumns = () => ({
+    ...(stepTrace.agentId !== undefined && { agentId: stepTrace.agentId }),
+    ...(stepTrace.agentName !== undefined && { agentName: stepTrace.agentName }),
+    ...(stepTrace.model !== undefined && { model: stepTrace.model }),
+    ...(stepTrace.tokensUsed !== undefined && { tokensUsed: stepTrace.tokensUsed }),
+    ...(stepTrace.costUsd !== undefined && {
+      costUsd: stepTrace.costUsd == null ? null : String(stepTrace.costUsd),
+    }),
+  });
 
   try {
     await executeNode(node, ctx, runId, workspaceId, nodes, edges, db, depth, {
@@ -633,12 +644,20 @@ async function runFromNode(
       setOutput: (o) => {
         stepOutput = o;
       },
+      setTrace: (t) => {
+        stepTrace = { ...stepTrace, ...t };
+      },
     });
 
     await withFlowTx(workspaceId, (tx) =>
       tx
         .update(schema.flowRunSteps)
-        .set({ status: "succeeded", output: stepOutput, completedAt: new Date() })
+        .set({
+          status: "succeeded",
+          output: stepOutput,
+          completedAt: new Date(),
+          ...traceColumns(),
+        })
         .where(eq(schema.flowRunSteps.id, stepId))
     );
     ctx.emit?.({ type: "step_finish", nodeId: node.id, status: "succeeded" });
@@ -675,6 +694,8 @@ async function runFromNode(
           error: msg,
           ...(e instanceof StepFailure ? { output: e.output } : {}),
           completedAt: new Date(),
+          // A failed AI step that already spent tokens must still show them.
+          ...traceColumns(),
         })
         .where(eq(schema.flowRunSteps.id, stepId))
     );
@@ -697,9 +718,23 @@ async function runFromNode(
   }
 }
 
+/**
+ * What an AI step reports about itself, persisted on the step row. Recorded
+ * there (not derived from the flow graph) because the graph can be edited after
+ * the run. `agentName` is a snapshot so the trail survives renames/deletions.
+ */
+export type StepTrace = {
+  agentId?: string | null;
+  agentName?: string | null;
+  model?: string | null;
+  tokensUsed?: number | null;
+  costUsd?: number | null;
+};
+
 interface ExecHelpers {
   setHandle: (h: string) => void;
   setOutput: (o: Record<string, unknown>) => void;
+  setTrace: (t: StepTrace) => void;
 }
 
 /**
@@ -808,6 +843,15 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       cargo.tokensIn += charge.tokensIn;
       cargo.tokensOut += charge.tokensOut;
       cargo.costUsd += charge.costUsd;
+      // Cumulative, after every call: if a later call fails, the failed step
+      // still records the tokens already spent.
+      helpers.setTrace({
+        agentId,
+        agentName: agent.name,
+        model,
+        tokensUsed,
+        costUsd: cargo.costUsd,
+      });
 
       if (tools.length === 0 || !result.toolCalls?.length) {
         content = result.content;
@@ -1144,13 +1188,16 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       messages: [{ role: "user", content: prompt }],
       ...(mandarTemp ? { temperature: temperatura } : {}),
     });
+    // Recorded before anything that can still throw: the tokens are spent.
+    const { chargeFor } = await import("./ai/run");
+    const cargo = chargeFor(res);
+    helpers.setTrace({ model: res.model, tokensUsed: res.tokensUsed, costUsd: cargo.costUsd });
     const outputVar = (cfg.outputVar as string) || "texto";
     ctx.variables[outputVar] = res.content;
     // Quién contestó, con qué y a qué costo, disponible para la plantilla. Sin
     // esto el dato existe en la corrida pero no llega a lo que el flujo
     // escribe, que es lo único que una persona termina leyendo.
-    const { chargeFor } = await import("./ai/run");
-    ctx.variables[`${outputVar}Meta`] = firma(res, chargeFor(res));
+    ctx.variables[`${outputVar}Meta`] = firma(res, cargo);
     helpers.setOutput({ tokensUsed: res.tokensUsed });
   },
 

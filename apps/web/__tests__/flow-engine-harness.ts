@@ -11,6 +11,8 @@ export interface RecordedStep {
   status?: string;
   output?: unknown;
   error?: string;
+  // AI trace persisted on the step (see StepTrace in flow-engine).
+  trace?: Record<string, unknown>;
 }
 
 export const state = {
@@ -38,6 +40,11 @@ function applySet(set: Record<string, unknown>) {
     open.status = String(set.status);
     if ("output" in set) open.output = set.output;
     if ("error" in set) open.error = String(set.error);
+    const trace: Record<string, unknown> = {};
+    for (const k of ["agentId", "agentName", "model", "tokensUsed", "costUsd"]) {
+      if (k in set) trace[k] = set[k];
+    }
+    if (Object.keys(trace).length) open.trace = trace;
     return;
   }
   if ("status" in set) state.runUpdates.push(set);
@@ -78,6 +85,7 @@ export const dbMock = {
     flows: { id: "flows.id", workspaceId: "flows.workspaceId" },
     flowRuns: { id: "flowRuns.id" },
     flowRunSteps: { id: "flowRunSteps.id" },
+    agents: { id: "agents.id" },
   },
 };
 

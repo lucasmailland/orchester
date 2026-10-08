@@ -39,6 +39,10 @@ export const MANIFEST = [
     "0060_channel_allow_any_sender.sql",
     "marca `allowAnySender` en los canales que ya estaban abiertos — la lista vacía ahora deniega",
   ],
+  [
+    "0061_flow_step_trace.sql",
+    "trazabilidad por paso: agent_id, agent_name, model, tokens_used, cost_usd en flow_run_step",
+  ],
   // Sin número: ajuste del deploy single-tenant, no historia de upstream.
   // 0049 deja `org` con FORCE RLS y sólo una política de SELECT, así que ningún
   // INSERT pasa y crear un workspace da 500. Ver el header del archivo.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { History, X, ChevronRight } from "lucide-react";
+import { History, X, ChevronRight, Bot } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 interface Run {
@@ -20,6 +20,17 @@ interface Step {
   output: unknown;
   error: string | null;
   startedAt: string;
+  // AI trace recorded on the step; all null for steps that did no AI work.
+  agentId?: string | null;
+  agentName?: string | null;
+  model?: string | null;
+  tokensUsed?: number | null;
+  costUsd?: string | number | null;
+}
+
+function formatCost(cost: string | number): string {
+  const n = Number(cost);
+  return Number.isFinite(n) ? `$${n.toFixed(4)}` : "";
 }
 
 export function FlowRunsPanel({
@@ -138,6 +149,23 @@ export function FlowRunsPanel({
                   {s.status}
                 </span>
               </div>
+              {(s.agentName || s.agentId) && (
+                <div className="mt-1 flex items-center gap-1 text-body">
+                  <Bot className="h-3 w-3" aria-label={t("agentAria")} />
+                  <span>{s.agentName ?? s.agentId}</span>
+                </div>
+              )}
+              {s.model && (
+                <div className="mt-0.5 text-[10px] text-muted">
+                  {[
+                    s.model,
+                    s.tokensUsed != null ? t("tokens", { count: s.tokensUsed }) : null,
+                    s.costUsd != null ? formatCost(s.costUsd) : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </div>
+              )}
               {s.error && <div className="mt-1 text-red-700 dark:text-red-300">{s.error}</div>}
               {s.output != null && (
                 <pre className="mt-1 max-h-32 overflow-y-auto rounded bg-black/40 p-2 font-mono text-[10px] text-body">
