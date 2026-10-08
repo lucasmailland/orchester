@@ -29,6 +29,7 @@ import {
 } from "./nodes/BranchNode";
 import { FlowRunsPanel } from "./FlowRunsPanel";
 import { FlowDocsPanel } from "./FlowDocsPanel";
+import { DeleteFlowDialog } from "./DeleteFlowDialog";
 import { InspectorForm } from "./inspector/InspectorForm";
 import { NodePalette } from "./NodePalette";
 import { CopilotPanel } from "./CopilotPanel";
@@ -55,8 +56,9 @@ import {
   LayoutGrid,
   ShieldCheck,
   BookText,
+  Trash2,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { useTranslations, useLocale } from "next-intl";
@@ -109,6 +111,8 @@ export interface FlowDTO {
 
 export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   const router = useRouter();
+  const routeParams = useParams<{ locale?: string; workspaceSlug?: string }>();
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const { resolvedTheme } = useTheme();
   const isLight = resolvedTheme === "light";
   const t = useTranslations("pages.flows.builder");
@@ -656,6 +660,15 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
             </button>
             <button
               type="button"
+              onClick={() => setDeleteOpen(true)}
+              className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-red-600 hover:bg-hover dark:text-red-400"
+              title={t("deleteFlow")}
+              aria-label={t("deleteFlow")}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
               onClick={openRunModal}
               disabled={running}
               className="flex items-center gap-1.5 rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-medium hover:bg-violet-400 disabled:opacity-40"
@@ -670,6 +683,18 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
           </div>
         </div>
         <div className="relative flex flex-1 overflow-hidden">
+          <DeleteFlowDialog
+            open={deleteOpen}
+            flowId={flow.id}
+            flowName={flow.name}
+            onClose={() => setDeleteOpen(false)}
+            onDeleted={() => {
+              setDeleteOpen(false);
+              router.push(
+                `/${routeParams?.locale ?? rawLocale}/${routeParams?.workspaceSlug ?? ""}/flows`
+              );
+            }}
+          />
           <NodePalette onAdd={addNode} locale={LOCALE} />
           {varsOpen && (
             <VariablesPanel

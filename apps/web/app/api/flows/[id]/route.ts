@@ -6,6 +6,12 @@ import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
+import {
+  blockersMessage,
+  computeBlockers,
+  hasBlockers,
+  loadFlowDeleteContext,
+} from "@/lib/flows/delete-impact";
 import { getFlow, updateFlow, serviceErrorResponse } from "@/lib/flows/service";
 
 const updateFlowSchema = z.object({
@@ -61,14 +67,22 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const ctx = await requireAuth({ minRole: "editor" });
   if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
+  const del = await loadFlowDeleteContext(ctx.workspace.id, id);
+  if (!del) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // The UI previews these, but it is not the only client: enforce them here.
+  const blockers = computeBlockers(del);
+  if (hasBlockers(blockers)) {
+    return NextResponse.json(
+      {
+        error: blockersMessage(blockers),
+        code: blockers.enabled ? "flow_enabled" : "flow_referenced",
+        agents: blockers.agents,
+        flows: blockers.flows,
+      },
+      { status: 409 }
+    );
+  }
   const db = getDb();
-  const before = (
-    await db
-      .select({ name: schema.flows.name })
-      .from(schema.flows)
-      .where(and(eq(schema.flows.id, id), eq(schema.flows.workspaceId, ctx.workspace.id)))
-      .limit(1)
-  )[0];
   const deleted = await db
     .delete(schema.flows)
     .where(and(eq(schema.flows.id, id), eq(schema.flows.workspaceId, ctx.workspace.id)))
@@ -80,7 +94,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     action: "flow.delete",
     resource: "flow",
     resourceId: id,
-    before: before ? { name: before.name } : undefined,
+    before: { name: del.flow.name },
   });
   return NextResponse.json({ ok: true });
 }
