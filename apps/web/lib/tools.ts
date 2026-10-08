@@ -716,7 +716,17 @@ export async function resolveToolDefinitions(
   if (!enabledIds.some((id) => id.startsWith("mcp__"))) return builtins;
   const { listWorkspaceMcpTools } = await import("./integrations/mcp-tools");
   const remote = await listWorkspaceMcpTools(workspaceId, tx);
-  return [...builtins, ...remote.filter((tool) => enabledIds.includes(tool.name))];
+  // An agent that saved the legacy hashed name gets the tool under that name,
+  // so its stored selection keeps matching what the model is offered. When both
+  // names are stored, the tool is offered once, under the readable one.
+  const offered = remote.flatMap(({ legacyName, ...tool }) =>
+    enabledIds.includes(tool.name)
+      ? [tool]
+      : enabledIds.includes(legacyName)
+        ? [{ ...tool, name: legacyName }]
+        : []
+  );
+  return [...builtins, ...offered];
 }
 
 export function listAllTools(): ToolDefinition[] {

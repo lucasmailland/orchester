@@ -145,6 +145,49 @@ describe("workspace MCP tool registry", () => {
       {}
     );
   });
+  describe("agents that saved the legacy hashed name", () => {
+    // Readable names replaced hashed ones; selections stored before keep working.
+    const readable = "mcp__integration-test__read_docs";
+    const legacy = mcpHashedToolName("integration-test", "read_docs");
+    const ctx = { workspaceId: "workspace-test", variables: {} };
+    beforeEach(() => {
+      mocks.discover.mockResolvedValue([
+        { ...definition, name: readable, remoteName: "read_docs" },
+      ]);
+    });
+    it("offers the tool under the name the agent stored", async () => {
+      const defs = await tools.resolveToolDefinitions("workspace-test", [legacy]);
+      expect(defs.map((d) => d.name)).toEqual([legacy]);
+    });
+    it("offers it once, under the readable name, when both are stored", async () => {
+      const defs = await tools.resolveToolDefinitions("workspace-test", [legacy, readable]);
+      expect(defs.map((d) => d.name)).toEqual([readable]);
+    });
+    it("offers the readable name to an agent that stored it", async () => {
+      const defs = await tools.resolveToolDefinitions("workspace-test", [readable]);
+      expect(defs.map((d) => d.name)).toEqual([readable]);
+    });
+    it("executes the legacy name against the same remote tool", async () => {
+      await tools.executeTool(legacy, { q: 1 }, ctx);
+      expect(mocks.call).toHaveBeenLastCalledWith(
+        { workspaceId: "workspace-test", integrationId: "integration-test" },
+        integration.config,
+        "read_docs",
+        { q: 1 }
+      );
+      await tools.executeTool(readable, {}, ctx);
+      expect(mocks.call).toHaveBeenLastCalledWith(
+        expect.anything(),
+        integration.config,
+        "read_docs",
+        {}
+      );
+    });
+    it("does not list the alias in the picker API", async () => {
+      const catalog = await (await GET()).json();
+      expect(catalog.map((t: { id: string }) => t.id)).not.toContain(legacy);
+    });
+  });
   it("refuses unavailable or disabled tools at execution", async () => {
     mocks.discover.mockResolvedValue([]);
     await expect(

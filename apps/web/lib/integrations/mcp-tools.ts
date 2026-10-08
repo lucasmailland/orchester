@@ -65,8 +65,16 @@ async function discoverAll(workspaceId: string, tx?: WsDb) {
   return resolveNameCollisions(groups.flat());
 }
 
+/**
+ * `legacyName` is the hashed name earlier versions gave every tool. Agents that
+ * saved it in `agent.tools` keep matching: it is an alias of the same remote
+ * tool, never listed on its own.
+ */
 export async function listWorkspaceMcpTools(workspaceId: string, tx?: WsDb) {
-  return (await discoverAll(workspaceId, tx)).map(({ integration: _integration, ...tool }) => tool);
+  return (await discoverAll(workspaceId, tx)).map(({ integration: _integration, ...tool }) => ({
+    ...tool,
+    legacyName: mcpHashedToolName(tool.integrationId, tool.remoteName),
+  }));
 }
 
 export async function executeWorkspaceMcpTool(
@@ -75,7 +83,11 @@ export async function executeWorkspaceMcpTool(
   ctx: ToolContext
 ): Promise<string> {
   // Exact lookup in the same resolved list the model was offered; no name parsing.
-  const tool = (await discoverAll(ctx.workspaceId, ctx.tx)).find((t) => t.name === name);
+  const all = await discoverAll(ctx.workspaceId, ctx.tx);
+  // The readable name wins; the legacy hashed name is accepted as an alias.
+  const tool =
+    all.find((t) => t.name === name) ??
+    all.find((t) => mcpHashedToolName(t.integrationId, t.remoteName) === name);
   if (tool) {
     const identity = { workspaceId: ctx.workspaceId, integrationId: tool.integrationId };
     return callMcpTool(identity, (tool.integration as Integration).config, tool.remoteName, input);
