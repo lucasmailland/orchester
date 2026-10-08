@@ -37,7 +37,7 @@ const ACTION_REASON: Record<ActionViolation["code"], string> = {
 };
 
 /** Action contract violations as validation issues, in the same shape as the rest. */
-function actionContractIssues(
+export function actionContractIssues(
   nodes: ReadonlyArray<{ id: string; type: string; label: string }>,
   variables: unknown
 ): ValidationIssue[] {

@@ -43,6 +43,13 @@ const svc = vi.hoisted(() => ({
   },
 }));
 vi.mock("@/lib/flows/service", () => svc);
+const store = vi.hoisted(() => ({
+  getIntegrationActionEffect: vi.fn(async (_ws: string, _id: string, action: string) => {
+    if (action === "gone") throw new Error("Integración no encontrada");
+    return action === "get" ? "read" : "write";
+  }),
+}));
+vi.mock("@/lib/integrations/store", () => store);
 vi.mock("@/lib/mnemo/client", () => ({ getMnemoClient: vi.fn() }));
 
 const auth = (scopes: string[]) => ({ workspaceId: "ws_a", keyId: "key_1", scopes });
@@ -63,6 +70,7 @@ describe("flow MCP tools", async () => {
     const names = listMcpTools().map((t) => t.name);
     for (const n of [
       "get_flow",
+      "describe_flow",
       "validate_flow",
       "create_flow",
       "update_flow",
@@ -136,6 +144,76 @@ describe("flow MCP tools", async () => {
       name: "One",
       status: "draft",
       ai: { steps: 1, of: 2, viaSubflow: false },
+    });
+  });
+
+  describe("describe_flow", () => {
+    const stored = (nodes: unknown[]) => ({
+      id: "f1",
+      name: "One",
+      enabled: true,
+      kind: "pipeline",
+      externalCallers: [{ name: "script" }],
+      nodes,
+      edges: [],
+      variables: {},
+    });
+
+    it("is a read tool and refuses keys that cannot read flows", async () => {
+      for (const scope of ["readonly", "agents:read", "agents:write"]) {
+        const r = await call("describe_flow", { flowId: "f1" }, [scope]);
+        expect(r.isError).toBe(true);
+      }
+      expect(svc.getFlow).not.toHaveBeenCalled();
+      expect((await call("describe_flow", { flowId: "f1" }, ["flows:read"])).isError).toBeFalsy();
+    });
+
+    it("reads everything through the key's workspace and returns the sheet", async () => {
+      svc.getFlow.mockResolvedValueOnce(
+        stored([
+          { id: "c", type: "integration", label: "C", config: { integrationId: "crm::get" } },
+          { id: "d", type: "integration", label: "D", config: { integrationId: "crm::set" } },
+          { id: "e", type: "integration", label: "E", config: { integrationId: "crm::gone" } },
+          {
+            id: "t",
+            type: "integration",
+            label: "T",
+            config: { integrationId: "crm::get", input: { m: "{{method}}" } },
+          },
+        ]) as never
+      );
+      svc.listFlows.mockResolvedValueOnce([
+        { id: "f1", name: "One", nodes: [] },
+        {
+          id: "f2",
+          name: "Caller",
+          nodes: [{ id: "s", type: "subflow", config: { flowId: "f1" } }],
+        },
+      ] as never);
+      svc.listFlowWebhooks.mockResolvedValueOnce([{ id: "w1", enabled: false }] as never);
+      const out = JSON.parse(
+        (await call("describe_flow", { flowId: "f1" }, ["flows:read"])).content[0]!.text
+      ) as {
+        calls: { integrations: Array<{ nodeId: string; effect: string }> };
+        calledBy: { flows: unknown[]; webhooks: unknown[]; externalCallers: unknown[] };
+      };
+      const actor = { kind: "apiKey", workspaceId: "ws_a", keyId: "key_1" };
+      expect(svc.getFlow).toHaveBeenCalledWith(actor, "f1");
+      expect(svc.listFlows).toHaveBeenCalledWith(actor);
+      expect(svc.listFlowWebhooks).toHaveBeenCalledWith(actor, "f1", { redact: true });
+      expect(store.getIntegrationActionEffect.mock.calls.every((c) => c[0] === "ws_a")).toBe(true);
+      expect(out.calls.integrations.map((i) => [i.nodeId, i.effect])).toEqual([
+        ["c", "read"],
+        ["d", "write"],
+        ["e", "unknown"],
+        // A "read" that depends on a templated input is not trusted.
+        ["t", "unknown"],
+      ]);
+      expect(out.calledBy).toEqual({
+        flows: [{ id: "f2", name: "Caller" }],
+        externalCallers: [{ name: "script" }],
+        webhooks: [{ id: "w1", enabled: false }],
+      });
     });
   });
 

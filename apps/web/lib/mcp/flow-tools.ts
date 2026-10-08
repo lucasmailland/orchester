@@ -232,6 +232,23 @@ export const FLOW_TOOLS: McpToolDef[] = [
     },
   },
   {
+    name: "describe_flow",
+    title: "Describe a flow (fact sheet)",
+    description:
+      "Ficha de un flujo calculada desde su grafo (no puede desactualizarse): tipo, habilitado, llamadores externos, pasos por naturaleza (IA, humano, código, control) con la lista de pasos de IA y humanos, variables que lee sin definir (sus entradas de hecho) y que escribe (sus salidas), subflujos y acciones de integración que usa (con su efecto read | write | unknown), quién lo llama (flujos, llamadores externos, webhooks) y, para acciones, los incumplimientos del contrato. Lo que no se puede resolver de forma estática va en `unknown`.",
+    access: "read",
+    domain: "flows",
+    inputSchema: {
+      type: "object",
+      properties: { flowId: { type: "string" } },
+      required: ["flowId"],
+    },
+    async handler(input, auth) {
+      const { loadFlowSheet } = await import("@/lib/flows/describe-load");
+      return loadFlowSheet(actorOf(auth), str(input.flowId, "flowId"));
+    },
+  },
+  {
     name: "validate_flow",
     title: "Validate a flow",
     description:
