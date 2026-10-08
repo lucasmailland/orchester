@@ -42,7 +42,11 @@ const db = {
           state.predicates.push(predicate);
           return q;
         },
-        limit: async (n: number) => rows.slice(0, n),
+        limit: (n: number) =>
+          Object.assign(Promise.resolve(rows.slice(0, n)), {
+            // `.for("update")` row locks resolve to the same rows.
+            for: async () => rows.slice(0, n),
+          }),
         groupBy: async () => rows,
         then: (resolve: (v: unknown) => unknown) => Promise.resolve(rows).then(resolve),
       };
