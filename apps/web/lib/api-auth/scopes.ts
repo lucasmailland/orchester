@@ -13,6 +13,7 @@
 /** The areas a key can be given access to, in the order the form shows them. */
 export const SCOPE_DOMAINS = [
   "agents",
+  "teams",
   "flows",
   "conversations",
   "knowledge",
@@ -21,12 +22,13 @@ export const SCOPE_DOMAINS = [
 ] as const;
 
 export type ScopeDomain = (typeof SCOPE_DOMAINS)[number];
-export type ScopeAccess = "read" | "write";
+export type ScopeAccess = "read" | "write" | "delete";
 
 /** Every scope a key may be given, e.g. `flows:write`. */
 export const ALL_SCOPES: string[] = SCOPE_DOMAINS.flatMap((domain) => [
   `${domain}:read`,
   `${domain}:write`,
+  `${domain}:delete`,
 ]);
 
 const SCOPE_SET = new Set(ALL_SCOPES);
@@ -56,19 +58,29 @@ export const PRE_SCOPES_DEFAULT = ["agents:read", "agents:write", "flows:read", 
 /**
  * Whether `scopes` permit `access` on `domain`.
  *
- * An empty list means full access. That is how keys were stored before this
- * existed, and it is why the check is written as an allowlist rather than a
+ * An empty list retains legacy read/write access, never delete access.
+ * The check is written as an allowlist rather than a
  * blocklist: a rule that fails open is not a rule. It is kept only until the
  * migration that gives every existing key explicit scopes has run everywhere,
  * and `apiKeyScopesSchema` refuses to create a new key without any.
  */
 export function scopesAllow(scopes: string[], domain: string, access: ScopeAccess): boolean {
+  // Destruction is always opt-in, including for legacy unrestricted keys.
+  if (access === "delete") {
+    return (
+      Array.isArray(scopes) &&
+      !scopes.includes(LEGACY_READONLY) &&
+      scopes.includes(`${domain}:delete`)
+    );
+  }
   if (!Array.isArray(scopes) || scopes.length === 0) return true;
   if (access === "write" && scopes.includes(LEGACY_READONLY)) return false;
   if (scopes.includes(LEGACY_WRITE)) return true;
   if (scopes.includes(`${domain}:${access}`)) return true;
-  // Writing a domain implies reading it.
-  return access === "read" && scopes.includes(`${domain}:write`);
+  // Writing or deleting a domain implies reading it.
+  return (
+    access === "read" && (scopes.includes(`${domain}:write`) || scopes.includes(`${domain}:delete`))
+  );
 }
 
 /**

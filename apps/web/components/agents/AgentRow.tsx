@@ -87,7 +87,9 @@ export function AgentRow({
       toast.success("Agent deleted");
       router.refresh();
     } else {
-      toast.error("Couldn't delete");
+      // The server explains a refusal (active, or still used by a flow/channel).
+      const body = (await r.json().catch(() => null)) as { error?: string } | null;
+      toast.error(body?.error ?? "Couldn't delete");
     }
   }
 

@@ -1437,9 +1437,10 @@
         "addWebhook": "Add webhook",
         "apiHint": "Use your API key with",
         "scopesLegend": "Permissions",
-        "scopesHelp": "A key can only reach what you tick here. Granting write includes read.",
-        "scopeFullAccess": "full access",
+        "scopesHelp": "Write and delete each include read. Deletion requires an explicit delete permission and the exact resource name.",
+        "scopeFullAccess": "read/write access",
         "scopeDomain": {
+          "teams": "Teams",
           "agents": "Agents",
           "flows": "Flows",
           "conversations": "Conversations",
@@ -1448,6 +1449,7 @@
           "memory": "Memory"
         },
         "scopeAccess": {
+          "delete": "Delete (dangerous)",
           "read": "read",
           "write": "write"
         }

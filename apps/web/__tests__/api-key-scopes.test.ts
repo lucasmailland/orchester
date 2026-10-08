@@ -10,9 +10,11 @@ import {
 } from "@/lib/api-auth/scopes";
 
 describe("the scope vocabulary", () => {
-  it("offers read and write for every domain, and nothing else", () => {
-    expect(ALL_SCOPES).toEqual(SCOPE_DOMAINS.flatMap((d) => [`${d}:read`, `${d}:write`]));
-    expect(ALL_SCOPES).toHaveLength(SCOPE_DOMAINS.length * 2);
+  it("offers read, write and delete for every domain", () => {
+    expect(ALL_SCOPES).toEqual(
+      SCOPE_DOMAINS.flatMap((d) => [`${d}:read`, `${d}:write`, `${d}:delete`])
+    );
+    expect(ALL_SCOPES).toHaveLength(SCOPE_DOMAINS.length * 3);
   });
 
   it.each(["flows:write", "memory:read", "conversations:write"])("accepts %s", (scope) => {
@@ -92,4 +94,26 @@ describe("what a key is allowed to do", () => {
     // "Forbidden" tells an operator nothing; the scope to add tells them everything.
     expect(missingScopeMessage("flows", "write")).toContain("flows:write");
   });
+});
+
+describe("explicit destructive access", () => {
+  it("includes teams in the vocabulary", () => {
+    expect(SCOPE_DOMAINS).toContain("teams");
+    expect(isKnownScope("teams:delete")).toBe(true);
+  });
+  for (const domain of ["teams", "agents", "flows"]) {
+    it.each([[], ["write"], [`${domain}:write`], [`${domain}:read`]])(
+      `${domain} refuses deletion with %j`,
+      (...scopes) => {
+        expect(scopesAllow(scopes, domain, "delete")).toBe(false);
+      }
+    );
+    it(`${domain}:delete grants delete and read only in that domain`, () => {
+      expect(scopesAllow([`${domain}:delete`], domain, "delete")).toBe(true);
+      expect(scopesAllow([`${domain}:delete`], domain, "read")).toBe(true);
+      expect(scopesAllow([`${domain}:delete`], domain, "write")).toBe(false);
+      expect(scopesAllow(["memory:delete"], domain, "delete")).toBe(false);
+      expect(scopesAllow(["readonly", `${domain}:delete`], domain, "delete")).toBe(false);
+    });
+  }
 });

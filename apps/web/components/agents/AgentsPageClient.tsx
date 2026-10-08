@@ -213,7 +213,9 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
         setDeletingAgent(null);
         router.refresh();
       } else {
-        toast.error(t("agentDeleteError"));
+        // The server explains a refusal (active, or still used by a flow/channel).
+        const body = (await r.json().catch(() => null)) as { error?: string } | null;
+        toast.error(body?.error ?? t("agentDeleteError"));
       }
     } finally {
       setDeletePending(false);

@@ -100,6 +100,43 @@ function pickInput(input: Record<string, unknown>, create = false): FlowInput {
 
 export const FLOW_TOOLS: McpToolDef[] = [
   {
+    name: "get_flow_delete_impact",
+    title: "Get flow deletion impact",
+    description:
+      "Muestra qué bloquea la eliminación de un flujo y cuántas corridas, versiones, webhooks y schedules se eliminan en cascada.",
+    domain: "flows",
+    access: "read",
+    inputSchema: {
+      type: "object",
+      properties: { flowId: { type: "string" } },
+      required: ["flowId"],
+    },
+    async handler(input, auth) {
+      const { getFlowDeleteImpact } = await import("@/lib/flows/admin-delete");
+      return getFlowDeleteImpact(actorOf(auth), str(input.flowId, "flowId"));
+    },
+  },
+  {
+    name: "delete_flow",
+    title: "Delete a flow",
+    description:
+      "Elimina un flujo deshabilitado y sin referencias de agentes u otros flujos. Requiere flows:delete y confirm con su nombre exacto. Devuelve los conteos eliminados en cascada.",
+    domain: "flows",
+    access: "delete",
+    inputSchema: {
+      type: "object",
+      properties: {
+        flowId: { type: "string" },
+        confirm: { type: "string", description: "Nombre actual exacto del flujo." },
+      },
+      required: ["flowId", "confirm"],
+    },
+    async handler(input, auth) {
+      const { deleteFlow } = await import("@/lib/flows/admin-delete");
+      return deleteFlow(actorOf(auth), str(input.flowId, "flowId"), input.confirm);
+    },
+  },
+  {
     name: "get_flow",
     title: "Get a flow",
     description:
