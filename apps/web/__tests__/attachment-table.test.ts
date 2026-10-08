@@ -126,13 +126,32 @@ describe("readXlsx", () => {
   it("refuses non-zip input", () => {
     expect(() => readXlsx(Buffer.from("not a zip at all"))).toThrow(/not a valid xlsx/i);
   });
-  it("only considers the first 50 entries", () => {
+  it("rejects an archive with more than 50 entries instead of indexing the first 50", () => {
     const filler = Array.from({ length: 50 }, (_, i) => ({
       name: `f${i}`,
       data: Buffer.from("x"),
     }));
-    const zip = buildZip([...filler, { name: "xl/workbook.xml", data: Buffer.from("<x/>") }]);
-    expect(() => readXlsx(zip)).toThrow(/workbook/i);
+    const zip = buildZip([
+      ...filler,
+      { name: "xl/sharedStrings.xml", data: Buffer.from("<sst/>") },
+    ]);
+    expect(() => readXlsx(zip)).toThrow(/too many entries/i);
+  });
+  it("rejects a cell whose shared string index does not exist", () => {
+    const zip = buildZip([
+      {
+        name: "xl/workbook.xml",
+        data: Buffer.from(`<workbook><sheets><sheet name="S"/></sheets></workbook>`),
+      },
+      { name: "xl/sharedStrings.xml", data: Buffer.from("<sst><si><t>a</t></si></sst>") },
+      {
+        name: "xl/worksheets/sheet1.xml",
+        data: Buffer.from(
+          `<worksheet><sheetData><row><c r="A1" t="s"><v>7</v></c></row></sheetData></worksheet>`
+        ),
+      },
+    ]);
+    expect(() => readXlsx(zip)).toThrow(/shared string/i);
   });
 
   describe("worksheet scanning is linear and strict", () => {

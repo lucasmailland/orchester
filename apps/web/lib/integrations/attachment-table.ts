@@ -158,8 +158,9 @@ function readCentralDirectory(zip: Buffer): CdEntry[] {
   if (total === 0xffff || cdSize === 0xffffffff || pos === 0xffffffff)
     throw new Error("Unsupported xlsx: zip64 archives are not supported.");
   const entries: CdEntry[] = [];
-  const count = Math.min(total, MAX_ZIP_ENTRIES);
-  for (let n = 0; n < count; n++) {
+  if (total > MAX_ZIP_ENTRIES)
+    throw new Error(`Unsupported xlsx: too many entries (more than ${MAX_ZIP_ENTRIES}).`);
+  for (let n = 0; n < total; n++) {
     if (pos + 46 > zip.length || zip.readUInt32LE(pos) !== 0x02014b50) throw new Error(ZIP_ERR);
     const nameLen = zip.readUInt16LE(pos + 28);
     const extraLen = zip.readUInt16LE(pos + 30);
@@ -347,7 +348,13 @@ function readCells(rowBody: string, strings: string[]): string[] {
       const v = /<v\b[^>]*>([\s\S]*?)<\/v>/.exec(inner)?.[1];
       if (v !== undefined) {
         if (type === "s") {
-          value = strings[Number(v)] ?? "";
+          const n = Number(v);
+          const str = Number.isInteger(n) ? strings[n] : undefined;
+          if (str === undefined)
+            throw new Error(
+              "Unsupported xlsx: a cell refers to a shared string that does not exist."
+            );
+          value = str;
         } else if (type === "b") value = v.trim() === "1" ? "TRUE" : "FALSE";
         else value = decodeXml(v);
       }
