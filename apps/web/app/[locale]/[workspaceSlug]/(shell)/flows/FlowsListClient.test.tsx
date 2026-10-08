@@ -144,3 +144,35 @@ describe("FlowsListClient kind", () => {
     expect(screen.getByText(/no flows of this type/i)).toBeInTheDocument();
   });
 });
+
+describe("FlowsListClient relations", () => {
+  const rel = {
+    usedBy: [],
+    uses: [
+      {
+        flowId: "flow_b",
+        name: "Flow B",
+        kind: "action" as const,
+        ai: true,
+        missing: false,
+        steps: ["Step"],
+      },
+    ],
+    externalCallers: [],
+    webhooks: 1,
+    schedules: 0,
+  };
+
+  it("shows chips only for flows with relations and opens the details", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages as unknown as AbstractIntlMessages}>
+        <FlowsListClient flows={[{ ...flows[0]!, relations: rel }, flows[1]!]} />
+      </NextIntlClientProvider>
+    );
+    expect(screen.getAllByTestId("flow-relations")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /used by 1/i })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /uses 1/i }));
+    const dialog = screen.getByRole("dialog", { name: "Uses" });
+    expect(within(dialog).getByRole("link", { name: "Flow B" })).toBeTruthy();
+  });
+});

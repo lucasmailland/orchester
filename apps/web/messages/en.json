@@ -1076,7 +1076,24 @@
         "violationAi": "\"{label}\" uses an AI model.",
         "violationHuman": "\"{label}\" waits for a person.",
         "violationFlowCall": "\"{label}\" calls another flow.",
-        "violationVariables": "The flow defines flow-level variables."
+        "violationVariables": "The flow defines flow-level variables.",
+        "relations": {
+          "title": "Relations",
+          "usedByTitle": "Used by",
+          "usesTitle": "Uses",
+          "usedByChip": "Used by {count}",
+          "usesChip": "Uses {count}",
+          "usedByEmpty": "Nothing calls or starts this flow.",
+          "usesEmpty": "This flow calls no other flows.",
+          "externalHeading": "External callers",
+          "triggersHeading": "Triggers",
+          "webhooks": "{count, plural, one {# enabled webhook} other {# enabled webhooks}}",
+          "schedules": "{count, plural, one {# enabled schedule} other {# enabled schedules}}",
+          "missing": "Missing flow",
+          "ai": "AI",
+          "aiMarker": "Contains AI steps",
+          "via": "via {steps}"
+        }
       }
     },
     "knowledge": {

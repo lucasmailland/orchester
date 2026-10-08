@@ -2,6 +2,8 @@ import { getDb, schema } from "@orchester/db";
 import { eq, desc } from "drizzle-orm";
 import { getCurrentWorkspaceBySlug } from "@/lib/workspace";
 import { summarizeFlowNatureTransitive } from "@/lib/flows/node-nature";
+import { computeFlowRelations } from "@/lib/flows/relations";
+import { loadTriggerCounts } from "@/lib/flows/relations-load";
 import { FlowsListClient } from "./FlowsListClient";
 
 export default async function FlowsPage({
@@ -25,6 +27,7 @@ export default async function FlowsPage({
       return { id: x.id, type: x.type, label: x.label, config: x.config };
     }),
   }));
+  const relations = computeFlowRelations(rows, await loadTriggerCounts(ws.workspace.id));
   return (
     <FlowsListClient
       flows={rows.map((r) => {
@@ -39,6 +42,7 @@ export default async function FlowsPage({
           lastRunAt: r.lastRunAt?.toISOString() ?? null,
           aiStepCount: nature.counts.ai,
           aiViaSubflow: nature.aiSubflowNodeIds.length > 0,
+          relations: relations[r.id],
         };
       })}
     />

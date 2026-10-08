@@ -1076,7 +1076,24 @@
         "violationAi": "\"{label}\" usa um modelo de IA.",
         "violationHuman": "\"{label}\" espera por uma pessoa.",
         "violationFlowCall": "\"{label}\" chama outro fluxo.",
-        "violationVariables": "O fluxo define variáveis no nível do fluxo."
+        "violationVariables": "O fluxo define variáveis no nível do fluxo.",
+        "relations": {
+          "title": "Relações",
+          "usedByTitle": "Participa de",
+          "usesTitle": "Usa",
+          "usedByChip": "Participa de {count}",
+          "usesChip": "Usa {count}",
+          "usedByEmpty": "Nada chama nem inicia este fluxo.",
+          "usesEmpty": "Este fluxo não chama outros fluxos.",
+          "externalHeading": "Quem o chama de fora",
+          "triggersHeading": "Gatilhos",
+          "webhooks": "{count, plural, one {# webhook ativo} other {# webhooks ativos}}",
+          "schedules": "{count, plural, one {# agendamento ativo} other {# agendamentos ativos}}",
+          "missing": "Fluxo inexistente",
+          "ai": "IA",
+          "aiMarker": "Contém passos de IA",
+          "via": "via {steps}"
+        }
       }
     },
     "knowledge": {

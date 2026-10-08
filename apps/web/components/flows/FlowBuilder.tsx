@@ -30,6 +30,7 @@ import {
 import { FlowRunsPanel } from "./FlowRunsPanel";
 import { FlowDocsPanel } from "./FlowDocsPanel";
 import { FlowKindPanel } from "./FlowKindPanel";
+import type { FlowRelations } from "@/lib/flows/relations";
 import { DeleteFlowDialog } from "./DeleteFlowDialog";
 import { InspectorForm } from "./inspector/InspectorForm";
 import { NodePalette } from "./NodePalette";
@@ -149,6 +150,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
     flow.externalCallers ?? []
   );
   const [kindOpen, setKindOpen] = useState(false);
+  const [relations, setRelations] = useState<FlowRelations | null>(null);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
@@ -317,6 +319,22 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   }
 
   // Auto-save with 2s debounce after any change that alters the stored flow
+  // One read of the describe endpoint per opening of the type panel, not per node.
+  useEffect(() => {
+    if (!kindOpen) return;
+    let live = true;
+    setRelations(null);
+    fetch(`/api/flows/${flow.id}/describe`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { relations?: FlowRelations } | null) => {
+        if (live) setRelations(d?.relations ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [kindOpen, flow.id]);
+
   useEffect(() => {
     const signature = flowSignature(buildFlowPayload(nodes, edges, variables, spec || null));
     if (savedSignatureRef.current === null) {
@@ -874,6 +892,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               kind={kind}
               externalCallers={externalCallers}
               contractIssues={contractIssues}
+              relations={relations}
               onSaved={(k, callers) => {
                 setKind(k);
                 setExternalCallers(callers);

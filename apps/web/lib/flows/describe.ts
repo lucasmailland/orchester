@@ -1,4 +1,5 @@
 import { computeBlockers } from "./delete-impact";
+import { FLOW_CALL_TYPES, flowCallOf } from "./flow-calls";
 import { readExternalCallers, type ExternalCaller, type FlowKind } from "./kind";
 import { nodeNature, type NodeNature } from "./node-nature";
 import { normalizeFlowNodes } from "./normalize";
@@ -130,8 +131,6 @@ const OUTPUT_DEFAULTS: Record<string, { name: string; meta?: boolean }> = {
   spreadsheet: { name: "result" },
 };
 
-const FLOW_CALL_TYPES = new Set(["subflow", "flow_call"]);
-
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -244,10 +243,10 @@ export function describeFlow(flow: DescribeFlowInput, ctx: DescribeContext): Flo
     }
     if (n.type === "try_catch") writes.add(text(cfg.errorVar, "error"));
 
-    if (FLOW_CALL_TYPES.has(n.type)) {
-      const inputs = isRecord(cfg.inputs) ? Object.keys(cfg.inputs).sort() : [];
-      const outputs = isRecord(cfg.outputs) ? Object.keys(cfg.outputs).sort() : [];
-      subflows.push({ nodeId: n.id, flowId: text(cfg.flowId, ""), inputs, outputs });
+    const call = flowCallOf(n);
+    if (call) {
+      const { inputs, outputs } = call;
+      subflows.push({ nodeId: n.id, flowId: call.flowId, inputs, outputs });
       if (isRecord(cfg.outputs)) outputs.forEach((k) => writes.add(k));
       else
         writesUnknown.push({

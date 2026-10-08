@@ -11,6 +11,8 @@ import {
   type ExternalCaller,
   type FlowKind,
 } from "@/lib/flows/kind";
+import type { FlowRelations } from "@/lib/flows/relations";
+import { FlowRelationsSection } from "./FlowRelations";
 
 /**
  * Flow type (pipeline or action) and the callers that live outside the
@@ -22,6 +24,7 @@ export function FlowKindPanel({
   kind: initialKind,
   externalCallers: initialCallers,
   contractIssues,
+  relations,
   onSaved,
   onClose,
 }: {
@@ -30,6 +33,8 @@ export function FlowKindPanel({
   externalCallers: ExternalCaller[];
   /** Already-localized action contract problems of the current graph. */
   contractIssues: string[];
+  /** Flows around this one; null while loading or when it could not be read. */
+  relations?: FlowRelations | null;
   onSaved: (kind: FlowKind, externalCallers: ExternalCaller[]) => void;
   onClose: () => void;
 }) {
@@ -123,6 +128,8 @@ export function FlowKindPanel({
             </ul>
           </div>
         )}
+
+        {relations ? <FlowRelationsSection relations={relations} /> : null}
 
         <section className="space-y-2">
           <h3 className="text-[11px] font-medium uppercase text-muted">{t("externalTitle")}</h3>
