@@ -2161,7 +2161,7 @@ const gitlab: Connector = {
     get_diff: {
       effect: "read",
       description:
-        "Read the diff of one commit (commit_sha) or one merge request (mr_iid), never both. Capped at 20 files, 8 KB per file and 40 KB in total; `truncated` and `files_omitted` say what was left out, and `diff_unavailable` marks binary or too-large files. Use `path` to narrow to the files that matter.",
+        "Read the diff of one commit (commit_sha) or one merge request (mr_iid), never both. Capped at 20 files, 8 KB per file and 40 KB in total; `truncated` and `files_omitted` say what was left out, and `diff_unavailable` marks binary or too-large files. Only the first page of 100 files is read: when `more_pages` is true the diff has further files that were not read, so a `path` filter that matches nothing does not prove the file is absent. Use `path` to narrow to the files that matter.",
       inputSchema: {
         type: "object",
         properties: {

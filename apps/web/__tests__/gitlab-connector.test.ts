@@ -887,6 +887,26 @@ describe("compare_refs", () => {
       ]);
       expectGet(calls);
     });
+    it("reports more pages instead of a complete empty result", async () => {
+      mockGitLab({ payload: [file()], headers: { "x-next-page": "2" } });
+      const out = (await run("get_diff", {
+        project: 12,
+        mr_iid: 7,
+        path: "does/not/match",
+      })) as { files: unknown[]; truncated: boolean; more_pages?: boolean };
+      expect(out.files).toEqual([]);
+      expect(out.truncated).toBe(true);
+      expect(out.more_pages).toBe(true);
+    });
+    it("does not flag more pages when GitLab reports none", async () => {
+      mockGitLab({ payload: [file()], headers: { "x-next-page": "" } });
+      const out = (await run("get_diff", { project: 12, mr_iid: 7 })) as {
+        truncated: boolean;
+        more_pages?: boolean;
+      };
+      expect(out.truncated).toBe(false);
+      expect(out).not.toHaveProperty("more_pages");
+    });
     it("withholds the content of files that usually hold secrets", async () => {
       mockGitLab({
         payload: [

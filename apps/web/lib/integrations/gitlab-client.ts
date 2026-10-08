@@ -514,7 +514,8 @@ export async function gitlabGetDiff(
     path = `projects/${project}/merge_requests/${iid}/diffs`;
   }
   const filter = input.path === undefined ? undefined : requiredText(input.path, "path");
-  const { data } = await get<DiffRow[]>(config, path, { per_page: "100" });
+  const { data, nextPage } = await get<DiffRow[]>(config, path, { per_page: "100" });
+  const morePages = nextPage !== null && nextPage !== "";
   const rows = filter
     ? data.filter((d) => d.new_path?.includes(filter) || d.old_path?.includes(filter))
     : data;
@@ -546,10 +547,12 @@ export async function gitlabGetDiff(
       ...(withheld ? { diff_withheld: true } : {}),
     });
   }
-  if (omitted > 0) truncated = true;
+  if (omitted > 0 || morePages) truncated = true;
   return {
     files,
     truncated,
     ...(omitted > 0 ? { files_omitted: omitted } : {}),
+    // Only the first page of 100 files is read: files_omitted does not cover the rest.
+    ...(morePages ? { more_pages: true } : {}),
   };
 }
