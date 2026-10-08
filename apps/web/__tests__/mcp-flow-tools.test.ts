@@ -545,6 +545,95 @@ describe("flow MCP tools", async () => {
     });
   });
 
+  describe("step groups", () => {
+    const group = { id: "g1", name: "Fetch data", icon: "Globe", nodeIds: ["a", "b"] };
+
+    it("get_flow returns the groups, dropping malformed stored entries", async () => {
+      svc.getFlow.mockResolvedValueOnce({
+        id: "f1",
+        name: "One",
+        description: null,
+        spec: null,
+        status: "draft",
+        enabled: false,
+        trigger: "manual",
+        nodes: [],
+        edges: [],
+        variables: {},
+        version: 1,
+        groups: [group, { id: "bad", name: "", nodeIds: [] }],
+      } as never);
+      const out = JSON.parse(
+        (await call("get_flow", { flowId: "f1" }, ["flows:read"])).content[0]!.text
+      );
+      expect(out.groups).toEqual([group]);
+    });
+
+    it("get_flow returns an empty list for a flow without groups", async () => {
+      const out = JSON.parse(
+        (await call("get_flow", { flowId: "f1" }, ["flows:read"])).content[0]!.text
+      );
+      expect(out.groups).toEqual([]);
+    });
+
+    it.each(["create_flow", "update_flow"])("%s forwards groups", async (tool) => {
+      const r = await call(tool, { flowId: "f1", name: "G", groups: [group] });
+      expect(r.isError).toBeFalsy();
+      const service = tool === "create_flow" ? svc.createFlow : svc.updateFlow;
+      expect(service).toHaveBeenCalledWith(
+        expect.anything(),
+        ...(tool === "update_flow" ? ["f1"] : []),
+        expect.objectContaining({ groups: [group] }),
+        { strict: true }
+      );
+    });
+
+    it.each([
+      ["no name", { ...group, name: "" }],
+      ["a description over 160 characters", { ...group, description: "d".repeat(161) }],
+      ["an unknown icon", { ...group, icon: "Rocket" }],
+      ["one step", { ...group, nodeIds: ["a"] }],
+    ])("create_flow and update_flow reject a group with %s", async (_label, bad) => {
+      for (const tool of ["create_flow", "update_flow"]) {
+        const r = await call(tool, { flowId: "f1", name: "x", groups: [bad] });
+        expect(r.isError).toBe(true);
+        expect(r.content[0]!.text).toContain("groups");
+      }
+      expect(svc.createFlow).not.toHaveBeenCalled();
+      expect(svc.updateFlow).not.toHaveBeenCalled();
+    });
+
+    it("documents groups in the write tools' schema", () => {
+      for (const name of ["create_flow", "update_flow"]) {
+        const tool = listMcpTools().find((t) => t.name === name);
+        expect(tool?.inputSchema.properties).toHaveProperty("groups");
+      }
+    });
+
+    it("validate_flow checks the groups of an unsaved graph against its steps", async () => {
+      const node = (id: string) => ({
+        id,
+        type: "transform",
+        label: id,
+        config: { template: "{}" },
+        position: { x: 0, y: 0 },
+      });
+      const run = async (groups: unknown) =>
+        JSON.parse(
+          (
+            await call("validate_flow", { nodes: [node("a"), node("b")], edges: [], groups }, [
+              "flows:read",
+            ])
+          ).content[0]!.text
+        ) as { issues: Array<{ message: string }> };
+      const without = (await run(undefined)).issues;
+      expect((await run([group])).issues).toEqual(without);
+      const broken = (await run([{ ...group, nodeIds: ["a", "ghost"] }])).issues;
+      expect(broken.length).toBe(without.length + 1);
+      expect(broken.some((i) => i.message.includes("ghost"))).toBe(true);
+    });
+  });
+
   it("list_flows goes through the service", async () => {
     await call("list_flows", {}, ["flows:read"]);
     expect(svc.listFlows).toHaveBeenCalled();

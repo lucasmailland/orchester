@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { externalCallersSchema, flowKindSchema } from "@/lib/flows/kind";
+import { flowGroupsSchema } from "@/lib/flows/groups";
 import { createFlow, listFlows, serviceErrorResponse } from "@/lib/flows/service";
 
 const createFlowSchema = z.object({
@@ -20,6 +21,8 @@ const createFlowSchema = z.object({
   variables: z.record(z.string(), z.unknown()).optional(),
   kind: flowKindSchema.optional(),
   externalCallers: externalCallersSchema.optional(),
+  // Step groups: presentation only. Member ids are checked against the steps by the service.
+  groups: flowGroupsSchema.optional(),
 });
 
 export async function GET() {

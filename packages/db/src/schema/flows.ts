@@ -114,6 +114,15 @@ export interface FlowEdgeData {
   label?: string;
 }
 
+/** A named group of steps (see `flows.groups`). */
+export interface FlowGroupData {
+  id: string;
+  name: string;
+  description?: string | undefined;
+  icon?: string | undefined;
+  nodeIds: string[];
+}
+
 export const flows = pgTable("flow", {
   id: text("id").primaryKey(),
   workspaceId: text("workspace_id")
@@ -145,6 +154,13 @@ export const flows = pgTable("flow", {
   nodes: jsonb("nodes").$type<Array<{ id: string } & FlowNodeData>>().default([]),
   edges: jsonb("edges").$type<Array<{ id: string } & FlowEdgeData>>().default([]),
   variables: jsonb("variables").$type<Record<string, unknown>>().default({}),
+  /**
+   * Named groups of steps the editor draws as one block. Presentation only:
+   * nothing that runs or validates the flow reads this column. Shape and
+   * rules live in `apps/web/lib/flows/groups.ts`; the column is added by
+   * migration 0063.
+   */
+  groups: jsonb("groups").$type<FlowGroupData[]>().notNull().default([]),
   version: integer("version").notNull().default(1),
   lastRunAt: timestamp("last_run_at"),
   enabled: boolean("enabled").notNull().default(false),
@@ -232,6 +248,8 @@ export const flowVersions = pgTable("flow_version", {
   nodes: jsonb("nodes").$type<Array<{ id: string } & FlowNodeData>>().default([]),
   edges: jsonb("edges").$type<Array<{ id: string } & FlowEdgeData>>().default([]),
   variables: jsonb("variables").$type<Record<string, unknown>>().default({}),
+  /** The step groups as they were, so a restore brings back how the flow read. */
+  groups: jsonb("groups").$type<FlowGroupData[]>().notNull().default([]),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

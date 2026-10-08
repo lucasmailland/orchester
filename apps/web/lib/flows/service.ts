@@ -11,6 +11,14 @@ import { changesTheGraph, restorePatch } from "./versions";
 import type { ValidationIssue } from "./validate";
 import type { ExternalCaller, FlowKind } from "./kind";
 import { storedActionIssues } from "./action-guard";
+import {
+  canonicalGroups,
+  flowGroupsSchema,
+  groupIssues,
+  normalizeFlowGroups,
+  pruneFlowGroups,
+  type FlowGroup,
+} from "./groups";
 
 /**
  * Workspace-scoped flow operations shared by the session routes and the MCP
@@ -60,6 +68,8 @@ export interface FlowInput {
   templateId?: string | undefined;
   kind?: FlowKind | undefined;
   externalCallers?: ExternalCaller[] | undefined;
+  /** Step groups (presentation only). Absent means "unchanged" (pruned if steps go away). */
+  groups?: FlowGroup[] | undefined;
 }
 
 const notFound = (what: string) => new FlowServiceError("not_found", `${what} not found`);
@@ -123,6 +133,46 @@ function checkGraph(
   return issues;
 }
 
+const nodeIdsOf = (nodes: unknown): string[] => normalizeFlowNodes(nodes).map((n) => n.id);
+
+/**
+ * Groups name steps, so they are checked against the steps the write leaves in
+ * place, for every caller: unlike graph errors, a group naming a missing step
+ * is not a draft, it is a broken reference. Returns the canonical shape.
+ */
+function checkGroups(groups: unknown, nodes: unknown): FlowGroup[] {
+  const parsed = flowGroupsSchema.safeParse(groups);
+  if (!parsed.success) {
+    throw new FlowServiceError(
+      "invalid",
+      "The step groups are invalid",
+      parsed.error.issues.map((i) => ({
+        level: "error" as const,
+        message: `groups.${i.path.join(".")}: ${i.message}`,
+      }))
+    );
+  }
+  const canonical = canonicalGroups(parsed.data as FlowGroup[]);
+  const issues = groupIssues(canonical, nodeIdsOf(nodes));
+  if (issues.length > 0) {
+    throw new FlowServiceError("invalid", "The step groups are invalid", issues);
+  }
+  return canonical;
+}
+
+/**
+ * The groups a write stores: the ones sent, validated; or, when only the steps
+ * change, the stored ones minus the steps that are gone. Undefined when the
+ * stored value stays as it is.
+ */
+function groupsForUpdate(current: Flow, input: FlowInput): FlowGroup[] | undefined {
+  const nodes = input.nodes ?? current.nodes;
+  if (input.groups !== undefined) return checkGroups(input.groups, nodes);
+  if (input.nodes === undefined) return undefined;
+  const pruned = pruneFlowGroups(normalizeFlowGroups(current.groups), nodeIdsOf(nodes));
+  return JSON.stringify(pruned) === JSON.stringify(current.groups ?? []) ? undefined : pruned;
+}
+
 export function listFlows(actor: FlowActor): Promise<Flow[]> {
   return withRepo(actor, (repo) => repo.listFlows(actor.workspaceId));
 }
@@ -156,6 +206,7 @@ export async function createFlow(
     const spec = input.spec ?? null;
     const kind = input.kind ?? "pipeline";
     const warnings = checkGraph(nodes, edges, spec, strict, { kind, variables });
+    const groups = checkGroups(input.groups ?? [], nodes);
     // Whatever the source, store only a graph the editor can open.
     const flow = await repo.insertFlow({
       id: createId(),
@@ -168,6 +219,7 @@ export async function createFlow(
       variables,
       kind,
       externalCallers: input.externalCallers ?? [],
+      groups,
     });
     if (!flow) throw new FlowServiceError("internal", "Insert failed");
     await auditApiKey(repo, actor, "flow.create", flow);
@@ -236,10 +288,14 @@ export async function updateFlow(
         }
       }
     }
+    const groups = groupsForUpdate(current, input);
     // El estado anterior se guarda ANTES de pisarlo, en esta misma
     // transacción: si el update falla, no queda una versión fantasma de algo
     // que nunca llegó a cambiar.
-    const nuevaVersion = changesTheGraph(current, input)
+    const nuevaVersion = changesTheGraph(current, {
+      ...input,
+      groups: input.groups !== undefined ? groups : undefined,
+    })
       ? await repo.snapshotFlow(current, actor.workspaceId, quienCambio(actor))
       : undefined;
     const flow = await repo.updateFlow(flowId, actor.workspaceId, {
@@ -256,6 +312,7 @@ export async function updateFlow(
       ...(input.enabled !== undefined && { enabled: input.enabled }),
       ...(input.kind !== undefined && { kind: input.kind }),
       ...(input.externalCallers !== undefined && { externalCallers: input.externalCallers }),
+      ...(groups !== undefined && { groups }),
       updatedAt: new Date(),
     });
     if (!flow) throw notFound("Flow");

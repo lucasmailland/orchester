@@ -6,6 +6,7 @@ import { getCurrentSession, getCurrentWorkspace } from "@/lib/workspace";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { externalCallersSchema, flowKindSchema } from "@/lib/flows/kind";
+import { flowGroupsSchema } from "@/lib/flows/groups";
 import { logAudit } from "@/lib/audit";
 import {
   blockersMessage,
@@ -29,6 +30,8 @@ const updateFlowSchema = z.object({
   enabled: z.boolean().optional(),
   kind: flowKindSchema.optional(),
   externalCallers: externalCallersSchema.optional(),
+  // Step groups: presentation only. Member ids are checked against the steps by the service.
+  groups: flowGroupsSchema.optional(),
 });
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {

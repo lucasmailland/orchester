@@ -462,3 +462,111 @@ describe("versiones automáticas", () => {
     expect(db.flows[0]!.version).toBe(1);
   });
 });
+
+describe("step groups (presentation only, validated on every write)", () => {
+  const step = (id: string) => ({
+    id,
+    type: "transform",
+    label: id,
+    config: { template: "{}" },
+    position: { x: 0, y: 0 },
+  });
+  const graph = { nodes: [trigger, step("a"), step("b"), step("c")], edges: [] };
+  const group = { id: "g1", name: "Fetch data", icon: "Globe" as const, nodeIds: ["a", "b"] };
+  const actor = { kind: "user" as const, workspaceId: "ws_a", userId: "user_1" };
+
+  async function seed(groups: unknown[] = [group]) {
+    const { flow } = await svc.createFlow(key, { name: "g", ...graph, groups: groups as never });
+    db.versions = [];
+    return flow;
+  }
+
+  it("create stores the groups in canonical shape", async () => {
+    const { flow } = await svc.createFlow(
+      key,
+      { name: "g", ...graph, groups: [{ nodeIds: ["a", "b"], name: "Fetch data", id: "g1" }] },
+      { strict: true }
+    );
+    expect(flow.groups).toEqual([{ id: "g1", name: "Fetch data", nodeIds: ["a", "b"] }]);
+  });
+
+  it("create without groups stores none", async () => {
+    const { flow } = await svc.createFlow(key, { name: "g", ...graph });
+    expect(flow.groups).toEqual([]);
+  });
+
+  it.each([
+    ["a member that is not a step", [{ ...group, nodeIds: ["a", "ghost"] }]],
+    ["a step in two groups", [group, { ...group, id: "g2", nodeIds: ["b", "c"] }]],
+    ["a single-step group", [{ ...group, nodeIds: ["a"] }]],
+    ["an icon outside the map", [{ ...group, icon: "Rocket" }]],
+  ])("create rejects %s, even for non-strict (editor) writes", async (_label, groups) => {
+    const before = db.flows.length;
+    await expect(
+      svc.createFlow(key, { name: "g", ...graph, groups: groups as never })
+    ).rejects.toMatchObject({ code: "invalid", issues: expect.any(Array) });
+    expect(db.flows).toHaveLength(before);
+  });
+
+  it("update with groups only stores them and leaves a version", async () => {
+    const flow = await seed([]);
+    const { flow: updated } = await svc.updateFlow(actor, flow.id, { groups: [group] });
+    expect(updated.groups).toEqual([group]);
+    expect(db.versions).toHaveLength(1);
+  });
+
+  it("sending the same groups again does not spend a version", async () => {
+    const flow = await seed();
+    await svc.updateFlow(actor, flow.id, { groups: [{ ...group }] });
+    expect(db.versions).toHaveLength(0);
+  });
+
+  it("update validates groups against the nodes sent in the same patch", async () => {
+    const flow = await seed([]);
+    await expect(
+      svc.updateFlow(actor, flow.id, { nodes: [trigger, step("a")], groups: [group] })
+    ).rejects.toMatchObject({ code: "invalid" });
+  });
+
+  it("removing a step through nodes alone prunes the stored groups", async () => {
+    // Callers that do not know about groups (an older client, an operator agent
+    // editing steps) must not leave groups naming steps that are gone.
+    const flow = await seed();
+    await svc.updateFlow(actor, flow.id, {
+      nodes: [...graph.nodes, step("d")],
+      groups: [group, { id: "g2", name: "Rest", nodeIds: ["c", "d"] }],
+    });
+    const { flow: after } = await svc.updateFlow(actor, flow.id, {
+      nodes: [trigger, step("a"), step("b"), step("c")],
+    });
+    // g2 kept only "c": a group of one step is just the step, so it is dropped.
+    expect(after.groups).toEqual([group]);
+  });
+
+  it("restoring a version brings its groups back", async () => {
+    const flow = await seed([]);
+    db.versions = [
+      {
+        id: "v_groups",
+        flowId: flow.id,
+        workspaceId: "ws_a",
+        version: 1,
+        nodes: graph.nodes,
+        edges: [],
+        variables: {},
+        spec: null,
+        groups: [group],
+      },
+    ];
+    const { flow: restored } = await svc.restoreFlowVersion(actor, flow.id, "v_groups");
+    expect(restored.groups).toEqual([group]);
+  });
+
+  it("validateFlowById reports the same issues with or without groups", async () => {
+    const plain = await seed([]);
+    const grouped = await seed([group]);
+    expect(await svc.validateFlowById(key, grouped.id)).toEqual(
+      await svc.validateFlowById(key, plain.id)
+    );
+  });
+});
