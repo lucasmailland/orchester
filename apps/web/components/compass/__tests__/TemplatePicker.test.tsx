@@ -1,13 +1,18 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
+// Namespace-aware like the real hook: a key resolves to its full path, so the
+// test does not depend on how the component scopes its translators.
 vi.mock("next-intl", () => {
-  const t = Object.assign((key: string) => key, {
-    raw: () => [],
-    rich: (key: string) => key,
-    has: () => true,
-  });
-  return { useTranslations: () => t };
+  const make = (ns?: string) => {
+    const full = (key: string) => (ns ? `${ns}.${key}` : key);
+    return Object.assign(full, {
+      raw: () => [],
+      rich: full,
+      has: () => true,
+    });
+  };
+  return { useTranslations: (ns?: string) => make(ns) };
 });
 
 import { TemplatePicker } from "../TemplatePicker";
@@ -59,7 +64,7 @@ describe("TemplatePicker inside the create flow", () => {
 
   it("opens the blank form from the blank card", () => {
     openPicker();
-    fireEvent.click(screen.getByText("blank.label"));
+    fireEvent.click(screen.getByText("compass.templates.agent.blank.label"));
     expect(screen.getByTestId("phase")).toHaveTextContent("form");
   });
 
@@ -71,7 +76,7 @@ describe("TemplatePicker inside the create flow", () => {
 
   it("still closes from the close button", () => {
     openPicker();
-    fireEvent.click(screen.getByLabelText("close"));
+    fireEvent.click(screen.getByLabelText("compass.templates.shell.close"));
     expect(screen.getByTestId("phase")).toHaveTextContent("hidden");
   });
 });
