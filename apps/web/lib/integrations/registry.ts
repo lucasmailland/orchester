@@ -35,6 +35,10 @@ import {
   buildErrorsQuery,
   buildTraceLogsQuery,
   buildDeploymentsQuery,
+  buildBrowserErrorsQuery,
+  buildSearchLogsQuery,
+  BROWSER_ERRORS_LIMIT,
+  LOG_LEVELS,
 } from "./newrelic-client";
 
 /**
@@ -1855,6 +1859,110 @@ const newrelic: Connector = {
           buildDeploymentsQuery(String(input.app_name), Number(input.limit ?? 5))
         );
         return { deployments };
+      },
+    },
+
+    get_browser_errors: {
+      effect: "read",
+      description:
+        "Browser (JavaScript) errors for one Browser application, grouped by class and message, most frequent first. Fixed query on JavaScriptError; max 20 groups.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          appName: {
+            type: "string",
+            description: "Browser application name as New Relic reports it.",
+          },
+          since_hours: {
+            type: "integer",
+            minimum: 1,
+            maximum: 168,
+            description: "Window in hours. Default 24.",
+          },
+          message_contains: {
+            type: "string",
+            maxLength: 120,
+            description: "Substring of the error message. Cannot contain %.",
+          },
+          page_contains: {
+            type: "string",
+            maxLength: 120,
+            description: "Substring of the page URI. Cannot contain %.",
+          },
+        },
+        required: ["appName"],
+      },
+      async run(config, input) {
+        const sinceHours = input.since_hours === undefined ? 24 : Number(input.since_hours);
+        const query = buildBrowserErrorsQuery({
+          appName: input.appName as string,
+          sinceHours,
+          messageContains: input.message_contains as string | undefined,
+          pageContains: input.page_contains as string | undefined,
+        });
+        const rows = await runNrql(config, query);
+        return {
+          errors: rows.map((r) => ({
+            error_class: String(r.errorClass ?? (r.facet as unknown[] | undefined)?.[0] ?? ""),
+            message: maskSensitive(
+              String(r.errorMessage ?? (r.facet as unknown[] | undefined)?.[1] ?? "")
+            ).slice(0, 300),
+            count: Number(r.count ?? 0),
+            last_seen: r.last_seen ?? null,
+            sample_uri: r.sample_uri == null ? null : String(r.sample_uri).slice(0, 300),
+          })),
+          since_hours: sinceHours,
+          truncated: rows.length >= BROWSER_ERRORS_LIMIT,
+        };
+      },
+    },
+
+    search_logs: {
+      effect: "read",
+      description:
+        "Recent log lines for one service (filters service.name), newest first, health probes excluded. Fixed query on Log; messages are masked.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          service: { type: "string", description: "Value of service.name." },
+          since_minutes: {
+            type: "integer",
+            minimum: 5,
+            maximum: 1440,
+            description: "Window in minutes. Default 60.",
+          },
+          message_contains: {
+            type: "string",
+            maxLength: 120,
+            description: "Substring of the message. Cannot contain %.",
+          },
+          level: { type: "string", enum: [...LOG_LEVELS] },
+          limit: {
+            type: "integer",
+            minimum: 1,
+            maximum: 100,
+            description: "Max rows. Default 30.",
+          },
+        },
+        required: ["service"],
+      },
+      async run(config, input) {
+        const query = buildSearchLogsQuery({
+          service: input.service as string,
+          sinceMinutes: input.since_minutes as number | undefined,
+          messageContains: input.message_contains as string | undefined,
+          level: input.level as (typeof LOG_LEVELS)[number] | undefined,
+          limit: input.limit as number | undefined,
+        });
+        const rows = await runNrql(config, query);
+        return {
+          logs: rows.map((r) => ({
+            timestamp: r.timestamp ?? null,
+            level: r.level == null ? null : String(r.level),
+            message: maskSensitive(String(r.message ?? "")).slice(0, 500),
+            trace_id: r.trace_id == null ? null : String(r.trace_id),
+          })),
+        };
       },
     },
 

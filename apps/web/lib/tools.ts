@@ -541,7 +541,7 @@ const BUILTINS: Record<string, ToolDefinition> = {
   },
 
   // ── New Relic ─────────────────────────────────────────────────────────────
-  // Contexto que un payload de alerta no trae. Las tres queries son fijas: un
+  // Contexto que un payload de alerta no trae. Las queries son fijas: un
   // resultado reproducible entre corridas vale más que la flexibilidad de
   // dejar que el modelo escriba NRQL.
   newrelic_get_errors: {
@@ -578,6 +578,67 @@ const BUILTINS: Record<string, ToolDefinition> = {
         limit: { type: "number", description: "Max rows, capped at 100." },
       },
       required: ["trace_id"],
+    },
+  },
+  newrelic_get_browser_errors: {
+    name: "newrelic_get_browser_errors",
+    description:
+      "Browser (JavaScript) errors of one Browser application, grouped by error class and message, most frequent first (max 20 groups). Fixed query: filters only by appName, the window, and optional substrings; no other filters exist. message_contains and page_contains are plain substrings (max 120 chars, no % character). Messages are masked (e-mails, long numbers).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appName: {
+          type: "string",
+          description: "Browser application name exactly as New Relic reports it.",
+        },
+        since_hours: {
+          type: "integer",
+          minimum: 1,
+          maximum: 168,
+          description: "Window in hours, 1-168. Defaults to 24.",
+        },
+        message_contains: {
+          type: "string",
+          maxLength: 120,
+          description: "Substring of the error message.",
+        },
+        page_contains: {
+          type: "string",
+          maxLength: 120,
+          description: "Substring of the page URI.",
+        },
+      },
+      required: ["appName"],
+    },
+  },
+  newrelic_search_logs: {
+    name: "newrelic_search_logs",
+    description:
+      "Recent log lines of one backend service, newest first. Fixed query: filters by service.name (the service name, not the New Relic application name), the window, an optional level and an optional message substring; health-probe requests are excluded. Returns timestamp, level, message (masked, max 500 chars) and trace_id (usable with newrelic_get_logs_for_trace). Max 100 rows.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        service: { type: "string", description: "The service.name value, e.g. user-service." },
+        since_minutes: {
+          type: "integer",
+          minimum: 5,
+          maximum: 1440,
+          description: "Window in minutes, 5-1440. Defaults to 60.",
+        },
+        message_contains: {
+          type: "string",
+          maxLength: 120,
+          description: "Substring of the message (no % character).",
+        },
+        level: { type: "string", enum: ["fatal", "error", "warn", "info", "debug"] },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 100,
+          description: "Max rows, 1-100. Defaults to 30.",
+        },
+      },
+      required: ["service"],
     },
   },
   newrelic_get_deployments: {
@@ -730,6 +791,8 @@ const CONNECTOR_TOOLS: Record<
   odoo_get_case: { integrationId: "odoo", action: "get_case" },
   newrelic_get_errors: { integrationId: "newrelic", action: "get_errors" },
   newrelic_get_logs_for_trace: { integrationId: "newrelic", action: "get_logs_for_trace" },
+  newrelic_get_browser_errors: { integrationId: "newrelic", action: "get_browser_errors" },
+  newrelic_search_logs: { integrationId: "newrelic", action: "search_logs" },
   newrelic_get_deployments: { integrationId: "newrelic", action: "get_deployments" },
   gitlab_search_code: { integrationId: "gitlab", action: "search_code" },
   gitlab_read_file: { integrationId: "gitlab", action: "read_file" },
