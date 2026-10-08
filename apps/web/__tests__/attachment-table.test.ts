@@ -62,6 +62,11 @@ describe("maskSensitive", () => {
     ["ana.perez+x@example.com", "[email]"],
     ["write to juan12345678@corp.com now", "write to [email] now"],
     ["DNI 12345678.", "DNI [num]."],
+    ["1234-56-7890", "[num]"],
+    ["12.34.5678", "[num]"],
+    ["99/99/2026", "[num]"],
+    ["2026-13-45", "[num]"],
+    ["25:99", "[num]"],
   ])("masks %s", (input, out) => expect(maskSensitive(input)).toBe(out));
   it.each([
     "8.5",
@@ -71,6 +76,10 @@ describe("maskSensitive", () => {
     "2026-10-08T09:30:00",
     "123456",
     "12/10/2026",
+    "08/10/2026",
+    "8.10.2026",
+    "23:59:59",
+    "on 2026-10-08.",
     "42",
   ])("keeps %s", (s) => expect(maskSensitive(s)).toBe(s));
 });

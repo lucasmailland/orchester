@@ -37,13 +37,43 @@ const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g;
 // with 7+ digits (single `.`, `-` or space allowed between digits) is an
 // identifier: DNI, CUIT, phone.
 const NUM_OR_SAFE =
-  /(\d{4}-\d{2}-\d{2}|\d{1,2}[/.]\d{1,2}[/.]\d{2,4}|\d{1,2}:\d{2}(?::\d{2})?)|\d(?:[.\- ]?\d){6,}/g;
+  /(?<!\d)(?<![-./:]\d)(?:(\d{4})-(\d{2})-(\d{2})|(\d{1,2})[/.](\d{1,2})[/.](\d{4}|\d{2})|(\d{1,2}):(\d{2})(?::(\d{2}))?)(?!\d)(?![-./:]\d)|\d(?:[.\- ]?\d){6,}/g;
 
-/** Replace e-mail addresses and runs of 7+ digits; dates, times and short numbers survive. */
+const between = (n: number, lo: number, hi: number) => n >= lo && n <= hi;
+const validYear = (y: string) => y.length === 2 || between(Number(y), 1900, 2100);
+const validTime = (h: string, m: string, s?: string) =>
+  between(Number(h), 0, 23) && between(Number(m), 0, 59) && (s === undefined || Number(s) <= 59);
+
+/** Replace e-mail addresses and runs of 7+ digits; real dates, times and short numbers survive. */
 export function maskSensitive(text: string): string {
   return text
     .replace(EMAIL, "[email]")
-    .replace(NUM_OR_SAFE, (m, safe: string | undefined) => (safe ? m : "[num]"));
+    .replace(
+      NUM_OR_SAFE,
+      (
+        m,
+        y1?: string,
+        mo1?: string,
+        d1?: string,
+        a?: string,
+        b?: string,
+        y2?: string,
+        h?: string,
+        mi?: string,
+        sec?: string
+      ) => {
+        let ok = false;
+        if (y1 !== undefined)
+          ok = validYear(y1) && between(Number(mo1), 1, 12) && between(Number(d1), 1, 31);
+        else if (a !== undefined)
+          ok =
+            validYear(y2!) &&
+            ((between(Number(a), 1, 31) && between(Number(b), 1, 12)) ||
+              (between(Number(a), 1, 12) && between(Number(b), 1, 31)));
+        else if (h !== undefined) ok = validTime(h, mi!, sec);
+        return ok ? m : "[num]";
+      }
+    );
 }
 
 function cell(raw: string): string {
