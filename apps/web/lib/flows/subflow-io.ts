@@ -94,7 +94,7 @@ export function buildSubflowInput(
 
 export interface SubflowOutputResult {
   values: Record<string, unknown>;
-  /** Parent variables whose expression resolved to nothing; they are left untouched. */
+  /** Parent variables whose expression resolved to undefined; they are left untouched. */
   missing: string[];
 }
 
@@ -118,7 +118,8 @@ export function readSubflowOutputs(
     } catch (e) {
       throw new Error(`subflow: output "${name}": ${e instanceof Error ? e.message : String(e)}`);
     }
-    if (v === undefined || v === null) missing.push(name);
+    // Only undefined is "missing": an explicit null is a real value and overwrites the parent.
+    if (v === undefined) missing.push(name);
     else values[name] = v;
   }
   return { values, missing };

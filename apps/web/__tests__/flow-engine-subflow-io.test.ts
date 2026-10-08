@@ -175,3 +175,17 @@ describe("malformed mappings fail the step instead of disabling isolation", () =
     expect(r.output).not.toHaveProperty("b");
   });
 });
+
+describe("explicit null outputs", () => {
+  it("writes null to the parent and does not list it as missing", async () => {
+    const { r } = await callWith(
+      { outputs: { customerId: "customerId" } },
+      { customerId: "previous" },
+      { customerId: null }
+    );
+    expect(r.status).toBe("succeeded");
+    expect(r.output.customerId).toBeNull();
+    const sub = r.steps.find((s) => s.nodeId === "sub");
+    expect(sub?.output).not.toHaveProperty("missingKeys");
+  });
+});
