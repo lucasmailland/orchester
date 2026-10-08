@@ -689,6 +689,58 @@ function safeEvalArithmetic(expr: string): number {
   return result;
 }
 
+/**
+ * Whether a tool call reads or writes, so a dry run can let reads through and
+ * simulate writes. Connector-backed tools inherit their action's declared
+ * effect; the rest are classified here. Anything not classified is `write`: an
+ * unclassified tool must never run in a dry run.
+ */
+const READ_TOOLS = new Set([
+  "current_time",
+  "calculator",
+  "agent_team_list",
+  "knowledge_search",
+  "memory_get",
+  "brain_recall",
+]);
+
+export async function toolEffect(
+  name: string,
+  input: Record<string, unknown>,
+  ctx: Pick<ToolContext, "workspaceId" | "tx">
+): Promise<"read" | "write"> {
+  if (READ_TOOLS.has(name)) return "read";
+  if (name === "http_request") {
+    const method = String(input.method ?? "GET").toUpperCase();
+    return method === "GET" || method === "HEAD" ? "read" : "write";
+  }
+  const route = CONNECTOR_TOOLS[name];
+  if (route) {
+    const { getConnector, actionEffect } = await import("@/lib/integrations/registry");
+    return actionEffect(getConnector(route.integrationId)?.actions[route.action], input);
+  }
+  if (name === "run_integration") {
+    const integrationId = String(input.integrationId ?? "");
+    const action = String(input.action ?? "");
+    if (!integrationId || !action) return "write";
+    try {
+      const { getIntegrationActionEffect } = await import("@/lib/integrations/store");
+      return await getIntegrationActionEffect(
+        ctx.workspaceId,
+        integrationId,
+        action,
+        (input.input as Record<string, unknown>) ?? {},
+        ctx.tx
+      );
+    } catch {
+      return "write";
+    }
+  }
+  // flow_call, agent_handoff, memory_set, memory_remove, mnemosyne_remember, and
+  // anything new until someone classifies it.
+  return "write";
+}
+
 export async function executeTool(
   name: string,
   input: Record<string, unknown>,
