@@ -100,8 +100,9 @@ function makeTx() {
 
 export const dbMock = {
   getDb: vi.fn(() => ({
-    // A subflow step reads the child run's output through the bare client.
-    select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ output: {} }] }) }) }),
+    // The bare client sees zero rows, like the app role under FORCE RLS: any
+    // read that matters must go through a workspace transaction (`makeTx`).
+    select: () => ({ from: () => ({ where: () => ({ limit: async () => [] }) }) }),
     transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(makeTx())),
   })),
   schema: {

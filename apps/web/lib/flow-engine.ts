@@ -1581,11 +1581,11 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       ...(ctx.dryRun ? { dryRun: true } : {}),
     });
     if (result.status === "failed") throw new Error(`subflow failed: ${result.error}`);
-    const subRuns = await db
-      .select()
-      .from(schema.flowRuns)
-      .where(eq(schema.flowRuns.id, result.runId))
-      .limit(1);
+    // Under FORCE RLS a read outside a workspace transaction sees zero rows,
+    // which would silently hand the parent an empty output.
+    const subRuns = await withFlowTx(workspaceId, (tx) =>
+      tx.select().from(schema.flowRuns).where(eq(schema.flowRuns.id, result.runId)).limit(1)
+    );
     const subOut = (subRuns[0]?.output as Record<string, unknown>) ?? {};
     Object.assign(ctx.variables, subOut);
     helpers.setOutput({ subRunId: result.runId, mergedKeys: Object.keys(subOut) });
