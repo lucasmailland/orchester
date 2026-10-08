@@ -833,6 +833,8 @@
         },
         "promptEditor": {
           "templates": "Templates",
+          "preview": "Preview",
+          "edit": "Edit",
           "generate": "Generate with AI",
           "placeholder": "Write the agent's system prompt or use the AI generator…",
           "chars": "{n} chars",

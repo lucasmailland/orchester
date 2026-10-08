@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Send, Trash2, Loader2, Wrench } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { Markdown } from "@/components/ui/Markdown";
 
 interface ToolCallView {
   name: string;
@@ -221,7 +222,7 @@ export function TestChat({
                   : "mr-auto max-w-[85%] rounded-2xl rounded-bl-sm border border-line bg-elevated px-3.5 py-2 text-sm text-strong"
               }
             >
-              {m.content || (m.flowRunId ? t("ranByFlow") : "")}
+              <Markdown content={m.content || (m.flowRunId ? t("ranByFlow") : "")} />
             </div>
             {m.toolCalls && m.toolCalls.length > 0 && (
               <div className="mr-auto max-w-[85%] space-y-1">

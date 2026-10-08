@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Sparkles, BookOpen } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { Markdown } from "@/components/ui/Markdown";
 import { promptQuality } from "./promptQuality";
 
 interface Props {
@@ -15,6 +16,8 @@ interface Props {
 
 export function PromptEditor({ value, onChange, onGenerate, onTemplates }: Props) {
   const t = useTranslations("pages.agents.studio.promptEditor");
+  // Non-empty prompts open as a rendered preview so they are not edited by accident.
+  const [editing, setEditing] = useState(() => value.trim() === "");
   const q = useMemo(() => promptQuality(value), [value]);
   const tone =
     q.label === "Excellent"
@@ -42,17 +45,32 @@ export function PromptEditor({ value, onChange, onGenerate, onTemplates }: Props
             <BookOpen className="h-3.5 w-3.5" /> {t("templates")}
           </button>
         </div>
-        <div className={cn("rounded-md border px-2 py-0.5 text-[11px] font-medium", tone)}>
-          {q.label} · {q.score}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setEditing((e) => !e)}
+            type="button"
+            className="rounded-lg border border-line px-2.5 py-1.5 text-xs text-body hover:bg-hover"
+          >
+            {editing ? t("preview") : t("edit")}
+          </button>
+          <div className={cn("rounded-md border px-2 py-0.5 text-[11px] font-medium", tone)}>
+            {q.label} · {q.score}
+          </div>
         </div>
       </div>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        spellCheck={false}
-        className="min-h-[260px] flex-1 resize-none bg-transparent px-4 py-3 font-mono text-[13px] leading-relaxed text-strong placeholder:text-faint outline-none"
-        placeholder={t("placeholder")}
-      />
+      {editing ? (
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          spellCheck={false}
+          className="min-h-[260px] flex-1 resize-none bg-transparent px-4 py-3 font-mono text-[13px] leading-relaxed text-strong placeholder:text-faint outline-none"
+          placeholder={t("placeholder")}
+        />
+      ) : (
+        <div className="min-h-[260px] flex-1 overflow-y-auto px-4 py-3">
+          <Markdown content={value} className="text-[13px] leading-relaxed text-strong" />
+        </div>
+      )}
       <div className="flex items-center justify-between border-t border-line px-4 py-2 text-[11px] text-muted">
         <span>{t("chars", { n: q.chars })}</span>
         <span>{t("tokens", { n: q.tokens })}</span>

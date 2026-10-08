@@ -833,6 +833,8 @@
         },
         "promptEditor": {
           "templates": "Templates",
+          "preview": "Visualizar",
+          "edit": "Editar",
           "generate": "Gerar com IA",
           "placeholder": "Escreva o system prompt do agente ou use o gerador com IA…",
           "chars": "{n} chars",
