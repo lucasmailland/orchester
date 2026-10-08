@@ -846,27 +846,33 @@ export async function toolEffect(
   const route = CONNECTOR_TOOLS[name];
   if (route) {
     const { getConnector, actionEffect } = await import("@/lib/integrations/registry");
-    return actionEffect(getConnector(route.integrationId)?.actions[route.action], input);
+    const connector = getConnector(route.integrationId);
+    if (!connector) throw new Error("Connector desconocido");
+    const routed = connector.actions[route.action];
+    if (!routed) throw new Error(`Acción desconocida: ${route.action}`);
+    return actionEffect(routed, input);
   }
   if (name === "run_integration") {
     const integrationId = String(input.integrationId ?? "");
     const action = String(input.action ?? "");
     if (!integrationId || !action) return "write";
-    try {
-      const { getIntegrationActionEffect } = await import("@/lib/integrations/store");
-      return await getIntegrationActionEffect(
-        ctx.workspaceId,
-        integrationId,
-        action,
-        (input.input as Record<string, unknown>) ?? {},
-        ctx.tx
-      );
-    } catch {
-      return "write";
-    }
+    // Unresolvable integration/action: let the lookup error surface, the same
+    // one the real run raises, rather than simulating it as a write.
+    const { getIntegrationActionEffect } = await import("@/lib/integrations/store");
+    return getIntegrationActionEffect(
+      ctx.workspaceId,
+      integrationId,
+      action,
+      (input.input as Record<string, unknown>) ?? {},
+      ctx.tx
+    );
   }
+  // Workspace MCP tools are classified by the loop from their definition.
+  if (name.startsWith("mcp__")) return "write";
   // flow_call, agent_handoff, memory_set, memory_remove, mnemosyne_remember, and
-  // anything new until someone classifies it.
+  // any built-in nobody classified yet are writes; a name that is not a tool at
+  // all is an error, not a write to simulate.
+  if (!listAllTools().some((t) => t.name === name)) throw new Error(`Unknown tool: ${name}`);
   return "write";
 }
 

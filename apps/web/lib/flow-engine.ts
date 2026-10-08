@@ -854,10 +854,15 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       return aRows[0];
     });
     if (!agent) throw new Error(`agent not found: ${agentId}`);
-    // Status is the kill switch: an agent set to draft or inactive must stop
-    // running everywhere, flows included, not only in conversations.
-    if (agent.status !== "active") {
-      throw new Error(`agent "${agent.name}" is not active (status: ${agent.status})`);
+    // Status is the kill switch: an agent that is not active must stop running
+    // everywhere, flows included. The one exception is a draft in a dry run, so
+    // a new agent can be tested before it is activated; inactive never runs.
+    if (agent.status !== "active" && !(ctx.dryRun && agent.status === "draft")) {
+      const rule =
+        agent.status === "draft"
+          ? "only draft agents can run in a dry run; activate it to run for real"
+          : "inactive agents never run";
+      throw new Error(`agent "${agent.name}" is not active (status: ${agent.status}); ${rule}`);
     }
     const { resolveToolDefinitions, executeTool, toolEffect } = await import("./tools");
     const { wrapUntrusted, UNTRUSTED_CONTENT_GUARDRAIL } = await import("./agent-runtime");
@@ -1409,16 +1414,12 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     const retry = parseRetryConfig(cfg.retry);
     const outputVar = (cfg.outputVar as string) ?? "appResult";
     if (ctx.dryRun) {
-      // Anything that is not provably a read is simulated, including when the
-      // effect cannot be resolved (unknown integration, lookup failure): in a
-      // dry run, doubt means "do not execute".
-      let effect: "read" | "write" = "write";
-      try {
-        const { getIntegrationActionEffect } = await import("./integrations/store");
-        effect = await getIntegrationActionEffect(workspaceId, integrationId, action, input);
-      } catch {
-        effect = "write";
-      }
+      // Anything resolvable that is not a read is simulated. An action that
+      // cannot be resolved is NOT simulated: the lookup throws the same error
+      // the real run would raise, so the dry run cannot be green while the
+      // real run would fail.
+      const { getIntegrationActionEffect } = await import("./integrations/store");
+      const effect = await getIntegrationActionEffect(workspaceId, integrationId, action, input);
       if (effect !== "read") {
         const sim = simulated({ integrationId, action, input });
         ctx.variables[outputVar] = sim;

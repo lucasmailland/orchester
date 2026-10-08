@@ -54,6 +54,20 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("dry run: integration steps", () => {
+  it("fails (no wouldCall) when the action cannot be resolved", async () => {
+    effectOf.mockRejectedValue(new Error("Acción desconocida: get_case"));
+    const r = await dry(
+      [trigger, step("s", "integration", { integrationId: "odoo::get_case", input: {} })],
+      [edge("t", "s")]
+    );
+    expect(r.status).toBe("failed");
+    expect(runAction).not.toHaveBeenCalled();
+    const st = r.steps.find((x) => x.nodeId === "s");
+    expect(st?.status).toBe("failed");
+    expect(JSON.stringify(st)).toContain("Acción desconocida: get_case");
+    expect(JSON.stringify(st)).not.toContain("wouldCall");
+  });
+
   it("executes a read action", async () => {
     effectOf.mockResolvedValue("read");
     runAction.mockResolvedValue({ rows: [1] });
@@ -122,16 +136,6 @@ describe("dry run: integration steps", () => {
       "execute",
       expect.objectContaining({ method: "write" })
     );
-  });
-
-  it("treats an effect that cannot be resolved as write", async () => {
-    effectOf.mockRejectedValue(new Error("boom"));
-    const r = await dry(
-      [trigger, step("s", "integration", { integrationId: "odoo::create_ticket", input: {} })],
-      [edge("t", "s")]
-    );
-    expect(runAction).not.toHaveBeenCalled();
-    expect(r.steps.find((s) => s.nodeId === "s")?.output).toMatchObject({ dryRun: true });
   });
 
   it("outside dry run a write action still executes", async () => {
