@@ -7,6 +7,7 @@ import { parseBody } from "@/lib/validation";
 import { updateAgentSchema } from "@/lib/agents/schemas";
 import { deleteAgent } from "@/lib/agents/admin-service";
 import { adminErrorResponse } from "@/lib/workspace-admin";
+import { unknownKbIds, withAgentKbIds } from "@/lib/agents/knowledge-bases";
 import { logAudit } from "@/lib/audit";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -43,6 +44,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     kind,
     flowId,
     tools,
+    knowledgeBaseIds,
     variables,
     greeting,
     fallback,
@@ -55,6 +57,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   } = parsed.data;
 
   const db = getDb();
+  let config: Record<string, unknown> | undefined;
+  if (knowledgeBaseIds !== undefined) {
+    const unknown = await unknownKbIds(ctx.workspace.id, knowledgeBaseIds);
+    if (unknown.length)
+      return NextResponse.json(
+        { error: `Unknown knowledge bases: ${unknown.join(", ")}` },
+        { status: 400 }
+      );
+    const [current] = await db
+      .select({ config: schema.agents.config })
+      .from(schema.agents)
+      .where(and(eq(schema.agents.id, id), eq(schema.agents.workspaceId, ctx.workspace.id)))
+      .limit(1);
+    if (!current) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    config = withAgentKbIds(current.config, knowledgeBaseIds);
+  }
   const updated = await db
     .update(schema.agents)
     .set({
@@ -69,6 +87,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       ...(kind !== undefined && { kind }),
       ...(flowId !== undefined && { flowId: flowId || null }),
       ...(tools !== undefined && { tools }),
+      ...(config !== undefined && { config }),
       ...(variables !== undefined && { variables }),
       ...(greeting !== undefined && { greeting: greeting || null }),
       ...(fallback !== undefined && { fallback: fallback || null }),

@@ -18,6 +18,8 @@ export const updateAgentSchema = z.object({
   kind: z.enum(["conversational", "flow"]).optional(),
   flowId: z.string().nullable().optional(),
   tools: z.array(z.string()).optional(),
+  // Knowledge bases the agent may search; stored in agent.config.knowledgeBaseIds.
+  knowledgeBaseIds: z.array(z.string()).optional(),
   variables: z.record(z.string(), z.string()).optional(),
   greeting: z.string().nullable().optional(),
   fallback: z.string().nullable().optional(),

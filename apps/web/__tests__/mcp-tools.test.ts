@@ -103,9 +103,13 @@ describe("workspace MCP tool registry", () => {
   it("uses async resolution in agent runtime and both channel paths, retaining untrusted wrappers", () => {
     const runtime = readFileSync(new URL("../lib/agent-runtime.ts", import.meta.url), "utf8");
     const router = readFileSync(new URL("../lib/channels/router.ts", import.meta.url), "utf8");
-    expect(runtime).toContain("await resolveToolDefinitions(p.workspaceId, enabledTools, p.tx)");
+    expect(runtime).toContain(
+      "await resolveToolDefinitions(p.workspaceId, enabledTools, p.tx, p.agent)"
+    );
     expect(
-      router.match(/await resolveToolDefinitions\(workspaceId, activeAgent.tools \?\? \[\], tx\)/g)
+      router.match(
+        /await resolveToolDefinitions\(\s*workspaceId,\s*activeAgent.tools \?\? \[\],\s*tx,\s*activeAgent\s*\)/g
+      )
     ).toHaveLength(2);
     for (const source of [runtime, router])
       expect(source).toMatch(

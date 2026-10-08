@@ -855,7 +855,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     // Built-ins plus the workspace's remote MCP tools the agent has enabled.
     const tools = (
       await withFlowTx(workspaceId, (tx) =>
-        resolveToolDefinitions(workspaceId, agent.tools ?? [], tx)
+        resolveToolDefinitions(workspaceId, agent.tools ?? [], tx, agent)
       )
     ).filter((t) => t.name !== "agent_handoff");
     const systemPrompt = agent.systemPrompt + (tools.length > 0 ? UNTRUSTED_CONTENT_GUARDRAIL : "");
@@ -1567,8 +1567,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     // `PauseRequested` unwinds recursion and lets `executeFlow` persist
     // where to resume.
     const notificationConfig = cfg.notify as
-      | { integrationId?: string; input?: Record<string, unknown> }
-      | undefined;
+      { integrationId?: string; input?: Record<string, unknown> } | undefined;
     const notification =
       notificationConfig?.integrationId && notificationConfig.input
         ? {
@@ -1731,8 +1730,7 @@ export async function enqueueFlowRun({
  * FORCE RLS rejects them.
  */
 type DbOrTx =
-  | ReturnType<typeof getDb>
-  | Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+  ReturnType<typeof getDb> | Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 export async function reapStaleRuns(maxAgeMs = 15 * 60_000, db?: DbOrTx): Promise<number> {
   const exec = db ?? getDb();
   const cutoff = new Date(Date.now() - maxAgeMs);

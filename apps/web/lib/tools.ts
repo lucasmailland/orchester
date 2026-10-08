@@ -611,12 +611,48 @@ export function getToolDefinitions(enabledIds: string[]): ToolDefinition[] {
   return enabledIds.map((id) => BUILTINS[id]).filter(Boolean) as ToolDefinition[];
 }
 
+/**
+ * `knowledge_search` as the model sees it for an agent bound to knowledge
+ * bases: kbId becomes optional and the agent's bases are listed by name.
+ */
+function boundKnowledgeSearch(kbs: { id: string; name: string }[]): ToolDefinition {
+  const base = BUILTINS.knowledge_search!;
+  const props = (base.inputSchema as { properties: Record<string, Record<string, unknown>> })
+    .properties;
+  const list = kbs.map((kb) => `${kb.name} (${kb.id})`).join("; ");
+  return {
+    ...base,
+    description: `${base.description} This agent can search these knowledge bases: ${list}. Omit kbId to search all of them at once.`,
+    inputSchema: {
+      ...base.inputSchema,
+      properties: {
+        ...props,
+        kbId: {
+          type: "string",
+          description: `Optional. One of: ${list}. Omit to search all of them.`,
+          enum: kbs.map((kb) => kb.id),
+        },
+      },
+      required: ["query"],
+    },
+  };
+}
+
 export async function resolveToolDefinitions(
   workspaceId: string,
   enabledIds: string[],
-  tx?: WsDb
+  tx?: WsDb,
+  agent?: { id?: string; config?: unknown }
 ): Promise<ToolDefinition[]> {
-  const builtins = getToolDefinitions(enabledIds);
+  let builtins = getToolDefinitions(enabledIds);
+  if (agent && enabledIds.includes("knowledge_search")) {
+    const { readAgentKbIds, listWorkspaceKbs } = await import("./agents/knowledge-bases");
+    const kbs = await listWorkspaceKbs(workspaceId, readAgentKbIds(agent.config), tx);
+    if (kbs.length)
+      builtins = builtins.map((d) =>
+        d.name === "knowledge_search" ? boundKnowledgeSearch(kbs) : d
+      );
+  }
   if (!enabledIds.some((id) => id.startsWith("mcp__"))) return builtins;
   const { listWorkspaceMcpTools } = await import("./integrations/mcp-tools");
   const remote = await listWorkspaceMcpTools(workspaceId, tx);
@@ -949,10 +985,7 @@ export async function executeTool(
     if (!ctx.agentId) throw new Error("memory_* tools require ctx.agentId");
     const { setMemory, getRelevantMemories, removeMemory } = await import("./memory");
     const scope = String(input.scope ?? "global") as
-      | "global"
-      | "conversation"
-      | "employee"
-      | "team";
+      "global" | "conversation" | "employee" | "team";
     const baseQ = {
       agentId: ctx.agentId,
       workspaceId: ctx.workspaceId,
@@ -1012,8 +1045,30 @@ export async function executeTool(
   if (name === "knowledge_search") {
     const kbId = String(input.kbId ?? "");
     const query = String(input.query ?? "");
-    if (!kbId || !query) throw new Error("kbId and query required");
     const { searchKnowledgeBase } = await import("./knowledge-search");
+    // An agent bound to knowledge bases may only read those, and may omit kbId.
+    const bound = ctx.agentId
+      ? await (
+          await import("./agents/knowledge-bases")
+        ).agentKbs(ctx.workspaceId, ctx.agentId, ctx.tx)
+      : [];
+    if (bound.length) {
+      if (!query) throw new Error("query required");
+      if (kbId && !bound.some((kb) => kb.id === kbId))
+        throw new Error(`Knowledge base ${kbId} is not one of this agent's knowledge bases.`);
+      const topK = Number(input.topK ?? 5);
+      const targets = kbId ? [kbId] : bound.map((kb) => kb.id);
+      const lists = await Promise.all(
+        targets.map((id) => searchKnowledgeBase(ctx.workspaceId, id, query, topK, ctx.tx))
+      );
+      const limit = Math.min(20, Math.max(1, topK || 5));
+      const results = lists
+        .flat()
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit);
+      return { results };
+    }
+    if (!kbId || !query) throw new Error("kbId and query required");
     const results = await searchKnowledgeBase(
       ctx.workspaceId,
       kbId,

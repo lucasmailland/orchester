@@ -3,6 +3,7 @@ import { schema } from "@orchester/db";
 import { and, eq } from "drizzle-orm";
 import { updateAgentSchema } from "./schemas";
 import { agentDeleteBlockers, agentBlockersMessage } from "./delete-impact";
+import { unknownKbIds, withAgentKbIds } from "./knowledge-bases";
 import { requireTeam } from "@/lib/teams/service";
 import {
   AdminError,
@@ -22,6 +23,7 @@ export const agentAdminPatchSchema = updateAgentSchema
     status: true,
     teamId: true,
     tools: true,
+    knowledgeBaseIds: true,
     temperature: true,
     maxTokens: true,
   })
@@ -50,15 +52,23 @@ export async function updateAgent(actor: AdminActor, id: string, input: Record<s
     if (unknown.length) throw new AdminError(`Unknown tools: ${unknown.join(", ")}`, 400);
   }
   return withAdminTx(actor, async (tx) => {
-    await requireAgent(tx, actor.workspaceId, id);
+    const current = await requireAgent(tx, actor.workspaceId, id);
     if (data.teamId) await requireTeam(tx, actor.workspaceId, data.teamId);
-    const { temperature, ...fields } = data;
+    if (data.knowledgeBaseIds?.length) {
+      const unknown = await unknownKbIds(actor.workspaceId, data.knowledgeBaseIds, tx);
+      if (unknown.length)
+        throw new AdminError(`Unknown knowledge bases: ${unknown.join(", ")}`, 400);
+    }
+    const { temperature, knowledgeBaseIds, ...fields } = data;
     const [agent] = await tx
       .update(schema.agents)
       .set({
         ...fields,
         ...(data.systemPrompt !== undefined && { systemPrompt: data.systemPrompt.trim() }),
         ...(data.teamId !== undefined && { teamId: data.teamId || null }),
+        ...(knowledgeBaseIds !== undefined && {
+          config: withAgentKbIds(current.config, knowledgeBaseIds),
+        }),
         ...(temperature !== undefined && { temperature: String(temperature) }),
         updatedAt: new Date(),
       })

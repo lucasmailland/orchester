@@ -29,6 +29,7 @@ interface AgentDTO {
   kind: "conversational" | "flow";
   flowId: string | null;
   tools: string[] | null;
+  knowledgeBaseIds?: string[];
   variables: Record<string, string> | null;
   greeting: string | null;
   fallback: string | null;
@@ -61,6 +62,7 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
     flowId: agent.flowId,
     variables: agent.variables ?? {},
     tools: agent.tools ?? [],
+    knowledgeBaseIds: agent.knowledgeBaseIds ?? [],
     greeting: agent.greeting ?? "",
     fallback: agent.fallback ?? "",
     starters: agent.starters ?? [],
@@ -104,6 +106,7 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
         kind: config.kind,
         flowId: config.flowId,
         tools: config.tools,
+        knowledgeBaseIds: config.knowledgeBaseIds,
         variables: config.variables,
         greeting: config.greeting,
         fallback: config.fallback,

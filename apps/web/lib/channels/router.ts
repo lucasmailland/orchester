@@ -478,7 +478,12 @@ async function runConversationalTurn(
   // pivotea `conversation.agentId` → en la próxima iteración tenemos que
   // recargar el agente y reconstruir prompt/tools/temperature acordes.
   let activeAgent = agent;
-  let activeTools = await resolveToolDefinitions(workspaceId, activeAgent.tools ?? [], tx);
+  let activeTools = await resolveToolDefinitions(
+    workspaceId,
+    activeAgent.tools ?? [],
+    tx,
+    activeAgent
+  );
   let activeSystemPrompt = systemPrompt;
   let reply = "";
   let tokens = 0;
@@ -568,7 +573,12 @@ async function runConversationalTurn(
             .limit(1);
           if (newAgentRows[0]) {
             activeAgent = newAgentRows[0];
-            activeTools = await resolveToolDefinitions(workspaceId, activeAgent.tools ?? [], tx);
+            activeTools = await resolveToolDefinitions(
+              workspaceId,
+              activeAgent.tools ?? [],
+              tx,
+              activeAgent
+            );
             // Re-inyectá memorias del nuevo agente (cambia el contexto).
             // Phase F.1 fix: thread `tx` so the SELECT runs under the
             // turn's tenant context.

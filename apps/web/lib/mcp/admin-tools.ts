@@ -110,6 +110,12 @@ export const ADMIN_TOOLS: McpToolDef[] = [
         status: { type: "string", enum: ["draft", "active", "inactive"] },
         teamId: { type: ["string", "null"] },
         tools: { type: "array", items: { type: "string" } },
+        knowledgeBaseIds: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Knowledge bases of this workspace the agent may search with knowledge_search. Replaces the list; [] clears it.",
+        },
         temperature: { type: ["number", "string"] },
         maxTokens: { type: "number" },
       },

@@ -1,3 +1,4 @@
+import { readAgentKbIds } from "@/lib/agents/knowledge-bases";
 import { notFound, redirect } from "next/navigation";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
@@ -35,6 +36,7 @@ export default async function AgentStudioPage({
         kind: agent.kind,
         flowId: agent.flowId,
         tools: agent.tools,
+        knowledgeBaseIds: readAgentKbIds(agent.config),
         variables: agent.variables,
         greeting: agent.greeting,
         fallback: agent.fallback,

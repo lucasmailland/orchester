@@ -23,6 +23,7 @@ export interface AgentConfigState {
   flowId: string | null;
   variables: Record<string, string>;
   tools: string[];
+  knowledgeBaseIds: string[];
   greeting: string;
   fallback: string;
   starters: string[];
@@ -53,6 +54,7 @@ export function AgentConfigPanel({ value, onChange }: Props) {
   const t = useTranslations("pages.agents.studio.config");
   const [flows, setFlows] = useState<FlowOption[]>([]);
   const [tools, setTools] = useState<ToolDef[]>([]);
+  const [kbs, setKbs] = useState<FlowOption[]>([]);
 
   useEffect(() => {
     fetch("/api/flows")
@@ -61,6 +63,12 @@ export function AgentConfigPanel({ value, onChange }: Props) {
         setFlows((Array.isArray(d) ? d : []).map((f) => ({ id: f.id, name: f.name })))
       )
       .catch(() => setFlows([]));
+    fetch("/api/knowledge-bases")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d: Array<{ id: string; name: string }>) =>
+        setKbs((Array.isArray(d) ? d : []).map((k) => ({ id: k.id, name: k.name })))
+      )
+      .catch(() => setKbs([]));
     fetch("/api/tools")
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setTools(Array.isArray(d) ? d : []))
@@ -167,6 +175,43 @@ export function AgentConfigPanel({ value, onChange }: Props) {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* Knowledge bases (only for conversational) */}
+      {value.kind === "conversational" && (
+        <Section title={t("kbSectionTitle")} subtitle={t("kbSectionSubtitle")}>
+          {kbs.length === 0 ? (
+            <div className="text-xs text-muted">{t("kbEmpty")}</div>
+          ) : (
+            <div className="grid grid-cols-2 gap-1.5">
+              {kbs.map((kb) => {
+                const selected = value.knowledgeBaseIds.includes(kb.id);
+                return (
+                  <button
+                    key={kb.id}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() =>
+                      onChange({
+                        knowledgeBaseIds: selected
+                          ? value.knowledgeBaseIds.filter((id) => id !== kb.id)
+                          : [...value.knowledgeBaseIds, kb.id],
+                      })
+                    }
+                    className={cn(
+                      "rounded-lg border px-2.5 py-2 text-left text-xs transition",
+                      selected
+                        ? "border-violet-500/40 bg-violet-500/10 text-strong"
+                        : "border-line bg-card text-muted hover:bg-elevated"
+                    )}
+                  >
+                    {kb.name}
+                  </button>
+                );
+              })}
             </div>
           )}
         </Section>

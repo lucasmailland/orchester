@@ -508,7 +508,9 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
 
   // Tool-calling loop (currently Anthropic only — others fall through to plain chat)
   const toolDefs =
-    enabledTools.length > 0 ? await resolveToolDefinitions(p.workspaceId, enabledTools, p.tx) : [];
+    enabledTools.length > 0
+      ? await resolveToolDefinitions(p.workspaceId, enabledTools, p.tx, p.agent)
+      : [];
   const toolCalls: RunAgentResult["toolCalls"] = [];
   let messages = [...p.messages];
   let totalTokens = 0;

@@ -205,6 +205,23 @@ describe("workspace administration over MCP", () => {
     expect(r.isError).toBeFalsy();
     expect(state.writes[0]?.data?.tools).toEqual(["calculator"]);
   });
+  it("update_agent stores knowledge bases in config, keeping other keys", async () => {
+    state.rows.set("agent", [{ ...agent, config: { keep: true } }]);
+    state.rows.set("knowledge_base", [{ id: "kb1", name: "IT" }]);
+    const r = await call("update_agent", { agentId: "a1", knowledgeBaseIds: ["kb1"] });
+    expect(r.isError, r.content[0]?.text).toBeFalsy();
+    expect(state.writes.at(-1)?.data).toEqual({
+      config: { keep: true, knowledgeBaseIds: ["kb1"] },
+      updatedAt: expect.any(Date),
+    });
+  });
+  it("update_agent rejects knowledge bases that are not in the workspace", async () => {
+    state.rows.set("knowledge_base", [{ id: "kb1", name: "IT" }]);
+    const r = await call("update_agent", { agentId: "a1", knowledgeBaseIds: ["kb1", "foreign"] });
+    expect(r.isError).toBe(true);
+    expect(r.content[0]!.text).toContain("foreign");
+    expect(state.writes).toHaveLength(0);
+  });
   it.each([{ name: " " }, { role: "" }, { status: "bogus" }, { maxTokens: "10" }, { tools: null }])(
     "update_agent validates %j",
     async (fields) => {
