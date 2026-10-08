@@ -128,7 +128,7 @@ const BUILTINS: Record<string, ToolDefinition> = {
   agent_handoff: {
     name: "agent_handoff",
     description:
-      "Hand off the current conversation to another agent. Use this when the user's request is OUTSIDE your specialty and a teammate is better suited. The other agent receives the conversation history + your handoff note and continues the dialog. From the next turn forward, the other agent is the one responding.",
+      "Hand off the current conversation to another agent. Use this when the user's request is OUTSIDE your specialty and a teammate in your team is better suited (agents without a team can hand off to any agent in the workspace). The other agent receives the conversation history + your handoff note and continues the dialog. From the next turn forward, the other agent is the one responding.",
     inputSchema: {
       type: "object",
       properties: {
@@ -149,7 +149,7 @@ const BUILTINS: Record<string, ToolDefinition> = {
   agent_team_list: {
     name: "agent_team_list",
     description:
-      "Lists the teammates available in your workspace that you can hand off to (via `agent_handoff`). Returns id + name + role + short description for each.",
+      "Lists the teammates in your team that you can hand off to (via `agent_handoff`). If you do not belong to a team, lists every active agent in the workspace. Returns id + name + role + short description for each.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -689,6 +689,20 @@ function safeEvalArithmetic(expr: string): number {
   return result;
 }
 
+/** Team of the calling agent, or null when it has none / cannot be found. */
+async function getCallerTeamId(
+  db: ReturnType<typeof getDb>,
+  agentId: string,
+  workspaceId: string
+): Promise<string | null> {
+  const rows = await db
+    .select({ teamId: schema.agents.teamId })
+    .from(schema.agents)
+    .where(and(eq(schema.agents.id, agentId), eq(schema.agents.workspaceId, workspaceId)))
+    .limit(1);
+  return rows[0]?.teamId ?? null;
+}
+
 export async function executeTool(
   name: string,
   input: Record<string, unknown>,
@@ -767,7 +781,13 @@ export async function executeTool(
       eq(schema.agents.workspaceId, ctx.workspaceId),
       eq(schema.agents.status, "active"),
     ];
-    if (ctx.agentId) conds.push(ne(schema.agents.id, ctx.agentId));
+    if (ctx.agentId) {
+      conds.push(ne(schema.agents.id, ctx.agentId));
+      // Scope to the caller's team. An agent with no team (or a call with no
+      // agent context, e.g. from a flow) keeps the workspace-wide list.
+      const callerTeamId = await getCallerTeamId(db, ctx.agentId, ctx.workspaceId);
+      if (callerTeamId) conds.push(eq(schema.agents.teamId, callerTeamId));
+    }
     const teammates = await db
       .select({
         id: schema.agents.id,
@@ -806,6 +826,12 @@ export async function executeTool(
     if (!target) throw new Error(`target agent ${targetAgentId} not found in workspace`);
     if (target.status !== "active") {
       throw new Error(`target agent ${target.name} is not active (status=${target.status})`);
+    }
+    // Same scoping as agent_team_list: a caller in a team may only hand off
+    // within it, otherwise the model could use an id it saw elsewhere.
+    const callerTeamId = await getCallerTeamId(db, ctx.agentId, ctx.workspaceId);
+    if (callerTeamId && target.teamId !== callerTeamId) {
+      throw new Error(`target agent ${target.name} is not in your team`);
     }
 
     // Pivot the conversation to the new agent

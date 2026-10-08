@@ -15,8 +15,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // available at hoist-time, otherwise they live in the temporal dead
 // zone and the file fails to load with
 // `ReferenceError: Cannot access 'auditMock' before initialization`.
-const { updateMock, insertMock, selectChainAgents, auditMock } = vi.hoisted(() => ({
+const { updateMock, insertMock, selectChainAgents, listMock, auditMock } = vi.hoisted(() => ({
   updateMock: vi.fn(),
+  listMock: vi.fn(),
   insertMock: vi.fn(),
   selectChainAgents: vi.fn(),
   auditMock: vi.fn(),
@@ -26,8 +27,12 @@ vi.mock("@orchester/db", () => ({
   getDb: () => ({
     select: () => ({
       from: () => ({
-        where: () => ({
+        // `.where(...).limit(n)` resolves via selectChainAgents (single-row
+        // lookups); awaiting `.where(...)` directly resolves via listMock.
+        where: (cond: unknown) => ({
           limit: selectChainAgents,
+          then: (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) =>
+            Promise.resolve(listMock(cond)).then(res, rej),
         }),
       }),
     }),
@@ -41,7 +46,12 @@ vi.mock("@orchester/db", () => ({
     }),
   }),
   schema: {
-    agents: { id: "agent.id", workspaceId: "agent.ws", status: "agent.status" },
+    agents: {
+      id: "agent.id",
+      workspaceId: "agent.ws",
+      status: "agent.status",
+      teamId: "agent.team",
+    },
     conversations: { id: "conv.id" },
     messages: {},
   },
@@ -67,6 +77,7 @@ beforeEach(() => {
   updateMock.mockReset();
   insertMock.mockReset();
   selectChainAgents.mockReset();
+  listMock.mockReset();
   auditMock.mockReset();
 });
 
@@ -112,8 +123,9 @@ describe("agent_handoff", () => {
 
   it("happy path: pivota agentId + escribe system message + audit log", async () => {
     selectChainAgents.mockResolvedValueOnce([
-      { id: "agent_elena", name: "Elena HR Pro", role: "HR", status: "active" },
+      { id: "agent_elena", name: "Elena HR Pro", role: "HR", status: "active", teamId: null },
     ]);
+    selectChainAgents.mockResolvedValueOnce([{ teamId: null }]); // caller
     const result = (await executeTool(
       "agent_handoff",
       { agentId: "agent_elena", note: "Caso supera mi límite" },
@@ -135,5 +147,88 @@ describe("agent_handoff", () => {
         }),
       })
     );
+  });
+});
+
+describe("team scoping", () => {
+  const ctx = {
+    workspaceId: "ws_1",
+    variables: {},
+    agentId: "agent_sofia",
+    conversationId: "conv_abc",
+  };
+  const target = (teamId: string | null) => ({
+    id: "agent_elena",
+    name: "Elena",
+    role: "HR",
+    status: "active",
+    teamId,
+  });
+
+  it("agent_team_list: a team member sees only active agents of its team", async () => {
+    selectChainAgents.mockResolvedValueOnce([{ teamId: "team_a" }]); // caller
+    listMock.mockResolvedValueOnce([{ id: "agent_elena", name: "Elena", teamId: "team_a" }]);
+    const res = (await executeTool("agent_team_list", {}, ctx)) as {
+      teammates: { id: string }[];
+    };
+    expect(res.teammates.map((t) => t.id)).toEqual(["agent_elena"]);
+    const cond = JSON.stringify(listMock.mock.calls[0]![0]);
+    expect(cond).toContain("team_a");
+    expect(cond).toContain("agent_sofia"); // excluded via ne
+    expect(cond).toContain("active");
+  });
+
+  it("agent_team_list: alone in its team gets an empty list, no workspace fallback", async () => {
+    selectChainAgents.mockResolvedValueOnce([{ teamId: "team_a" }]);
+    listMock.mockResolvedValueOnce([]);
+    const res = (await executeTool("agent_team_list", {}, ctx)) as { teammates: unknown[] };
+    expect(res.teammates).toEqual([]);
+    expect(JSON.stringify(listMock.mock.calls[0]![0])).toContain("team_a");
+  });
+
+  it("agent_team_list: an agent without a team sees the whole workspace", async () => {
+    selectChainAgents.mockResolvedValueOnce([{ teamId: null }]);
+    listMock.mockResolvedValueOnce([{ id: "a" }, { id: "b" }]);
+    const res = (await executeTool("agent_team_list", {}, ctx)) as { teammates: unknown[] };
+    expect(res.teammates).toHaveLength(2);
+    expect(JSON.stringify(listMock.mock.calls[0]![0])).not.toContain("agent.team");
+  });
+
+  it("agent_handoff: succeeds to a same-team agent", async () => {
+    selectChainAgents.mockResolvedValueOnce([target("team_a")]);
+    selectChainAgents.mockResolvedValueOnce([{ teamId: "team_a" }]);
+    const res = (await executeTool(
+      "agent_handoff",
+      { agentId: "agent_elena", note: "x" },
+      ctx
+    )) as {
+      ok: boolean;
+    };
+    expect(res.ok).toBe(true);
+    expect(updateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("agent_handoff: rejects another team's agent and writes nothing", async () => {
+    selectChainAgents.mockResolvedValueOnce([target("team_b")]);
+    selectChainAgents.mockResolvedValueOnce([{ teamId: "team_a" }]);
+    await expect(
+      executeTool("agent_handoff", { agentId: "agent_elena", note: "x" }, ctx)
+    ).rejects.toThrow(/Elena is not in your team/);
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(insertMock).not.toHaveBeenCalled();
+    expect(auditMock).not.toHaveBeenCalled();
+  });
+
+  it("agent_handoff: a caller without a team can hand off to any active agent", async () => {
+    selectChainAgents.mockResolvedValueOnce([target("team_b")]);
+    selectChainAgents.mockResolvedValueOnce([{ teamId: null }]);
+    const res = (await executeTool(
+      "agent_handoff",
+      { agentId: "agent_elena", note: "x" },
+      ctx
+    )) as {
+      ok: boolean;
+    };
+    expect(res.ok).toBe(true);
   });
 });
