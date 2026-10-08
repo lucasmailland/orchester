@@ -215,6 +215,7 @@ error at validation time and at run time.
 | `table:rows:cell`          | `{{deploys \| table}}`              | array of flat objects as an HTML table with inline borders, values escaped; epoch ms in a time-named column becomes a readable date; caps rows (20) and cell length (200) and says how many were left out |
 | `nrql`                     | `'{{appName \| nrql}}'`             | escapes the content of a NRQL string literal (reuses `nrqlEscape`); **does not add the quotes**                                                                                                           |
 | `html`                     | `{{summary \| html}}`               | escapes `& < > " '` and turns line breaks into `<br>`, for HTML fields (reuses the Odoo client's helper)                                                                                                  |
+| `markdown`                 | `{{nota \| markdown}}`              | renders a safe Markdown subset (paragraphs, headings, bold/italic, code, lists, http(s) links, rules) to HTML for Odoo notes; raw HTML in the value is escaped, never emitted                             |
 | `redact:maxLen`            | `{{message \| redact:500}}`         | masks emails, bearer/API tokens, JWTs and digit runs of 8+, then truncates to `maxLen`                                                                                                                    |
 
 ### Who wrote it, with what, and at what cost

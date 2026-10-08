@@ -329,7 +329,7 @@ const BUILTINS: Record<string, ToolDefinition> = {
   odoo_post_note: {
     name: "odoo_post_note",
     description:
-      "Post an INTERNAL note on an existing Odoo ticket or task. Internal means the customer never sees it — this is where the full technical analysis goes.",
+      "Post an INTERNAL note on an existing Odoo ticket or task. Internal means the customer never sees it — this is where the full technical analysis goes. Write the note in Markdown (body_markdown): headings, **bold**, lists, `code` and links render properly; never write raw HTML.",
     inputSchema: {
       type: "object",
       properties: {
@@ -339,14 +339,22 @@ const BUILTINS: Record<string, ToolDefinition> = {
           description: "Defaults to helpdesk.ticket.",
         },
         id: { type: "number", description: "Numeric id of the ticket or task." },
-        body_text: { type: "string", description: "Note as plain text." },
+        body_markdown: {
+          type: "string",
+          description:
+            "Note as Markdown (preferred): paragraphs, # headings, **bold**, *italic*, `code`, - lists, [text](https://url). Raw HTML is shown as text, not rendered.",
+        },
+        body_text: {
+          type: "string",
+          description: "Note as plain text (use body_markdown instead).",
+        },
         marker: {
           type: "string",
           description:
             "Optional idempotency key (letters, digits, . _ : -). If a note with this marker already exists on the record, nothing is posted.",
         },
       },
-      required: ["id", "body_text"],
+      required: ["id"],
     },
   },
   // ── Odoo project tasks ────────────────────────────────────────────────────
