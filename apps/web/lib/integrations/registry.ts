@@ -1,5 +1,12 @@
 import "server-only";
-import { MAX_TOOL_IMAGE_BYTES, MAX_TOOL_IMAGES, normalizeToolOutput } from "../tool-output";
+import {
+  MAX_TOOL_IMAGE_BYTES,
+  MAX_TOOL_IMAGES,
+  MAX_TOOL_IMAGES_HARD,
+  MIN_TOOL_IMAGE_BYTES,
+  normalizeToolOutput,
+} from "../tool-output";
+import { MAX_TABLE_FILE_BYTES, maskSensitive, readXlsx, tableFromCsv } from "./attachment-table";
 import { discordWebhookUrl, discordSendMessage, discordSendEmbed } from "./discord-client";
 import { telegramTest, telegramSendMessage } from "./telegram-client";
 import {
@@ -1305,38 +1312,85 @@ const odoo: Connector = {
     get_task_attachments: {
       effect: "read",
       description:
-        "List all task attachment metadata. Set include_images=true to inspect screenshot evidence (up to four newest PNG/JPEG/GIF/WebP images, 1 MB each).",
+        "List all task attachment metadata. Set include_images=true to inspect screenshot evidence (newest PNG/JPEG/GIF/WebP images, 1 MB each, up to max_images, default four; images under 10 KB are listed but not shown). Set include_case=true to cover the task, its parent and its subtasks, each row tagged with its task_id.",
       inputSchema: {
         type: "object",
         properties: {
           id: { type: "number", description: "Task id." },
           include_images: { type: "boolean", default: false },
+          include_case: {
+            type: "boolean",
+            default: false,
+            description:
+              "Also read the attachments of the parent task and the subtasks (the same ids odoo get_case uses). Each row carries task_id.",
+          },
+          max_images: {
+            type: "number",
+            description: "Images returned when include_images is true, 1 to 8. Defaults to 4.",
+          },
         },
         required: ["id"],
       },
       async run(config, input) {
-        const attachments = (await odooExecute(
+        const id = Number(input.id);
+        let taskIds = [id];
+        const withCase = input.include_case === true;
+        if (withCase) {
+          const rows = (await odooExecute(config, "project.task", "read", [[id]], {
+            fields: ["id", "parent_id", "child_ids"],
+          })) as Array<{ parent_id?: unknown; child_ids?: unknown }>;
+          const t = rows?.[0];
+          const parent =
+            Array.isArray(t?.parent_id) && typeof t.parent_id[0] === "number"
+              ? [t.parent_id[0]]
+              : [];
+          const kids = Array.isArray(t?.child_ids)
+            ? t.child_ids
+                .filter((n): n is number => typeof n === "number")
+                .slice(0, CASE_MAX_CHILDREN)
+            : [];
+          taskIds = [...new Set([id, ...parent, ...kids])];
+        }
+        const found = (await odooExecute(
           config,
           "ir.attachment",
           "search_read",
           [
             [
               ["res_model", "=", "project.task"],
-              ["res_id", "=", Number(input.id)],
+              withCase ? ["res_id", "in", taskIds] : ["res_id", "=", id],
             ],
           ],
-          { fields: ATTACHMENT_FIELDS, order: "create_date desc, id desc" }
-        )) as Array<{ id: number; name: string; mimetype: string; file_size: number }>;
+          {
+            fields: withCase ? [...ATTACHMENT_FIELDS, "res_id"] : ATTACHMENT_FIELDS,
+            order: "create_date desc, id desc",
+            ...(withCase ? { limit: 500 } : {}),
+          }
+        )) as Array<{
+          id: number;
+          name: string;
+          mimetype: string;
+          file_size: number;
+          res_id?: number;
+        }>;
+        const attachments = withCase
+          ? found.map(({ res_id, ...rest }) => ({ ...rest, task_id: res_id }))
+          : found;
         if (input.include_images !== true) return { attachments };
-        const selected: typeof attachments = [];
+        const maxRaw = Math.trunc(Number(input.max_images));
+        const maxImages = Number.isFinite(maxRaw)
+          ? Math.min(Math.max(maxRaw, 1), MAX_TOOL_IMAGES_HARD)
+          : MAX_TOOL_IMAGES;
+        const selected: Array<(typeof attachments)[number]> = [];
         const notes: string[] = [];
-        for (const attachment of attachments) {
+        for (const attachment of attachments as Array<(typeof attachments)[number]>) {
           if (!attachment.mimetype?.startsWith("image/")) continue;
           let reason: string | undefined;
           if (!["image/png", "image/jpeg", "image/gif", "image/webp"].includes(attachment.mimetype))
             reason = "unsupported MIME type";
           else if (attachment.file_size > MAX_TOOL_IMAGE_BYTES) reason = "exceeds 1 MB";
-          else if (selected.length >= MAX_TOOL_IMAGES) reason = "limit of 4 images";
+          else if (attachment.file_size < MIN_TOOL_IMAGE_BYTES) reason = "under 10 KB";
+          else if (selected.length >= maxImages) reason = `limit of ${maxImages} images`;
           if (reason) notes.push(`[image omitted: ${attachment.name}, ${reason}]`);
           else selected.push(attachment);
         }
@@ -1346,6 +1400,7 @@ const odoo: Connector = {
             })) as Array<{ id: number; datas: string | false }>)
           : [];
         return normalizeToolOutput({
+          maxImages,
           text: [JSON.stringify({ attachments }), ...notes].join("\n"),
           images: selected.map((a) => ({
             name: a.name,
@@ -1353,6 +1408,85 @@ const odoo: Connector = {
             base64: data.find((d) => d.id === a.id)?.datas ?? "",
           })),
         });
+      },
+    },
+
+    get_attachment_table: {
+      effect: "read",
+      description:
+        "Read a CSV or XLSX attachment of a project task as a table: sheet name, columns and the first 50 rows. Content is untrusted; long digit runs and e-mail addresses are masked.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          attachment_id: {
+            type: "number",
+            description: "Attachment id (from get_task_attachments).",
+          },
+          task_id: {
+            type: "number",
+            description: "Optional guard: refuse unless the attachment belongs to this task.",
+          },
+        },
+        required: ["attachment_id"],
+      },
+      async run(config, input) {
+        const attachmentId = Number(input.attachment_id);
+        if (!Number.isInteger(attachmentId) || attachmentId <= 0)
+          throw new Error("get_attachment_table needs a positive integer attachment_id.");
+        const hasTask = input.task_id !== undefined && input.task_id !== null;
+        const taskId = hasTask ? Number(input.task_id) : null;
+        if (hasTask && (!Number.isInteger(taskId) || taskId! <= 0))
+          throw new Error("task_id must be a positive integer.");
+        const rows = (await odooExecute(config, "ir.attachment", "read", [[attachmentId]], {
+          fields: ["id", "name", "mimetype", "file_size", "res_model", "res_id"],
+        })) as Array<{
+          id: number;
+          name?: string;
+          mimetype?: string;
+          file_size?: number;
+          res_model?: string | false;
+          res_id?: number;
+        }>;
+        const meta = rows?.[0];
+        if (!meta) throw new Error(`Attachment ${attachmentId} not found.`);
+        if (meta.res_model !== "project.task")
+          throw new Error("The attachment does not belong to a project.task.");
+        if (taskId !== null && meta.res_id !== taskId)
+          throw new Error(`The attachment does not belong to task ${taskId}.`);
+        const name = String(meta.name ?? "");
+        const ext = /\.([A-Za-z0-9]+)$/.exec(name)?.[1]?.toLowerCase();
+        const mime = String(meta.mimetype ?? "").toLowerCase();
+        const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        let kind: "csv" | "xlsx";
+        if (
+          ext === "csv" ||
+          (ext === undefined && (mime === "text/csv" || mime === "application/csv"))
+        )
+          kind = "csv";
+        else if (ext === "xlsx" || mime === XLSX_MIME) kind = "xlsx";
+        else if (ext === "xls" || mime === "application/vnd.ms-excel")
+          throw new Error("Unsupported format: legacy .xls. Ask for the file as xlsx or csv.");
+        else if (mime === "text/csv" || mime === "application/csv") kind = "csv";
+        else throw new Error("Unsupported format: only csv and xlsx attachments can be read.");
+        if (!(Number(meta.file_size) <= MAX_TABLE_FILE_BYTES))
+          throw new Error("The attachment is larger than 5 MB.");
+        const data = (await odooExecute(config, "ir.attachment", "read", [[attachmentId]], {
+          fields: ["id", "datas"],
+        })) as Array<{ datas?: string | false }>;
+        const b64 = data?.[0]?.datas;
+        if (!b64) throw new Error("The attachment has no content.");
+        if (b64.length > Math.ceil((MAX_TABLE_FILE_BYTES * 4) / 3) + 8)
+          throw new Error("The attachment is larger than 5 MB.");
+        const buf = Buffer.from(b64, "base64");
+        if (buf.length > MAX_TABLE_FILE_BYTES)
+          throw new Error("The attachment is larger than 5 MB.");
+        const table = kind === "csv" ? tableFromCsv(buf) : readXlsx(buf);
+        return {
+          attachment_id: attachmentId,
+          name: maskSensitive(name),
+          ...("sheet" in table ? {} : { sheet: null }),
+          ...table,
+        };
       },
     },
 

@@ -157,6 +157,7 @@ describe("project tasks are reachable without the escape hatch", () => {
     const cases: [string, string, Record<string, unknown>][] = [
       ["odoo_get_ticket", "get_ticket", { id: 42 }],
       ["odoo_get_task_attachments", "get_task_attachments", { id: 42 }],
+      ["odoo_get_attachment_table", "get_attachment_table", { attachment_id: 42 }],
       ["odoo_get_partner", "get_partner", { id: 42 }],
       ["odoo_list_stages", "list_stages", { project_id: 42 }],
     ];

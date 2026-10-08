@@ -13,7 +13,7 @@ const attachments = [
     id: 10 - i,
     name: `screen-${i}.png`,
     mimetype: "image/png",
-    file_size: 20,
+    file_size: 20_000,
     create_date: `2026-10-0${7 - i}`,
   })),
   { id: 4, name: "log.txt", mimetype: "text/plain", file_size: 10 },
