@@ -1182,33 +1182,44 @@ const odoo: Connector = {
 
         const caseIds = [id, ...children.map((c) => c.id)];
         // Chatter: tracking rows are `notification`; the notes a person or the
-        // pipeline wrote are `comment` or `email`.
-        const messages = (await odooExecute(
-          config,
-          "mail.message",
-          "search_read",
-          [
-            [
-              ["model", "=", "project.task"],
-              ["res_id", "in", caseIds],
-              ["message_type", "in", ["comment", "email"]],
-            ],
-          ],
-          {
-            fields: [...MESSAGE_FIELDS, "res_id"],
-            limit: Math.min(caseIds.length * notesPerTask * 3, 500),
-            order: "date desc",
-          }
-        )) as Row[];
+        // pipeline wrote are `comment` or `email`. One read per task (the task
+        // and its children; siblings get none), each with its own quota, so a
+        // busy task cannot crowd the notes of a quiet one out of a shared
+        // newest-first window. One extra row per task tells us whether its
+        // quota was hit.
         const notes: Record<string, unknown[]> = {};
-        for (const m of messages) {
-          const key = String(m.res_id);
-          const list = (notes[key] ??= []);
-          if (list.length >= notesPerTask) continue;
-          const { res_id: _resId, ...rest } = m;
-          void _resId;
-          list.push({ ...rest, body: htmlToText(m.body, CASE_NOTE_CHARS) });
-        }
+        const notesTruncated: Record<string, boolean> = {};
+        const perTask = await Promise.all(
+          caseIds.map(
+            (taskId) =>
+              odooExecute(
+                config,
+                "mail.message",
+                "search_read",
+                [
+                  [
+                    ["model", "=", "project.task"],
+                    ["res_id", "=", taskId],
+                    ["message_type", "in", ["comment", "email"]],
+                  ],
+                ],
+                {
+                  fields: [...MESSAGE_FIELDS, "res_id"],
+                  limit: notesPerTask + 1,
+                  order: "date desc, id desc",
+                }
+              ) as Promise<Row[]>
+          )
+        );
+        caseIds.forEach((taskId, i) => {
+          const own = perTask[i]!.filter((m) => m.res_id === taskId);
+          notesTruncated[String(taskId)] = own.length > notesPerTask;
+          notes[String(taskId)] = own.slice(0, notesPerTask).map((m) => {
+            const { res_id: _resId, ...rest } = m;
+            void _resId;
+            return { ...rest, body: htmlToText(m.body, CASE_NOTE_CHARS) };
+          });
+        });
 
         // Metadata only: `datas` is the file body and is never requested.
         const files = (await odooExecute(
@@ -1237,6 +1248,7 @@ const odoo: Connector = {
           childrenTotal: allChildIds.length,
           siblings: siblings.map(summary),
           notes,
+          notesTruncated,
           attachments,
         };
       },

@@ -153,11 +153,14 @@ describe("get_case", () => {
     const calls = mockOdoo(caseHandler());
     const out = (await odoo().actions.get_case!.run(CONFIG, { id: 100 })) as any;
 
-    // task, parent+children, siblings, notes, attachments: one call each, not one per record.
+    // task, parent+children, siblings: one call each. Notes are read per task
+    // (task + children only) so a busy task cannot crowd out a quiet one.
     expect(calls.map((c) => `${c.model}.${c.method}`)).toEqual([
       "project.task.read",
       "project.task.search_read",
       "project.task.search_read",
+      "mail.message.search_read",
+      "mail.message.search_read",
       "mail.message.search_read",
       "ir.attachment.search_read",
     ]);
@@ -172,14 +175,41 @@ describe("get_case", () => {
     });
   });
 
-  it("batches notes and attachments over all case ids in one call each", async () => {
+  it("reads notes per task (task and children, never siblings) and attachments in one call", async () => {
     const calls = mockOdoo(caseHandler());
     await odoo().actions.get_case!.run(CONFIG, { id: 100 });
-    const msg = calls.find((c) => c.model === "mail.message")!;
-    expect(JSON.stringify(msg.args[0])).toContain('["res_id","in",[100,101,102]]');
-    expect(msg.kwargs.order).toBe("date desc");
+    const msgs = calls.filter((c) => c.model === "mail.message");
+    expect(msgs.map((m) => JSON.stringify(m.args[0]).match(/"res_id","=",(\d+)/)?.[1])).toEqual([
+      "100",
+      "101",
+      "102",
+    ]);
+    for (const m of msgs) {
+      expect(m.kwargs.order).toBe("date desc, id desc");
+      expect(m.kwargs.limit).toBe(6); // default 5 notes + 1 to detect truncation
+    }
     const att = calls.find((c) => c.model === "ir.attachment")!;
     expect(JSON.stringify(att.args[0])).toContain('["res_id","in",[100,101,102]]');
+  });
+
+  it("keeps the notes of a quiet child when the parent is busy, and flags truncation", async () => {
+    mockOdoo((e) => {
+      if (e.model === "mail.message") {
+        const resId = Number(/"res_id","=",(\d+)/.exec(JSON.stringify(e.args[0]))?.[1]);
+        const n = resId === 100 ? 40 : resId === 101 ? 1 : 0;
+        return Array.from({ length: Math.min(n, Number(e.kwargs.limit)) }, (_, i) => ({
+          id: resId * 1000 + i,
+          res_id: resId,
+          body: `<p>n${resId}-${i}</p>`,
+          date: "d",
+        }));
+      }
+      return caseHandler()(e);
+    });
+    const out = (await odoo().actions.get_case!.run(CONFIG, { id: 100, notes_per_task: 3 })) as any;
+    expect(out.notes["100"]).toHaveLength(3);
+    expect(out.notes["101"].map((n: any) => n.body)).toEqual(["n101-0"]);
+    expect(out.notesTruncated).toEqual({ "100": true, "101": false, "102": false });
   });
 
   it("never reads attachment contents", async () => {
