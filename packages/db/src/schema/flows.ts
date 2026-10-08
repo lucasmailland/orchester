@@ -1,5 +1,15 @@
-import { pgTable, text, timestamp, pgEnum, integer, jsonb, boolean } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  timestamp,
+  pgEnum,
+  integer,
+  jsonb,
+  boolean,
+  numeric,
+} from "drizzle-orm/pg-core";
 import { workspaces } from "./workspaces";
+import { agents } from "./core";
 
 export const flowStatusEnum = pgEnum("flow_status", ["draft", "active", "paused"]);
 export const flowTriggerEnum = pgEnum("flow_trigger_type", [
@@ -177,6 +187,18 @@ export const flowRunSteps = pgTable("flow_run_step", {
   error: text("error"),
   startedAt: timestamp("started_at").notNull().defaultNow(),
   completedAt: timestamp("completed_at"),
+  /**
+   * AI trace of the step: who ran, which model answered, what it cost.
+   * Recorded on the step because the graph can change after the run. All
+   * nullable: only AI steps fill them.
+   */
+  agentId: text("agent_id").references(() => agents.id, { onDelete: "set null" }),
+  /** Snapshot of the agent's name at run time; survives renames and deletions. */
+  agentName: text("agent_name"),
+  /** The model that actually answered (after any fallback). */
+  model: text("model"),
+  tokensUsed: integer("tokens_used"),
+  costUsd: numeric("cost_usd", { precision: 10, scale: 6 }),
 });
 
 export const flowVersions = pgTable("flow_version", {
