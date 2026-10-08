@@ -1581,6 +1581,21 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       ...(ctx.dryRun ? { dryRun: true } : {}),
     });
     if (result.status === "failed") throw new Error(`subflow failed: ${result.error}`);
+    if (result.status !== "succeeded") {
+      // A paused or cancelled child has no output to return. Failing the step
+      // lets a `try_catch` around it decide whether the parent carries on.
+      const name = await withFlowTx(workspaceId, async (tx) => {
+        const rows = await tx
+          .select()
+          .from(schema.flows)
+          .where(and(eq(schema.flows.id, subId), eq(schema.flows.workspaceId, workspaceId)))
+          .limit(1);
+        return rows[0]?.name || subId;
+      });
+      throw new Error(
+        `Subflow ${name} ended ${result.status}; only a succeeded subflow returns output`
+      );
+    }
     // Under FORCE RLS a read outside a workspace transaction sees zero rows,
     // which would silently hand the parent an empty output.
     const subRuns = await withFlowTx(workspaceId, (tx) =>
