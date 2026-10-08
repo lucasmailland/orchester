@@ -48,16 +48,31 @@ export async function unknownKbIds(workspaceId: string, ids: string[], tx?: Db):
   return ids.filter((id) => !valid.has(id));
 }
 
+/**
+ * The agent's knowledge-base binding. `configured` says whether the config
+ * lists any ids at all; `kbs` is what those ids still resolve to. Callers must
+ * tell "no binding" (legacy, unrestricted) from "binding that resolves to
+ * nothing" (every listed base was deleted or foreign), which has to deny.
+ */
+export async function agentKbBinding(
+  workspaceId: string,
+  agentId: string,
+  tx?: Db
+): Promise<{ configured: boolean; kbs: { id: string; name: string }[] }> {
+  const rows = await (tx ?? getDb())
+    .select({ config: schema.agents.config })
+    .from(schema.agents)
+    .where(and(eq(schema.agents.id, agentId), eq(schema.agents.workspaceId, workspaceId)))
+    .limit(1);
+  const ids = readAgentKbIds(rows[0]?.config);
+  return { configured: ids.length > 0, kbs: await listWorkspaceKbs(workspaceId, ids, tx) };
+}
+
 /** Knowledge bases an agent may search: its configured ids that exist in the workspace. */
 export async function agentKbs(
   workspaceId: string,
   agentId: string,
   tx?: Db
 ): Promise<{ id: string; name: string }[]> {
-  const rows = await (tx ?? getDb())
-    .select({ config: schema.agents.config })
-    .from(schema.agents)
-    .where(and(eq(schema.agents.id, agentId), eq(schema.agents.workspaceId, workspaceId)))
-    .limit(1);
-  return listWorkspaceKbs(workspaceId, readAgentKbIds(rows[0]?.config), tx);
+  return (await agentKbBinding(workspaceId, agentId, tx)).kbs;
 }

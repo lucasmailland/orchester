@@ -1113,11 +1113,18 @@ export async function executeTool(
     const query = String(input.query ?? "");
     const { searchKnowledgeBase } = await import("./knowledge-search");
     // An agent bound to knowledge bases may only read those, and may omit kbId.
-    const bound = ctx.agentId
+    const binding = ctx.agentId
       ? await (
           await import("./agents/knowledge-bases")
-        ).agentKbs(ctx.workspaceId, ctx.agentId, ctx.tx)
-      : [];
+        ).agentKbBinding(ctx.workspaceId, ctx.agentId, ctx.tx)
+      : { configured: false, kbs: [] };
+    const bound = binding.kbs;
+    // A binding that resolves to nothing (every listed base deleted or foreign)
+    // must deny, not fall back to the unrestricted legacy path.
+    if (binding.configured && !bound.length)
+      throw new Error(
+        "This agent's knowledge bases are no longer available (deleted or not in this workspace); update the agent's knowledge base selection."
+      );
     if (bound.length) {
       if (!query) throw new Error("query required");
       if (kbId && !bound.some((kb) => kb.id === kbId))

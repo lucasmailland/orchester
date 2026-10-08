@@ -62,6 +62,11 @@ beforeEach(() => {
       config: { knowledgeBaseIds: ["kb_a", "kb_b", "kb_foreign"], other: 1 },
     },
     { id: "agent_none", workspaceId: "ws_1", config: {} },
+    {
+      id: "agent_stale",
+      workspaceId: "ws_1",
+      config: { knowledgeBaseIds: ["kb_deleted", "kb_foreign"] },
+    },
   ]);
   state.search.mockImplementation(async (_ws: string, kb: string) =>
     kb === "kb_a" ? [hit("a1", 0.9), hit("a2", 0.5)] : [hit("b1", 0.7)]
@@ -111,6 +116,17 @@ describe("knowledge_search bound to an agent's knowledge bases", () => {
     );
     await executeTool("knowledge_search", { query: "vpn", kbId: "kb_c" }, noKb);
     expect(state.search.mock.calls.map((c) => c[1])).toEqual(["kb_c"]);
+  });
+
+  it("denies instead of going unrestricted when every configured base is gone", async () => {
+    const stale = { ...ctx, agentId: "agent_stale" };
+    await expect(
+      executeTool("knowledge_search", { query: "vpn", kbId: "kb_c" }, stale)
+    ).rejects.toThrow(/no longer available/);
+    await expect(executeTool("knowledge_search", { query: "vpn" }, stale)).rejects.toThrow(
+      /no longer available/
+    );
+    expect(state.search).not.toHaveBeenCalled();
   });
 
   it("keeps requiring kbId without an agent context", async () => {
