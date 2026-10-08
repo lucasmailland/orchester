@@ -432,7 +432,7 @@ const BUILTINS: Record<string, ToolDefinition> = {
   odoo_get_case: {
     name: "odoo_get_case",
     description:
-      "Read a whole bug case in ONE call: the task, its parent, its subtasks (up to 20), its siblings when it is a subtask, the latest notes of the task and of each subtask as plain text, and attachment counts per task (no file contents). Use it first when you start working a case, instead of chaining odoo_get_task, a children search and odoo_get_task_notes. Use odoo_get_task only for a single record, and odoo_get_task_attachments when you need the screenshots themselves.",
+      "Read a whole bug case in ONE call: the task, its parent, its subtasks (up to 20), its siblings when it is a subtask, the latest notes of the task and of each subtask as plain text, and attachment counts per task (no file contents): count/images are the files the task owns, embedded_images is how many images its description shows, even when they belong to another task. Use it first when you start working a case, instead of chaining odoo_get_task, a children search and odoo_get_task_notes. Use odoo_get_task only for a single record, and odoo_get_task_attachments when you need the screenshots themselves.",
     inputSchema: {
       type: "object",
       properties: {
@@ -470,7 +470,7 @@ const BUILTINS: Record<string, ToolDefinition> = {
   odoo_get_task_attachments: {
     name: "odoo_get_task_attachments",
     description:
-      "List all Odoo task attachment metadata. Set include_images=true when screenshots are evidence you need to inspect: returns the newest PNG/JPEG/GIF/WebP images (1 MB each, default four, up to max_images=8; images under 10 KB are listed but not shown) for visual analysis. Set include_case=true to also cover the parent task and the subtasks; each row then carries its task_id. Spreadsheets are read with odoo_get_attachment_table.",
+      "List all Odoo task attachment metadata. Set include_images=true when screenshots are evidence you need to inspect: returns the newest PNG/JPEG/GIF/WebP images (1 MB each, default four, up to max_images=8; images under 10 KB are listed but not shown) for visual analysis. Set include_case=true to also cover the parent task and the subtasks; each row then carries its task_id. Screenshots pasted into the description of a covered task are included even when they belong to another task (a clone or a forwarded description): those rows carry embedded=true, task_id (the task whose description shows them) and owner_task_id. Owned files come first, newest first; embedded images follow in the order they appear in the description. Spreadsheets are read with odoo_get_attachment_table.",
     inputSchema: {
       type: "object",
       properties: {

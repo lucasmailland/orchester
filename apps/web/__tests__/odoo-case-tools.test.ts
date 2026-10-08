@@ -170,8 +170,9 @@ describe("get_case", () => {
     expect(out.siblings.map((c: any) => c.id)).toEqual([103]);
     expect(out.task.description).toBe("Hello world");
     expect(out.attachments).toEqual({
-      "100": { count: 2, images: 1 },
-      "101": { count: 1, images: 1 },
+      "100": { count: 2, images: 1, embedded_images: 0 },
+      "101": { count: 1, images: 1, embedded_images: 0 },
+      "102": { count: 0, images: 0, embedded_images: 0 },
     });
   });
 

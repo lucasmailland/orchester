@@ -1,4 +1,5 @@
 import "server-only";
+import { extractEmbeddedAttachmentIds } from "./odoo-embedded-images";
 import {
   MAX_TOOL_IMAGE_BYTES,
   MAX_TOOL_IMAGES,
@@ -809,6 +810,80 @@ const PARTNER_FIELDS = ["id", "name", "vat", "is_company", "parent_id", "email",
 // as text, so the contents would be noise at best and a token bomb at worst.
 const ATTACHMENT_FIELDS = ["id", "name", "mimetype", "file_size", "create_date"];
 
+const EMBEDDED_MAX_TOTAL = 60;
+
+/**
+ * Images referenced from the descriptions of `taskIds` that those tasks do not
+ * own (clones and forwarded descriptions keep pointing at the original's rows).
+ *
+ * The ids come ONLY from description HTML read here, never from tool input: the
+ * description that references an attachment is what authorises reading it. An
+ * id is accepted only if the row is an image and is itself a project.task
+ * attachment, so a description cannot be used to reach files of another model.
+ * Rows are returned in document order, tasks in `taskIds` order.
+ */
+async function readEmbeddedImages(
+  config: Record<string, string>,
+  taskIds: number[],
+  ownedIds: Set<number>
+) {
+  const rows = (await odooExecute(
+    config,
+    "project.task",
+    "search_read",
+    [[["id", "in", taskIds]]],
+    {
+      fields: ["id", "description"],
+      limit: taskIds.length,
+      context: { active_test: false },
+    }
+  )) as Array<{ id: number; description?: unknown }>;
+  const byTask = new Map((rows ?? []).map((r) => [r.id, r.description]));
+  const referencedBy = new Map<number, number>();
+  for (const taskId of taskIds) {
+    for (const attId of extractEmbeddedAttachmentIds(byTask.get(taskId))) {
+      if (ownedIds.has(attId) || referencedBy.has(attId)) continue;
+      if (referencedBy.size >= EMBEDDED_MAX_TOTAL) break;
+      referencedBy.set(attId, taskId);
+    }
+  }
+  if (referencedBy.size === 0) return [];
+  const found = (await odooExecute(
+    config,
+    "ir.attachment",
+    "search_read",
+    [
+      [
+        ["id", "in", [...referencedBy.keys()]],
+        ["res_model", "=", "project.task"],
+        ["mimetype", "=like", "image/%"],
+      ],
+    ],
+    { fields: [...ATTACHMENT_FIELDS, "res_model", "res_id"], limit: referencedBy.size }
+  )) as Array<{
+    id: number;
+    name: string;
+    mimetype: string;
+    file_size: number;
+    create_date?: string;
+    res_model?: string;
+    res_id?: number;
+  }>;
+  const order = [...referencedBy.keys()];
+  return (found ?? [])
+    .filter((a) => a.res_model === "project.task" && a.mimetype?.startsWith("image/"))
+    .sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id))
+    .map(({ res_model: _m, res_id, ...rest }) => {
+      void _m;
+      return {
+        ...rest,
+        task_id: referencedBy.get(rest.id)!,
+        embedded: true as const,
+        owner_task_id: res_id,
+      };
+    });
+}
+
 /**
  * A page URI from the browser agent can carry credentials, tokens in the query
  * and personal data in the path. Keep only origin and path: drop userinfo,
@@ -1149,7 +1224,7 @@ const odoo: Connector = {
     get_case: {
       effect: "read",
       description:
-        "Read a whole bug case in one call: the task, its parent, its subtasks, its siblings, the latest notes of the task and of each subtask, and attachment counts per task (never file contents).",
+        "Read a whole bug case in one call: the task, its parent, its subtasks, its siblings, the latest notes of the task and of each subtask, and attachment counts per task (never file contents; embedded_images counts the screenshots its description shows, owned or not).",
       inputSchema: {
         type: "object",
         properties: {
@@ -1301,9 +1376,24 @@ const odoo: Connector = {
           ],
           { fields: ["id", "res_id", "mimetype", "file_size"], limit: 500 }
         )) as Array<{ res_id: number; mimetype?: string }>;
-        const attachments: Record<string, { count: number; images: number }> = {};
+        // `count`/`images` are the rows the task owns; `embedded_images` is how
+        // many images its description references, owned or not (a cloned task
+        // shows screenshots that still belong to the original).
+        const attachments: Record<
+          string,
+          { count: number; images: number; embedded_images: number }
+        > = {};
+        for (const taskId of caseIds) {
+          attachments[String(taskId)] = { count: 0, images: 0, embedded_images: 0 };
+        }
+        const descriptions = new Map<number, unknown>([[task.id, task.description]]);
+        for (const c of children) descriptions.set(c.id, c.description);
+        for (const [taskId, html] of descriptions) {
+          const entry = attachments[String(taskId)];
+          if (entry) entry.embedded_images = extractEmbeddedAttachmentIds(html).length;
+        }
         for (const f of files) {
-          const a = (attachments[String(f.res_id)] ??= { count: 0, images: 0 });
+          const a = (attachments[String(f.res_id)] ??= { count: 0, images: 0, embedded_images: 0 });
           a.count++;
           if (f.mimetype?.startsWith("image/")) a.images++;
         }
@@ -1370,7 +1460,7 @@ const odoo: Connector = {
     get_task_attachments: {
       effect: "read",
       description:
-        "List all task attachment metadata. Set include_images=true to inspect screenshot evidence (newest PNG/JPEG/GIF/WebP images, 1 MB each, up to max_images, default four; images under 10 KB are listed but not shown). Set include_case=true to cover the task, its parent and its subtasks, each row tagged with its task_id.",
+        "List all task attachment metadata, including screenshots pasted into the description that belong to another task (rows with embedded=true and owner_task_id). Set include_images=true to inspect screenshot evidence (newest PNG/JPEG/GIF/WebP images, 1 MB each, up to max_images, default four; images under 10 KB are listed but not shown). Set include_case=true to cover the task, its parent and its subtasks, each row tagged with its task_id.",
       inputSchema: {
         type: "object",
         properties: {
@@ -1431,9 +1521,16 @@ const odoo: Connector = {
           file_size: number;
           res_id?: number;
         }>;
-        const attachments = withCase
+        const owned = withCase
           ? found.map(({ res_id, ...rest }) => ({ ...rest, task_id: res_id }))
           : found;
+        const embedded = await readEmbeddedImages(config, taskIds, new Set(owned.map((a) => a.id)));
+        // Owned rows first (newest first), then embedded ones in the order a
+        // person sees them in the description, so "screenshot 2" matches.
+        const attachments: Array<(typeof owned)[number] | (typeof embedded)[number]> = [
+          ...owned,
+          ...embedded,
+        ];
         if (input.include_images !== true) return { attachments };
         const maxRaw = Math.trunc(Number(input.max_images));
         const maxImages = Number.isFinite(maxRaw)
@@ -1441,7 +1538,7 @@ const odoo: Connector = {
           : MAX_TOOL_IMAGES;
         const selected: Array<(typeof attachments)[number]> = [];
         const notes: string[] = [];
-        for (const attachment of attachments as Array<(typeof attachments)[number]>) {
+        for (const attachment of attachments) {
           if (!attachment.mimetype?.startsWith("image/")) continue;
           let reason: string | undefined;
           if (!["image/png", "image/jpeg", "image/gif", "image/webp"].includes(attachment.mimetype))
