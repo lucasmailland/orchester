@@ -117,7 +117,8 @@ describe("get_task_attachments include_case / max_images", () => {
   it("reads the task, parent and children in one attachment search, tagging task_id", async () => {
     rpc
       .mockResolvedValueOnce([{ id: 12, parent_id: [3, "P"], child_ids: [20, 21] }])
-      .mockResolvedValueOnce([img(9, 12), img(8, 3), img(7, 21)]);
+      .mockResolvedValueOnce([img(9, 12), img(8, 3), img(7, 21)])
+      .mockResolvedValueOnce([]); // descriptions: no embedded images
     const out = (await runAtt({ include_case: true })) as {
       attachments: Array<{ id: number; task_id: number }>;
     };
@@ -135,10 +136,10 @@ describe("get_task_attachments include_case / max_images", () => {
     expect(out.attachments[0]).not.toHaveProperty("res_id");
   });
 
-  it("include_case false keeps today's single search on the task alone", async () => {
-    rpc.mockResolvedValueOnce([]);
+  it("include_case false keeps today's search on the task alone, plus its description", async () => {
+    rpc.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     await runAtt({});
-    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledTimes(2);
     expect(rpc.mock.calls[0]![3]).toEqual([
       [
         ["res_model", "=", "project.task"],
@@ -151,12 +152,13 @@ describe("get_task_attachments include_case / max_images", () => {
     const rows = Array.from({ length: 10 }, (_, i) => img(100 - i, 12));
     rpc
       .mockResolvedValueOnce(rows)
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce(rows.slice(0, 6).map((r) => ({ id: r.id, datas: "QUJD" })));
     const out = (await runAtt({ include_images: true, max_images: 6 })) as {
       text: string;
       images: unknown[];
     };
-    expect(rpc.mock.calls[1]![3]).toEqual([rows.slice(0, 6).map((r) => r.id)]);
+    expect(rpc.mock.calls[2]![3]).toEqual([rows.slice(0, 6).map((r) => r.id)]);
     expect(out.images).toHaveLength(6);
     expect(out.text).toContain("limit of 6 images");
   });
@@ -168,20 +170,21 @@ describe("get_task_attachments include_case / max_images", () => {
     ["x", 4],
   ])("clamps max_images %s to %s", async (given, used) => {
     const rows = Array.from({ length: 10 }, (_, i) => img(100 - i, 12));
-    rpc.mockResolvedValueOnce(rows).mockResolvedValueOnce([]);
+    rpc.mockResolvedValueOnce(rows).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     await runAtt({ include_images: true, max_images: given });
-    expect((rpc.mock.calls[1]![3] as number[][])[0]).toHaveLength(used);
+    expect((rpc.mock.calls[2]![3] as number[][])[0]).toHaveLength(used);
   });
 
   it("skips images under 10 KB from the payload but lists them", async () => {
     rpc
       .mockResolvedValueOnce([img(2, 12, 9_999), img(1, 12, 10_240)])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 1, datas: "QUJD" }]);
     const out = (await runAtt({ include_images: true })) as {
       text: string;
       images: unknown[];
     };
-    expect(rpc.mock.calls[1]![3]).toEqual([[1]]);
+    expect(rpc.mock.calls[2]![3]).toEqual([[1]]);
     expect(out.images).toHaveLength(1);
     expect(out.text).toContain("s2.png, under 10 KB");
     expect(out.text).toContain('"id":2');

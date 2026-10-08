@@ -27,7 +27,8 @@ describe("Odoo image evidence", () => {
     rpc.mockResolvedValue(attachments);
     const result = await run(input);
     expect(result).toEqual({ attachments });
-    expect(rpc).toHaveBeenCalledTimes(1);
+    // owned search, then the description read; neither asks for file bodies
+    expect(rpc).toHaveBeenCalledTimes(2);
     expect(rpc.mock.calls[0]![4]).toEqual(
       expect.objectContaining({ fields: expect.not.arrayContaining(["datas"]) })
     );
@@ -35,16 +36,17 @@ describe("Odoo image evidence", () => {
   it("reads only the four newest supported image ids, retaining every attachment's metadata", async () => {
     rpc
       .mockResolvedValueOnce(attachments)
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce(attachments.slice(0, 4).map((a) => ({ id: a.id, datas: bytes })));
     const result = (await run({ include_images: true })) as { text: string; images: unknown[] };
-    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(rpc).toHaveBeenCalledTimes(3);
     expect(rpc.mock.calls[0]![4]).toEqual(
       expect.objectContaining({
         order: "create_date desc, id desc",
         fields: expect.not.arrayContaining(["datas"]),
       })
     );
-    expect(rpc.mock.calls[1]!.slice(1)).toEqual([
+    expect(rpc.mock.calls[2]!.slice(1)).toEqual([
       "ir.attachment",
       "read",
       [[10, 9, 8, 7]],
@@ -63,9 +65,10 @@ describe("Odoo image evidence", () => {
   it("does not read known oversized images and rechecks decoded size", async () => {
     rpc
       .mockResolvedValueOnce([{ ...attachments[0], file_size: 1024 * 1024 + 1 }, attachments[1]])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 9, datas: Buffer.alloc(1024 * 1024 + 1).toString("base64") }]);
     const result = (await run({ include_images: true })) as { text: string; images: unknown[] };
-    expect(rpc.mock.calls[1]![3]).toEqual([[9]]);
+    expect(rpc.mock.calls[2]![3]).toEqual([[9]]);
     expect(result.images).toEqual([]);
     expect(result.text).toContain("screen-0.png, exceeds 1 MB");
     expect(result.text).toContain("screen-1.png, exceeds 1 MB");
