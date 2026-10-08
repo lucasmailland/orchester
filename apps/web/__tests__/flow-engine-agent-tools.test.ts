@@ -17,6 +17,7 @@ const fixture = vi.hoisted(() => ({
     tools: ["calculator"] as string[] | null,
     variables: { unit: "items" } as Record<string, string> | null,
     fallback: "Try again later." as string | null,
+    status: "active",
   },
 }));
 vi.mock("@orchester/db", async () => {
@@ -61,7 +62,7 @@ const answer: LlmCallResult = {
   tokensUsed: 15,
 };
 const toolTurn = { ...answer, content: "Checking.", toolCalls: [toolCall] };
-const run = () =>
+const run = (opts: { dryRun?: boolean } = {}) =>
   runFlowGraph(
     [
       { id: "start", type: "trigger", config: {}, position: { x: 0, y: 0 } },
@@ -73,7 +74,9 @@ const run = () =>
       },
     ],
     [{ id: "edge", source: "start", target: "agent" }],
-    { message: "Calculate two plus two." }
+    { message: "Calculate two plus two." },
+    undefined,
+    opts
   );
 const calls = () => vi.mocked(llmCall).mock.calls;
 
@@ -82,6 +85,7 @@ beforeEach(() => {
   fixture.agent.tools = ["calculator"];
   fixture.agent.variables = { unit: "items" };
   fixture.agent.fallback = "Try again later.";
+  fixture.agent.status = "active";
   vi.mocked(assertWithinSpend).mockReset().mockResolvedValue(undefined);
   vi.mocked(llmCall).mockReset().mockResolvedValue(answer);
   vi.mocked(executeTool).mockReset().mockResolvedValue({ result: 4 });
@@ -228,5 +232,50 @@ describe("flow agent tools", () => {
       model: "gpt-4o-mini",
       toolsUsed: ["calculator", "current_time"],
     });
+  });
+});
+
+describe("flow agent node: status, dry run and trace", () => {
+  it.each(["draft", "inactive"])("does not run an agent that is %s", async (status) => {
+    // Status is the kill switch: turning an agent off must stop it in flows too.
+    fixture.agent.status = status;
+    const result = await run();
+    expect(result.status).toBe("failed");
+    expect(llmCall).not.toHaveBeenCalled();
+  });
+
+  it("simulates a write tool in a dry run and still runs read tools", async () => {
+    fixture.agent.tools = ["calculator", "odoo_post_note"];
+    const write = { id: "w1", name: "odoo_post_note", input: { id: 7, body_text: "x" } };
+    vi.mocked(llmCall).mockResolvedValueOnce({ ...toolTurn, toolCalls: [toolCall, write] });
+    const result = await run({ dryRun: true });
+    expect(result.status).toBe("succeeded");
+    // The read tool ran; the write tool did not.
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(executeTool).mock.calls[0]![0]).toBe("calculator");
+    const fed = calls()[1]![0].messages.at(-1) as {
+      toolResults: { name: string; output?: string }[];
+    };
+    const simulatedResult = fed.toolResults.find((r) => r.name === "odoo_post_note");
+    expect(simulatedResult?.output).toContain('"dryRun":true');
+  });
+
+  it("a step that fails mid-loop still records the tokens already spent", async () => {
+    vi.mocked(llmCall)
+      .mockResolvedValueOnce(toolTurn)
+      .mockRejectedValueOnce(new Error("provider down"));
+    const result = await run();
+    expect(result.status).toBe("failed");
+    const step = result.steps.find((s) => s.nodeId === "agent")!;
+    expect(step.status).toBe("failed");
+    expect(step.trace).toMatchObject({ agentId: "agent_test", tokensUsed: 15 });
+  });
+
+  it("runs write tools normally outside a dry run", async () => {
+    fixture.agent.tools = ["odoo_post_note"];
+    const write = { id: "w1", name: "odoo_post_note", input: { id: 7, body_text: "x" } };
+    vi.mocked(llmCall).mockResolvedValueOnce({ ...toolTurn, toolCalls: [write] });
+    expect((await run()).status).toBe("succeeded");
+    expect(executeTool).toHaveBeenCalledWith("odoo_post_note", write.input, expect.anything());
   });
 });

@@ -832,7 +832,12 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       return aRows[0];
     });
     if (!agent) throw new Error(`agent not found: ${agentId}`);
-    const { getToolDefinitions, executeTool } = await import("./tools");
+    // Status is the kill switch: an agent set to draft or inactive must stop
+    // running everywhere, flows included, not only in conversations.
+    if (agent.status !== "active") {
+      throw new Error(`agent "${agent.name}" is not active (status: ${agent.status})`);
+    }
+    const { getToolDefinitions, executeTool, toolEffect } = await import("./tools");
     const { wrapUntrusted, UNTRUSTED_CONTENT_GUARDRAIL } = await import("./agent-runtime");
     // Handoff mutates a conversation and throws without conversationId.
     // Memory tools accept optional conversation scope and still work with agentId.
@@ -848,6 +853,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     let tokensUsed = 0;
     const cargo = { tokensIn: 0, tokensOut: 0, costUsd: 0 };
     const toolsUsed: string[] = [];
+    const simulatedTools: string[] = [];
 
     for (let step = 0; step < maxSteps; step++) {
       // Guard and meter every call, including intermediate tool turns.
@@ -890,8 +896,29 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       for (const tc of result.toolCalls) {
         toolsUsed.push(tc.name);
         try {
+          const input = tc.input as Record<string, unknown>;
+          // In a dry run the agent still reads, but a tool that writes is only
+          // reported: the model sees what it would have done, nothing changes.
+          if (
+            ctx.dryRun &&
+            (await withFlowTx(workspaceId, (tx) =>
+              toolEffect(tc.name, input, { workspaceId, tx })
+            )) === "write"
+          ) {
+            simulatedTools.push(tc.name);
+            toolResults.push({
+              id: tc.id,
+              name: tc.name,
+              input: tc.input,
+              output: wrapUntrusted(
+                JSON.stringify(simulated({ tool: tc.name, input })),
+                `tool_${tc.name}`
+              ),
+            });
+            continue;
+          }
           const out = await withFlowTx(workspaceId, (tx) =>
-            executeTool(tc.name, tc.input as Record<string, unknown>, {
+            executeTool(tc.name, input, {
               workspaceId,
               tx,
               variables: agent.variables ?? {},
@@ -934,6 +961,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       agentName: agent.name,
       model,
       toolsUsed,
+      ...(ctx.dryRun ? { simulatedTools } : {}),
     });
   },
 

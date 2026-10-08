@@ -86,7 +86,12 @@ describe("step trace", () => {
 
   it("agent records the agent id, its name at run time, the model and the cost", async () => {
     // The harness answers every lookup with state.flow, so it doubles as the agent row.
-    state.flow = { ...state.flow, name: "Support writer", model: "agent-model" } as never;
+    state.flow = {
+      ...state.flow,
+      name: "Support writer",
+      model: "agent-model",
+      status: "active",
+    } as never;
     llmCall.mockResolvedValue({ content: "done", tokensUsed: 10, model: "agent-model-eff" });
     const r = await runFlowGraph(
       [trigger, node("p", "agent", { agentId: "agent_1", prompt: "hello" })],
