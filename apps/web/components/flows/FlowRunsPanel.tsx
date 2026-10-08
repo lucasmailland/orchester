@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { History, X, ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { isDryRunSource } from "@/lib/flows/dry-run";
 
 interface Run {
   id: string;
@@ -20,6 +21,36 @@ interface Step {
   output: unknown;
   error: string | null;
   startedAt: string;
+}
+
+function DryRunBadge({ label, hint }: { label: string; hint?: string }) {
+  return (
+    <div className="mt-0.5">
+      <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+        {label}
+      </span>
+      {hint && <div className="mt-1 text-[10px] text-muted">{hint}</div>}
+    </div>
+  );
+}
+
+/** A step a dry run simulated: `{ dryRun: true, wouldCall: {...} }`. */
+function isWouldCall(o: unknown): o is { dryRun: true; wouldCall: Record<string, unknown> } {
+  return (
+    typeof o === "object" &&
+    o !== null &&
+    (o as { dryRun?: unknown }).dryRun === true &&
+    typeof (o as { wouldCall?: unknown }).wouldCall === "object"
+  );
+}
+
+function describeWouldCall(w: Record<string, unknown>): string {
+  if (typeof w.integrationId === "string") return `${w.integrationId} → ${String(w.action)}`;
+  if (typeof w.method === "string") return `${w.method} ${String(w.url)}`;
+  if (typeof w.channel === "string" || typeof w.to === "string") {
+    return `${String(w.channel ?? "")} ${String(w.to ?? "")}`.trim();
+  }
+  return "";
 }
 
 export function FlowRunsPanel({
@@ -75,6 +106,7 @@ export function FlowRunsPanel({
             >
               <div>
                 <div className="text-body">{r.triggerSource ?? t("trigger")}</div>
+                {isDryRunSource(r.triggerSource) && <DryRunBadge label={t("dryRunBadge")} />}
                 <div className="text-[10px] text-muted">
                   {new Date(r.startedAt).toLocaleString()}
                 </div>
@@ -109,6 +141,9 @@ export function FlowRunsPanel({
           </button>
           <div className="mb-3 rounded-lg border border-line bg-card p-3 text-xs">
             <div className="text-body">{selected.run.status}</div>
+            {isDryRunSource(selected.run.triggerSource) && (
+              <DryRunBadge label={t("dryRunBadge")} hint={t("dryRunHint")} />
+            )}
             <div className="text-[10px] text-muted">
               {new Date(selected.run.startedAt).toLocaleString()}
             </div>
@@ -139,6 +174,14 @@ export function FlowRunsPanel({
                 </span>
               </div>
               {s.error && <div className="mt-1 text-red-700 dark:text-red-300">{s.error}</div>}
+              {isWouldCall(s.output) && (
+                <div className="mt-1 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-amber-800 dark:text-amber-200">
+                  <div className="font-medium">{t("wouldCall")}</div>
+                  <div className="font-mono text-[10px]">
+                    {describeWouldCall(s.output.wouldCall)}
+                  </div>
+                </div>
+              )}
               {s.output != null && (
                 <pre className="mt-1 max-h-32 overflow-y-auto rounded bg-black/40 p-2 font-mono text-[10px] text-body">
                   {JSON.stringify(s.output, null, 2)}

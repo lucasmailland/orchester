@@ -23,6 +23,8 @@ export const state = {
   },
   steps: [] as RecordedStep[],
   runUpdates: [] as Array<Record<string, unknown>>,
+  /** When set, every flow_run row the engine inserts is pushed here. */
+  insertedRuns: undefined as Array<Record<string, unknown>> | undefined,
 };
 
 let idCounter = 0;
@@ -60,6 +62,7 @@ function makeTx() {
     insert: () => tx,
     values: async (row: Record<string, unknown>) => {
       if ("nodeId" in row) state.steps.push({ id: String(row.id), nodeId: String(row.nodeId) });
+      else if ("triggerSource" in row) state.insertedRuns?.push(row);
     },
     update: () => tx,
     set: (s: Record<string, unknown>) => {
@@ -72,6 +75,8 @@ function makeTx() {
 
 export const dbMock = {
   getDb: vi.fn(() => ({
+    // A subflow step reads the child run's output through the bare client.
+    select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ output: {} }] }) }) }),
     transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(makeTx())),
   })),
   schema: {
@@ -85,7 +90,8 @@ export async function runFlowGraph(
   nodes: unknown[],
   edges: unknown[],
   input: Record<string, unknown> = {},
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  opts: { dryRun?: boolean } = {}
 ) {
   state.flow = { ...state.flow, nodes, edges };
   state.steps = [];
@@ -97,6 +103,7 @@ export async function runFlowGraph(
     triggerSource: "test",
     input,
     ...(signal ? { signal } : {}),
+    ...(opts.dryRun ? { dryRun: true } : {}),
   });
   const final = state.runUpdates.at(-1) ?? {};
   return {

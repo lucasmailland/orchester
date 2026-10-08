@@ -910,7 +910,10 @@
         "noRuns": "Aún no hubo ejecuciones.",
         "back": "← Volver",
         "stepsHeading": "Pasos",
-        "trigger": "trigger"
+        "trigger": "trigger",
+        "dryRunBadge": "Simulación",
+        "dryRunHint": "No se escribió nada: los pasos que escriben sólo muestran lo que harían.",
+        "wouldCall": "Llamaría (no se ejecutó)"
       },
       "builder": {
         "save": "Guardar",
@@ -923,6 +926,9 @@
         "active": "Activo",
         "paused": "Pausado",
         "runFlow": "Ejecutar",
+        "dryRunLabel": "Simulación (dry run)",
+        "dryRunHint": "Las lecturas se ejecutan de verdad; las escrituras (crear, actualizar, enviar, POST) no se ejecutan y se muestran como “llamaría”.",
+        "dryRunButton": "Simular",
         "running": "Ejecutando…",
         "runs": "Ejecuciones",
         "copilot": "Copiloto",

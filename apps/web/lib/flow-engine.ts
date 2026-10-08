@@ -9,6 +9,7 @@ import { logWithContext, recordMetric } from "./observability";
 import { evaluateExpression } from "./flows/filters";
 import { parseRetryConfig, runWithRetry, StepFailure } from "./flows/retry";
 import { createApprovalToken, PauseRequested } from "./flows/pause";
+import { isDryRunSource, markDryRun, simulated } from "./flows/dry-run";
 
 /**
  * R2-C: Flow execution writes to tenant tables (flow_runs,
@@ -81,6 +82,11 @@ export interface RunContext {
   emit?: FlowEmit;
   /** Signal de cancelación (F-1/F-B1). Si abort, el motor para entre pasos. */
   signal?: AbortSignal;
+  /**
+   * Dry run: steps that read still execute (real context is the point), steps
+   * that write are reported as `wouldCall` and skipped. See `lib/flows/dry-run`.
+   */
+  dryRun?: boolean;
 }
 
 /**
@@ -319,6 +325,7 @@ export async function executeFlow({
   onEvent,
   runId: existingRunId,
   signal,
+  dryRun: dryRunOpt,
 }: {
   flowId: string;
   workspaceId: string;
@@ -339,6 +346,12 @@ export async function executeFlow({
    * para acotar el tiempo de respuesta inline.
    */
   signal?: AbortSignal;
+  /**
+   * Run without side effects (see `RunContext.dryRun`). When omitted it is
+   * read from `triggerSource`, so a run queued as a dry run stays one when the
+   * worker picks it up.
+   */
+  dryRun?: boolean;
 }): Promise<{
   runId: string;
   /** `paused` is not final: the run is waiting for a person and will continue. */
@@ -359,6 +372,7 @@ export async function executeFlow({
   });
   if (!flow) throw new Error("Flow not found");
 
+  const dryRun = dryRunOpt ?? isDryRunSource(triggerSource);
   const runId = existingRunId ?? createId();
   const runStartedAt = Date.now(); // sólo para la métrica de duración (D2)
   await withFlowTx(workspaceId, async (tx) => {
@@ -373,7 +387,7 @@ export async function executeFlow({
         flowId,
         workspaceId,
         status: "running",
-        triggerSource,
+        triggerSource: dryRun ? markDryRun(triggerSource) : triggerSource,
         input,
       });
     }
@@ -387,6 +401,7 @@ export async function executeFlow({
     output: {},
     ...(onEvent ? { emit: onEvent } : {}),
     ...(signal ? { signal } : {}),
+    ...(dryRun ? { dryRun: true } : {}),
   };
 
   const nodes = (flow.nodes ?? []) as FlowNode[];
@@ -417,10 +432,13 @@ export async function executeFlow({
         .update(schema.flowRuns)
         .set({ status: "succeeded", output: ctx.variables, completedAt: new Date() })
         .where(eq(schema.flowRuns.id, runId));
-      await tx
-        .update(schema.flows)
-        .set({ lastRunAt: new Date() })
-        .where(eq(schema.flows.id, flowId));
+      // A dry run is not a run of the flow: it must not move `lastRunAt`.
+      if (!dryRun) {
+        await tx
+          .update(schema.flows)
+          .set({ lastRunAt: new Date() })
+          .where(eq(schema.flows.id, flowId));
+      }
     });
     onEvent?.({ type: "run_finish", status: "succeeded" });
     recordMetric("flow.run.duration_ms", Date.now() - runStartedAt, {
@@ -461,7 +479,8 @@ export async function executeFlow({
       // Notify AFTER persisting, and never throw. If the channel is down,
       // the pause is already saved and the message can be resent; reversing
       // this would let an intermittent Telegram connection fail healthy runs.
-      if (e.notification) {
+      // A dry run never notifies: that is a message to a real person.
+      if (e.notification && !dryRun) {
         const { notifyPause } = await import("./flows/notify-pause");
         await notifyPause(workspaceId, runId, token, e.approvalMessage, e.notification);
       }
@@ -509,6 +528,7 @@ export async function resumePausedFlow({
   fromNodeId,
   variables,
   decision,
+  dryRun = false,
 }: {
   runId: string;
   workspaceId: string;
@@ -516,6 +536,8 @@ export async function resumePausedFlow({
   fromNodeId: string;
   variables: Record<string, unknown>;
   decision: "aprobado" | "rechazado";
+  /** A run paused as a dry run keeps being one after the decision. */
+  dryRun?: boolean;
 }): Promise<{ runId: string; status: "succeeded" | "failed" | "paused" }> {
   const flow = await withFlowTx(workspaceId, async (tx) => {
     const rows = await tx
@@ -530,7 +552,11 @@ export async function resumePausedFlow({
   const db = getDb();
   const nodes = (flow.nodes ?? []) as FlowNode[];
   const edges = (flow.edges ?? []) as FlowEdge[];
-  const ctx: RunContext = { variables: { ...variables, _decision: decision }, output: {} };
+  const ctx: RunContext = {
+    variables: { ...variables, _decision: decision },
+    output: {},
+    ...(dryRun ? { dryRun: true } : {}),
+  };
 
   const outgoingEdges = edges.filter(
     (e) => e.source === fromNodeId && (e.sourceHandle ?? "aprobado") === decision
@@ -545,10 +571,12 @@ export async function resumePausedFlow({
         .update(schema.flowRuns)
         .set({ status: "succeeded", output: ctx.variables, completedAt: new Date() })
         .where(eq(schema.flowRuns.id, runId));
-      await tx
-        .update(schema.flows)
-        .set({ lastRunAt: new Date() })
-        .where(eq(schema.flows.id, flowId));
+      if (!dryRun) {
+        await tx
+          .update(schema.flows)
+          .set({ lastRunAt: new Date() })
+          .where(eq(schema.flows.id, flowId));
+      }
     });
     return { runId, status: "succeeded" };
   } catch (e) {
@@ -869,6 +897,19 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       init.body = interpolate((cfg.body as string) ?? "", ctx.variables);
     }
 
+    // Dry run: only GET/HEAD leave the server. Headers and auth are left out of
+    // the report on purpose — they are where the secrets live.
+    if (ctx.dryRun && method !== "GET" && method !== "HEAD") {
+      const sim = simulated({
+        method,
+        url,
+        ...(init.body ? { body: String(init.body) } : {}),
+      });
+      ctx.variables[(cfg.outputVar as string) ?? "httpResult"] = sim;
+      helpers.setOutput({ ...sim });
+      return;
+    }
+
     const timeoutMs = Math.min(60000, Number(cfg.timeoutMs ?? 30000));
     const failOnStatus = cfg.failOnStatus === true;
     const outputVar = (cfg.outputVar as string) ?? "httpResult";
@@ -992,11 +1033,14 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
   },
 
   notify: async ({ cfg, ctx, helpers }) => {
-    helpers.setOutput({
+    const out = {
       to: cfg.to ? interpolate(cfg.to as string, ctx.variables) : undefined,
       channel: cfg.channel,
       message: interpolate((cfg.message as string) ?? "", ctx.variables),
-    });
+    };
+    // Today this step only records what it would send; in a dry run it says so
+    // in the same shape as every other simulated step.
+    helpers.setOutput(ctx.dryRun ? { ...out, ...simulated({ ...out }) } : out);
   },
 
   code: async ({ cfg, ctx, helpers }) => {
@@ -1191,6 +1235,24 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     const { runIntegrationAction } = await import("./integrations/store");
     const retry = parseRetryConfig(cfg.retry);
     const outputVar = (cfg.outputVar as string) ?? "appResult";
+    if (ctx.dryRun) {
+      // Anything that is not provably a read is simulated, including when the
+      // effect cannot be resolved (unknown integration, lookup failure): in a
+      // dry run, doubt means "do not execute".
+      let effect: "read" | "write" = "write";
+      try {
+        const { getIntegrationActionEffect } = await import("./integrations/store");
+        effect = await getIntegrationActionEffect(workspaceId, integrationId, action, input);
+      } catch {
+        effect = "write";
+      }
+      if (effect !== "read") {
+        const sim = simulated({ integrationId, action, input });
+        ctx.variables[outputVar] = sim;
+        helpers.setOutput({ ...sim });
+        return;
+      }
+    }
     if (!retry) {
       const result = await runIntegrationAction(workspaceId, integrationId, action, input);
       ctx.variables[outputVar] = result;
@@ -1317,6 +1379,8 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       workspaceId,
       triggerSource: `parent_run:${runId}`,
       input: ctx.variables,
+      // The child inherits the parent's mode, and the mark lands on its row.
+      ...(ctx.dryRun ? { dryRun: true } : {}),
     });
     if (result.status === "failed") throw new Error(`subflow failed: ${result.error}`);
     const subRuns = await db
@@ -1388,13 +1452,16 @@ async function executeNode(
 export async function enqueueFlowRun({
   flowId,
   workspaceId,
-  triggerSource,
+  triggerSource: rawTriggerSource,
   input,
+  dryRun = false,
 }: {
   flowId: string;
   workspaceId: string;
   triggerSource: string;
   input: Record<string, unknown>;
+  /** Marks the run in `triggerSource`; the worker reads the mark back. */
+  dryRun?: boolean;
 }): Promise<{
   runId: string;
   /**
@@ -1406,6 +1473,7 @@ export async function enqueueFlowRun({
   error?: string;
   approvalToken?: string;
 }> {
+  const triggerSource = dryRun ? markDryRun(rawTriggerSource) : rawTriggerSource;
   const db = getDb();
   const flowRows = await db
     .select({ id: schema.flows.id })

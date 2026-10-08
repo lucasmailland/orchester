@@ -215,6 +215,8 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
   }
   const [feedback, setFeedback] = useState<string | null>(null);
   const [runModalOpen, setRunModalOpen] = useState(false);
+  // Dry run: reads execute, writes are reported as `wouldCall` and skipped.
+  const [runDry, setRunDry] = useState(false);
   const [runInputDraft, setRunInputDraft] = useState("{\n  \n}");
   const [runInputError, setRunInputError] = useState<string | null>(null);
   const [runFields, setRunFields] = useState<Record<string, string>>({});
@@ -422,7 +424,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
       const r = await fetch(`/api/flows/${flow.id}/run-stream`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ input }),
+        body: JSON.stringify({ input, ...(runDry ? { dryRun: true } : {}) }),
       });
       if (!r.ok || !r.body) throw new Error(`No se pudo iniciar (${r.status})`);
       const reader = r.body.getReader();
@@ -876,6 +878,18 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
               {runInputError && (
                 <p className="mt-2 text-xs text-red-600 dark:text-red-400">⚠ {runInputError}</p>
               )}
+              <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-lg border border-line bg-card p-2.5 text-xs">
+                <input
+                  type="checkbox"
+                  checked={runDry}
+                  onChange={(e) => setRunDry(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium text-body">{t("dryRunLabel")}</span>
+                  <span className="mt-0.5 block text-muted">{t("dryRunHint")}</span>
+                </span>
+              </label>
               <button
                 type="button"
                 onClick={() => {
@@ -903,7 +917,7 @@ export function FlowBuilder({ flow }: { flow: FlowDTO }) {
                   onClick={submitRunModal}
                   className="flex items-center gap-1.5 rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-400"
                 >
-                  <Play className="h-3.5 w-3.5" /> {t("runButton")}
+                  <Play className="h-3.5 w-3.5" /> {runDry ? t("dryRunButton") : t("runButton")}
                 </button>
               </div>
             </div>
