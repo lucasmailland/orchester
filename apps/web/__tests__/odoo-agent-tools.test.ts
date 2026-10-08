@@ -109,14 +109,34 @@ describe("project tasks are reachable without the escape hatch", () => {
       ["odoo_get_task_notes", "get_task_notes", { id: 7 }],
       ["odoo_get_case", "get_case", { id: 7 }],
     ];
+    // The notes tool hides tracking noise unless the model asks otherwise.
+    const defaults: Record<string, Record<string, unknown>> = {
+      odoo_get_task_notes: { exclude_tracking: true },
+    };
     for (const [tool, action, input] of cases) {
       runIntegrationActionMock.mockClear();
       await executeTool(tool, input, CTX);
       const [, integrationId, calledAction, passed] = runIntegrationActionMock.mock.calls[0]!;
       expect(integrationId).toBe("odoo");
       expect(calledAction).toBe(action);
-      expect(passed).toEqual(input);
+      expect(passed).toEqual({ ...defaults[tool], ...input });
     }
+  });
+
+  it("lets the model override the notes default and sees the new filters", async () => {
+    runIntegrationActionMock.mockClear();
+    await executeTool("odoo_get_task_notes", { id: 7, exclude_tracking: false }, CTX);
+    expect(runIntegrationActionMock.mock.calls[0]![3]).toEqual({ id: 7, exclude_tracking: false });
+    const [notes] = getToolDefinitions(["odoo_get_task_notes"]);
+    expect(Object.keys(notes!.inputSchema.properties as object)).toEqual(
+      expect.arrayContaining(["exclude_tracking", "subtype"])
+    );
+    const [search] = getToolDefinitions(["odoo_search_tasks"]);
+    expect(Object.keys(search!.inputSchema.properties as object)).toEqual(
+      expect.arrayContaining(["stage_ids", "closed_since", "name_prefix"])
+    );
+    const [post] = getToolDefinitions(["odoo_post_note"]);
+    expect(Object.keys(post!.inputSchema.properties as object)).toContain("marker");
   });
 
   it("keeps the task tools read-only", () => {

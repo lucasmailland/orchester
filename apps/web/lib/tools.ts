@@ -333,6 +333,11 @@ const BUILTINS: Record<string, ToolDefinition> = {
         },
         id: { type: "number", description: "Numeric id of the ticket or task." },
         body_text: { type: "string", description: "Note as plain text." },
+        marker: {
+          type: "string",
+          description:
+            "Optional idempotency key (letters, digits, . _ : -). If a note with this marker already exists on the record, nothing is posted.",
+        },
       },
       required: ["id", "body_text"],
     },
@@ -374,10 +379,26 @@ const BUILTINS: Record<string, ToolDefinition> = {
         tag_id: { type: "number", description: "Only tasks carrying this tag." },
         user_id: { type: "number", description: "Only tasks assigned to this user." },
         stage_id: { type: "number", description: "Restrict to one stage." },
+        stage_ids: {
+          type: "array",
+          items: { type: "number" },
+          description:
+            "Restrict to any of these stages. Stage names change with the user's language: use ids from odoo_list_stages.",
+        },
         parent_id: {
           type: "number",
           description:
             "Only the subtasks of this task. Pass a task's own parent_id to list its siblings.",
+        },
+        closed_since: {
+          type: "string",
+          description:
+            "ISO 8601, in UTC. Tasks whose last stage change is at or after this instant; with the Done stage in stage_ids and include_archived, lists recent closures.",
+        },
+        name_prefix: {
+          type: "string",
+          description:
+            "Support catalogue code the title starts with, e.g. '1.2.28'. Matches the start of the title only.",
         },
         created_since: {
           type: "string",
@@ -418,6 +439,15 @@ const BUILTINS: Record<string, ToolDefinition> = {
       properties: {
         id: { type: "number", description: "Numeric task id." },
         limit: { type: "number", description: "Max notes, capped at 100. Defaults to 20." },
+        exclude_tracking: {
+          type: "boolean",
+          description:
+            "Defaults to true: only comments and emails, without field-change tracking noise. Pass false to see everything.",
+        },
+        subtype: {
+          type: ["number", "string"],
+          description: "Only messages of this subtype id (or display name, which is translated).",
+        },
       },
       required: ["id"],
     },
@@ -609,7 +639,10 @@ const BUILTINS: Record<string, ToolDefinition> = {
  * schema de la tool; la credencial y la validación viven server-side, igual
  * que en `run_integration`.
  */
-const CONNECTOR_TOOLS: Record<string, { integrationId: string; action: string }> = {
+const CONNECTOR_TOOLS: Record<
+  string,
+  { integrationId: string; action: string; defaults?: Record<string, unknown> }
+> = {
   odoo_create_ticket: { integrationId: "odoo", action: "create_ticket" },
   odoo_post_note: { integrationId: "odoo", action: "post_note" },
   odoo_search_tickets: { integrationId: "odoo", action: "search_tickets" },
@@ -619,7 +652,12 @@ const CONNECTOR_TOOLS: Record<string, { integrationId: string; action: string }>
   odoo_list_stages: { integrationId: "odoo", action: "list_stages" },
   odoo_get_task: { integrationId: "odoo", action: "get_task" },
   odoo_search_tasks: { integrationId: "odoo", action: "search_tasks" },
-  odoo_get_task_notes: { integrationId: "odoo", action: "get_task_notes" },
+  odoo_get_task_notes: {
+    integrationId: "odoo",
+    action: "get_task_notes",
+    // Tracking messages drown the notes an agent needs; flows keep the raw default.
+    defaults: { exclude_tracking: true },
+  },
   odoo_get_case: { integrationId: "odoo", action: "get_case" },
   newrelic_get_errors: { integrationId: "newrelic", action: "get_errors" },
   newrelic_get_logs_for_trace: { integrationId: "newrelic", action: "get_logs_for_trace" },
@@ -1122,7 +1160,7 @@ export async function executeTool(
       ctx.workspaceId,
       connectorTool.integrationId,
       connectorTool.action,
-      input,
+      connectorTool.defaults ? { ...connectorTool.defaults, ...input } : input,
       ctx.tx
     );
   }

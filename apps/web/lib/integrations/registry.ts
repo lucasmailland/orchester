@@ -729,6 +729,12 @@ const TASK_FIELDS = [
   "partner_id",
   "tag_ids",
   "date_deadline",
+  // Done cards are archived: `active` tells a reader which of the results is.
+  "active",
+  // Odoo has no dedicated close timestamp on a task (`date_end` is a manual
+  // planning field). The last stage change is the closest honest signal of
+  // when a card reached Done, and it is what `closed_since` filters on.
+  "date_last_stage_update",
   "create_date",
   "write_date",
 ];
@@ -984,11 +990,27 @@ const odoo: Connector = {
           tag_id: { type: "number", description: "Only tasks carrying this tag." },
           user_id: { type: "number", description: "Only tasks assigned to this user." },
           stage_id: { type: "number", description: "Restrict to one stage." },
+          stage_ids: {
+            type: "array",
+            items: { type: "number" },
+            description:
+              "Restrict to any of these stages. Stage names change with the user's language, so key on ids (see list_stages).",
+          },
           parent_id: { type: "number", description: "Only the subtasks of this task." },
           created_since: {
             type: "string",
             description:
               "ISO 8601. Compared against create_date, which Odoo stores in UTC — pass UTC or the window silently shifts.",
+          },
+          closed_since: {
+            type: "string",
+            description:
+              "ISO 8601, UTC. Tasks whose last stage change (date_last_stage_update) is at or after this instant. Combine with stage_ids of the Done stage and include_archived to list recent closures.",
+          },
+          name_prefix: {
+            type: "string",
+            description:
+              "Catalogue code the title starts with, e.g. '1.2.28'. Matched at the start of the title only; % and _ are literal.",
           },
           include_archived: {
             type: "boolean",
@@ -1016,7 +1038,26 @@ const odoo: Connector = {
         // Tasks have many assignees (`user_ids`), so `=` would never match.
         if (input.user_id != null) domain.push(["user_ids", "in", [Number(input.user_id)]]);
         if (input.stage_id != null) domain.push(["stage_id", "=", Number(input.stage_id)]);
+        if (Array.isArray(input.stage_ids) && input.stage_ids.length > 0) {
+          domain.push(["stage_id", "in", input.stage_ids.map(Number)]);
+        }
         if (input.parent_id != null) domain.push(["parent_id", "=", Number(input.parent_id)]);
+        if (typeof input.name_prefix === "string" && input.name_prefix.trim()) {
+          // `=ilike` is a LIKE pattern: a code such as "1.2_8" must not treat
+          // `_` or `%` as wildcards. Backslash is Odoo's LIKE escape.
+          const escaped = input.name_prefix.trim().replace(/[\\%_]/g, "\\$&");
+          domain.push(["name", "=ilike", `${escaped}%`]);
+        }
+        if (typeof input.closed_since === "string" && input.closed_since.trim()) {
+          const d = new Date(input.closed_since.trim());
+          if (Number.isNaN(d.getTime()))
+            throw new Error(`closed_since is not a date: ${input.closed_since}`);
+          domain.push([
+            "date_last_stage_update",
+            ">=",
+            d.toISOString().slice(0, 19).replace("T", " "),
+          ]);
+        }
         if (typeof input.created_since === "string" && input.created_since.trim()) {
           // Odoo rejects the `T` and the trailing `Z` of an ISO timestamp, so
           // the value is reshaped rather than passed through. A bad date here
@@ -1210,23 +1251,39 @@ const odoo: Connector = {
         properties: {
           id: { type: "number", description: "Task id." },
           limit: { type: "number", description: "Max notes, capped at 100. Defaults to 20." },
+          exclude_tracking: {
+            type: "boolean",
+            description:
+              "Keep only human-written messages (comment, email) and drop field-change tracking and system notifications, which otherwise drown the notes. Defaults to false here so existing flows keep their behaviour; the agent tool defaults it to true.",
+          },
+          subtype: {
+            type: ["number", "string"],
+            description:
+              "Only messages of this subtype: a subtype id (stable) or its display name (translated with the user's language, so prefer the id).",
+          },
         },
         required: ["id"],
       },
       async run(config, input) {
         const limit = Math.min(Math.max(Number(input.limit ?? 20), 1), 100);
-        const notes = await odooExecute(
-          config,
-          "mail.message",
-          "search_read",
-          [
-            [
-              ["model", "=", "project.task"],
-              ["res_id", "=", Number(input.id)],
-            ],
-          ],
-          { fields: MESSAGE_FIELDS, limit, order: "date desc" }
-        );
+        const domain: unknown[] = [
+          ["model", "=", "project.task"],
+          ["res_id", "=", Number(input.id)],
+        ];
+        // `=== true`: a string "false" must not switch the filter on.
+        if (input.exclude_tracking === true) {
+          domain.push(["message_type", "in", ["comment", "email"]]);
+        }
+        if (typeof input.subtype === "number") {
+          domain.push(["subtype_id", "=", input.subtype]);
+        } else if (typeof input.subtype === "string" && input.subtype.trim()) {
+          domain.push(["subtype_id.name", "=", input.subtype.trim()]);
+        }
+        const notes = await odooExecute(config, "mail.message", "search_read", [domain], {
+          fields: MESSAGE_FIELDS,
+          limit,
+          order: "date desc",
+        });
         return { notes };
       },
     },
@@ -1336,14 +1393,44 @@ const odoo: Connector = {
           id: { type: "number" },
           body_text: { type: "string", description: "Note as plain text." },
           body: { type: "string", description: "Note as HTML. Overrides body_text." },
+          marker: {
+            type: "string",
+            description:
+              "Idempotency key (letters, digits, . _ : -, up to 100). The note starts with a visible line [[orchester:<marker>]]; if a message on this record already carries it, nothing is posted and { posted: false, reason: 'duplicate' } is returned.",
+          },
         },
         required: ["id"],
       },
       async run(config, input) {
         const model = String(input.model ?? "helpdesk.ticket");
-        const body =
+        let body =
           typeof input.body === "string" ? input.body : htmlFromText(String(input.body_text ?? ""));
         if (!body.trim()) throw new Error("A note needs a body.");
+        if (input.marker != null) {
+          // The marker is plain text on purpose: Odoo's HTML sanitiser strips
+          // comments and unknown attributes, so a hidden carrier would not
+          // survive the round trip and the duplicate check would never match.
+          const marker = String(input.marker);
+          if (!/^[A-Za-z0-9._:-]{1,100}$/.test(marker)) {
+            throw new Error("post_note: marker may only use letters, digits, . _ : - (max 100).");
+          }
+          const tag = `[[orchester:${marker}]]`;
+          const existing = (await odooExecute(
+            config,
+            "mail.message",
+            "search_read",
+            [
+              [
+                ["model", "=", model],
+                ["res_id", "=", Number(input.id)],
+                ["body", "ilike", tag],
+              ],
+            ],
+            { fields: ["id"], limit: 1 }
+          )) as unknown[];
+          if (existing.length > 0) return { posted: false, reason: "duplicate" };
+          body = `<p>${tag}</p>${body}`;
+        }
         const messageId = await odooExecute(config, model, "message_post", [[Number(input.id)]], {
           body,
           message_type: "comment",
@@ -1396,6 +1483,48 @@ const odoo: Connector = {
 
         await odooExecute(config, "project.task", "write", [[taskId], { stage_id: toStage }]);
         return { moved: true, task_id: taskId, from_stage_id: fromStage, to_stage_id: toStage };
+      },
+    },
+
+    set_task_tags: {
+      effect: "write",
+      description:
+        "Add and/or remove tags on ONE project task, restricted to tags whose name starts with 'ag:'. Any other tag makes the call fail before anything is written. Writes tag_ids and nothing else. Meant for flow steps; agents do not get it as a tool.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          task_id: { type: "number" },
+          add: { type: "array", items: { type: "number" }, description: "Tag ids to attach." },
+          remove: { type: "array", items: { type: "number" }, description: "Tag ids to detach." },
+        },
+        required: ["task_id"],
+      },
+      async run(config, input) {
+        if (input.task_id == null) throw new Error("set_task_tags needs a task_id.");
+        const taskId = Number(input.task_id);
+        const toIds = (v: unknown) => (Array.isArray(v) ? [...new Set(v.map(Number))] : []);
+        const add = toIds(input.add);
+        const remove = toIds(input.remove);
+        if (add.length + remove.length === 0) {
+          throw new Error("set_task_tags needs an add or remove list.");
+        }
+        const wanted = [...new Set([...add, ...remove])];
+        // Read through odooExecute, not the `execute` allowlist: the allowlist
+        // stays closed to project.tags.
+        const rows = (await odooExecute(config, "project.tags", "read", [wanted], {
+          fields: ["id", "name"],
+        })) as { id: number; name: string | false }[];
+        const names = new Map(rows.map((r) => [r.id, r.name]));
+        for (const id of wanted) {
+          const name = names.get(id);
+          if (typeof name !== "string") throw new Error(`set_task_tags: tag ${id} not found.`);
+          if (!name.startsWith("ag:")) {
+            throw new Error(`set_task_tags: tag ${id} is not an 'ag:' tag; refusing.`);
+          }
+        }
+        const commands = [...add.map((id) => [4, id, 0]), ...remove.map((id) => [3, id, 0])];
+        await odooExecute(config, "project.task", "write", [[taskId], { tag_ids: commands }]);
+        return { ok: true, task_id: taskId, added: add, removed: remove };
       },
     },
 

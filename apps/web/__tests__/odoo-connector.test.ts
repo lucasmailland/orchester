@@ -239,6 +239,193 @@ describe("odoo connector", () => {
     expect(domain).toContainEqual(["parent_id", "=", 4242]);
   });
 
+  describe("search_tasks follow-up filters", () => {
+    async function search(input: Record<string, unknown>) {
+      const { calls } = mockOdoo({ execute: () => [] });
+      await getConnector("odoo")!.actions.search_tasks!.run(CONFIG, input);
+      const call = calls.find((c) => c.method === "execute_kw")!;
+      return {
+        domain: (call.args[5] as unknown[])[0] as unknown[],
+        kwargs: call.args[6] as { fields: string[] },
+      };
+    }
+
+    it("filters by stage ids, never by name", async () => {
+      const { domain } = await search({ stage_ids: [3, "5"] });
+      expect(domain).toContainEqual(["stage_id", "in", [3, 5]]);
+    });
+
+    it("closed_since compares date_last_stage_update in UTC", async () => {
+      const { domain } = await search({ closed_since: "2026-10-01T12:30:45.000Z" });
+      expect(domain).toContainEqual(["date_last_stage_update", ">=", "2026-10-01 12:30:45"]);
+    });
+
+    it("rejects a closed_since that is not a date", async () => {
+      mockOdoo({ execute: () => [] });
+      await expect(
+        getConnector("odoo")!.actions.search_tasks!.run(CONFIG, { closed_since: "yesterday" })
+      ).rejects.toThrow(/closed_since/);
+    });
+
+    it("name_prefix matches the start of the title, escaping LIKE wildcards", async () => {
+      const { domain } = await search({ name_prefix: "1.2_8%" });
+      expect(domain).toContainEqual(["name", "=ilike", "1.2\\_8\\%%"]);
+    });
+
+    it("returns the active flag and the stage-change date", async () => {
+      const { kwargs } = await search({});
+      expect(kwargs.fields).toEqual(expect.arrayContaining(["active", "date_last_stage_update"]));
+    });
+  });
+
+  describe("get_task_notes filters", () => {
+    async function notes(input: Record<string, unknown>) {
+      const { calls } = mockOdoo({ execute: () => [] });
+      await getConnector("odoo")!.actions.get_task_notes!.run(CONFIG, { id: 7, ...input });
+      const call = calls.find((c) => c.method === "execute_kw")!;
+      return (call.args[5] as unknown[])[0] as unknown[];
+    }
+
+    it("keeps every message type by default, so existing flows are unchanged", async () => {
+      const domain = await notes({});
+      expect(domain).toEqual([
+        ["model", "=", "project.task"],
+        ["res_id", "=", 7],
+      ]);
+    });
+
+    it("exclude_tracking keeps only comments and emails", async () => {
+      const domain = await notes({ exclude_tracking: true });
+      expect(domain).toContainEqual(["message_type", "in", ["comment", "email"]]);
+    });
+
+    it("filters by subtype id or name", async () => {
+      expect(await notes({ subtype: 2 })).toContainEqual(["subtype_id", "=", 2]);
+      expect(await notes({ subtype: "Note" })).toContainEqual(["subtype_id.name", "=", "Note"]);
+    });
+  });
+
+  describe("post_note marker", () => {
+    function run(input: Record<string, unknown>, existing: unknown[]) {
+      const posts: Record<string, unknown>[] = [];
+      const mock = mockOdoo({
+        execute: (model, method, _args, kwargs) => {
+          if (method === "search_read") return existing;
+          if (method === "message_post") {
+            posts.push(kwargs);
+            return 99;
+          }
+          return true;
+        },
+      });
+      const out = getConnector("odoo")!.actions.post_note!.run(CONFIG, input);
+      return { out, posts, ...mock };
+    }
+
+    it("searches the record's messages for the marker before posting", async () => {
+      const r = run({ model: "project.task", id: 7, body_text: "hi", marker: "triage-1" }, []);
+      await r.out;
+      const search = r.calls.find((c) => c.method === "execute_kw" && c.args[4] === "search_read")!;
+      const domain = (search.args[5] as unknown[])[0] as unknown[];
+      expect(domain).toEqual(
+        expect.arrayContaining([
+          ["model", "=", "project.task"],
+          ["res_id", "=", 7],
+          ["body", "ilike", "[[orchester:triage-1]]"],
+        ])
+      );
+    });
+
+    it("posts with the marker as the first line when it is absent", async () => {
+      const r = run({ model: "project.task", id: 7, body_text: "hi", marker: "triage-1" }, []);
+      expect(await r.out).toMatchObject({ ok: true, message_id: 99 });
+      expect(String(r.posts[0]!.body).startsWith("<p>[[orchester:triage-1]]</p>")).toBe(true);
+      expect(r.posts[0]!.subtype_xmlid).toBe("mail.mt_note");
+    });
+
+    it("does nothing when the marker is already there", async () => {
+      const r = run({ model: "project.task", id: 7, body_text: "hi", marker: "triage-1" }, [
+        { id: 5 },
+      ]);
+      expect(await r.out).toEqual({ posted: false, reason: "duplicate" });
+      expect(r.posts).toHaveLength(0);
+    });
+
+    it("rejects a marker with characters that could break the format", async () => {
+      const r = run({ id: 7, body_text: "hi", marker: "a]] <b>" }, []);
+      await expect(r.out).rejects.toThrow(/marker/);
+      expect(r.posts).toHaveLength(0);
+    });
+
+    it("without a marker it posts exactly as before, with no search", async () => {
+      const r = run({ id: 7, body_text: "hi" }, []);
+      await r.out;
+      expect(r.calls.some((c) => c.args[4] === "search_read")).toBe(false);
+      expect(r.posts).toHaveLength(1);
+    });
+  });
+
+  describe("set_task_tags", () => {
+    function setup() {
+      const writes: { model: string; args: unknown[] }[] = [];
+      const mock = mockOdoo({
+        execute: (model, method, args) => {
+          if (model === "project.tags" && method === "read") {
+            const names: Record<number, string> = {
+              1: "ag:fix-pending",
+              2: "ag:done",
+              3: "urgent",
+            };
+            return (args[0] as number[]).map((id) => ({ id, name: names[id] }));
+          }
+          if (method === "write") writes.push({ model, args });
+          return true;
+        },
+      });
+      return { ...mock, writes };
+    }
+    const tags = (input: Record<string, unknown>) =>
+      getConnector("odoo")!.actions.set_task_tags!.run(CONFIG, input);
+
+    it("adds and removes ag: tags, writing only tag_ids with x2many commands", async () => {
+      const { writes } = setup();
+      const out = await tags({ task_id: 4242, add: [1], remove: [2] });
+      expect(out).toMatchObject({ ok: true, task_id: 4242 });
+      expect(writes).toEqual([
+        {
+          model: "project.task",
+          args: [
+            [4242],
+            {
+              tag_ids: [
+                [4, 1, 0],
+                [3, 2, 0],
+              ],
+            },
+          ],
+        },
+      ]);
+    });
+
+    it("refuses a tag that does not start with ag:, without writing", async () => {
+      const { writes } = setup();
+      await expect(tags({ task_id: 4242, add: [1, 3] })).rejects.toThrow(/ag:/);
+      await expect(tags({ task_id: 4242, remove: [3] })).rejects.toThrow(/ag:/);
+      expect(writes).toHaveLength(0);
+    });
+
+    it("refuses an unknown tag id and an empty request", async () => {
+      const { writes } = setup();
+      await expect(tags({ task_id: 4242, add: [99] })).rejects.toThrow();
+      await expect(tags({ task_id: 4242 })).rejects.toThrow(/add or remove/);
+      expect(writes).toHaveLength(0);
+    });
+
+    it("declares effect write so dry run simulates it", () => {
+      expect(getConnector("odoo")!.actions.set_task_tags!.effect).toBe("write");
+    });
+  });
+
   describe("move_task", () => {
     // Fixture: task 4242 lives in project 7, currently in stage 100.
     // Stage 101 belongs to project 7, stage 900 to project 8.
