@@ -3,7 +3,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { and, eq } from "drizzle-orm";
 import { encrypt, decrypt } from "@/lib/encryption";
-import { getConnector } from "./registry";
+import { actionEffect, getConnector, type ActionEffect } from "./registry";
 import { resolveIntegrationRef } from "./resolve";
 
 /**
@@ -190,14 +190,13 @@ export async function deleteIntegration(
     );
 }
 
-/** Ejecuta una acción de una integración configurada (usado por tools de agente). */
-export async function runIntegrationAction(
+/** Resolves the connector action behind an integration reference (row id or connector type). */
+async function resolveConnectorAction(
   workspaceId: string,
   integrationId: string,
   actionKey: string,
-  input: Record<string, unknown>,
   tx?: WsDb
-): Promise<unknown> {
+) {
   let loaded = await loadIntegration(workspaceId, integrationId, tx);
   if (!loaded) {
     // Not a row id: templates name the connector type ("odoo") because they
@@ -220,5 +219,37 @@ export async function runIntegrationAction(
   if (!connector) throw new Error("Connector desconocido");
   const action = connector.actions[actionKey];
   if (!action) throw new Error(`Acción desconocida: ${actionKey}`);
-  return action.run(loaded.config, input);
+  return { action, config: loaded.config };
+}
+
+/** Ejecuta una acción de una integración configurada (usado por tools de agente). */
+export async function runIntegrationAction(
+  workspaceId: string,
+  integrationId: string,
+  actionKey: string,
+  input: Record<string, unknown>,
+  tx?: WsDb
+): Promise<unknown> {
+  const { action, config } = await resolveConnectorAction(
+    workspaceId,
+    integrationId,
+    actionKey,
+    tx
+  );
+  return action.run(config, input);
+}
+
+/**
+ * Whether an action reads or writes, for this input. A dry run asks before
+ * executing; it never calls the action to find out.
+ */
+export async function getIntegrationActionEffect(
+  workspaceId: string,
+  integrationId: string,
+  actionKey: string,
+  input: Record<string, unknown>,
+  tx?: WsDb
+): Promise<ActionEffect> {
+  const { action } = await resolveConnectorAction(workspaceId, integrationId, actionKey, tx);
+  return actionEffect(action, input);
 }

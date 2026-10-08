@@ -269,6 +269,11 @@ const TOOLS: McpToolDef[] = [
       properties: {
         flowId: { type: "string", description: "ID del flujo (de list_flows)." },
         input: { type: "object", description: "Input arbitrario para el flujo." },
+        dryRun: {
+          type: "boolean",
+          description:
+            "Ejecuta sin efectos: los pasos que leen corren, los que escriben se informan como wouldCall y no se ejecutan.",
+        },
       },
       required: ["flowId"],
     },
@@ -282,6 +287,7 @@ const TOOLS: McpToolDef[] = [
         workspaceId: auth.workspaceId,
         triggerSource: "mcp",
         input: (input.input as Record<string, unknown>) ?? {},
+        ...(input.dryRun === true ? { dryRun: true } : {}),
       });
       return result;
     },

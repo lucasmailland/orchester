@@ -7,6 +7,8 @@ import { enqueueFlowRun } from "@/lib/flow-engine";
 // `input` es JSON arbitrario definido por el trigger del flujo: no se restringe.
 const runFlowSchema = z.object({
   input: z.unknown().optional(),
+  /** Execute without side effects: writes are reported as `wouldCall`. */
+  dryRun: z.boolean().optional(),
 });
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -22,6 +24,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       workspaceId: ctx.workspace.id,
       triggerSource: `manual:${ctx.user.id}`,
       input: (parsed.data.input ?? {}) as Record<string, unknown>,
+      ...(parsed.data.dryRun ? { dryRun: true } : {}),
     });
     // 202 Accepted: la ejecución es asíncrona; el cliente hace polling de
     // /api/flow-runs/:runId. (Para feedback en vivo se usa /run-stream.)
