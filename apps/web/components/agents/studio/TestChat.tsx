@@ -11,6 +11,15 @@ interface ToolCallView {
   output: unknown;
   error?: string;
 }
+/** Name of the agent a simulated `agent_handoff` would hand off to, else null. */
+export function simulatedHandoffTarget(tc: ToolCallView): string | null {
+  if (tc.name !== "agent_handoff" || tc.error) return null;
+  const out = tc.output as { simulated?: unknown; wouldHandOffTo?: { name?: unknown } } | null;
+  if (out?.simulated !== true) return null;
+  const name = out.wouldHandOffTo?.name;
+  return typeof name === "string" ? name : null;
+}
+
 interface Msg {
   role: "user" | "assistant";
   content: string;
@@ -226,28 +235,37 @@ export function TestChat({
             </div>
             {m.toolCalls && m.toolCalls.length > 0 && (
               <div className="mr-auto max-w-[85%] space-y-1">
-                {m.toolCalls.map((tc, j) => (
-                  <details
-                    key={j}
-                    className="rounded-lg border border-line bg-card px-2.5 py-1.5 text-[11px]"
-                  >
-                    <summary className="flex cursor-pointer items-center gap-1.5 text-body">
-                      <Wrench className="h-3 w-3 text-violet-600 dark:text-violet-400" /> {tc.name}
-                      {tc.error && (
-                        <span className="ml-auto text-red-600 dark:text-red-400">
-                          {t("errorBadge")}
-                        </span>
-                      )}
-                    </summary>
-                    <pre className="mt-1.5 max-h-40 overflow-y-auto rounded bg-black/40 p-2 font-mono text-[10px] text-muted">
-                      {JSON.stringify(
-                        { input: tc.input, output: tc.output, error: tc.error },
-                        null,
-                        2
-                      )}
-                    </pre>
-                  </details>
-                ))}
+                {m.toolCalls.map((tc, j) => {
+                  const simulatedTo = simulatedHandoffTarget(tc);
+                  return (
+                    <details
+                      key={j}
+                      className="rounded-lg border border-line bg-card px-2.5 py-1.5 text-[11px]"
+                    >
+                      <summary className="flex cursor-pointer items-center gap-1.5 text-body">
+                        <Wrench className="h-3 w-3 text-violet-600 dark:text-violet-400" />{" "}
+                        {tc.name}
+                        {tc.error && (
+                          <span className="ml-auto text-red-600 dark:text-red-400">
+                            {t("errorBadge")}
+                          </span>
+                        )}
+                        {simulatedTo && (
+                          <span className="ml-auto text-amber-600 dark:text-amber-400">
+                            {t("simulatedHandoff", { name: simulatedTo })}
+                          </span>
+                        )}
+                      </summary>
+                      <pre className="mt-1.5 max-h-40 overflow-y-auto rounded bg-black/40 p-2 font-mono text-[10px] text-muted">
+                        {JSON.stringify(
+                          { input: tc.input, output: tc.output, error: tc.error },
+                          null,
+                          2
+                        )}
+                      </pre>
+                    </details>
+                  );
+                })}
               </div>
             )}
             {m.flowRunId && (

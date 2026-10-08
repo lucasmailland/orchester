@@ -48,6 +48,13 @@ export interface ToolContext {
   /** Optional context: lets memory tools scope to employee/customer. */
   employeeId?: string;
   /**
+   * Explicit flag set only by the agent page's test chat. It has no
+   * conversation, so `agent_handoff` validates as usual and then reports what
+   * it would do instead of persisting. Never inferred from a missing
+   * conversationId: other callers without one must keep failing.
+   */
+  testChat?: boolean;
+  /**
    * Workspace transaction handle (R2-C). When the caller (agent
    * runtime, channels router) is inside `withWorkspaceTx`, threading
    * tx keeps every DB op done by a tool on the same connection.
@@ -1053,7 +1060,7 @@ export async function executeTool(
 
   if (name === "agent_handoff") {
     if (!ctx.agentId) throw new Error("agent_handoff requires the calling agent context");
-    if (!ctx.conversationId) {
+    if (!ctx.conversationId && !ctx.testChat) {
       throw new Error(
         "agent_handoff requires conversationId — only available in conversational runs"
       );
@@ -1083,6 +1090,18 @@ export async function executeTool(
     const callerTeamId = await getCallerTeamId(db, ctx.agentId, ctx.workspaceId);
     if (callerTeamId && target.teamId !== callerTeamId) {
       throw new Error(`target agent ${target.name} is not in your team`);
+    }
+
+    if (!ctx.conversationId) {
+      // Test chat: every check above ran as in a real conversation, nothing is written.
+      return {
+        simulated: true,
+        wouldHandOffTo: { id: target.id, name: target.name, role: target.role },
+        note,
+        instruction:
+          "This is the test chat: no real handoff happened and the conversation stays with you. " +
+          `Tell the tester that ${target.name} (${target.role}) would take over, and with this note: "${note}".`,
+      };
     }
 
     // Pivot the conversation to the new agent

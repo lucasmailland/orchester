@@ -69,6 +69,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       },
       messages,
       overrides,
+      testChat: true,
     });
     return NextResponse.json(r);
   } catch (e) {

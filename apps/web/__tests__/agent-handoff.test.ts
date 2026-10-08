@@ -232,3 +232,78 @@ describe("team scoping", () => {
     expect(res.ok).toBe(true);
   });
 });
+
+describe("test chat simulation", () => {
+  // The agent page's test chat has no conversation: it sets an explicit flag.
+  const testCtx = {
+    workspaceId: "ws_1",
+    variables: {},
+    agentId: "agent_sofia",
+    testChat: true,
+  };
+  const target = (over: Record<string, unknown> = {}) => ({
+    id: "agent_elena",
+    name: "Elena",
+    role: "HR",
+    status: "active",
+    teamId: "team_a",
+    ...over,
+  });
+
+  it("returns a simulated result with name and role and persists nothing", async () => {
+    selectChainAgents.mockResolvedValueOnce([target()]);
+    selectChainAgents.mockResolvedValueOnce([{ teamId: "team_a" }]);
+    const res = (await executeTool(
+      "agent_handoff",
+      { agentId: "agent_elena", note: "needs HR" },
+      testCtx
+    )) as {
+      simulated: boolean;
+      wouldHandOffTo: { id: string; name: string; role: string };
+      note: string;
+      instruction: string;
+    };
+    expect(res.simulated).toBe(true);
+    expect(res.wouldHandOffTo).toEqual({ id: "agent_elena", name: "Elena", role: "HR" });
+    expect(res.note).toBe("needs HR");
+    expect(res.instruction).toMatch(/test chat/i);
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(insertMock).not.toHaveBeenCalled();
+    expect(auditMock).not.toHaveBeenCalled();
+  });
+
+  it("without the flag and without conversationId it still fails", async () => {
+    const { testChat: _omit, ...noFlag } = testCtx;
+    await expect(
+      executeTool("agent_handoff", { agentId: "agent_elena", note: "x" }, noFlag)
+    ).rejects.toThrow(/requires conversationId/);
+  });
+
+  it("unknown target still errors in the test chat", async () => {
+    selectChainAgents.mockResolvedValueOnce([]);
+    await expect(
+      executeTool("agent_handoff", { agentId: "agent_elena", note: "x" }, testCtx)
+    ).rejects.toThrow(/not found in workspace/);
+  });
+
+  it("inactive target still errors in the test chat", async () => {
+    selectChainAgents.mockResolvedValueOnce([target({ status: "draft" })]);
+    await expect(
+      executeTool("agent_handoff", { agentId: "agent_elena", note: "x" }, testCtx)
+    ).rejects.toThrow(/is not active/);
+  });
+
+  it("another team's agent still errors in the test chat", async () => {
+    selectChainAgents.mockResolvedValueOnce([target({ teamId: "team_b" })]);
+    selectChainAgents.mockResolvedValueOnce([{ teamId: "team_a" }]);
+    await expect(
+      executeTool("agent_handoff", { agentId: "agent_elena", note: "x" }, testCtx)
+    ).rejects.toThrow(/Elena is not in your team/);
+  });
+
+  it("self-handoff still errors in the test chat", async () => {
+    await expect(
+      executeTool("agent_handoff", { agentId: "agent_sofia", note: "x" }, testCtx)
+    ).rejects.toThrow(/cannot hand off to yourself/);
+  });
+});

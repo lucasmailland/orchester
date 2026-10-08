@@ -751,6 +751,7 @@
           "genericError": "Error",
           "ranByFlow": "_(executed by flow)_",
           "errorBadge": "error",
+          "simulatedHandoff": "simulated handoff → {name}",
           "flowRun": "flow run:"
         },
         "memory": {

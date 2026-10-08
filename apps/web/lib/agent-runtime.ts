@@ -78,6 +78,8 @@ export interface RunAgentParams {
   /** Optional context — enables memory_* tools to scope per-conversation/employee. */
   conversationId?: string;
   employeeId?: string;
+  /** Set by the agent page's test chat: handoffs are simulated, not persisted. */
+  testChat?: boolean;
   /**
    * Workspace transaction handle (R2-C). When the caller is already
    * inside `withWorkspaceTx`, threading `tx` keeps the agent loadup,
@@ -591,6 +593,7 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
             agentId: p.agent.id,
             ...(p.conversationId ? { conversationId: p.conversationId } : {}),
             ...(p.employeeId ? { employeeId: p.employeeId } : {}),
+            ...(p.testChat ? { testChat: true } : {}),
             ...(p.tx ? { tx: p.tx } : {}),
           });
         }
