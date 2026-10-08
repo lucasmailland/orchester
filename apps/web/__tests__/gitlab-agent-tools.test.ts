@@ -29,6 +29,8 @@ describe("gitlab agent tools", () => {
     expect(names).toContain("gitlab_search_code");
     expect(names).toContain("gitlab_read_file");
     expect(names).toContain("gitlab_list_commits");
+    expect(names).toContain("gitlab_list_merge_requests");
+    expect(names).toContain("gitlab_get_diff");
   });
 
   it("routes each tool to its connector action", async () => {
@@ -36,6 +38,8 @@ describe("gitlab agent tools", () => {
       ["gitlab_search_code", "search_code"],
       ["gitlab_read_file", "read_file"],
       ["gitlab_list_commits", "list_commits"],
+      ["gitlab_list_merge_requests", "list_merge_requests"],
+      ["gitlab_get_diff", "get_diff"],
     ];
     for (const [tool, action] of cases) {
       runIntegrationActionMock.mockClear();

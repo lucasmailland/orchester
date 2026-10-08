@@ -29,6 +29,8 @@ describe("toolEffect", () => {
     expect(await toolEffect("odoo_get_task", { id: 1 }, CTX)).toBe("read");
     expect(await toolEffect("odoo_search_tasks", {}, CTX)).toBe("read");
     expect(await toolEffect("gitlab_read_file", {}, CTX)).toBe("read");
+    expect(await toolEffect("gitlab_list_merge_requests", {}, CTX)).toBe("read");
+    expect(await toolEffect("gitlab_get_diff", {}, CTX)).toBe("read");
     expect(await toolEffect("odoo_post_note", { id: 1, body_text: "x" }, CTX)).toBe("write");
     expect(await toolEffect("odoo_create_ticket", { name: "x" }, CTX)).toBe("write");
   });

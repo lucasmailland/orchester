@@ -632,6 +632,42 @@ const BUILTINS: Record<string, ToolDefinition> = {
       required: ["project"],
     },
   },
+  gitlab_list_merge_requests: {
+    name: "gitlab_list_merge_requests",
+    description:
+      "Merge requests of a project, newest activity first: iid, title, author, branches, merged_at and merge_commit_sha. No descriptions. Use `merged_since` to find what shipped before an incident, then `gitlab_get_diff` on the candidate.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project: { type: "string", description: "Numeric id or full path like 'team/service'." },
+        state: {
+          type: "string",
+          enum: ["opened", "merged", "closed", "all"],
+          description: "Defaults to merged.",
+        },
+        merged_since: { type: "string", description: "ISO 8601 lower bound on merged_at." },
+        search: { type: "string", description: "Matched against the title (max 100 chars)." },
+        target_branch: { type: "string", description: "Only MRs merged into this branch." },
+        limit: { type: "number", description: "Max MRs, 1-30. Defaults to 10." },
+      },
+      required: ["project"],
+    },
+  },
+  gitlab_get_diff: {
+    name: "gitlab_get_diff",
+    description:
+      "The diff of ONE commit (`commit_sha`) or ONE merge request (`mr_iid`) — exactly one of them. Capped at 20 files, 8 KB per file and 40 KB overall; `truncated` and `files_omitted` tell you what is missing. Pass `path` to look only at the files you care about.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project: { type: "string", description: "Numeric id or full path like 'team/service'." },
+        commit_sha: { type: "string", description: "7-40 hex characters." },
+        mr_iid: { type: "number", description: "Merge request number within the project." },
+        path: { type: "string", description: "Keep files whose old or new path contains this." },
+      },
+      required: ["project"],
+    },
+  },
 };
 
 /**
@@ -665,6 +701,8 @@ const CONNECTOR_TOOLS: Record<
   gitlab_search_code: { integrationId: "gitlab", action: "search_code" },
   gitlab_read_file: { integrationId: "gitlab", action: "read_file" },
   gitlab_list_commits: { integrationId: "gitlab", action: "list_commits" },
+  gitlab_list_merge_requests: { integrationId: "gitlab", action: "list_merge_requests" },
+  gitlab_get_diff: { integrationId: "gitlab", action: "get_diff" },
 };
 
 export function getToolDefinitions(enabledIds: string[]): ToolDefinition[] {

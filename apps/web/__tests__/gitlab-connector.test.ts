@@ -58,8 +58,10 @@ describe("gitlab connector", () => {
     // de una línea, debería discutirse.
     expect(Object.keys(connector!.actions).sort()).toEqual([
       "compare_refs",
+      "get_diff",
       "get_merge_request",
       "list_commits",
+      "list_merge_requests",
       "read_file",
       "search_code",
     ]);
@@ -754,5 +756,235 @@ describe("compare_refs", () => {
   it("exige las dos puntas", async () => {
     await expect(run("compare_refs", { project: "g/p", from: "a" })).rejects.toThrow(/to/i);
     await expect(run("compare_refs", { project: "g/p", to: "b" })).rejects.toThrow(/from/i);
+  });
+
+  describe("list_merge_requests", () => {
+    const mr = (over: Record<string, unknown> = {}) => ({
+      iid: 5,
+      title: "Fix thing",
+      state: "merged",
+      author: { id: 1, username: "dev", name: "Dev Person" },
+      source_branch: "fix/a",
+      target_branch: "main",
+      merged_at: "2026-02-01T00:00:00Z",
+      created_at: "2026-01-30T00:00:00Z",
+      web_url: "https://gitlab.example.com/g/p/-/merge_requests/5",
+      merge_commit_sha: "abc123",
+      ...over,
+    });
+    it("returns only allowlisted fields and defaults to merged, limit 10", async () => {
+      const calls = mockGitLab({
+        payload: [mr({ description: "secret body", assignees: [{}], title: "t".repeat(300) })],
+      });
+      const out = (await run("list_merge_requests", { project: "group/project" })) as {
+        merge_requests: Record<string, unknown>[];
+      };
+      expect(Object.keys(out.merge_requests[0]!).sort()).toEqual(
+        [
+          "author",
+          "created_at",
+          "iid",
+          "merge_commit_sha",
+          "merged_at",
+          "source_branch",
+          "state",
+          "target_branch",
+          "title",
+          "web_url",
+        ].sort()
+      );
+      expect(out.merge_requests[0]!.author).toBe("dev");
+      expect((out.merge_requests[0]!.title as string).length).toBe(200);
+      expect(calls).toHaveLength(1);
+      expect(calls[0]!.url).toBe(
+        "https://gitlab.example.com/api/v4/projects/group%2Fproject/merge_requests?state=merged&order_by=updated_at&sort=desc&per_page=10"
+      );
+      expectGet(calls);
+    });
+    it("passes search and target_branch and applies merged_since on merged_at", async () => {
+      const calls = mockGitLab({
+        payload: [
+          mr({ iid: 1, merged_at: "2026-03-01T00:00:00Z" }),
+          mr({ iid: 2, merged_at: "2026-01-01T00:00:00Z" }),
+        ],
+      });
+      const out = (await run("list_merge_requests", {
+        project: 12,
+        state: "all",
+        merged_since: "2026-02-01T00:00:00Z",
+        search: "fix",
+        target_branch: "main",
+        limit: 5,
+      })) as { merge_requests: { iid: number }[] };
+      expect(out.merge_requests.map((m) => m.iid)).toEqual([1]);
+      const url = new URL(calls[0]!.url);
+      expect(url.searchParams.get("state")).toBe("all");
+      expect(url.searchParams.get("search")).toBe("fix");
+      expect(url.searchParams.get("target_branch")).toBe("main");
+      expect(url.searchParams.get("updated_after")).toBe("2026-02-01T00:00:00.000Z");
+      expect(calls).toHaveLength(1);
+    });
+    it("caps the result at the limit", async () => {
+      mockGitLab({ payload: Array.from({ length: 30 }, (_, i) => mr({ iid: i + 1 })) });
+      const out = (await run("list_merge_requests", { project: 12, limit: 3 })) as {
+        merge_requests: unknown[];
+      };
+      expect(out.merge_requests).toHaveLength(3);
+    });
+    it.each([
+      [{ project: ".." }],
+      [{ project: 12, state: "bogus" }],
+      [{ project: 12, limit: 31 }],
+      [{ project: 12, limit: 0 }],
+      [{ project: 12, search: "x".repeat(101) }],
+      [{ project: 12, merged_since: "not a date" }],
+      [{}],
+    ])("rejects invalid input %j before fetching", async (input) => {
+      const calls = mockGitLab();
+      await expect(run("list_merge_requests", input)).rejects.toThrow();
+      expect(calls).toHaveLength(0);
+    });
+    it("surfaces 404 and 403 as errors", async () => {
+      mockGitLab({ payload: { message: "404 Project Not Found" }, status: 404 });
+      await expect(run("list_merge_requests", { project: 12 })).rejects.toThrow(/GitLab HTTP 404/);
+      mockGitLab({ payload: { message: "403 Forbidden" }, status: 403 });
+      await expect(run("list_merge_requests", { project: 12 })).rejects.toThrow(/GitLab HTTP 403/);
+    });
+  });
+
+  describe("get_diff", () => {
+    const file = (over: Record<string, unknown> = {}) => ({
+      old_path: "a.ts",
+      new_path: "a.ts",
+      new_file: false,
+      deleted_file: false,
+      renamed_file: false,
+      diff: "@@ -1 +1 @@\n-a\n+b\n",
+      a_mode: "100644",
+      b_mode: "100644",
+      generated_file: false,
+      ...over,
+    });
+    it("reads a commit diff with an allowlisted shape", async () => {
+      const calls = mockGitLab({ payload: [file()] });
+      const out = (await run("get_diff", { project: "group/project", commit_sha: "abcdef1" })) as {
+        files: Record<string, unknown>[];
+        truncated: boolean;
+      };
+      expect(calls[0]!.url).toBe(
+        "https://gitlab.example.com/api/v4/projects/group%2Fproject/repository/commits/abcdef1/diff?per_page=100"
+      );
+      expect(out.truncated).toBe(false);
+      expect(out.files).toEqual([
+        {
+          old_path: "a.ts",
+          new_path: "a.ts",
+          new_file: false,
+          deleted_file: false,
+          renamed_file: false,
+          diff: "@@ -1 +1 @@\n-a\n+b\n",
+        },
+      ]);
+      expectGet(calls);
+    });
+    it("reads a merge request diff", async () => {
+      const calls = mockGitLab({ payload: [file()] });
+      await run("get_diff", { project: 12, mr_iid: 7 });
+      expect(calls[0]!.url).toBe(
+        "https://gitlab.example.com/api/v4/projects/12/merge_requests/7/diffs?per_page=100"
+      );
+    });
+    it("filters by old or new path", async () => {
+      mockGitLab({
+        payload: [
+          file({ old_path: "x/old.ts", new_path: "y/new.ts" }),
+          file({ old_path: "z.ts", new_path: "z.ts" }),
+        ],
+      });
+      const out = (await run("get_diff", { project: 12, mr_iid: 7, path: "x/old" })) as {
+        files: unknown[];
+      };
+      expect(out.files).toHaveLength(1);
+    });
+    it("caps files at 20 and reports files_omitted", async () => {
+      mockGitLab({
+        payload: Array.from({ length: 25 }, (_, i) => file({ new_path: `f${i}`, diff: "x" })),
+      });
+      const out = (await run("get_diff", { project: 12, mr_iid: 7 })) as {
+        files: unknown[];
+        truncated: boolean;
+        files_omitted: number;
+      };
+      expect(out.files).toHaveLength(20);
+      expect(out.truncated).toBe(true);
+      expect(out.files_omitted).toBe(5);
+    });
+    it("caps each diff at 8 KB and the total at 40 KB", async () => {
+      mockGitLab({
+        payload: Array.from({ length: 10 }, (_, i) =>
+          file({ new_path: `f${i}`, diff: "y".repeat(9000) })
+        ),
+      });
+      const out = (await run("get_diff", { project: 12, mr_iid: 7 })) as {
+        files: { diff: string; diff_truncated?: boolean }[];
+        truncated: boolean;
+        files_omitted?: number;
+      };
+      expect(out.files[0]!.diff.length).toBe(8192);
+      expect(out.files[0]!.diff_truncated).toBe(true);
+      const total = out.files.reduce((n, f) => n + f.diff.length, 0);
+      expect(total).toBeLessThanOrEqual(40 * 1024);
+      expect(out.truncated).toBe(true);
+      expect(out.files_omitted).toBeGreaterThan(0);
+    });
+    it("lists too-large and empty diffs with an empty diff and a flag", async () => {
+      mockGitLab({
+        payload: [
+          file({ new_path: "big.sql", diff: "", too_large: true }),
+          file({ new_path: "img.png", diff: "" }),
+          file({ old_path: "o.ts", new_path: "n.ts", renamed_file: true, diff: "" }),
+        ],
+      });
+      const out = (await run("get_diff", { project: 12, mr_iid: 7 })) as {
+        files: { diff: string; diff_unavailable?: boolean }[];
+      };
+      expect(out.files.map((f) => [f.diff, f.diff_unavailable])).toEqual([
+        ["", true],
+        ["", true],
+        ["", undefined],
+      ]);
+    });
+    it("never follows pagination", async () => {
+      const calls = mockGitLab(
+        { payload: [file()], headers: { "x-next-page": "2" } },
+        { payload: [file()] }
+      );
+      await run("get_diff", { project: 12, mr_iid: 7 });
+      expect(calls).toHaveLength(1);
+    });
+    it.each([
+      [{ project: 12 }],
+      [{ project: 12, commit_sha: "abcdef1", mr_iid: 3 }],
+      [{ project: 12, commit_sha: "xyz1234" }],
+      [{ project: 12, commit_sha: "abc12" }],
+      [{ project: 12, commit_sha: "a".repeat(41) }],
+      [{ project: 12, commit_sha: "abc1234/../x" }],
+      [{ project: 12, mr_iid: 0 }],
+      [{ project: 12, mr_iid: "7/merge" }],
+      [{ project: "..", mr_iid: 7 }],
+      [{ mr_iid: 7 }],
+    ])("rejects invalid input %j before fetching", async (input) => {
+      const calls = mockGitLab();
+      await expect(run("get_diff", input)).rejects.toThrow();
+      expect(calls).toHaveLength(0);
+    });
+    it("surfaces 404 and 403 as errors", async () => {
+      mockGitLab({ payload: { message: "404 Commit Not Found" }, status: 404 });
+      await expect(run("get_diff", { project: 12, commit_sha: "abcdef1" })).rejects.toThrow(
+        /GitLab HTTP 404/
+      );
+      mockGitLab({ payload: { message: "403 Forbidden" }, status: 403 });
+      await expect(run("get_diff", { project: 12, mr_iid: 7 })).rejects.toThrow(/GitLab HTTP 403/);
+    });
   });
 });

@@ -9,6 +9,8 @@ import {
   gitlabCompareRefs,
   gitlabListCommits,
   gitlabGetMergeRequest,
+  gitlabListMergeRequests,
+  gitlabGetDiff,
 } from "./gitlab-client";
 import {
   odooAuthenticate,
@@ -1866,6 +1868,51 @@ const gitlab: Connector = {
         required: ["project"],
       },
       run: gitlabListCommits,
+    },
+    list_merge_requests: {
+      effect: "read",
+      description:
+        "List merge requests of a project (one page, metadata only: iid, title, state, author username, branches, merged_at, created_at, web_url, merge_commit_sha). Use merged_since to find what shipped around an incident.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project: {
+            ...gitlabIdSchema,
+            description:
+              "Numeric ID or full namespace path. Accepts projectId from a search_code match.",
+          },
+          state: { type: "string", enum: ["opened", "merged", "closed", "all"], default: "merged" },
+          merged_since: { type: "string", description: "ISO 8601 lower bound on merged_at." },
+          search: { type: "string", maxLength: 100, description: "Matched against title." },
+          target_branch: { type: "string" },
+          limit: { type: "integer", minimum: 1, maximum: 30, default: 10 },
+        },
+        required: ["project"],
+      },
+      run: gitlabListMergeRequests,
+    },
+    get_diff: {
+      effect: "read",
+      description:
+        "Read the diff of one commit (commit_sha) or one merge request (mr_iid), never both. Capped at 20 files, 8 KB per file and 40 KB in total; `truncated` and `files_omitted` say what was left out, and `diff_unavailable` marks binary or too-large files. Use `path` to narrow to the files that matter.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project: {
+            ...gitlabIdSchema,
+            description:
+              "Numeric ID or full namespace path. Accepts projectId from a search_code match.",
+          },
+          commit_sha: { type: "string", pattern: "^[0-9a-fA-F]{7,40}$" },
+          mr_iid: { type: "integer", minimum: 1 },
+          path: {
+            type: "string",
+            description: "Keep only files whose old or new path contains this.",
+          },
+        },
+        required: ["project"],
+      },
+      run: gitlabGetDiff,
     },
     compare_refs: {
       effect: "read",
