@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   decode: vi.fn(),
   signature: vi.fn(),
   after: vi.fn(),
+  threadContext: vi.fn(),
 }));
 
 // `after` needs a live request scope, which a unit test has no way to give it.
@@ -22,6 +23,7 @@ vi.mock("@/lib/channels/discord", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/channels/discord")>()),
   decodeDiscordCredentials: mocks.decode,
   discordEditReply: mocks.editReply,
+  discordThreadContext: mocks.threadContext,
   verifyDiscordSignature: mocks.signature,
 }));
 
@@ -54,12 +56,15 @@ function command(options: {
   userId?: string;
   username?: string;
   token?: string;
+  /** Run inside a thread opened in this channel. */
+  parentId?: string;
 }) {
   return request({
     type: 2,
     token: options.token ?? "interaction-token",
     channel_id: "chan-1",
     guild_id: "guild-1",
+    ...(options.parentId ? { channel: { id: "chan-1", parent_id: options.parentId } } : {}),
     data: {
       name: options.name ?? "orchester",
       options: [{ name: "message", value: options.text ?? "what is open?" }],
@@ -271,4 +276,43 @@ it("ignores interaction types it does not handle", async () => {
   const response = await POST(request({ type: 4, data: { name: "orchester" } }), params);
   expect(await response.json()).toEqual({ ok: true });
   expect(mocks.after).not.toHaveBeenCalled();
+});
+
+it("tells the agent which thread it is in, who asked and what the thread is about", async () => {
+  channel();
+  mocks.threadContext.mockResolvedValue("Task 4512 · Login fails on mobile");
+  await runDeferredAfter(command({ text: "has this happened before?", parentId: "parent-1" }));
+  expect(mocks.threadContext).toHaveBeenCalledWith({
+    botToken: "test-token",
+    parentId: "parent-1",
+    threadId: "chan-1",
+  });
+  const [, inbound] = mocks.inbound.mock.calls[0]!;
+  expect(inbound.context).toBe(
+    [
+      "Discord thread: https://discord.com/channels/guild-1/chan-1",
+      "Asked by Discord user: ana",
+      "",
+      "Message the thread was opened on:",
+      "Task 4512 · Login fails on mobile",
+    ].join("\n")
+  );
+});
+
+it("still links the thread when its first message cannot be read", async () => {
+  channel();
+  mocks.threadContext.mockResolvedValue(undefined);
+  await runDeferredAfter(command({ parentId: "parent-1" }));
+  const [, inbound] = mocks.inbound.mock.calls[0]!;
+  expect(inbound.context).toBe(
+    "Discord thread: https://discord.com/channels/guild-1/chan-1\nAsked by Discord user: ana"
+  );
+});
+
+it("adds no context outside a thread", async () => {
+  channel();
+  await runDeferredAfter(command({}));
+  expect(mocks.threadContext).not.toHaveBeenCalled();
+  const [, inbound] = mocks.inbound.mock.calls[0]!;
+  expect(inbound).not.toHaveProperty("context");
 });

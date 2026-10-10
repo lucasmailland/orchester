@@ -281,6 +281,29 @@ export async function discordThreadContext(params: {
   }
 }
 
+/**
+ * The context an agent gets for a command run inside a thread: a link back to
+ * the thread, who asked this turn, and the message the thread was opened on.
+ * The link and the asker are known even when the starter message cannot be
+ * read, so the context is never empty inside a thread.
+ */
+export function discordThreadPreamble(params: {
+  guildId?: string | undefined;
+  threadId: string;
+  askedBy?: string | undefined;
+  starter?: string | undefined;
+}): string {
+  const lines: string[] = [];
+  if (params.guildId) {
+    lines.push(
+      `Discord thread: https://discord.com/channels/${encodeURIComponent(params.guildId)}/${encodeURIComponent(params.threadId)}`
+    );
+  }
+  if (params.askedBy) lines.push(`Asked by Discord user: ${params.askedBy}`);
+  if (params.starter) lines.push("", "Message the thread was opened on:", params.starter);
+  return lines.join("\n");
+}
+
 interface DiscordEmbed {
   title?: string;
   description?: string;
