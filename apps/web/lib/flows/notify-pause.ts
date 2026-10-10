@@ -49,7 +49,9 @@ export async function notifyPause(
 
   try {
     const { runIntegrationAction } = await import("../integrations/store");
-    await runIntegrationAction(workspaceId, integrationId, action, input);
+    await runIntegrationAction(workspaceId, integrationId, action, input, undefined, {
+      caller: "flow",
+    });
     logWithContext("info", "pause notification sent", {
       correlationId: runId,
       runId,

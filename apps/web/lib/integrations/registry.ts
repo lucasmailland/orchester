@@ -1,6 +1,13 @@
 import "server-only";
 import { extractEmbeddedAttachmentIds } from "./odoo-embedded-images";
 import {
+  AGENT_WRITE_PROJECTS_KEY,
+  assertAgentMayTargetProject,
+  assertAgentMayWriteTasks,
+  parseAgentWriteProjects,
+  type ReadTaskProjects,
+} from "./odoo-write-scope";
+import {
   MAX_TOOL_IMAGE_BYTES,
   MAX_TOOL_IMAGES,
   MAX_TOOL_IMAGES_HARD,
@@ -77,6 +84,15 @@ export interface JsonSchema {
  */
 export type ActionEffect = "read" | "write";
 
+/**
+ * Who is running an action. An agent's inputs are steered by text it read, a
+ * flow step's were written by a person, so a connector may hold an agent to a
+ * narrower scope (see `odoo-write-scope.ts`).
+ */
+export interface ActionContext {
+  caller: "agent" | "flow";
+}
+
 export interface ConnectorAction {
   description: string;
   effect: ActionEffect | ((input: Record<string, unknown>) => ActionEffect);
@@ -87,7 +103,11 @@ export interface ConnectorAction {
    */
   effectKeys?: readonly string[];
   inputSchema: JsonSchema;
-  run: (config: Record<string, string>, input: Record<string, unknown>) => Promise<unknown>;
+  run: (
+    config: Record<string, string>,
+    input: Record<string, unknown>,
+    ctx?: ActionContext
+  ) => Promise<unknown>;
 }
 
 /** Odoo model methods that only read. Anything else through `execute` writes. */
@@ -799,6 +819,14 @@ const MESSAGE_FIELDS = ["id", "date", "author_id", "message_type", "subtype_id",
 // an admin's. Left open it is a write primitive for the whole database, so it
 // is limited to the model/method pairs the production flows actually use.
 // Anything else needs its own typed action, reviewed on its own.
+/** The project of each task, for the agent write scope. */
+function taskProjectReader(config: Record<string, string>): ReadTaskProjects {
+  return async (ids) =>
+    (await odooExecute(config, "project.task", "read", [ids], {
+      fields: ["id", "project_id"],
+    })) as Awaited<ReturnType<ReadTaskProjects>>;
+}
+
 const EXECUTE_ALLOWLIST: Record<string, readonly string[]> = {
   "project.task": ["search_read", "read", "search_count", "create", "write", "message_post"],
   "mail.message": ["search_read", "read"],
@@ -979,9 +1007,18 @@ const odoo: Connector = {
       placeholder: "Settings > Account Security > New API Key",
       required: true,
     },
+    {
+      key: AGENT_WRITE_PROJECTS_KEY,
+      label: "Projects agents may write to",
+      type: "text",
+      placeholder: "12, 31",
+      required: false,
+      help: "Project ids, comma-separated. When set, an agent can only write to tasks of these projects (notes, tags, stage); flow steps are not limited and helpdesk tickets are not affected. Empty: no limit.",
+    },
   ],
   async test(config) {
     try {
+      parseAgentWriteProjects(config[AGENT_WRITE_PROJECTS_KEY]);
       const uid = await odooAuthenticate(config);
       return { ok: true, meta: { uid } };
     } catch (e) {
@@ -1714,8 +1751,11 @@ const odoo: Connector = {
         },
         required: ["id"],
       },
-      async run(config, input) {
+      async run(config, input, ctx) {
         const model = String(input.model ?? "helpdesk.ticket");
+        if (model === "project.task") {
+          await assertAgentMayWriteTasks(config, ctx, [input.id], taskProjectReader(config));
+        }
         // Precedence: body (raw HTML) > body_markdown > body_text.
         let body =
           typeof input.body === "string"
@@ -1802,10 +1842,11 @@ const odoo: Connector = {
         },
         required: ["task_id", "from_stage_id", "to_stage_id"],
       },
-      async run(config, input) {
+      async run(config, input, ctx) {
         if (input.task_id == null) throw new Error("move_task needs a task_id.");
         if (input.from_stage_id == null) throw new Error("move_task needs a from_stage_id.");
         if (input.to_stage_id == null) throw new Error("move_task needs a to_stage_id.");
+        await assertAgentMayWriteTasks(config, ctx, [input.task_id], taskProjectReader(config));
         const taskId = Number(input.task_id);
         const fromStage = Number(input.from_stage_id);
         const toStage = Number(input.to_stage_id);
@@ -1853,8 +1894,9 @@ const odoo: Connector = {
         },
         required: ["task_id"],
       },
-      async run(config, input) {
+      async run(config, input, ctx) {
         if (input.task_id == null) throw new Error("set_task_tags needs a task_id.");
+        await assertAgentMayWriteTasks(config, ctx, [input.task_id], taskProjectReader(config));
         const taskId = Number(input.task_id);
         const toIds = (v: unknown) => (Array.isArray(v) ? [...new Set(v.map(Number))] : []);
         const add = toIds(input.add);
@@ -1897,7 +1939,7 @@ const odoo: Connector = {
         },
         required: ["model", "method"],
       },
-      async run(config, input) {
+      async run(config, input, ctx) {
         const model = String(input.model);
         const method = String(input.method);
         // Checked before any RPC, so a refused call costs no round trip and
@@ -1905,11 +1947,32 @@ const odoo: Connector = {
         if (!EXECUTE_ALLOWLIST[model]?.includes(method)) {
           throw new Error(`execute: ${model}.${method} is not allowed. Use a dedicated action.`);
         }
+        const args = Array.isArray(input.args) ? input.args : [];
+        if (model === "project.task" && !ODOO_READ_METHODS.has(method)) {
+          const [first, second] = args;
+          if (method === "create") {
+            for (const vals of Array.isArray(first) ? first : [first]) {
+              assertAgentMayTargetProject(config, ctx, vals, { required: true });
+            }
+          } else {
+            // `write` and `message_post` take the record ids first; a write
+            // may also move the task to another project.
+            await assertAgentMayWriteTasks(
+              config,
+              ctx,
+              Array.isArray(first) ? first : [first],
+              taskProjectReader(config)
+            );
+            if (method === "write") {
+              assertAgentMayTargetProject(config, ctx, second, { required: false });
+            }
+          }
+        }
         const result = await odooExecute(
           config,
           model,
           method,
-          Array.isArray(input.args) ? input.args : [],
+          args,
           (input.kwargs as Record<string, unknown>) ?? {}
         );
         return { result };

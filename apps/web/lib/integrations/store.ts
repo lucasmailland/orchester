@@ -3,7 +3,13 @@ import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { and, eq } from "drizzle-orm";
 import { encrypt, decrypt } from "@/lib/encryption";
-import { actionEffect, describedActionEffect, getConnector, type ActionEffect } from "./registry";
+import {
+  actionEffect,
+  describedActionEffect,
+  getConnector,
+  type ActionContext,
+  type ActionEffect,
+} from "./registry";
 import { resolveIntegrationRef } from "./resolve";
 
 /**
@@ -230,7 +236,8 @@ export async function runIntegrationAction(
   integrationId: string,
   actionKey: string,
   input: Record<string, unknown>,
-  tx?: WsDb
+  tx?: WsDb,
+  ctx?: ActionContext
 ): Promise<unknown> {
   const { action, config } = await resolveConnectorAction(
     workspaceId,
@@ -238,7 +245,7 @@ export async function runIntegrationAction(
     actionKey,
     tx
   );
-  return action.run(config, input);
+  return action.run(config, input, ctx);
 }
 
 /**
