@@ -83,6 +83,7 @@
     "tailwind-merge": "^2.6.0",
     "three": "^0.185.1",
     "three-spritetext": "^1.10.0",
+    "undici": "^7.30.0",
     "zod": "^4.6.5"
   },
   "optionalDependencies": {
