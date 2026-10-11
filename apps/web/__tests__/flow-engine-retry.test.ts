@@ -4,7 +4,11 @@ import { runFlowGraph } from "./flow-engine-harness";
 vi.mock("@orchester/db", async () => (await import("./flow-engine-harness")).dbMock);
 vi.mock("drizzle-orm", async () => vi.importActual("drizzle-orm"));
 vi.mock("@/lib/queue", () => ({ enqueue: vi.fn(), JOB_FLOW_RUN: "flow.run" }));
-vi.mock("@/lib/net-guard", () => ({ assertPublicUrl: vi.fn() }));
+vi.mock("@/lib/net-guard", () => ({
+  assertPublicUrl: vi.fn(),
+  safeFetch: (url: string, init?: RequestInit) => fetch(url, init),
+  BlockedDestinationError: class extends Error {},
+}));
 vi.mock("@/lib/observability", () => ({ recordMetric: vi.fn(), logWithContext: vi.fn() }));
 vi.mock("@/lib/llm-call", () => ({ llmCall: vi.fn(), llmStream: vi.fn() }));
 vi.mock("@paralleldrive/cuid2", async () => {

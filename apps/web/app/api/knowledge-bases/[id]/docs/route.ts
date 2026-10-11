@@ -8,6 +8,10 @@ import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { embed } from "@/lib/embeddings";
 import { chunkText, extractTextFromBuffer, isParsable } from "@/lib/chunking";
+import { readBodyCapped, safeFetch } from "@/lib/net-guard";
+
+/** Largest document the URL source downloads. */
+const KB_URL_MAX_BYTES = 20 * 1024 * 1024;
 
 const ingestJsonSchema = z.object({
   title: z.string().optional(),
@@ -125,16 +129,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (payload.source === "text") {
       text = payload.content ?? "";
     } else if (payload.source === "url" && payload.url) {
-      const r = await fetch(payload.url, {
+      // The URL is the user's choice: refuse internal destinations, including
+      // via DNS or redirects, and cap how much the far end can make us buffer.
+      const r = await safeFetch(payload.url, {
         headers: { "user-agent": "Orchester KB Ingest/1.0" },
       });
       if (!r.ok) throw new Error(`URL returned ${r.status}`);
       const upstreamCT = r.headers.get("content-type") ?? "";
+      const buf = await readBodyCapped(r, KB_URL_MAX_BYTES);
       if (upstreamCT.startsWith("application/pdf") || upstreamCT.includes("officedocument")) {
-        const buf = Buffer.from(await r.arrayBuffer());
         text = await extractTextFromBuffer(buf, upstreamCT.split(";")[0]!);
       } else {
-        const raw = await r.text();
+        const raw = buf.toString("utf8");
         text = raw
           .replace(/<script[\s\S]*?<\/script>/gi, "")
           .replace(/<style[\s\S]*?<\/style>/gi, "")

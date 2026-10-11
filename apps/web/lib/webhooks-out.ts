@@ -165,7 +165,8 @@ async function deliver(
     try {
       const ac = new AbortController();
       const t = setTimeout(() => ac.abort(), 8000);
-      const r = await fetch(sub.url, {
+      const { safeFetch } = await import("./net-guard");
+      const r = await safeFetch(sub.url, {
         method: "POST",
         headers: {
           "content-type": "application/json",

@@ -10,7 +10,7 @@ const CONFIG: Record<string, string> = {
 
 interface Captured {
   url: string;
-  headers: Record<string, string>;
+  headers: Headers;
   body: { query: string; variables: Record<string, unknown> };
 }
 
@@ -19,7 +19,7 @@ function mockNerdgraph(payload: unknown, status = 200) {
   const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
     calls.push({
       url: String(url),
-      headers: (init?.headers ?? {}) as Record<string, string>,
+      headers: new Headers(init?.headers),
       body: JSON.parse(String(init?.body ?? "{}")),
     });
     return new Response(JSON.stringify(payload), {
@@ -46,7 +46,7 @@ describe("nerdgraph transport", () => {
     const { calls } = mockNerdgraph({ data: { actor: {} } });
     await nerdgraph(CONFIG, "{ actor { user { id } } }");
     expect(calls[0]!.url).toBe("https://api.newrelic.com/graphql");
-    expect(calls[0]!.headers["Api-Key"]).toBe("NRAK-testkey");
+    expect(calls[0]!.headers.get("Api-Key")).toBe("NRAK-testkey");
   });
 
   it("throws when NerdGraph reports errors inside a 200 response", async () => {

@@ -1,5 +1,6 @@
 import "server-only";
 import { nrqlEscape } from "@/lib/text/escape";
+import { safeFetch } from "@/lib/net-guard";
 export { nrqlEscape };
 
 /**
@@ -195,7 +196,8 @@ export async function nerdgraph(
   let text: string;
   let status: number;
   try {
-    const res = await fetch(url, {
+    // The endpoint is a workspace setting: same SSRF guard as the HTTP connector.
+    const res = await safeFetch(url, {
       method: "POST",
       headers: { "Api-Key": c.apiKey, "Content-Type": "application/json" },
       body: JSON.stringify({ query, variables }),
