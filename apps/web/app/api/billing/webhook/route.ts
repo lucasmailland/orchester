@@ -1,51 +1,43 @@
 /**
  * Stripe webhook receiver. Updates workspace_billing on subscription events.
  *
- * Signature verification: HMAC-SHA256 del payload con STRIPE_WEBHOOK_SECRET,
- * comparación en tiempo constante + tolerancia de timestamp (anti-replay).
+ * Signature verification lives in `checkStripeSignature`. Without
+ * STRIPE_WEBHOOK_SECRET every event is refused: an unsigned event could set
+ * any workspace's plan.
  */
 import { NextResponse } from "next/server";
-import crypto from "node:crypto";
 import { schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
+import { checkStripeSignature } from "@/lib/billing/stripe-signature";
 
 type Plan = "free" | "starter" | "pro" | "business";
 
-const SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
-
 export async function POST(req: Request) {
-  const secret = process.env["STRIPE_WEBHOOK_SECRET"];
-  const sig = req.headers.get("stripe-signature");
   const raw = await req.text();
-
-  if (secret) {
-    if (!sig) return NextResponse.json({ error: "missing signature" }, { status: 400 });
-    // Formato Stripe: t=timestamp,v1=hex_hmac
-    const parts = sig.split(",").reduce<Record<string, string>>((acc, p) => {
-      const [k, v] = p.split("=");
-      if (k && v) acc[k] = v;
-      return acc;
-    }, {});
-    // Anti-replay: rechazá firmas fuera de la ventana de tolerancia.
-    const ts = Number(parts.t);
-    if (!ts || Math.abs(Date.now() / 1000 - ts) > SIGNATURE_TOLERANCE_SECONDS) {
-      return NextResponse.json({ error: "stale signature" }, { status: 401 });
-    }
-    const expected = crypto.createHmac("sha256", secret).update(`${parts.t}.${raw}`).digest("hex");
-    // Comparación en tiempo constante (evita timing attacks).
-    const sigBuf = Buffer.from(parts.v1 ?? "", "hex");
-    const expBuf = Buffer.from(expected, "hex");
-    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
-      return NextResponse.json({ error: "invalid signature" }, { status: 401 });
-    }
+  const check = checkStripeSignature(
+    process.env["STRIPE_WEBHOOK_SECRET"],
+    req.headers.get("stripe-signature"),
+    raw
+  );
+  if (check === "unconfigured") {
+    // No secret, no way to tell Stripe from anyone else: refuse everything.
+    return NextResponse.json({ error: "billing webhook not configured" }, { status: 503 });
   }
+  if (check === "missing")
+    return NextResponse.json({ error: "missing signature" }, { status: 400 });
+  if (check === "stale") return NextResponse.json({ error: "stale signature" }, { status: 401 });
+  if (check !== "ok") return NextResponse.json({ error: "invalid signature" }, { status: 401 });
 
-  const event = JSON.parse(raw) as { type: string; data: { object: Record<string, unknown> } };
-  const obj = event.data.object;
+  let event: { type: string; data: { object: Record<string, unknown> } };
+  try {
+    event = JSON.parse(raw);
+  } catch {
+    return NextResponse.json({ error: "invalid payload" }, { status: 400 });
+  }
+  const obj = event?.data?.object;
   const workspaceId = (obj?.metadata as Record<string, unknown> | undefined)?.workspaceId as
-    | string
-    | undefined;
+    string | undefined;
   const customerId = (obj?.customer as string | undefined) ?? null;
 
   if (!workspaceId) return NextResponse.json({ ok: true, ignored: "no workspaceId" });
@@ -64,8 +56,7 @@ export async function POST(req: Request) {
   // checkout.session.completed NO trae items inline → el price/período llegan en
   // el evento customer.subscription.created/updated que Stripe dispara aparte.
   const subItems = (obj?.items as Record<string, unknown> | undefined)?.data as
-    | Array<{ price?: { id?: string }; current_period_end?: number }>
-    | undefined;
+    Array<{ price?: { id?: string }; current_period_end?: number }> | undefined;
   const priceId =
     subItems?.[0]?.price?.id ??
     ((obj?.plan as Record<string, unknown> | undefined)?.id as string | undefined);

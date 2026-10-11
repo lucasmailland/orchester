@@ -113,7 +113,9 @@ EXCLUDE_RBAC='/api/auth/|/api/health|/api/webhooks/\[secret\]|/api/widget/|/api/
 # - flows/seed-real (dev-only seed util)
 # - billing/portal (Stripe form, no JSON)
 # - any route that DOES validate manually if not zod (audited case-by-case)
-EXCLUDE_BODY='/restore/route.ts$|/api/providers/\[id\]/test/route.ts$|/api/flows/seed-real/route.ts$|/api/billing/portal/route.ts$|/api/workspace-members/route.ts$|/api/conversations/\[id\]/takeover/route.ts$|/api/webhooks/\[secret\]/route.ts$|/api/billing/webhook/route.ts$|/channels/(telegram|slack|discord)/webhook/\[secret\]/route.ts$|/api/mcp/route.ts$|/api/widget/\[channelId\]/stream/route.ts$'
+# - widget/[channelId]/{messages,stream}: public CORS routes, validated by
+#   parseWidgetMessage (lib/channels/widget-guard) so 400s carry CORS headers
+EXCLUDE_BODY='/restore/route.ts$|/api/providers/\[id\]/test/route.ts$|/api/flows/seed-real/route.ts$|/api/billing/portal/route.ts$|/api/workspace-members/route.ts$|/api/conversations/\[id\]/takeover/route.ts$|/api/webhooks/\[secret\]/route.ts$|/api/billing/webhook/route.ts$|/channels/(telegram|slack|discord)/webhook/\[secret\]/route.ts$|/api/mcp/route.ts$|/api/widget/\[channelId\]/(messages|stream)/route.ts$'
 
 while IFS= read -r f; do
   # Sólo rutas con un handler mutante
