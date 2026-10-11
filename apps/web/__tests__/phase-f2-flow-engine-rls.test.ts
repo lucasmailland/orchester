@@ -137,7 +137,11 @@ vi.mock("@/lib/queue", () => ({
   JOB_FLOW_RUN: "flow.run",
 }));
 
-vi.mock("@/lib/net-guard", () => ({ assertPublicUrl: vi.fn() }));
+vi.mock("@/lib/net-guard", () => ({
+  assertPublicUrl: vi.fn(),
+  safeFetch: (url: string, init?: RequestInit) => fetch(url, init),
+  BlockedDestinationError: class extends Error {},
+}));
 vi.mock("@/lib/observability", () => ({
   recordMetric: vi.fn(),
   logWithContext: vi.fn(),

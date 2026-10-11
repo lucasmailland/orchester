@@ -5,7 +5,7 @@ import { eq, and, inArray, lt, count, sql } from "drizzle-orm";
 import { mapToolOutputText, redactToolImages } from "./tool-output";
 import { llmCall, type ChatMessage } from "./llm-call";
 import { enqueue, JOB_FLOW_RUN } from "./queue";
-import { assertPublicUrl } from "./net-guard";
+import { assertPublicUrl, BlockedDestinationError, safeFetch } from "./net-guard";
 import { logWithContext, recordMetric } from "./observability";
 import { evaluateExpression } from "./flows/filters";
 import { buildSubflowInput, readSubflowMap, readSubflowOutputs } from "./flows/subflow-io";
@@ -1200,7 +1200,18 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       if (signal?.aborted) onAbort();
       const t = setTimeout(() => ac.abort(), timeoutMs);
       try {
-        const r = await fetch(url, { ...init, signal: ac.signal });
+        // safeFetch re-checks the resolved address and every redirect hop;
+        // the string check above alone lets both through. The node keeps its
+        // own timeout (headers only), so safeFetch adds none.
+        const r =
+          process.env.ALLOW_PRIVATE_HTTP === "1"
+            ? await fetch(url, { ...init, signal: ac.signal })
+            : await safeFetch(url, { ...init, signal: ac.signal, timeoutMs: null }).catch((e) => {
+                if (e instanceof BlockedDestinationError) {
+                  throw new Error(`La URL no está permitida por seguridad: ${e.message}`);
+                }
+                throw e;
+              });
         clearTimeout(t);
         const text = await r.text();
         let body: unknown = text;

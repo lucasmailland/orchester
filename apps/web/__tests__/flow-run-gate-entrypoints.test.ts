@@ -35,7 +35,11 @@ vi.mock("@/lib/queue", () => ({
   enqueue: async (...a: unknown[]) => void h.enqueued.push(a),
   JOB_FLOW_RUN: "flow.run",
 }));
-vi.mock("@/lib/net-guard", () => ({ assertPublicUrl: vi.fn() }));
+vi.mock("@/lib/net-guard", () => ({
+  assertPublicUrl: vi.fn(),
+  safeFetch: (url: string, init?: RequestInit) => fetch(url, init),
+  BlockedDestinationError: class extends Error {},
+}));
 vi.mock("@/lib/observability", () => ({ recordMetric: vi.fn(), logWithContext: vi.fn() }));
 vi.mock("@/lib/llm-call", () => ({ llmCall: vi.fn(), llmStream: vi.fn() }));
 vi.mock("@/lib/ai/run", () => ({ runChat: vi.fn(), chargeFor: vi.fn(), recordAiUsage: vi.fn() }));

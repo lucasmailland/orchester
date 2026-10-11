@@ -94,7 +94,7 @@ async function rpc(
   const url = endpointOf(baseUrl);
   // Same SSRF guard the HTTP connector uses: a workspace-supplied base URL is
   // untrusted input.
-  const { assertPublicUrl } = await import("@/lib/net-guard");
+  const { assertPublicUrl, safeFetch } = await import("@/lib/net-guard");
   assertPublicUrl(url);
 
   const ac = new AbortController();
@@ -102,7 +102,7 @@ async function rpc(
   let text: string;
   let status: number;
   try {
-    const res = await fetch(url, {
+    const res = await safeFetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({

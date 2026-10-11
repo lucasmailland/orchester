@@ -29,6 +29,7 @@ import {
   type TicketPriority,
 } from "./odoo-client";
 import { htmlToText } from "./html-text";
+import { safeFetch } from "@/lib/net-guard";
 import { markdownToHtml } from "@/lib/text/markdown-html";
 import {
   nerdgraph,
@@ -161,7 +162,8 @@ async function fetchJson(
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), init.timeoutMs ?? 10_000);
   try {
-    const r = await fetch(url, { ...init, signal: ac.signal });
+    // Also used by the generic HTTP connector, whose baseUrl the workspace sets.
+    const r = await safeFetch(url, { ...init, signal: ac.signal });
     const text = await r.text();
     let json: unknown = null;
     try {

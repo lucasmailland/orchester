@@ -10,6 +10,7 @@ import type {
   MusicResult,
 } from "../capabilities";
 import { fetchWithTimeout, withRetry, HttpError } from "../../http-util";
+import { readBodyCapped, safeFetch } from "../../net-guard";
 
 /** Timeout para el dispatch inicial de generación de media. */
 const MEDIA_GEN_TIMEOUT_MS = 120_000;
@@ -19,6 +20,8 @@ const POLL_TIMEOUT_MS = 15_000;
 const POLL_DEADLINE_MS = 10 * 60_000;
 /** Timeout para descargar el audio a transcribir. */
 const AUDIO_DOWNLOAD_TIMEOUT_MS = 60_000;
+/** Speech-to-text providers take up to 25 MB per file. */
+const AUDIO_DOWNLOAD_MAX_BYTES = 25 * 1024 * 1024;
 
 /**
  * Adaptadores de video, voz (TTS) y transcripción (STT). Video se hace por los
@@ -173,9 +176,11 @@ export async function transcribeWith(
   p: SttParams,
   cred: Cred
 ): Promise<TranscriptResult> {
-  const audio = await fetchWithTimeout(p.audioUrl, undefined, AUDIO_DOWNLOAD_TIMEOUT_MS);
+  // audioUrl comes from a flow, possibly from a webhook payload: refuse
+  // internal destinations and cap the download.
+  const audio = await safeFetch(p.audioUrl, { timeoutMs: AUDIO_DOWNLOAD_TIMEOUT_MS });
   if (!audio.ok) throw new Error(`No se pudo descargar el audio (${audio.status}).`);
-  const bytes = Buffer.from(await audio.arrayBuffer());
+  const bytes = await readBodyCapped(audio, AUDIO_DOWNLOAD_MAX_BYTES);
   const mime = audio.headers.get("content-type") ?? "audio/mpeg";
 
   if (providerId === "deepgram") {

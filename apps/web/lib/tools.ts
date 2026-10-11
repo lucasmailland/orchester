@@ -4,7 +4,7 @@ import "server-only";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and, ne } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
-import { assertPublicUrl } from "./net-guard";
+import { assertPublicUrl, safeFetch } from "./net-guard";
 import { fetchWithTimeout } from "./http-util";
 import { logAudit } from "./audit";
 
@@ -1079,7 +1079,12 @@ export async function executeTool(
       headers: (input.headers as Record<string, string>) ?? { Accept: "application/json" },
     };
     if (method !== "GET" && input.body !== undefined) init.body = String(input.body);
-    const r = await fetchWithTimeout(url, init, HTTP_REQUEST_TIMEOUT_MS);
+    // The URL comes from the model: safeFetch also refuses names that resolve
+    // to internal addresses and redirects that lead there.
+    const r =
+      process.env.ALLOW_PRIVATE_HTTP === "1"
+        ? await fetchWithTimeout(url, init, HTTP_REQUEST_TIMEOUT_MS)
+        : await safeFetch(url, { ...init, timeoutMs: HTTP_REQUEST_TIMEOUT_MS });
     const text = await r.text();
     let body: unknown = text;
     try {
