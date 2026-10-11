@@ -4,6 +4,11 @@ import { eq } from "drizzle-orm";
 import { handleInboundStream } from "@/lib/channels/router";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 import { safeLogError } from "@/lib/safe-log";
+import {
+  enforceWidgetRateLimit,
+  parseWidgetMessage,
+  WIDGET_CORS_HEADERS,
+} from "@/lib/channels/widget-guard";
 
 /**
  * POST /api/widget/[channelId]/stream
@@ -18,27 +23,19 @@ import { safeLogError } from "@/lib/safe-log";
  *   data: {"type":"done","conversationId":"...","reply":"...","tokensUsed":N}
  *   data: {"type":"error","error":"..."}
  */
-const CORS_HEADERS = {
-  "access-control-allow-origin": "*",
-  "access-control-allow-methods": "POST, OPTIONS",
-  "access-control-allow-headers": "content-type",
-};
-
 export async function OPTIONS() {
-  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+  return new NextResponse(null, { status: 204, headers: WIDGET_CORS_HEADERS });
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ channelId: string }> }) {
   const { channelId } = await params;
-  const body = await req.json().catch(() => ({}));
-  const visitorId = String(body?.visitorId ?? "").trim();
-  const text = String(body?.text ?? "").trim();
-  if (!visitorId || !text) {
-    return NextResponse.json(
-      { error: "visitorId and text required" },
-      { status: 400, headers: CORS_HEADERS }
-    );
-  }
+  // Public, anonymous and LLM-bound: throttle before any other work.
+  const limited = await enforceWidgetRateLimit(channelId, req.headers);
+  if (limited) return limited;
+
+  const parsed = await parseWidgetMessage(req);
+  if (!parsed.ok) return parsed.response;
+  const { visitorId, text, customerName, customerEmail } = parsed.message;
 
   // Channel lookup is the only tenant-scoped query owned by the
   // route — `handleInboundStream` manages its own queries. The
@@ -52,10 +49,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ channel
       .limit(1);
     return rows[0];
   });
-  if (!channel || (channel.type !== "widget" && channel.type !== "web")) {
+  if (
+    !channel ||
+    (channel.type !== "widget" && channel.type !== "web") ||
+    channel.status !== "active"
+  ) {
     return NextResponse.json(
       { error: "Channel not found" },
-      { status: 404, headers: CORS_HEADERS }
+      { status: 404, headers: WIDGET_CORS_HEADERS }
     );
   }
 
@@ -79,8 +80,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ channel
             channelId: channel.id,
             externalId: visitorId,
             text,
-            customerName: body?.customerName ?? undefined,
-            customerEmail: body?.customerEmail ?? undefined,
+            ...(customerName ? { customerName } : {}),
+            ...(customerEmail ? { customerEmail } : {}),
             metadata: { source: "widget" },
           },
           abort.signal
@@ -91,7 +92,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ channel
       } catch (e) {
         if (!abort.signal.aborted) {
           safeLogError("[widget-stream]", e);
-          send({ type: "error", error: e instanceof Error ? e.message : String(e) });
+          // The visitor is anonymous: internal error text stays in the server log.
+          send({ type: "error", error: "The message could not be processed" });
         }
       } finally {
         closed = true;
@@ -110,7 +112,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ channel
 
   return new Response(stream, {
     headers: {
-      ...CORS_HEADERS,
+      ...WIDGET_CORS_HEADERS,
       "content-type": "text/event-stream; charset=utf-8",
       "cache-control": "no-store, no-transform",
       "x-accel-buffering": "no",
