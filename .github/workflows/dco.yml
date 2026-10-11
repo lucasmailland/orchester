@@ -28,8 +28,10 @@ jobs:
     steps:
       # v1.4.2 was never published; 0.5.1 is the latest tag. The script reads
       # the PR's commits through the API, so it needs the token.
+      # Dependabot cannot sign off its commits, so its author email is
+      # excluded; every other author still needs the trailer.
       - uses: christophebedard/dco-check@0.5.1
         with:
-          args: "--verbose"
+          args: "--verbose --exclude-emails '49699333+dependabot[bot]@users.noreply.github.com'"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
