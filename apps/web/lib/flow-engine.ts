@@ -1527,6 +1527,9 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     const input =
       (deepInterpolate(cfg.input ?? {}, ctx.variables) as Record<string, unknown>) ?? {};
     const { runIntegrationAction } = await import("./integrations/store");
+    // A flow step was written by a person: connectors do not hold it to the
+    // narrower scope they may apply to agents.
+    const FLOW_STEP = { caller: "flow" } as const;
     const retry = parseRetryConfig(cfg.retry);
     const outputVar = (cfg.outputVar as string) ?? "appResult";
     if (ctx.dryRun) {
@@ -1548,7 +1551,14 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       }
     }
     if (!retry) {
-      const result = await runIntegrationAction(workspaceId, integrationId, action, input);
+      const result = await runIntegrationAction(
+        workspaceId,
+        integrationId,
+        action,
+        input,
+        undefined,
+        FLOW_STEP
+      );
       ctx.variables[outputVar] = result;
       helpers.setOutput({ result });
       return;
@@ -1559,7 +1569,14 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
         try {
           return {
             kind: "done",
-            value: await runIntegrationAction(workspaceId, integrationId, action, input),
+            value: await runIntegrationAction(
+              workspaceId,
+              integrationId,
+              action,
+              input,
+              undefined,
+              FLOW_STEP
+            ),
           };
         } catch (e) {
           return { kind: "retry", error: e instanceof Error ? e : new Error(String(e)) };

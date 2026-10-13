@@ -8,7 +8,9 @@ const { runIntegrationActionMock } = vi.hoisted(() => ({
       _workspaceId: string,
       _integrationId: string,
       _action: string,
-      _input: Record<string, unknown>
+      _input: Record<string, unknown>,
+      _tx?: unknown,
+      _ctx?: unknown
     ) => ({ ok: true, ticket_id: 4321 })
   ),
 }));
@@ -211,5 +213,63 @@ describe("project tasks are reachable without the escape hatch", () => {
     const [def] = getToolDefinitions(["odoo_search_tasks"]);
     const props = def!.inputSchema.properties as Record<string, { description?: string }>;
     expect(props.created_since?.description).toMatch(/UTC/);
+  });
+});
+
+describe("odoo_post_task_note, the narrow note tool", () => {
+  it("is listed and asks for a task id and a Markdown body", () => {
+    const [def] = getToolDefinitions(["odoo_post_task_note"]);
+    expect(def).toBeDefined();
+    const props = def!.inputSchema.properties as Record<string, unknown>;
+    expect(Object.keys(props).sort()).toEqual(["body_markdown", "id", "marker"]);
+    expect(def!.inputSchema.required).toEqual(["id", "body_markdown"]);
+  });
+
+  it("always posts on a project task, runs as the agent and drops anything else", async () => {
+    await executeTool(
+      "odoo_post_task_note",
+      {
+        id: 4512,
+        body_markdown: "**finding**",
+        marker: "review-1",
+        // What a steered model might add: none of it may reach the action.
+        model: "helpdesk.ticket",
+        body: "<img src=x onerror=alert(1)>",
+      },
+      CTX
+    );
+    const [, integrationId, action, passed, , ctx] = runIntegrationActionMock.mock.calls[0]!;
+    expect(integrationId).toBe("odoo");
+    expect(action).toBe("post_note");
+    expect(passed).toEqual({
+      id: 4512,
+      body_markdown: "**finding**",
+      marker: "review-1",
+      model: "project.task",
+    });
+    expect(ctx).toEqual({ caller: "agent" });
+  });
+
+  it("is a write", async () => {
+    const { toolEffect } = await import("@/lib/tools");
+    expect(await toolEffect("odoo_post_task_note", { id: 1 }, { workspaceId: "ws_1" })).toBe(
+      "write"
+    );
+  });
+});
+
+describe("every connector tool runs as the agent", () => {
+  it("passes the agent caller to the integration", async () => {
+    await executeTool("odoo_post_note", { id: 1, body_text: "informe" }, CTX);
+    expect(runIntegrationActionMock.mock.calls[0]![5]).toEqual({ caller: "agent" });
+  });
+
+  it("including the generic run_integration", async () => {
+    await executeTool(
+      "run_integration",
+      { integrationId: "odoo", action: "post_note", input: { id: 1 } },
+      CTX
+    );
+    expect(runIntegrationActionMock.mock.calls[0]![5]).toEqual({ caller: "agent" });
   });
 });

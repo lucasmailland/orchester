@@ -19,6 +19,7 @@ import {
   discordEditReply,
   discordRepliesArePublic,
   discordThreadContext,
+  discordThreadPreamble,
   interactionSender,
   interactionText,
   verifyDiscordSignature,
@@ -172,12 +173,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
     // It never blocks a reply: on failure it comes back undefined and the turn
     // proceeds exactly as it did before.
     const parentId = interaction.channel?.parent_id;
-    const threadContext =
+    const starter =
       parentId && interaction.channel_id
         ? await discordThreadContext({
             botToken: creds.botToken,
             parentId,
             threadId: interaction.channel_id,
+          })
+        : undefined;
+    // Where the question was asked and by whom, so an agent that records the
+    // exchange somewhere else (a note on the card) can link back to it.
+    const threadContext =
+      parentId && interaction.channel_id
+        ? discordThreadPreamble({
+            guildId: interaction.guild_id,
+            threadId: interaction.channel_id,
+            askedBy: sender.username,
+            starter,
           })
         : undefined;
 

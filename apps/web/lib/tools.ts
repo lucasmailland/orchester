@@ -357,6 +357,31 @@ const BUILTINS: Record<string, ToolDefinition> = {
       required: ["id"],
     },
   },
+  odoo_post_task_note: {
+    name: "odoo_post_task_note",
+    description:
+      "Post an INTERNAL note on one Odoo project task (never a helpdesk ticket). Internal means the customer never sees it. Write the note in Markdown (body_markdown): headings, **bold**, lists, `code` and links render properly; never write raw HTML. The integration may limit agents to the tasks of some projects: a task outside them is refused, and that refusal is final — report it instead of trying another way.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: {
+          type: "number",
+          description: "Task id: the last segment of its URL, /odoo/project/<p>/tasks/<id>.",
+        },
+        body_markdown: {
+          type: "string",
+          description:
+            "Note as Markdown: paragraphs, # headings, **bold**, *italic*, `code`, - lists, [text](https://url). Raw HTML is shown as text, not rendered.",
+        },
+        marker: {
+          type: "string",
+          description:
+            "Optional idempotency key (letters, digits, . _ : -). If a note with this marker already exists on the task, nothing is posted.",
+        },
+      },
+      required: ["id", "body_markdown"],
+    },
+  },
   // ── Odoo project tasks ────────────────────────────────────────────────────
   // Tasks are a different model from helpdesk tickets, and the ticket tools do
   // not reach them. Without these the only route was `run_integration` with
@@ -778,10 +803,26 @@ const BUILTINS: Record<string, ToolDefinition> = {
  */
 const CONNECTOR_TOOLS: Record<
   string,
-  { integrationId: string; action: string; defaults?: Record<string, unknown> }
+  {
+    integrationId: string;
+    action: string;
+    /** Filled in when the model leaves them out. */
+    defaults?: Record<string, unknown>;
+    /** Always win over the model's input: what makes a narrower tool narrower. */
+    fixed?: Record<string, unknown>;
+    /** The only input keys passed on; anything else the model sends is dropped. */
+    allowedKeys?: readonly string[];
+  }
 > = {
   odoo_create_ticket: { integrationId: "odoo", action: "create_ticket" },
   odoo_post_note: { integrationId: "odoo", action: "post_note" },
+  odoo_post_task_note: {
+    integrationId: "odoo",
+    action: "post_note",
+    // A task note and nothing else: no ticket, no raw HTML body.
+    fixed: { model: "project.task" },
+    allowedKeys: ["id", "body_markdown", "marker"],
+  },
   odoo_search_tickets: { integrationId: "odoo", action: "search_tickets" },
   odoo_get_ticket: { integrationId: "odoo", action: "get_ticket" },
   odoo_get_task_attachments: { integrationId: "odoo", action: "get_task_attachments" },
@@ -984,6 +1025,9 @@ const READ_TOOLS = new Set([
   "memory_get",
   "brain_recall",
 ]);
+
+/** Every integration action an agent's tool runs is run as the agent. */
+const AS_AGENT = { caller: "agent" } as const;
 
 export async function toolEffect(
   name: string,
@@ -1331,19 +1375,26 @@ export async function executeTool(
       integrationId,
       action,
       (input.input as Record<string, unknown>) ?? {},
-      ctx.tx
+      ctx.tx,
+      AS_AGENT
     );
   }
 
   const connectorTool = CONNECTOR_TOOLS[name];
   if (connectorTool) {
     const { runIntegrationAction } = await import("@/lib/integrations/store");
+    const given = connectorTool.allowedKeys
+      ? Object.fromEntries(
+          Object.entries(input).filter(([key]) => connectorTool.allowedKeys!.includes(key))
+        )
+      : input;
     return runIntegrationAction(
       ctx.workspaceId,
       connectorTool.integrationId,
       connectorTool.action,
-      connectorTool.defaults ? { ...connectorTool.defaults, ...input } : input,
-      ctx.tx
+      { ...connectorTool.defaults, ...given, ...connectorTool.fixed },
+      ctx.tx,
+      AS_AGENT
     );
   }
 
