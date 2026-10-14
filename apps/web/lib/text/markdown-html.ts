@@ -286,9 +286,29 @@ function tableHeader(line: string, next: string | undefined): string[] | null {
   return header;
 }
 
-/** Characters a reader sees in rendered inline HTML: tags dropped, an entity counts as one. */
+/**
+ * Characters a reader sees in inline HTML this file rendered: tags are
+ * skipped and an entity counts as one. Every `<` and `&` in that HTML starts a
+ * tag or an entity, because all text went through `htmlEscape`. Counts in one
+ * pass without building a stripped string.
+ */
 function visibleLength(html: string): number {
-  return html.replace(/<[^>]*>/g, "").replace(/&[#a-z0-9]+;/gi, "_").length;
+  let count = 0;
+  for (let k = 0; k < html.length; k++) {
+    const c = html[k];
+    if (c === "<") {
+      const end = html.indexOf(">", k);
+      if (end === -1) break;
+      k = end;
+    } else {
+      if (c === "&") {
+        const end = html.indexOf(";", k);
+        if (end !== -1) k = end;
+      }
+      count++;
+    }
+  }
+  return count;
 }
 
 function renderTable(header: string[], rows: string[][]): string {
