@@ -143,7 +143,7 @@ describe("markdownToHtml inline", () => {
 describe("markdownToHtml tables", () => {
   const open = '<div class="table-responsive"><table class="table table-sm table-bordered">';
   const close = "</table></div>";
-  // Cells of up to 20 source characters stay on one line; longer ones wrap.
+  // Cells of up to 20 visible characters stay on one line; longer ones wrap.
   const th = (x: string) => `<th class="text-nowrap">${x}</th>`;
   const td = (x: string) => `<td class="text-nowrap">${x}</td>`;
   const table = (head: string[], body: string[][]) =>
@@ -172,6 +172,17 @@ describe("markdownToHtml tables", () => {
   it("renders inline formatting inside cells", () => {
     expect(markdownToHtml("| Who | State |\n|---|---|\n| `x` | **Offline** |")).toBe(
       table([th("Who"), th("State")], [[td("<code>x</code>"), td("<b>Offline</b>")]])
+    );
+  });
+
+  it("measures a cell by its visible text, so a linked id stays on one line", () => {
+    expect(
+      markdownToHtml("| ID |\n|---|\n| [19995](https://erp.example.com/odoo/tasks/19995) |")
+    ).toBe(
+      table([th("ID")], [[td('<a href="https://erp.example.com/odoo/tasks/19995">19995</a>')]])
+    );
+    expect(markdownToHtml("| A |\n|---|\n| R&D <ok> |")).toBe(
+      table([th("A")], [[td("R&amp;D &lt;ok&gt;")]])
     );
   });
 

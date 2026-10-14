@@ -245,7 +245,7 @@ const isFence = (line: string) => line.trimStart().startsWith("```");
 const TABLE_OPEN = '<div class="table-responsive"><table class="table table-sm table-bordered">';
 const TABLE_CLOSE = "</table></div>";
 /**
- * Cells up to this many source characters (ids, dates, states) stay on one
+ * Cells up to this many visible characters (ids, dates, states) stay on one
  * line. In a narrow pane like Odoo's chatter the browser otherwise breaks them
  * mid-word to make room for a long column ("199|95", "(abierta|)").
  */
@@ -286,10 +286,17 @@ function tableHeader(line: string, next: string | undefined): string[] | null {
   return header;
 }
 
+/** Characters a reader sees in rendered inline HTML: tags dropped, an entity counts as one. */
+function visibleLength(html: string): number {
+  return html.replace(/<[^>]*>/g, "").replace(/&[#a-z0-9]+;/gi, "_").length;
+}
+
 function renderTable(header: string[], rows: string[][]): string {
-  const cell = (tag: "th" | "td", text: string) =>
-    `<${tag}${text.length <= NOWRAP_MAX ? ' class="text-nowrap"' : ""}>` +
-    `${renderInline(text, new Set())}</${tag}>`;
+  const cell = (tag: "th" | "td", text: string) => {
+    const html = renderInline(text, new Set());
+    const nowrap = visibleLength(html) <= NOWRAP_MAX ? ' class="text-nowrap"' : "";
+    return `<${tag}${nowrap}>${html}</${tag}>`;
+  };
   const head = `<thead><tr>${header.map((c) => cell("th", c)).join("")}</tr></thead>`;
   // Like GitHub: short rows are padded, extra cells dropped.
   const body = rows
