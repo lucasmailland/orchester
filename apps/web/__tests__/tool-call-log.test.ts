@@ -93,6 +93,15 @@ describe("sanitizeToolInput", () => {
     expect(out.url).toBe("https://api.example.com/v1?sig=***&id=***");
   });
 
+  it("masks URLs inside longer text, like a note body", () => {
+    const out = sanitizeToolInput({
+      body_markdown: "See https://erp.example.com/web/content/9?access_token=abc123 for the file.",
+    });
+    expect(out.body_markdown).toBe(
+      "See https://erp.example.com/web/content/9?access_token=*** for the file."
+    );
+  });
+
   it("returns an empty object for anything that is not an object", () => {
     expect(sanitizeToolInput(null)).toEqual({});
     expect(sanitizeToolInput("text")).toEqual({});

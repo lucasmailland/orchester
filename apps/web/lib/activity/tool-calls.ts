@@ -64,9 +64,14 @@ const MAX_ERROR_CODE = 64;
  */
 const RECORD_WAIT_MS = 2_000;
 
+/** Every URL in a text with its query values and credentials masked. */
+function maskUrls(text: string): string {
+  return text.replace(/https?:\/\/[^\s"'<>]+/gi, (url) => redactUrl(url));
+}
+
 function sanitizeValue(value: unknown, depth: number): unknown {
   if (typeof value === "string") {
-    const text = /^https?:\/\//i.test(value) ? redactUrl(value) : value;
+    const text = maskUrls(value);
     return text.length > MAX_STRING ? `${text.slice(0, MAX_STRING)}…` : text;
   }
   if (value === null || typeof value === "number" || typeof value === "boolean") return value;
@@ -93,8 +98,8 @@ function sanitizeValue(value: unknown, depth: number): unknown {
  * A copy of a tool's input that is safe and small enough to keep: keys that
  * look like credentials are dropped at any depth, strings over 200 chars are
  * cut, arrays keep 20 items, containers deeper than 4 levels are replaced, and
- * URL query values and credentials are masked. When the result is still over
- * 4000 chars of JSON only the top-level keys are kept.
+ * URL query values and credentials are masked, also inside longer text. When
+ * the result is still over 4000 chars of JSON only the top-level keys are kept.
  */
 export function sanitizeToolInput(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== "object" || Array.isArray(input)) return {};
@@ -162,10 +167,7 @@ function bounded(text: string, max: number): string {
 
 /** An error message as kept: URLs in it masked like input URLs, then cut. */
 function errorText(message: string): string {
-  return bounded(
-    message.replace(/https?:\/\/[^\s"'<>]+/gi, (url) => redactUrl(url)),
-    MAX_ERROR
-  );
+  return bounded(maskUrls(message), MAX_ERROR);
 }
 
 function stringProp(value: unknown, key: string): string | undefined {
