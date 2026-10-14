@@ -11,6 +11,7 @@ export * from "./flows";
 export * from "./agent-tools";
 export * from "./knowledge";
 export * from "./production";
+export * from "./activity";
 export * from "./integrations";
 export * from "./audit";
 export * from "./feature-flags";
