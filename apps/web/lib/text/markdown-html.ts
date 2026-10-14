@@ -7,7 +7,8 @@
  *
  * Safety: the input is never interpreted as HTML. Every piece of text goes
  * through `htmlEscape` as it is emitted, the only tags are the ones this file
- * writes, and the only attribute is `href` on an http(s) link.
+ * writes, and the only attributes are `href` on an http(s) link and a fixed
+ * `class` on tables (Odoo's Bootstrap table styles).
  *
  * Cost: one pass per line, and every delimiter search either consumes what it
  * finds or is remembered as failed, so a pathological input (long runs of
@@ -16,7 +17,8 @@
  *
  * Supported: paragraphs, `#` headings (shrunk to h3/h4), bold, italic, inline
  * code, fenced code, bullet and numbered lists (one nested level), http(s)
- * links and `---` rules. Everything else is shown as the text it is.
+ * links, `---` rules and GitHub-style pipe tables. Everything else is shown as
+ * the text it is.
  */
 import { htmlEscape } from "./escape";
 
@@ -240,6 +242,54 @@ function parseHeading(line: string): { level: number; text: string } | null {
 
 const isFence = (line: string) => line.trimStart().startsWith("```");
 
+const TABLE_OPEN = '<table class="table table-sm table-bordered">';
+const isDelimiterCell = (cell: string) => /^:?-+:?$/.test(cell);
+
+/** The cells of a table row: split on unescaped pipes, outer pipes dropped. */
+function splitRow(line: string): string[] {
+  const t = line.trim();
+  const cells: string[] = [];
+  let cell = "";
+  for (let k = 0; k < t.length; k++) {
+    const c = t[k]!;
+    if (c === "\\" && t[k + 1] === "|") {
+      cell += "|";
+      k++;
+    } else if (c === "|") {
+      cells.push(cell);
+      cell = "";
+    } else cell += c;
+  }
+  cells.push(cell);
+  if (t.startsWith("|")) cells.shift();
+  if (t.endsWith("|") && !t.endsWith("\\|") && cells.length > 0) cells.pop();
+  return cells.map((c) => c.trim());
+}
+
+/**
+ * The header cells when `line` starts a table: it has a pipe and is followed
+ * by a delimiter row (`|---|:-:|`) with the same number of cells.
+ */
+function tableHeader(line: string, next: string | undefined): string[] | null {
+  if (next === undefined || !line.includes("|") || !next.includes("|")) return null;
+  const header = splitRow(line);
+  if (header.length === 0) return null;
+  const delimiter = splitRow(next);
+  if (delimiter.length !== header.length || !delimiter.every(isDelimiterCell)) return null;
+  return header;
+}
+
+function renderTable(header: string[], rows: string[][]): string {
+  const cell = (tag: "th" | "td", text: string) =>
+    `<${tag}>${renderInline(text, new Set())}</${tag}>`;
+  const head = `<thead><tr>${header.map((c) => cell("th", c)).join("")}</tr></thead>`;
+  // Like GitHub: short rows are padded, extra cells dropped.
+  const body = rows
+    .map((row) => `<tr>${header.map((_, k) => cell("td", row[k] ?? "")).join("")}</tr>`)
+    .join("");
+  return `${TABLE_OPEN}${head}${body ? `<tbody>${body}</tbody>` : ""}</table>`;
+}
+
 function renderList(items: ListLine[]): string {
   const base = items[0]!.indent;
   const html: string[] = [];
@@ -328,6 +378,19 @@ export function markdownToHtml(md: string): string {
       flushPara();
       out.push("<hr>");
       i++;
+      continue;
+    }
+
+    const header = tableHeader(line, lines[i + 1]);
+    if (header) {
+      flushPara();
+      const rows: string[][] = [];
+      i += 2;
+      // The table ends at a blank line or a line without a pipe.
+      while (i < lines.length && lines[i]!.trim() !== "" && lines[i]!.includes("|")) {
+        rows.push(splitRow(lines[i++]!));
+      }
+      out.push(renderTable(header, rows));
       continue;
     }
 
