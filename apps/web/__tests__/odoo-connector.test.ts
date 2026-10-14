@@ -338,10 +338,12 @@ describe("odoo connector", () => {
       );
     });
 
-    it("posts with the marker as the first line when it is absent", async () => {
+    it("posts with the marker as a hidden first line when it is absent", async () => {
       const r = run({ model: "project.task", id: 7, body_text: "hi", marker: "triage-1" }, []);
       expect(await r.out).toMatchObject({ ok: true, message_id: 99 });
-      expect(String(r.posts[0]!.body).startsWith("<p>[[orchester:triage-1]]</p>")).toBe(true);
+      expect(
+        String(r.posts[0]!.body).startsWith('<p class="d-none">[[orchester:triage-1]]</p>')
+      ).toBe(true);
       expect(r.posts[0]!.subtype_xmlid).toBe("mail.mt_note");
     });
 

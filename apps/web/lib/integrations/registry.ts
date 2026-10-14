@@ -1758,7 +1758,7 @@ const odoo: Connector = {
           body_markdown: {
             type: "string",
             description:
-              "Note as Markdown (preferred): paragraphs, # headings, **bold**, *italic*, `code`, lists, [text](https://url), ---. Rendered to safe HTML; raw HTML in it is shown as text. Overrides body_text.",
+              "Note as Markdown (preferred): paragraphs, # headings, **bold**, *italic*, `code`, lists, | pipe | tables |, [text](https://url), ---. Rendered to safe HTML; raw HTML in it is shown as text. Overrides body_text.",
           },
           body_text: { type: "string", description: "Note as plain text." },
           body: {
@@ -1768,7 +1768,7 @@ const odoo: Connector = {
           marker: {
             type: "string",
             description:
-              "Idempotency key (letters, digits, . _ : -, up to 100). The note starts with a visible line [[orchester:<marker>]]; if a message on this record already carries it, nothing is posted and { posted: false, reason: 'duplicate' } is returned.",
+              "Idempotency key (letters, digits, . _ : -, up to 100). The note starts with a hidden line [[orchester:<marker>]]; if a message on this record already carries it, nothing is posted and { posted: false, reason: 'duplicate' } is returned.",
           },
         },
         required: ["id"],
@@ -1788,8 +1788,9 @@ const odoo: Connector = {
         if (!body.trim()) throw new Error("A note needs a body.");
         if (input.marker != null) {
           // The marker is plain text on purpose: Odoo's HTML sanitiser strips
-          // comments and unknown attributes, so a hidden carrier would not
-          // survive the round trip and the duplicate check would never match.
+          // comments and unknown attributes, so only text survives the round
+          // trip for the duplicate check to match. It is hidden from readers
+          // with Bootstrap's `d-none`, a class the sanitiser keeps.
           const marker = String(input.marker);
           if (!/^[A-Za-z0-9._:-]{1,100}$/.test(marker)) {
             throw new Error("post_note: marker may only use letters, digits, . _ : - (max 100).");
@@ -1829,7 +1830,7 @@ const odoo: Connector = {
                 .some((line) => line.trim() === tag)
           );
           if (duplicate) return { posted: false, reason: "duplicate" };
-          body = `<p>${tag}</p>${body}`;
+          body = `<p class="d-none">${tag}</p>${body}`;
         }
         // Known, accepted race: the marker lookup and this post are separate
         // Odoo calls, so two concurrent requests with the same marker can both
