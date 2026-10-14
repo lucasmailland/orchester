@@ -7,8 +7,8 @@
  *
  * Safety: the input is never interpreted as HTML. Every piece of text goes
  * through `htmlEscape` as it is emitted, the only tags are the ones this file
- * writes, and the only attributes are `href` on an http(s) link and a fixed
- * `class` on tables (Odoo's Bootstrap table styles).
+ * writes, and the only attributes are `href` on an http(s) link and fixed
+ * Bootstrap classes on tables, which Odoo keeps and styles.
  *
  * Cost: one pass per line, and every delimiter search either consumes what it
  * finds or is remembered as failed, so a pathological input (long runs of
@@ -242,7 +242,14 @@ function parseHeading(line: string): { level: number; text: string } | null {
 
 const isFence = (line: string) => line.trimStart().startsWith("```");
 
-const TABLE_OPEN = '<table class="table table-sm table-bordered">';
+const TABLE_OPEN = '<div class="table-responsive"><table class="table table-sm table-bordered">';
+const TABLE_CLOSE = "</table></div>";
+/**
+ * Cells up to this many source characters (ids, dates, states) stay on one
+ * line. In a narrow pane like Odoo's chatter the browser otherwise breaks them
+ * mid-word to make room for a long column ("199|95", "(abierta|)").
+ */
+const NOWRAP_MAX = 20;
 const isDelimiterCell = (cell: string) => /^:?-+:?$/.test(cell);
 
 /** The cells of a table row: split on unescaped pipes, outer pipes dropped. */
@@ -281,13 +288,14 @@ function tableHeader(line: string, next: string | undefined): string[] | null {
 
 function renderTable(header: string[], rows: string[][]): string {
   const cell = (tag: "th" | "td", text: string) =>
-    `<${tag}>${renderInline(text, new Set())}</${tag}>`;
+    `<${tag}${text.length <= NOWRAP_MAX ? ' class="text-nowrap"' : ""}>` +
+    `${renderInline(text, new Set())}</${tag}>`;
   const head = `<thead><tr>${header.map((c) => cell("th", c)).join("")}</tr></thead>`;
   // Like GitHub: short rows are padded, extra cells dropped.
   const body = rows
     .map((row) => `<tr>${header.map((_, k) => cell("td", row[k] ?? "")).join("")}</tr>`)
     .join("");
-  return `${TABLE_OPEN}${head}${body ? `<tbody>${body}</tbody>` : ""}</table>`;
+  return `${TABLE_OPEN}${head}${body ? `<tbody>${body}</tbody>` : ""}${TABLE_CLOSE}`;
 }
 
 function renderList(items: ListLine[]): string {
