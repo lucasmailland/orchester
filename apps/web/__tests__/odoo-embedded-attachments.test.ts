@@ -46,7 +46,10 @@ function world(w: World) {
       return ids.map((i) => w.tasks[i]).filter(Boolean);
     }
     if (model === "ir.attachment" && method === "read") {
-      return (args[0] as number[]).map((id) => ({ id, datas: bytes }));
+      // Like recent Odoo (saas~19.x): the content is in `raw`, and `datas` is gone.
+      if (((kw as { fields?: string[] }).fields ?? []).includes("datas"))
+        throw new Error("Invalid field 'datas' on 'ir.attachment'");
+      return (args[0] as number[]).map((id) => ({ id, raw: bytes }));
     }
     if (model === "ir.attachment" && method === "search_read") {
       const d = JSON.parse(domain) as unknown[][];

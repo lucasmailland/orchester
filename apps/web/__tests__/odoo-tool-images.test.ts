@@ -30,27 +30,27 @@ describe("Odoo image evidence", () => {
     // owned search, then the description read; neither asks for file bodies
     expect(rpc).toHaveBeenCalledTimes(2);
     expect(rpc.mock.calls[0]![4]).toEqual(
-      expect.objectContaining({ fields: expect.not.arrayContaining(["datas"]) })
+      expect.objectContaining({ fields: expect.not.arrayContaining(["datas", "raw"]) })
     );
   });
   it("reads only the four newest supported image ids, retaining every attachment's metadata", async () => {
     rpc
       .mockResolvedValueOnce(attachments)
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce(attachments.slice(0, 4).map((a) => ({ id: a.id, datas: bytes })));
+      .mockResolvedValueOnce(attachments.slice(0, 4).map((a) => ({ id: a.id, raw: bytes })));
     const result = (await run({ include_images: true })) as { text: string; images: unknown[] };
     expect(rpc).toHaveBeenCalledTimes(3);
     expect(rpc.mock.calls[0]![4]).toEqual(
       expect.objectContaining({
         order: "create_date desc, id desc",
-        fields: expect.not.arrayContaining(["datas"]),
+        fields: expect.not.arrayContaining(["datas", "raw"]),
       })
     );
     expect(rpc.mock.calls[2]!.slice(1)).toEqual([
       "ir.attachment",
       "read",
       [[10, 9, 8, 7]],
-      { fields: ["id", "datas"] },
+      { fields: ["id", "raw"] },
     ]);
     expect(result.images).toHaveLength(4);
     expect(result.images[0]).toEqual({
@@ -66,11 +66,32 @@ describe("Odoo image evidence", () => {
     rpc
       .mockResolvedValueOnce([{ ...attachments[0], file_size: 1024 * 1024 + 1 }, attachments[1]])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: 9, datas: Buffer.alloc(1024 * 1024 + 1).toString("base64") }]);
+      .mockResolvedValueOnce([{ id: 9, raw: Buffer.alloc(1024 * 1024 + 1).toString("base64") }]);
     const result = (await run({ include_images: true })) as { text: string; images: unknown[] };
     expect(rpc.mock.calls[2]![3]).toEqual([[9]]);
     expect(result.images).toEqual([]);
     expect(result.text).toContain("screen-0.png, exceeds 1 MB");
     expect(result.text).toContain("screen-1.png, exceeds 1 MB");
+  });
+
+  it("falls back to datas on an Odoo that has no raw field", async () => {
+    rpc
+      .mockResolvedValueOnce(attachments.slice(0, 1))
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error("Invalid field 'raw' on 'ir.attachment'"))
+      .mockResolvedValueOnce([{ id: 10, datas: bytes }]);
+    const result = (await run({ include_images: true })) as { images: Array<{ base64: string }> };
+    expect(rpc.mock.calls[2]![4]).toEqual({ fields: ["id", "raw"] });
+    expect(rpc.mock.calls[3]![4]).toEqual({ fields: ["id", "datas"] });
+    expect(result.images.map((i) => i.base64)).toEqual([bytes]);
+  });
+
+  it("does not hide other errors behind the fallback", async () => {
+    rpc
+      .mockResolvedValueOnce(attachments.slice(0, 1))
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error("Access Denied"));
+    await expect(run({ include_images: true })).rejects.toThrow("Access Denied");
+    expect(rpc).toHaveBeenCalledTimes(3);
   });
 });
