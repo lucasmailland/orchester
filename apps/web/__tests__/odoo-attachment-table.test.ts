@@ -27,7 +27,7 @@ describe("get_attachment_table", () => {
   it("is a read action", () => expect(act().effect).toBe("read"));
 
   it("reads an xlsx, masked, after a metadata-only read", async () => {
-    rpc.mockResolvedValueOnce([meta()]).mockResolvedValueOnce([{ id: 5, datas: b64(buildXlsx()) }]);
+    rpc.mockResolvedValueOnce([meta()]).mockResolvedValueOnce([{ id: 5, raw: b64(buildXlsx()) }]);
     const out = (await run({ task_id: 12 })) as Record<string, unknown>;
     expect(out).toMatchObject({
       attachment_id: 5,
@@ -39,23 +39,33 @@ describe("get_attachment_table", () => {
     });
     expect(JSON.stringify(out)).not.toContain("12.345.678");
     expect(rpc.mock.calls[0]![4]).toEqual({
-      fields: expect.not.arrayContaining(["datas"]),
+      fields: expect.not.arrayContaining(["datas", "raw"]),
     });
     expect(rpc.mock.calls[1]!.slice(1)).toEqual([
       "ir.attachment",
       "read",
       [[5]],
-      { fields: ["id", "datas"] },
+      { fields: ["id", "raw"] },
     ]);
   });
 
   it("reads a csv by extension even when the mimetype is generic", async () => {
     rpc
       .mockResolvedValueOnce([meta({ name: "x.csv", mimetype: "application/octet-stream" })])
-      .mockResolvedValueOnce([{ id: 5, datas: b64("a;b\n20-12345678-9;8,5") }]);
+      .mockResolvedValueOnce([{ id: 5, raw: b64("a;b\n20-12345678-9;8,5") }]);
     const out = (await run({})) as { columns: string[]; rows: string[][]; sheet?: string };
     expect(out.columns).toEqual(["a", "b"]);
     expect(out.rows).toEqual([["[num]", "8,5"]]);
+  });
+
+  it("falls back to datas on an Odoo that has no raw field", async () => {
+    rpc
+      .mockResolvedValueOnce([meta({ name: "x.csv", mimetype: "text/csv" })])
+      .mockRejectedValueOnce(new Error("Invalid field 'raw' on 'ir.attachment'"))
+      .mockResolvedValueOnce([{ id: 5, datas: b64("a;b\n1;2") }]);
+    const out = (await run({})) as { columns: string[] };
+    expect(out.columns).toEqual(["a", "b"]);
+    expect(rpc.mock.calls[2]![4]).toEqual({ fields: ["id", "datas"] });
   });
 
   it.each([
@@ -97,7 +107,7 @@ describe("get_attachment_table", () => {
   it("refuses when the decoded payload exceeds the cap despite small metadata", async () => {
     rpc
       .mockResolvedValueOnce([meta({ name: "x.csv", mimetype: "text/csv" })])
-      .mockResolvedValueOnce([{ id: 5, datas: b64(Buffer.alloc(5 * 1024 * 1024 + 10, 97)) }]);
+      .mockResolvedValueOnce([{ id: 5, raw: b64(Buffer.alloc(5 * 1024 * 1024 + 10, 97)) }]);
     await expect(run({})).rejects.toThrow(/5 MB/);
   });
 });
@@ -153,7 +163,7 @@ describe("get_task_attachments include_case / max_images", () => {
     rpc
       .mockResolvedValueOnce(rows)
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce(rows.slice(0, 6).map((r) => ({ id: r.id, datas: "QUJD" })));
+      .mockResolvedValueOnce(rows.slice(0, 6).map((r) => ({ id: r.id, raw: "QUJD" })));
     const out = (await runAtt({ include_images: true, max_images: 6 })) as {
       text: string;
       images: unknown[];
@@ -179,7 +189,7 @@ describe("get_task_attachments include_case / max_images", () => {
     rpc
       .mockResolvedValueOnce([img(2, 12, 9_999), img(1, 12, 10_240)])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: 1, datas: "QUJD" }]);
+      .mockResolvedValueOnce([{ id: 1, raw: "QUJD" }]);
     const out = (await runAtt({ include_images: true })) as {
       text: string;
       images: unknown[];

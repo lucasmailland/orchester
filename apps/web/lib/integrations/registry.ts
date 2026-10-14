@@ -836,9 +836,33 @@ const EXECUTE_ALLOWLIST: Record<string, readonly string[]> = {
 // data that an incident analysis has no use for, so the read is explicit.
 const PARTNER_FIELDS = ["id", "name", "vat", "is_company", "parent_id", "email", "country_id"];
 
-// Metadata only: `datas` is the base64 file body. Tool results reach the model
-// as text, so the contents would be noise at best and a token bomb at worst.
+// Metadata only: `raw` / `datas` are the base64 file body. Tool results reach the
+// model as text, so the contents would be noise at best and a token bomb at worst.
 const ATTACHMENT_FIELDS = ["id", "name", "mimetype", "file_size", "create_date"];
+
+/**
+ * The base64 bodies of attachments, by id. Odoo 14 added `raw`, and recent
+ * versions (saas~19.x) no longer have `datas`, so `raw` is asked for first and
+ * `datas` only when the server rejects `raw` as an unknown field.
+ */
+async function readAttachmentContent(
+  config: Record<string, string>,
+  ids: number[]
+): Promise<Map<number, string>> {
+  type Row = { id: number; raw?: string | false; datas?: string | false };
+  const read = async (field: "raw" | "datas") =>
+    (await odooExecute(config, "ir.attachment", "read", [ids], {
+      fields: ["id", field],
+    })) as Row[];
+  let rows: Row[];
+  try {
+    rows = await read("raw");
+  } catch (e) {
+    if (!/invalid field\W+raw\b/i.test(e instanceof Error ? e.message : String(e))) throw e;
+    rows = await read("datas");
+  }
+  return new Map(rows.map((r) => [r.id, r.raw || r.datas || ""]));
+}
 
 const EMBEDDED_MAX_TOTAL = 60;
 
@@ -1402,7 +1426,7 @@ const odoo: Connector = {
           });
         });
 
-        // Metadata only: `datas` is the file body and is never requested.
+        // Metadata only: the file body (`raw` / `datas`) is never requested.
         const files = (await odooExecute(
           config,
           "ir.attachment",
@@ -1588,18 +1612,19 @@ const odoo: Connector = {
           if (reason) notes.push(`[image omitted: ${attachment.name}, ${reason}]`);
           else selected.push(attachment);
         }
-        const data = selected.length
-          ? ((await odooExecute(config, "ir.attachment", "read", [selected.map((a) => a.id)], {
-              fields: ["id", "datas"],
-            })) as Array<{ id: number; datas: string | false }>)
-          : [];
+        const content = selected.length
+          ? await readAttachmentContent(
+              config,
+              selected.map((a) => a.id)
+            )
+          : new Map<number, string>();
         return normalizeToolOutput({
           maxImages,
           text: [JSON.stringify({ attachments }), ...notes].join("\n"),
           images: selected.map((a) => ({
             name: a.name,
             mediaType: a.mimetype,
-            base64: data.find((d) => d.id === a.id)?.datas ?? "",
+            base64: content.get(a.id) ?? "",
           })),
         });
       },
@@ -1664,10 +1689,7 @@ const odoo: Connector = {
         else throw new Error("Unsupported format: only csv and xlsx attachments can be read.");
         if (!(Number(meta.file_size) <= MAX_TABLE_FILE_BYTES))
           throw new Error("The attachment is larger than 5 MB.");
-        const data = (await odooExecute(config, "ir.attachment", "read", [[attachmentId]], {
-          fields: ["id", "datas"],
-        })) as Array<{ datas?: string | false }>;
-        const b64 = data?.[0]?.datas;
+        const b64 = (await readAttachmentContent(config, [attachmentId])).get(attachmentId);
         if (!b64) throw new Error("The attachment has no content.");
         if (b64.length > Math.ceil((MAX_TABLE_FILE_BYTES * 4) / 3) + 8)
           throw new Error("The attachment is larger than 5 MB.");
