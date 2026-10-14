@@ -39,6 +39,8 @@ export const state = {
   insertedRuns: undefined as Array<Record<string, unknown>> | undefined,
   /** The flow_run row a queued run (executeFlow with a runId) reads back. */
   runRow: undefined as Record<string, unknown> | undefined,
+  /** Rows written to `tool_call` (see lib/activity/tool-calls). */
+  toolCalls: [] as Array<Record<string, unknown>>,
 };
 
 let idCounter = 0;
@@ -67,6 +69,7 @@ function applySet(set: Record<string, unknown>) {
 function makeTx() {
   let pendingSet: Record<string, unknown> | null = null;
   let table: unknown;
+  let insertTable: unknown;
   const tx: Record<string, unknown> = {
     execute: vi.fn(async () => ({ rows: [] })),
     select: () => tx,
@@ -84,9 +87,14 @@ function makeTx() {
         return { limit: async () => (state.runRow ? [state.runRow] : []) };
       return { limit: async () => [state.flowQueue.shift() ?? state.flow] };
     },
-    insert: () => tx,
+    insert: (t: unknown) => {
+      insertTable = t;
+      return tx;
+    },
     values: async (row: Record<string, unknown>) => {
-      if ("nodeId" in row) state.steps.push({ id: String(row.id), nodeId: String(row.nodeId) });
+      if (insertTable === dbMock.schema.toolCalls) state.toolCalls.push(row);
+      else if ("nodeId" in row)
+        state.steps.push({ id: String(row.id), nodeId: String(row.nodeId) });
       else if ("triggerSource" in row) state.insertedRuns?.push(row);
     },
     update: () => tx,
@@ -110,6 +118,7 @@ export const dbMock = {
     flowRuns: { id: "flowRuns.id" },
     flowRunSteps: { id: "flowRunSteps.id" },
     agents: { id: "agents.id" },
+    toolCalls: { id: "toolCalls.id" },
   },
 };
 
@@ -123,6 +132,7 @@ export async function runFlowGraph(
   state.flow = { ...state.flow, nodes, edges };
   state.steps = [];
   state.runUpdates = [];
+  state.toolCalls = [];
   const { executeFlow } = await import("../lib/flow-engine");
   const result = await executeFlow({
     flowId: "flow_test",

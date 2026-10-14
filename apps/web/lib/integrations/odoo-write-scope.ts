@@ -42,8 +42,11 @@ function limited(config: Record<string, string>, ctx: ActionContext | undefined)
   return parseAgentWriteProjects(config[AGENT_WRITE_PROJECTS_KEY]);
 }
 
+/** How every refusal starts; the tool call log files a call with it as `refused`. */
+export const WRITE_SCOPE_REFUSAL_PREFIX = "Agents may only write to tasks of project";
+
 function refusal(allowed: ReadonlySet<number>, why: string): Error {
-  return new Error(`Agents may only write to tasks of project ${[...allowed].join(", ")}; ${why}.`);
+  return new Error(`${WRITE_SCOPE_REFUSAL_PREFIX} ${[...allowed].join(", ")}; ${why}.`);
 }
 
 /**

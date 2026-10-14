@@ -595,6 +595,7 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
             ...(p.employeeId ? { employeeId: p.employeeId } : {}),
             ...(p.testChat ? { testChat: true } : {}),
             ...(p.tx ? { tx: p.tx } : {}),
+            source: p.testChat ? "test_chat" : "api",
           });
         }
         toolCalls.push({
