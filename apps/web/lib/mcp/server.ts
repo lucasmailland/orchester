@@ -221,6 +221,7 @@ const TOOLS: McpToolDef[] = [
         workspaceId: auth.workspaceId,
         variables: {},
         agentId: "mcp",
+        source: "mcp_server",
       });
     },
   },

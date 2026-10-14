@@ -8,6 +8,7 @@ import { assertPublicUrl, safeFetch } from "./net-guard";
 import { fetchWithTimeout } from "./http-util";
 import { logAudit } from "./audit";
 import { CONNECTOR_TOOLS } from "./connector-tools";
+import { withToolCallRecord, type ToolCallSource } from "./activity/tool-calls";
 
 /**
  * Optional `tx?: WsDb` follows the project-wide pattern (see
@@ -61,6 +62,17 @@ export interface ToolContext {
    * tx keeps every DB op done by a tool on the same connection.
    */
   tx?: WsDb;
+  /**
+   * Who is calling, for the tool call log (`lib/activity/tool-calls.ts`).
+   * Callers that leave it out are logged as `api`.
+   */
+  source?: ToolCallSource;
+  /** The channel of a channel conversation, for the tool call log. */
+  channelId?: string;
+  /** Flow, run and step of a flow agent step, for the tool call log. */
+  flowId?: string;
+  flowRunId?: string;
+  nodeId?: string;
 }
 
 const BUILTINS: Record<string, ToolDefinition> = {
@@ -1019,7 +1031,34 @@ export async function toolEffect(
   return "write";
 }
 
+/**
+ * Runs a tool and records the call in the tool call log, whatever its outcome:
+ * what it returns or throws is passed through unchanged, and a failure to
+ * record never reaches the caller.
+ */
 export async function executeTool(
+  name: string,
+  input: Record<string, unknown>,
+  ctx: ToolContext
+): Promise<unknown> {
+  return withToolCallRecord(
+    {
+      workspaceId: ctx.workspaceId,
+      source: ctx.source ?? "api",
+      tool: name,
+      input,
+      agentId: ctx.agentId,
+      conversationId: ctx.conversationId,
+      channelId: ctx.channelId,
+      flowId: ctx.flowId,
+      flowRunId: ctx.flowRunId,
+      nodeId: ctx.nodeId,
+    },
+    () => runTool(name, input, ctx)
+  );
+}
+
+async function runTool(
   name: string,
   input: Record<string, unknown>,
   ctx: ToolContext

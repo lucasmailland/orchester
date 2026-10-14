@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const h = vi.hoisted(() => ({
   flow: { id: "flow_1", name: "Off Flow", enabled: false } as Record<string, unknown>,
   inserts: [] as Array<Record<string, unknown>>,
+  /** Rows of the tool call log, kept apart: they are not runs. */
+  toolCalls: [] as Array<Record<string, unknown>>,
   enqueued: [] as unknown[],
   counterUpdates: 0,
   webhookEnabled: true,
@@ -12,12 +14,13 @@ vi.mock("@orchester/db", () => {
   const tx = {
     execute: vi.fn(async () => []),
     select: () => ({ from: () => ({ where: () => Promise.resolve([{ value: 0 }]) }) }),
-    insert: () => ({
+    insert: (table: unknown) => ({
       values: async (row: Record<string, unknown>) => {
-        h.inserts.push(row);
+        (table === toolCalls ? h.toolCalls : h.inserts).push(row);
       },
     }),
   };
+  const toolCalls = { id: "tc.id" };
   return {
     getDb: () => ({
       select: () => ({ from: () => ({ where: () => ({ limit: async () => [h.flow] }) }) }),
@@ -27,6 +30,7 @@ vi.mock("@orchester/db", () => {
       flows: { id: "f.id", name: "f.name", enabled: "f.enabled", workspaceId: "f.ws" },
       flowRuns: { flowId: "r.flowId", status: "r.status" },
       flowWebhooks: { secret: "w.secret", id: "w.id" },
+      toolCalls,
     },
   };
 });
@@ -81,6 +85,7 @@ vi.mock("@/lib/tenant/cron", () => ({
 beforeEach(() => {
   h.flow = { id: "flow_1", name: "Off Flow", enabled: false };
   h.inserts = [];
+  h.toolCalls = [];
   h.enqueued = [];
   h.counterUpdates = 0;
   h.webhookEnabled = true;
@@ -132,6 +137,8 @@ describe("flow_call tool", () => {
   it("returns an error to the agent for a disabled flow", async () => {
     await expect(call()).rejects.toThrow('Flow "Off Flow" is disabled');
     expect(h.inserts).toHaveLength(0);
+    // The refused call is still on record.
+    expect(h.toolCalls).toMatchObject([{ tool: "flow_call", outcome: "error" }]);
   });
 
   it("runs an enabled flow", async () => {

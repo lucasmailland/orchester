@@ -15,6 +15,7 @@ import { issuesSummary, storedActionIssues } from "./flows/action-guard";
 import type { ValidationIssue } from "./flows/validate";
 import { isDryRunSource, markDryRun, redactUrl, simulated } from "./flows/dry-run";
 import { assertFlowRunnable, isManualSource } from "./flows/run-gate";
+import { withToolCallRecord } from "./activity/tool-calls";
 
 /**
  * R2-C: Flow execution writes to tenant tables (flow_runs,
@@ -95,6 +96,8 @@ export interface RunContext {
   dryRun?: boolean;
   /** Flow ids of the subflow calls leading to this run, this flow last. */
   callChain?: readonly string[];
+  /** The flow being run, for the tool call log. */
+  flowId?: string;
 }
 
 /**
@@ -474,6 +477,7 @@ export async function executeFlow({
     ...(signal ? { signal } : {}),
     ...(dryRun ? { dryRun: true } : {}),
     callChain: chain,
+    flowId,
   };
 
   const nodes = (flow.nodes ?? []) as FlowNode[];
@@ -677,6 +681,7 @@ export async function resumePausedFlow({
     output: {},
     ...(dryRun ? { dryRun: true } : {}),
     callChain: restored.callChain,
+    flowId,
   };
 
   const outgoingEdges = edges.filter(
@@ -944,7 +949,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     // No-op: el nodo trigger sólo marca el punto de entrada del flow.
   },
 
-  agent: async ({ cfg, ctx, workspaceId, helpers }) => {
+  agent: async ({ cfg, ctx, workspaceId, helpers, node, runId }) => {
     const agentId = cfg.agentId as string | undefined;
     if (!agentId) throw new Error("Falta elegir el agente en este paso.");
     // `prompt` (registry) se antepone al mensaje entrante; `message` es el legado.
@@ -1066,6 +1071,10 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
               tx,
               variables: agent.variables ?? {},
               agentId: agent.id,
+              source: "flow_agent",
+              ...(ctx.flowId ? { flowId: ctx.flowId } : {}),
+              flowRunId: runId,
+              nodeId: node.id,
             })
           );
           toolResults.push({
@@ -1519,7 +1528,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     helpers.setOutput({ count: res.results.length });
   },
 
-  integration: async ({ cfg, ctx, workspaceId, helpers }) => {
+  integration: async ({ cfg, ctx, workspaceId, helpers, node, runId }) => {
     // `integrationId` viene como "integrationId::action".
     const raw = String(cfg.integrationId ?? "");
     const [integrationId, action] = raw.split("::");
@@ -1550,15 +1559,24 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
         return;
       }
     }
-    if (!retry) {
-      const result = await runIntegrationAction(
-        workspaceId,
-        integrationId,
-        action,
-        input,
-        undefined,
-        FLOW_STEP
+    // Every real call goes to the tool call log, each retry attempt as a row of
+    // its own: each one reached the external system. A write the dry run only
+    // simulated (above) never gets here, so it is not logged.
+    const call = () =>
+      withToolCallRecord(
+        {
+          workspaceId,
+          source: "flow_step",
+          tool: `${integrationId}::${action}`,
+          input,
+          flowId: ctx.flowId,
+          flowRunId: runId,
+          nodeId: node.id,
+        },
+        () => runIntegrationAction(workspaceId, integrationId, action, input, undefined, FLOW_STEP)
       );
+    if (!retry) {
+      const result = await call();
       ctx.variables[outputVar] = result;
       helpers.setOutput({ result });
       return;
@@ -1567,17 +1585,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       retry,
       async () => {
         try {
-          return {
-            kind: "done",
-            value: await runIntegrationAction(
-              workspaceId,
-              integrationId,
-              action,
-              input,
-              undefined,
-              FLOW_STEP
-            ),
-          };
+          return { kind: "done", value: await call() };
         } catch (e) {
           return { kind: "retry", error: e instanceof Error ? e : new Error(String(e)) };
         }

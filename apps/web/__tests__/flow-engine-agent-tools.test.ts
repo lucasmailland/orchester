@@ -113,6 +113,10 @@ describe("flow agent tools", () => {
       tx: expect.objectContaining({ execute: expect.any(Function) }),
       variables: { unit: "items" },
       agentId: "agent_test",
+      source: "flow_agent",
+      flowId: "flow_test",
+      flowRunId: result.runId,
+      nodeId: "agent",
     });
     expect(llmCall).toHaveBeenCalledTimes(2);
     expect(calls()[1]![0].messages).toEqual([

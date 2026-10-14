@@ -598,6 +598,8 @@ async function runConversationalLoop(
             agentId: activeAgent.id,
             conversationId: conversation.id,
             ...(conversation.employeeId ? { employeeId: conversation.employeeId } : {}),
+            source: "channel",
+            channelId: ctx.channel.id,
           });
           // L1/F2: el output de la tool es contenido no confiable → delimitado
           // (y con PII redactada si el operador hizo opt-in) antes de mandarlo
