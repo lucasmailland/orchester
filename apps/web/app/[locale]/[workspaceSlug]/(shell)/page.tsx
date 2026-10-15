@@ -6,15 +6,23 @@ import { DashboardClientLazy } from "@/components/dashboard/DashboardClientLazy"
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 
 /**
- * Cache the 22-query dashboard payload per workspace for 30 seconds.
- * Revalidate via tag if needed (`revalidateTag('dashboard:<wsId>')`) when
- * a high-impact mutation happens.
+ * Cache the dashboard payload per workspace for 30 seconds. Revalidate via
+ * tag if needed (`revalidateTag('dashboard:<wsId>')`) when a high-impact
+ * mutation happens.
+ *
+ * The reads run in a workspace transaction (role `app_user`,
+ * `app.workspace_id` set), like every other workspace read: in a fresh
+ * install `conversation`, `agent` and `flow_run` are under FORCE RLS and
+ * `usage_event` and `message` under RLS, so a connection as `app_user`
+ * without the GUC would read nothing, and an elevated one would bypass RLS
+ * and leave the explicit workspace filters as the only fence.
  */
 const getCachedDashboard = (workspaceId: string) =>
-  unstable_cache(async () => getFullDashboardStats(workspaceId), ["dashboard", workspaceId], {
-    revalidate: 30,
-    tags: [`dashboard:${workspaceId}`],
-  })();
+  unstable_cache(
+    async () => withWorkspaceTx(workspaceId, (tx) => getFullDashboardStats(workspaceId, tx)),
+    ["dashboard", workspaceId],
+    { revalidate: 30, tags: [`dashboard:${workspaceId}`] }
+  )();
 
 /**
  * Phase L.1: cheap snapshot of the 5 onboarding-checklist booleans.

@@ -1,6 +1,7 @@
 import "server-only";
 import { getDb, schema, type DbClient } from "@orchester/db";
-import { eq, count, countDistinct, and, gte, lt, lte, sql, desc } from "drizzle-orm";
+import { eq, count, countDistinct, and, gte, lt, sql, desc } from "drizzle-orm";
+import { usageSums } from "@/lib/usage-sql";
 
 /**
  * Optional `tx?: WsDb` follows the project-wide pattern (see
@@ -291,7 +292,29 @@ export async function getConversations(workspaceId: string, limit = 50, tx?: WsD
     .limit(limit);
 }
 
+/** Model spend of a set of `usage_event` rows. */
+export interface Spend {
+  tokens: number;
+  costUsd: number;
+}
+
+/**
+ * The Command Center payload. Windows are UTC: "month" is the calendar month
+ * of the reading instant, "30 days" ends at it.
+ *
+ * Tokens and cost come from `usage_event` only: one row per model call, with
+ * its real price, whatever made it (channel turns, flow steps, the test chat,
+ * the agent API, the MCP server, memory compaction, the prompt generator).
+ * `message.tokens_used` is never added: the router writes it for the same
+ * turn it writes a usage row for. Conversation counts come from
+ * `conversation`.
+ */
 export interface FullDashboardStats {
+  /**
+   * When these numbers were read, as an ISO instant. The page caches them for
+   * up to 30 seconds and shows how old they are.
+   */
+  generatedAt: string;
   // Operational KPIs
   activeAgents: number;
   totalAgents: number;
@@ -302,16 +325,29 @@ export interface FullDashboardStats {
   totalEmployees: number;
   avgDurationSeconds: number;
   activeTeams: number;
-  // Usage / cost
+  // Model spend (usage_event) and conversations (conversation)
   totalTokensMonth: number;
   totalTokensLastMonth: number;
   totalCostMonth: number;
   totalCostLastMonth: number;
   conversationsMonth: number;
   conversationsLastMonth: number;
+  /**
+   * Conversation spend per conversation started this month. Conversation
+   * spend is the router's turns plus the calls that name a conversation;
+   * flow steps, the test chat and the like stay out.
+   */
   avgTokensPerConv: number;
+  avgCostPerConv: number;
+  // Flows this month
+  flowRunsMonth: number;
+  flowRunsLastMonth: number;
+  /** Every model call made for a flow, its agent steps included. */
+  flowCostMonth: number;
+  flowTokensMonth: number;
   // Chart series
   activityByDay: { date: string; conversations: number; tokens: number }[];
+  /** This month's spend by agent, busiest first; at most `TOP_AGENTS`. */
   agentUsage: {
     id: string;
     name: string;
@@ -322,9 +358,17 @@ export interface FullDashboardStats {
     costUsd: number;
     tokensPerConv: number;
   }[];
+  /** This month's calls made for a flow without an agent (llm_prompt, media steps…). */
+  flowStepUsage: Spend;
+  /**
+   * The rest of this month's spend, so that the agents, the flow steps and
+   * this add up to the totals: calls with neither agent nor flow, agents
+   * that no longer exist, and agents past the listed ones.
+   */
+  otherUsage: Spend;
   channelDistribution: { type: string; count: number }[];
   statusDistribution: { status: string; count: number }[];
-  // New: team breakdown
+  /** Last 30 days: conversations started with the team's agents, and their spend. */
   teamStats: {
     teamId: string;
     teamName: string;
@@ -512,19 +556,222 @@ export async function getUsageStats(workspaceId: string, tx?: WsDb): Promise<Usa
   };
 }
 
+/** Agents `getFullDashboardStats` lists by name; the rest goes to `otherUsage`. */
+const TOP_AGENTS = 12;
+
+/** Rounds dollars to the precision `cost_usd` is stored with. */
+function usd(n: number): number {
+  return Math.round(n * 1e6) / 1e6;
+}
+
+/** Tokens and cost of the `usage_event` rows a select covers. */
+function spendColumns() {
+  const sums = usageSums();
+  return { tokens: sums.tokensTotal, costUsd: sums.costUsd };
+}
+
+/*
+ * How a model call is classified. Both expressions are grouped by, so they
+ * hold no bind parameters: Postgres matches GROUP BY to the select list by
+ * text, and a parameter would get a different number in each place.
+ */
+/** The call was made for a flow (any step, the flow copilot). */
+const forFlow = () => sql<boolean>`(${schema.usageEvents.flowId} IS NOT NULL)`;
+/** The call belongs to a conversation: a router turn, or a call that names one. */
+const ofConversation = () =>
+  sql<boolean>`(${schema.usageEvents.kind} = 'agent_message' OR ${schema.usageEvents.metadata} ->> 'conversationId' IS NOT NULL)`;
+
+interface SpendGroup {
+  agentId: string | null;
+  forFlow: boolean;
+  ofConversation: boolean;
+  tokens: number;
+  costUsd: number;
+}
+
+interface AgentRef {
+  id: string;
+  name: string;
+  model: string;
+  status: string;
+}
+
+/** This month's spend, folded from rows grouped by agent, flow and conversation. */
+function foldMonthSpend(
+  groups: SpendGroup[],
+  agents: AgentRef[],
+  conversationsByAgent: Map<string, number>,
+  conversationsMonth: number
+) {
+  const total = { tokens: 0, costUsd: 0 };
+  const flows = { tokens: 0, costUsd: 0 };
+  const flowSteps = { tokens: 0, costUsd: 0 };
+  const conversations = { tokens: 0, costUsd: 0 };
+  const byAgent = new Map<string, { tokens: number; costUsd: number; convTokens: number }>();
+  const add = (into: Spend, tokens: number, costUsd: number) => {
+    into.tokens += tokens;
+    into.costUsd += costUsd;
+  };
+
+  for (const g of groups) {
+    const tokens = Number(g.tokens);
+    const costUsd = Number(g.costUsd);
+    add(total, tokens, costUsd);
+    if (g.forFlow) add(flows, tokens, costUsd);
+    if (g.ofConversation) add(conversations, tokens, costUsd);
+    if (g.agentId) {
+      let agent = byAgent.get(g.agentId);
+      if (!agent) byAgent.set(g.agentId, (agent = { tokens: 0, costUsd: 0, convTokens: 0 }));
+      add(agent, tokens, costUsd);
+      if (g.ofConversation) agent.convTokens += tokens;
+    } else if (g.forFlow) {
+      add(flowSteps, tokens, costUsd);
+    }
+  }
+
+  const agentUsage = agents
+    .map((a) => {
+      const spend = byAgent.get(a.id);
+      const convs = conversationsByAgent.get(a.id) ?? 0;
+      return {
+        ...a,
+        conversations: convs,
+        tokens: spend?.tokens ?? 0,
+        costUsd: spend?.costUsd ?? 0,
+        tokensPerConv: convs > 0 ? Math.round((spend?.convTokens ?? 0) / convs) : 0,
+      };
+    })
+    .filter((a) => a.tokens > 0 || a.costUsd > 0 || a.conversations > 0)
+    .sort(
+      (a, b) =>
+        b.tokens - a.tokens ||
+        b.costUsd - a.costUsd ||
+        b.conversations - a.conversations ||
+        a.name.localeCompare(b.name)
+    )
+    .slice(0, TOP_AGENTS);
+
+  const listed = { tokens: flowSteps.tokens, costUsd: flowSteps.costUsd };
+  for (const a of agentUsage) add(listed, a.tokens, a.costUsd);
+
+  return {
+    totalTokensMonth: Math.round(total.tokens),
+    totalCostMonth: usd(total.costUsd),
+    avgTokensPerConv:
+      conversationsMonth > 0 ? Math.round(conversations.tokens / conversationsMonth) : 0,
+    avgCostPerConv: conversationsMonth > 0 ? usd(conversations.costUsd / conversationsMonth) : 0,
+    flowCostMonth: usd(flows.costUsd),
+    flowTokensMonth: Math.round(flows.tokens),
+    agentUsage: agentUsage.map((a) => ({
+      ...a,
+      tokens: Math.round(a.tokens),
+      costUsd: usd(a.costUsd),
+    })),
+    flowStepUsage: { tokens: Math.round(flowSteps.tokens), costUsd: usd(flowSteps.costUsd) },
+    otherUsage: {
+      tokens: Math.max(0, Math.round(total.tokens - listed.tokens)),
+      costUsd: Math.max(0, usd(total.costUsd - listed.costUsd)),
+    },
+  };
+}
+
+/**
+ * Average conversation length in seconds: last message minus start, over the
+ * conversations started since `since` that have two messages or more.
+ * `conversation.duration_seconds` would be the obvious source, but nothing
+ * writes it. Cheap on the existing indexes: conversations by
+ * (workspace_id, started_at), their messages by (conversation_id, created_at).
+ */
+function averageDurationSeconds(db: WsDb, workspaceId: string, since: Date) {
+  const lastMessageAt = sql`max(${schema.messages.createdAt})`;
+  const perConversation = db
+    .select({
+      seconds:
+        sql<number>`greatest(extract(epoch from (${lastMessageAt} - ${schema.conversations.startedAt})), 0)`.as(
+          "seconds"
+        ),
+    })
+    .from(schema.conversations)
+    .innerJoin(schema.messages, eq(schema.messages.conversationId, schema.conversations.id))
+    .where(
+      and(
+        eq(schema.conversations.workspaceId, workspaceId),
+        gte(schema.conversations.startedAt, since)
+      )
+    )
+    .groupBy(schema.conversations.id)
+    .having(sql`count(*) >= 2`)
+    .as("per_conversation");
+  return db
+    .select({ value: sql<number>`coalesce(avg(${perConversation.seconds}), 0)::float8` })
+    .from(perConversation);
+}
+
+/** Team rows of the last 30 days: conversations and spend, read apart and merged. */
+function mergeTeamStats(
+  conversations: {
+    teamId: string;
+    teamName: string;
+    teamColor: string | null;
+    conversations: number;
+  }[],
+  spend: {
+    teamId: string;
+    teamName: string;
+    teamColor: string | null;
+    tokens: number;
+    costUsd: number;
+  }[]
+): FullDashboardStats["teamStats"] {
+  const teams = new Map<string, FullDashboardStats["teamStats"][number]>();
+  const team = (r: { teamId: string; teamName: string; teamColor: string | null }) => {
+    let row = teams.get(r.teamId);
+    if (!row) {
+      row = {
+        teamId: r.teamId,
+        teamName: r.teamName,
+        teamColor: r.teamColor,
+        conversations: 0,
+        tokens: 0,
+        costUsd: 0,
+      };
+      teams.set(r.teamId, row);
+    }
+    return row;
+  };
+  for (const r of conversations) team(r).conversations += Number(r.conversations);
+  for (const r of spend) {
+    const row = team(r);
+    row.tokens += Math.round(Number(r.tokens));
+    row.costUsd = usd(row.costUsd + Number(r.costUsd));
+  }
+  return [...teams.values()].sort(
+    (a, b) =>
+      b.conversations - a.conversations ||
+      b.costUsd - a.costUsd ||
+      a.teamName.localeCompare(b.teamName)
+  );
+}
+
+/**
+ * Everything the Command Center shows, read at `opts.now` (default: the
+ * clock). Every query names the workspace; the page runs it inside
+ * `withWorkspaceTx` so RLS confines it too.
+ */
 export async function getFullDashboardStats(
   workspaceId: string,
-  tx?: WsDb
+  tx?: WsDb,
+  opts: { now?: Date } = {}
 ): Promise<FullDashboardStats> {
   const db = tx ?? getDb();
-  const now = new Date();
+  const now = opts.now ?? new Date();
   // Build all boundary dates using Date.UTC so they're UTC-anchored Date objects
   const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const yesterday = new Date(today.getTime() - 86_400_000);
   const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const startOfLastMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-  const endOfLastMonth = new Date(startOfMonth.getTime() - 1);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const ue = schema.usageEvents;
 
   const [
     activeAgentsRes,
@@ -536,17 +783,21 @@ export async function getFullDashboardStats(
     teamsRes,
     openConvsRes,
     escalatedRes,
-    tokMonthRes,
-    tokLastMonthRes,
+    spendMonthRes,
+    spendLastMonthRes,
     convMonthRes,
     convLastMonthRes,
     convsByDayRes,
     toksByDayRes,
-    agentUsageRes,
+    agentsRes,
+    convsByAgentRes,
+    flowRunsMonthRes,
+    flowRunsLastMonthRes,
     channelDistRes,
     statusDistRes,
     topEmployeesRes,
-    teamStatsRes,
+    teamConvsRes,
+    teamSpendRes,
     hourlyRes,
     recentConvsRes,
   ] = await Promise.all([
@@ -591,16 +842,9 @@ export async function getFullDashboardStats(
       .from(schema.employees)
       .where(and(eq(schema.employees.workspaceId, workspaceId), eq(schema.employees.active, true))),
 
-    // Average duration (30d)
-    db
-      .select({ value: sql<number>`coalesce(avg(${schema.conversations.durationSeconds}), 0)` })
-      .from(schema.conversations)
-      .where(
-        and(
-          eq(schema.conversations.workspaceId, workspaceId),
-          gte(schema.conversations.startedAt, thirtyDaysAgo)
-        )
-      ),
+    // Average duration (30d): from message timestamps, since nothing writes
+    // `conversation.duration_seconds`
+    averageDurationSeconds(db, workspaceId, thirtyDaysAgo),
 
     // Teams count
     db
@@ -631,28 +875,27 @@ export async function getFullDashboardStats(
         )
       ),
 
-    // Tokens this month
+    // Model spend this month, by agent / for a flow / of a conversation
     db
-      .select({ tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)` })
-      .from(schema.messages)
-      .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
-      .where(
-        and(
-          eq(schema.conversations.workspaceId, workspaceId),
-          gte(schema.messages.createdAt, startOfMonth)
-        )
-      ),
+      .select({
+        agentId: ue.agentId,
+        forFlow: forFlow(),
+        ofConversation: ofConversation(),
+        ...spendColumns(),
+      })
+      .from(ue)
+      .where(and(eq(ue.workspaceId, workspaceId), gte(ue.createdAt, startOfMonth)))
+      .groupBy(ue.agentId, forFlow(), ofConversation()),
 
-    // Tokens last month
+    // Model spend last month
     db
-      .select({ tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)` })
-      .from(schema.messages)
-      .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
+      .select(spendColumns())
+      .from(ue)
       .where(
         and(
-          eq(schema.conversations.workspaceId, workspaceId),
-          gte(schema.messages.createdAt, startOfLastMonth),
-          lte(schema.messages.createdAt, endOfLastMonth)
+          eq(ue.workspaceId, workspaceId),
+          gte(ue.createdAt, startOfLastMonth),
+          lt(ue.createdAt, startOfMonth)
         )
       ),
 
@@ -675,7 +918,7 @@ export async function getFullDashboardStats(
         and(
           eq(schema.conversations.workspaceId, workspaceId),
           gte(schema.conversations.startedAt, startOfLastMonth),
-          lte(schema.conversations.startedAt, endOfLastMonth)
+          lt(schema.conversations.startedAt, startOfMonth)
         )
       ),
 
@@ -693,44 +936,56 @@ export async function getFullDashboardStats(
 
     // Tokens by day (30d)
     db
+      .select({ date: sql<string>`date(${ue.createdAt})`, tokens: spendColumns().tokens })
+      .from(ue)
+      .where(and(eq(ue.workspaceId, workspaceId), gte(ue.createdAt, thirtyDaysAgo)))
+      .groupBy(sql`date(${ue.createdAt})`),
+
+    // The workspace's agents, to name the spend
+    db
       .select({
-        date: sql<string>`date(${schema.messages.createdAt})`,
-        tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)`,
+        id: schema.agents.id,
+        name: schema.agents.name,
+        model: schema.agents.model,
+        status: schema.agents.status,
       })
-      .from(schema.messages)
-      .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
+      .from(schema.agents)
+      .where(eq(schema.agents.workspaceId, workspaceId)),
+
+    // Conversations this month by agent
+    db
+      .select({ agentId: schema.conversations.agentId, count: count() })
+      .from(schema.conversations)
       .where(
         and(
           eq(schema.conversations.workspaceId, workspaceId),
-          gte(schema.messages.createdAt, thirtyDaysAgo)
+          gte(schema.conversations.startedAt, startOfMonth)
         )
       )
-      .groupBy(sql`date(${schema.messages.createdAt})`)
-      .orderBy(sql`date(${schema.messages.createdAt})`),
+      .groupBy(schema.conversations.agentId),
 
-    // Agent usage (current month, top 12) — alineado con totalTokensMonth/
-    // totalCostMonth para que el donut "mes actual" no muestre datos all-time.
+    // Flow runs this month
     db
-      .select({
-        agentId: schema.agents.id,
-        agentName: schema.agents.name,
-        agentModel: schema.agents.model,
-        agentStatus: schema.agents.status,
-        conversations: countDistinct(schema.conversations.id),
-        tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)`,
-      })
-      .from(schema.agents)
-      .innerJoin(schema.conversations, eq(schema.conversations.agentId, schema.agents.id))
-      .innerJoin(schema.messages, eq(schema.messages.conversationId, schema.conversations.id))
+      .select({ value: count() })
+      .from(schema.flowRuns)
       .where(
         and(
-          eq(schema.agents.workspaceId, workspaceId),
-          gte(schema.messages.createdAt, startOfMonth)
+          eq(schema.flowRuns.workspaceId, workspaceId),
+          gte(schema.flowRuns.startedAt, startOfMonth)
         )
-      )
-      .groupBy(schema.agents.id, schema.agents.name, schema.agents.model, schema.agents.status)
-      .orderBy(desc(sql`sum(${schema.messages.tokensUsed})`))
-      .limit(12),
+      ),
+
+    // Flow runs last month
+    db
+      .select({ value: count() })
+      .from(schema.flowRuns)
+      .where(
+        and(
+          eq(schema.flowRuns.workspaceId, workspaceId),
+          gte(schema.flowRuns.startedAt, startOfLastMonth),
+          lt(schema.flowRuns.startedAt, startOfMonth)
+        )
+      ),
 
     // Channel distribution (30d)
     db
@@ -739,7 +994,13 @@ export async function getFullDashboardStats(
         count: count(),
       })
       .from(schema.conversations)
-      .leftJoin(schema.channels, eq(schema.conversations.channelId, schema.channels.id))
+      .leftJoin(
+        schema.channels,
+        and(
+          eq(schema.conversations.channelId, schema.channels.id),
+          eq(schema.channels.workspaceId, workspaceId)
+        )
+      )
       .where(
         and(
           eq(schema.conversations.workspaceId, workspaceId),
@@ -770,7 +1031,13 @@ export async function getFullDashboardStats(
         conversations: count(),
       })
       .from(schema.conversations)
-      .innerJoin(schema.employees, eq(schema.conversations.employeeId, schema.employees.id))
+      .innerJoin(
+        schema.employees,
+        and(
+          eq(schema.conversations.employeeId, schema.employees.id),
+          eq(schema.employees.workspaceId, workspaceId)
+        )
+      )
       .where(
         and(
           eq(schema.conversations.workspaceId, workspaceId),
@@ -786,27 +1053,47 @@ export async function getFullDashboardStats(
       .orderBy(desc(count()))
       .limit(8),
 
-    // Team stats (30d)
+    // Team conversations (30d)
     db
       .select({
         teamId: schema.teams.id,
         teamName: schema.teams.name,
         teamColor: schema.teams.avatarColor,
-        conversations: countDistinct(schema.conversations.id),
-        tokens: sql<number>`coalesce(sum(${schema.messages.tokensUsed}), 0)`,
+        conversations: count(),
       })
-      .from(schema.teams)
-      .innerJoin(schema.agents, eq(schema.agents.teamId, schema.teams.id))
-      .innerJoin(schema.conversations, eq(schema.conversations.agentId, schema.agents.id))
-      .innerJoin(schema.messages, eq(schema.messages.conversationId, schema.conversations.id))
+      .from(schema.conversations)
+      .innerJoin(schema.agents, eq(schema.conversations.agentId, schema.agents.id))
+      .innerJoin(schema.teams, eq(schema.agents.teamId, schema.teams.id))
       .where(
         and(
+          eq(schema.conversations.workspaceId, workspaceId),
+          eq(schema.agents.workspaceId, workspaceId),
           eq(schema.teams.workspaceId, workspaceId),
           gte(schema.conversations.startedAt, thirtyDaysAgo)
         )
       )
-      .groupBy(schema.teams.id, schema.teams.name, schema.teams.avatarColor)
-      .orderBy(desc(countDistinct(schema.conversations.id))),
+      .groupBy(schema.teams.id, schema.teams.name, schema.teams.avatarColor),
+
+    // Team spend (30d): the model calls of the team's agents
+    db
+      .select({
+        teamId: schema.teams.id,
+        teamName: schema.teams.name,
+        teamColor: schema.teams.avatarColor,
+        ...spendColumns(),
+      })
+      .from(ue)
+      .innerJoin(schema.agents, eq(ue.agentId, schema.agents.id))
+      .innerJoin(schema.teams, eq(schema.agents.teamId, schema.teams.id))
+      .where(
+        and(
+          eq(ue.workspaceId, workspaceId),
+          eq(schema.agents.workspaceId, workspaceId),
+          eq(schema.teams.workspaceId, workspaceId),
+          gte(ue.createdAt, thirtyDaysAgo)
+        )
+      )
+      .groupBy(schema.teams.id, schema.teams.name, schema.teams.avatarColor),
 
     // Hourly distribution (last 30d) – hour of day 0-23
     db
@@ -837,9 +1124,27 @@ export async function getFullDashboardStats(
         channelType: schema.channels.type,
       })
       .from(schema.conversations)
-      .leftJoin(schema.employees, eq(schema.conversations.employeeId, schema.employees.id))
-      .leftJoin(schema.agents, eq(schema.conversations.agentId, schema.agents.id))
-      .leftJoin(schema.channels, eq(schema.conversations.channelId, schema.channels.id))
+      .leftJoin(
+        schema.employees,
+        and(
+          eq(schema.conversations.employeeId, schema.employees.id),
+          eq(schema.employees.workspaceId, workspaceId)
+        )
+      )
+      .leftJoin(
+        schema.agents,
+        and(
+          eq(schema.conversations.agentId, schema.agents.id),
+          eq(schema.agents.workspaceId, workspaceId)
+        )
+      )
+      .leftJoin(
+        schema.channels,
+        and(
+          eq(schema.conversations.channelId, schema.channels.id),
+          eq(schema.channels.workspaceId, workspaceId)
+        )
+      )
       .where(eq(schema.conversations.workspaceId, workspaceId))
       .orderBy(desc(schema.conversations.startedAt))
       .limit(10),
@@ -847,7 +1152,7 @@ export async function getFullDashboardStats(
 
   // Merge activity series
   const convMap = new Map(convsByDayRes.map((r) => [r.date, r.count]));
-  const tokMap = new Map(toksByDayRes.map((r) => [r.date, Number(r.tokens)]));
+  const tokMap = new Map(toksByDayRes.map((r) => [r.date, Math.round(Number(r.tokens))]));
   const allDates = Array.from(new Set([...convMap.keys(), ...tokMap.keys()])).sort();
   const activityByDay = allDates.map((date) => ({
     date,
@@ -855,49 +1160,18 @@ export async function getFullDashboardStats(
     tokens: tokMap.get(date) ?? 0,
   }));
 
-  const totalTokensMonth = Number(tokMonthRes[0]?.tokens ?? 0);
-  const totalTokensLastMonth = Number(tokLastMonthRes[0]?.tokens ?? 0);
   const conversationsMonth = convMonthRes[0]?.value ?? 0;
   const conversationsLastMonth = convLastMonthRes[0]?.value ?? 0;
-
-  const agentUsage = agentUsageRes.map((r) => {
-    const tokens = Number(r.tokens);
-    const costPer1k = MODEL_COST_PER_1K[r.agentModel] ?? 0.008;
-    const convs = r.conversations;
-    return {
-      id: r.agentId,
-      name: r.agentName,
-      model: r.agentModel,
-      status: r.agentStatus,
-      conversations: convs,
-      tokens,
-      costUsd: Math.round((tokens / 1000) * costPer1k * 100) / 100,
-      tokensPerConv: convs > 0 ? Math.round(tokens / convs) : 0,
-    };
-  });
-
-  const totalCostMonth = agentUsage.reduce((s, a) => {
-    const costPer1k = MODEL_COST_PER_1K[a.model] ?? 0.008;
-    return s + (a.tokens / 1000) * costPer1k;
-  }, 0);
-
-  const totalCostLastMonth = (() => {
-    const lastMonthToks = Number(tokLastMonthRes[0]?.tokens ?? 0);
-    return Math.round((lastMonthToks / 1000) * 0.008 * 100) / 100;
-  })();
-
-  const teamStats = teamStatsRes.map((r) => {
-    const tokens = Number(r.tokens);
-    const costPer1k = 0.008;
-    return {
-      teamId: r.teamId,
-      teamName: r.teamName,
-      teamColor: r.teamColor,
-      conversations: r.conversations,
-      tokens,
-      costUsd: Math.round((tokens / 1000) * costPer1k * 100) / 100,
-    };
-  });
+  const conversationsByAgent = new Map(
+    convsByAgentRes.flatMap((r) => (r.agentId ? [[r.agentId, r.count] as const] : []))
+  );
+  const monthSpend = foldMonthSpend(
+    spendMonthRes,
+    agentsRes,
+    conversationsByAgent,
+    conversationsMonth
+  );
+  const lastMonthSpend = spendLastMonthRes[0];
 
   // Fill hourly array: 0-23 with zeros for missing hours
   const hourMap = new Map(hourlyRes.map((r) => [r.hour, r.count]));
@@ -907,6 +1181,7 @@ export async function getFullDashboardStats(
   }));
 
   return {
+    generatedAt: now.toISOString(),
     activeAgents: activeAgentsRes[0]?.value ?? 0,
     totalAgents: totalAgentsRes[0]?.value ?? 0,
     conversationsToday: convsTodayRes[0]?.value ?? 0,
@@ -916,22 +1191,28 @@ export async function getFullDashboardStats(
     totalEmployees: employeesRes[0]?.value ?? 0,
     avgDurationSeconds: Math.round(Number(avgDurRes[0]?.value ?? 0)),
     activeTeams: teamsRes[0]?.value ?? 0,
-    totalTokensMonth,
-    totalTokensLastMonth,
-    totalCostMonth: Math.round(totalCostMonth * 100) / 100,
-    totalCostLastMonth,
+    totalTokensMonth: monthSpend.totalTokensMonth,
+    totalTokensLastMonth: Math.round(Number(lastMonthSpend?.tokens ?? 0)),
+    totalCostMonth: monthSpend.totalCostMonth,
+    totalCostLastMonth: usd(Number(lastMonthSpend?.costUsd ?? 0)),
     conversationsMonth,
     conversationsLastMonth,
-    avgTokensPerConv:
-      conversationsMonth > 0 ? Math.round(totalTokensMonth / conversationsMonth) : 0,
+    avgTokensPerConv: monthSpend.avgTokensPerConv,
+    avgCostPerConv: monthSpend.avgCostPerConv,
+    flowRunsMonth: flowRunsMonthRes[0]?.value ?? 0,
+    flowRunsLastMonth: flowRunsLastMonthRes[0]?.value ?? 0,
+    flowCostMonth: monthSpend.flowCostMonth,
+    flowTokensMonth: monthSpend.flowTokensMonth,
     activityByDay,
-    agentUsage,
+    agentUsage: monthSpend.agentUsage,
+    flowStepUsage: monthSpend.flowStepUsage,
+    otherUsage: monthSpend.otherUsage,
     channelDistribution: channelDistRes.map((r) => ({ type: r.type ?? "direct", count: r.count })),
     statusDistribution: statusDistRes.map((r) => ({
       status: r.status ?? "unknown",
       count: r.count,
     })),
-    teamStats,
+    teamStats: mergeTeamStats(teamConvsRes, teamSpendRes),
     topEmployees: topEmployeesRes.map((r) => ({
       id: r.id,
       name: r.name,
