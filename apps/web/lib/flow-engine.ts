@@ -55,6 +55,7 @@ export { FLOW_NODE_TYPES, type FlowNodeType } from "./flows/node-types";
 import type { FlowNodeType } from "./flows/node-types";
 import { assertCodeExecutionAllowed } from "@/lib/flows/code-execution";
 import { resolveMaxToolCalls } from "@/lib/agents/tool-call-cap";
+import { refuseCutOffReply } from "@/lib/agents/cut-off-reply";
 
 export interface FlowNode {
   id: string;
@@ -1048,6 +1049,18 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
         break;
       }
       messages.push({ role: "assistant", content: result.content, toolCalls: result.toolCalls });
+      if (result.truncated) {
+        const toolResults = await refuseCutOffReply(result.toolCalls, agent.maxTokens, {
+          workspaceId,
+          source: "flow_agent",
+          agentId: agent.id,
+          ...(ctx.flowId ? { flowId: ctx.flowId } : {}),
+          flowRunId: runId,
+          nodeId: node.id,
+        });
+        messages.push({ role: "tool", content: "", toolResults });
+        continue;
+      }
       const toolResults = [];
       for (const tc of result.toolCalls) {
         toolsUsed.push(tc.name);

@@ -64,6 +64,7 @@ type WsTx = Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 import { withWorkspaceTx } from "@/lib/tenant/context";
 import { allowsPassiveMemoryRecall } from "@/lib/channels/public-channels";
 import { resolveMaxToolCalls } from "@/lib/agents/tool-call-cap";
+import { refuseCutOffReply } from "@/lib/agents/cut-off-reply";
 
 /**
  * Contexto resuelto para una conversación conversacional lista para invocar LLM.
@@ -638,6 +639,17 @@ async function runConversationalLoop(
         content: r.content,
         toolCalls: r.toolCalls,
       });
+      if (r.truncated) {
+        const toolResults = await refuseCutOffReply(r.toolCalls, activeAgent.maxTokens, {
+          workspaceId,
+          source: "channel",
+          agentId: activeAgent.id,
+          conversationId: conversation.id,
+          channelId: ctx.channel.id,
+        });
+        chatMsgs.push({ role: "tool", content: "", toolResults });
+        continue;
+      }
       let didHandoff = false;
       const toolResults = [];
       for (const tc of r.toolCalls) {
