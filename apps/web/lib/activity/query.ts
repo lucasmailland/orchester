@@ -4,6 +4,7 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { schema } from "@orchester/db";
 import { withWorkspaceTx } from "@/lib/tenant/context";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
+import { usageSums } from "@/lib/usage-sql";
 import { toolLabel } from "./view";
 import { applicableKinds } from "./filters";
 import { mergeActivityPages } from "./merge";
@@ -727,29 +728,6 @@ export async function exportActivity(
 }
 
 // ── totals ──────────────────────────────────────────────────────────────────
-
-/** A number at `metadata -> key`, or null. `key` is one of the constants below. */
-function usageMetaNumber(key: string): SQL {
-  if (!/^[A-Za-z]+$/.test(key)) throw new Error(`bad metadata key: ${key}`);
-  const m = schema.usageEvents.metadata;
-  return sql`(CASE WHEN jsonb_typeof(${m} -> '${sql.raw(key)}') = 'number' THEN (${m} ->> '${sql.raw(key)}')::numeric END)`;
-}
-
-function usageSums() {
-  const total = sql`COALESCE(${usageMetaNumber("tokensTotal")}, ${usageMetaNumber("tokens")},
-    CASE WHEN ${usageMetaNumber("tokensIn")} IS NOT NULL OR ${usageMetaNumber("tokensOut")} IS NOT NULL
-      THEN COALESCE(${usageMetaNumber("tokensIn")}, 0) + COALESCE(${usageMetaNumber("tokensOut")}, 0) END)`;
-  const sum = (expr: SQL) => sql<number>`COALESCE(SUM(${expr}), 0)::float8`;
-  return {
-    events: sql<number>`count(*)::int`,
-    costUsd: sql<number>`COALESCE(SUM(${schema.usageEvents.costUsd}), 0)::float8`,
-    tokensIn: sum(usageMetaNumber("tokensIn")),
-    tokensOut: sum(usageMetaNumber("tokensOut")),
-    cacheWrite: sum(usageMetaNumber("cacheWriteTokens")),
-    cacheRead: sum(usageMetaNumber("cacheReadTokens")),
-    tokensTotal: sum(total),
-  };
-}
 
 function spendRow(r: {
   key: string | null;
