@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useTranslations } from "next-intl";
 import {
@@ -35,6 +36,7 @@ import {
   Send,
   MessageCircle,
   ArrowRight,
+  Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FullDashboardStats } from "@/lib/db-queries";
@@ -101,6 +103,12 @@ function fmtT(n: number) {
   return String(n);
 }
 
+/** Dollars; a fraction of a cent is not rounded down to $0.00. */
+function fmtUsd(n: number, digits = 2) {
+  if (n > 0 && n < 10 ** -digits) return `<$${(10 ** -digits).toFixed(digits)}`;
+  return `$${n.toFixed(digits)}`;
+}
+
 function fmtDate(s: string) {
   const d = new Date(s + "T00:00:00");
   return `${d.getMonth() + 1}/${d.getDate()}`;
@@ -128,9 +136,23 @@ function pctChange(now: number, prev: number) {
 
 // ─── atomic components ───────────────────────────────────────────────────────
 
-function Card({ children, className }: { children: React.ReactNode; className?: string }) {
+function Card({
+  children,
+  className,
+  role,
+  label,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  role?: "group" | "region";
+  label?: string;
+}) {
   return (
-    <div className={cn("rounded-2xl border border-line bg-card backdrop-blur-sm", className)}>
+    <div
+      role={role}
+      aria-label={label}
+      className={cn("rounded-2xl border border-line bg-card backdrop-blur-sm", className)}
+    >
       {children}
     </div>
   );
@@ -171,6 +193,58 @@ function Delta({ now, prev }: { now: number; prev: number }) {
       {pct >= 0 ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
       {Math.abs(pct)}%
     </span>
+  );
+}
+
+/**
+ * A month figure against last month's: the change and "vs last month", or
+ * "first month" when last month had nothing to compare with.
+ */
+function MonthComparison({ now, prev }: { now: number; prev: number }) {
+  const t = useTranslations("dashboard.metrics");
+  const pct = prev > 0 ? pctChange(now, prev) : null;
+  if (pct === null) return <span className="text-[10px] text-faint">{t("firstMonth")}</span>;
+  return (
+    <span className="flex items-center gap-1.5 whitespace-nowrap text-[10px] text-faint">
+      <span className={cn("text-[9px] font-bold", pct >= 0 ? "text-emerald-500" : "text-red-500")}>
+        {fmtDelta(pct)}
+      </span>
+      {t("vsLastMonth")}
+    </span>
+  );
+}
+
+/**
+ * How old the numbers are. The page caches them for up to 30 seconds, so a
+ * reader should not take them for live; the label keeps counting while the
+ * page stays open.
+ */
+function UpdatedAgo({ generatedAt, dateLocale }: { generatedAt: string; dateLocale: string }) {
+  const t = useTranslations("dashboard");
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 5_000);
+    return () => clearInterval(timer);
+  }, []);
+  const readAt = Date.parse(generatedAt);
+  if (!Number.isFinite(readAt)) return null;
+  const seconds = Math.max(0, Math.floor((now - readAt) / 1000));
+  const label =
+    seconds < 5
+      ? t("updatedJustNow")
+      : seconds < 60
+        ? t("updatedSecondsAgo", { seconds })
+        : seconds < 3600
+          ? t("updatedMinutesAgo", { minutes: Math.floor(seconds / 60) })
+          : t("updatedHoursAgo", { hours: Math.floor(seconds / 3600) });
+  return (
+    <div
+      className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-card px-3 py-1.5"
+      title={t("updatedTitle", { time: new Date(readAt).toLocaleTimeString(dateLocale) })}
+    >
+      <Clock size={10} className="text-faint" />
+      <span className="font-mono text-[10px] text-muted">{label}</span>
+    </div>
   );
 }
 
@@ -371,7 +445,8 @@ function MiniDonut({
   colors,
   center,
 }: {
-  data: { name: string; count: number }[];
+  /** `key` picks the color when names can repeat; it defaults to the name. */
+  data: { name: string; count: number; key?: string }[];
   colors: Record<string, string>;
   center?: string;
 }) {
@@ -392,7 +467,7 @@ function MiniDonut({
             strokeWidth={0}
           >
             {data.map((entry, i) => (
-              <Cell key={i} fill={colors[entry.name] ?? "#3f3f46"} fillOpacity={0.9} />
+              <Cell key={i} fill={colors[entry.key ?? entry.name] ?? "#3f3f46"} fillOpacity={0.9} />
             ))}
           </Pie>
           <Tooltip contentStyle={TOOLTIP_STYLE} />
@@ -486,10 +561,26 @@ function Empty({ h }: { h: number }) {
 
 // ─── Agent performance table ──────────────────────────────────────────────────
 
-function AgentTable({ data }: { data: FullDashboardStats["agentUsage"] }) {
+/** Spend the table lists after the agents: flow steps, the rest. */
+interface UnassignedSpend {
+  key: string;
+  label: string;
+  hint?: string;
+  color: string;
+  tokens: number;
+  costUsd: number;
+}
+
+function AgentTable({
+  data,
+  unassigned,
+}: {
+  data: FullDashboardStats["agentUsage"];
+  unassigned: UnassignedSpend[];
+}) {
   const t = useTranslations("dashboard.table");
-  if (!data.length) return <Empty h={100} />;
-  const maxTokens = data[0]?.tokens ?? 1;
+  if (!data.length && !unassigned.length) return <Empty h={100} />;
+  const maxTokens = Math.max(1, ...data.map((a) => a.tokens), ...unassigned.map((u) => u.tokens));
   const headers = [
     t("agent"),
     t("model"),
@@ -576,12 +667,46 @@ function AgentTable({ data }: { data: FullDashboardStats["agentUsage"] }) {
                   </div>
                 </td>
                 <td className="py-3 pr-4 font-mono text-sm font-semibold text-amber-600 dark:text-amber-400">
-                  ${a.costUsd.toFixed(2)}
+                  {fmtUsd(a.costUsd)}
                 </td>
                 <td className="py-3 font-mono text-sm text-muted">{fmtT(a.tokensPerConv)}</td>
               </motion.tr>
             );
           })}
+          {unassigned.map((u) => (
+            <tr key={u.key} className="border-b border-line last:border-0" title={u.hint}>
+              <td className="py-3 pr-4">
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className="h-1.5 w-1.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: u.color }}
+                  />
+                  <span className="text-sm font-medium text-muted">{u.label}</span>
+                </div>
+              </td>
+              <td className="py-3 pr-4 text-faint">—</td>
+              <td className="py-3 pr-4 text-faint">—</td>
+              <td className="py-3 pr-4 text-faint">—</td>
+              <td className="py-3 pr-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-[3px] w-24 overflow-hidden rounded-full bg-elevated">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${(u.tokens / maxTokens) * 100}%`,
+                        backgroundColor: u.color,
+                      }}
+                    />
+                  </div>
+                  <span className="font-mono text-sm text-body">{fmtT(u.tokens)}</span>
+                </div>
+              </td>
+              <td className="py-3 pr-4 font-mono text-sm font-semibold text-amber-600 dark:text-amber-400">
+                {fmtUsd(u.costUsd)}
+              </td>
+              <td className="py-3 text-faint">—</td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -664,6 +789,18 @@ interface Props {
   workspaceSlug: string;
 }
 
+/** One card of the usage row. */
+interface MetricCardSpec {
+  key: string;
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  /** This month and last month, for `MonthComparison`. */
+  comparison?: { now: number; prev: number };
+  detail?: string;
+  sparkColor: string;
+}
+
 /** Formatea un porcentaje de cambio con signo. Devuelve null si el delta es nulo. */
 function fmtDelta(delta: number | null | undefined): string | null {
   if (delta == null || !Number.isFinite(delta)) return null;
@@ -692,8 +829,32 @@ export function DashboardClient({ stats, workspaceName, locale, workspaceSlug }:
             100
         )
       : 0;
-  const costData = stats.agentUsage.map((a) => ({ name: a.name, count: a.costUsd }));
-  const costColors = Object.fromEntries(stats.agentUsage.map((a) => [a.name, mColor(a.model)]));
+  // Spend with no agent is listed as such, so the parts add up to the total.
+  const unassigned: UnassignedSpend[] = [
+    {
+      key: "flow-steps",
+      label: t("charts.flowSteps"),
+      color: "#06b6d4",
+      ...stats.flowStepUsage,
+    },
+    {
+      key: "other",
+      label: t("charts.otherUsage"),
+      hint: t("charts.otherUsageHint"),
+      color: "#52525b",
+      ...stats.otherUsage,
+    },
+  ].filter((u) => u.tokens > 0 || u.costUsd > 0);
+  const costData = [
+    ...stats.agentUsage.map((a) => ({ key: a.id, name: a.name, count: a.costUsd })),
+    ...unassigned.map((u) => ({ key: u.key, name: u.label, count: u.costUsd })),
+  ]
+    .filter((d) => d.count > 0)
+    .sort((a, b) => b.count - a.count);
+  const costColors = Object.fromEntries([
+    ...stats.agentUsage.map((a) => [a.id, mColor(a.model)]),
+    ...unassigned.map((u) => [u.key, u.color]),
+  ]);
   const sparkData = stats.activityByDay.slice(-14).map((d) => d.conversations);
 
   return (
@@ -716,12 +877,7 @@ export function DashboardClient({ stats, workspaceName, locale, workspaceSlug }:
               {totalConvs30d.toLocaleString()} {t("convs")} · {fmtT(totalTokens30d)} {t("tokens")}
             </p>
           </div>
-          <div className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-card px-3 py-1.5">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-            <span className="font-mono text-[10px] uppercase tracking-widest text-muted">
-              {t("live")}
-            </span>
-          </div>
+          <UpdatedAgo generatedAt={stats.generatedAt} dateLocale={dateLocale} />
         </div>
       </div>
 
@@ -772,86 +928,73 @@ export function DashboardClient({ stats, workspaceName, locale, workspaceSlug }:
         />
       </div>
 
-      {/* ── Row 2: 4 usage metrics ── */}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      {/* ── Row 2: usage metrics, this month against last month ── */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
         {[
-          (() => {
-            const delta =
-              stats.totalTokensLastMonth > 0
-                ? pctChange(stats.totalTokensMonth, stats.totalTokensLastMonth)
-                : null;
-            const formatted = fmtDelta(delta);
-            return {
-              icon: <Zap size={13} className="text-violet-600 dark:text-violet-400" />,
-              label: t("metrics.tokensThisMonth"),
-              value: fmtT(stats.totalTokensMonth),
-              sub: formatted ? `${formatted} vs ${t("kpi.thisMonth")}` : t("metrics.firstMonth"),
-              sparkColor: "#8b5cf6",
-              delta,
-            };
-          })(),
           {
-            icon: <DollarSign size={13} className="text-amber-600 dark:text-amber-400" />,
-            label: t("metrics.estimatedCost"),
-            value: `$${stats.totalCostMonth.toFixed(2)}`,
-            sub: t("metrics.perConv", {
-              cost: `$${stats.conversationsMonth > 0 ? (stats.totalCostMonth / stats.conversationsMonth).toFixed(3) : "—"}`,
-            }),
-            sparkColor: "#f59e0b",
-            delta:
-              stats.totalCostLastMonth > 0
-                ? pctChange(stats.totalCostMonth, stats.totalCostLastMonth)
-                : null,
+            key: "tokens",
+            icon: <Zap size={13} className="text-violet-600 dark:text-violet-400" />,
+            label: t("metrics.tokensThisMonth"),
+            value: fmtT(stats.totalTokensMonth),
+            comparison: { now: stats.totalTokensMonth, prev: stats.totalTokensLastMonth },
+            detail: t("metrics.tokensPerConv", { tokens: fmtT(stats.avgTokensPerConv) }),
+            sparkColor: "#8b5cf6",
           },
           {
+            key: "cost",
+            icon: <DollarSign size={13} className="text-amber-600 dark:text-amber-400" />,
+            label: t("metrics.modelCost"),
+            value: fmtUsd(stats.totalCostMonth),
+            comparison: { now: stats.totalCostMonth, prev: stats.totalCostLastMonth },
+            detail: t("metrics.perConv", {
+              cost: stats.conversationsMonth > 0 ? fmtUsd(stats.avgCostPerConv, 3) : "—",
+            }),
+            sparkColor: "#f59e0b",
+          },
+          {
+            key: "conversations",
             icon: <BarChart3 size={13} className="text-cyan-400" />,
             label: t("metrics.conversationsPerMonth"),
             value: stats.conversationsMonth.toLocaleString(),
-            sub:
-              stats.conversationsLastMonth > 0
-                ? `${stats.conversationsLastMonth} ${t("metrics.firstMonth")}`
-                : t("metrics.firstMonth"),
+            comparison: { now: stats.conversationsMonth, prev: stats.conversationsLastMonth },
             sparkColor: "#06b6d4",
-            delta:
-              stats.conversationsLastMonth > 0
-                ? pctChange(stats.conversationsMonth, stats.conversationsLastMonth)
-                : null,
           },
           {
+            key: "flows",
+            icon: <Workflow size={13} className="text-emerald-600 dark:text-emerald-400" />,
+            label: t("metrics.flowRuns"),
+            value: stats.flowRunsMonth.toLocaleString(),
+            comparison: { now: stats.flowRunsMonth, prev: stats.flowRunsLastMonth },
+            detail: t("metrics.flowCost", { cost: fmtUsd(stats.flowCostMonth) }),
+            sparkColor: "#10b981",
+          },
+          {
+            key: "duration",
             icon: <Clock size={13} className="text-blue-600 dark:text-blue-400" />,
             label: t("metrics.avgDuration"),
             value: fmtDur(stats.avgDurationSeconds),
-            sub: t("metrics.tokensPerConv", { tokens: fmtT(stats.avgTokensPerConv) }),
+            detail: t("metrics.avgDurationSub"),
             sparkColor: "#3b82f6",
-            delta: null,
           },
-        ].map((m) => (
-          <Card key={m.label} className="flex items-center gap-4 p-4">
+        ].map((m: MetricCardSpec) => (
+          <Card key={m.key} role="group" label={m.label} className="flex items-center gap-4 p-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 mb-1">
                 {m.icon}
                 <span className="text-[10px] text-faint">{m.label}</span>
               </div>
               <p className="font-mono text-xl font-bold text-strong">{m.value}</p>
-              <div className="mt-0.5 flex items-center gap-2">
-                <span className="text-[10px] text-faint">{m.sub}</span>
-                {(() => {
-                  const txt = fmtDelta(m.delta);
-                  if (!txt || m.delta == null) return null;
-                  return (
-                    <span
-                      className={cn(
-                        "text-[9px] font-bold",
-                        m.delta >= 0 ? "text-emerald-500" : "text-red-500"
-                      )}
-                    >
-                      {txt}
-                    </span>
-                  );
-                })()}
-              </div>
+              {m.comparison && (
+                <div className="mt-0.5">
+                  <MonthComparison now={m.comparison.now} prev={m.comparison.prev} />
+                </div>
+              )}
+              {m.detail && <p className="mt-0.5 truncate text-[10px] text-faint">{m.detail}</p>}
             </div>
-            <Sparkline data={sparkData} color={m.sparkColor} />
+            {/* Five cards a row leave no room for the sparkline next to the text. */}
+            <div className="shrink-0 lg:hidden">
+              <Sparkline data={sparkData} color={m.sparkColor} />
+            </div>
           </Card>
         ))}
       </div>
@@ -879,20 +1022,16 @@ export function DashboardClient({ stats, workspaceName, locale, workspaceSlug }:
           </div>
         </Card>
 
-        <Card className="xl:col-span-2">
+        <Card className="xl:col-span-2" role="region" label={t("charts.costPerAgent")}>
           <CardHeader title={t("charts.costPerAgent")} sub={t("charts.currentMonth")} />
           <div className="px-5 pb-5">
-            <MiniDonut
-              data={costData}
-              colors={costColors}
-              center={`$${stats.totalCostMonth.toFixed(2)}`}
-            />
+            <MiniDonut data={costData} colors={costColors} center={fmtUsd(stats.totalCostMonth)} />
             <div className="mt-3">
               <LegendList
                 items={costData.slice(0, 5).map((d) => ({
-                  key: d.name,
+                  key: d.key,
                   label: d.name,
-                  value: `$${d.count.toFixed(2)}`,
+                  value: fmtUsd(d.count),
                   pct:
                     stats.totalCostMonth > 0
                       ? Math.round((d.count / stats.totalCostMonth) * 100)
@@ -906,13 +1045,13 @@ export function DashboardClient({ stats, workspaceName, locale, workspaceSlug }:
       </div>
 
       {/* ── Row 4: Agent performance table ── */}
-      <Card>
+      <Card role="region" label={t("charts.agentPerformance", { count: stats.agentUsage.length })}>
         <CardHeader
           title={t("charts.agentPerformance", { count: stats.agentUsage.length })}
           sub={t("charts.agentPerformanceSub")}
         />
         <div className="px-5 pb-5">
-          <AgentTable data={stats.agentUsage} />
+          <AgentTable data={stats.agentUsage} unassigned={unassigned} />
         </div>
       </Card>
 
@@ -952,7 +1091,7 @@ export function DashboardClient({ stats, workspaceName, locale, workspaceSlug }:
                     <p className="mt-0.5 text-[10px] text-faint">{fmtT(t.tokens)} tok</p>
                   </div>
                   <span className="shrink-0 font-mono text-xs font-semibold text-amber-600 dark:text-amber-400">
-                    ${t.costUsd.toFixed(2)}
+                    {fmtUsd(t.costUsd)}
                   </span>
                 </div>
               );

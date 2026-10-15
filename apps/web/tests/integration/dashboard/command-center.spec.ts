@@ -247,6 +247,10 @@ beforeAll(async () => {
 afterAll(() => teardownTestWorkspaces());
 
 describe("getFullDashboardStats — model spend", () => {
+  it("stamps the instant the numbers were read", () => {
+    expect(stats.generatedAt).toBe(NOW.toISOString());
+  });
+
   it("counts tokens and cost of every model call this month from usage_event, once", () => {
     // 500 + 50 + 700 + 1200 + 400 + 0 + 100 + 90 + 80 + 25: never the
     // message.tokens_used of the same router turns (500, 700).

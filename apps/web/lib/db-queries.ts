@@ -310,6 +310,11 @@ export interface Spend {
  * `conversation`.
  */
 export interface FullDashboardStats {
+  /**
+   * When these numbers were read, as an ISO instant. The page caches them for
+   * up to 30 seconds and shows how old they are.
+   */
+  generatedAt: string;
   // Operational KPIs
   activeAgents: number;
   totalAgents: number;
@@ -1176,6 +1181,7 @@ export async function getFullDashboardStats(
   }));
 
   return {
+    generatedAt: now.toISOString(),
     activeAgents: activeAgentsRes[0]?.value ?? 0,
     totalAgents: totalAgentsRes[0]?.value ?? 0,
     conversationsToday: convsTodayRes[0]?.value ?? 0,
