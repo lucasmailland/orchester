@@ -162,6 +162,27 @@ describe("agent runtime usage", () => {
     }
   });
 
+  it("charges the prompt cache the runtime asked for", async () => {
+    const cached = {
+      ...answer,
+      cacheUsage: {
+        inputTokens: 1_300,
+        outputTokens: 100,
+        cacheCreationTokens: 6_000,
+        cacheReadTokens: 0,
+      },
+    };
+    h.llm.mockReset().mockResolvedValueOnce(cached);
+    await runtime();
+    expect(h.usage.mock.calls[0]![0]).toMatchObject({
+      tokensIn: 1_300,
+      tokensOut: 100,
+      cacheWriteTokens: 6_000,
+      cacheReadTokens: 0,
+      costUsd: calculateChatCostUsd(BARE, 1_300, 100, { writeTokens: 6_000, readTokens: 0 }),
+    });
+  });
+
   it("still charges everything as output when the provider gives no split", async () => {
     h.llm.mockReset().mockResolvedValue({ content: "x", model: BARE, tokensUsed: 500 });
     await runtime();
@@ -223,6 +244,24 @@ describe("channel router usage", () => {
         metadata: { tokens: 2_600, model: MODEL },
       }),
     ]);
+  });
+
+  it("adds the prompt cache to the message cost when a call reports it", async () => {
+    const cached = {
+      ...answer,
+      cacheUsage: {
+        inputTokens: 1_300,
+        outputTokens: 100,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 5_000,
+      },
+    };
+    h.llm.mockReset().mockResolvedValueOnce(toolTurn).mockResolvedValueOnce(cached);
+    await channel();
+    const cost = calculateChatCostUsd(MODEL, 2_300, 300, { writeTokens: 0, readTokens: 5_000 });
+    expect(cost).not.toBe(calculateChatCostUsd(MODEL, 2_300, 300));
+    const assistant = written("messages").find((m) => m.role === "assistant");
+    expect(assistant).toMatchObject({ tokensUsed: 2_600, costUsd: String(cost) });
   });
 
   it("meters a failed turn with the split of the calls it paid for", async () => {

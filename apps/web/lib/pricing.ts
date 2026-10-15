@@ -133,15 +133,53 @@ export function calculateCostUsd(model: string, tokens: number): number {
 }
 
 /**
- * Costo USD de un turno de chat separando input/output (E2-1). Si el model no
- * tiene tabla split, usa el rate blended sobre el total (in+out) — mismo
- * resultado que `calculateCostUsd(model, tokensIn + tokensOut)`.
+ * Prompt cache tokens of one call. Providers report them apart from regular
+ * input: a call that writes the cached prefix or reads it back shows only the
+ * uncached remainder as input tokens.
  */
-export function calculateChatCostUsd(model: string, tokensIn: number, tokensOut: number): number {
+export interface PromptCacheTokens {
+  writeTokens: number;
+  readTokens: number;
+}
+
+/**
+ * Anthropic models, direct and on Bedrock, bill a cache write at 1.25x and a
+ * cache read at 0.1x their input price (5-minute cache). They are the only
+ * models orchester sets cache points for.
+ */
+const CACHE_WRITE_INPUT_MULTIPLIER = 1.25;
+const CACHE_READ_INPUT_MULTIPLIER = 0.1;
+
+function cacheUsd(inputPer1k: number, cache: PromptCacheTokens | undefined): number {
+  if (!cache) return 0;
+  return (
+    (cache.writeTokens / 1000) * inputPer1k * CACHE_WRITE_INPUT_MULTIPLIER +
+    (cache.readTokens / 1000) * inputPer1k * CACHE_READ_INPUT_MULTIPLIER
+  );
+}
+
+/**
+ * Costo USD de un turno de chat separando input/output (E2-1), más la caché de
+ * prompt cuando el proveedor la informa. Si el model no tiene tabla split, usa
+ * el rate blended sobre el total (in+out) — mismo resultado que
+ * `calculateCostUsd(model, tokensIn + tokensOut)` — y cotiza la caché sobre ese
+ * mismo rate.
+ */
+export function calculateChatCostUsd(
+  model: string,
+  tokensIn: number,
+  tokensOut: number,
+  cache?: PromptCacheTokens
+): number {
   // Catálogo primero (A4), luego la tabla legacy, luego el rate blended.
   const split = priceFor(CATALOG_CHAT_PRICE, model) ?? priceFor(CHAT_COST_PER_1K_USD, model);
-  if (!split) return calculateCostUsd(model, tokensIn + tokensOut);
-  const usd = (tokensIn / 1000) * split.in + (tokensOut / 1000) * split.out;
+  if (!split) {
+    const rate = blendedRate(model);
+    const usd = ((tokensIn + tokensOut) / 1000) * rate + cacheUsd(rate, cache);
+    return Math.round(usd * 1_000_000) / 1_000_000;
+  }
+  const usd =
+    (tokensIn / 1000) * split.in + (tokensOut / 1000) * split.out + cacheUsd(split.in, cache);
   return Math.round(usd * 1_000_000) / 1_000_000;
 }
 

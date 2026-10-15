@@ -64,3 +64,37 @@ describe("pricing by model id", () => {
     expect(Number.isFinite(calculateChatCostUsd("acme:toString", 1_000, 1_000))).toBe(true);
   });
 });
+
+describe("prompt cache pricing", () => {
+  // Anthropic models (direct and on Bedrock) bill cache writes at 1.25x and
+  // cache reads at 0.1x the input price; providers report them apart from input.
+  const price = catalogPrice(BEDROCK_SONNET);
+
+  it("charges cache writes at 1.25x the input price", () => {
+    expect(
+      calculateChatCostUsd(BEDROCK_SONNET, 400, 300, { writeTokens: 7_000, readTokens: 0 })
+    ).toBe(round6(0.4 * price.in + 0.3 * price.out + 7 * price.in * 1.25));
+  });
+
+  it("charges cache reads at 0.1x the input price", () => {
+    expect(
+      calculateChatCostUsd(BEDROCK_SONNET, 400, 300, { writeTokens: 0, readTokens: 7_000 })
+    ).toBe(round6(0.4 * price.in + 0.3 * price.out + 7 * price.in * 0.1));
+  });
+
+  it("costs the same as before when there is no cache", () => {
+    expect(calculateChatCostUsd(BEDROCK_SONNET, 400, 300, { writeTokens: 0, readTokens: 0 })).toBe(
+      calculateChatCostUsd(BEDROCK_SONNET, 400, 300)
+    );
+  });
+
+  it("prices cache tokens off the default rate for an unknown model", () => {
+    const rate = getCostPer1k("acme:mystery-model");
+    expect(
+      calculateChatCostUsd("acme:mystery-model", 1_000, 1_000, {
+        writeTokens: 2_000,
+        readTokens: 10_000,
+      })
+    ).toBe(round6(2 * rate + 2 * rate * 1.25 + 10 * rate * 0.1));
+  });
+});
