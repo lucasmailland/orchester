@@ -32,6 +32,7 @@ import {
   formatTokens,
   formatUsd,
   isMcpView,
+  toolLabel,
   type ActivityViewState,
   type RangePreset,
 } from "@/lib/activity/view";
@@ -585,7 +586,7 @@ function TotalsCards({ totals, mcp }: { totals: ActivityTotals; mcp: boolean }) 
   }));
   const byTool: BarItem[] = totals.toolCallsByTool.map((c) => ({
     key: c.tool,
-    label: c.tool,
+    label: toolLabel(c.tool),
     value: c.total,
     display: calls(c),
     sub: failedSub(c),

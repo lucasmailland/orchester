@@ -4,6 +4,7 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { schema } from "@orchester/db";
 import { withWorkspaceTx } from "@/lib/tenant/context";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
+import { toolLabel } from "./view";
 import { applicableKinds } from "./filters";
 import { mergeActivityPages } from "./merge";
 import {
@@ -207,7 +208,7 @@ async function fetchToolCalls(tx: Tx, a: SourceArgs): Promise<ActivityRow[]> {
     tokens: null,
     costUsd: null,
     durationMs: r.durationMs,
-    summary: r.ref ? `${r.tool} · ${r.ref}` : r.tool,
+    summary: r.ref ? `${toolLabel(r.tool)} · ${r.ref}` : toolLabel(r.tool),
     link: r.conversationId
       ? path("conversations", r.conversationId)
       : r.flowId

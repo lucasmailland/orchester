@@ -179,7 +179,7 @@ describe("ActivityClient", () => {
     expect(urlOf(fetchMock.mock.calls[1]!).searchParams.get("integrationType")).toBe("mcp");
     expect(await screen.findByRole("region", { name: "Calls by agent" })).toBeInTheDocument();
     const byTool = screen.getByRole("region", { name: "Calls by tool" });
-    expect(within(byTool).getByText("mcp__int1__lookup_people")).toBeInTheDocument();
+    expect(within(byTool).getByText("lookup_people")).toBeInTheDocument();
     // Spend does not apply to a tool-call view: the tiles count agents and tools instead.
     expect(screen.getByRole("group", { name: "Agents" })).toHaveTextContent("1");
     expect(screen.getByRole("group", { name: "Tools" })).toHaveTextContent("1");

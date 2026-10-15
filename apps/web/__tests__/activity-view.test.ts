@@ -8,6 +8,7 @@ import {
   formatUsd,
   isMcpView,
   rangeOf,
+  toolLabel,
   type ActivityViewState,
 } from "@/lib/activity/view";
 
@@ -122,5 +123,19 @@ describe("formatters", () => {
     expect(formatDuration(12_340)).toBe("12.3 s");
     expect(formatDuration(245_000)).toBe("4m 05s");
     expect(formatDuration(7_380_000)).toBe("2h 03m");
+  });
+});
+
+describe("toolLabel", () => {
+  it("drops the mcp__<integration>__ prefix: the integration is shown apart", () => {
+    expect(toolLabel("mcp__int1__find_people")).toBe("find_people");
+    expect(toolLabel("mcp__a_b__c__d")).toBe("c__d");
+  });
+
+  it("leaves every other tool name as it is", () => {
+    expect(toolLabel("odoo_get_case")).toBe("odoo_get_case");
+    expect(toolLabel("odoo::post_note")).toBe("odoo::post_note");
+    expect(toolLabel("mcp__")).toBe("mcp__");
+    expect(toolLabel("mcp__nameonly")).toBe("mcp__nameonly");
   });
 });

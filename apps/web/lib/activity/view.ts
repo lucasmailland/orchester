@@ -109,3 +109,15 @@ export function formatDuration(ms: number): string {
   const minutes = Math.round(ms / 60_000);
   return `${Math.floor(minutes / 60)}h ${pad(minutes % 60)}m`;
 }
+
+/**
+ * A tool's name as a reader wants it. MCP tools are named
+ * `mcp__<integration>__<tool>` (see `integrationOf` in tool-calls.ts) and the
+ * integration is shown on its own, so the prefix is dropped; any other name is
+ * kept. The raw name stays in the row's detail.
+ */
+export function toolLabel(tool: string): string {
+  if (!tool.startsWith("mcp__")) return tool;
+  const end = tool.indexOf("__", 5);
+  return end > 5 && end + 2 < tool.length ? tool.slice(end + 2) : tool;
+}
