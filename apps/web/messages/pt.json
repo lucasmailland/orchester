@@ -1662,8 +1662,11 @@
         "noneYet": "Nenhum membro ainda.",
         "invitesHeading": "Convites",
         "inviteSent": "Convite enviado",
+        "inviteEmailFailed": "O convite foi criado, mas o e-mail não foi enviado. Copie o link abaixo e envie você mesmo.",
+        "inviteEmailNotConfigured": "O convite foi criado, mas o e-mail não está configurado neste servidor. Copie o link abaixo e envie você mesmo.",
         "inviteError": "Erro",
         "inviteLinkLabel": "Link de convite (também enviado por e-mail):",
+        "inviteLinkLabelNotSent": "Link do convite (envie você mesmo):",
         "copyAria": "Copiar link",
         "removeConfirm": "Remover {name} do workspace?",
         "memberRemoved": "Membro removido",
@@ -1908,6 +1911,7 @@
     "checklist": {
       "title": "Primeiros passos",
       "subtitle": "5 coisas para fazer primeiro no seu workspace",
+      "hide": "Ocultar primeiros passos",
       "tasks": {
         "createAgent": {
           "title": "Crie seu primeiro agente",

@@ -1661,8 +1661,11 @@
         "noneYet": "No members yet.",
         "invitesHeading": "Invitations",
         "inviteSent": "Invitation sent",
+        "inviteEmailFailed": "Invitation created, but the email was not sent. Copy the link below and send it yourself.",
+        "inviteEmailNotConfigured": "Invitation created, but email is not configured on this server. Copy the link below and send it yourself.",
         "inviteError": "Error",
         "inviteLinkLabel": "Invite link (also sent by email):",
+        "inviteLinkLabelNotSent": "Invite link (send it to them yourself):",
         "copyAria": "Copy link",
         "removeConfirm": "Remove {name} from the workspace?",
         "memberRemoved": "Member removed",
@@ -1908,6 +1911,7 @@
     "checklist": {
       "title": "Get started",
       "subtitle": "5 things to do first in your workspace",
+      "hide": "Hide checklist",
       "tasks": {
         "createAgent": {
           "title": "Create your first agent",
