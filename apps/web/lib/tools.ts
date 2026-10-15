@@ -355,7 +355,7 @@ const BUILTINS: Record<string, ToolDefinition> = {
         body_markdown: {
           type: "string",
           description:
-            "Note as Markdown (preferred): paragraphs, # headings, **bold**, *italic*, `code`, - lists, [text](https://url). Raw HTML is shown as text, not rendered.",
+            "Note as Markdown (preferred): paragraphs, # headings, **bold**, *italic*, `code`, - lists, | pipe | tables |, [text](https://url). Raw HTML is shown as text, not rendered.",
         },
         body_text: {
           type: "string",
@@ -384,7 +384,7 @@ const BUILTINS: Record<string, ToolDefinition> = {
         body_markdown: {
           type: "string",
           description:
-            "Note as Markdown: paragraphs, # headings, **bold**, *italic*, `code`, - lists, [text](https://url). Raw HTML is shown as text, not rendered.",
+            "Note as Markdown: paragraphs, # headings, **bold**, *italic*, `code`, - lists, | pipe | tables |, [text](https://url). Raw HTML is shown as text, not rendered.",
         },
         marker: {
           type: "string",

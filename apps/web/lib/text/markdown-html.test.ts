@@ -141,64 +141,91 @@ describe("markdownToHtml inline", () => {
 });
 
 describe("markdownToHtml tables", () => {
-  const T = '<table class="table table-sm table-bordered">';
+  const open = '<div class="table-responsive"><table class="table table-sm table-bordered">';
+  const close = "</table></div>";
+  // Cells of up to 20 visible characters stay on one line; longer ones wrap.
+  const th = (x: string) => `<th class="text-nowrap">${x}</th>`;
+  const td = (x: string) => `<td class="text-nowrap">${x}</td>`;
+  const table = (head: string[], body: string[][]) =>
+    `${open}<thead><tr>${head.join("")}</tr></thead>` +
+    (body.length ? `<tbody>${body.map((r) => `<tr>${r.join("")}</tr>`).join("")}</tbody>` : "") +
+    close;
 
   it("renders a pipe table with a header row", () => {
     expect(markdownToHtml("| A | B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |")).toBe(
-      `${T}<thead><tr><th>A</th><th>B</th></tr></thead>` +
-        "<tbody><tr><td>1</td><td>2</td></tr><tr><td>3</td><td>4</td></tr></tbody></table>"
+      table(
+        [th("A"), th("B")],
+        [
+          [td("1"), td("2")],
+          [td("3"), td("4")],
+        ]
+      )
     );
   });
 
   it("accepts rows without outer pipes and delimiters with alignment colons", () => {
     expect(markdownToHtml("A | B\n:-- | --:\n1 | 2")).toBe(
-      `${T}<thead><tr><th>A</th><th>B</th></tr></thead>` +
-        "<tbody><tr><td>1</td><td>2</td></tr></tbody></table>"
+      table([th("A"), th("B")], [[td("1"), td("2")]])
     );
   });
 
   it("renders inline formatting inside cells", () => {
     expect(markdownToHtml("| Who | State |\n|---|---|\n| `x` | **Offline** |")).toBe(
-      `${T}<thead><tr><th>Who</th><th>State</th></tr></thead>` +
-        "<tbody><tr><td><code>x</code></td><td><b>Offline</b></td></tr></tbody></table>"
+      table([th("Who"), th("State")], [[td("<code>x</code>"), td("<b>Offline</b>")]])
+    );
+  });
+
+  it("measures a cell by its visible text, so a linked id stays on one line", () => {
+    expect(
+      markdownToHtml("| ID |\n|---|\n| [19995](https://erp.example.com/odoo/tasks/19995) |")
+    ).toBe(
+      table([th("ID")], [[td('<a href="https://erp.example.com/odoo/tasks/19995">19995</a>')]])
+    );
+    expect(markdownToHtml("| A |\n|---|\n| R&D <ok> |")).toBe(
+      table([th("A")], [[td("R&amp;D &lt;ok&gt;")]])
+    );
+  });
+
+  it("keeps short cells on one line and lets long ones wrap", () => {
+    const long = "A title long enough to wrap";
+    expect(markdownToHtml(`| ID | Title |\n|---|---|\n| 19995 | ${long} |`)).toBe(
+      table([th("ID"), th("Title")], [[td("19995"), `<td>${long}</td>`]])
+    );
+    expect(markdownToHtml(`| ${"x".repeat(20)} | ${"y".repeat(21)} |\n|---|---|`)).toBe(
+      table([th("x".repeat(20)), `<th>${"y".repeat(21)}</th>`], [])
     );
   });
 
   it("pads short rows and drops extra cells, like GitHub", () => {
     expect(markdownToHtml("| A | B |\n|---|---|\n| 1 |\n| 1 | 2 | 3 |")).toBe(
-      `${T}<thead><tr><th>A</th><th>B</th></tr></thead>` +
-        "<tbody><tr><td>1</td><td></td></tr><tr><td>1</td><td>2</td></tr></tbody></table>"
+      table(
+        [th("A"), th("B")],
+        [
+          [td("1"), td("")],
+          [td("1"), td("2")],
+        ]
+      )
     );
   });
 
   it("keeps an escaped pipe inside a cell", () => {
-    expect(markdownToHtml("| A |\n|---|\n| a \\| b |")).toBe(
-      `${T}<thead><tr><th>A</th></tr></thead><tbody><tr><td>a | b</td></tr></tbody></table>`
-    );
+    expect(markdownToHtml("| A |\n|---|\n| a \\| b |")).toBe(table([th("A")], [[td("a | b")]]));
   });
 
   it("ends the table at a blank line or a line without a pipe", () => {
-    expect(markdownToHtml("| A |\n|---|\n| 1 |\n\nafter")).toBe(
-      `${T}<thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table>` +
-        "<p>after</p>"
-    );
-    expect(markdownToHtml("| A |\n|---|\n| 1 |\nafter")).toBe(
-      `${T}<thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table>` +
-        "<p>after</p>"
-    );
+    const one = table([th("A")], [[td("1")]]);
+    expect(markdownToHtml("| A |\n|---|\n| 1 |\n\nafter")).toBe(`${one}<p>after</p>`);
+    expect(markdownToHtml("| A |\n|---|\n| 1 |\nafter")).toBe(`${one}<p>after</p>`);
   });
 
   it("interrupts a paragraph", () => {
     expect(markdownToHtml("Found:\n| A |\n|---|\n| 1 |")).toBe(
-      `<p>Found:</p>${T}<thead><tr><th>A</th></tr></thead>` +
-        "<tbody><tr><td>1</td></tr></tbody></table>"
+      `<p>Found:</p>${table([th("A")], [[td("1")]])}`
     );
   });
 
   it("renders a header-only table", () => {
-    expect(markdownToHtml("| A | B |\n|---|---|")).toBe(
-      `${T}<thead><tr><th>A</th><th>B</th></tr></thead></table>`
-    );
+    expect(markdownToHtml("| A | B |\n|---|---|")).toBe(table([th("A"), th("B")], []));
   });
 
   it("is not a table without a matching delimiter row", () => {
@@ -236,20 +263,28 @@ describe("markdownToHtml escaping", () => {
     expect(html.match(/<a [^>]*>/)![0].match(/="/g)).toHaveLength(1);
   });
 
-  it("only ever emits href on links and a fixed class on tables as attributes", () => {
+  it("only ever emits href on links and fixed classes on tables as attributes", () => {
     const html = markdownToHtml(
-      '# t\n\n- [a](https://e.com) **b**\n\n```\nx\n```\n\n---\n\n| <b x=1> |\n|---|\n| " |'
+      "# t\n\n- [a](https://e.com) **b**\n\n```\nx\n```\n\n---\n\n| <b x=1> | " +
+        `${"z".repeat(30)} |\n|---|---|\n| " | ok |`
     );
-    expect(html.match(/<[a-z0-9]+ [^>]*>/g) ?? []).toEqual([
-      '<a href="https://e.com">',
-      '<table class="table table-sm table-bordered">',
-    ]);
+    expect([...new Set(html.match(/<[a-z0-9]+ [^>]*>/g) ?? [])].sort()).toEqual(
+      [
+        '<a href="https://e.com">',
+        '<div class="table-responsive">',
+        '<table class="table table-sm table-bordered">',
+        '<td class="text-nowrap">',
+        '<th class="text-nowrap">',
+      ].sort()
+    );
   });
 
   it("escapes HTML inside table cells", () => {
     expect(markdownToHtml("| <i>h</i> |\n|---|\n| <script>x</script> |")).toBe(
-      '<table class="table table-sm table-bordered"><thead><tr><th>&lt;i&gt;h&lt;/i&gt;</th></tr></thead>' +
-        "<tbody><tr><td>&lt;script&gt;x&lt;/script&gt;</td></tr></tbody></table>"
+      '<div class="table-responsive"><table class="table table-sm table-bordered">' +
+        '<thead><tr><th class="text-nowrap">&lt;i&gt;h&lt;/i&gt;</th></tr></thead>' +
+        '<tbody><tr><td class="text-nowrap">&lt;script&gt;x&lt;/script&gt;</td></tr></tbody>' +
+        "</table></div>"
     );
   });
 });

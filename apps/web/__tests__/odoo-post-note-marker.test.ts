@@ -85,6 +85,15 @@ describe("post_note marker idempotency", () => {
     expect(posted(calls)).toBe(false);
   });
 
+  it("suppresses when the marker line is hidden, as post_note now writes it", async () => {
+    const { result, calls } = await run(
+      [note('<p class="d-none">[[orchester:triage_1]]</p><p>report</p>')],
+      "triage_1"
+    );
+    expect(result).toEqual({ posted: false, reason: "duplicate" });
+    expect(posted(calls)).toBe(false);
+  });
+
   it("is not suppressed by a customer email that quotes the marker", async () => {
     const email = note("<p>[[orchester:triage_1]]</p>", { message_type: "email" });
     const { result, calls } = await run([email], "triage_1");
@@ -170,11 +179,11 @@ describe("odoo post_note body_markdown", () => {
     expect(calls.find((c) => c.method === "message_post")!.kwargs.body).toBe("<p><b>md</b></p>");
   });
 
-  it("still prefixes the marker line", async () => {
+  it("still prefixes the marker line, hidden from readers", async () => {
     const calls = mockOdoo((e) => (e.model === "mail.message" ? [] : 99));
     await post({ body_text: undefined, body_markdown: "x", marker: "m1" });
     const msg = calls.find((c) => c.method === "message_post")!;
-    expect(msg.kwargs.body).toBe("<p>[[orchester:m1]]</p><p>x</p>");
+    expect(msg.kwargs.body).toBe('<p class="d-none">[[orchester:m1]]</p><p>x</p>');
   });
 
   it("rejects a markdown body that renders to nothing", async () => {
