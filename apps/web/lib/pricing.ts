@@ -104,11 +104,25 @@ const CAPABILITY_PRICE: Record<string, { unit: string; perUnit: number }> = {
   ocr: { unit: "document", perUnit: 0.005 },
 };
 
+/**
+ * Looks `model` up in `table` as given, then by its bare id (the part after the
+ * first ":"). Agents and channels store the full catalog id
+ * ("bedrock:us.anthropic.claude-sonnet-4-6") while provider results carry the
+ * bare one; every table here is keyed by the bare id, so without the second
+ * try a full id silently fell through to the default rate. Only own keys
+ * count: an id like "constructor" must not find an Object.prototype member.
+ */
+function priceFor<T>(table: Record<string, T>, model: string): T | undefined {
+  if (Object.hasOwn(table, model)) return table[model];
+  const bare = model.slice(model.indexOf(":") + 1);
+  return bare !== model && Object.hasOwn(table, bare) ? table[bare] : undefined;
+}
+
 /** Rate blended USD/1k para `model`: catálogo (promedio in/out) → tabla legacy → default. */
 function blendedRate(model: string): number {
-  const cat = CATALOG_CHAT_PRICE[model];
+  const cat = priceFor(CATALOG_CHAT_PRICE, model);
   if (cat) return (cat.in + cat.out) / 2;
-  return COST_PER_1K_USD[model] ?? DEFAULT_COST_PER_1K;
+  return priceFor(COST_PER_1K_USD, model) ?? DEFAULT_COST_PER_1K;
 }
 
 /** Costo USD para `tokens` consumidos por `model`. Usa fallback si no conoce el model. */
@@ -125,7 +139,7 @@ export function calculateCostUsd(model: string, tokens: number): number {
  */
 export function calculateChatCostUsd(model: string, tokensIn: number, tokensOut: number): number {
   // Catálogo primero (A4), luego la tabla legacy, luego el rate blended.
-  const split = CATALOG_CHAT_PRICE[model] ?? CHAT_COST_PER_1K_USD[model];
+  const split = priceFor(CATALOG_CHAT_PRICE, model) ?? priceFor(CHAT_COST_PER_1K_USD, model);
   if (!split) return calculateCostUsd(model, tokensIn + tokensOut);
   const usd = (tokensIn / 1000) * split.in + (tokensOut / 1000) * split.out;
   return Math.round(usd * 1_000_000) / 1_000_000;
