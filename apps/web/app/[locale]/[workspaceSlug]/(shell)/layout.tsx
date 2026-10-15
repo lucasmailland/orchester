@@ -8,6 +8,7 @@ import { GdprExportProgress } from "@/components/workspace/GdprExportProgress";
 import { TourProvider } from "@/components/compass/TourProvider";
 import { HelpRoot } from "@/components/compass/HelpRoot";
 import { getCurrentSession, getCurrentWorkspaceBySlug } from "@/lib/workspace";
+import { can } from "@/lib/rbac";
 
 /**
  * Phase D shell layout — lives under `[workspaceSlug]` so the URL
@@ -65,7 +66,7 @@ export default async function ShellLayout({
       >
         {t("skipToContent")}
       </a>
-      <Sidebar locale={locale} />
+      <Sidebar locale={locale} showActivity={can(workspaceData.role, "activity.read")} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar
           locale={locale}

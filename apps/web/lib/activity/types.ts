@@ -184,3 +184,11 @@ export interface ActivityResponse {
   /** Only on the first page (no cursor). */
   totals: ActivityTotals | null;
 }
+
+/** What the page's filter menus offer. */
+export interface ActivityFilterOptions {
+  agents: Array<{ id: string; name: string }>;
+  flows: Array<{ id: string; name: string }>;
+  channels: Array<{ id: string; name: string }>;
+  integrations: Array<{ id: string; name: string; type: string }>;
+}

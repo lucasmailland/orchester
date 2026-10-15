@@ -20,6 +20,7 @@ import {
   ACTIVITY_KINDS,
   MAX_EXPORT_ROWS,
   type ActivityCursor,
+  type ActivityFilterOptions,
   type ActivityFilters,
   type ActivityIntegration,
   type ActivityKind,
@@ -945,13 +946,6 @@ export async function activityTotals(
 }
 
 // ── filter options ──────────────────────────────────────────────────────────
-
-export interface ActivityFilterOptions {
-  agents: Array<{ id: string; name: string }>;
-  flows: Array<{ id: string; name: string }>;
-  channels: Array<{ id: string; name: string }>;
-  integrations: Array<{ id: string; name: string; type: string }>;
-}
 
 /** What the page's filter menus offer. */
 export async function loadActivityFilterOptions(

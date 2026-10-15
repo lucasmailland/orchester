@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import {
+  Activity,
   Home,
   Users,
   Layers,
@@ -26,9 +27,11 @@ import { WorkspaceSwitcher } from "@/components/workspace/WorkspaceSwitcher";
 
 interface SidebarProps {
   locale: string;
+  /** The member's role may read the activity view (`activity.read`). */
+  showActivity?: boolean;
 }
 
-export function Sidebar({ locale }: SidebarProps) {
+export function Sidebar({ locale, showActivity = false }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const t = useTranslations("nav");
   // Sidebar always renders inside the [workspaceSlug] segment, so the
@@ -70,6 +73,10 @@ export function Sidebar({ locale }: SidebarProps) {
   const systemNav = [
     { href: `${base}/channels`, icon: <Radio size={16} />, label: t("channels") },
     { href: `${base}/integrations`, icon: <Plug size={16} />, label: t("integrations") },
+    // Hidden from roles without `activity.read`; the API refuses them anyway.
+    ...(showActivity
+      ? [{ href: `${base}/activity`, icon: <Activity size={16} />, label: t("activity") }]
+      : []),
     { href: `${base}/settings`, icon: <Settings size={16} />, label: t("settings") },
   ];
 
