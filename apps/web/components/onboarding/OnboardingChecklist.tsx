@@ -16,6 +16,7 @@ import type { OnboardingChecklistState } from "@/lib/db-queries";
  * `getOnboardingChecklistState`) the row shows a green checkmark and
  * a "Done" link instead of "Get started".
  *
+ * The operator can hide the card at any time with the X in its header.
  * When all 5 are done the entire card collapses to a "workspace ready"
  * banner that the operator can dismiss for good — the dismissal is
  * persisted in `localStorage` under a workspace-scoped key so it
@@ -89,15 +90,9 @@ export function OnboardingChecklist({ state, workspaceId, locale, workspaceSlug 
     setDismissed(true);
   }
 
-  // Hide entirely once everything is done AND the operator dismissed
-  // the celebratory banner.
-  if (allDone && (dismissed || !hydrated)) {
-    // While we don't know yet (pre-hydration), the safest render is
-    // nothing — the dashboard below already conveys "things are
-    // working". The very first paint may show nothing for a frame,
-    // which is fine.
-    return null;
-  }
+  // Hidden for good once the operator dismissed it (banner or card). Render
+  // nothing until localStorage has been read, so a hidden card never flashes.
+  if (!hydrated || dismissed) return null;
 
   if (allDone) {
     return (
@@ -140,9 +135,20 @@ export function OnboardingChecklist({ state, workspaceId, locale, workspaceSlug 
           </h2>
           <p className="mt-0.5 text-[10px] text-faint">{t("subtitle")}</p>
         </div>
-        <p className="font-mono text-[10px] uppercase tracking-widest text-faint">
-          {totalDone}/{tasks.length}
-        </p>
+        <div className="flex items-center gap-2">
+          <p className="font-mono text-[10px] uppercase tracking-widest text-faint">
+            {totalDone}/{tasks.length}
+          </p>
+          <button
+            type="button"
+            onClick={handleDismiss}
+            className="rounded-md p-1.5 text-faint transition-colors hover:bg-zinc-500/10 hover:text-muted"
+            aria-label={t("hide")}
+            title={t("hide")}
+          >
+            <X size={14} aria-hidden="true" />
+          </button>
+        </div>
       </header>
       <ul className="divide-y divide-line border-t border-line">
         {tasks.map((task) => (
