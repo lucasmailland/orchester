@@ -33,6 +33,9 @@ export type Action =
   | "apikey.manage"
   | "webhook.manage"
   | "audit.read"
+  // Activity view: what agents and flows did, with which data and at what
+  // cost. Same audience as the audit log: admin + owner.
+  | "activity.read"
   | "brain.read"
   | "brain.write"
   // Mnemosyne — latent at v1.0 (no routes consume these yet, per audit
@@ -104,6 +107,7 @@ const PERMISSIONS: Record<Role, Action[]> = {
     "apikey.manage",
     "webhook.manage",
     "audit.read",
+    "activity.read",
     "brain.read",
     "brain.write",
     "mnemo.read",

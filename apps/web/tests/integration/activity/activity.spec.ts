@@ -2,14 +2,24 @@
 //
 // The activity view against a real Postgres (testcontainer): two workspaces
 // hold rows at the same instants in every source, and everything the query
-// layer returns must come from the caller's workspace only, in timeline
-// order, across pages.
+// layer and the two endpoints return must come from the caller's workspace
+// only, in timeline order, across pages.
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 
 // The global vitest.setup.ts stubs out @orchester/db; integration tests need
 // the real module, imported dynamically once the container is up.
 vi.unmock("@orchester/db");
 vi.doUnmock("@orchester/db");
+
+// Session lookup goes through better-auth; the routes only need the user id.
+const auth = vi.hoisted(() => ({ userId: "" }));
+vi.mock("@/lib/auth-guards", () => ({
+  requireAuth: async () => ({
+    user: { id: auth.userId, email: "", name: "" },
+    workspace: { id: "", name: "", slug: "" },
+    role: "viewer",
+  }),
+}));
 
 import { createId } from "@paralleldrive/cuid2";
 import { setupTestDb } from "../../fixtures/db";
@@ -525,5 +535,104 @@ describe("activityTotals", () => {
     );
     expect(totals.usage.events).toBe(0);
     expect(totals.usageByAgent).toEqual([]);
+  });
+});
+
+describe("GET /api/workspaces/[slug]/activity", () => {
+  const url = (slug: string, params: Record<string, string>) => {
+    const u = new URL(`https://app.test/api/workspaces/${slug}/activity`);
+    const f = range();
+    u.searchParams.set("from", f.from.toISOString());
+    u.searchParams.set("to", f.to.toISOString());
+    for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
+    return u.toString();
+  };
+  const call = async (slug: string, params: Record<string, string> = {}) => {
+    const { GET } = await import("@/app/api/workspaces/[slug]/activity/route");
+    return GET(new Request(url(slug, params)), { params: Promise.resolve({ slug }) });
+  };
+
+  it("returns the caller's rows, totals on the first page and a cursor that continues", async () => {
+    auth.userId = wsA.ownerId;
+    const first = await call(wsA.slug, { limit: "4" });
+    expect(first.status).toBe(200);
+    const body = await first.json();
+    expect(body.rows.map((r: ActivityRow) => r.id)).toEqual(expectedA.slice(0, 4).map((r) => r.id));
+    expect(body.totals.counts.tool_call).toBe(4);
+    expect(typeof body.nextCursor).toBe("string");
+
+    const second = await call(wsA.slug, { limit: "100", cursor: body.nextCursor });
+    const next = await second.json();
+    expect(next.totals).toBeNull();
+    expect(next.rows.map((r: ActivityRow) => r.id)).toEqual(expectedA.slice(4).map((r) => r.id));
+    expect(next.nextCursor).toBeNull();
+  });
+
+  it("refuses a viewer of the workspace and a member of another one", async () => {
+    const viewer = createId();
+    await sql`INSERT INTO "user" (id, email, name, email_verified)
+      VALUES (${viewer}, ${`${viewer}@test.local`}, 'Viewer', true)`;
+    await sql`INSERT INTO workspace_member (id, workspace_id, user_id, role)
+      VALUES (${createId()}, ${wsA.id}, ${viewer}, 'viewer')`;
+    auth.userId = viewer;
+    expect((await call(wsA.slug)).status).toBe(403);
+
+    auth.userId = wsB.ownerId;
+    const res = await call(wsA.slug);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "not_a_member" });
+  });
+
+  it("rejects a range over 92 days", async () => {
+    auth.userId = wsA.ownerId;
+    const res = await call(wsA.slug, {
+      from: "2026-01-01T00:00:00.000Z",
+      to: "2026-06-01T00:00:00.000Z",
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "range_too_long", field: "to" });
+  });
+});
+
+describe("GET /api/workspaces/[slug]/activity/export", () => {
+  it("returns the caller's rows as CSV and records the export in the caller's audit log", async () => {
+    auth.userId = wsA.ownerId;
+    const f = range({ kinds: ["tool_call", "flow_run"] });
+    const u = new URL(`https://app.test/api/workspaces/${wsA.slug}/activity/export`);
+    u.searchParams.set("from", f.from.toISOString());
+    u.searchParams.set("to", f.to.toISOString());
+    u.searchParams.set("kinds", "tool_call,flow_run");
+    const { GET } = await import("@/app/api/workspaces/[slug]/activity/export/route");
+    const res = await GET(new Request(u.toString()), {
+      params: Promise.resolve({ slug: wsA.slug }),
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/csv; charset=utf-8");
+    expect(res.headers.get("content-disposition")).toMatch(/^attachment; filename="activity-/);
+    const csv = await res.text();
+    const lines = csv.trimEnd().split("\r\n");
+    expect(lines).toHaveLength(1 + 5); // header + 4 tool calls + 1 run
+    for (const id of [A.tc.mcpOk, A.tc.mcpHashed, A.tc.odooStep, A.tc.odooRefused, A.runId]) {
+      expect(csv).toContain(id);
+    }
+    for (const id of B.ids) expect(csv).not.toContain(id);
+
+    const entries = await sql<
+      Array<{ workspace_id: string; actor_user_id: string; meta: Record<string, unknown> }>
+    >`SELECT workspace_id, actor_user_id, meta FROM audit_log WHERE action = 'activity.export'`;
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      workspace_id: wsA.id,
+      actor_user_id: wsA.ownerId,
+      meta: {
+        rows: 5,
+        truncated: false,
+        filters: {
+          from: f.from.toISOString(),
+          to: f.to.toISOString(),
+          kinds: ["tool_call", "flow_run"],
+        },
+      },
+    });
   });
 });
