@@ -670,6 +670,38 @@ function foldMonthSpend(
   };
 }
 
+/**
+ * Average conversation length in seconds: last message minus start, over the
+ * conversations started since `since` that have two messages or more.
+ * `conversation.duration_seconds` would be the obvious source, but nothing
+ * writes it. Cheap on the existing indexes: conversations by
+ * (workspace_id, started_at), their messages by (conversation_id, created_at).
+ */
+function averageDurationSeconds(db: WsDb, workspaceId: string, since: Date) {
+  const lastMessageAt = sql`max(${schema.messages.createdAt})`;
+  const perConversation = db
+    .select({
+      seconds:
+        sql<number>`greatest(extract(epoch from (${lastMessageAt} - ${schema.conversations.startedAt})), 0)`.as(
+          "seconds"
+        ),
+    })
+    .from(schema.conversations)
+    .innerJoin(schema.messages, eq(schema.messages.conversationId, schema.conversations.id))
+    .where(
+      and(
+        eq(schema.conversations.workspaceId, workspaceId),
+        gte(schema.conversations.startedAt, since)
+      )
+    )
+    .groupBy(schema.conversations.id)
+    .having(sql`count(*) >= 2`)
+    .as("per_conversation");
+  return db
+    .select({ value: sql<number>`coalesce(avg(${perConversation.seconds}), 0)::float8` })
+    .from(perConversation);
+}
+
 /** Team rows of the last 30 days: conversations and spend, read apart and merged. */
 function mergeTeamStats(
   conversations: {
@@ -805,16 +837,9 @@ export async function getFullDashboardStats(
       .from(schema.employees)
       .where(and(eq(schema.employees.workspaceId, workspaceId), eq(schema.employees.active, true))),
 
-    // Average duration (30d)
-    db
-      .select({ value: sql<number>`coalesce(avg(${schema.conversations.durationSeconds}), 0)` })
-      .from(schema.conversations)
-      .where(
-        and(
-          eq(schema.conversations.workspaceId, workspaceId),
-          gte(schema.conversations.startedAt, thirtyDaysAgo)
-        )
-      ),
+    // Average duration (30d): from message timestamps, since nothing writes
+    // `conversation.duration_seconds`
+    averageDurationSeconds(db, workspaceId, thirtyDaysAgo),
 
     // Teams count
     db

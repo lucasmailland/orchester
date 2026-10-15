@@ -349,6 +349,14 @@ describe("getFullDashboardStats — model spend", () => {
   });
 });
 
+describe("getFullDashboardStats — average duration", () => {
+  it("averages last message minus start over the last 30 days, two messages or more", () => {
+    // 300 s, 100 s and 1200 s. The one-message conversation and the one
+    // started before the window stay out; nothing writes duration_seconds.
+    expect(stats.avgDurationSeconds).toBe(533);
+  });
+});
+
 describe("getFullDashboardStats — isolation", () => {
   it("reads the same numbers without RLS: each query filters by workspace itself", async () => {
     // A bare connection as the container's superuser bypasses RLS, so only
