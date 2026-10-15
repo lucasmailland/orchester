@@ -3,8 +3,7 @@ import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq } from "drizzle-orm";
 import { llmCall, type ChatMessage } from "./llm-call";
 import { assertWithinSpend } from "./cost-alerts";
-import { recordAiUsage } from "./ai/run";
-import { calculateChatCostUsd } from "./pricing";
+import { recordAiUsage, chargeFor } from "./ai/run";
 
 /**
  * Optional `tx?: WsDb` follows the project-wide pattern (see
@@ -128,9 +127,7 @@ export async function compactHistory(args: CompactArgs): Promise<ChatMessage[]> 
       workspaceId: args.workspaceId,
       capability: "chat",
       model: r.model,
-      tokensOut: r.tokensUsed,
-      tokensTotal: r.tokensUsed,
-      costUsd: calculateChatCostUsd(r.model, 0, r.tokensUsed),
+      ...chargeFor(r),
     });
 
     // Persist the new summary so we don't pay this cost twice for the same turns.

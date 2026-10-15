@@ -4,8 +4,7 @@ import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { ProviderNotConfiguredError, llmStream } from "@/lib/llm-call";
 import { loadAgent } from "@/lib/agent-runtime";
 import { assertWithinSpend } from "@/lib/cost-alerts";
-import { recordAiUsage } from "@/lib/ai/run";
-import { calculateChatCostUsd } from "@/lib/pricing";
+import { recordAiUsage, chargeFor } from "@/lib/ai/run";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { safeLogError } from "@/lib/safe-log";
 import { parseBody } from "@/lib/validation";
@@ -105,9 +104,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                 workspaceId: ws.workspace.id,
                 capability: "chat",
                 model: chunk.model,
-                tokensOut: chunk.tokensUsed,
-                tokensTotal: chunk.tokensUsed,
-                costUsd: calculateChatCostUsd(chunk.model, 0, chunk.tokensUsed),
+                // The done chunk carries only the total, so this charges it as output.
+                ...chargeFor(chunk),
               });
             } catch {
               /* metering best-effort, no romper el turno */

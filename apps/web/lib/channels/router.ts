@@ -11,7 +11,7 @@ import { executeFlow } from "@/lib/flow-engine";
 import { FlowDisabledError } from "@/lib/flows/run-gate";
 import { assertWithinSpend } from "@/lib/cost-alerts";
 import { logWithContext } from "@/lib/observability";
-import { calculateCostUsd } from "@/lib/pricing";
+import { calculateChatCostUsd, calculateCostUsd } from "@/lib/pricing";
 import { UNTRUSTED_CONTENT_GUARDRAIL, wrapUntrusted } from "@/lib/agent-runtime";
 
 export interface InboundMessage {
@@ -291,6 +291,30 @@ async function resolveInbound(
   };
 }
 
+/** Input and output tokens of a model call, as the provider reported them. */
+interface TokenSplit {
+  tokensIn: number;
+  tokensOut: number;
+}
+
+/** The split of one call, or null when the provider did not report both halves. */
+function splitOf(r: { tokensIn?: number; tokensOut?: number }): TokenSplit | null {
+  return r.tokensIn !== undefined && r.tokensOut !== undefined
+    ? { tokensIn: r.tokensIn, tokensOut: r.tokensOut }
+    : null;
+}
+
+/**
+ * Cost of `tokens` for `model`. Output costs several times input, so with the
+ * split each half is charged at its own price; without it the blended rate the
+ * router has always used still applies.
+ */
+function costOf(model: string, tokens: number, split: TokenSplit | null): number {
+  return split
+    ? calculateChatCostUsd(model, split.tokensIn, split.tokensOut)
+    : calculateCostUsd(model, tokens);
+}
+
 /**
  * Persiste el mensaje del agente + agregados de cost/tokens + usage event.
  * Compartido por el turno bloqueante y el streaming para no divergir.
@@ -306,13 +330,15 @@ async function persistAssistantTurn(
   reply: string,
   tokens: number,
   /** Tx con `app.workspace_id` SET LOCAL — todos los writes corren acá. */
-  tx: WsTx
+  tx: WsTx,
+  /** The turn's input/output split; null when some call did not report it. */
+  split: TokenSplit | null = null
 ): Promise<void> {
   const { workspaceId, baseMessageCount } = ctx;
   const db = tx;
   const { recordMessageCost } = await import("@/lib/employee-budget");
   const messageId = createId();
-  const costUsd = calculateCostUsd(activeAgent.model, tokens);
+  const costUsd = costOf(activeAgent.model, tokens, split);
   await db.insert(schema.messages).values({
     id: messageId,
     conversationId: conversation.id,
@@ -547,6 +573,8 @@ async function runConversationalLoop(
   let activeSystemPrompt = systemPrompt;
   let reply = "";
   let tokens = 0;
+  // Summed across the turn's calls; null as soon as one call has no split.
+  let turnSplit: TokenSplit | null = { tokensIn: 0, tokensOut: 0 };
   let safetyCounter = 0;
   let handoffCount = 0; // protege contra ping-pong infinito entre agentes
   // Per-agent cap (default 5). Fixed by the agent that opened the turn: a handoff
@@ -572,8 +600,16 @@ async function runConversationalLoop(
       ...(activeTools.length > 0 && { tools: activeTools }),
     });
     tokens += r.tokensUsed;
+    const split = splitOf(r);
+    turnSplit =
+      turnSplit && split
+        ? {
+            tokensIn: turnSplit.tokensIn + split.tokensIn,
+            tokensOut: turnSplit.tokensOut + split.tokensOut,
+          }
+        : null;
     spent.tokens = tokens;
-    spent.costUsd += calculateCostUsd(activeAgent.model, r.tokensUsed);
+    spent.costUsd += costOf(activeAgent.model, r.tokensUsed, split);
     spent.model = activeAgent.model;
     if (r.toolCalls && r.toolCalls.length > 0) {
       // Execute tool calls and feed results back
@@ -675,7 +711,7 @@ async function runConversationalLoop(
 
   if (!reply && activeAgent.fallback) reply = activeAgent.fallback;
 
-  await persistAssistantTurn(ctx, activeAgent, conversation, reply, tokens, tx);
+  await persistAssistantTurn(ctx, activeAgent, conversation, reply, tokens, tx, turnSplit);
   return { conversationId: conversation.id, reply, tokensUsed: tokens };
 }
 
