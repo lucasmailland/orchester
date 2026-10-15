@@ -121,6 +121,11 @@ describe("recordAiUsage", () => {
     });
   });
 
+  it("keeps prompt cache tokens in metadata", async () => {
+    await recordAiUsage({ ...chat, cacheWriteTokens: 7_000, cacheReadTokens: 1_200 });
+    expect(h.rows[0]!.metadata).toMatchObject({ cacheWriteTokens: 7_000, cacheReadTokens: 1_200 });
+  });
+
   it("keeps kind and amount: one tokens_out per chat call, whatever its size", async () => {
     // checkQuota sums `amount`; a token count here would exhaust a plan's
     // monthly token limit within a few conversations.
@@ -205,5 +210,43 @@ describe("run helpers pass attribution through", () => {
       plain!.costUsd,
     ]);
     expect(plain).not.toHaveProperty("flowId");
+  });
+});
+
+describe("chargeFor and the prompt cache", () => {
+  const MODEL_ID = "us.anthropic.claude-sonnet-4-6";
+  const base = { model: MODEL_ID, tokensUsed: 700, tokensIn: 400, tokensOut: 300 };
+
+  it("adds the cache the provider reported to the cost and returns its tokens", async () => {
+    const { calculateChatCostUsd } = await import("@/lib/pricing");
+    const charge = run.chargeFor({
+      ...base,
+      cacheUsage: {
+        inputTokens: 400,
+        outputTokens: 300,
+        cacheCreationTokens: 7_000,
+        cacheReadTokens: 900,
+      },
+    });
+    expect(charge).toEqual({
+      tokensIn: 400,
+      tokensOut: 300,
+      tokensTotal: 700,
+      cacheWriteTokens: 7_000,
+      cacheReadTokens: 900,
+      costUsd: calculateChatCostUsd(MODEL_ID, 400, 300, { writeTokens: 7_000, readTokens: 900 }),
+    });
+    // The cache must matter, or this test proves nothing.
+    expect(charge.costUsd).toBeGreaterThan(calculateChatCostUsd(MODEL_ID, 400, 300));
+  });
+
+  it("leaves the cache out when the provider reports none", async () => {
+    const { calculateChatCostUsd } = await import("@/lib/pricing");
+    expect(run.chargeFor(base)).toEqual({
+      tokensIn: 400,
+      tokensOut: 300,
+      tokensTotal: 700,
+      costUsd: calculateChatCostUsd(MODEL_ID, 400, 300),
+    });
   });
 });

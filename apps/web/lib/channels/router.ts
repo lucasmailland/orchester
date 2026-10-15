@@ -291,16 +291,30 @@ async function resolveInbound(
   };
 }
 
-/** Input and output tokens of a model call, as the provider reported them. */
+/**
+ * Input and output tokens of a model call, as the provider reported them, plus
+ * the prompt cache it wrote and read (reported apart from input).
+ */
 interface TokenSplit {
   tokensIn: number;
   tokensOut: number;
+  cacheWrite: number;
+  cacheRead: number;
 }
 
 /** The split of one call, or null when the provider did not report both halves. */
-function splitOf(r: { tokensIn?: number; tokensOut?: number }): TokenSplit | null {
+function splitOf(r: {
+  tokensIn?: number;
+  tokensOut?: number;
+  cacheUsage?: { cacheCreationTokens: number; cacheReadTokens: number };
+}): TokenSplit | null {
   return r.tokensIn !== undefined && r.tokensOut !== undefined
-    ? { tokensIn: r.tokensIn, tokensOut: r.tokensOut }
+    ? {
+        tokensIn: r.tokensIn,
+        tokensOut: r.tokensOut,
+        cacheWrite: r.cacheUsage?.cacheCreationTokens ?? 0,
+        cacheRead: r.cacheUsage?.cacheReadTokens ?? 0,
+      }
     : null;
 }
 
@@ -311,7 +325,10 @@ function splitOf(r: { tokensIn?: number; tokensOut?: number }): TokenSplit | nul
  */
 function costOf(model: string, tokens: number, split: TokenSplit | null): number {
   return split
-    ? calculateChatCostUsd(model, split.tokensIn, split.tokensOut)
+    ? calculateChatCostUsd(model, split.tokensIn, split.tokensOut, {
+        writeTokens: split.cacheWrite,
+        readTokens: split.cacheRead,
+      })
     : calculateCostUsd(model, tokens);
 }
 
@@ -575,7 +592,7 @@ async function runConversationalLoop(
   let reply = "";
   let tokens = 0;
   // Summed across the turn's calls; null as soon as one call has no split.
-  let turnSplit: TokenSplit | null = { tokensIn: 0, tokensOut: 0 };
+  let turnSplit: TokenSplit | null = { tokensIn: 0, tokensOut: 0, cacheWrite: 0, cacheRead: 0 };
   let safetyCounter = 0;
   let handoffCount = 0; // protege contra ping-pong infinito entre agentes
   // Per-agent cap (default 5). Fixed by the agent that opened the turn: a handoff
@@ -607,6 +624,8 @@ async function runConversationalLoop(
         ? {
             tokensIn: turnSplit.tokensIn + split.tokensIn,
             tokensOut: turnSplit.tokensOut + split.tokensOut,
+            cacheWrite: turnSplit.cacheWrite + split.cacheWrite,
+            cacheRead: turnSplit.cacheRead + split.cacheRead,
           }
         : null;
     spent.tokens = tokens;

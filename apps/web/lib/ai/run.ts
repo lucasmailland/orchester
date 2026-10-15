@@ -7,6 +7,7 @@ import {
   type LlmCallParams,
   type LlmCallResult,
   type LlmStreamChunk,
+  type PromptCacheUsage,
 } from "../llm-call";
 import { defaultIsRetryable } from "../http-util";
 import { resolveModel } from "./catalog";
@@ -85,6 +86,9 @@ export interface RecordAiUsageArgs extends AiUsageAttribution {
   tokensIn?: number;
   tokensOut?: number;
   tokensTotal?: number;
+  /** Prompt cache tokens written and read, reported apart from `tokensIn`. */
+  cacheWriteTokens?: number;
+  cacheReadTokens?: number;
   units?: number;
   costUsd: number;
 }
@@ -107,6 +111,8 @@ export async function recordAiUsage(args: RecordAiUsageArgs): Promise<void> {
         ...(args.tokensIn != null ? { tokensIn: args.tokensIn } : {}),
         ...(args.tokensOut != null ? { tokensOut: args.tokensOut } : {}),
         ...(args.tokensTotal != null ? { tokensTotal: args.tokensTotal } : {}),
+        ...(args.cacheWriteTokens != null ? { cacheWriteTokens: args.cacheWriteTokens } : {}),
+        ...(args.cacheReadTokens != null ? { cacheReadTokens: args.cacheReadTokens } : {}),
         ...(args.units != null ? { units: args.units } : {}),
         ...(args.flowRunId ? { flowRunId: args.flowRunId } : {}),
         ...(args.nodeId ? { nodeId: args.nodeId } : {}),
@@ -152,15 +158,24 @@ export function chargeFor(res: {
   tokensUsed: number;
   tokensIn?: number;
   tokensOut?: number;
+  /** Prompt cache counters; the provider reports them apart from `tokensIn`. */
+  cacheUsage?: PromptCacheUsage;
 }) {
   const tieneDesglose = res.tokensIn !== undefined && res.tokensOut !== undefined;
   const tokensIn = tieneDesglose ? res.tokensIn! : 0;
   const tokensOut = tieneDesglose ? res.tokensOut! : res.tokensUsed;
+  const cache = res.cacheUsage
+    ? {
+        writeTokens: res.cacheUsage.cacheCreationTokens,
+        readTokens: res.cacheUsage.cacheReadTokens,
+      }
+    : undefined;
   return {
     tokensIn,
     tokensOut,
     tokensTotal: res.tokensUsed,
-    costUsd: calculateChatCostUsd(res.model, tokensIn, tokensOut),
+    ...(cache ? { cacheWriteTokens: cache.writeTokens, cacheReadTokens: cache.readTokens } : {}),
+    costUsd: calculateChatCostUsd(res.model, tokensIn, tokensOut, cache),
   };
 }
 
