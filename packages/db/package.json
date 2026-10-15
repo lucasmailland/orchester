@@ -35,13 +35,13 @@
   "dependencies": {
     "@better-auth/utils": "0.5.0",
     "@paralleldrive/cuid2": "^3.3.0",
-    "better-auth": "~1.6.33",
-    "drizzle-orm": "^0.45.2",
+    "better-auth": "~1.7.7",
+    "drizzle-orm": "^0.45.4",
     "postgres": "^3.4.5"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
-    "drizzle-kit": "^0.31.10",
+    "drizzle-kit": "^0.31.11",
     "tsx": "^4.23.1",
     "typescript": "^5.7.2",
     "vitest": "^4.1.10"
