@@ -10,8 +10,7 @@ import { eq, and } from "drizzle-orm";
 import { llmCall, type ChatMessage } from "./llm-call";
 import { executeTool, resolveToolDefinitions, type ToolCall } from "./tools";
 import { assertWithinSpend } from "./cost-alerts";
-import { recordAiUsage } from "./ai/run";
-import { calculateChatCostUsd } from "./pricing";
+import { recordAiUsage, chargeFor } from "./ai/run";
 import { resolveMaxToolCalls } from "./agents/tool-call-cap";
 import { safeLogError } from "./safe-log";
 import { FlowDisabledError } from "./flows/run-gate";
@@ -553,9 +552,9 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
       workspaceId: p.workspaceId,
       capability: "chat",
       model: r.model,
-      tokensOut: r.tokensUsed,
-      tokensTotal: r.tokensUsed,
-      costUsd: calculateChatCostUsd(r.model, 0, r.tokensUsed),
+      ...chargeFor(r),
+      agentId: p.agent.id,
+      conversationId: p.conversationId,
     });
 
     // No tool calls or unsupported provider → return immediately.

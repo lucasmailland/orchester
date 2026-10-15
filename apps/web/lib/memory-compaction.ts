@@ -3,8 +3,7 @@ import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq } from "drizzle-orm";
 import { llmCall, type ChatMessage } from "./llm-call";
 import { assertWithinSpend } from "./cost-alerts";
-import { recordAiUsage } from "./ai/run";
-import { calculateChatCostUsd } from "./pricing";
+import { recordAiUsage, chargeFor } from "./ai/run";
 
 /**
  * Optional `tx?: WsDb` follows the project-wide pattern (see
@@ -59,6 +58,8 @@ interface CompactArgs {
   keepLastN?: number;
   /** Provider/model used to summarize. Same as the agent. */
   model: string;
+  /** The agent the conversation is with; attributed on the summary's usage row. */
+  agentId?: string | undefined;
   /**
    * Workspace transaction handle (R2-C). When the caller is already
    * inside `withWorkspaceTx`, passing tx keeps the summary UPDATE on
@@ -128,9 +129,9 @@ export async function compactHistory(args: CompactArgs): Promise<ChatMessage[]> 
       workspaceId: args.workspaceId,
       capability: "chat",
       model: r.model,
-      tokensOut: r.tokensUsed,
-      tokensTotal: r.tokensUsed,
-      costUsd: calculateChatCostUsd(r.model, 0, r.tokensUsed),
+      ...chargeFor(r),
+      agentId: args.agentId,
+      conversationId: args.conversation.id,
     });
 
     // Persist the new summary so we don't pay this cost twice for the same turns.

@@ -4,8 +4,7 @@ import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { llmCall, pickAvailableModel } from "@/lib/llm-call";
 import { assertWithinSpend } from "@/lib/cost-alerts";
-import { recordAiUsage } from "@/lib/ai/run";
-import { calculateChatCostUsd } from "@/lib/pricing";
+import { recordAiUsage, chargeFor } from "@/lib/ai/run";
 
 const generatePromptSchema = z.object({
   description: z.string().trim().min(1, "description required"),
@@ -33,7 +32,7 @@ Return ONLY a JSON array of three strings, no markdown, no commentary:
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireAuth({ minRole: "editor" });
   if (!isAuthContext(ctx)) return ctx;
-  await params;
+  const { id } = await params;
   const parsed = await parseBody(req, generatePromptSchema);
   if (!parsed.ok) return parsed.response;
   const { description, tone, context } = parsed.data;
@@ -66,9 +65,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       workspaceId: ctx.workspace.id,
       capability: "chat",
       model: r.model,
-      tokensOut: r.tokensUsed,
-      tokensTotal: r.tokensUsed,
-      costUsd: calculateChatCostUsd(r.model, 0, r.tokensUsed),
+      ...chargeFor(r),
+      agentId: id,
     });
     const cleaned = r.content
       .trim()

@@ -1,5 +1,5 @@
 import "server-only";
-import { getDb, schema } from "@orchester/db";
+import { schema } from "@orchester/db";
 import { createId } from "@paralleldrive/cuid2";
 import {
   llmCall,
@@ -59,8 +59,25 @@ import type {
  * `kind` mapea a la enum `usage_event_kind`. Para chat/embeddings usamos
  * `tokens_out` (tokens consumidos); para el resto `flow_run` como genérico de
  * despacho (no hay columna capability dedicada — va en metadata).
+ *
+ * `kind` and `amount` are what the plan quotas sum (`billing/quotas.ts`), so a
+ * chat call counts 1 whatever its size and the token counts stay in metadata.
  */
-export interface RecordAiUsageArgs {
+
+/**
+ * Who a model call was made for. `agentId` and `flowId` go to their own
+ * columns; the run, the step and the conversation go to metadata. Every field
+ * is optional: a caller passes what it knows.
+ */
+export interface AiUsageAttribution {
+  agentId?: string | undefined;
+  flowId?: string | undefined;
+  flowRunId?: string | undefined;
+  nodeId?: string | undefined;
+  conversationId?: string | undefined;
+}
+
+export interface RecordAiUsageArgs extends AiUsageAttribution {
   workspaceId: string;
   capability: string;
   providerId?: string;
@@ -74,14 +91,15 @@ export interface RecordAiUsageArgs {
 
 export async function recordAiUsage(args: RecordAiUsageArgs): Promise<void> {
   try {
-    const db = getDb();
     const isToken = args.capability === "chat" || args.capability === "embedding";
-    await db.insert(schema.usageEvents).values({
+    const row = {
       id: createId(),
       workspaceId: args.workspaceId,
-      kind: isToken ? "tokens_out" : "flow_run",
+      kind: isToken ? ("tokens_out" as const) : ("flow_run" as const),
       amount: args.units ?? 1,
       costUsd: String(args.costUsd),
+      ...(args.agentId ? { agentId: args.agentId } : {}),
+      ...(args.flowId ? { flowId: args.flowId } : {}),
       metadata: {
         model: args.model,
         capability: args.capability,
@@ -90,8 +108,16 @@ export async function recordAiUsage(args: RecordAiUsageArgs): Promise<void> {
         ...(args.tokensOut != null ? { tokensOut: args.tokensOut } : {}),
         ...(args.tokensTotal != null ? { tokensTotal: args.tokensTotal } : {}),
         ...(args.units != null ? { units: args.units } : {}),
+        ...(args.flowRunId ? { flowRunId: args.flowRunId } : {}),
+        ...(args.nodeId ? { nodeId: args.nodeId } : {}),
+        ...(args.conversationId ? { conversationId: args.conversationId } : {}),
       },
-    });
+    };
+    // Its own workspace transaction, never the caller's: under FORCE RLS a
+    // bare connection has no `app.workspace_id`, and a caller that rolls back
+    // must not take the record of what it already spent with it.
+    const { withWorkspaceTx } = await import("../tenant/context");
+    await withWorkspaceTx(args.workspaceId, (tx) => tx.insert(schema.usageEvents).values(row));
   } catch (e) {
     safeLogError("[ai/run] recordAiUsage failed:", e);
   }
@@ -106,6 +132,8 @@ export async function recordAiUsage(args: RecordAiUsageArgs): Promise<void> {
  */
 export interface RunChatOpts {
   fallbackModels?: string[];
+  /** Who the call is for; written on its usage row. */
+  attribution?: AiUsageAttribution;
 }
 
 /**
@@ -147,6 +175,7 @@ export async function runChat(params: LlmCallParams, opts?: RunChatOpts): Promis
       const res = await llmCall({ ...params, model });
       // `tokensUsed` es el total; sin split de provider lo tratamos como output.
       await recordAiUsage({
+        ...opts?.attribution,
         workspaceId: params.workspaceId,
         capability: "chat",
         model: res.model,
@@ -176,7 +205,8 @@ export function runChatStream(params: LlmCallParams): AsyncGenerator<LlmStreamCh
 export async function generateImage(
   workspaceId: string,
   modelId: string,
-  opts: { prompt: string; size?: string; n?: number }
+  opts: { prompt: string; size?: string; n?: number },
+  attribution?: AiUsageAttribution
 ): Promise<ImageResult> {
   await assertWithinSpend(workspaceId);
   await assertContentAllowed({ capability: "image", text: opts.prompt });
@@ -213,6 +243,7 @@ export async function generateImage(
     })
   );
   await recordAiUsage({
+    ...attribution,
     workspaceId,
     capability: "image",
     providerId: resolved.provider.id,
@@ -226,7 +257,8 @@ export async function generateImage(
 export async function embed(
   workspaceId: string,
   modelId: string,
-  input: string[]
+  input: string[],
+  attribution?: AiUsageAttribution
 ): Promise<EmbeddingResult> {
   await assertWithinSpend(workspaceId);
   const resolved = resolveModel(modelId);
@@ -241,6 +273,7 @@ export async function embed(
     resolved.provider.baseURL
   );
   await recordAiUsage({
+    ...attribution,
     workspaceId,
     capability: "embedding",
     providerId: resolved.provider.id,
@@ -258,7 +291,8 @@ export async function embed(
 export async function generateVideo(
   workspaceId: string,
   modelId: string,
-  prompt: string
+  prompt: string,
+  attribution?: AiUsageAttribution
 ): Promise<VideoResult> {
   await assertWithinSpend(workspaceId);
   const resolved = resolveModel(modelId);
@@ -273,6 +307,7 @@ export async function generateVideo(
     cred
   );
   await recordAiUsage({
+    ...attribution,
     workspaceId,
     capability: "video",
     providerId: resolved.provider.id,
@@ -287,7 +322,8 @@ export async function textToSpeech(
   workspaceId: string,
   modelId: string,
   text: string,
-  voice?: string
+  voice?: string,
+  attribution?: AiUsageAttribution
 ): Promise<AudioResult> {
   await assertWithinSpend(workspaceId);
   const resolved = resolveModel(modelId);
@@ -305,6 +341,7 @@ export async function textToSpeech(
   await storage.put(key, bytes, mime);
   // Unidad: caracteres de entrada (más representativo del costo de TTS).
   await recordAiUsage({
+    ...attribution,
     workspaceId,
     capability: "tts",
     providerId: resolved.provider.id,
@@ -318,7 +355,8 @@ export async function textToSpeech(
 export async function transcribe(
   workspaceId: string,
   modelId: string,
-  audioUrl: string
+  audioUrl: string,
+  attribution?: AiUsageAttribution
 ): Promise<TranscriptResult> {
   await assertWithinSpend(workspaceId);
   const resolved = resolveModel(modelId);
@@ -327,6 +365,7 @@ export async function transcribe(
   const cred = await loadCredential(workspaceId, resolved.provider.id);
   const res = await transcribeWith(resolved.provider.id, { model: resolved.model, audioUrl }, cred);
   await recordAiUsage({
+    ...attribution,
     workspaceId,
     capability: "stt",
     providerId: resolved.provider.id,
@@ -342,7 +381,8 @@ export async function rerank(
   modelId: string,
   query: string,
   documents: string[],
-  topN?: number
+  topN?: number,
+  attribution?: AiUsageAttribution
 ): Promise<RerankResult> {
   await assertWithinSpend(workspaceId);
   const resolved = resolveModel(modelId);
@@ -356,6 +396,7 @@ export async function rerank(
   );
   // Rerank no es token-based en nuestro pricing; medimos unidades = nº de docs.
   await recordAiUsage({
+    ...attribution,
     workspaceId,
     capability: "rerank",
     providerId: resolved.provider.id,
@@ -369,7 +410,8 @@ export async function rerank(
 export async function generateAvatar(
   workspaceId: string,
   modelId: string,
-  opts: Omit<AvatarParams, "model">
+  opts: Omit<AvatarParams, "model">,
+  attribution?: AiUsageAttribution
 ): Promise<AvatarResult> {
   await assertWithinSpend(workspaceId);
   const resolved = resolveModel(modelId);
@@ -384,6 +426,7 @@ export async function generateAvatar(
     cred
   );
   await recordAiUsage({
+    ...attribution,
     workspaceId,
     capability: "avatar",
     providerId: resolved.provider.id,
@@ -397,7 +440,8 @@ export async function generateAvatar(
 export async function generateMusic(
   workspaceId: string,
   modelId: string,
-  prompt: string
+  prompt: string,
+  attribution?: AiUsageAttribution
 ): Promise<MusicResult> {
   await assertWithinSpend(workspaceId);
   const resolved = resolveModel(modelId);
@@ -412,6 +456,7 @@ export async function generateMusic(
     cred
   );
   await recordAiUsage({
+    ...attribution,
     workspaceId,
     capability: "music",
     providerId: resolved.provider.id,
@@ -425,7 +470,8 @@ export async function generateMusic(
 export async function ocr(
   workspaceId: string,
   modelId: string,
-  documentUrl: string
+  documentUrl: string,
+  attribution?: AiUsageAttribution
 ): Promise<OcrResult> {
   await assertWithinSpend(workspaceId);
   const resolved = resolveModel(modelId);
@@ -434,6 +480,7 @@ export async function ocr(
   const cred = await loadCredential(workspaceId, resolved.provider.id);
   const res = await ocrWith(resolved.provider.id, { model: resolved.model, documentUrl }, cred);
   await recordAiUsage({
+    ...attribution,
     workspaceId,
     capability: "ocr",
     providerId: resolved.provider.id,
