@@ -58,6 +58,8 @@ interface CompactArgs {
   keepLastN?: number;
   /** Provider/model used to summarize. Same as the agent. */
   model: string;
+  /** The agent the conversation is with; attributed on the summary's usage row. */
+  agentId?: string | undefined;
   /**
    * Workspace transaction handle (R2-C). When the caller is already
    * inside `withWorkspaceTx`, passing tx keeps the summary UPDATE on
@@ -128,6 +130,8 @@ export async function compactHistory(args: CompactArgs): Promise<ChatMessage[]> 
       capability: "chat",
       model: r.model,
       ...chargeFor(r),
+      agentId: args.agentId,
+      conversationId: args.conversation.id,
     });
 
     // Persist the new summary so we don't pay this cost twice for the same turns.

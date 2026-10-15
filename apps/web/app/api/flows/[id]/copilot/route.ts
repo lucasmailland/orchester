@@ -32,7 +32,8 @@ import {
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireAuth({ minRole: "editor" });
   if (!isAuthContext(ctx)) return ctx;
-  await params; // flowId no se usa para construir, pero valida la ruta
+  // The flow id is not used to build the graph; it attributes the call's usage.
+  const { id: flowId } = await params;
 
   const parsed = await parseBody(req, copilotSchema);
   if (!parsed.ok) return parsed.response;
@@ -106,6 +107,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     capability: "chat",
     model: result.model,
     ...chargeFor(result),
+    flowId,
   });
 
   const setFlow = result.toolCalls?.find((t) => t.name === "set_flow");

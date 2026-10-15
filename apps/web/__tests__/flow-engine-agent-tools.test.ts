@@ -184,7 +184,7 @@ describe("flow agent tools", () => {
 
   it("checks spend before and records usage after each of three calls", async () => {
     vi.mocked(llmCall).mockResolvedValueOnce(toolTurn).mockResolvedValueOnce(toolTurn);
-    await run();
+    const result = await run();
     expect(assertWithinSpend).toHaveBeenCalledTimes(3);
     expect(recordAiUsage).toHaveBeenCalledTimes(3);
     for (let i = 0; i < 3; i++) {
@@ -202,6 +202,10 @@ describe("flow agent tools", () => {
         capability: "chat",
         model: answer.model,
         ...chargeFor(answer),
+        agentId: "agent_test",
+        flowId: "flow_test",
+        flowRunId: result.runId,
+        nodeId: "agent",
       });
     }
   });

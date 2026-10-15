@@ -171,9 +171,38 @@ describe("agent runtime usage", () => {
       costUsd: calculateChatCostUsd(BARE, 0, 500),
     });
   });
+
+  it("attributes every call to the agent and, when there is one, its conversation", async () => {
+    await runAgent({
+      workspaceId: "ws_test",
+      agent: h.agent,
+      messages: [{ role: "user", content: "go" }],
+      conversationId: "conversation_test",
+    } as RunAgentParams);
+    for (const [args] of h.usage.mock.calls) {
+      expect(args).toMatchObject({ agentId: "agent_test", conversationId: "conversation_test" });
+      // A chat call: one usage row of kind tokens_out, counted once.
+      expect(args).not.toHaveProperty("units");
+    }
+    h.usage.mockClear();
+    h.llm.mockResolvedValueOnce(answer);
+    await runtime();
+    expect(h.usage.mock.calls[0]![0]).toMatchObject({ agentId: "agent_test" });
+    expect(h.usage.mock.calls[0]![0].conversationId).toBeUndefined();
+  });
 });
 
 describe("channel router usage", () => {
+  it("tells history compaction which agent and conversation it runs for", async () => {
+    await channel();
+    expect(h.compact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentId: "agent_test",
+        conversation: expect.objectContaining({ id: "conversation_test" }),
+      })
+    );
+  });
+
   it("prices the message and the usage event with the turn's real split", async () => {
     await channel();
     const cost = calculateChatCostUsd(MODEL, 2_300, 300);

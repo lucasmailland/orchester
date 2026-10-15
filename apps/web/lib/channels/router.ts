@@ -408,6 +408,7 @@ async function buildConversationContext(
     conversation,
     messages: fullHistory,
     model: agent.model,
+    agentId: agent.id,
     keepLastN: agent.maxTurns ?? 10,
     tx,
   });

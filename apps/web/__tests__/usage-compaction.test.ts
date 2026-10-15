@@ -26,13 +26,14 @@ const messages = Array.from({ length: 8 }, (_, i) => ({
   fromOperator: false,
   createdAt: new Date(0),
 }));
-const compact = () =>
+const compact = (extra: { agentId?: string } = {}) =>
   compactHistory({
     workspaceId: "ws_test",
     conversation: { id: "conversation_test", summary: null, messageCount: 8 },
     messages,
     keepLastN: 4,
     model: `bedrock:${MODEL}`,
+    ...extra,
   });
 
 beforeEach(() => {
@@ -59,5 +60,20 @@ describe("compaction usage", () => {
       tokensTotal: 3_120,
       costUsd: calculateChatCostUsd(MODEL, 3_000, 120),
     });
+  });
+
+  it("attributes the summary to the conversation and the agent", async () => {
+    await compact({ agentId: "agent_test" });
+    expect(h.usage.mock.calls[0]![0]).toMatchObject({
+      agentId: "agent_test",
+      conversationId: "conversation_test",
+    });
+    expect(h.usage.mock.calls[0]![0]).not.toHaveProperty("units");
+  });
+
+  it("still attributes the conversation when the caller names no agent", async () => {
+    await compact();
+    expect(h.usage.mock.calls[0]![0]).toMatchObject({ conversationId: "conversation_test" });
+    expect(h.usage.mock.calls[0]![0].agentId).toBeUndefined();
   });
 });

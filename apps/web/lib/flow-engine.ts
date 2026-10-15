@@ -13,6 +13,7 @@ import { parseRetryConfig, runWithRetry, StepFailure } from "./flows/retry";
 import { createApprovalToken, PauseRequested } from "./flows/pause";
 import { issuesSummary, storedActionIssues } from "./flows/action-guard";
 import type { ValidationIssue } from "./flows/validate";
+import type { AiUsageAttribution } from "./ai/run";
 import { isDryRunSource, markDryRun, redactUrl, simulated } from "./flows/dry-run";
 import { assertFlowRunnable, isManualSource } from "./flows/run-gate";
 import { withToolCallRecord } from "./activity/tool-calls";
@@ -944,6 +945,11 @@ function firma(
   };
 }
 
+/** What a step's model calls are attributed to on their usage rows. */
+function stepUsage(ctx: RunContext, runId: string, node: FlowNode): AiUsageAttribution {
+  return { flowId: ctx.flowId, flowRunId: runId, nodeId: node.id };
+}
+
 const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
   trigger: async () => {
     // No-op: el nodo trigger sólo marca el punto de entrada del flow.
@@ -1014,7 +1020,14 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
         })
       );
       const charge = chargeFor(result);
-      await recordAiUsage({ workspaceId, capability: "chat", model: result.model, ...charge });
+      await recordAiUsage({
+        workspaceId,
+        capability: "chat",
+        model: result.model,
+        ...charge,
+        agentId: agent.id,
+        ...stepUsage(ctx, runId, node),
+      });
       model = result.model;
       tokensUsed += result.tokensUsed;
       cargo.tokensIn += charge.tokensIn;
@@ -1371,16 +1384,18 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     helpers.setOutput({ count: results.length, topResult: results[0]?.text?.slice(0, 200) });
   },
 
-  generate_image: async ({ cfg, ctx, workspaceId, helpers }) => {
+  generate_image: async ({ cfg, ctx, workspaceId, helpers, node, runId }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo de imagen.");
     const prompt = interpolate(String(cfg.prompt ?? ""), ctx.variables);
     if (!prompt.trim()) throw new Error("Falta la descripción de la imagen.");
     const { generateImage } = await import("./ai/run");
-    const res = await generateImage(workspaceId, model, {
-      prompt,
-      ...(cfg.size ? { size: String(cfg.size) } : {}),
-    });
+    const res = await generateImage(
+      workspaceId,
+      model,
+      { prompt, ...(cfg.size ? { size: String(cfg.size) } : {}) },
+      stepUsage(ctx, runId, node)
+    );
     const url = res.images[0]?.url ?? "";
     const outputVar = (cfg.outputVar as string) || "image";
     ctx.variables[outputVar] = url;
@@ -1388,18 +1403,18 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     helpers.setOutput({ count: res.images.length, mime: res.images[0]?.mime });
   },
 
-  embed_text: async ({ cfg, ctx, workspaceId, helpers }) => {
+  embed_text: async ({ cfg, ctx, workspaceId, helpers, node, runId }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo de embeddings.");
     const text = interpolate(String(cfg.input ?? "{{message}}"), ctx.variables);
     const { embed } = await import("./ai/run");
-    const res = await embed(workspaceId, model, [text]);
+    const res = await embed(workspaceId, model, [text], stepUsage(ctx, runId, node));
     const outputVar = (cfg.outputVar as string) || "vector";
     ctx.variables[outputVar] = res.vectors[0] ?? [];
     helpers.setOutput({ dims: res.vectors[0]?.length ?? 0 });
   },
 
-  llm_prompt: async ({ cfg, ctx, workspaceId, helpers }) => {
+  llm_prompt: async ({ cfg, ctx, workspaceId, helpers, node, runId }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo.");
     const prompt = interpolate(String(cfg.prompt ?? ""), ctx.variables);
@@ -1414,13 +1429,16 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     const mandarTemp =
       cfg.temperature !== undefined && cfg.temperature !== "" && !isNaN(temperatura);
     const { runChat } = await import("./ai/run");
-    const res = await runChat({
-      workspaceId,
-      model,
-      systemPrompt: system,
-      messages: [{ role: "user", content: prompt }],
-      ...(mandarTemp ? { temperature: temperatura } : {}),
-    });
+    const res = await runChat(
+      {
+        workspaceId,
+        model,
+        systemPrompt: system,
+        messages: [{ role: "user", content: prompt }],
+        ...(mandarTemp ? { temperature: temperatura } : {}),
+      },
+      { attribution: stepUsage(ctx, runId, node) }
+    );
     // Recorded before anything that can still throw: the tokens are spent.
     const { chargeFor } = await import("./ai/run");
     const cargo = chargeFor(res);
@@ -1434,17 +1452,17 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     helpers.setOutput({ tokensUsed: res.tokensUsed });
   },
 
-  generate_video: async ({ cfg, ctx, workspaceId, helpers }) => {
+  generate_video: async ({ cfg, ctx, workspaceId, helpers, node, runId }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo de video.");
     const prompt = interpolate(String(cfg.prompt ?? ""), ctx.variables);
     const { generateVideo } = await import("./ai/run");
-    const res = await generateVideo(workspaceId, model, prompt);
+    const res = await generateVideo(workspaceId, model, prompt, stepUsage(ctx, runId, node));
     ctx.variables[(cfg.outputVar as string) || "video"] = res.url;
     helpers.setOutput({ url: res.url });
   },
 
-  text_to_speech: async ({ cfg, ctx, workspaceId, helpers }) => {
+  text_to_speech: async ({ cfg, ctx, workspaceId, helpers, node, runId }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo de voz.");
     const text = interpolate(String(cfg.text ?? ""), ctx.variables);
@@ -1454,61 +1472,67 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       workspaceId,
       model,
       text,
-      cfg.voice ? String(cfg.voice) : undefined
+      cfg.voice ? String(cfg.voice) : undefined,
+      stepUsage(ctx, runId, node)
     );
     ctx.variables[(cfg.outputVar as string) || "audio"] = res.url;
     helpers.setOutput({ url: res.url });
   },
 
-  transcribe: async ({ cfg, ctx, workspaceId, helpers }) => {
+  transcribe: async ({ cfg, ctx, workspaceId, helpers, node, runId }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo de transcripción.");
     const audioUrl = interpolate(String(cfg.audioUrl ?? ""), ctx.variables);
     if (!audioUrl.trim()) throw new Error("Falta la URL del audio.");
     const { transcribe } = await import("./ai/run");
-    const res = await transcribe(workspaceId, model, audioUrl);
+    const res = await transcribe(workspaceId, model, audioUrl, stepUsage(ctx, runId, node));
     ctx.variables[(cfg.outputVar as string) || "texto"] = res.text;
     helpers.setOutput({ chars: res.text.length });
   },
 
-  generate_avatar: async ({ cfg, ctx, workspaceId, helpers }) => {
+  generate_avatar: async ({ cfg, ctx, workspaceId, helpers, node, runId }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo de avatar.");
     const text = interpolate(String(cfg.text ?? ""), ctx.variables);
     if (!text.trim()) throw new Error("Falta el texto que dirá el avatar.");
     const { generateAvatar } = await import("./ai/run");
-    const res = await generateAvatar(workspaceId, model, {
-      text,
-      ...(cfg.avatarId ? { avatarId: String(cfg.avatarId) } : {}),
-      ...(cfg.voiceId ? { voiceId: String(cfg.voiceId) } : {}),
-      ...(cfg.imageUrl ? { imageUrl: interpolate(String(cfg.imageUrl), ctx.variables) } : {}),
-    });
+    const res = await generateAvatar(
+      workspaceId,
+      model,
+      {
+        text,
+        ...(cfg.avatarId ? { avatarId: String(cfg.avatarId) } : {}),
+        ...(cfg.voiceId ? { voiceId: String(cfg.voiceId) } : {}),
+        ...(cfg.imageUrl ? { imageUrl: interpolate(String(cfg.imageUrl), ctx.variables) } : {}),
+      },
+      stepUsage(ctx, runId, node)
+    );
     ctx.variables[(cfg.outputVar as string) || "video"] = res.url;
     helpers.setOutput({ url: res.url });
   },
 
-  generate_music: async ({ cfg, ctx, workspaceId, helpers }) => {
+  generate_music: async ({ cfg, ctx, workspaceId, helpers, node, runId }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo de música.");
     const prompt = interpolate(String(cfg.prompt ?? ""), ctx.variables);
     const { generateMusic } = await import("./ai/run");
-    const res = await generateMusic(workspaceId, model, prompt);
+    const res = await generateMusic(workspaceId, model, prompt, stepUsage(ctx, runId, node));
     ctx.variables[(cfg.outputVar as string) || "musica"] = res.url;
     helpers.setOutput({ url: res.url });
   },
 
-  ocr_extract: async ({ cfg, ctx, workspaceId, helpers }) => {
+  ocr_extract: async ({ cfg, ctx, workspaceId, helpers, node, runId }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo de OCR.");
     const documentUrl = interpolate(String(cfg.documentUrl ?? ""), ctx.variables);
     if (!documentUrl.trim()) throw new Error("Falta la URL del documento.");
     const { ocr } = await import("./ai/run");
-    const res = await ocr(workspaceId, model, documentUrl);
+    const res = await ocr(workspaceId, model, documentUrl, stepUsage(ctx, runId, node));
     ctx.variables[(cfg.outputVar as string) || "texto"] = res.text;
     helpers.setOutput({ chars: res.text.length });
   },
 
-  rerank: async ({ cfg, ctx, workspaceId, helpers }) => {
+  rerank: async ({ cfg, ctx, workspaceId, helpers, node, runId }) => {
     const model = String(cfg.model ?? "");
     if (!model) throw new Error("Falta elegir el modelo de rerank.");
     const query = interpolate(String(cfg.query ?? ""), ctx.variables);
@@ -1522,7 +1546,8 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       model,
       query,
       documents,
-      cfg.topN ? Number(cfg.topN) : undefined
+      cfg.topN ? Number(cfg.topN) : undefined,
+      stepUsage(ctx, runId, node)
     );
     ctx.variables[(cfg.outputVar as string) || "ranked"] = res.results;
     helpers.setOutput({ count: res.results.length });

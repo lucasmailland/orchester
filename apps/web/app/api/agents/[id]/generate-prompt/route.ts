@@ -32,7 +32,7 @@ Return ONLY a JSON array of three strings, no markdown, no commentary:
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireAuth({ minRole: "editor" });
   if (!isAuthContext(ctx)) return ctx;
-  await params;
+  const { id } = await params;
   const parsed = await parseBody(req, generatePromptSchema);
   if (!parsed.ok) return parsed.response;
   const { description, tone, context } = parsed.data;
@@ -66,6 +66,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       capability: "chat",
       model: r.model,
       ...chargeFor(r),
+      agentId: id,
     });
     const cleaned = r.content
       .trim()

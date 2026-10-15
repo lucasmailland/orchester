@@ -106,6 +106,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                 model: chunk.model,
                 // The done chunk carries only the total, so this charges it as output.
                 ...chargeFor(chunk),
+                agentId: agent.id,
               });
             } catch {
               /* metering best-effort, no romper el turno */

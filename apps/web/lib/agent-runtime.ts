@@ -553,6 +553,8 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
       capability: "chat",
       model: r.model,
       ...chargeFor(r),
+      agentId: p.agent.id,
+      conversationId: p.conversationId,
     });
 
     // No tool calls or unsupported provider → return immediately.

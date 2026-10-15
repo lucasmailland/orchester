@@ -56,7 +56,9 @@ describe("POST /api/agents/[id]/generate-prompt", () => {
       tokensOut: 2_600,
       tokensTotal: 3_000,
       costUsd: calculateChatCostUsd(MODEL, 400, 2_600),
+      agentId: "agent_test",
     });
+    expect(h.usage.mock.calls[0]![0]).not.toHaveProperty("units");
   });
 });
 
@@ -85,6 +87,32 @@ describe("POST /api/agents/[id]/test-chat-stream", () => {
       tokensOut: 800,
       tokensTotal: 800,
       costUsd: calculateChatCostUsd(MODEL, 0, 800),
+      agentId: "agent_test",
     });
+  });
+});
+
+describe("POST /api/flows/[id]/copilot", () => {
+  it("attributes the copilot call to the flow being edited", async () => {
+    h.llm.mockResolvedValue({
+      content: "What should it do?",
+      model: MODEL,
+      tokensIn: 900,
+      tokensOut: 50,
+      tokensUsed: 950,
+    });
+    const { POST } = await import("@/app/api/flows/[id]/copilot/route");
+    const res = await POST(request({ prompt: "Build a flow" }), params("flow_test"));
+    expect(res.status).toBe(200);
+    expect(h.usage).toHaveBeenCalledTimes(1);
+    expect(h.usage.mock.calls[0]![0]).toMatchObject({
+      workspaceId: "ws_test",
+      capability: "chat",
+      flowId: "flow_test",
+      tokensIn: 900,
+      tokensOut: 50,
+      costUsd: calculateChatCostUsd(MODEL, 900, 50),
+    });
+    expect(h.usage.mock.calls[0]![0]).not.toHaveProperty("agentId");
   });
 });
