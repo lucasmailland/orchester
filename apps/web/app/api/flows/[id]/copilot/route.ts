@@ -91,7 +91,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       systemPrompt: buildSystemPrompt("es"),
       messages,
       temperature: 0.2,
-      maxTokens: 2048,
+      // set_flow returns the whole flow, so a big one needs room. Every model
+      // pickAvailableModel picks takes 8192 output tokens. An Azure deployment
+      // can be any model, one that refuses more, so it keeps the old 2048.
+      maxTokens: picked.provider === "azure_openai" ? 2048 : 8192,
       tools: COPILOT_TOOLS,
     });
   } catch (e) {
@@ -109,6 +112,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     ...chargeFor(result),
     flowId,
   });
+
+  // A reply cut at the output limit can end in the middle of set_flow. Built
+  // anyway, the flow would be missing steps and the editor would offer it as
+  // complete, to replace the one on the canvas.
+  if (result.truncated) {
+    return NextResponse.json({
+      message:
+        "La respuesta se cortó antes de terminar, así que no te propongo el flujo: quedaría incompleto. Pedí un cambio más acotado o armalo por partes.",
+      graph: null,
+      errors: [],
+    });
+  }
 
   const setFlow = result.toolCalls?.find((t) => t.name === "set_flow");
   if (!setFlow) {
