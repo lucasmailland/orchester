@@ -8,6 +8,8 @@ import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { checkQuota } from "@/lib/billing/quotas";
 import { logAudit } from "@/lib/audit";
 import { parseBody } from "@/lib/validation";
+import { safeLogError } from "@/lib/safe-log";
+import { escapeHtml } from "@/lib/html-escape";
 
 const createInviteSchema = z.object({
   email: z.string().optional(),
@@ -74,25 +76,32 @@ export async function POST(req: Request) {
   });
 
   const inviteUrl = `${process.env["NEXT_PUBLIC_APP_URL"] ?? ""}/invite/${token}`;
-  // Send email via lib/email if configured (fail silent for self-serve)
+  // The invite exists either way; report whether the email went out so the UI
+  // can tell the inviter to share the link themselves.
+  let emailStatus: "sent" | "not_configured" | "failed";
   try {
     const { sendEmail } = await import("@/lib/email");
-    await sendEmail({
+    const workspaceName = escapeHtml(ctx.workspace.name);
+    const result = await sendEmail({
       to: email,
       subject: `You've been invited to the ${ctx.workspace.name} workspace`,
       text: `Hi — you've been invited to ${ctx.workspace.name} on Orchester. Accept the invitation: ${inviteUrl}`,
-      html: `<p>Hi — you've been invited to <b>${ctx.workspace.name}</b> on Orchester.</p><p><a href="${inviteUrl}">Accept invitation</a></p>`,
+      html: `<p>Hi — you've been invited to <b>${workspaceName}</b> on Orchester.</p><p><a href="${escapeHtml(inviteUrl)}">Accept invitation</a></p>`,
     });
-  } catch {}
+    emailStatus = result.status;
+  } catch (e) {
+    safeLogError("[invites] email send failed:", e);
+    emailStatus = "failed";
+  }
   await logAudit({
     workspaceId: ctx.workspace.id,
     userId: ctx.user.id,
     action: "invite.create",
     resource: "workspace_invite",
     resourceId: invite?.id,
-    after: { email, role },
+    after: { email, role, emailStatus },
   });
-  return NextResponse.json({ ...invite!, inviteUrl }, { status: 201 });
+  return NextResponse.json({ ...invite!, inviteUrl, emailStatus }, { status: 201 });
 }
 
 /**

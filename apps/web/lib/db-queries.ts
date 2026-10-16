@@ -1,6 +1,6 @@
 import "server-only";
 import { getDb, schema, type DbClient } from "@orchester/db";
-import { eq, count, countDistinct, and, gte, lt, sql, desc } from "drizzle-orm";
+import { eq, count, countDistinct, and, gt, gte, isNull, lt, sql, desc } from "drizzle-orm";
 import { usageSums } from "@/lib/usage-sql";
 
 /**
@@ -1267,7 +1267,7 @@ export async function getOnboardingChecklistState(
   // Drizzle's `count()` would force a full table scan under RLS; the
   // `select … limit 1` shape lets postgres short-circuit on the first
   // hit, which matters when a busy workspace has thousands of rows.
-  const [agentRows, providerRows, channelRows, memberRows, convRows, flowRunRows] =
+  const [agentRows, providerRows, channelRows, memberRows, inviteRows, convRows, flowRunRows] =
     await Promise.all([
       db
         .select({ id: schema.agents.id })
@@ -1284,13 +1284,28 @@ export async function getOnboardingChecklistState(
         .from(schema.channels)
         .where(eq(schema.channels.workspaceId, workspaceId))
         .limit(1),
-      // Teammate = ≥2 members (owner + at least one other). Pulling 2
+      // Teammate = ≥2 members (owner + at least one other) or a live invite. Pulling 2
       // rows is enough to discriminate without a full count().
       db
         .select({ id: schema.workspaceMembers.id })
         .from(schema.workspaceMembers)
         .where(eq(schema.workspaceMembers.workspaceId, workspaceId))
         .limit(2),
+      // …or an invitation still waiting: pending, not accepted, not expired.
+      // workspace_invite is FORCE RLS; the dashboard page passes the
+      // workspace tx so the GUC is set.
+      db
+        .select({ id: schema.workspaceInvites.id })
+        .from(schema.workspaceInvites)
+        .where(
+          and(
+            eq(schema.workspaceInvites.workspaceId, workspaceId),
+            eq(schema.workspaceInvites.status, "pending"),
+            isNull(schema.workspaceInvites.acceptedAt),
+            gt(schema.workspaceInvites.expiresAt, new Date())
+          )
+        )
+        .limit(1),
       db
         .select({ id: schema.conversations.id })
         .from(schema.conversations)
@@ -1307,7 +1322,7 @@ export async function getOnboardingChecklistState(
     hasAgent: agentRows.length > 0,
     hasProvider: providerRows.length > 0,
     hasChannel: channelRows.length > 0,
-    hasTeammate: memberRows.length >= 2,
+    hasTeammate: memberRows.length >= 2 || inviteRows.length > 0,
     hasActivity: convRows.length > 0 || flowRunRows.length > 0,
   };
 }

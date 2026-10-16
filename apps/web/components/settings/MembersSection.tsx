@@ -49,6 +49,7 @@ export function MembersSection() {
   const [role, setRole] = useState<"admin" | "editor" | "viewer">("editor");
   const [submitting, setSubmitting] = useState(false);
   const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
+  const [lastInviteEmailed, setLastInviteEmailed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [busyMember, setBusyMember] = useState<string | null>(null);
 
@@ -80,9 +81,16 @@ export function MembersSection() {
     setSubmitting(false);
     const j = await r.json().catch(() => ({}));
     if (r.ok) {
-      toast.success(t("inviteSent"));
+      if (j.emailStatus === "not_configured" || j.emailStatus === "failed") {
+        toast.warning(
+          t(j.emailStatus === "failed" ? "inviteEmailFailed" : "inviteEmailNotConfigured")
+        );
+      } else {
+        toast.success(t("inviteSent"));
+      }
       setEmail("");
       if (j.inviteUrl) setLastInviteUrl(j.inviteUrl);
+      setLastInviteEmailed(j.emailStatus === "sent");
       void loadAll();
     } else {
       toast.error(j.error ?? t("inviteError"));
@@ -213,7 +221,9 @@ export function MembersSection() {
 
         {lastInviteUrl && (
           <div className="mb-3 rounded-lg border border-violet-500/30 bg-violet-500/10 p-2.5 text-xs">
-            <div className="mb-1 text-violet-700 dark:text-violet-200">{t("inviteLinkLabel")}</div>
+            <div className="mb-1 text-violet-700 dark:text-violet-200">
+              {t(lastInviteEmailed ? "inviteLinkLabel" : "inviteLinkLabelNotSent")}
+            </div>
             <div className="flex items-center gap-2 rounded bg-black/30 px-2 py-1.5">
               <code className="flex-1 break-all font-mono text-[10px] text-body">
                 {lastInviteUrl}
