@@ -1329,7 +1329,8 @@ export async function pickAvailableModel(
     .select()
     .from(schema.aiProviders)
     .where(eq(schema.aiProviders.workspaceId, workspaceId));
-  const order: ProviderType[] = ["anthropic", "openai", "google", "azure_openai"];
+  // Bedrock goes last so that a workspace with another provider keeps its pick.
+  const order: ProviderType[] = ["anthropic", "openai", "google", "azure_openai", "bedrock"];
   for (const p of order) {
     const row = rows.find((r) => r.provider === p && r.enabled);
     if (!row) continue;
@@ -1338,6 +1339,9 @@ export async function pickAvailableModel(
     if (p === "google") return { provider: p, model: "gemini-1.5-flash" };
     if (p === "azure_openai" && row.modelsJson?.[0])
       return { provider: p, model: row.modelsJson[0].id };
+    // The catalog's id: the `us.` inference profile, since the bare model id
+    // cannot be invoked on demand.
+    if (p === "bedrock") return { provider: p, model: "bedrock:us.anthropic.claude-sonnet-4-6" };
   }
   return null;
 }
