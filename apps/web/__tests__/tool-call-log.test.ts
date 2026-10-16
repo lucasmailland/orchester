@@ -24,6 +24,7 @@ import {
   toolCallRef,
   type ToolCallEntry,
 } from "@/lib/activity/tool-calls";
+import { outputLimitRefusal } from "@/lib/ai/output-limit";
 
 const fakeTx = {
   insert: (table: unknown) => ({
@@ -199,6 +200,17 @@ describe("outcomeOf", () => {
       outcome: "refused",
       errorCode: "write_scope",
     });
+  });
+
+  it("calls an output-limit refusal refused", () => {
+    expect(outcomeOf({ thrown: new Error(outputLimitRefusal(1024)) })).toMatchObject({
+      outcome: "refused",
+      errorCode: "output_limit",
+    });
+    // Only as the start of the message: a tool error that quotes it is still an error.
+    expect(
+      outcomeOf({ thrown: new Error(`upstream said: ${outputLimitRefusal(1024)}`) })
+    ).toMatchObject({ outcome: "error" });
   });
 
   it("reads errors reported in the result", () => {

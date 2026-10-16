@@ -12,6 +12,7 @@ import { executeTool, resolveToolDefinitions, type ToolCall } from "./tools";
 import { assertWithinSpend } from "./cost-alerts";
 import { recordAiUsage, chargeFor } from "./ai/run";
 import { resolveMaxToolCalls } from "./agents/tool-call-cap";
+import { refuseCutOffReply } from "./agents/cut-off-reply";
 import { safeLogError } from "./safe-log";
 import { FlowDisabledError } from "./flows/run-gate";
 import { getAgentMemoryPolicy, type AgentMemoryPolicy } from "./policy/agent-memory";
@@ -569,6 +570,29 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
           ? validateJsonOutput(r.content, p.agent.outputSchema)
           : r.content;
       return { content, tokensUsed: totalTokens, model: r.model, toolCalls };
+    }
+
+    if (r.truncated) {
+      const refused = await refuseCutOffReply(r.toolCalls, maxTokens, {
+        workspaceId: p.workspaceId,
+        source: p.testChat ? "test_chat" : "api",
+        agentId: p.agent.id,
+        ...(p.conversationId ? { conversationId: p.conversationId } : {}),
+      });
+      for (const tr of refused) {
+        toolCalls.push({
+          name: tr.name,
+          input: redactToolImages(tr.input),
+          output: null,
+          error: tr.error,
+        });
+      }
+      messages = [
+        ...messages,
+        { role: "assistant", content: r.content, toolCalls: r.toolCalls },
+        { role: "tool", content: "", toolResults: refused },
+      ];
+      continue;
     }
 
     // Execute tool calls

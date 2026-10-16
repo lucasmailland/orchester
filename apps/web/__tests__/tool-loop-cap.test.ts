@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { runAgent, type RunAgentParams } from "@/lib/agent-runtime";
 import { handleInbound } from "@/lib/channels/router";
 import { executeFlow } from "@/lib/flow-engine";
+import type { ChatMessage } from "@/lib/llm-call";
+import { outputLimitRefusal } from "@/lib/ai/output-limit";
 import {
   resolveMaxToolCalls,
   mergeAgentConfig,
@@ -286,5 +288,54 @@ describe.each(paths)("%s", (_name, go, meteredPerCall) => {
     h.agent.config = { maxToolCalls: 2 };
     await go();
     expect(h.llm).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe.each(paths)("%s, reply cut at the output limit", (_name, go) => {
+  it("runs none of its tool calls and tells the model why", async () => {
+    h.llm
+      .mockResolvedValueOnce({
+        content: "",
+        model: "gpt-4o",
+        tokensUsed: 2,
+        truncated: true,
+        toolCalls: [
+          { id: "t1", name: "probe", input: { q: "complete" } },
+          { id: "t2", name: "probe", input: {} },
+        ],
+      })
+      .mockResolvedValueOnce({ content: "done", model: "gpt-4o", tokensUsed: 2 });
+    await go();
+    expect(h.tool).not.toHaveBeenCalled();
+    expect(h.llm).toHaveBeenCalledTimes(2);
+    const messages = (h.llm.mock.calls[1]![0] as { messages: ChatMessage[] }).messages;
+    const [assistant, tool] = messages.slice(-2);
+    expect(assistant?.toolCalls?.map((tc) => tc.id)).toEqual(["t1", "t2"]);
+    expect(tool?.toolResults).toEqual([
+      { id: "t1", name: "probe", input: { q: "complete" }, error: outputLimitRefusal(100) },
+      { id: "t2", name: "probe", input: {}, error: outputLimitRefusal(100) },
+    ]);
+  });
+
+  it("runs the calls of the next, complete reply", async () => {
+    h.llm
+      .mockResolvedValueOnce({
+        content: "",
+        model: "gpt-4o",
+        tokensUsed: 2,
+        truncated: true,
+        toolCalls: [{ id: "t1", name: "probe", input: {} }],
+      })
+      .mockResolvedValueOnce({
+        content: "",
+        model: "gpt-4o",
+        tokensUsed: 2,
+        toolCalls: [{ id: "t2", name: "probe", input: { q: "short" } }],
+      })
+      .mockResolvedValueOnce({ content: "done", model: "gpt-4o", tokensUsed: 2 });
+    await go();
+    expect(h.tool).toHaveBeenCalledTimes(1);
+    expect(h.tool.mock.calls[0]![0]).toBe("probe");
+    expect(h.tool.mock.calls[0]![1]).toEqual({ q: "short" });
   });
 });

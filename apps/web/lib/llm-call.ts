@@ -6,6 +6,7 @@ import { decrypt } from "./encryption";
 import { type ProviderType } from "./providers";
 import { normalizeToolOutput } from "./tool-output";
 import { resolveModel } from "./ai/catalog";
+import { DEFAULT_MAX_TOKENS } from "./ai/output-limit";
 import { fetchWithTimeout, fetchStreamWithConnectTimeout, withRetry, HttpError } from "./http-util";
 import { recordMetric, logWithContext } from "./observability";
 import type {
@@ -166,6 +167,12 @@ export interface LlmCallResult {
   model: string;
   toolCalls?: ToolUseBlock[];
   /**
+   * The provider stopped because the reply reached `maxTokens`. The reply may
+   * end in the middle of a tool call, whose input is then incomplete: callers
+   * that run tools must not run the calls of a cut-off reply.
+   */
+  truncated?: true;
+  /**
    * Per-call usage broken down by cache state. Only populated for
    * Anthropic (direct or Bedrock), and other Bedrock models when the
    * response includes cache counters. Otherwise left `undefined`.
@@ -261,6 +268,15 @@ export async function llmCall(p: LlmCallParams): Promise<LlmCallResult> {
       model: p.model,
       provider: providerOf(p.model),
     });
+    if (res.truncated) {
+      // A cut-off reply is otherwise silent: the text just ends early.
+      logWithContext("warn", "[llm-call] reply hit the output limit", {
+        ...(p.correlationId ? { correlationId: p.correlationId } : {}),
+        model: p.model,
+        maxTokens: p.maxTokens ?? DEFAULT_MAX_TOKENS,
+        toolCalls: res.toolCalls?.length ?? 0,
+      });
+    }
     return res;
   } catch (caught) {
     const e = sanitizeImageError(caught, p.messages);
@@ -491,7 +507,7 @@ function buildAnthropicBody(
   noSampling = false
 ): Record<string, unknown> {
   const body: Record<string, unknown> = {
-    max_tokens: p.maxTokens ?? 1024,
+    max_tokens: p.maxTokens ?? DEFAULT_MAX_TOKENS,
     system: buildAnthropicSystem(p.systemPrompt, p.systemPromptCacheBoundary),
     messages,
   };
@@ -549,12 +565,14 @@ function parseAnthropicResult(j: AnthropicResponse, model: string): LlmCallResul
     },
   };
   if (toolCalls.length > 0) result.toolCalls = toolCalls;
+  if (j.stop_reason === "max_tokens") result.truncated = true;
   return result;
 }
 
 /** Response shape for the direct Anthropic Messages API. */
 interface AnthropicResponse {
   content?: Array<{ type: string; text?: string; id?: string; name?: string; input?: unknown }>;
+  stop_reason?: string;
   usage?: {
     input_tokens?: number;
     output_tokens?: number;
@@ -646,7 +664,7 @@ function buildBedrockBody(p: LlmCallParams, noSampling: boolean): Record<string,
     ...(system.length ? { system } : {}),
     messages,
     inferenceConfig: {
-      maxTokens: p.maxTokens ?? 1024,
+      maxTokens: p.maxTokens ?? DEFAULT_MAX_TOKENS,
       ...(!noSampling ? { temperature: p.temperature ?? 0.7 } : {}),
     },
     ...(p.tools?.length
@@ -674,6 +692,7 @@ interface BedrockResponse {
       }>;
     };
   };
+  stopReason?: string;
   usage?: {
     inputTokens?: number;
     outputTokens?: number;
@@ -704,6 +723,7 @@ function parseBedrockResult(j: BedrockResponse, model: string): LlmCallResult {
     tokensOut: usage?.outputTokens ?? 0,
     model,
     ...(toolCalls.length ? { toolCalls } : {}),
+    ...(j.stopReason === "max_tokens" ? { truncated: true as const } : {}),
     ...(isBedrockClaude(model) ||
     usage?.cacheWriteInputTokens !== undefined ||
     usage?.cacheReadInputTokens !== undefined
@@ -847,8 +867,8 @@ function buildOpenAIChatBody(
     model: p.model,
     messages: toOpenAIMessages(p),
     ...(reasoning
-      ? { max_completion_tokens: p.maxTokens ?? 1024 }
-      : { max_tokens: p.maxTokens ?? 1024, temperature: p.temperature ?? 0.7 }),
+      ? { max_completion_tokens: p.maxTokens ?? DEFAULT_MAX_TOKENS }
+      : { max_tokens: p.maxTokens ?? DEFAULT_MAX_TOKENS, temperature: p.temperature ?? 0.7 }),
     ...(extra ?? {}),
   };
   const tools = toOpenAITools(p.tools);
@@ -891,6 +911,7 @@ async function callOpenAICompatible(
     model: p.model,
   };
   if (toolCalls.length > 0) result.toolCalls = toolCalls;
+  if (j.choices?.[0]?.finish_reason === "length") result.truncated = true;
   return result;
 }
 
@@ -925,7 +946,7 @@ async function callGoogle(p: LlmCallParams, apiKey: string): Promise<LlmCallResu
             })),
           generationConfig: {
             temperature: p.temperature ?? 0.7,
-            maxOutputTokens: p.maxTokens ?? 1024,
+            maxOutputTokens: p.maxTokens ?? DEFAULT_MAX_TOKENS,
           },
         }),
       },
@@ -942,6 +963,7 @@ async function callGoogle(p: LlmCallParams, apiKey: string): Promise<LlmCallResu
     tokensIn: j.usageMetadata?.promptTokenCount ?? 0,
     tokensOut: j.usageMetadata?.candidatesTokenCount ?? 0,
     model: p.model,
+    ...(j.candidates?.[0]?.finishReason === "MAX_TOKENS" ? { truncated: true as const } : {}),
   };
 }
 
@@ -971,7 +993,7 @@ async function callAzure(
         body: JSON.stringify({
           messages: [{ role: "system", content: p.systemPrompt }, ...messages],
           temperature: p.temperature ?? 0.7,
-          max_tokens: p.maxTokens ?? 1024,
+          max_tokens: p.maxTokens ?? DEFAULT_MAX_TOKENS,
         }),
       },
       LLM_TIMEOUT_MS
@@ -985,6 +1007,7 @@ async function callAzure(
     tokensIn: j.usage?.prompt_tokens ?? 0,
     tokensOut: j.usage?.completion_tokens ?? 0,
     model: p.model,
+    ...(j.choices?.[0]?.finish_reason === "length" ? { truncated: true as const } : {}),
   };
 }
 
@@ -1058,7 +1081,7 @@ async function* streamAnthropic(p: LlmCallParams, apiKey: string): AsyncGenerato
 
   const body: Record<string, unknown> = {
     model: p.model,
-    max_tokens: p.maxTokens ?? 1024,
+    max_tokens: p.maxTokens ?? DEFAULT_MAX_TOKENS,
     temperature: p.temperature ?? 0.7,
     system: buildAnthropicSystem(p.systemPrompt, p.systemPromptCacheBoundary),
     messages: anthropicMessages,

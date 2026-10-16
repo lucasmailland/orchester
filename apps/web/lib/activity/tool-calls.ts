@@ -2,6 +2,7 @@ import "server-only";
 import { schema } from "@orchester/db";
 import { createId } from "@paralleldrive/cuid2";
 import { CONNECTOR_TOOLS } from "@/lib/connector-tools";
+import { OUTPUT_LIMIT_REFUSAL_PREFIX } from "@/lib/ai/output-limit";
 import { redactUrl } from "@/lib/flows/dry-run";
 import { WRITE_SCOPE_REFUSAL_PREFIX } from "@/lib/integrations/odoo-write-scope";
 import { logWithContext } from "@/lib/observability";
@@ -186,6 +187,9 @@ export function outcomeOf(end: ToolCallEnd): {
     const message = e instanceof Error ? e.message : String(e);
     if (message.includes(WRITE_SCOPE_REFUSAL_PREFIX)) {
       return { outcome: "refused", errorCode: "write_scope", error: errorText(message) };
+    }
+    if (message.startsWith(OUTPUT_LIMIT_REFUSAL_PREFIX)) {
+      return { outcome: "refused", errorCode: "output_limit", error: errorText(message) };
     }
     // An explicit code (`ECONNRESET`, a Postgres SQLSTATE) or a telling class
     // name (`TypeError`, `AbortError`); a bare `Error` says nothing.
