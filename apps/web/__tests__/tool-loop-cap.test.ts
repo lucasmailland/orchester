@@ -28,13 +28,22 @@ const h = vi.hoisted(() => {
     fallback: null,
   };
   const flow = { id: "flow_test", nodes: [] as unknown[], edges: [] as unknown[], variables: {} };
+  // The agent a conversation is handed off to; until then every agent read finds `agent`.
+  const state = { handoffTo: null as null | typeof agent };
   const rows = (table: string): unknown[] => {
-    if (table === "agents") return [agent];
+    if (table === "agents") return [state.handoffTo ?? agent];
     if (table === "flows") return [flow];
     if (table === "channels")
       return [{ id: "channel_test", status: "active", agentId: agent.id, type: "widget" }];
     if (table === "conversations")
-      return [{ id: "conversation_test", status: "open", messageCount: 0 }];
+      return [
+        {
+          id: "conversation_test",
+          status: "open",
+          messageCount: 0,
+          agentId: state.handoffTo?.id ?? agent.id,
+        },
+      ];
     if (table === "messages") return [{ role: "user", content: "go" }];
     return [];
   };
@@ -55,7 +64,18 @@ const h = vi.hoisted(() => {
     insert: () => ({ values: async () => undefined }),
     update: () => ({ set: () => ({ where: async () => undefined }) }),
   };
-  return { agent, flow, tx, llm: vi.fn(), tool: vi.fn(), spend: vi.fn(), usage: vi.fn() };
+  return {
+    agent,
+    flow,
+    state,
+    tx,
+    llm: vi.fn(),
+    tool: vi.fn(),
+    spend: vi.fn(),
+    usage: vi.fn(),
+    // Tool definitions the agent resolves to; null means the one `probe` tool.
+    toolDefs: null as unknown[] | null,
+  };
 });
 vi.mock("@orchester/db", () => ({
   getDb: () => ({ ...h.tx, transaction: async (fn: (tx: unknown) => unknown) => fn(h.tx) }),
@@ -80,7 +100,7 @@ const probe = { name: "probe", description: "Probe", inputSchema: { type: "objec
 vi.mock("@/lib/tools", () => ({
   executeTool: h.tool,
   getToolDefinitions: () => [probe],
-  resolveToolDefinitions: async () => [probe],
+  resolveToolDefinitions: async () => h.toolDefs ?? [probe],
   toolEffect: async () => "read",
 }));
 vi.mock("@/lib/integrations/store", () => ({ runIntegrationAction: h.tool }));
@@ -149,6 +169,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.agent.config = {};
   h.agent.maxTurns = 20;
+  h.agent.tools = ["probe"];
+  h.toolDefs = null;
+  h.state.handoffTo = null;
   h.tool.mockResolvedValue({ ok: true });
   // The model never stops asking for the tool, so the cap is what ends the loop.
   h.llm.mockResolvedValue({
@@ -182,6 +205,63 @@ describe("resolveMaxToolCalls", () => {
       maxToolCalls: 8,
     });
     expect(mergeAgentConfig(null, { maxToolCalls: 8 })).toEqual({ maxToolCalls: 8 });
+  });
+});
+
+describe.each(paths)("%s and the prompt cache", (_name, go) => {
+  it("caches the agent's fixed prompt and the conversation on every call", async () => {
+    await go();
+    expect(h.llm).toHaveBeenCalledTimes(5);
+    for (const [p] of h.llm.mock.calls) {
+      expect(p.cacheMessages).toBe(true);
+      expect(p.systemPromptCacheBoundary).toBeGreaterThan(0);
+      expect(p.systemPrompt.slice(0, p.systemPromptCacheBoundary)).toContain("Work the case");
+    }
+  });
+  it("leaves the conversation uncached when the agent has no tools", async () => {
+    h.agent.tools = [];
+    h.toolDefs = [];
+    h.llm.mockResolvedValue({ content: "done", model: "gpt-4o", tokensUsed: 2 });
+    await go();
+    expect(h.llm).toHaveBeenCalledTimes(1);
+    expect(h.llm.mock.calls[0]![0]).not.toHaveProperty("cacheMessages");
+  });
+});
+
+describe("what the system prompt checkpoint covers", () => {
+  it("the conversational loop caches only the agent's prompt, not the context after it", async () => {
+    await channel();
+    const [p] = h.llm.mock.calls[0]!;
+    expect(p.systemPrompt.slice(0, p.systemPromptCacheBoundary)).toBe("Work the case");
+    expect(p.systemPrompt.length).toBeGreaterThan(p.systemPromptCacheBoundary);
+  });
+  it("after a handoff, the conversational loop caches the new agent's prompt", async () => {
+    h.llm.mockResolvedValueOnce({
+      content: "",
+      model: "gpt-4o",
+      tokensUsed: 2,
+      toolCalls: [{ id: "h1", name: "agent_handoff", input: {} }],
+    });
+    h.tool.mockImplementationOnce(async () => {
+      h.state.handoffTo = {
+        ...h.agent,
+        id: "agent_billing",
+        systemPrompt: "Take the invoices and nothing else",
+      };
+      return { ok: true };
+    });
+    await channel();
+    const [before] = h.llm.mock.calls[0]!;
+    const [after] = h.llm.mock.calls[1]!;
+    expect(before.systemPrompt.slice(0, before.systemPromptCacheBoundary)).toBe("Work the case");
+    expect(after.systemPrompt.slice(0, after.systemPromptCacheBoundary)).toBe(
+      "Take the invoices and nothing else"
+    );
+  });
+  it("the flow agent node caches its whole system prompt, which never changes", async () => {
+    await flow();
+    const [p] = h.llm.mock.calls[0]!;
+    expect(p.systemPromptCacheBoundary).toBe(p.systemPrompt.length);
   });
 });
 

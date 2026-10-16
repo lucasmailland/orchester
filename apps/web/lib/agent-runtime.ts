@@ -540,7 +540,11 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
       // `undefined` boundary = no cache marker → legacy behaviour.
       ...(cacheBoundary !== undefined && { systemPromptCacheBoundary: cacheBoundary }),
     };
-    if (toolDefs.length > 0) callOpts.tools = toolDefs;
+    if (toolDefs.length > 0) {
+      callOpts.tools = toolDefs;
+      // Each call of the loop resends the conversation so far: cache it for the next one.
+      callOpts.cacheMessages = true;
+    }
 
     // Spend cap / kill-switch en cada turno del loop tool-use (cubre test-chat + MCP).
     await assertWithinSpend(p.workspaceId, p.tx);
