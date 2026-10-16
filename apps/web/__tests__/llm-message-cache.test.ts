@@ -61,15 +61,16 @@ const BEDROCK_CLAUDE = "bedrock:us.anthropic.claude-sonnet-4-6";
 
 beforeEach(() => {
   fetchMock.mockReset().mockImplementation(async (url) => {
-    const u = String(url);
-    if (u.includes("anthropic.com")) {
+    // Bedrock goes to the provider row's endpoint, so it is told apart by its path.
+    const { hostname, pathname } = new URL(String(url));
+    if (hostname === "api.anthropic.com") {
       return Response.json({
         content: [{ type: "text", text: "ok" }],
         stop_reason: "end_turn",
         usage: { input_tokens: 10, output_tokens: 2 },
       });
     }
-    if (u.includes("bedrock")) {
+    if (pathname.endsWith("/converse")) {
       return Response.json({
         output: { message: { content: [{ text: "ok" }] } },
         stopReason: "end_turn",
