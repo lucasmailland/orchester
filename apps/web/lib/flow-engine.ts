@@ -1016,6 +1016,11 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
           temperature: agent.temperature ? Number(agent.temperature) : 0.7,
           ...(agent.maxTokens != null && { maxTokens: agent.maxTokens }),
           ...(tools.length > 0 && { tools }),
+          // The system prompt is the agent's own and never changes, so all of it
+          // is cached for every run of this agent. With tools, each call also
+          // caches the conversation so far for the next call of the loop.
+          systemPromptCacheBoundary: systemPrompt.length,
+          ...(tools.length > 0 && { cacheMessages: true }),
           tx,
         })
       );

@@ -405,6 +405,8 @@ async function buildConversationContext(
 ): Promise<{
   chatMsgs: ChatMessage[];
   systemPrompt: string;
+  /** Where the part of `systemPrompt` that is the same on every turn ends. */
+  cacheBoundary: number;
 }> {
   // `channel` is destructured because the Brain block below reads `channel.type`.
   // It used to reference a bare `channel` that was never in scope: a
@@ -488,6 +490,9 @@ async function buildConversationContext(
       wrapMemoryBlock(formatMemoriesAsPromptBlock(memories)) +
       brainBlock +
       UNTRUSTED_CONTENT_GUARDRAIL,
+    // Only the agent's own prompt is the same from one message to the next:
+    // the channel context, memories and recall after it change.
+    cacheBoundary: agent.systemPrompt.length,
   };
 }
 
@@ -575,7 +580,7 @@ async function runConversationalLoop(
   const db = tx;
   let conversation = ctx.conversation;
 
-  const { chatMsgs, systemPrompt } = await buildConversationContext(ctx, tx);
+  const { chatMsgs, systemPrompt, cacheBoundary } = await buildConversationContext(ctx, tx);
   const { getRelevantMemories, formatMemoriesAsPromptBlock } = await import("@/lib/memory");
 
   // El agente puede mutar dentro del loop si llama a `agent_handoff`. Esa tool
@@ -589,6 +594,7 @@ async function runConversationalLoop(
     activeAgent
   );
   let activeSystemPrompt = systemPrompt;
+  let activeCacheBoundary = cacheBoundary;
   let reply = "";
   let tokens = 0;
   // Summed across the turn's calls; null as soon as one call has no split.
@@ -616,6 +622,9 @@ async function runConversationalLoop(
       temperature: activeAgent.temperature ? Number(activeAgent.temperature) : 0.7,
       ...(activeAgent.maxTokens != null && { maxTokens: activeAgent.maxTokens }),
       ...(activeTools.length > 0 && { tools: activeTools }),
+      systemPromptCacheBoundary: activeCacheBoundary,
+      // Each call of the loop resends the conversation so far: cache it for the next one.
+      ...(activeTools.length > 0 && { cacheMessages: true }),
     });
     tokens += r.tokensUsed;
     const split = splitOf(r);
@@ -719,6 +728,7 @@ async function runConversationalLoop(
               activeAgent.systemPrompt +
               wrapMemoryBlock(formatMemoriesAsPromptBlock(newMems)) +
               UNTRUSTED_CONTENT_GUARDRAIL;
+            activeCacheBoundary = activeAgent.systemPrompt.length;
           }
         }
       }
