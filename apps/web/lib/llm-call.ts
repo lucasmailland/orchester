@@ -86,6 +86,21 @@ export interface LlmCallParams {
    * If absent, the prompt is sent uncached (legacy behaviour).
    */
   systemPromptCacheBoundary?: number;
+  /**
+   * Also cache the conversation: a checkpoint after the last message. The next
+   * call of a tool loop resends all of it plus the new tool results, and reads
+   * everything up to this checkpoint from the cache instead of paying for it
+   * again. Each call puts the checkpoint on its own last message; the provider
+   * finds the previous one by looking back about 20 content blocks.
+   *
+   * Writing to the cache costs 25% more than plain input, so set it only where
+   * another call with the same start is likely within the 5-minute TTL, as in a
+   * tool loop. Anthropic and Claude on Bedrock only, like the system
+   * checkpoint. A prefix under the model's minimum (1,024 tokens for Sonnet) is
+   * sent uncached, not refused. Together with `systemPromptCacheBoundary` this
+   * is two of the four checkpoints a request may carry.
+   */
+  cacheMessages?: boolean;
   /** Id de correlación opcional para atar logs/errores de esta llamada (D1). */
   correlationId?: string;
   /**
@@ -388,8 +403,8 @@ export function buildAnthropicSystem(
 /**
  * Encode our ChatMessage[] into Anthropic's content-block format.
  */
-function toAnthropicMessages(p: LlmCallParams) {
-  return p.messages
+function toAnthropicMessages(p: LlmCallParams): Array<{ role: string; content: unknown }> {
+  const messages = p.messages
     .filter((m) => m.role !== "system")
     .map((m) => {
       if (m.role === "tool") {
@@ -412,6 +427,31 @@ function toAnthropicMessages(p: LlmCallParams) {
       }
       return { role: m.role, content: m.content };
     });
+  return p.cacheMessages ? withAnthropicCheckpoint(messages) : messages;
+}
+
+/**
+ * Marks the last block of the last message for the cache (`cacheMessages`).
+ * A plain string becomes a text block so it can carry the marker; an empty one
+ * is left as it is, because Anthropic refuses an empty text block.
+ */
+function withAnthropicCheckpoint(
+  messages: Array<{ role: string; content: unknown }>
+): Array<{ role: string; content: unknown }> {
+  const last = messages.at(-1);
+  if (!last) return messages;
+  const blocks: Array<Record<string, unknown>> =
+    typeof last.content === "string"
+      ? last.content
+        ? [{ type: "text", text: last.content }]
+        : []
+      : (last.content as Array<Record<string, unknown>>);
+  if (blocks.length === 0) return messages;
+  const marked = [
+    ...blocks.slice(0, -1),
+    { ...blocks.at(-1), cache_control: { type: "ephemeral" } },
+  ];
+  return [...messages.slice(0, -1), { ...last, content: marked }];
 }
 
 async function callAnthropic(
@@ -564,15 +604,13 @@ function buildBedrockBody(p: LlmCallParams, noSampling: boolean): Record<string,
       ? prompt
         ? [{ text: prompt }]
         : []
-      : prompt.flatMap(
-          (block): Array<{ text: string } | { cachePoint: { type: "default" } }> => [
-            { text: block.text },
-            ...(block.cache_control ? [{ cachePoint: { type: "default" as const } }] : []),
-          ]
-        );
+      : prompt.flatMap((block): Array<{ text: string } | { cachePoint: { type: "default" } }> => [
+          { text: block.text },
+          ...(block.cache_control ? [{ cachePoint: { type: "default" as const } }] : []),
+        ]);
   const messages = p.messages
     .filter((m) => m.role !== "system")
-    .map((m) => {
+    .map((m): { role: string; content: Array<Record<string, unknown>> } => {
       if (m.role === "tool") {
         return {
           role: "user",
@@ -598,6 +636,12 @@ function buildBedrockBody(p: LlmCallParams, noSampling: boolean): Record<string,
     // user turn carries nothing anyway, and the old Anthropic-shaped path got
     // away with sending `content: ""`, which Converse will not take.
     .filter((m) => m.content.length > 0);
+  // `cacheMessages`: a checkpoint after the last message Converse receives,
+  // for Claude only, like the system one.
+  const last = messages.at(-1);
+  if (p.cacheMessages && last && isBedrockClaude(p.model)) {
+    last.content.push({ cachePoint: { type: "default" } });
+  }
   return {
     ...(system.length ? { system } : {}),
     messages,
