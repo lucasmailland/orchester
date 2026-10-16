@@ -98,6 +98,7 @@ describe("the copilot's output limit", () => {
     ["anthropic", "claude-sonnet-4-6"],
     ["openai", "gpt-4o-mini"],
     ["google", "gemini-1.5-flash"],
+    ["bedrock", "bedrock:us.anthropic.claude-sonnet-4-6"],
   ])("leaves room for a whole flow on %s", async (provider, model) => {
     h.picked = { provider, model };
     h.llm.mockResolvedValue(reply({ content: "What should it do?" }));
