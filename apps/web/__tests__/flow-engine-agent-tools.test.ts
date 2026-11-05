@@ -105,12 +105,23 @@ describe("flow agent tools", () => {
     expect(calls()[0]![0].systemPrompt).toBe(fixture.agent.systemPrompt);
   });
 
+  it("keeps content from one call when a tool-free agent also returns a tool request", async () => {
+    fixture.agent.tools = [];
+    vi.mocked(llmCall).mockResolvedValue(toolTurn);
+    const result = await run();
+    expect(result.status).toBe("succeeded");
+    expect(llmCall).toHaveBeenCalledTimes(1);
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(result.output.answer).toBe(toolTurn.content);
+  });
+
   it("executes tools with agent context and feeds results back", async () => {
     vi.mocked(llmCall).mockResolvedValueOnce(toolTurn);
     const result = await run();
     expect(executeTool).toHaveBeenCalledWith("calculator", toolCall.input, {
       workspaceId: "ws_test",
       offeredTools: getToolDefinitions(["calculator"]),
+      offeredTool: getToolDefinitions(["calculator"])[0],
       tx: expect.objectContaining({ execute: expect.any(Function) }),
       variables: { unit: "items" },
       agentId: "agent_test",

@@ -48,6 +48,8 @@ export interface ToolContext {
   variables: Record<string, string>;
   /** Definitions passed to the model for the call requesting this tool. */
   offeredTools?: readonly ToolDefinition[];
+  /** The offered definition selected by the requesting loop's availability check. */
+  offeredTool?: ToolDefinition;
   /** Required for memory_* tools. Identifies the agent calling the tool. */
   agentId?: string;
   /** Optional context: lets memory tools scope to conversation. */

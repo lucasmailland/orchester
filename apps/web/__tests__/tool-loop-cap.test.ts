@@ -7,6 +7,7 @@ import type { ChatMessage } from "@/lib/llm-call";
 import { outputLimitRefusal } from "@/lib/ai/output-limit";
 import { handleMnemosyneRemember } from "@/lib/agent-tools/mnemosyne-remember";
 import { mcpHashedToolName } from "@/lib/integrations/mcp-policy";
+import { recordToolCall } from "@/lib/activity/tool-calls";
 import {
   resolveMaxToolCalls,
   mergeAgentConfig,
@@ -133,6 +134,10 @@ vi.mock("@/lib/billing/quotas", () => ({ checkQuota: async () => ({ allowed: tru
 vi.mock("@/lib/queue", () => ({ enqueue: vi.fn(), JOB_FLOW_RUN: "flow.run" }));
 vi.mock("@/lib/observability", () => ({ recordMetric: vi.fn(), logWithContext: vi.fn() }));
 vi.mock("@/lib/audit", () => ({ logAudit: vi.fn() }));
+vi.mock("@/lib/activity/tool-calls", async (original) => ({
+  ...(await original<typeof import("@/lib/activity/tool-calls")>()),
+  recordToolCall: vi.fn(),
+}));
 
 const runtime = () =>
   runAgent({
@@ -355,20 +360,52 @@ describe.each(paths)("%s, offered tools", (_name, go) => {
     return messages.findLast((m) => m.role === "tool")?.toolResults;
   };
 
-  it.each([false, true])("returns an error for an unoffered tool (empty=%s)", async (empty) => {
-    const name = "odoo_post_task_note";
-    if (empty) {
-      h.agent.tools = [];
-      h.toolDefs = [];
+  it.each(_name === "flow agent node" ? [false] : [false, true])(
+    "returns an error for an unoffered tool (empty=%s)",
+    async (empty) => {
+      const name = "odoo_post_task_note";
+      if (empty) {
+        h.agent.tools = [];
+        h.toolDefs = [];
+      }
+      h.llm.mockResolvedValueOnce(request(name)).mockResolvedValueOnce(complete);
+      await go();
+      expect(h.tool).not.toHaveBeenCalled();
+      expect(feedback()).toEqual([
+        {
+          id: "requested",
+          name,
+          input: {},
+          error: `Tool "${name}" is not available for this agent`,
+        },
+      ]);
+      expect(feedback()![0]!.error).not.toContain("probe");
+      expect(recordToolCall).toHaveBeenCalledTimes(1);
+      expect(recordToolCall).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: "ws_test",
+          source:
+            _name === "agent runtime"
+              ? "api"
+              : _name === "conversational loop"
+                ? "channel"
+                : "flow_agent",
+          agentId: "agent_test",
+          tool: name,
+          input: {},
+          startedAt: expect.any(Date),
+          durationMs: 0,
+          thrown: new Error(`Tool "${name}" is not available for this agent`),
+          ...(_name === "conversational loop"
+            ? { conversationId: "conversation_test", channelId: "channel_test" }
+            : {}),
+          ...(_name === "flow agent node"
+            ? { flowId: "flow_test", flowRunId: expect.any(String), nodeId: "a" }
+            : {}),
+        })
+      );
     }
-    h.llm.mockResolvedValueOnce(request(name)).mockResolvedValueOnce(complete);
-    await go();
-    expect(h.tool).not.toHaveBeenCalled();
-    expect(feedback()).toEqual([
-      { id: "requested", name, input: {}, error: `Tool "${name}" is not available for this agent` },
-    ]);
-    expect(feedback()![0]!.error).not.toContain("probe");
-  });
+  );
 
   it("uses the offered definitions even when the raw selection contains the requested name", async () => {
     const name = "odoo_post_task_note";
@@ -404,6 +441,7 @@ describe.each(paths)("%s, offered tools", (_name, go) => {
       expect.objectContaining({ offeredTools: [probe] })
     );
     expect(feedback()![0]?.error).toBeUndefined();
+    expect(recordToolCall).not.toHaveBeenCalled();
   });
 
   it.each(["knowledge_search", "memory_set", "memory_get", "agent_team_list"])(
@@ -438,6 +476,48 @@ describe("dedicated and conversational tools", () => {
   const complete = { content: "done", model: "gpt-4o", tokensUsed: 2 };
   const remember = { id: "remember", name: "mnemosyne_remember", input: {} };
 
+  it.each([false, true])(
+    "includes memory guidance only when remember is offered (%s)",
+    async (offered) => {
+      h.toolDefs = offered ? [probe, { ...probe, name: "mnemosyne_remember" }] : [probe];
+      h.llm.mockResolvedValue(complete);
+      await runtime();
+      const prompt = h.llm.mock.calls[0]![0].systemPrompt as string;
+      const guidance = "If a fact relevant to the user appears below in <recalled-memory>";
+      expect(prompt.includes(guidance)).toBe(offered);
+      expect(
+        prompt.includes("call the `mnemosyne_remember` tool with kind/subject/statement.")
+      ).toBe(offered);
+      expect(prompt).toContain("\n\n---\n1.0.0\n---\n");
+    }
+  );
+
+  it("records a test chat refusal with its conversation context", async () => {
+    h.llm
+      .mockResolvedValueOnce({ ...complete, toolCalls: [remember] })
+      .mockResolvedValueOnce(complete);
+    await runAgent({
+      workspaceId: "ws_test",
+      agent: h.agent,
+      messages: [{ role: "user", content: "go" }],
+      testChat: true,
+      conversationId: "conversation_test",
+    } as RunAgentParams);
+    expect(h.tool).not.toHaveBeenCalled();
+    expect(handleMnemosyneRemember).not.toHaveBeenCalled();
+    expect(recordToolCall).toHaveBeenCalledTimes(1);
+    expect(recordToolCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: "test_chat",
+        agentId: "agent_test",
+        conversationId: "conversation_test",
+        tool: "mnemosyne_remember",
+        durationMs: 0,
+        thrown: new Error('Tool "mnemosyne_remember" is not available for this agent'),
+      })
+    );
+  });
+
   it("does not call the dedicated remember handler when its definition was not offered", async () => {
     h.llm
       .mockResolvedValueOnce({ ...complete, toolCalls: [remember] })
@@ -445,6 +525,16 @@ describe("dedicated and conversational tools", () => {
     const result = await runtime();
     expect(handleMnemosyneRemember).not.toHaveBeenCalled();
     expect(h.tool).not.toHaveBeenCalled();
+    expect(recordToolCall).toHaveBeenCalledTimes(1);
+    expect(recordToolCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: "api",
+        agentId: "agent_test",
+        tool: "mnemosyne_remember",
+        durationMs: 0,
+        thrown: new Error('Tool "mnemosyne_remember" is not available for this agent'),
+      })
+    );
     expect(result.toolCalls?.[0]?.error).toBe(
       'Tool "mnemosyne_remember" is not available for this agent'
     );

@@ -84,22 +84,15 @@ export async function executeWorkspaceMcpTool(
   ctx: ToolContext
 ): Promise<string> {
   const offeredTools = ctx.offeredTools ?? [];
-  assertToolOffered(name, offeredTools);
-  // Discovery refreshes availability; only definitions offered for this call can run.
+  const offered = assertToolOffered(name, ctx.offeredTool ? [ctx.offeredTool] : offeredTools);
+  if (!offeredTools.includes(offered) || !offered.integrationId || !offered.remoteName) {
+    throw toolNotAvailable(name);
+  }
+  // Keep the checked identity even when discovery changes names or integration availability.
   const all = await discoverAll(ctx.workspaceId, ctx.tx);
-  const allowed = all.filter((tool) =>
-    offeredTools.some(
-      (offered) =>
-        (offered.name === tool.name ||
-          offered.name === mcpHashedToolName(tool.integrationId, tool.remoteName)) &&
-        (!offered.integrationId || offered.integrationId === tool.integrationId) &&
-        (!offered.remoteName || offered.remoteName === tool.remoteName)
-    )
+  const tool = all.find(
+    (tool) => tool.integrationId === offered.integrationId && tool.remoteName === offered.remoteName
   );
-  // The readable name wins; the legacy hashed name is accepted as an alias.
-  const tool =
-    allowed.find((t) => t.name === name) ??
-    allowed.find((t) => mcpHashedToolName(t.integrationId, t.remoteName) === name);
   if (tool) {
     const identity = { workspaceId: ctx.workspaceId, integrationId: tool.integrationId };
     return callMcpTool(identity, (tool.integration as Integration).config, tool.remoteName, input);

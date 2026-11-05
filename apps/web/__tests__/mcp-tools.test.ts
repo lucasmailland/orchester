@@ -23,6 +23,7 @@ import * as tools from "@/lib/tools";
 import { GET } from "@/app/api/tools/route";
 import { mcpHashedToolName } from "@/lib/integrations/mcp-policy";
 import { executeWorkspaceMcpTool, listWorkspaceMcpTools } from "@/lib/integrations/mcp-tools";
+import { assertToolOffered } from "@/lib/tool-availability";
 const definition = {
   name: "mcp__integration_test__read",
   remoteName: "read",
@@ -129,8 +130,48 @@ describe("workspace MCP tool registry", () => {
         "_b",
         {}
       );
-      await expect(tools.executeTool("mcp__a___b", {}, ctx)).rejects.toThrow();
+      const offeredTool = assertToolOffered("mcp__a___b", offeredTools);
+      await tools.executeTool("mcp__a___b", {}, { ...ctx, offeredTool });
+      expect(mocks.call).toHaveBeenLastCalledWith(
+        { workspaceId: "workspace-test", integrationId: offeredTool.integrationId },
+        a.config,
+        offeredTool.remoteName,
+        {}
+      );
     });
+
+    it.each([false, true])(
+      "retains a colliding tool's checked identity when its integration disappears (checked=%s)",
+      async (checked) => {
+        setup([a, b]);
+        mocks.discover.mockImplementation(async (identity: { integrationId: string }) => [
+          {
+            ...definition,
+            name: "mcp__a___b",
+            remoteName: identity.integrationId === "a_" ? "b" : "_b",
+            effect: identity.integrationId === "a_" ? "read" : "write",
+          },
+        ]);
+        const offeredTools = await tools.resolveToolDefinitions("workspace-test", [
+          mcpHashedToolName("a_", "b"),
+          mcpHashedToolName("a", "_b"),
+        ]);
+        const offeredTool = assertToolOffered("mcp__a___b", offeredTools);
+        expect(offeredTool).toMatchObject({ integrationId: "a_", remoteName: "b", effect: "read" });
+        if (checked) offeredTools.reverse();
+        setup([b]);
+        const ctx = {
+          workspaceId: "workspace-test",
+          variables: {},
+          offeredTools,
+          ...(checked ? { offeredTool } : {}),
+        };
+        await expect(executeWorkspaceMcpTool("mcp__a___b", {}, ctx)).rejects.toThrow(
+          'Tool "mcp__a___b" is not available for this agent'
+        );
+        expect(mocks.call).not.toHaveBeenCalled();
+      }
+    );
   });
   it("routes readable and hashed names alike", async () => {
     const hashed = mcpHashedToolName("integration-test", "read.docs");
@@ -224,6 +265,66 @@ describe("workspace MCP tool registry", () => {
       expect(mocks.call).not.toHaveBeenCalled();
     }
   );
+
+  it.each(["integrationId", "remoteName"] as const)(
+    "refuses an offered MCP definition without %s",
+    async (missing) => {
+      const offeredTools = await tools.resolveToolDefinitions("workspace-test", [definition.name]);
+      const offeredTool = offeredTools[0]!;
+      delete offeredTool[missing];
+      for (const checked of [false, true]) {
+        await expect(
+          executeWorkspaceMcpTool(
+            definition.name,
+            {},
+            {
+              workspaceId: "workspace-test",
+              variables: {},
+              offeredTools,
+              ...(checked ? { offeredTool } : {}),
+            }
+          )
+        ).rejects.toThrow(`Tool "${definition.name}" is not available for this agent`);
+      }
+      expect(mocks.call).not.toHaveBeenCalled();
+      expect(mocks.discover).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it("requires offered definitions even when a checked MCP definition is provided", async () => {
+    const [offeredTool] = await tools.resolveToolDefinitions("workspace-test", [definition.name]);
+    await expect(
+      executeWorkspaceMcpTool(
+        definition.name,
+        {},
+        {
+          workspaceId: "workspace-test",
+          variables: {},
+          offeredTool: offeredTool!,
+        }
+      )
+    ).rejects.toThrow(`Tool "${definition.name}" is not available for this agent`);
+    expect(mocks.call).not.toHaveBeenCalled();
+  });
+
+  it("refuses a requested name that does not match the checked MCP definition", async () => {
+    const offeredTools = await tools.resolveToolDefinitions("workspace-test", [definition.name]);
+    const name = "mcp__integration-test__other";
+    await expect(
+      executeWorkspaceMcpTool(
+        name,
+        {},
+        {
+          workspaceId: "workspace-test",
+          variables: {},
+          offeredTools,
+          offeredTool: offeredTools[0]!,
+        }
+      )
+    ).rejects.toThrow(`Tool "${name}" is not available for this agent`);
+    expect(mocks.call).not.toHaveBeenCalled();
+    expect(mocks.discover).toHaveBeenCalledTimes(1);
+  });
 
   it.each(["mcp__integration-test__other", mcpHashedToolName("integration-test", "other")])(
     "refuses an MCP tool selected by another agent: %s",

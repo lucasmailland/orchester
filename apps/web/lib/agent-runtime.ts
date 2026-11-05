@@ -8,8 +8,8 @@ import { mapToolOutputText, redactToolImages } from "@/lib/tool-output";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { llmCall, type ChatMessage } from "./llm-call";
-import { executeTool, resolveToolDefinitions, type ToolCall } from "./tools";
-import { assertToolOffered } from "./tool-availability";
+import { executeTool, resolveToolDefinitions, type ToolCall, type ToolContext } from "./tools";
+import { checkToolOffered } from "./tool-availability";
 import { assertWithinSpend } from "./cost-alerts";
 import { recordAiUsage, chargeFor } from "./ai/run";
 import { resolveMaxToolCalls } from "./agents/tool-call-cap";
@@ -460,11 +460,18 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
   // invalidates extractions tagged with the prior version).
   const protocolBlock = `\n\n---\n${MEMORY_PROTOCOL_V1}\n---\n`;
 
+  const toolDefs =
+    enabledTools.length > 0
+      ? await resolveToolDefinitions(p.workspaceId, enabledTools, p.tx, p.agent)
+      : [];
+
   // v1.1 #28 — anti-pattern guidance for memory tool usage. Lives in
   // the cached prefix (billed at cached rate) but is iterable
   // independently of the version-locked protocol — bumping the
   // guidance does NOT invalidate stored extraction metadata.
-  const guidanceBlock = `\n${MEMORY_RECALL_GUIDANCE}\n---\n`;
+  const guidanceBlock = toolDefs.some((tool) => tool.name === "mnemosyne_remember")
+    ? `\n${MEMORY_RECALL_GUIDANCE}\n---\n`
+    : "";
 
   // Profile block — pulled from `getOrComputeSummary` (read path is cheap;
   // distillation runs in the daily cron). Empty string on cold start.
@@ -519,10 +526,6 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
   const cacheBoundary = cachedPrefix.length > 0 ? cachedPrefix.length : undefined;
 
   // Tool-calling loop (currently Anthropic only — others fall through to plain chat)
-  const toolDefs =
-    enabledTools.length > 0
-      ? await resolveToolDefinitions(p.workspaceId, enabledTools, p.tx, p.agent)
-      : [];
   const toolCalls: RunAgentResult["toolCalls"] = [];
   let messages = [...p.messages];
   let totalTokens = 0;
@@ -600,7 +603,18 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
     const toolResults: ToolCall[] = [];
     for (const tc of r.toolCalls) {
       try {
-        assertToolOffered(tc.name, toolDefs);
+        const toolContext: ToolContext = {
+          workspaceId: p.workspaceId,
+          offeredTools: toolDefs,
+          variables,
+          agentId: p.agent.id,
+          ...(p.conversationId ? { conversationId: p.conversationId } : {}),
+          ...(p.employeeId ? { employeeId: p.employeeId } : {}),
+          ...(p.testChat ? { testChat: true } : {}),
+          ...(p.tx ? { tx: p.tx } : {}),
+          source: p.testChat ? "test_chat" : "api",
+        };
+        const offeredTool = await checkToolOffered(tc.name, tc.input, toolContext);
         // v1.5 — mnemosyne_remember has a dedicated handler in
         // lib/agent-tools so the policy + PII downgrade pipeline lives
         // outside the generic tool registry. Any other tool falls
@@ -617,15 +631,8 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
           out = await handleMnemosyneRemember(tc.input as Record<string, unknown>, rememberCtx);
         } else {
           out = await executeTool(tc.name, tc.input as Record<string, unknown>, {
-            workspaceId: p.workspaceId,
-            offeredTools: toolDefs,
-            variables,
-            agentId: p.agent.id,
-            ...(p.conversationId ? { conversationId: p.conversationId } : {}),
-            ...(p.employeeId ? { employeeId: p.employeeId } : {}),
-            ...(p.testChat ? { testChat: true } : {}),
-            ...(p.tx ? { tx: p.tx } : {}),
-            source: p.testChat ? "test_chat" : "api",
+            ...toolContext,
+            offeredTool,
           });
         }
         toolCalls.push({
