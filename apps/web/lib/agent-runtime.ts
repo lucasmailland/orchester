@@ -29,7 +29,9 @@ import {
 const MEMORY_PROTOCOL_V1 = "1.0.0";
 const MEMORY_RECALL_GUIDANCE =
   "If a fact relevant to the user appears below in <recalled-memory>, " +
-  "treat it as established context. If new durable facts emerge in this turn, " +
+  "treat it as established context.";
+const MEMORY_REMEMBER_GUIDANCE =
+  "If new durable facts emerge in this turn, " +
   "call the `mnemosyne_remember` tool with kind/subject/statement.";
 
 /**
@@ -469,9 +471,10 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
   // the cached prefix (billed at cached rate) but is iterable
   // independently of the version-locked protocol — bumping the
   // guidance does NOT invalidate stored extraction metadata.
-  const guidanceBlock = toolDefs.some((tool) => tool.name === "mnemosyne_remember")
-    ? `\n${MEMORY_RECALL_GUIDANCE}\n---\n`
+  const rememberGuidance = toolDefs.some((tool) => tool.name === "mnemosyne_remember")
+    ? ` ${MEMORY_REMEMBER_GUIDANCE}`
     : "";
+  const guidanceBlock = `\n${MEMORY_RECALL_GUIDANCE}${rememberGuidance}\n---\n`;
 
   // Profile block — pulled from `getOrComputeSummary` (read path is cheap;
   // distillation runs in the daily cron). Empty string on cold start.

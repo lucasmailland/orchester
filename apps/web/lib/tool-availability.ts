@@ -2,9 +2,12 @@ import "server-only";
 import type { ToolContext, ToolDefinition } from "./tools";
 import { recordToolCall } from "./activity/tool-calls";
 import { mcpHashedToolName, mcpToolName } from "./integrations/mcp-policy";
+import { TOOL_NOT_OFFERED_CODE } from "./ai/tool-refusal";
 
 export function toolNotAvailable(name: string): Error {
-  return new Error(`Tool "${name}" is not available for this agent`);
+  return Object.assign(new Error(`Tool "${name}" is not available for this agent`), {
+    code: TOOL_NOT_OFFERED_CODE,
+  });
 }
 
 export function assertToolOffered(
@@ -18,15 +21,15 @@ export function assertToolOffered(
     }
     return exact;
   }
-  const tool = offeredTools?.find((tool) => {
+  const matches = offeredTools?.filter((tool) => {
     if (!tool.name.startsWith("mcp__") || !tool.integrationId || !tool.remoteName) return false;
     return (
       name === mcpHashedToolName(tool.integrationId, tool.remoteName) ||
       name === mcpToolName(tool.integrationId, tool.remoteName)
     );
   });
-  if (!tool) throw toolNotAvailable(name);
-  return tool;
+  if (matches?.length !== 1) throw toolNotAvailable(name);
+  return matches[0]!;
 }
 
 export async function checkToolOffered(

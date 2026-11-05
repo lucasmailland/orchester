@@ -130,15 +130,28 @@ describe("workspace MCP tool registry", () => {
         "_b",
         {}
       );
-      const offeredTool = assertToolOffered("mcp__a___b", offeredTools);
-      await tools.executeTool("mcp__a___b", {}, { ...ctx, offeredTool });
-      expect(mocks.call).toHaveBeenLastCalledWith(
-        { workspaceId: "workspace-test", integrationId: offeredTool.integrationId },
-        a.config,
-        offeredTool.remoteName,
-        {}
-      );
+      await expect(tools.executeTool("mcp__a___b", {}, ctx)).rejects.toThrow();
     });
+
+    it.each([false, true])(
+      "refuses an ambiguous alias in either offered order (reversed=%s)",
+      async (reversed) => {
+        setup([a, b]);
+        const offeredTools = await tools.resolveToolDefinitions("workspace-test", [
+          mcpHashedToolName("a_", "b"),
+          mcpHashedToolName("a", "_b"),
+        ]);
+        if (reversed) offeredTools.reverse();
+        const name = "mcp__a___b";
+        expect(() => assertToolOffered(name, offeredTools)).toThrow(
+          `Tool "${name}" is not available for this agent`
+        );
+        const ctx = { workspaceId: "workspace-test", variables: {}, offeredTools };
+        await expect(executeWorkspaceMcpTool(name, {}, ctx)).rejects.toThrow();
+        await expect(tools.executeTool(name, {}, ctx)).rejects.toThrow();
+        expect(mocks.call).not.toHaveBeenCalled();
+      }
+    );
 
     it.each([false, true])(
       "retains a colliding tool's checked identity when its integration disappears (checked=%s)",
@@ -154,11 +167,9 @@ describe("workspace MCP tool registry", () => {
         ]);
         const offeredTools = await tools.resolveToolDefinitions("workspace-test", [
           mcpHashedToolName("a_", "b"),
-          mcpHashedToolName("a", "_b"),
         ]);
         const offeredTool = assertToolOffered("mcp__a___b", offeredTools);
         expect(offeredTool).toMatchObject({ integrationId: "a_", remoteName: "b", effect: "read" });
-        if (checked) offeredTools.reverse();
         setup([b]);
         const ctx = {
           workspaceId: "workspace-test",

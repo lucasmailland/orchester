@@ -395,7 +395,10 @@ describe.each(paths)("%s, offered tools", (_name, go) => {
           input: {},
           startedAt: expect.any(Date),
           durationMs: 0,
-          thrown: new Error(`Tool "${name}" is not available for this agent`),
+          thrown: expect.objectContaining({
+            message: `Tool "${name}" is not available for this agent`,
+            code: "not_offered",
+          }),
           ...(_name === "conversational loop"
             ? { conversationId: "conversation_test", channelId: "channel_test" }
             : {}),
@@ -477,17 +480,19 @@ describe("dedicated and conversational tools", () => {
   const remember = { id: "remember", name: "mnemosyne_remember", input: {} };
 
   it.each([false, true])(
-    "includes memory guidance only when remember is offered (%s)",
+    "always includes recall guidance and adds remember guidance only when offered (%s)",
     async (offered) => {
       h.toolDefs = offered ? [probe, { ...probe, name: "mnemosyne_remember" }] : [probe];
       h.llm.mockResolvedValue(complete);
       await runtime();
       const prompt = h.llm.mock.calls[0]![0].systemPrompt as string;
-      const guidance = "If a fact relevant to the user appears below in <recalled-memory>";
-      expect(prompt.includes(guidance)).toBe(offered);
+      const guidance =
+        "If a fact relevant to the user appears below in <recalled-memory>, treat it as established context.";
+      expect(prompt).toContain(guidance);
       expect(
         prompt.includes("call the `mnemosyne_remember` tool with kind/subject/statement.")
       ).toBe(offered);
+      expect(prompt.includes("mnemosyne_remember")).toBe(offered);
       expect(prompt).toContain("\n\n---\n1.0.0\n---\n");
     }
   );
@@ -513,7 +518,10 @@ describe("dedicated and conversational tools", () => {
         conversationId: "conversation_test",
         tool: "mnemosyne_remember",
         durationMs: 0,
-        thrown: new Error('Tool "mnemosyne_remember" is not available for this agent'),
+        thrown: expect.objectContaining({
+          message: 'Tool "mnemosyne_remember" is not available for this agent',
+          code: "not_offered",
+        }),
       })
     );
   });
@@ -532,7 +540,10 @@ describe("dedicated and conversational tools", () => {
         agentId: "agent_test",
         tool: "mnemosyne_remember",
         durationMs: 0,
-        thrown: new Error('Tool "mnemosyne_remember" is not available for this agent'),
+        thrown: expect.objectContaining({
+          message: 'Tool "mnemosyne_remember" is not available for this agent',
+          code: "not_offered",
+        }),
       })
     );
     expect(result.toolCalls?.[0]?.error).toBe(

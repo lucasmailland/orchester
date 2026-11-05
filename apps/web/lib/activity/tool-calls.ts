@@ -3,6 +3,7 @@ import { schema } from "@orchester/db";
 import { createId } from "@paralleldrive/cuid2";
 import { CONNECTOR_TOOLS } from "@/lib/connector-tools";
 import { OUTPUT_LIMIT_REFUSAL_PREFIX } from "@/lib/ai/output-limit";
+import { TOOL_NOT_OFFERED_CODE } from "@/lib/ai/tool-refusal";
 import { redactUrl } from "@/lib/flows/dry-run";
 import { WRITE_SCOPE_REFUSAL_PREFIX } from "@/lib/integrations/odoo-write-scope";
 import { logWithContext } from "@/lib/observability";
@@ -185,6 +186,9 @@ export function outcomeOf(end: ToolCallEnd): {
   if ("thrown" in end) {
     const e = end.thrown;
     const message = e instanceof Error ? e.message : String(e);
+    if (stringProp(e, "code") === TOOL_NOT_OFFERED_CODE) {
+      return { outcome: "refused", errorCode: TOOL_NOT_OFFERED_CODE, error: errorText(message) };
+    }
     if (message.includes(WRITE_SCOPE_REFUSAL_PREFIX)) {
       return { outcome: "refused", errorCode: "write_scope", error: errorText(message) };
     }
