@@ -4,6 +4,7 @@ import { logWithContext } from "@/lib/observability";
 import { listIntegrations, loadIntegration } from "./store";
 import { callMcpTool, discoverMcpTools } from "./mcp-client";
 import { mcpHashedToolName } from "./mcp-policy";
+import { assertToolOffered, toolNotAvailable } from "@/lib/tool-availability";
 
 type WsDb = ToolContext["tx"];
 
@@ -82,15 +83,26 @@ export async function executeWorkspaceMcpTool(
   input: Record<string, unknown>,
   ctx: ToolContext
 ): Promise<string> {
-  // Exact lookup in the same resolved list the model was offered; no name parsing.
+  const offeredTools = ctx.offeredTools ?? [];
+  assertToolOffered(name, offeredTools);
+  // Discovery refreshes availability; only definitions offered for this call can run.
   const all = await discoverAll(ctx.workspaceId, ctx.tx);
+  const allowed = all.filter((tool) =>
+    offeredTools.some(
+      (offered) =>
+        (offered.name === tool.name ||
+          offered.name === mcpHashedToolName(tool.integrationId, tool.remoteName)) &&
+        (!offered.integrationId || offered.integrationId === tool.integrationId) &&
+        (!offered.remoteName || offered.remoteName === tool.remoteName)
+    )
+  );
   // The readable name wins; the legacy hashed name is accepted as an alias.
   const tool =
-    all.find((t) => t.name === name) ??
-    all.find((t) => mcpHashedToolName(t.integrationId, t.remoteName) === name);
+    allowed.find((t) => t.name === name) ??
+    allowed.find((t) => mcpHashedToolName(t.integrationId, t.remoteName) === name);
   if (tool) {
     const identity = { workspaceId: ctx.workspaceId, integrationId: tool.integrationId };
     return callMcpTool(identity, (tool.integration as Integration).config, tool.remoteName, input);
   }
-  throw new Error("MCP tool is unavailable or not allowed in this workspace");
+  throw toolNotAvailable(name);
 }

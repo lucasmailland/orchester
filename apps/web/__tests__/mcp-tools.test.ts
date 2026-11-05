@@ -22,7 +22,7 @@ vi.mock("@/lib/workspace", () => ({
 import * as tools from "@/lib/tools";
 import { GET } from "@/app/api/tools/route";
 import { mcpHashedToolName } from "@/lib/integrations/mcp-policy";
-import { listWorkspaceMcpTools } from "@/lib/integrations/mcp-tools";
+import { executeWorkspaceMcpTool, listWorkspaceMcpTools } from "@/lib/integrations/mcp-tools";
 const definition = {
   name: "mcp__integration_test__read",
   remoteName: "read",
@@ -61,11 +61,16 @@ describe("workspace MCP tool registry", () => {
   });
   it("threads workspace and transaction through listing, loading and execution", async () => {
     const tx = { testTransaction: true } as never;
+    const offeredTools = await tools.resolveToolDefinitions(
+      "workspace-test",
+      [definition.name],
+      tx
+    );
     expect(
       await tools.executeTool(
         definition.name,
         { query: "test" },
-        { workspaceId: "workspace-test", variables: {}, tx }
+        { workspaceId: "workspace-test", variables: {}, tx, offeredTools }
       )
     ).toBe("tool output");
     expect(mocks.list).toHaveBeenCalledWith("workspace-test", tx);
@@ -105,7 +110,11 @@ describe("workspace MCP tool registry", () => {
     });
     it("routes both hashed names to the exact integration and remote tool", async () => {
       setup([a, b]);
-      const ctx = { workspaceId: "workspace-test", variables: {} };
+      const offeredTools = await tools.resolveToolDefinitions("workspace-test", [
+        mcpHashedToolName("a_", "b"),
+        mcpHashedToolName("a", "_b"),
+      ]);
+      const ctx = { workspaceId: "workspace-test", variables: {}, offeredTools };
       await tools.executeTool(mcpHashedToolName("a_", "b"), { q: 1 }, ctx);
       expect(mocks.call).toHaveBeenLastCalledWith(
         { workspaceId: "workspace-test", integrationId: "a_" },
@@ -129,7 +138,11 @@ describe("workspace MCP tool registry", () => {
       { ...definition, name: "mcp__integration-test__read_docs", remoteName: "read_docs" },
       { ...definition, name: hashed, remoteName: "read.docs" },
     ]);
-    const ctx = { workspaceId: "workspace-test", variables: {} };
+    const offeredTools = await tools.resolveToolDefinitions("workspace-test", [
+      "mcp__integration-test__read_docs",
+      hashed,
+    ]);
+    const ctx = { workspaceId: "workspace-test", variables: {}, offeredTools };
     await tools.executeTool("mcp__integration-test__read_docs", {}, ctx);
     expect(mocks.call).toHaveBeenLastCalledWith(
       expect.anything(),
@@ -149,7 +162,6 @@ describe("workspace MCP tool registry", () => {
     // Readable names replaced hashed ones; selections stored before keep working.
     const readable = "mcp__integration-test__read_docs";
     const legacy = mcpHashedToolName("integration-test", "read_docs");
-    const ctx = { workspaceId: "workspace-test", variables: {} };
     beforeEach(() => {
       mocks.discover.mockResolvedValue([
         { ...definition, name: readable, remoteName: "read_docs" },
@@ -167,7 +179,9 @@ describe("workspace MCP tool registry", () => {
       const defs = await tools.resolveToolDefinitions("workspace-test", [readable]);
       expect(defs.map((d) => d.name)).toEqual([readable]);
     });
-    it("executes the legacy name against the same remote tool", async () => {
+    it.each([readable, legacy])("executes both aliases when %s was offered", async (offered) => {
+      const offeredTools = await tools.resolveToolDefinitions("workspace-test", [offered]);
+      const ctx = { workspaceId: "workspace-test", variables: {}, offeredTools };
       await tools.executeTool(legacy, { q: 1 }, ctx);
       expect(mocks.call).toHaveBeenLastCalledWith(
         { workspaceId: "workspace-test", integrationId: "integration-test" },
@@ -189,14 +203,60 @@ describe("workspace MCP tool registry", () => {
     });
   });
   it("refuses unavailable or disabled tools at execution", async () => {
+    const offeredTools = await tools.resolveToolDefinitions("workspace-test", [definition.name]);
+    const ctx = { workspaceId: "workspace-test", variables: {}, offeredTools };
     mocks.discover.mockResolvedValue([]);
-    await expect(
-      tools.executeTool(definition.name, {}, { workspaceId: "workspace-test", variables: {} })
-    ).rejects.toThrow();
+    await expect(tools.executeTool(definition.name, {}, ctx)).rejects.toThrow();
     mocks.list.mockResolvedValue([{ ...integration, enabled: false }]);
+    await expect(tools.executeTool(definition.name, {}, ctx)).rejects.toThrow();
+    expect(mocks.call).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, []])(
+    "refuses execution without offered definitions (%j)",
+    async (offeredTools) => {
+      const ctx: tools.ToolContext = { workspaceId: "workspace-test", variables: {} };
+      if (offeredTools) ctx.offeredTools = offeredTools;
+      await expect(executeWorkspaceMcpTool(definition.name, {}, ctx)).rejects.toThrow(
+        `Tool "${definition.name}" is not available for this agent`
+      );
+      expect(mocks.discover).not.toHaveBeenCalled();
+      expect(mocks.call).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(["mcp__integration-test__other", mcpHashedToolName("integration-test", "other")])(
+    "refuses an MCP tool selected by another agent: %s",
+    async (name) => {
+      const other = { ...definition, name: "mcp__integration-test__other", remoteName: "other" };
+      mocks.discover.mockResolvedValue([definition, other]);
+      const offeredTools = await tools.resolveToolDefinitions("workspace-test", [definition.name]);
+      const otherAgentTools = await tools.resolveToolDefinitions("workspace-test", [other.name]);
+      expect(otherAgentTools.map((tool) => tool.name)).toEqual([other.name]);
+      const ctx = { workspaceId: "workspace-test", variables: {}, offeredTools };
+      for (const execute of [executeWorkspaceMcpTool, tools.executeTool]) {
+        await expect(execute(name, {}, ctx)).rejects.toThrow(
+          `Tool "${name}" is not available for this agent`
+        );
+      }
+      expect(mocks.call).not.toHaveBeenCalled();
+    }
+  );
+
+  it("keeps an offered MCP name bound to its original identity after discovery changes", async () => {
+    const offeredTools = await tools.resolveToolDefinitions("workspace-test", [definition.name]);
+    mocks.discover.mockResolvedValue([{ ...definition, remoteName: "other" }]);
     await expect(
-      tools.executeTool(definition.name, {}, { workspaceId: "workspace-test", variables: {} })
-    ).rejects.toThrow();
+      executeWorkspaceMcpTool(
+        definition.name,
+        {},
+        {
+          workspaceId: "workspace-test",
+          variables: {},
+          offeredTools,
+        }
+      )
+    ).rejects.toThrow(`Tool "${definition.name}" is not available for this agent`);
     expect(mocks.call).not.toHaveBeenCalled();
   });
   it("lists remote descriptions under the integration name without config in the picker API", async () => {

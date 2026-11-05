@@ -982,6 +982,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       throw new Error(`agent "${agent.name}" is not active (status: ${agent.status}); ${rule}`);
     }
     const { resolveToolDefinitions, executeTool, toolEffect } = await import("./tools");
+    const { assertToolOffered } = await import("./tool-availability");
     const { wrapUntrusted, UNTRUSTED_CONTENT_GUARDRAIL } = await import("./agent-runtime");
     // Handoff mutates a conversation and throws without conversationId.
     // Memory tools accept optional conversation scope and still work with agentId.
@@ -994,7 +995,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     const systemPrompt = agent.systemPrompt + (tools.length > 0 ? UNTRUSTED_CONTENT_GUARDRAIL : "");
     const messages: ChatMessage[] = [{ role: "user", content: userMessage }];
     // Same per-agent cap as channels/router.ts and agent-runtime.ts (default 5).
-    const maxSteps = tools.length > 0 ? resolveMaxToolCalls(agent.config) : 1;
+    const maxSteps = resolveMaxToolCalls(agent.config);
     const { assertWithinSpend } = await import("./cost-alerts");
     const { recordAiUsage, chargeFor } = await import("./ai/run");
     let content = "";
@@ -1049,7 +1050,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
         costUsd: cargo.costUsd,
       });
 
-      if (tools.length === 0 || !result.toolCalls?.length) {
+      if (!result.toolCalls?.length) {
         content = result.content;
         break;
       }
@@ -1070,16 +1071,13 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       for (const tc of result.toolCalls) {
         toolsUsed.push(tc.name);
         try {
-          // A model can name a tool it was not given; never run it.
-          if (!tools.some((tool) => tool.name === tc.name)) {
-            throw new Error(`Tool not enabled: ${tc.name}`);
-          }
+          const offeredTool = assertToolOffered(tc.name, tools);
           const input = tc.input as Record<string, unknown>;
           // In a dry run the agent still reads, but a tool that writes is only
           // reported: the model sees what it would have done, nothing changes.
           if (
             ctx.dryRun &&
-            (tools.find((t) => t.name === tc.name)?.effect ??
+            (offeredTool.effect ??
               (await withFlowTx(workspaceId, (tx) =>
                 toolEffect(tc.name, input, { workspaceId, tx })
               ))) === "write"
@@ -1099,6 +1097,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
           const out = await withFlowTx(workspaceId, (tx) =>
             executeTool(tc.name, input, {
               workspaceId,
+              offeredTools: tools,
               tx,
               variables: agent.variables ?? {},
               agentId: agent.id,

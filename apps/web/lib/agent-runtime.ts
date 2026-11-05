@@ -9,6 +9,7 @@ import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { llmCall, type ChatMessage } from "./llm-call";
 import { executeTool, resolveToolDefinitions, type ToolCall } from "./tools";
+import { assertToolOffered } from "./tool-availability";
 import { assertWithinSpend } from "./cost-alerts";
 import { recordAiUsage, chargeFor } from "./ai/run";
 import { resolveMaxToolCalls } from "./agents/tool-call-cap";
@@ -599,6 +600,7 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
     const toolResults: ToolCall[] = [];
     for (const tc of r.toolCalls) {
       try {
+        assertToolOffered(tc.name, toolDefs);
         // v1.5 — mnemosyne_remember has a dedicated handler in
         // lib/agent-tools so the policy + PII downgrade pipeline lives
         // outside the generic tool registry. Any other tool falls
@@ -616,6 +618,7 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
         } else {
           out = await executeTool(tc.name, tc.input as Record<string, unknown>, {
             workspaceId: p.workspaceId,
+            offeredTools: toolDefs,
             variables,
             agentId: p.agent.id,
             ...(p.conversationId ? { conversationId: p.conversationId } : {}),

@@ -7,6 +7,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { schema, type DbClient, type Conversation, type Agent, type Channel } from "@orchester/db";
 import { llmCall, llmStream, type ChatMessage } from "@/lib/llm-call";
 import { resolveToolDefinitions, executeTool } from "@/lib/tools";
+import { assertToolOffered } from "@/lib/tool-availability";
 import { executeFlow } from "@/lib/flow-engine";
 import { FlowDisabledError } from "@/lib/flows/run-gate";
 import { assertWithinSpend } from "@/lib/cost-alerts";
@@ -663,6 +664,7 @@ async function runConversationalLoop(
       const toolResults = [];
       for (const tc of r.toolCalls) {
         try {
+          assertToolOffered(tc.name, activeTools);
           // Phase F.1 fix: tools run on the same tx that has
           // `app.workspace_id` SET LOCAL. `executeTool` already accepts
           // `ctx.tx` and threads it into memory_set / memory_get /
@@ -670,6 +672,7 @@ async function runConversationalLoop(
           // tool reading tenant tables hits FORCE RLS rejection.
           const out = await executeTool(tc.name, tc.input as Record<string, unknown>, {
             workspaceId,
+            offeredTools: activeTools,
             tx,
             variables: (activeAgent.variables as Record<string, string>) ?? {},
             agentId: activeAgent.id,

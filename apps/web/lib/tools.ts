@@ -22,6 +22,9 @@ type WsDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 const HTTP_REQUEST_TIMEOUT_MS = 30_000;
 
 export interface ToolDefinition {
+  /** MCP identity retained when a definition uses its legacy name. */
+  integrationId?: string;
+  remoteName?: string;
   /** MCP annotations, conservatively classified for execution policies. */
   effect?: "read" | "write";
   name: string;
@@ -43,6 +46,8 @@ export interface ToolCall {
 export interface ToolContext {
   workspaceId: string;
   variables: Record<string, string>;
+  /** Definitions passed to the model for the call requesting this tool. */
+  offeredTools?: readonly ToolDefinition[];
   /** Required for memory_* tools. Identifies the agent calling the tool. */
   agentId?: string;
   /** Optional context: lets memory tools scope to conversation. */

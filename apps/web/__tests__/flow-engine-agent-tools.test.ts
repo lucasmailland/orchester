@@ -110,6 +110,7 @@ describe("flow agent tools", () => {
     const result = await run();
     expect(executeTool).toHaveBeenCalledWith("calculator", toolCall.input, {
       workspaceId: "ws_test",
+      offeredTools: getToolDefinitions(["calculator"]),
       tx: expect.objectContaining({ execute: expect.any(Function) }),
       variables: { unit: "items" },
       agentId: "agent_test",
@@ -281,6 +282,16 @@ describe("flow agent node: status, dry run and trace", () => {
     };
     const simulatedResult = fed.toolResults.find((r) => r.name === "odoo_post_note");
     expect(simulatedResult?.output).toContain('"dryRun":true');
+  });
+
+  it("returns an error for an unoffered write tool before simulating a dry run", async () => {
+    const unoffered = { id: "unoffered", name: "odoo_post_task_note", input: {} };
+    vi.mocked(llmCall).mockResolvedValueOnce({ ...toolTurn, toolCalls: [unoffered] });
+    expect((await run({ dryRun: true })).status).toBe("succeeded");
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(calls()[1]![0].messages.at(-1)?.toolResults).toEqual([
+      { ...unoffered, error: 'Tool "odoo_post_task_note" is not available for this agent' },
+    ]);
   });
 
   it("a step that fails mid-loop still records the tokens already spent", async () => {
