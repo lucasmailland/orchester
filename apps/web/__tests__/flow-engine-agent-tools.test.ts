@@ -105,11 +105,23 @@ describe("flow agent tools", () => {
     expect(calls()[0]![0].systemPrompt).toBe(fixture.agent.systemPrompt);
   });
 
+  it("keeps content from one call when a tool-free agent also returns a tool request", async () => {
+    fixture.agent.tools = [];
+    vi.mocked(llmCall).mockResolvedValue(toolTurn);
+    const result = await run();
+    expect(result.status).toBe("succeeded");
+    expect(llmCall).toHaveBeenCalledTimes(1);
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(result.output.answer).toBe(toolTurn.content);
+  });
+
   it("executes tools with agent context and feeds results back", async () => {
     vi.mocked(llmCall).mockResolvedValueOnce(toolTurn);
     const result = await run();
     expect(executeTool).toHaveBeenCalledWith("calculator", toolCall.input, {
       workspaceId: "ws_test",
+      offeredTools: getToolDefinitions(["calculator"]),
+      offeredTool: getToolDefinitions(["calculator"])[0],
       tx: expect.objectContaining({ execute: expect.any(Function) }),
       variables: { unit: "items" },
       agentId: "agent_test",
@@ -281,6 +293,16 @@ describe("flow agent node: status, dry run and trace", () => {
     };
     const simulatedResult = fed.toolResults.find((r) => r.name === "odoo_post_note");
     expect(simulatedResult?.output).toContain('"dryRun":true');
+  });
+
+  it("returns an error for an unoffered write tool before simulating a dry run", async () => {
+    const unoffered = { id: "unoffered", name: "odoo_post_task_note", input: {} };
+    vi.mocked(llmCall).mockResolvedValueOnce({ ...toolTurn, toolCalls: [unoffered] });
+    expect((await run({ dryRun: true })).status).toBe("succeeded");
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(calls()[1]![0].messages.at(-1)?.toolResults).toEqual([
+      { ...unoffered, error: 'Tool "odoo_post_task_note" is not available for this agent' },
+    ]);
   });
 
   it("a step that fails mid-loop still records the tokens already spent", async () => {

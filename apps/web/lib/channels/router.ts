@@ -6,7 +6,8 @@ import { createId } from "@paralleldrive/cuid2";
 import { eq, and, desc } from "drizzle-orm";
 import { schema, type DbClient, type Conversation, type Agent, type Channel } from "@orchester/db";
 import { llmCall, llmStream, type ChatMessage } from "@/lib/llm-call";
-import { resolveToolDefinitions, executeTool } from "@/lib/tools";
+import { resolveToolDefinitions, executeTool, type ToolContext } from "@/lib/tools";
+import { checkToolOffered } from "@/lib/tool-availability";
 import { executeFlow } from "@/lib/flow-engine";
 import { FlowDisabledError } from "@/lib/flows/run-gate";
 import { assertWithinSpend } from "@/lib/cost-alerts";
@@ -663,13 +664,9 @@ async function runConversationalLoop(
       const toolResults = [];
       for (const tc of r.toolCalls) {
         try {
-          // Phase F.1 fix: tools run on the same tx that has
-          // `app.workspace_id` SET LOCAL. `executeTool` already accepts
-          // `ctx.tx` and threads it into memory_set / memory_get /
-          // knowledge_search / mnemosyne_remember. Without this, any
-          // tool reading tenant tables hits FORCE RLS rejection.
-          const out = await executeTool(tc.name, tc.input as Record<string, unknown>, {
+          const toolContext: ToolContext = {
             workspaceId,
+            offeredTools: activeTools,
             tx,
             variables: (activeAgent.variables as Record<string, string>) ?? {},
             agentId: activeAgent.id,
@@ -677,6 +674,16 @@ async function runConversationalLoop(
             ...(conversation.employeeId ? { employeeId: conversation.employeeId } : {}),
             source: "channel",
             channelId: ctx.channel.id,
+          };
+          const offeredTool = await checkToolOffered(tc.name, tc.input, toolContext);
+          // Phase F.1 fix: tools run on the same tx that has
+          // `app.workspace_id` SET LOCAL. `executeTool` already accepts
+          // `ctx.tx` and threads it into memory_set / memory_get /
+          // knowledge_search / mnemosyne_remember. Without this, any
+          // tool reading tenant tables hits FORCE RLS rejection.
+          const out = await executeTool(tc.name, tc.input as Record<string, unknown>, {
+            ...toolContext,
+            offeredTool,
           });
           // L1/F2: el output de la tool es contenido no confiable → delimitado
           // (y con PII redactada si el operador hizo opt-in) antes de mandarlo

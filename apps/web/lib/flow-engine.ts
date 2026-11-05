@@ -982,6 +982,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       throw new Error(`agent "${agent.name}" is not active (status: ${agent.status}); ${rule}`);
     }
     const { resolveToolDefinitions, executeTool, toolEffect } = await import("./tools");
+    const { checkToolOffered } = await import("./tool-availability");
     const { wrapUntrusted, UNTRUSTED_CONTENT_GUARDRAIL } = await import("./agent-runtime");
     // Handoff mutates a conversation and throws without conversationId.
     // Memory tools accept optional conversation scope and still work with agentId.
@@ -1070,16 +1071,23 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       for (const tc of result.toolCalls) {
         toolsUsed.push(tc.name);
         try {
-          // A model can name a tool it was not given; never run it.
-          if (!tools.some((tool) => tool.name === tc.name)) {
-            throw new Error(`Tool not enabled: ${tc.name}`);
-          }
+          const toolContext = {
+            workspaceId,
+            offeredTools: tools,
+            variables: agent.variables ?? {},
+            agentId: agent.id,
+            source: "flow_agent" as const,
+            ...(ctx.flowId ? { flowId: ctx.flowId } : {}),
+            flowRunId: runId,
+            nodeId: node.id,
+          };
+          const offeredTool = await checkToolOffered(tc.name, tc.input, toolContext);
           const input = tc.input as Record<string, unknown>;
           // In a dry run the agent still reads, but a tool that writes is only
           // reported: the model sees what it would have done, nothing changes.
           if (
             ctx.dryRun &&
-            (tools.find((t) => t.name === tc.name)?.effect ??
+            (offeredTool.effect ??
               (await withFlowTx(workspaceId, (tx) =>
                 toolEffect(tc.name, input, { workspaceId, tx })
               ))) === "write"
@@ -1098,14 +1106,9 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
           }
           const out = await withFlowTx(workspaceId, (tx) =>
             executeTool(tc.name, input, {
-              workspaceId,
+              ...toolContext,
+              offeredTool,
               tx,
-              variables: agent.variables ?? {},
-              agentId: agent.id,
-              source: "flow_agent",
-              ...(ctx.flowId ? { flowId: ctx.flowId } : {}),
-              flowRunId: runId,
-              nodeId: node.id,
             })
           );
           toolResults.push({

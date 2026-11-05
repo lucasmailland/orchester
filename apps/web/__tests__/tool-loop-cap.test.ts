@@ -5,6 +5,9 @@ import { handleInbound } from "@/lib/channels/router";
 import { executeFlow } from "@/lib/flow-engine";
 import type { ChatMessage } from "@/lib/llm-call";
 import { outputLimitRefusal } from "@/lib/ai/output-limit";
+import { handleMnemosyneRemember } from "@/lib/agent-tools/mnemosyne-remember";
+import { mcpHashedToolName } from "@/lib/integrations/mcp-policy";
+import { recordToolCall } from "@/lib/activity/tool-calls";
 import {
   resolveMaxToolCalls,
   mergeAgentConfig,
@@ -131,6 +134,10 @@ vi.mock("@/lib/billing/quotas", () => ({ checkQuota: async () => ({ allowed: tru
 vi.mock("@/lib/queue", () => ({ enqueue: vi.fn(), JOB_FLOW_RUN: "flow.run" }));
 vi.mock("@/lib/observability", () => ({ recordMetric: vi.fn(), logWithContext: vi.fn() }));
 vi.mock("@/lib/audit", () => ({ logAudit: vi.fn() }));
+vi.mock("@/lib/activity/tool-calls", async (original) => ({
+  ...(await original<typeof import("@/lib/activity/tool-calls")>()),
+  recordToolCall: vi.fn(),
+}));
 
 const runtime = () =>
   runAgent({
@@ -238,6 +245,7 @@ describe("what the system prompt checkpoint covers", () => {
     expect(p.systemPrompt.length).toBeGreaterThan(p.systemPromptCacheBoundary);
   });
   it("after a handoff, the conversational loop caches the new agent's prompt", async () => {
+    h.toolDefs = [probe, { ...probe, name: "agent_handoff" }];
     h.llm.mockResolvedValueOnce({
       content: "",
       model: "gpt-4o",
@@ -337,5 +345,284 @@ describe.each(paths)("%s, reply cut at the output limit", (_name, go) => {
     expect(h.tool).toHaveBeenCalledTimes(1);
     expect(h.tool.mock.calls[0]![0]).toBe("probe");
     expect(h.tool.mock.calls[0]![1]).toEqual({ q: "short" });
+  });
+});
+
+describe.each(paths)("%s, offered tools", (_name, go) => {
+  const complete = { content: "done", model: "gpt-4o", tokensUsed: 2 };
+  const request = (name: string) => ({
+    ...complete,
+    content: "",
+    toolCalls: [{ id: "requested", name, input: {} }],
+  });
+  const feedback = () => {
+    const messages = h.llm.mock.calls[1]![0].messages as ChatMessage[];
+    return messages.findLast((m) => m.role === "tool")?.toolResults;
+  };
+
+  it.each(_name === "flow agent node" ? [false] : [false, true])(
+    "returns an error for an unoffered tool (empty=%s)",
+    async (empty) => {
+      const name = "odoo_post_task_note";
+      if (empty) {
+        h.agent.tools = [];
+        h.toolDefs = [];
+      }
+      h.llm.mockResolvedValueOnce(request(name)).mockResolvedValueOnce(complete);
+      await go();
+      expect(h.tool).not.toHaveBeenCalled();
+      expect(feedback()).toEqual([
+        {
+          id: "requested",
+          name,
+          input: {},
+          error: `Tool "${name}" is not available for this agent`,
+        },
+      ]);
+      expect(feedback()![0]!.error).not.toContain("probe");
+      expect(recordToolCall).toHaveBeenCalledTimes(1);
+      expect(recordToolCall).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: "ws_test",
+          source:
+            _name === "agent runtime"
+              ? "api"
+              : _name === "conversational loop"
+                ? "channel"
+                : "flow_agent",
+          agentId: "agent_test",
+          tool: name,
+          input: {},
+          startedAt: expect.any(Date),
+          durationMs: 0,
+          thrown: expect.objectContaining({
+            message: `Tool "${name}" is not available for this agent`,
+            code: "not_offered",
+          }),
+          ...(_name === "conversational loop"
+            ? { conversationId: "conversation_test", channelId: "channel_test" }
+            : {}),
+          ...(_name === "flow agent node"
+            ? { flowId: "flow_test", flowRunId: expect.any(String), nodeId: "a" }
+            : {}),
+        })
+      );
+    }
+  );
+
+  it("uses the offered definitions even when the raw selection contains the requested name", async () => {
+    const name = "odoo_post_task_note";
+    h.agent.tools = ["probe", name];
+    h.toolDefs = [probe];
+    h.llm.mockResolvedValueOnce(request(name)).mockResolvedValueOnce(complete);
+    await go();
+    expect(h.tool).not.toHaveBeenCalled();
+    expect(feedback()![0]?.error).toBe(`Tool "${name}" is not available for this agent`);
+  });
+
+  it.each(["mcp__other__read", mcpHashedToolName("other", "read")])(
+    "refuses another agent's MCP tool %s before execution",
+    async (name) => {
+      h.toolDefs = [
+        { ...probe, name: "mcp__docs__read", integrationId: "docs", remoteName: "read" },
+      ];
+      h.llm.mockResolvedValueOnce(request(name)).mockResolvedValueOnce(complete);
+      await go();
+      expect(h.tool).not.toHaveBeenCalled();
+      expect(feedback()![0]?.error).toBe(`Tool "${name}" is not available for this agent`);
+      expect(feedback()![0]?.error).not.toContain("mcp__docs__read");
+    }
+  );
+
+  it("runs a configured tool and passes the offered definitions to execution", async () => {
+    h.llm.mockResolvedValueOnce(request("probe")).mockResolvedValueOnce(complete);
+    await go();
+    expect(h.tool).toHaveBeenCalledTimes(1);
+    expect(h.tool).toHaveBeenCalledWith(
+      "probe",
+      {},
+      expect.objectContaining({ offeredTools: [probe] })
+    );
+    expect(feedback()![0]?.error).toBeUndefined();
+    expect(recordToolCall).not.toHaveBeenCalled();
+  });
+
+  it.each(["knowledge_search", "memory_set", "memory_get", "agent_team_list"])(
+    "runs %s when it is present in the offered definitions",
+    async (name) => {
+      h.toolDefs = [{ ...probe, name }];
+      h.llm.mockResolvedValueOnce(request(name)).mockResolvedValueOnce(complete);
+      await go();
+      expect(h.agent.tools).not.toContain(name);
+      expect(h.tool).toHaveBeenCalledTimes(1);
+      expect(h.tool.mock.calls[0]![0]).toBe(name);
+      expect(feedback()![0]?.error).toBeUndefined();
+    }
+  );
+
+  it.each([
+    ["mcp__docs__read", mcpHashedToolName("docs", "read")],
+    [mcpHashedToolName("docs", "read"), "mcp__docs__read"],
+  ])("accepts the alias %s of the offered MCP tool %s", async (requested, offered) => {
+    h.toolDefs = [
+      { ...probe, name: offered, integrationId: "docs", remoteName: "read", effect: "read" },
+    ];
+    h.llm.mockResolvedValueOnce(request(requested)).mockResolvedValueOnce(complete);
+    await go();
+    expect(h.tool).toHaveBeenCalledTimes(1);
+    expect(h.tool.mock.calls[0]![0]).toBe(requested);
+    expect(feedback()![0]?.error).toBeUndefined();
+  });
+});
+
+describe("dedicated and conversational tools", () => {
+  const complete = { content: "done", model: "gpt-4o", tokensUsed: 2 };
+  const remember = { id: "remember", name: "mnemosyne_remember", input: {} };
+
+  it.each([false, true])(
+    "always includes recall guidance and adds remember guidance only when offered (%s)",
+    async (offered) => {
+      h.toolDefs = offered ? [probe, { ...probe, name: "mnemosyne_remember" }] : [probe];
+      h.llm.mockResolvedValue(complete);
+      await runtime();
+      const prompt = h.llm.mock.calls[0]![0].systemPrompt as string;
+      const guidance =
+        "If a fact relevant to the user appears below in <recalled-memory>, treat it as established context.";
+      expect(prompt).toContain(guidance);
+      expect(
+        prompt.includes("call the `mnemosyne_remember` tool with kind/subject/statement.")
+      ).toBe(offered);
+      expect(prompt.includes("mnemosyne_remember")).toBe(offered);
+      expect(prompt).toContain("\n\n---\n1.0.0\n---\n");
+    }
+  );
+
+  it("records a test chat refusal with its conversation context", async () => {
+    h.llm
+      .mockResolvedValueOnce({ ...complete, toolCalls: [remember] })
+      .mockResolvedValueOnce(complete);
+    await runAgent({
+      workspaceId: "ws_test",
+      agent: h.agent,
+      messages: [{ role: "user", content: "go" }],
+      testChat: true,
+      conversationId: "conversation_test",
+    } as RunAgentParams);
+    expect(h.tool).not.toHaveBeenCalled();
+    expect(handleMnemosyneRemember).not.toHaveBeenCalled();
+    expect(recordToolCall).toHaveBeenCalledTimes(1);
+    expect(recordToolCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: "test_chat",
+        agentId: "agent_test",
+        conversationId: "conversation_test",
+        tool: "mnemosyne_remember",
+        durationMs: 0,
+        thrown: expect.objectContaining({
+          message: 'Tool "mnemosyne_remember" is not available for this agent',
+          code: "not_offered",
+        }),
+      })
+    );
+  });
+
+  it("does not call the dedicated remember handler when its definition was not offered", async () => {
+    h.llm
+      .mockResolvedValueOnce({ ...complete, toolCalls: [remember] })
+      .mockResolvedValueOnce(complete);
+    const result = await runtime();
+    expect(handleMnemosyneRemember).not.toHaveBeenCalled();
+    expect(h.tool).not.toHaveBeenCalled();
+    expect(recordToolCall).toHaveBeenCalledTimes(1);
+    expect(recordToolCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: "api",
+        agentId: "agent_test",
+        tool: "mnemosyne_remember",
+        durationMs: 0,
+        thrown: expect.objectContaining({
+          message: 'Tool "mnemosyne_remember" is not available for this agent',
+          code: "not_offered",
+        }),
+      })
+    );
+    expect(result.toolCalls?.[0]?.error).toBe(
+      'Tool "mnemosyne_remember" is not available for this agent'
+    );
+    const messages = h.llm.mock.calls[1]![0].messages as ChatMessage[];
+    expect(messages.at(-1)?.toolResults).toEqual([
+      { ...remember, error: 'Tool "mnemosyne_remember" is not available for this agent' },
+    ]);
+  });
+
+  it("runs the dedicated remember handler when its definition was offered", async () => {
+    h.toolDefs = [{ ...probe, name: "mnemosyne_remember" }];
+    vi.mocked(handleMnemosyneRemember).mockResolvedValue({ ok: true } as never);
+    h.llm
+      .mockResolvedValueOnce({ ...complete, toolCalls: [remember] })
+      .mockResolvedValueOnce(complete);
+    await runtime();
+    expect(h.agent.tools).not.toContain("mnemosyne_remember");
+    expect(handleMnemosyneRemember).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ workspaceId: "ws_test", agentId: "agent_test" })
+    );
+    expect(h.tool).not.toHaveBeenCalled();
+  });
+
+  it.each([runtime, channel])("runs an offered handoff in a conversational path", async (go) => {
+    h.toolDefs = [{ ...probe, name: "agent_handoff" }];
+    h.tool.mockResolvedValue({ simulated: true });
+    h.llm
+      .mockResolvedValueOnce({
+        ...complete,
+        toolCalls: [{ id: "handoff", name: "agent_handoff", input: {} }],
+      })
+      .mockResolvedValueOnce(complete);
+    await go();
+    expect(h.tool).toHaveBeenCalledTimes(1);
+    expect(h.tool.mock.calls[0]![0]).toBe("agent_handoff");
+  });
+
+  it("refuses handoff in a flow even when it is in the agent's selection", async () => {
+    h.agent.tools = ["agent_handoff", "probe"];
+    h.toolDefs = [probe, { ...probe, name: "agent_handoff" }];
+    h.llm
+      .mockResolvedValueOnce({
+        ...complete,
+        toolCalls: [{ id: "handoff", name: "agent_handoff", input: {} }],
+      })
+      .mockResolvedValueOnce(complete);
+    await flow();
+    expect(h.tool).not.toHaveBeenCalled();
+    const messages = h.llm.mock.calls[1]![0].messages as ChatMessage[];
+    expect(messages.at(-1)?.toolResults?.[0]?.error).toBe(
+      'Tool "agent_handoff" is not available for this agent'
+    );
+  });
+
+  it("checks the next channel call against the new agent's definitions after handoff", async () => {
+    h.toolDefs = [probe, { ...probe, name: "agent_handoff" }];
+    h.tool.mockImplementationOnce(async () => {
+      h.state.handoffTo = { ...h.agent, id: "agent_next", tools: ["knowledge_search"] };
+      h.toolDefs = [{ ...probe, name: "knowledge_search" }];
+      return { ok: true };
+    });
+    h.llm
+      .mockResolvedValueOnce({
+        ...complete,
+        toolCalls: [{ id: "handoff", name: "agent_handoff", input: {} }],
+      })
+      .mockResolvedValueOnce({ ...complete, toolCalls: [{ id: "old", name: "probe", input: {} }] })
+      .mockResolvedValueOnce(complete);
+    await channel();
+    expect(h.tool).toHaveBeenCalledTimes(1);
+    expect(h.llm.mock.calls[1]![0].tools.map((tool: { name: string }) => tool.name)).toEqual([
+      "knowledge_search",
+    ]);
+    const messages = h.llm.mock.calls[2]![0].messages as ChatMessage[];
+    expect(messages.at(-1)?.toolResults?.[0]?.error).toBe(
+      'Tool "probe" is not available for this agent'
+    );
   });
 });

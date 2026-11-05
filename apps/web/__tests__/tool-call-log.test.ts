@@ -25,6 +25,7 @@ import {
   type ToolCallEntry,
 } from "@/lib/activity/tool-calls";
 import { outputLimitRefusal } from "@/lib/ai/output-limit";
+import { checkToolOffered, toolNotAvailable } from "@/lib/tool-availability";
 
 const fakeTx = {
   insert: (table: unknown) => ({
@@ -213,6 +214,16 @@ describe("outcomeOf", () => {
     ).toMatchObject({ outcome: "error" });
   });
 
+  it("calls an unavailable-tool refusal refused with its reason code", () => {
+    const refusal = toolNotAvailable("odoo_post_task_note");
+    expect(outcomeOf({ thrown: refusal })).toEqual({
+      outcome: "refused",
+      errorCode: "not_offered",
+      error: 'Tool "odoo_post_task_note" is not available for this agent',
+    });
+    expect(outcomeOf({ thrown: new Error(refusal.message) }).outcome).toBe("error");
+  });
+
   it("reads errors reported in the result", () => {
     expect(
       outcomeOf({ result: { isError: true, content: [{ type: "text", text: "nope" }] } })
@@ -242,6 +253,39 @@ const entry = (result: unknown = { name: "OUTPUT-MARKER task title" }): ToolCall
 });
 
 describe("recordToolCall", () => {
+  it("records an unavailable tool request as refused with its reason and context", async () => {
+    const name = "odoo_post_task_note";
+    await expect(
+      checkToolOffered(
+        name,
+        {},
+        {
+          workspaceId: "ws_1",
+          variables: {},
+          offeredTools: [],
+          source: "channel",
+          agentId: "agent_1",
+          conversationId: "conv_1",
+          channelId: "channel_1",
+        }
+      )
+    ).rejects.toThrow(`Tool "${name}" is not available for this agent`);
+    expect(h.rows).toHaveLength(1);
+    expect(h.rows[0]!.row).toMatchObject({
+      workspaceId: "ws_1",
+      source: "channel",
+      agentId: "agent_1",
+      conversationId: "conv_1",
+      channelId: "channel_1",
+      tool: name,
+      outcome: "refused",
+      errorCode: "not_offered",
+      error: `Tool "${name}" is not available for this agent`,
+      durationMs: 0,
+      resultSize: null,
+    });
+  });
+
   it("inserts one row in its own workspace transaction, without the output", async () => {
     await recordToolCall(entry());
     expect(h.withWorkspaceTx).toHaveBeenCalledTimes(1);
