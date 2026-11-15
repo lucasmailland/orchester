@@ -24,5 +24,15 @@ export function safeReturnPath(input: string | null | undefined): string | null 
   // Reject lone "javascript:" or "data:" etc. just in case the leading "/"
   // is followed by a colon.
   if (/^\/[a-z][a-z0-9+.-]*:/i.test(input)) return null;
+  // URL parsers drop tabs and newlines, so "/\t/evil.com" becomes "//evil.com"
+  // and leaves the site. No control character belongs in a path.
+  if (/[\u0000-\u001f\u007f]/.test(input)) return null;
+  // Final word: resolved against a placeholder origin, the path must stay on it.
+  const base = "https://return.invalid";
+  try {
+    if (new URL(input, base).origin !== base) return null;
+  } catch {
+    return null;
+  }
   return input;
 }

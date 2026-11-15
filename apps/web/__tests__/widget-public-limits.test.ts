@@ -25,11 +25,19 @@ function useChannel(overrides: Record<string, unknown> = {}): string {
   return id;
 }
 
+// Each channel gets its own default address: there is also a bucket per
+// address across channels, and these tests count one channel at a time.
+const ipOf = new Map<string, string>();
+function defaultIp(channelId: string): string {
+  if (!ipOf.has(channelId)) ipOf.set(channelId, `203.0.113.${ipOf.size + 1}`);
+  return ipOf.get(channelId)!;
+}
+
 function call(
   route: typeof messages | typeof stream,
   channelId: string,
   body: Record<string, unknown>,
-  ip = "203.0.113.7"
+  ip = defaultIp(channelId)
 ): Promise<Response> {
   return route.POST(
     new Request(`https://example.com/api/widget/${channelId}`, {
@@ -78,6 +86,14 @@ describe.each([
     }
     expect((await call(route, channelId, MESSAGE, "192.0.2.200")).status).toBe(429);
     expect(handler()).toHaveBeenCalledTimes(budget);
+  });
+
+  it("stops one address across channels, so random channel ids buy nothing", async () => {
+    const budget = WIDGET_LIMITS.perClient.capacity;
+    for (let i = 0; i < budget; i++) {
+      await call(route, useChannel(), MESSAGE, "192.0.2.77");
+    }
+    expect((await call(route, useChannel(), MESSAGE, "192.0.2.77")).status).toBe(429);
   });
 
   it("refuses text longer than the widget allows, without reaching the agent", async () => {

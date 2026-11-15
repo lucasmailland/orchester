@@ -194,6 +194,27 @@ describe("team scoping", () => {
     expect(JSON.stringify(listMock.mock.calls[0]![0])).not.toContain("agent.team");
   });
 
+  it("agent_team_list: from a web widget, a team-less agent lists nobody", async () => {
+    selectChainAgents.mockResolvedValueOnce([{ teamId: null }]);
+    const res = (await executeTool("agent_team_list", {}, { ...ctx, channelType: "widget" })) as {
+      teammates: unknown[];
+    };
+    expect(res.teammates).toEqual([]);
+    expect(listMock).not.toHaveBeenCalled();
+  });
+
+  it("agent_handoff: from a web widget, a team-less agent cannot hand off", async () => {
+    selectChainAgents.mockResolvedValueOnce([target(null)]);
+    selectChainAgents.mockResolvedValueOnce([{ teamId: null }]);
+    await expect(
+      executeTool(
+        "agent_handoff",
+        { agentId: "agent_elena", note: "x" },
+        { ...ctx, channelType: "widget" }
+      )
+    ).rejects.toThrow(/web widget only works within the agent's team/);
+  });
+
   it("agent_handoff: succeeds to a same-team agent", async () => {
     selectChainAgents.mockResolvedValueOnce([target("team_a")]);
     selectChainAgents.mockResolvedValueOnce([{ teamId: "team_a" }]);

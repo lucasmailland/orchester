@@ -33,7 +33,7 @@ export async function GET() {
       ...(lat > 1000 ? { note: "high latency" } : {}),
     };
   } catch (e) {
-    checks["db_ping"] = { ok: false, note: e instanceof Error ? e.message : "unknown" };
+    checks["db_ping"] = { ok: false, note: "unavailable" };
   }
 
   // 2. Schema applied

@@ -6,6 +6,18 @@ import { appendAuditInTx, warnChainRotated } from "@/lib/audit/log";
 import type { FlowActor } from "./service";
 import type { AuditEntryInput } from "@/lib/audit/types";
 import { createId } from "@paralleldrive/cuid2";
+
+/**
+ * The approval token of a paused run is the credential that resolves the pause
+ * (approvals/[token]). Runs are readable by any member and any API key with
+ * flows:read, so the token never leaves the repository with them.
+ */
+function withoutApprovalToken<T extends { approvalToken?: string | null }>(
+  row: T
+): Omit<T, "approvalToken"> {
+  const { approvalToken: _token, ...rest } = row;
+  return rest;
+}
 import { versionSnapshot } from "./versions";
 
 type Tx = Parameters<Parameters<typeof withWorkspaceTx>[1]>[0];
@@ -84,14 +96,16 @@ function repo(tx: Tx, onRotate: (seq: bigint) => void) {
           )
           .limit(1)
       )[0],
-    findRun: async (id: string, ws: string) =>
-      (
+    findRun: async (id: string, ws: string) => {
+      const row = (
         await tx
           .select()
           .from(schema.flowRuns)
           .where(and(eq(schema.flowRuns.workspaceId, ws), eq(schema.flowRuns.id, id)))
           .limit(1)
-      )[0],
+      )[0];
+      return row ? withoutApprovalToken(row) : undefined;
+    },
     // Only called after findRun has proven the run belongs to the workspace.
     listSteps: (runId: string) =>
       tx
@@ -99,13 +113,15 @@ function repo(tx: Tx, onRotate: (seq: bigint) => void) {
         .from(schema.flowRunSteps)
         .where(eq(schema.flowRunSteps.runId, runId))
         .orderBy(asc(schema.flowRunSteps.startedAt)),
-    listRuns: (flowId: string, ws: string, limit: number) =>
-      tx
-        .select()
-        .from(schema.flowRuns)
-        .where(and(eq(schema.flowRuns.workspaceId, ws), eq(schema.flowRuns.flowId, flowId)))
-        .orderBy(desc(schema.flowRuns.startedAt))
-        .limit(limit),
+    listRuns: async (flowId: string, ws: string, limit: number) =>
+      (
+        await tx
+          .select()
+          .from(schema.flowRuns)
+          .where(and(eq(schema.flowRuns.workspaceId, ws), eq(schema.flowRuns.flowId, flowId)))
+          .orderBy(desc(schema.flowRuns.startedAt))
+          .limit(limit)
+      ).map(withoutApprovalToken),
     insertWebhook: async (row: typeof schema.flowWebhooks.$inferInsert) =>
       (await tx.insert(schema.flowWebhooks).values(row).returning())[0],
     listWebhooks: (flowId: string, ws: string) =>

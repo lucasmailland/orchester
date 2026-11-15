@@ -400,8 +400,6 @@ export async function executeFlow({
   /** `paused` is not final: the run is waiting for a person and will continue. */
   status: "succeeded" | "failed" | "cancelled" | "paused";
   error?: string;
-  /** Only with `paused`: the secret that permits approval or rejection. */
-  approvalToken?: string;
   /** Action contract violations of the stored graph (always set when a real run is refused). */
   contractIssues?: ValidationIssue[];
 }> {
@@ -581,7 +579,9 @@ export async function executeFlow({
         const { notifyPause } = await import("./flows/notify-pause");
         await notifyPause(workspaceId, runId, token, e.approvalMessage, e.notification);
       }
-      return { runId, status: "paused", approvalToken: token, ...withIssues };
+      // The token is the credential that resolves the pause: it goes to the
+      // approver (notifyPause) and nowhere else, so it is not in the result.
+      return { runId, status: "paused", ...withIssues };
     }
     // F-B1/F-1: si la causa fue un abort (cliente desconectado o timeout
     // inline), marcamos `cancelled` (no `failed`) para que las métricas no
@@ -1901,7 +1901,6 @@ export async function enqueueFlowRun({
    */
   status: "pending" | "succeeded" | "failed" | "cancelled" | "paused";
   error?: string;
-  approvalToken?: string;
 }> {
   const triggerSource = dryRun ? markDryRun(rawTriggerSource) : rawTriggerSource;
   const db = getDb();

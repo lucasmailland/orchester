@@ -73,15 +73,21 @@ export async function enforceWidgetRateLimit(
   headers: Headers,
   kind: "message" | "transcript" = "message"
 ): Promise<Response | null> {
+  // One bucket per address across every channel id, checked first: random
+  // channel ids would otherwise each get a fresh bucket (and a DB lookup).
+  const address = widgetClientAddress(headers);
+  const global = await rateLimit(
+    `widget-ip:${kind}:${address}`,
+    kind === "transcript" ? WIDGET_TRANSCRIPT_LIMITS.perClient : WIDGET_LIMITS.perClient
+  );
+  if (!global.ok) return tooManyRequests(global.retryAfterMs ?? 1000);
+
   // Separate buckets: polling the transcript must not eat the visitor's messages.
   const [limits, prefix] =
     kind === "transcript"
       ? [WIDGET_TRANSCRIPT_LIMITS, `widget-read:${channelId}`]
       : [WIDGET_LIMITS, `widget:${channelId}`];
-  const client = await rateLimit(
-    `${prefix}:client:${widgetClientAddress(headers)}`,
-    limits.perClient
-  );
+  const client = await rateLimit(`${prefix}:client:${address}`, limits.perClient);
   if (!client.ok) return tooManyRequests(client.retryAfterMs ?? 1000);
 
   const channel = await rateLimit(prefix, limits.perChannel);

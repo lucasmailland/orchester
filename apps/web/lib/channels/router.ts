@@ -738,6 +738,7 @@ async function runConversationalLoop(
             ...(conversation.employeeId ? { employeeId: conversation.employeeId } : {}),
             source: "channel",
             channelId: ctx.channel.id,
+            channelType: ctx.channel.type,
           };
           const offeredTool = await checkToolOffered(tc.name, tc.input, toolContext);
           // Phase F.1 fix: tools run on the same tx that has
