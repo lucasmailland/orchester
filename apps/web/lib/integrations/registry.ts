@@ -2,6 +2,7 @@ import "server-only";
 import { extractEmbeddedAttachmentIds } from "./odoo-embedded-images";
 import {
   AGENT_WRITE_PROJECTS_KEY,
+  assertAgentExecuteIsPlain,
   assertAgentMayTargetProject,
   assertAgentMayWriteTasks,
   parseAgentWriteProjects,
@@ -1976,13 +1977,22 @@ const odoo: Connector = {
           throw new Error(`execute: ${model}.${method} is not allowed. Use a dedicated action.`);
         }
         const args = Array.isArray(input.args) ? input.args : [];
+        const kwargs = (input.kwargs as Record<string, unknown>) ?? {};
         if (model === "project.task" && !ODOO_READ_METHODS.has(method)) {
           const [first, second] = args;
           if (method === "create") {
             for (const vals of Array.isArray(first) ? first : [first]) {
               assertAgentMayTargetProject(config, ctx, vals, { required: true });
+              assertAgentExecuteIsPlain(config, ctx, method, vals, kwargs);
             }
           } else {
+            assertAgentExecuteIsPlain(
+              config,
+              ctx,
+              method,
+              method === "write" ? second : null,
+              kwargs
+            );
             // `write` and `message_post` take the record ids first; a write
             // may also move the task to another project.
             await assertAgentMayWriteTasks(
@@ -1996,13 +2006,7 @@ const odoo: Connector = {
             }
           }
         }
-        const result = await odooExecute(
-          config,
-          model,
-          method,
-          args,
-          (input.kwargs as Record<string, unknown>) ?? {}
-        );
+        const result = await odooExecute(config, model, method, args, kwargs);
         return { result };
       },
     },

@@ -218,6 +218,35 @@ describe("the other task writes, as an agent", () => {
     expect(wrote(calls)).toBe(false);
   });
 
+  it("execute write refuses relational commands that reach other records", async () => {
+    const calls = mockOdoo();
+    await expect(
+      action("execute").run(
+        LIMITED,
+        { model: "project.task", method: "write", args: [[7], { child_ids: [[2, 9]] }] },
+        AGENT
+      )
+    ).rejects.toThrow(/child_ids is a relational command/);
+    expect(wrote(calls)).toBe(false);
+  });
+
+  it("execute message_post refuses partner_ids from an agent", async () => {
+    const calls = mockOdoo();
+    await expect(
+      action("execute").run(
+        LIMITED,
+        {
+          model: "project.task",
+          method: "message_post",
+          args: [[7]],
+          kwargs: { body: "x", partner_ids: [3] },
+        },
+        AGENT
+      )
+    ).rejects.toThrow(/partner_ids cannot be passed by agents/);
+    expect(wrote(calls)).toBe(false);
+  });
+
   it("execute message_post on a task is limited like post_note", async () => {
     mockOdoo();
     await expect(

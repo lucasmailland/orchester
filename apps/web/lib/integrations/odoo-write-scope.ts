@@ -101,3 +101,35 @@ export function assertAgentMayTargetProject(
   if (!allowed.has(project))
     throw refusal(allowed, `project ${String(vals.project_id)} is not one`);
 }
+
+/** `message_post` options an agent may pass under a project limit (no partner_ids: that notifies people). */
+const AGENT_MESSAGE_POST_KWARGS = new Set(["body", "message_type", "subtype_xmlid"]);
+
+/**
+ * Under a project limit, an agent's `execute` on project.task may only set
+ * plain fields. A relational command (`child_ids: [[1, otherId, {...}]]`,
+ * `[[2, id]]`) writes other records the task check never saw, and extra
+ * kwargs (`partner_ids` on message_post, a `context`) widen the call. Both
+ * are refused; a flow step keeps the full call.
+ */
+export function assertAgentExecuteIsPlain(
+  config: Record<string, string>,
+  ctx: ActionContext | undefined,
+  method: string,
+  values: unknown,
+  kwargs: Record<string, unknown>
+): void {
+  const allowed = limited(config, ctx);
+  if (!allowed) return;
+  if (values && typeof values === "object") {
+    for (const [field, value] of Object.entries(values as Record<string, unknown>)) {
+      if (Array.isArray(value)) {
+        throw refusal(allowed, `${field} is a relational command, which agents may not send`);
+      }
+    }
+  }
+  const extra = Object.keys(kwargs).filter(
+    (k) => !(method === "message_post" && AGENT_MESSAGE_POST_KWARGS.has(k))
+  );
+  if (extra.length) throw refusal(allowed, `${extra.join(", ")} cannot be passed by agents`);
+}
