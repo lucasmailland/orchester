@@ -110,6 +110,9 @@ export async function setupTestDb(): Promise<{
 }
 
 export async function teardownTestDb(): Promise<void> {
+  // The cache listener holds its own LISTEN socket and reconnects when the
+  // container goes away, which surfaces as an unhandled ECONNRESET.
+  await (await import("@/lib/tenant/cluster-cache")).stopListener();
   await sql?.end({ timeout: 5 });
   await container?.stop();
   sql = null;
