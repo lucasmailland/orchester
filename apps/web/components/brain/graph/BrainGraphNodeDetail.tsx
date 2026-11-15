@@ -118,6 +118,11 @@ export function BrainGraphNodeDetail({ node, degree, onClose }: Props) {
             {node.description && (
               <p className="text-xs text-zinc-400 leading-relaxed">{node.description}</p>
             )}
+            {node.createdAt && (
+              <p className="text-[11px] text-zinc-500 mt-1">
+                {t("addedOn", { date: new Date(node.createdAt).toLocaleDateString(locale) })}
+              </p>
+            )}
           </div>
 
           {/* Body */}

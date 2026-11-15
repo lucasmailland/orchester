@@ -28,6 +28,7 @@ vi.mock("@/lib/integrations/mcp-client", () => ({
   testMcpConnection: mocks.test,
   invalidateMcpTools: mocks.invalidate,
 }));
+vi.mock("@/lib/agent-tools/custom", () => ({ listCustomTools: async () => [] }));
 vi.mock("@/lib/workspace", () => ({
   getCurrentWorkspace: async () => ({ workspace: { id: "workspace-test" } }),
 }));

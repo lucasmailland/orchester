@@ -20,12 +20,13 @@ const ANTHROPIC: ModelInfo[] = [
 const OPENAI: ModelInfo[] = [
   { id: "gpt-4o", name: "GPT-4o", contextWindow: 128_000, tier: "smart" },
   { id: "gpt-4o-mini", name: "GPT-4o mini", contextWindow: 128_000, tier: "fast" },
-  { id: "o3-mini", name: "o3-mini", contextWindow: 200_000, tier: "powerful" },
+  { id: "o3", name: "o3", contextWindow: 200_000, tier: "powerful" },
+  { id: "o4-mini", name: "o4-mini", contextWindow: 200_000, tier: "fast" },
 ];
 const GOOGLE: ModelInfo[] = [
-  { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", contextWindow: 2_000_000, tier: "powerful" },
-  { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", contextWindow: 1_000_000, tier: "fast" },
-  { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", contextWindow: 1_000_000, tier: "smart" },
+  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", contextWindow: 1_000_000, tier: "powerful" },
+  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", contextWindow: 1_000_000, tier: "smart" },
+  { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", contextWindow: 1_000_000, tier: "fast" },
 ];
 
 /**
@@ -235,7 +236,7 @@ export async function testProviderConnection(
       return { ok: true, models };
     }
     if (provider === "bedrock") return await testBedrock(apiKey, endpoint);
-    return { ok: false, error: "Unknown provider" };
+    return { ok: false, error: "Connection testing isn't available for this provider yet." };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }

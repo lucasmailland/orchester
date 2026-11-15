@@ -26,6 +26,8 @@ export function WorkspaceSwitcher() {
   const activeSlug = params?.workspaceSlug ?? null;
   const { workspaces } = useMyWorkspaces();
   const active = workspaces.find((w) => w.slug === activeSlug);
+  const displayName = active?.name ?? activeSlug ?? "Select workspace";
+  const displaySlug = active?.slug ?? activeSlug ?? "";
 
   // Keyboard shortcut ⌘⇧K / Ctrl+Shift+K (Shift-qualified to avoid
   // colliding with the global ⌘K CommandPalette).
@@ -50,12 +52,10 @@ export function WorkspaceSwitcher() {
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center gap-2 rounded-lg p-2 text-left hover:bg-hover"
       >
-        <WorkspaceAvatar name={active?.name ?? "?"} />
+        <WorkspaceAvatar name={displayName !== "Select workspace" ? displayName : "?"} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold text-strong">
-            {active?.name ?? "Select workspace"}
-          </div>
-          <div className="truncate text-[10px] text-faint">{active?.slug ?? ""}</div>
+          <div className="truncate text-sm font-semibold text-strong">{displayName}</div>
+          <div className="truncate text-[10px] text-faint">{displaySlug}</div>
         </div>
         <ChevronDown className="h-3.5 w-3.5 text-muted" />
       </button>

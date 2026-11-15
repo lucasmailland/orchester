@@ -18,6 +18,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Bot, Workflow, Layers, Building2, Search, Zap, Wrench, Radio } from "lucide-react";
+import { Spinner } from "@heroui/react";
 import { useRouter, useParams } from "next/navigation";
 
 interface OrgNode {
@@ -399,17 +400,29 @@ export function OrgCanvas() {
     nodes: [],
     edges: [],
   });
+  const [loadStatus, setLoadStatus] = useState<"loading" | "ready" | "error">("loading");
   const [filter, setFilter] = useState("");
 
   useEffect(() => {
-    const load = () =>
-      fetch("/api/org-graph")
-        .then((r) => r.json())
-        .then((d) => setData(d.nodes ? d : { nodes: [], edges: [] }))
-        .catch(() => {});
-    load();
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const r = await fetch("/api/org-graph");
+        if (!r.ok) throw new Error(`org-graph ${r.status}`);
+        const d = await r.json();
+        if (cancelled) return;
+        setData(d.nodes ? d : { nodes: [], edges: [] });
+        setLoadStatus("ready");
+      } catch {
+        if (!cancelled) setLoadStatus("error");
+      }
+    };
+    void load();
     const interval = setInterval(load, 15000);
-    return () => clearInterval(interval);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, []);
 
   /**
@@ -654,7 +667,26 @@ export function OrgCanvas() {
       </div>
 
       <div className="flex-1 overflow-hidden rounded-2xl border border-line bg-surface/40">
-        {data.nodes.length === 0 ? (
+        {loadStatus === "loading" ? (
+          <div className="flex h-full flex-col items-center justify-center text-muted">
+            <Spinner size="lg" />
+          </div>
+        ) : loadStatus === "error" ? (
+          <div
+            data-testid="org-error"
+            className="flex h-full flex-col items-center justify-center text-muted"
+          >
+            <Bot className="mb-3 h-10 w-10 text-faint" />
+            <p className="text-sm">{t("loadError")}</p>
+            <button
+              type="button"
+              onClick={() => setLoadStatus("loading")}
+              className="mt-3 rounded-lg border border-line px-3 py-1.5 text-xs text-body hover:bg-hover"
+            >
+              {t("retry")}
+            </button>
+          </div>
+        ) : data.nodes.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-muted">
             <Bot className="mb-3 h-10 w-10 text-faint" />
             <p className="text-sm">{t("empty")}</p>

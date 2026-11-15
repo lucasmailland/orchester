@@ -12,7 +12,7 @@ import { rateLimit, type RateLimitOptions } from "@/lib/rate-limit";
 
 export const WIDGET_CORS_HEADERS = {
   "access-control-allow-origin": "*",
-  "access-control-allow-methods": "POST, OPTIONS",
+  "access-control-allow-methods": "GET, POST, OPTIONS",
   "access-control-allow-headers": "content-type",
 } as const;
 
@@ -27,6 +27,15 @@ export const WIDGET_LIMITS = {
    * caller can forge, so this bucket is the ceiling that holds regardless.
    */
   perChannel: { capacity: 60, refillPerSec: 60 / 60 },
+} satisfies Record<string, RateLimitOptions>;
+
+/**
+ * Transcript reads: the widget polls every 5 s, so a visitor needs ~12/min.
+ * The channel ceiling leaves room for many open widgets at once.
+ */
+export const WIDGET_TRANSCRIPT_LIMITS = {
+  perClient: { capacity: 30, refillPerSec: 30 / 60 },
+  perChannel: { capacity: 600, refillPerSec: 600 / 60 },
 } satisfies Record<string, RateLimitOptions>;
 
 export const widgetMessageSchema = z.object({
@@ -61,15 +70,21 @@ function tooManyRequests(retryAfterMs: number): Response {
  */
 export async function enforceWidgetRateLimit(
   channelId: string,
-  headers: Headers
+  headers: Headers,
+  kind: "message" | "transcript" = "message"
 ): Promise<Response | null> {
+  // Separate buckets: polling the transcript must not eat the visitor's messages.
+  const [limits, prefix] =
+    kind === "transcript"
+      ? [WIDGET_TRANSCRIPT_LIMITS, `widget-read:${channelId}`]
+      : [WIDGET_LIMITS, `widget:${channelId}`];
   const client = await rateLimit(
-    `widget:${channelId}:client:${widgetClientAddress(headers)}`,
-    WIDGET_LIMITS.perClient
+    `${prefix}:client:${widgetClientAddress(headers)}`,
+    limits.perClient
   );
   if (!client.ok) return tooManyRequests(client.retryAfterMs ?? 1000);
 
-  const channel = await rateLimit(`widget:${channelId}`, WIDGET_LIMITS.perChannel);
+  const channel = await rateLimit(prefix, limits.perChannel);
   if (!channel.ok) return tooManyRequests(channel.retryAfterMs ?? 1000);
 
   return null;

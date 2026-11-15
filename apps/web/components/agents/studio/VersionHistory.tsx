@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { History, RotateCcw, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 
 interface Version {
   id: string;
@@ -44,25 +45,38 @@ export function VersionHistory({ agentId, current, onRestored }: Props) {
 
   async function saveVersion() {
     setSaving(true);
-    await fetch(`/api/agents/${agentId}/versions`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        systemPrompt: current.systemPrompt,
-        model: current.model,
-        temperature: current.temperature,
-        maxTokens: current.maxTokens,
-        label: label.trim() || null,
-      }),
-    });
-    setLabel("");
-    setSaving(false);
-    refresh();
+    try {
+      const r = await fetch(`/api/agents/${agentId}/versions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          systemPrompt: current.systemPrompt,
+          model: current.model,
+          temperature: current.temperature,
+          maxTokens: current.maxTokens,
+          label: label.trim() || null,
+        }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setLabel("");
+      toast.success(t("saved"));
+    } catch {
+      toast.error(t("saveError"));
+    } finally {
+      setSaving(false);
+      refresh();
+    }
   }
 
   async function restore(vid: string) {
-    await fetch(`/api/agents/${agentId}/versions/${vid}/restore`, { method: "POST" });
-    onRestored();
+    try {
+      const r = await fetch(`/api/agents/${agentId}/versions/${vid}/restore`, { method: "POST" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      toast.success(t("restored"));
+      onRestored();
+    } catch {
+      toast.error(t("restoreError"));
+    }
     refresh();
   }
 

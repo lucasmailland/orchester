@@ -18,7 +18,17 @@ import dynamic from "next/dynamic";
 import { forceCollide } from "d3-force";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Maximize2, Minimize2, RotateCcw, Scan, Target, X, ZoomIn, ZoomOut } from "lucide-react";
+import {
+  Maximize2,
+  Minimize2,
+  RotateCcw,
+  Route,
+  Scan,
+  Target,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 // Client-safe subpath — canvas/types only, never the server DB query (which
 // would drag the Postgres driver into this client bundle).
 import {
@@ -27,16 +37,30 @@ import {
   nodeRadius,
   ENTITY_KIND_COLOR,
   EDGE_STYLES,
+  stellarColor,
+  edgeIntensity,
+  keyForEdge,
+  pathEdgeKeySet,
+  pathNodeIdSet,
 } from "@/lib/memory/graph-canvas";
 import type { GraphNode, EdgeStyle } from "@/lib/memory/graph-canvas";
+import { communityColor } from "@/lib/memory/graph-analytics";
 import { useBrainGraph } from "@/lib/hooks/use-brain-graph";
 import { useGraphFilters } from "@/lib/hooks/use-graph-filters";
+import { useGraphNavigation } from "@/lib/hooks/use-graph-navigation";
+import { useGraphPath } from "@/lib/hooks/use-graph-path";
 import { BrainGraphFilters } from "./BrainGraphFilters";
 import { BrainGraphNodeDetail } from "./BrainGraphNodeDetail";
 import { BrainGraphLegend } from "./BrainGraphLegend";
 import { BrainGraphEmptyState } from "./BrainGraphEmptyState";
 import { BrainGraphECharts } from "./BrainGraphECharts";
 import { computeGraphAnalytics } from "@/lib/memory/graph-analytics";
+import { CurationToolbar, type CurationPanel } from "./CurationToolbar";
+import { RelationJudgePanel } from "./RelationJudgePanel";
+import { ConflictResolverPanel } from "./ConflictResolverPanel";
+import { EdgeDrawController, type EdgeDrawState } from "./EdgeDrawController";
+import { DecisionLineageSidebar } from "./DecisionLineageSidebar";
+import { useConflicts } from "@/lib/hooks/use-conflicts";
 
 // Dynamic imports — react-force-graph bundles WebGL; must be client-only.
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), { ssr: false });
@@ -46,7 +70,7 @@ const ForceGraph3D = dynamic(() => import("react-force-graph-3d"), { ssr: false 
 // `z` only exists in 3D mode.
 type SimNode = GraphNode & { x: number; y: number; z?: number; fx?: number; fy?: number };
 
-export function BrainGraph() {
+export function BrainGraph({ allow3d = false }: { allow3d?: boolean }) {
   const t = useTranslations("brain.graph");
   const router = useRouter();
   const params = useParams<{ locale: string; workspaceSlug: string }>();
@@ -55,11 +79,36 @@ export function BrainGraph() {
   const searchParams = useSearchParams();
   const focusEntityId = searchParams?.get("focus") ?? undefined;
 
-  const { data, graphData, isLoading, error, mutate } = useBrainGraph(focusEntityId);
+  const nav = useGraphNavigation();
+  const { data, graphData, isLoading, error, mutate } = useBrainGraph({
+    focus: focusEntityId,
+    depth: nav.depth,
+    asOf: nav.asOf ?? undefined,
+  });
+  const { path: pathResult } = useGraphPath(nav.pathFrom, nav.pathTo, nav.asOf);
+
+  // Undirected path-edge keys + path node ids for both renderers. Empty when no
+  // complete path is selected/loaded.
+  const pathEdgeKeys = useMemo(
+    () => pathEdgeKeySet({ path: pathResult?.path ?? null, edges: pathResult?.edges ?? null }),
+    [pathResult]
+  );
+  const pathNodeIds = useMemo(() => pathNodeIdSet(pathResult?.path ?? null), [pathResult]);
+
   const filters = useGraphFilters(data?.nodes ?? [], data?.edges ?? []);
   const { filteredNodeIds, filteredEdgeIds, searchMatchIds, searchQuery } = filters;
 
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [curationPanel, setCurationPanel] = useState<CurationPanel>(null);
+  const [edgeDraw, setEdgeDraw] = useState<EdgeDrawState>({
+    active: false,
+    source: null,
+    target: null,
+  });
+  // relationId of the conflict pair the resolver is hovering — flashes its edge.
+  const [hoveredConflictId, setHoveredConflictId] = useState<string | null>(null);
+  // Open conflicts' relationIds → the conflicts_with edges to keep lit.
+  const { conflictEdgeIds, mutate: mutateConflicts } = useConflicts();
   // Renderer backend — two kept after the audit: ECharts (2D, polished +
   // graphology analytics) and 3D (react-force-graph-3d / Three.js).
   const [renderer, setRenderer] = useState<"echarts" | "3d">("echarts");
@@ -67,7 +116,7 @@ export function BrainGraph() {
   const is3D = renderer === "3d";
   // ECharts colour encoding: by entity type, or by Louvain community (from the
   // analytics layer). Only surfaced for the ECharts renderer.
-  const [colorMode, setColorMode] = useState<"kind" | "community">("kind");
+  const [colorMode, setColorMode] = useState<"kind" | "community" | "centrality">("kind");
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
@@ -97,6 +146,16 @@ export function BrainGraph() {
     if (!el) return;
     if (document.fullscreenElement) void document.exitFullscreen();
     else void el.requestFullscreen?.();
+  }, []);
+
+  // Escape key closes the node-detail panel so keyboard users can dismiss
+  // it without reaching for the mouse.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedNode(null);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
   // Hover state drives Obsidian-style neighbourhood dimming + the tooltip.
@@ -262,36 +321,80 @@ export function BrainGraph() {
     didFitRef.current = false;
   }, [filteredGraphData, is3D]);
 
-  // Adjacency + degree, derived from the VISIBLE links. The force engine
-  // mutates link.source/.target from id strings into node objects after the
-  // first tick, so resolve both shapes.
-  const { neighborsById, degreeById, maxSizeVal } = useMemo(() => {
-    const neighbors = new Map<string, Set<string>>();
-    const degree = new Map<string, number>();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const idOf = (end: any): string => (typeof end === "object" && end ? end.id : end);
-    for (const l of filteredGraphData.links) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const s = idOf((l as any).source);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tg = idOf((l as any).target);
-      if (!neighbors.has(s)) neighbors.set(s, new Set());
-      if (!neighbors.has(tg)) neighbors.set(tg, new Set());
-      neighbors.get(s)!.add(tg);
-      neighbors.get(tg)!.add(s);
-      degree.set(s, (degree.get(s) ?? 0) + 1);
-      degree.set(tg, (degree.get(tg) ?? 0) + 1);
+  // Install UnrealBloom on the 3D renderer's post-processing composer so the
+  // bright (high-centrality) stars glow. react-force-graph-3d exposes the
+  // Three.js EffectComposer via postProcessingComposer(). We add the pass once
+  // per 3D session and tear it down when switching back to ECharts.
+  useEffect(() => {
+    if (!is3D) {
+      bloomPassRef.current = null;
+      return;
     }
+    let cancelled = false;
+    const attach = async () => {
+      // UnrealBloomPass is typed by the ambient `three-jsm.d.ts` shim (three@0.184
+      // ships the JSM extras without bundled .d.ts), so it needs no suppression.
+      const { UnrealBloomPass } =
+        await import("three/examples/jsm/postprocessing/UnrealBloomPass.js");
+      // The bare "three" entry has no bundled types and @types/three isn't
+      // installed; expect-error keeps this lint-clean (vs a banned @ts-ignore).
+      // @ts-expect-error -- no type declarations for the "three" entry point
+      const { Vector2 } = await import("three"); // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+      for (let i = 0; i < 30 && !cancelled; i++) {
+        const fg = fgRef.current;
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+        const composer = fg?.postProcessingComposer?.();
+        if (composer) {
+          if (!bloomPassRef.current) {
+            const pass = new UnrealBloomPass(
+              new Vector2(dimensions.width, dimensions.height),
+              1.6, // strength
+              0.7, // radius
+              0.15 // luminance threshold — only bright hub stars bloom
+            );
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+            composer.addPass(pass);
+            bloomPassRef.current = pass;
+          }
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    };
+    void attach();
+    return () => {
+      cancelled = true;
+    };
+  }, [is3D, dimensions.width, dimensions.height]);
+
+  // Resize the bloom pass with the canvas so the glow stays crisp after
+  // window resize or entering fullscreen.
+  useEffect(() => {
+    const pass = bloomPassRef.current;
+    if (pass && typeof pass.setSize === "function") {
+      pass.setSize(dimensions.width, dimensions.height);
+    }
+  }, [dimensions.width, dimensions.height]);
+
+  // Adjacency + degree, derived from the VISIBLE links. The force engine
+  // Adjacency + degree come directly from the analytics layer (which already
+  // builds a graphology graph over the same visible data). maxSizeVal still
+  // needs a local pass because it depends on mentionCount + degree combined.
+  const { neighborsById, degreeById, maxSizeVal } = useMemo(() => {
     // Node size encodes importance: mentions + connectivity. Connectivity is
     // weighted heavier (×2) — a hub with few mentions still matters more for
     // navigation than a much-mentioned leaf (Obsidian sizes purely by links).
     let max = 1;
     for (const n of filteredGraphData.nodes) {
-      const v = n.mentionCount + (degree.get(n.id) ?? 0) * 2;
+      const v = n.mentionCount + (analytics.degreeById.get(n.id) ?? 0) * 2;
       if (v > max) max = v;
     }
-    return { neighborsById: neighbors, degreeById: degree, maxSizeVal: max };
-  }, [filteredGraphData]);
+    return {
+      neighborsById: analytics.neighborsById,
+      degreeById: analytics.degreeById,
+      maxSizeVal: max,
+    };
+  }, [filteredGraphData.nodes, analytics]);
 
   const radiusFor = useCallback(
     (n: GraphNode) => nodeRadius(n.mentionCount + (degreeById.get(n.id) ?? 0) * 2, maxSizeVal),
@@ -388,10 +491,16 @@ export function BrainGraph() {
       const tgt = link.target as Record<string, unknown> | undefined;
       if (!src || !tgt || typeof src.x !== "number" || typeof tgt.x !== "number") return;
       const relation = typeof link.relation === "string" ? link.relation : "related";
+      const onPath = pathEdgeKeys.has(keyForEdge(src.id as string, tgt.id as string));
       const touchesHover =
         hoverNode != null && (src.id === hoverNode.id || tgt.id === hoverNode.id);
       const emphasized = touchesHover || (hoverLink != null && hoverLink.id === link.id);
       const dimmed = hoverNode != null ? !touchesHover : searchActive && !emphasized;
+      const linkId = typeof link.id === "string" ? link.id : "";
+      const isConflict = conflictEdgeIds.has(linkId);
+      const conflictFlash = hoveredConflictId != null && hoveredConflictId === linkId;
+      const emphasizedFinal = emphasized || isConflict || conflictFlash;
+      const dimmedFinal = conflictFlash ? false : dimmed;
       drawEdge(ctx, {
         sx: src.x,
         sy: typeof src.y === "number" ? src.y : 0,
@@ -399,13 +508,25 @@ export function BrainGraph() {
         ty: typeof tgt.y === "number" ? tgt.y : 0,
         relation,
         confidence: typeof link.confidence === "number" ? link.confidence : 0.7,
-        dimmed,
-        emphasized,
-        ...(emphasized ? { label: relationLabel(relation) } : {}),
+        dimmed: onPath ? false : dimmedFinal,
+        emphasized: onPath ? true : emphasizedFinal,
+        ...(onPath
+          ? { label: relationLabel(relation), color: "#a78bfa" }
+          : emphasizedFinal
+            ? { label: relationLabel(relation) }
+            : {}),
         globalScale,
       });
     },
-    [hoverNode, hoverLink, searchActive, relationLabel]
+    [
+      hoverNode,
+      hoverLink,
+      searchActive,
+      relationLabel,
+      pathEdgeKeys,
+      conflictEdgeIds,
+      hoveredConflictId,
+    ]
   );
 
   // react-force-graph exposes only `onNodeClick`, so double-click is detected
@@ -417,6 +538,20 @@ export function BrainGraph() {
   const handleNodeClick = useCallback(
     (node: Record<string, unknown>) => {
       const n = node as unknown as SimNode;
+      // Edge-draw mode intercepts clicks: 1st → source, 2nd → target.
+      if (edgeDraw.active) {
+        setEdgeDraw((prev) => {
+          if (!prev.source) return { ...prev, source: n };
+          if (!prev.target && n.id !== prev.source.id) return { ...prev, target: n };
+          // both filled (or same node) → restart from this node as source
+          return { ...prev, source: n, target: null };
+        });
+        return;
+      }
+      if (nav.findPathMode) {
+        if (n.kind === "entity") nav.pickPathNode(n.id);
+        return;
+      }
       const now = Date.now();
       const last = lastClickRef.current;
       if (last && last.id === n.id && now - last.t < 300) {
@@ -433,7 +568,7 @@ export function BrainGraph() {
         fg.centerAt(n.x, n.y, 500);
       }
     },
-    [router, locale, ws]
+    [router, locale, ws, nav, edgeDraw.active]
   );
 
   const handleNodeHover = useCallback((node: Record<string, unknown> | null) => {
@@ -548,6 +683,41 @@ export function BrainGraph() {
     [SpriteTextCls, radiusFor]
   );
 
+  // Resolve a node's base color under the active colour mode. Centrality uses
+  // the stellar ramp (PageRank → spectral class); community uses the Louvain
+  // palette; kind falls back to entity-type colour. Shared by the 3D renderer.
+  const nodeBaseColor = useCallback(
+    (node: GraphNode): string => {
+      if (colorMode === "centrality") {
+        const c = analytics.byId.get(node.id)?.centrality ?? 0;
+        return stellarColor(c);
+      }
+      if (colorMode === "community") {
+        const comm = analytics.byId.get(node.id)?.community;
+        if (comm !== undefined) return communityColor(comm);
+      }
+      return ENTITY_KIND_COLOR[node.entityKind ?? node.kind] ?? "#52525b";
+    },
+    [colorMode, analytics]
+  );
+
+  // Per-edge alpha from Louvain membership: intra-community edges are bright,
+  // bridges fade back so clusters read as distinct constellations.
+  const edgeAlpha = useCallback(
+    (link: { source?: unknown; target?: unknown }): number => {
+      const idOf = (e: unknown): string =>
+        typeof e === "object" && e ? (e as { id: string }).id : (e as string);
+      const sc = analytics.byId.get(idOf(link.source))?.community;
+      const tc = analytics.byId.get(idOf(link.target))?.community;
+      return edgeIntensity(sc, tc);
+    },
+    [analytics]
+  );
+
+  // Ref to track the installed UnrealBloomPass so we never add it twice.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const bloomPassRef = useRef<any>(null);
+
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-[#050507]">
@@ -575,16 +745,22 @@ export function BrainGraph() {
 
   const ForceGraph = is3D ? ForceGraph3D : ForceGraph2D;
   const hoverTooltipNode = hoverNode && tooltipPos ? (hoverNode as SimNode) : null;
-  // The node-detail panel floats at right-4 with width 288px — every control
-  // anchored to the right edge slides left while it's open so nothing is
-  // ever buried underneath it.
-  const ctrlRight = selectedNode ? 320 : 16;
+  // The node-detail panel and the wider curation panels float at right-4. Controls
+  // slide left whenever any right-side panel is open so nothing is buried underneath.
+  const aRightPanelIsOpen =
+    selectedNode != null ||
+    curationPanel === "judge" ||
+    curationPanel === "conflicts" ||
+    curationPanel === "lineage";
+  const ctrlRight = aRightPanelIsOpen ? 400 : 16; // widest panel is w-96 (384px) + gap
   // The shell's floating help button lives at the bottom-right corner; the
   // status pill starts further left so the two never stack.
-  const statusRight = selectedNode ? 320 : 64;
+  const statusRight = aRightPanelIsOpen ? 400 : 64;
   // When ?focus=<id> is active the graph shows only that entity's 1-hop
   // neighbourhood; surface the focused node so the exit banner can name it.
   const focusNode = focusEntityId ? (data?.nodes ?? []).find((n) => n.id === focusEntityId) : null;
+  const pathFromNode = nav.pathFrom ? (data?.nodes ?? []).find((n) => n.id === nav.pathFrom) : null;
+  const pathToNode = nav.pathTo ? (data?.nodes ?? []).find((n) => n.id === nav.pathTo) : null;
 
   // Props for the ECharts renderer. The 3D renderer (react-force-graph-3d)
   // takes a different shape and stays inline below.
@@ -611,58 +787,106 @@ export function BrainGraph() {
       }
     },
     controlsRef: libControlsRef,
+    pathEdgeKeys,
+    pathNodeIds,
   };
 
   return (
     <div ref={handleContainerRef} className="flex-1 relative overflow-hidden bg-[#050507]">
-      <BrainGraphFilters filters={filters} />
+      {/* Visually-hidden ARIA live region so screen readers hear the graph
+          state (entity/relation counts and selected node) without cluttering
+          the visual layout. */}
+      <div
+        role="status"
+        aria-live="polite"
+        style={{
+          position: "absolute",
+          width: 1,
+          height: 1,
+          overflow: "hidden",
+          clip: "rect(0 0 0 0)",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {visibleEntityCount < totalEntityCount
+          ? t("statusBarFiltered", {
+              entities: visibleEntityCount,
+              total: totalEntityCount,
+              relations: visibleRelationCount,
+            })
+          : t("statusBar", { entities: visibleEntityCount, relations: visibleRelationCount })}
+        {selectedNode ? ` · ${t("a11ySelected", { label: selectedNode.label })}` : ""}
+      </div>
+      <BrainGraphFilters filters={filters} nav={nav} />
+      <CurationToolbar
+        active={edgeDraw.active ? "draw" : curationPanel}
+        onSelect={(p) => {
+          if (p === "draw") {
+            // The draw surface is driven by edgeDraw state (its own controller),
+            // not curationPanel — toggle it and close any open judgment panel.
+            setCurationPanel(null);
+            setEdgeDraw((prev) => ({ active: !prev.active, source: null, target: null }));
+            return;
+          }
+          // Selecting any other panel (or clearing) leaves draw mode.
+          setEdgeDraw((prev) =>
+            prev.active ? { active: false, source: null, target: null } : prev
+          );
+          setCurationPanel(p);
+        }}
+      />
+      <EdgeDrawController
+        state={edgeDraw}
+        onToggle={() => setEdgeDraw((p) => ({ active: !p.active, source: null, target: null }))}
+        onClear={() => setEdgeDraw((p) => ({ ...p, source: null, target: null }))}
+        onCreated={() => {
+          mutate();
+          setEdgeDraw({ active: false, source: null, target: null });
+        }}
+      />
       <div
         className="absolute top-4 z-10 flex items-center gap-2 transition-[right] duration-200 ease-out"
         style={{ right: ctrlRight }}
       >
         <div className="flex rounded-lg bg-[#0c0c10]/90 backdrop-blur-xl border border-zinc-800/80 p-0.5 text-xs font-semibold shadow-lg shadow-black/40">
-          {(
-            [
-              ["echarts", "ECharts"],
-              ["3d", "3D"],
-            ] as const
-          ).map(([r, lbl]) => (
-            <button
-              key={r}
-              onClick={() => setRenderer(r)}
-              className={
-                "px-2 py-1 rounded-md transition-colors " +
-                (renderer === r ? "bg-violet-600 text-white" : "text-zinc-400 hover:text-zinc-100")
-              }
-            >
-              {lbl}
-            </button>
-          ))}
-        </div>
-        {renderer === "echarts" && (
-          <div className="flex rounded-lg bg-[#0c0c10]/90 backdrop-blur-xl border border-zinc-800/80 p-0.5 text-xs font-semibold shadow-lg shadow-black/40">
-            {(
-              [
-                ["kind", t("colorBy.kind")],
-                ["community", t("colorBy.community")],
-              ] as const
-            ).map(([m, lbl]) => (
+          {([["echarts", "ECharts"], ...(allow3d ? ([["3d", "3D"]] as const) : [])] as const).map(
+            ([r, lbl]) => (
               <button
-                key={m}
-                onClick={() => setColorMode(m)}
-                title={t("colorBy.hint")}
+                key={r}
+                onClick={() => setRenderer(r as "echarts" | "3d")}
                 className={
                   "px-2 py-1 rounded-md transition-colors " +
-                  (colorMode === m
+                  (renderer === r
                     ? "bg-violet-600 text-white"
                     : "text-zinc-400 hover:text-zinc-100")
                 }
               >
                 {lbl}
               </button>
-            ))}
-          </div>
-        )}
+            )
+          )}
+        </div>
+        <div className="flex rounded-lg bg-[#0c0c10]/90 backdrop-blur-xl border border-zinc-800/80 p-0.5 text-xs font-semibold shadow-lg shadow-black/40">
+          {(
+            [
+              ["kind", t("colorBy.kind")],
+              ["community", t("colorBy.community")],
+              ["centrality", t("colorBy.centrality")],
+            ] as const
+          ).map(([m, lbl]) => (
+            <button
+              key={m}
+              onClick={() => setColorMode(m)}
+              title={t("colorBy.hint")}
+              className={
+                "px-2 py-1 rounded-md transition-colors " +
+                (colorMode === m ? "bg-violet-600 text-white" : "text-zinc-400 hover:text-zinc-100")
+              }
+            >
+              {lbl}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Focus-mode banner — entering local-graph mode is a navigation
@@ -683,6 +907,35 @@ export function BrainGraph() {
           >
             <X className="h-3 w-3" />
             {t("focus.exit")}
+          </button>
+        </div>
+      )}
+
+      {/* Find-path mode banner — shows from→to summary + a clear/exit action. */}
+      {nav.findPathMode && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 rounded-lg border border-violet-700/50 bg-[#0c0c10]/90 px-3 py-1.5 text-xs shadow-lg shadow-black/40 backdrop-blur-xl">
+          <Route className="h-3.5 w-3.5 text-violet-400" />
+          <span className="text-zinc-300">
+            {t("findPath.banner")}
+            {pathFromNode?.label && (
+              <span className="font-semibold text-zinc-100"> · {pathFromNode.label}</span>
+            )}
+            {pathToNode?.label && (
+              <span className="text-zinc-400">
+                {" → "}
+                <span className="font-semibold text-zinc-100">{pathToNode.label}</span>
+              </span>
+            )}
+          </span>
+          <button
+            onClick={() => {
+              nav.clearPath();
+              nav.toggleFindPath();
+            }}
+            className="ml-1 inline-flex items-center gap-1 rounded-md bg-violet-600 px-2 py-0.5 font-semibold text-white transition-colors hover:bg-violet-500"
+          >
+            <X className="h-3 w-3" />
+            {t("findPath.exit")}
           </button>
         </div>
       )}
@@ -722,7 +975,7 @@ export function BrainGraph() {
             ? {
                 nodeColor: (n: unknown) => {
                   const node = n as GraphNode;
-                  const base = ENTITY_KIND_COLOR[node.entityKind ?? node.kind] ?? "#52525b";
+                  const base = nodeBaseColor(node);
                   if (hoverNeighborhood && !hoverNeighborhood.has(node.id)) return `${base}20`;
                   if (searchActive && !searchMatchIds.has(node.id)) return `${base}30`;
                   return base;
@@ -738,13 +991,27 @@ export function BrainGraph() {
                 // default reads as scattered dust.
                 nodeRelSize: 6,
                 nodeOpacity: 0.9,
+                // Community-faded edges: per-link alpha blended into the hex color.
+                // Relation type still picks the hue; community picks the opacity.
+                // Path edges override to violet (full opacity).
                 linkColor: (l: unknown) => {
-                  const relation = (l as { relation?: string }).relation ?? "related";
+                  const link = l as { relation?: string; source?: unknown; target?: unknown };
+                  if (
+                    pathEdgeKeys.size > 0 &&
+                    pathEdgeKeys.has(keyForEdge(link.source as never, link.target as never))
+                  ) {
+                    return "#a78bfa";
+                  }
+                  const relation = link.relation ?? "related";
                   const style =
                     (EDGE_STYLES as Record<string, EdgeStyle>)[relation] ?? EDGE_STYLES.related;
-                  return style.color;
+                  const a = edgeAlpha(link);
+                  const alphaHex = Math.round(a * 255)
+                    .toString(16)
+                    .padStart(2, "0");
+                  return `${style.color}${alphaHex}`;
                 },
-                linkOpacity: 0.4,
+                linkOpacity: 1, // per-link alpha handled in linkColor rgba above
                 linkWidth: (l: unknown) => 0.5 + ((l as { confidence?: number }).confidence ?? 0.7),
                 linkDirectionalArrowLength: 3.5,
                 linkDirectionalArrowRelPos: 1,
@@ -855,12 +1122,31 @@ export function BrainGraph() {
         ))}
       </div>
 
-      <BrainGraphLegend is3D={is3D} />
+      <BrainGraphLegend is3D={is3D} colorMode={colorMode} />
 
       <BrainGraphNodeDetail
         node={selectedNode}
         degree={selectedNode ? (degreeById.get(selectedNode.id) ?? 0) : 0}
         onClose={() => setSelectedNode(null)}
+      />
+      <RelationJudgePanel
+        open={curationPanel === "judge"}
+        onClose={() => setCurationPanel(null)}
+        onJudged={() => mutate()}
+      />
+      <ConflictResolverPanel
+        open={curationPanel === "conflicts"}
+        onClose={() => setCurationPanel(null)}
+        onHoverPair={setHoveredConflictId}
+        onResolved={() => {
+          mutate();
+          mutateConflicts();
+        }}
+      />
+      <DecisionLineageSidebar
+        open={curationPanel === "lineage"}
+        onClose={() => setCurationPanel(null)}
+        onSuperseded={() => mutate()}
       />
 
       <div

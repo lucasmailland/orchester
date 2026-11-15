@@ -16,6 +16,7 @@ vi.mock("@/lib/integrations/mcp-client", () => ({
   callMcpTool: mocks.call,
 }));
 vi.mock("@/lib/observability", () => ({ logWithContext: vi.fn() }));
+vi.mock("@/lib/agent-tools/custom", () => ({ listCustomTools: async () => [] }));
 vi.mock("@/lib/workspace", () => ({
   getCurrentWorkspace: async () => ({ workspace: { id: "workspace-test" } }),
 }));

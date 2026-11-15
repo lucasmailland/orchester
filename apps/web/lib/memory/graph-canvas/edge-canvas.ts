@@ -46,6 +46,8 @@ export interface EdgeDrawOptions {
   label?: string;
   /** Canvas zoom factor — needed to keep the label a constant screen size. */
   globalScale?: number;
+  /** Optional color override — used by path highlighting to force violet. */
+  color?: string;
 }
 
 export function drawEdge(ctx: CanvasRenderingContext2D, opts: EdgeDrawOptions): void {
@@ -60,10 +62,14 @@ export function drawEdge(ctx: CanvasRenderingContext2D, opts: EdgeDrawOptions): 
     emphasized,
     label,
     globalScale,
+    color: colorOverride,
   } = opts;
   // `relation` is an arbitrary string; the concrete-keyed EDGE_STYLES can't be
   // indexed by it directly, so go through the record view for the dynamic lookup.
-  const style: EdgeStyle = (EDGE_STYLES as Record<string, EdgeStyle>)[relation] ?? FALLBACK_STYLE;
+  const baseStyle: EdgeStyle =
+    (EDGE_STYLES as Record<string, EdgeStyle>)[relation] ?? FALLBACK_STYLE;
+  // Optional color override (e.g. path highlighting uses violet regardless of relation).
+  const style: EdgeStyle = colorOverride ? { ...baseStyle, color: colorOverride } : baseStyle;
   const width = style.width * (0.5 + confidence * 0.5) * (emphasized ? 2.0 : 1);
   // Dimmed edges stay barely visible so the graph shape never fully vanishes
   // while the user inspects one neighbourhood.

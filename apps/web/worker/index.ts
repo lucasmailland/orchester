@@ -23,6 +23,9 @@ import {
   preCreateAllQueues,
   JOB_FLOW_RUN,
   JOB_FLOW_REAP,
+  JOB_FLOW_SCHEDULE,
+  JOB_KB_INGEST,
+  JOB_KB_REINDEX,
   JOB_WEBHOOK_DELIVER,
   JOB_USAGE_AGGREGATE,
   JOB_RETENTION,
@@ -30,8 +33,10 @@ import {
   JOB_WORKSPACE_HARD_DELETE,
   JOB_GDPR_EXPORT,
   JOB_GDPR_EXPORT_WATCHDOG,
+  JOB_WEEKLY_REPORT,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
+import { runDueSchedules } from "../lib/flows/run-due-schedules";
 import { dispatchEvent, type WebhookEvent } from "../lib/webhooks-out";
 import { purgeOldData } from "../lib/retention";
 import { withCrossTenantAdmin } from "../lib/tenant/cron";
@@ -96,6 +101,29 @@ async function main(): Promise<void> {
     if (n > 0) console.log(`[worker] flow:reap → marcó ${n} run(s) colgados como failed`);
   });
   await schedule(JOB_FLOW_REAP, "*/5 * * * *");
+
+  // ── Scheduled-flow poller (cron, cada 1 min) ────────────────
+  // ORCH-2: selects due flow_schedule rows across all workspaces,
+  // enqueues JOB_FLOW_RUN, advances nextRunAt. Cross-tenant by design.
+  await registerWorker(JOB_FLOW_SCHEDULE, async () => {
+    const n = await runDueSchedules();
+    if (n > 0) console.log(`[worker] flow:schedule → disparó ${n} schedule(s)`);
+  });
+  await schedule(JOB_FLOW_SCHEDULE, "* * * * *");
+
+  // ── KB ingest + reindex ─────────────────────────────────────────
+  await registerWorker<{ docId: string; rawText: string }>(
+    JOB_KB_INGEST,
+    async (job) => {
+      const { ingestDoc } = await import("../lib/knowledge/ingest");
+      await ingestDoc(job.data.docId, job.data.rawText);
+    },
+    { teamSize: 2, teamConcurrency: 2 }
+  );
+  await registerWorker<{ docId: string; rawText: string }>(JOB_KB_REINDEX, async (job) => {
+    const { ingestDoc } = await import("../lib/knowledge/ingest");
+    await ingestDoc(job.data.docId, job.data.rawText);
+  });
 
   // ── Webhook dispatch ────────────────────────────────────────
   await registerWorker<WebhookDeliverJob>(
@@ -168,6 +196,13 @@ async function main(): Promise<void> {
     await runExportWatchdog();
   });
   await schedule(JOB_GDPR_EXPORT_WATCHDOG, "*/15 * * * *");
+
+  // ── Weekly usage report (cron, lunes 08:00 UTC) ─────────────
+  await registerWorker(JOB_WEEKLY_REPORT, async () => {
+    const { runWeeklyReports } = await import("../lib/notifications/weekly");
+    await runWeeklyReports();
+  });
+  await schedule(JOB_WEEKLY_REPORT, "0 8 * * 1");
 
   // ─── Mnemo workers retired (Phase 3 service-extraction, 2026-06-05) ─
   // Every JOB_MNEMO_* handler used to live here:

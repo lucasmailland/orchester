@@ -1,10 +1,11 @@
 "use client";
-import { useState } from "react";
-import { RotateCcw, Search, SlidersHorizontal, X } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { GitBranchPlus, RotateCcw, Route, Search, SlidersHorizontal, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { ENTITY_KIND_COLOR, EDGE_STYLES } from "@/lib/memory/graph-canvas";
+import { ENTITY_KIND_COLOR, EDGE_STYLES, debounce } from "@/lib/memory/graph-canvas";
 import { ALL_NODE_KINDS, ALL_EDGE_TYPES } from "@/lib/hooks/use-graph-filters";
 import type { GraphFiltersState } from "@/lib/hooks/use-graph-filters";
+import type { GraphNavigationState } from "@/lib/hooks/use-graph-navigation";
 
 // Glyph per node kind (mirrors the canvas shape vocabulary).
 const KIND_ICON: Record<string, string> = {
@@ -20,6 +21,7 @@ const KIND_ICON: Record<string, string> = {
 
 interface Props {
   filters: GraphFiltersState;
+  nav: GraphNavigationState;
 }
 
 /** Section header with All / None bulk toggles on the right. */
@@ -52,9 +54,19 @@ function SectionHeader({
   );
 }
 
-export function BrainGraphFilters({ filters }: Props) {
+export function BrainGraphFilters({ filters, nav }: Props) {
   const t = useTranslations("brain.graph");
   const [collapsed, setCollapsed] = useState(false);
+
+  // Local slider state for instant thumb movement; the actual filter setter
+  // is debounced so the expensive analytics recompute only fires after the
+  // drag settles (200ms idle).
+  const [localStrength, setLocalStrength] = useState(filters.minMemoryStrength);
+  const debouncedCommit = useMemo(
+    () => debounce(filters.setMinMemoryStrength, 200),
+    [filters.setMinMemoryStrength]
+  );
+  useEffect(() => () => debouncedCommit.cancel(), [debouncedCommit]);
 
   // Count of non-default filters so the collapsed chip can signal "filters
   // active" without expanding.
@@ -224,7 +236,7 @@ export function BrainGraphFilters({ filters }: Props) {
           {t("memoryStrength")}
         </p>
         <span className="text-[10px] text-zinc-400 font-medium tabular-nums">
-          ≥ {filters.minMemoryStrength.toFixed(1)}
+          ≥ {localStrength.toFixed(1)}
         </span>
       </div>
       <input
@@ -232,8 +244,12 @@ export function BrainGraphFilters({ filters }: Props) {
         min={0}
         max={5}
         step={0.1}
-        value={filters.minMemoryStrength}
-        onChange={(e) => filters.setMinMemoryStrength(Number(e.target.value))}
+        value={localStrength}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          setLocalStrength(v); // instant thumb movement
+          debouncedCommit(v); // analytics recompute only after 200ms idle
+        }}
         className="w-full accent-violet-500 cursor-pointer"
         aria-label={t("memoryStrength")}
       />
@@ -255,6 +271,84 @@ export function BrainGraphFilters({ filters }: Props) {
           {t("resetFilters")}
         </button>
       )}
+
+      <div className="h-px bg-zinc-800/60 my-3" />
+
+      {/* Focus depth — how many hops the ?focus= neighbourhood expands to.
+          Only meaningful while a node is focused, but always visible so the
+          operator can set it before double-clicking a node. */}
+      <div className="flex items-baseline justify-between mb-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          {t("focusDepth")}
+        </p>
+        <span className="text-[10px] text-zinc-400 font-medium tabular-nums">
+          {t("hops", { count: nav.depth })}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={1}
+        max={3}
+        step={1}
+        value={nav.depth}
+        onChange={(e) => nav.setDepth(Number(e.target.value))}
+        className="w-full accent-violet-500 cursor-pointer"
+        aria-label={t("focusDepth")}
+      />
+
+      <div className="h-px bg-zinc-800/60 my-3" />
+
+      {/* Find-path mode — arm, then click two entities to highlight the
+          shortest path between them. */}
+      <button
+        onClick={nav.toggleFindPath}
+        aria-pressed={nav.findPathMode}
+        className={
+          "w-full inline-flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors " +
+          (nav.findPathMode
+            ? "bg-violet-600 text-white hover:bg-violet-500"
+            : "bg-zinc-900/80 border border-zinc-800 text-zinc-300 hover:text-zinc-100 hover:border-zinc-700")
+        }
+      >
+        <Route className="h-3.5 w-3.5" />
+        {nav.findPathMode ? t("findPath.active") : t("findPath.start")}
+      </button>
+      {nav.findPathMode && (
+        <p className="text-[10px] text-zinc-500 mt-1.5 leading-relaxed">
+          {!nav.pathFrom
+            ? t("findPath.pickFrom")
+            : !nav.pathTo
+              ? t("findPath.pickTo")
+              : t("findPath.done")}
+        </p>
+      )}
+
+      <div className="h-px bg-zinc-800/60 my-3" />
+
+      {/* As-of — reconstruct the graph at a past instant. Empty = live/now. */}
+      <div className="flex items-baseline justify-between mb-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          {t("asOf")}
+        </p>
+        {nav.asOf && (
+          <button
+            onClick={() => nav.setAsOf(null)}
+            className="text-[10px] text-violet-400 hover:text-violet-300 transition-colors inline-flex items-center gap-1"
+          >
+            <GitBranchPlus className="h-3 w-3" />
+            {t("asOfNow")}
+          </button>
+        )}
+      </div>
+      <input
+        type="datetime-local"
+        value={nav.asOf ? nav.asOf.slice(0, 16) : ""}
+        onChange={(e) =>
+          nav.setAsOf(e.target.value ? new Date(e.target.value).toISOString() : null)
+        }
+        className="w-full bg-zinc-900/80 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs text-zinc-200 outline-none focus:border-zinc-700 [color-scheme:dark]"
+        aria-label={t("asOf")}
+      />
     </div>
   );
 }

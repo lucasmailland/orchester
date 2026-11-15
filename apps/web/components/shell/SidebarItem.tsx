@@ -1,6 +1,5 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -20,16 +19,8 @@ export function SidebarItem({ href, icon, label, collapsed }: SidebarItemProps) 
     <Link href={href} className="relative block px-2">
       {isActive && (
         <>
-          <motion.div
-            layoutId="sidebar-active-bg"
-            className="absolute inset-y-0 left-2 right-2 rounded-lg bg-hover"
-            transition={{ type: "spring", stiffness: 500, damping: 35 }}
-          />
-          <motion.div
-            layoutId="sidebar-active-bar"
-            className="absolute inset-y-1.5 left-2.5 w-[3px] rounded-full bg-violet-400"
-            transition={{ type: "spring", stiffness: 500, damping: 35 }}
-          />
+          <div className="absolute inset-y-0 left-2 right-2 rounded-lg bg-hover" />
+          <div className="absolute inset-y-1.5 left-2.5 w-[3px] rounded-full bg-violet-400" />
         </>
       )}
       <div
@@ -47,19 +38,14 @@ export function SidebarItem({ href, icon, label, collapsed }: SidebarItemProps) 
         >
           {icon}
         </span>
-        <AnimatePresence initial={false}>
-          {!collapsed && (
-            <motion.span
-              initial={{ opacity: 0, width: 0 }}
-              animate={{ opacity: 1, width: "auto" }}
-              exit={{ opacity: 0, width: 0 }}
-              transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="overflow-hidden whitespace-nowrap"
-            >
-              {label}
-            </motion.span>
+        <span
+          className={cn(
+            "overflow-hidden whitespace-nowrap transition-all duration-200",
+            collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
           )}
-        </AnimatePresence>
+        >
+          {label}
+        </span>
       </div>
     </Link>
   );

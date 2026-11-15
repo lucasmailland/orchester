@@ -10,8 +10,10 @@ vi.mock("@/lib/auth-guards", () => ({
   requireAuth: async () => ({
     workspace: { id: "ws_test", name: `Acme <b>"&" Inc` },
     user: { id: "user_test", email: "owner@example.com" },
+    role: "owner",
   }),
   isAuthContext: () => true,
+  satisfiesRole: () => true,
 }));
 vi.mock("@/lib/billing/quotas", () => ({ checkQuota: async () => ({ allowed: true }) }));
 vi.mock("@/lib/audit", () => ({ logAudit: mocks.logAudit }));

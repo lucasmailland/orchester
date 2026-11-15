@@ -70,7 +70,13 @@ export function MemoryPanel({ agentId }: { agentId: string }) {
     const params = new URLSearchParams({ scope: row.scope, key: k });
     if (row.conversationId) params.set("conversationId", row.conversationId);
     if (row.employeeId) params.set("employeeId", row.employeeId);
-    await fetch(`/api/agents/${agentId}/memory?${params}`, { method: "DELETE" });
+    try {
+      const r = await fetch(`/api/agents/${agentId}/memory?${params}`, { method: "DELETE" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      toast.success(t("removed"));
+    } catch {
+      toast.error(t("removeError"));
+    }
     load();
   }
 

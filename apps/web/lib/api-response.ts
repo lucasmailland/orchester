@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { safeLogError } from "@/lib/safe-log";
 
 /**
  * Helpers de respuesta API uniformes (audit A5).
@@ -38,4 +39,12 @@ export function apiList<T>(items: T[], meta?: ListMeta): NextResponse {
 
 export function apiError(message: string, status = 400): NextResponse {
   return NextResponse.json({ error: message }, { status });
+}
+
+// PERF-13: uniform error handler for route catch blocks. Logs the real error
+// server-side (redacted for secrets) and returns a generic body so internal
+// messages / stack traces never reach the client.
+export function handleError(prefix: string, err: unknown, status = 500): NextResponse {
+  safeLogError(prefix, err);
+  return NextResponse.json({ error: "Internal server error" }, { status });
 }

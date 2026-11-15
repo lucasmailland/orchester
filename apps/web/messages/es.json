@@ -351,7 +351,9 @@
         "related": "relacionado",
         "conflict": "conflicto",
         "derived": "derivado",
-        "memoryAura": "Aura de memoria"
+        "memoryAura": "Aura de memoria",
+        "peripheral": "Periférico",
+        "central": "Central"
       },
       "detail": {
         "memoryStrength": "Fuerza de Memoria",
@@ -374,10 +376,13 @@
       "zoomIn": "Acercar",
       "zoomOut": "Alejar",
       "zoomFit": "Ajustar vista",
+      "a11ySelected": "Seleccionado {label}",
+      "addedOn": "Agregado {date}",
       "colorBy": {
         "kind": "Tipo",
         "community": "Comunidad",
-        "hint": "Colorear nodos por tipo de entidad o por comunidad detectada"
+        "centrality": "Centralidad",
+        "hint": "Colorear nodos por tipo de entidad, comunidad o centralidad PageRank"
       },
       "focus": {
         "title": "Grafo local",
@@ -400,7 +405,66 @@
       "hint3d": "Arrastrá para rotar · scroll para zoom · clic derecho para desplazar",
       "statusBarFiltered": "{entities} de {total} entidades · {relations} relaciones",
       "all": "Todos",
-      "none": "Ninguno"
+      "none": "Ninguno",
+      "focusDepth": "Focus depth",
+      "hops": "{count, plural, one {# hop} other {# hops}}",
+      "asOf": "As of",
+      "asOfNow": "Now",
+      "findPath": {
+        "start": "Find path",
+        "active": "Picking path…",
+        "pickFrom": "Click the first node.",
+        "pickTo": "Click the second node.",
+        "done": "Path highlighted.",
+        "banner": "Path",
+        "exit": "Clear"
+      }
+    },
+    "curation": {
+      "loading": "Loading…",
+      "error": "Something went wrong.",
+      "cancel": "Cancel",
+      "toolbar": {
+        "judge": "Judge queue",
+        "conflicts": "Conflicts",
+        "draw": "Draw edge",
+        "lineage": "Decisions"
+      },
+      "judge": {
+        "title": "Relation queue",
+        "subtitle": "Apply a verb to each pending relation.",
+        "empty": "No pending relations.",
+        "apply": "Apply judgment"
+      },
+      "conflicts": {
+        "title": "Conflicts",
+        "subtitle": "Resolve contradicting facts.",
+        "empty": "No open conflicts.",
+        "keepA": "Keep A",
+        "keepB": "Keep B",
+        "keepBoth": "Keep both",
+        "merge": "Merge…",
+        "confirmMerge": "Save merge",
+        "mergePlaceholder": "Merged statement…"
+      },
+      "draw": {
+        "start": "Draw edge",
+        "title": "Draw relation",
+        "pickSource": "Click a source node",
+        "pickTarget": "Click a target node",
+        "verb": "Relation",
+        "create": "Create edge",
+        "reset": "Reset"
+      },
+      "lineage": {
+        "title": "Decisions",
+        "subtitle": "Decision lineage and supersedes chains.",
+        "empty": "No decisions yet.",
+        "supersede": "Supersede…",
+        "pickReplacement": "Replaced by…",
+        "confirm": "Supersede",
+        "status": { "active": "active", "superseded": "superseded", "withdrawn": "withdrawn" }
+      }
     }
   },
   "dashboard": {
@@ -450,6 +514,8 @@
       "currentMonth": "mes actual",
       "agentPerformance": "Rendimiento de agentes · {count} agentes",
       "agentPerformanceSub": "mes actual · ordenado por consumo de tokens",
+      "agentPerformanceTopN": "Top {count} agentes por uso",
+      "agentPerformanceSubOf": "de {total} activos este mes",
       "teams": "Equipos",
       "peakActivity": "Pico de actividad",
       "peakActivitySub": "distribución por hora del día",
@@ -634,7 +700,9 @@
         "flows": "flujos",
         "active": "activos",
         "flow": "Flow"
-      }
+      },
+      "loadError": "No se pudo cargar el organigrama.",
+      "retry": "Reintentar"
     },
     "teams": {
       "title": "Equipos",
@@ -715,6 +783,7 @@
       "deleteConfirm": "Eliminar",
       "agentDeleted": "Agente eliminado",
       "agentDeleteError": "No se pudo eliminar el agente",
+      "openStudioAria": "Abrir studio de {name}",
       "editAria": "Editar {name}",
       "deleteAria": "Eliminar {name}",
       "form": {
@@ -754,6 +823,7 @@
           "emptyHint": "Escribí un mensaje para probar al agente con la configuración actual.",
           "thinking": "Pensando…",
           "messageAria": "Mensaje para el agente",
+          "clearAria": "Limpiar conversación",
           "messagePlaceholder": "Escribí un mensaje (Enter para enviar, Shift+Enter para salto de línea)…",
           "sendAria": "Enviar mensaje",
           "tokensUsed": "Tokens usados:",
@@ -778,7 +848,9 @@
           "save": "Guardar",
           "saved": "Guardado",
           "saveError": "Error",
-          "missingFields": "key + value requeridos"
+          "missingFields": "key + value requeridos",
+          "removed": "Memoria eliminada",
+          "removeError": "No se pudo eliminar"
         },
         "config": {
           "kindSectionTitle": "Tipo de agente",
@@ -877,7 +949,10 @@
           "restored": "Versión restaurada",
           "restoreConfirm": "¿Restaurar esta versión? Los cambios actuales se pierden.",
           "current": "Actual",
-          "byline": "por {actor}"
+          "byline": "por {actor}",
+          "saved": "Versión guardada",
+          "saveError": "No se pudo guardar la versión",
+          "restoreError": "No se pudo restaurar la versión"
         }
       },
       "empty": "Aún no hay agentes.",
@@ -1309,7 +1384,9 @@
         "taken": "Conversación tomada",
         "returned": "Devuelta al agente",
         "sent": "Mensaje enviado",
-        "sendError": "No se pudo enviar"
+        "sendError": "No se pudo enviar",
+        "takeoverError": "No se pudo tomar la conversación",
+        "releaseError": "No se pudo devolver la conversación"
       },
       "drawer": {
         "operator": "Operador",
@@ -1361,6 +1438,16 @@
       "telegramPlaceholder": "123456:ABC-DEF…",
       "telegramReplacePlaceholder": "•••••••• (ya configurado, pegá uno nuevo para reemplazar)",
       "save": "Guardar",
+      "appearanceSaved": "Apariencia guardada",
+      "appearanceTitle": "Apariencia del widget",
+      "colorLabel": "Color principal",
+      "titleLabel": "Título del chat",
+      "titlePlaceholder": "Ej: Soporte",
+      "greetingLabel": "Saludo inicial",
+      "greetingPlaceholder": "Ej: Hola, ¿en qué puedo ayudarte?",
+      "placeholderLabel": "Placeholder del input",
+      "placeholderPlaceholder": "Ej: Escribí un mensaje…",
+      "saveAppearance": "Guardar apariencia",
       "webhookLabel": "Webhook URL (auto-configurado)",
       "apiEndpointLabel": "Endpoint público",
       "apiBodyHint": "Body:",
@@ -1457,7 +1544,8 @@
       "savedButFailed": "Guardado, pero la conexión falló: {error}",
       "nameLabel": "Nombre",
       "saveAndTest": "Guardar y probar",
-      "close": "Cerrar"
+      "close": "Cerrar",
+      "deleteError": "No se pudo eliminar la integración"
     },
     "activity": {
       "title": "Actividad",
@@ -1745,7 +1833,10 @@
           "delete": "Eliminar (peligroso)",
           "read": "leer",
           "write": "escribir"
-        }
+        },
+        "saveError": "No se pudo guardar",
+        "deleteError": "No se pudo eliminar",
+        "webhookDeleted": "Webhook eliminado"
       },
       "providers": {
         "loading": "Cargando proveedores…",
@@ -3072,5 +3163,8 @@
     "invalidBody": "Ya se usó, o nunca existió. Un enlace de aprobación sirve una sola vez: al resolverse la pausa se borra.",
     "failed": "No se pudo enviar la decisión. El flujo sigue esperando, así que el enlace todavía sirve.",
     "oneShot": "Este enlace sirve una sola vez."
+  },
+  "conversations": {
+    "actions": {}
   }
 }

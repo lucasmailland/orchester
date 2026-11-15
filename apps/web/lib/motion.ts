@@ -1,4 +1,5 @@
 import type { Variants } from "framer-motion";
+import { useEffect, useState } from "react";
 
 export const APPLE_EASE = [0.25, 0.46, 0.45, 0.94] as const;
 
@@ -104,3 +105,15 @@ export const sidebarVariants = {
   expanded: { width: "var(--sidebar-width)" },
   collapsed: { width: "var(--sidebar-collapsed-width)" },
 };
+
+// PERF-1: framer-motion mount animations (initial="hidden" → animate="visible")
+// don't reliably commit after hydration under fm 11 + React 19.2 — the node
+// stays at opacity:0 until a scroll forces a repaint. Gating `animate` behind a
+// mounted flag forces a post-mount state change that DOES commit.
+export function useReveal(): "hidden" | "visible" {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  return mounted ? "visible" : "hidden";
+}

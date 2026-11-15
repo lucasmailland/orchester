@@ -4,16 +4,7 @@
  */
 
 export type Capability =
-  | "chat"
-  | "image"
-  | "video"
-  | "avatar"
-  | "embedding"
-  | "rerank"
-  | "tts"
-  | "stt"
-  | "music"
-  | "ocr";
+  "chat" | "image" | "video" | "avatar" | "embedding" | "rerank" | "tts" | "stt" | "music" | "ocr";
 
 /** Familia = forma de API. Define qué adaptador maneja al proveedor. */
 export type Family =
@@ -49,6 +40,8 @@ export interface ProviderDef {
   docsUrl?: string;
   /** Pista corta para la UI (de dónde sacar la API key). */
   keyHint?: string;
+  /** KNOW-5: true when a working adapter exists for this provider's family. */
+  implemented?: boolean;
 }
 
 export interface ModelDef {

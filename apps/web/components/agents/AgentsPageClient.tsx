@@ -3,12 +3,11 @@
 import { useState, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { toast } from "sonner";
-import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import { Bot, Plus, Pencil, Trash2, Zap, Filter, Plug, BookOpen } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@heroui/react";
 import { cn } from "@/lib/utils";
-import { staggerContainer, staggerItem } from "@/lib/motion";
 import { AgentFormModal, type AgentFormPrefill } from "./AgentFormModal";
 import { TemplatePicker } from "@/components/compass/TemplatePicker";
 import type { AgentTemplatePayload, CompassTemplate } from "@/lib/compass/templates";
@@ -203,6 +202,11 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
     router.refresh();
   }
 
+  function announce(msg: string) {
+    const el = document.getElementById("agents-status");
+    if (el) el.textContent = msg;
+  }
+
   async function handleConfirmDelete() {
     if (!deletingAgent) return;
     setDeletePending(true);
@@ -210,12 +214,15 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
       const r = await fetch(`/api/agents/${deletingAgent.id}`, { method: "DELETE" });
       if (r.ok) {
         toast.success(t("agentDeleted"));
+        announce(t("agentDeleted"));
         setDeletingAgent(null);
         router.refresh();
       } else {
         // The server explains a refusal (active, or still used by a flow/channel).
         const body = (await r.json().catch(() => null)) as { error?: string } | null;
-        toast.error(body?.error ?? t("agentDeleteError"));
+        const message = body?.error ?? t("agentDeleteError");
+        toast.error(message);
+        announce(message);
       }
     } finally {
       setDeletePending(false);
@@ -366,6 +373,9 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
         </div>
       )}
 
+      {/* Screen-reader live region for async status updates */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only" id="agents-status" />
+
       {/* Grouped sections */}
       <TourSpot
         tourId="agents"
@@ -373,147 +383,152 @@ export function AgentsPageClient({ agents, teams }: AgentsPageClientProps) {
         titleKey="compass.tours.agents.step3.title"
         bodyKey="compass.tours.agents.step3.body"
       >
-        <AnimatePresence mode="wait">
-          <div className="space-y-8">
-            {grouped.map((group) => (
-              <div key={group.key}>
-                {/* Team section header */}
-                <div className="mb-3 flex items-center gap-3">
-                  {group.teamColor && (
-                    <div
-                      className="h-2.5 w-2.5 rounded-sm"
-                      style={{ backgroundColor: group.teamColor }}
-                    />
-                  )}
-                  <h2 className="text-xs font-bold uppercase tracking-widest text-muted">
-                    {group.teamName}
-                  </h2>
-                  <div className="flex-1 border-t border-line" />
-                  <span className="font-mono text-[10px] text-faint">
-                    {group.agents.length} {group.agents.length === 1 ? t("agent") : t("agents")}
-                  </span>
-                </div>
+        <div className="space-y-8">
+          {grouped.map((group) => (
+            <div key={group.key}>
+              {/* Team section header */}
+              <div className="mb-3 flex items-center gap-3">
+                {group.teamColor && (
+                  <div
+                    className="h-2.5 w-2.5 rounded-sm"
+                    style={{ backgroundColor: group.teamColor }}
+                  />
+                )}
+                <h2 className="text-xs font-bold uppercase tracking-widest text-muted">
+                  {group.teamName}
+                </h2>
+                <div className="flex-1 border-t border-line" />
+                <span className="font-mono text-[10px] text-faint">
+                  {group.agents.length} {group.agents.length === 1 ? t("agent") : t("agents")}
+                </span>
+              </div>
 
-                {/* Agent cards grid */}
-                <motion.div
-                  variants={staggerContainer}
-                  initial="hidden"
-                  animate="visible"
-                  className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
-                >
-                  {group.agents.map((agent) => {
-                    const s = STATUS_CONFIG[agent.status];
-                    const modelColor = getModelColor(agent.model);
+              {/* Agent cards grid */}
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" role="list">
+                {group.agents.map((agent) => {
+                  const s = STATUS_CONFIG[agent.status];
+                  const modelColor = getModelColor(agent.model);
+                  const studioHref = `/${locale}/${ws}/agents/${agent.id}`;
 
-                    return (
-                      <motion.div
-                        key={agent.id}
-                        variants={staggerItem}
-                        onClick={(e) => {
-                          if ((e.target as HTMLElement).closest("button")) return;
-                          router.push(`/${locale}/${ws}/agents/${agent.id}`);
-                        }}
-                        className={cn(
-                          "group relative cursor-pointer overflow-hidden rounded-2xl border border-line bg-card",
-                          "transition-all hover:border-violet-500/30 hover:bg-hover"
-                        )}
-                      >
-                        {/* Left color bar */}
-                        <div
-                          className="absolute left-0 inset-y-0 w-[3px]"
-                          style={{ backgroundColor: modelColor + "80" }}
-                        />
+                  return (
+                    <article
+                      key={agent.id}
+                      role="listitem"
+                      aria-label={`${agent.name} — ${agent.role}`}
+                      className={cn(
+                        "group relative overflow-hidden rounded-2xl border border-line bg-card",
+                        "transition-all hover:border-violet-500/30 hover:bg-hover"
+                      )}
+                    >
+                      {/* Full-card link for keyboard + click navigation */}
+                      <Link
+                        href={studioHref}
+                        className="absolute inset-0 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1"
+                        aria-label={t("openStudioAria", { name: agent.name })}
+                        tabIndex={0}
+                      />
 
-                        <div className="p-4 pl-5">
-                          {/* Top row */}
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-2.5">
-                              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-600/15 text-violet-600 dark:text-violet-400">
-                                <Bot size={15} />
-                                <span className="absolute -bottom-0.5 -right-0.5">
-                                  <span className="relative flex h-2.5 w-2.5">
-                                    {s.ping && (
-                                      <span
-                                        className={cn(
-                                          "absolute inline-flex h-full w-full animate-ping rounded-full opacity-50",
-                                          s.dot
-                                        )}
-                                      />
-                                    )}
+                      {/* Left color bar */}
+                      <div
+                        className="absolute inset-y-0 left-0 w-[3px]"
+                        style={{ backgroundColor: modelColor + "80" }}
+                      />
+
+                      <div className="p-4 pl-5">
+                        {/* Top row */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2.5">
+                            <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-600/15 text-violet-600 dark:text-violet-400">
+                              <Bot size={15} />
+                              <span className="absolute -bottom-0.5 -right-0.5">
+                                <span className="relative flex h-2.5 w-2.5">
+                                  {s.ping && (
                                     <span
                                       className={cn(
-                                        "relative inline-flex h-2.5 w-2.5 rounded-full",
+                                        "absolute inline-flex h-full w-full animate-ping rounded-full opacity-50",
                                         s.dot
                                       )}
                                     />
-                                  </span>
+                                  )}
+                                  <span
+                                    className={cn(
+                                      "relative inline-flex h-2.5 w-2.5 rounded-full",
+                                      s.dot
+                                    )}
+                                  />
                                 </span>
-                              </div>
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold text-strong">
-                                  {agent.name}
-                                </p>
-                                <p className="truncate text-xs text-muted">{agent.role}</p>
-                              </div>
-                            </div>
-
-                            {/* Actions */}
-                            <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                              <button
-                                type="button"
-                                aria-label={t("editAria", { name: agent.name })}
-                                onClick={() => setEditingAgent(agent)}
-                                className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-line hover:text-body"
-                              >
-                                <Pencil size={12} />
-                              </button>
-                              <button
-                                type="button"
-                                aria-label={t("deleteAria", { name: agent.name })}
-                                onClick={() => setDeletingAgent(agent)}
-                                className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* System prompt preview */}
-                          {agent.systemPrompt && (
-                            <p className="mt-2.5 line-clamp-2 text-[11px] leading-relaxed text-faint">
-                              {agent.systemPrompt}
-                            </p>
-                          )}
-
-                          {/* Bottom badges */}
-                          <div className="mt-3 flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-1.5">
-                              <Zap size={9} style={{ color: modelColor }} />
-                              <span
-                                className="font-mono text-[10px]"
-                                style={{ color: modelColor + "cc" }}
-                              >
-                                {MODEL_SHORT[agent.model] ?? agent.model}
                               </span>
                             </div>
-                            <span
-                              className={cn(
-                                "rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                                s.badge
-                              )}
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-strong">
+                                {agent.name}
+                              </p>
+                              <p className="truncate text-xs text-muted">{agent.role}</p>
+                            </div>
+                          </div>
+
+                          {/* Actions — visible on hover AND on keyboard focus within card */}
+                          <div className="relative z-10 flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                            <button
+                              type="button"
+                              aria-label={t("editAria", { name: agent.name })}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setEditingAgent(agent);
+                              }}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-line hover:text-body"
                             >
-                              {t(`statusBadge.${agent.status}`)}
-                            </span>
+                              <Pencil size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={t("deleteAria", { name: agent.name })}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setDeletingAgent(agent);
+                              }}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
+                            >
+                              <Trash2 size={12} />
+                            </button>
                           </div>
                         </div>
-                      </motion.div>
-                    );
-                  })}
-                </motion.div>
+
+                        {/* System prompt preview */}
+                        {agent.systemPrompt && (
+                          <p className="mt-2.5 line-clamp-2 text-[11px] leading-relaxed text-faint">
+                            {agent.systemPrompt}
+                          </p>
+                        )}
+
+                        {/* Bottom badges */}
+                        <div className="mt-3 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <Zap size={9} style={{ color: modelColor }} />
+                            <span
+                              className="font-mono text-[10px]"
+                              style={{ color: modelColor + "cc" }}
+                            >
+                              {MODEL_SHORT[agent.model] ?? agent.model}
+                            </span>
+                          </div>
+                          <span
+                            className={cn(
+                              "rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                              s.badge
+                            )}
+                          >
+                            {t(`statusBadge.${agent.status}`)}
+                          </span>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
-            ))}
-          </div>
-        </AnimatePresence>
+            </div>
+          ))}
+        </div>
       </TourSpot>
 
       {/* Next steps */}

@@ -1,8 +1,6 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck — Phase 3: tools' recall path stubbed; rest still active.
 import "server-only";
 import { getDb, schema, type DbClient } from "@orchester/db";
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, ne, inArray } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { assertPublicUrl, safeFetch } from "./net-guard";
 import { fetchWithTimeout } from "./http-util";
@@ -27,6 +25,8 @@ export interface ToolDefinition {
   remoteName?: string;
   /** MCP annotations, conservatively classified for execution policies. */
   effect?: "read" | "write";
+  /** Set on the workspace's own HTTP tools (agent_tool rows): the row to run. */
+  customToolId?: string;
   name: string;
   description: string;
   /** JSON Schema describing the tool's input. */
@@ -156,6 +156,19 @@ const BUILTINS: Record<string, ToolDefinition> = {
       required: ["flowId"],
     },
   },
+  web_search: {
+    name: "web_search",
+    description:
+      "Search the public web and return the top results (title, URL, snippet). Use when the user asks about current events, facts you don't know, or anything that needs fresh information. For fetching a known URL, use http_request instead.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Search query in natural language." },
+        count: { type: "number", description: "Number of results (default 5, max 10)." },
+      },
+      required: ["query"],
+    },
+  },
   agent_handoff: {
     name: "agent_handoff",
     description:
@@ -175,6 +188,26 @@ const BUILTINS: Record<string, ToolDefinition> = {
         },
       },
       required: ["agentId", "note"],
+    },
+  },
+  agent_call: {
+    name: "agent_call",
+    description:
+      "Delegate a self-contained sub-task to a specialist teammate and GET ITS ANSWER BACK (request/response). The specialist runs with its own system prompt, tools, memory and response format, then returns text to you — you stay in control of the conversation. Use this to compose a team (orchestrator → specialists). Use `agent_team_list` first to see who you can call. For permanently transferring the conversation, use `agent_handoff` instead.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        agentId: {
+          type: "string",
+          description: "ID of the specialist to delegate to (from agent_team_list).",
+        },
+        task: {
+          type: "string",
+          description:
+            "Self-contained instruction/question for the specialist. Include all context it needs — it does NOT see your conversation history.",
+        },
+      },
+      required: ["agentId", "task"],
     },
   },
   agent_team_list: {
@@ -862,6 +895,22 @@ export async function resolveToolDefinitions(
         d.name === "knowledge_search" ? boundKnowledgeSearch(kbs) : d
       );
   }
+  // KNOW-1: the workspace's own HTTP tools (agent_tool rows), offered by id or
+  // name. A builtin keeps its name if a custom tool reuses it.
+  const builtinNames = new Set(builtins.map((b) => b.name));
+  if (enabledIds.some((id) => !id.startsWith("mcp__") && !builtinNames.has(id))) {
+    const customRows = await (tx ?? getDb())
+      .select()
+      .from(schema.agentTools)
+      .where(eq(schema.agentTools.workspaceId, workspaceId));
+    builtins = [
+      ...builtins,
+      ...customRows
+        .filter((r) => enabledIds.includes(r.id) || enabledIds.includes(r.name))
+        .filter((r) => !builtinNames.has(r.name))
+        .map((r) => customToolDefinition(r)),
+    ];
+  }
   if (!enabledIds.some((id) => id.startsWith("mcp__"))) return builtins;
   const { listWorkspaceMcpTools } = await import("./integrations/mcp-tools");
   const remote = await listWorkspaceMcpTools(workspaceId, tx);
@@ -880,6 +929,24 @@ export async function resolveToolDefinitions(
 
 export function listAllTools(): ToolDefinition[] {
   return Object.values(BUILTINS);
+}
+
+function customToolDefinition(row: {
+  id: string;
+  name: string;
+  description: string | null;
+  config: Record<string, unknown>;
+}): ToolDefinition {
+  const params = (row.config?.parameters as Record<string, unknown> | undefined) ?? {
+    type: "object",
+    properties: {},
+  };
+  return {
+    customToolId: row.id,
+    name: row.name,
+    description: row.description ?? `Custom tool ${row.name}`,
+    inputSchema: params,
+  };
 }
 
 /** Safe shunting-yard arithmetic evaluator (no JS eval). Supports + - * / % ( ). */
@@ -965,7 +1032,7 @@ function safeEvalArithmetic(expr: string): number {
 
 /** Team of the calling agent, or null when it has none / cannot be found. */
 async function getCallerTeamId(
-  db: ReturnType<typeof getDb>,
+  db: WsDb,
   agentId: string,
   workspaceId: string
 ): Promise<string | null> {
@@ -1355,7 +1422,16 @@ async function runTool(
       Number(input.topK ?? 5),
       ctx.tx
     );
-    return { results };
+    // KNOW-8: surface heading from chunk metadata so the LLM can cite sections.
+    return {
+      results: results.map((h) => ({
+        text: h.text,
+        docTitle: h.docTitle,
+        score: h.score,
+        ...(h.heading ? { heading: h.heading } : {}),
+        ...(h.page != null ? { page: h.page } : {}),
+      })),
+    };
   }
 
   if (name === "run_integration") {
@@ -1389,6 +1465,142 @@ async function runTool(
       ctx.tx,
       AS_AGENT
     );
+  }
+
+  if (name === "web_search") {
+    const query = String(input.query ?? "").trim();
+    if (!query) throw new Error("query required");
+    const endpoint = process.env.WEB_SEARCH_ENDPOINT;
+    const apiKey = process.env.WEB_SEARCH_API_KEY;
+    if (!endpoint || !apiKey) {
+      throw new Error(
+        "La búsqueda web no está configurada (WEB_SEARCH_ENDPOINT/WEB_SEARCH_API_KEY). web search is not configured."
+      );
+    }
+    const count = Math.min(10, Math.max(1, Number(input.count ?? 5)));
+    const url = `${endpoint}?q=${encodeURIComponent(query)}&count=${count}`;
+    // Defense-in-depth: aunque el endpoint es operator-config, resolvemos DNS y
+    // revalidamos la IP final antes de emitir (anti DNS-rebinding), consistente
+    // con las demás salidas HTTP del workspace.
+    const searchInit = {
+      headers: { Accept: "application/json", "X-Subscription-Token": apiKey },
+    };
+    const r =
+      process.env.ALLOW_PRIVATE_HTTP === "1"
+        ? await fetchWithTimeout(url, searchInit, HTTP_REQUEST_TIMEOUT_MS)
+        : await safeFetch(url, { ...searchInit, timeoutMs: HTTP_REQUEST_TIMEOUT_MS });
+    if (!r.ok) throw new Error(`web_search ${r.status}: ${(await r.text()).slice(0, 120)}`);
+    const j = (await r.json()) as {
+      web?: { results?: Array<{ title?: string; url?: string; description?: string }> };
+      results?: Array<{ title?: string; url?: string; description?: string; snippet?: string }>;
+    };
+    const raw = j.web?.results ?? j.results ?? [];
+    return {
+      results: raw.slice(0, count).map((x) => ({
+        title: x.title ?? "",
+        url: x.url ?? "",
+        snippet:
+          (x as { description?: string }).description ?? (x as { snippet?: string }).snippet ?? "",
+      })),
+    };
+  }
+
+  // KNOW-1: custom workspace tool (agent_tool row). Only runs when the model was
+  // offered it, so an unknown name never costs a lookup.
+  const customToolId = ctx.offeredTool?.customToolId;
+  if (customToolId) {
+    const db = ctx.tx ?? getDb();
+    const rows = await db
+      .select()
+      .from(schema.agentTools)
+      .where(
+        and(
+          eq(schema.agentTools.workspaceId, ctx.workspaceId),
+          eq(schema.agentTools.id, customToolId)
+        )
+      )
+      .limit(1);
+    const row = rows[0];
+    if (row && (row.kind === "http_request" || row.kind === "custom")) {
+      const cfg = row.config as {
+        urlTemplate?: string;
+        method?: string;
+        headers?: Record<string, string>;
+        bodyTemplate?: string;
+      };
+      const tmpl = String(cfg.urlTemplate ?? "");
+      if (!tmpl) throw new Error(`Custom tool ${name} has no urlTemplate`);
+      const url = tmpl.replace(/\{\{([^}]+)\}\}/g, (_, k: string) =>
+        encodeURIComponent(String(input[k.trim()] ?? ""))
+      );
+      // SSRF: la URL sale de un template + input del agente; safeFetch resuelve
+      // DNS, fija la IP validada y revalida cada redirect (anti DNS-rebinding).
+      const method = (cfg.method ?? "GET").toUpperCase();
+      const init: RequestInit = {
+        method,
+        headers: cfg.headers ?? { Accept: "application/json" },
+      };
+      if (method !== "GET" && cfg.bodyTemplate) {
+        init.body = cfg.bodyTemplate.replace(/\{\{([^}]+)\}\}/g, (_, k: string) =>
+          String(input[k.trim()] ?? "")
+        );
+      }
+      const r = await safeFetch(url, { ...init, timeoutMs: HTTP_REQUEST_TIMEOUT_MS });
+      const text = await r.text();
+      let body: unknown = text;
+      try {
+        body = JSON.parse(text);
+      } catch {}
+      return { status: r.status, body };
+    }
+  }
+
+  if (name === "agent_call") {
+    if (!ctx.agentId) throw new Error("agent_call requires the calling agent context");
+    const targetAgentId = String(input.agentId ?? "");
+    const task = String(input.task ?? "").trim();
+    if (!targetAgentId) throw new Error("agentId required");
+    if (!task) throw new Error("task required");
+    if (targetAgentId === ctx.agentId) throw new Error("cannot delegate to yourself");
+
+    const db = ctx.tx ?? getDb();
+    const rows = await db
+      .select({
+        id: schema.agents.id,
+        name: schema.agents.name,
+        teamId: schema.agents.teamId,
+        status: schema.agents.status,
+      })
+      .from(schema.agents)
+      .where(
+        and(
+          eq(schema.agents.workspaceId, ctx.workspaceId),
+          inArray(schema.agents.id, [ctx.agentId, targetAgentId])
+        )
+      );
+    const caller = rows.find((r) => r.id === ctx.agentId);
+    const target = rows.find((r) => r.id === targetAgentId);
+    if (!target) throw new Error(`target agent ${targetAgentId} not found in workspace`);
+    if (target.status !== "active") throw new Error(`target agent ${target.name} is not active`);
+    if (caller?.teamId && caller.teamId !== target.teamId) {
+      throw new Error(`agent ${target.name} is not in your team — delegation not allowed`);
+    }
+
+    const { loadAgent, runAgent } = await import("./agent-runtime");
+    const full = await loadAgent(ctx.workspaceId, targetAgentId, ctx.tx);
+    if (!full) throw new Error(`target agent ${targetAgentId} not found`);
+    const result = await runAgent({
+      workspaceId: ctx.workspaceId,
+      agent: full,
+      messages: [{ role: "user", content: task }],
+      ...(ctx.tx ? { tx: ctx.tx } : {}),
+    });
+    return {
+      output: result.content,
+      agentId: targetAgentId,
+      tokensUsed: result.tokensUsed,
+      model: result.model,
+    };
   }
 
   throw new Error(`Unknown tool: ${name}`);

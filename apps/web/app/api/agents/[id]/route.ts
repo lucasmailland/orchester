@@ -68,12 +68,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         { status: 400 }
       );
   }
+  let wentDown = false;
   // The merge is a read-modify-write of `config`, so the read takes the row
   // lock and the write happens in the same transaction: two concurrent updates
   // of different keys queue up instead of one overwriting the other.
   const updated = await withAdminTx(
     { kind: "user", workspaceId: ctx.workspace.id, userId: ctx.user.id },
     async (tx) => {
+      // Read the status before writing it, to tell when an active agent goes down.
+      if (status !== undefined && status !== "active") {
+        const [before] = await tx
+          .select({ status: schema.agents.status })
+          .from(schema.agents)
+          .where(and(eq(schema.agents.id, id), eq(schema.agents.workspaceId, ctx.workspace.id)))
+          .limit(1);
+        wentDown = before?.status === "active";
+      }
       let config: Record<string, unknown> | undefined;
       if (knowledgeBaseIds !== undefined || maxToolCalls !== undefined) {
         const [current] = await tx
@@ -129,6 +139,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     resourceId: agent.id,
     after: { name: agent.name, role: agent.role },
   });
+  if (wentDown) {
+    void import("@/lib/notifications/triggers").then((m) =>
+      m.notifyAgentDown(ctx.workspace.id, { agentId: agent.id, agentName: agent.name })
+    );
+  }
   return NextResponse.json(agent);
 }
 

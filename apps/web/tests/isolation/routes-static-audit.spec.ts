@@ -83,6 +83,8 @@ const TENANT_HELPERS = [
   "resolveBySlug",
   "checkMembership",
   "workspaceFromApprovalToken",
+  // `lib/auth-guards.ts` — requireAuth + withTenantContext in one call.
+  "requireAction",
 ];
 
 // Routes that legitimately don't scope by workspace. Paths are relative
@@ -111,6 +113,8 @@ const ALLOWLIST = new Set<string>([
   // Compass "What's new" — public CHANGELOG passthrough. The CHANGELOG
   // ships in the repo, no DB access, no per-workspace data path.
   "compass/whats-new/route.ts",
+  // Public OpenAPI document for the /v1 API — static JSON, no DB access.
+  "v1/openapi.json/route.ts",
 ]);
 
 /**

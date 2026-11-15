@@ -90,3 +90,9 @@ export function scopesAllow(scopes: string[], domain: string, access: ScopeAcces
 export function missingScopeMessage(domain: string, access: ScopeAccess): string {
   return `This API key does not have the "${domain}:${access}" permission.`;
 }
+
+/** `scopesAllow` for a `<domain>:<access>` string, as the REST routes name it. */
+export function hasScope(scopes: string[], required: string): boolean {
+  const [domain = "", access] = required.split(":");
+  return scopesAllow(scopes, domain, access as ScopeAccess);
+}

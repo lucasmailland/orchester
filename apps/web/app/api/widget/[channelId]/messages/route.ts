@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { schema } from "@orchester/db";
-import { eq } from "drizzle-orm";
+import { and, asc, desc, eq, gt } from "drizzle-orm";
 import { handleInbound } from "@/lib/channels/router";
 import {
   enforceWidgetRateLimit,
@@ -71,4 +71,77 @@ export async function POST(req: Request, { params }: { params: Promise<{ channel
       { status: 500, headers: WIDGET_CORS_HEADERS }
     );
   }
+}
+
+export async function GET(req: Request, { params }: { params: Promise<{ channelId: string }> }) {
+  const { channelId } = await params;
+
+  // Public and anonymous, like POST: throttle before touching the database.
+  const limited = await enforceWidgetRateLimit(channelId, req.headers, "transcript");
+  if (limited) return limited;
+  const url = new URL(req.url);
+  const visitorId = String(url.searchParams.get("visitorId") ?? "").trim();
+  const sinceRaw = url.searchParams.get("since");
+  const sinceDate = sinceRaw ? new Date(sinceRaw) : null;
+  const since = sinceDate && !Number.isNaN(sinceDate.getTime()) ? sinceDate : null;
+  if (!visitorId) {
+    return NextResponse.json(
+      { error: "visitorId required" },
+      { status: 400, headers: WIDGET_CORS_HEADERS }
+    );
+  }
+
+  const result = await withCrossTenantAdmin("widget.transcript", async (tx) => {
+    const chRows = await tx
+      .select()
+      .from(schema.channels)
+      .where(eq(schema.channels.id, channelId))
+      .limit(1);
+    const channel = chRows[0];
+    if (
+      !channel ||
+      (channel.type !== "widget" && channel.type !== "web") ||
+      channel.status !== "active"
+    )
+      return null;
+
+    const convRows = await tx
+      .select()
+      .from(schema.conversations)
+      .where(
+        and(
+          eq(schema.conversations.workspaceId, channel.workspaceId),
+          eq(schema.conversations.channelId, channel.id),
+          eq(schema.conversations.externalId, visitorId)
+        )
+      )
+      .orderBy(desc(schema.conversations.createdAt))
+      .limit(1);
+    const conv = convRows[0];
+    if (!conv) return { messages: [], conversationId: null as string | null };
+
+    const rows = await tx
+      .select({
+        role: schema.messages.role,
+        content: schema.messages.content,
+        fromOperator: schema.messages.fromOperator,
+        createdAt: schema.messages.createdAt,
+      })
+      .from(schema.messages)
+      .where(
+        since
+          ? and(eq(schema.messages.conversationId, conv.id), gt(schema.messages.createdAt, since))
+          : eq(schema.messages.conversationId, conv.id)
+      )
+      .orderBy(asc(schema.messages.createdAt));
+    return { messages: rows, conversationId: conv.id };
+  });
+
+  if (result === null) {
+    return NextResponse.json(
+      { error: "Channel not found" },
+      { status: 404, headers: WIDGET_CORS_HEADERS }
+    );
+  }
+  return NextResponse.json(result, { headers: WIDGET_CORS_HEADERS });
 }

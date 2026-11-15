@@ -246,70 +246,88 @@ export function KnowledgeListClient({ kbs }: { kbs: KB[] }) {
         </div>
       ) : null}
 
-      {kbs.length === 0 && createFlow.phase === "hidden" ? (
-        <EmptyStateForKnowledgeBases newBaseLabel={t("newBase")} onCreate={createFlow.openPicker} />
-      ) : (
-        <TourSpot
-          tourId="knowledgeBases"
-          step={3}
-          titleKey="compass.tours.knowledgeBases.step3.title"
-          bodyKey="compass.tours.knowledgeBases.step3.body"
-        >
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {kbs.map((kb) => (
-              <motion.button
-                key={kb.id}
-                type="button"
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                onClick={() => router.push(`/${locale}/${ws}/knowledge/${kb.id}`)}
-                aria-label={`${t("openLabel")} ${kb.name}`}
-                className="rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
-              >
-                <div className="mb-2 flex items-center gap-2">
-                  <BookOpen className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-                  <span className="truncate font-medium text-strong">{kb.name}</span>
-                </div>
-                <p className="line-clamp-2 text-xs text-muted">{kb.description ?? "—"}</p>
-                <div className="mt-3 flex items-center gap-1.5 text-[10px] text-faint">
-                  <Sparkles className="h-3 w-3" aria-hidden="true" />
-                  <span className="text-muted">{t("providerLabel")}</span>
-                  <span className="font-mono">
-                    {kb.embeddingProvider}/{kb.embeddingModel}
-                  </span>
-                </div>
-              </motion.button>
-            ))}
-          </div>
-        </TourSpot>
-      )}
+      {(() => {
+        const nextSteps = (
+          <TourSpot
+            tourId="knowledgeBases"
+            step={4}
+            titleKey="compass.tours.knowledgeBases.step4.title"
+            bodyKey="compass.tours.knowledgeBases.step4.body"
+          >
+            <section aria-labelledby="kb-next-steps-title" className="pt-2">
+              <h2 id="kb-next-steps-title" className="mb-3 text-sm font-semibold text-strong">
+                {t("nextStepsTitle")}
+              </h2>
+              <NextStepGroup>
+                <NextStep
+                  href={`/${locale}/${ws}/knowledge`}
+                  icon={<ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />}
+                  title={t("nextStepUploadDocs.title")}
+                  body={t("nextStepUploadDocs.body")}
+                />
+                <NextStep
+                  href={`/${locale}/${ws}/agents`}
+                  icon={<Bot className="h-4 w-4" aria-hidden="true" />}
+                  title={t("nextStepConnectAgent.title")}
+                  body={t("nextStepConnectAgent.body")}
+                />
+              </NextStepGroup>
+            </section>
+          </TourSpot>
+        );
 
-      <TourSpot
-        tourId="knowledgeBases"
-        step={4}
-        titleKey="compass.tours.knowledgeBases.step4.title"
-        bodyKey="compass.tours.knowledgeBases.step4.body"
-      >
-        <section aria-labelledby="kb-next-steps-title" className="pt-2">
-          <h2 id="kb-next-steps-title" className="mb-3 text-sm font-semibold text-strong">
-            {t("nextStepsTitle")}
-          </h2>
-          <NextStepGroup>
-            <NextStep
-              href={`/${locale}/${ws}/knowledge`}
-              icon={<ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />}
-              title={t("nextStepUploadDocs.title")}
-              body={t("nextStepUploadDocs.body")}
-            />
-            <NextStep
-              href={`/${locale}/${ws}/agents`}
-              icon={<Bot className="h-4 w-4" aria-hidden="true" />}
-              title={t("nextStepConnectAgent.title")}
-              body={t("nextStepConnectAgent.body")}
-            />
-          </NextStepGroup>
-        </section>
-      </TourSpot>
+        if (kbs.length === 0 && createFlow.phase === "hidden") {
+          // SET-4: show guidance first so a fresh user sees it above the fold.
+          return (
+            <>
+              {nextSteps}
+              <EmptyStateForKnowledgeBases
+                newBaseLabel={t("newBase")}
+                onCreate={createFlow.openPicker}
+              />
+            </>
+          );
+        }
+
+        return (
+          <>
+            <TourSpot
+              tourId="knowledgeBases"
+              step={3}
+              titleKey="compass.tours.knowledgeBases.step3.title"
+              bodyKey="compass.tours.knowledgeBases.step3.body"
+            >
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                {kbs.map((kb) => (
+                  <motion.button
+                    key={kb.id}
+                    type="button"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    onClick={() => router.push(`/${locale}/${ws}/knowledge/${kb.id}`)}
+                    aria-label={`${t("openLabel")} ${kb.name}`}
+                    className="rounded-2xl border border-line bg-card p-4 text-left hover:border-violet-500/40"
+                  >
+                    <div className="mb-2 flex items-center gap-2">
+                      <BookOpen className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                      <span className="truncate font-medium text-strong">{kb.name}</span>
+                    </div>
+                    <p className="line-clamp-2 text-xs text-muted">{kb.description ?? "—"}</p>
+                    <div className="mt-3 flex items-center gap-1.5 text-[10px] text-faint">
+                      <Sparkles className="h-3 w-3" aria-hidden="true" />
+                      <span className="text-muted">{t("providerLabel")}</span>
+                      <span className="font-mono">
+                        {kb.embeddingProvider}/{kb.embeddingModel}
+                      </span>
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+            </TourSpot>
+            {nextSteps}
+          </>
+        );
+      })()}
 
       <TemplatePicker
         kind="knowledge"

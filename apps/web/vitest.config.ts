@@ -20,6 +20,24 @@ export default defineConfig({
     // concern, not vitest's. Excluding them here keeps `vitest run` clean
     // without disabling their normal Playwright workflow.
     exclude: ["node_modules/**", "dist/**", ".next/**", "**/__tests__/e2e/**"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json-summary"],
+      // Modest floors that the current suite clears; ratchet up as coverage grows.
+      thresholds: {
+        lines: 20,
+        functions: 20,
+        statements: 20,
+        branches: 15,
+      },
+      exclude: [
+        "**/__tests__/**",
+        "**/tests/**",
+        "**/*.config.*",
+        "**/.next/**",
+        "**/worker/.dist/**",
+      ],
+    },
   },
   resolve: {
     alias: {
