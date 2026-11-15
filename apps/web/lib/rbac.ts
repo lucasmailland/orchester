@@ -174,8 +174,14 @@ export class SystemAdminRequiredError extends Error {
   }
 }
 
-export function isSystemAdmin(email: string | null | undefined): boolean {
-  if (!email) return false;
+export function isSystemAdmin(
+  email: string | null | undefined,
+  emailVerified: boolean | null | undefined
+): boolean {
+  // The allowlist names addresses, so the address must be proven: otherwise
+  // whoever signs up first with a listed address that has no account yet
+  // becomes system admin.
+  if (!email || emailVerified !== true) return false;
   const raw = process.env["ADMIN_EMAILS"] ?? "";
   // Parse on each call. The env should be set at boot and not change
   // mid-process; the cost of splitting a short string is negligible
@@ -194,8 +200,11 @@ export function isSystemAdmin(email: string | null | undefined): boolean {
  * on the `ADMIN_EMAILS` allowlist. Pass the email from `requireAuth()`
  * — `null`/`undefined` is treated as not-admin (fail closed).
  */
-export function assertSystemAdmin(email: string | null | undefined): void {
-  if (!isSystemAdmin(email)) {
+export function assertSystemAdmin(
+  email: string | null | undefined,
+  emailVerified: boolean | null | undefined
+): void {
+  if (!isSystemAdmin(email, emailVerified)) {
     throw new SystemAdminRequiredError(email ?? null);
   }
 }

@@ -10,7 +10,7 @@ export type Role = "owner" | "admin" | "editor" | "viewer";
 
 export interface AuthContext {
   session: Session;
-  user: { id: string; email: string; name: string };
+  user: { id: string; email: string; name: string; emailVerified: boolean };
   workspace: { id: string; name: string; slug: string };
   role: Role;
 }
@@ -50,6 +50,7 @@ export async function requireAuth(
           id: session.user.id,
           email: session.user.email,
           name: session.user.name ?? "",
+          emailVerified: session.user.emailVerified === true,
         },
         // No tiene workspace → llenamos con stubs vacíos. El caller debe
         // chequear `workspaceOptional` antes de usar workspace.
@@ -60,6 +61,17 @@ export async function requireAuth(
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
   }
   const role = ws.role as Role;
+
+  // A suspended or deleted workspace is closed to its members. Callers that
+  // pass `workspaceOptional` (lifecycle, switching, restore) resolve the
+  // workspace they act on themselves and apply its own rules.
+  if (!opts.workspaceOptional && ws.workspace.status !== "active") {
+    const suspended = ws.workspace.status === "suspended";
+    return NextResponse.json(
+      { error: suspended ? "workspace_suspended" : "workspace_deleted" },
+      { status: suspended ? 423 : 410 }
+    );
+  }
 
   if (opts.minRole && !satisfiesRole(role, opts.minRole)) {
     return NextResponse.json(
@@ -74,6 +86,7 @@ export async function requireAuth(
       id: session.user.id,
       email: session.user.email,
       name: session.user.name ?? "",
+      emailVerified: session.user.emailVerified === true,
     },
     workspace: { id: ws.workspace.id, name: ws.workspace.name, slug: ws.workspace.slug },
     role,

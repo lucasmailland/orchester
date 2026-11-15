@@ -3,8 +3,9 @@ import { z } from "zod";
 import crypto from "node:crypto";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
-import { eq, desc, sql } from "drizzle-orm";
+import { and, eq, desc, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext, satisfiesRole, type Role } from "@/lib/auth-guards";
+import { ownedByWorkspace } from "@/lib/tenant/owned";
 import { hashApiKey } from "@/lib/api-auth/key";
 import { checkQuota } from "@/lib/billing/quotas";
 import { logAudit } from "@/lib/audit";
@@ -136,7 +137,12 @@ export async function DELETE(req: Request) {
     await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);
     const deleted = await tx
       .delete(schema.workspaceInvites)
-      .where(eq(schema.workspaceInvites.id, id))
+      .where(
+        and(
+          eq(schema.workspaceInvites.id, id),
+          eq(schema.workspaceInvites.workspaceId, ctx.workspace.id)
+        )
+      )
       .returning({ id: schema.workspaceInvites.id });
     return deleted[0]?.id ?? null;
   });

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { schema } from "@orchester/db";
 import { and, eq } from "drizzle-orm";
-import { requireAction } from "@/lib/auth-guards";
+import { requireAction, satisfiesRole, type Role } from "@/lib/auth-guards";
 import { logAudit } from "@/lib/audit";
 import { invalidateMembership } from "@/lib/tenant/membership";
 
@@ -82,6 +82,11 @@ export async function PATCH(req: Request) {
           .limit(1)
       )[0];
       if (!target) return { _err: "Member not found", _status: 404 };
+      // Only an owner changes someone at the caller's level or above: otherwise
+      // an admin could demote an owner and then remove them.
+      if (ctx.role !== "owner" && satisfiesRole(target.role as Role, ctx.role as Role)) {
+        return { _err: "Only an owner can change an admin or owner", _status: 403 };
+      }
 
       if (target.role === "owner" && role !== "owner") {
         const owners = await tx
@@ -158,6 +163,9 @@ export async function DELETE(req: Request) {
       if (!target) return { _err: "Member not found", _status: 404 };
       if (target.role === "owner") {
         return { _err: "Cannot remove owner", _status: 400 };
+      }
+      if (ctx.role !== "owner" && satisfiesRole(target.role as Role, ctx.role as Role)) {
+        return { _err: "Only an owner can remove an admin", _status: 403 };
       }
 
       await tx.delete(schema.workspaceMembers).where(eq(schema.workspaceMembers.id, target.id));

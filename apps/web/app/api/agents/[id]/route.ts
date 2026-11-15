@@ -10,6 +10,7 @@ import { mergeAgentConfig } from "@/lib/agents/tool-call-cap";
 import { adminErrorResponse, withAdminTx } from "@/lib/workspace-admin";
 import { unknownKbIds, withAgentKbIds } from "@/lib/agents/knowledge-bases";
 import { logAudit } from "@/lib/audit";
+import { ownedByWorkspace } from "@/lib/tenant/owned";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const workspace = await getCurrentWorkspace();
@@ -57,6 +58,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     responseFormat,
     outputSchema,
   } = parsed.data;
+
+  // A team or flow from another workspace must not be attached to this agent.
+  const db = getDb();
+  if (teamId && !(await ownedByWorkspace(db, schema.teams, ctx.workspace.id, [teamId])))
+    return NextResponse.json({ error: "Unknown team" }, { status: 400 });
+  if (flowId && !(await ownedByWorkspace(db, schema.flows, ctx.workspace.id, [flowId])))
+    return NextResponse.json({ error: "Unknown flow" }, { status: 400 });
 
   // `config` is shared by several settings (knowledge bases, tool-call cap):
   // each one is merged into the stored object instead of replacing it.

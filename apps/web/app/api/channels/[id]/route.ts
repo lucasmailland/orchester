@@ -5,6 +5,7 @@ import { getDb, schema } from "@orchester/db";
 import { eq, and, sql } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { ownedByWorkspace } from "@/lib/tenant/owned";
 import { encrypt } from "@/lib/encryption";
 import { telegramSetWebhook, telegramGetMe, newWebhookSecret } from "@/lib/channels/telegram";
 import { slackAuthTest } from "@/lib/channels/slack";
@@ -57,6 +58,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
   const db = getDb();
+  if (
+    body.agentId &&
+    !(await ownedByWorkspace(db, schema.agents, ctx.workspace.id, [body.agentId]))
+  )
+    return NextResponse.json({ error: "Unknown agent" }, { status: 400 });
 
   const set: Record<string, unknown> = { updatedAt: new Date() };
   if (body.name !== undefined) set.name = body.name;

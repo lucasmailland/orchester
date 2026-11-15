@@ -961,12 +961,13 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     if (!agentId) throw new Error("Falta elegir el agente en este paso.");
     // `prompt` (registry) se antepone al mensaje entrante; `message` es el legado.
     const userMessage = buildAgentUserMessage(cfg, ctx.variables);
-    // R2-C: agent lookup needs the workspace GUC (FORCE RLS).
+    // The flow is the workspace's, so the agent must be too: RLS is off in the
+    // single-tenant deploy, and the GUC alone would not stop another workspace's id.
     const agent = await withFlowTx(workspaceId, async (tx) => {
       const aRows = await tx
         .select()
         .from(schema.agents)
-        .where(eq(schema.agents.id, agentId))
+        .where(and(eq(schema.agents.id, agentId), eq(schema.agents.workspaceId, workspaceId)))
         .limit(1);
       return aRows[0];
     });

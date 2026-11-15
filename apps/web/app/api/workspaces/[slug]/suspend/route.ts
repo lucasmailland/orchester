@@ -47,7 +47,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   if (ctx instanceof Response) return ctx;
 
   try {
-    assertSystemAdmin(ctx.user.email);
+    assertSystemAdmin(ctx.user.email, ctx.user.emailVerified);
   } catch (e) {
     if (e instanceof SystemAdminRequiredError) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -87,7 +87,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (ctx instanceof Response) return ctx;
 
   try {
-    assertSystemAdmin(ctx.user.email);
+    assertSystemAdmin(ctx.user.email, ctx.user.emailVerified);
   } catch (e) {
     if (e instanceof SystemAdminRequiredError) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });

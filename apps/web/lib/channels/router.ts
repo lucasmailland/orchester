@@ -785,7 +785,9 @@ async function runConversationalLoop(
           const newAgentRows = await db
             .select()
             .from(schema.agents)
-            .where(eq(schema.agents.id, newAgentId))
+            .where(
+              and(eq(schema.agents.id, newAgentId), eq(schema.agents.workspaceId, workspaceId))
+            )
             .limit(1);
           if (newAgentRows[0]) {
             activeAgent = newAgentRows[0];

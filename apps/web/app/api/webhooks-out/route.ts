@@ -4,7 +4,6 @@ import { createId } from "@paralleldrive/cuid2";
 import crypto from "node:crypto";
 import { getDb, schema } from "@orchester/db";
 import { eq, desc } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
@@ -15,13 +14,15 @@ const createWebhookSchema = z.object({
 });
 
 export async function GET() {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Managing outbound webhooks is admin-only; the signing secret lets whoever
+  // holds it forge events to the receiver, so only admins see it.
+  const ctx = await requireAuth({ minRole: "admin" });
+  if (!isAuthContext(ctx)) return ctx;
   const db = getDb();
   const rows = await db
     .select()
     .from(schema.outboundWebhooks)
-    .where(eq(schema.outboundWebhooks.workspaceId, ws.workspace.id))
+    .where(eq(schema.outboundWebhooks.workspaceId, ctx.workspace.id))
     .orderBy(desc(schema.outboundWebhooks.createdAt));
   return NextResponse.json(rows);
 }
