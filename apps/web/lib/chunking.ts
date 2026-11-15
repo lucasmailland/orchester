@@ -106,6 +106,10 @@ export async function extractTextFromBuffer(buffer: Buffer, contentType: string)
     return parsed.text ?? "";
   }
   if (contentType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+    // mammoth inflates whatever the archive declares: a 100 KB zip bomb took
+    // ~290 MB. Bound the archive before handing it over.
+    const { assertZipBounded } = await import("@/lib/integrations/attachment-table");
+    assertZipBounded(buffer);
     const mod = (await import("mammoth")) as unknown as {
       extractRawText: (opts: { buffer: Buffer }) => Promise<{ value: string }>;
     };

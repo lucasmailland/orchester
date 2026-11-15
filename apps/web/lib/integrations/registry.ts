@@ -360,8 +360,8 @@ const postgres: Connector = {
     const cs = config.connectionString ?? "";
     if (!cs) return { ok: false, error: "Connection string required" };
     try {
-      const { assertPublicDbHost } = await import("@/lib/net-guard");
-      assertPublicDbHost(cs);
+      const { assertPublicDbConnection } = await import("@/lib/net-guard");
+      await assertPublicDbConnection(cs);
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : "host blocked" };
     }
@@ -391,8 +391,12 @@ const postgres: Connector = {
         ) {
           throw new Error("Only read-only queries are allowed (SELECT/WITH).");
         }
-        const { assertPublicDbHost } = await import("@/lib/net-guard");
-        assertPublicDbHost(config.connectionString ?? "");
+        // Without parameters postgres.js runs every statement in the string, so
+        // `select 1; commit; delete …` would end the read-only transaction.
+        const { isSingleStatement } = await import("@/lib/integrations/sql-guard");
+        if (!isSingleStatement(raw)) throw new Error("Only one statement per query is allowed.");
+        const { assertPublicDbConnection } = await import("@/lib/net-guard");
+        await assertPublicDbConnection(config.connectionString ?? "");
         const { default: pg } = await import("postgres");
         const sql = pg(config.connectionString ?? "", {
           max: 1,

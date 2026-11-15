@@ -3,6 +3,8 @@ import type { AddressInfo } from "node:net";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   _setResolverForTests,
+  assertPublicDbConnection,
+  assertPublicEndpoint,
   assertPublicDbHost,
   assertPublicUrl,
   BlockedDestinationError,
@@ -207,5 +209,69 @@ describe("readBodyCapped", () => {
     });
     await expect(readBodyCapped(new Response(stream), 10)).rejects.toThrow(ResponseTooLargeError);
     expect(pulled).toBeLessThan(10);
+  });
+});
+
+describe("assertPublicDbConnection", () => {
+  afterEach(() => _setResolverForTests(undefined));
+
+  it.each([
+    // postgres.js decodes %-escapes and reads commas as several hosts.
+    "postgres://u:p@%31%32%37.0.0.1,%31%32%37.0.0.1:5432/db",
+    "postgres://u:p@db.example.com,127.0.0.1/db",
+    "postgres://u:p@db.example.com/db?host=127.0.0.1",
+    "postgres://u:p@db.example.com/db?hostaddr=10.0.0.5",
+    "x://u:p@db.example.com/db",
+    "postgres://u:p@127.0.0.1:5432/db",
+  ])("refuses %s", async (cs) => {
+    _setResolverForTests(async () => [{ address: "93.184.215.14", family: 4 }]);
+    await expect(assertPublicDbConnection(cs)).rejects.toThrow();
+  });
+
+  it("refuses a public-looking name that resolves to an internal address", async () => {
+    _setResolverForTests(async () => [{ address: "127.0.0.1", family: 4 }]);
+    await expect(
+      assertPublicDbConnection("postgres://u:p@127.0.0.1.nip.io:5432/db")
+    ).rejects.toThrow(BlockedDestinationError);
+  });
+
+  it("accepts a name that resolves only to public addresses", async () => {
+    _setResolverForTests(async () => [{ address: "93.184.215.14", family: 4 }]);
+    await expect(
+      assertPublicDbConnection("postgresql://u:p%40ss@db.example.com:5432/app?sslmode=require")
+    ).resolves.toBeUndefined();
+  });
+});
+
+describe("assertPublicEndpoint", () => {
+  afterEach(() => _setResolverForTests(undefined));
+
+  it("lets a bare Bedrock region and an empty endpoint through", async () => {
+    await expect(assertPublicEndpoint("us-east-1")).resolves.toBeUndefined();
+    await expect(assertPublicEndpoint(null)).resolves.toBeUndefined();
+  });
+
+  it.each([
+    "http://10.0.0.5/any/path#",
+    "https://api.example.com/v1?x=1",
+    "http://169.254.169.254",
+    "file:///etc/passwd",
+  ])("refuses %s", async (endpoint) => {
+    _setResolverForTests(async () => [{ address: "93.184.215.14", family: 4 }]);
+    await expect(assertPublicEndpoint(endpoint)).rejects.toThrow();
+  });
+
+  it("refuses a name that resolves to an internal address", async () => {
+    _setResolverForTests(async () => [{ address: "10.0.0.5", family: 4 }]);
+    await expect(assertPublicEndpoint("https://llm.example.com/v1")).rejects.toThrow(
+      BlockedDestinationError
+    );
+  });
+
+  it("accepts a public base URL", async () => {
+    _setResolverForTests(async () => [{ address: "93.184.215.14", family: 4 }]);
+    await expect(
+      assertPublicEndpoint("https://my-azure.openai.azure.com")
+    ).resolves.toBeUndefined();
   });
 });

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assertPublicEndpoint } from "@/lib/net-guard";
 import { getDb, schema } from "@orchester/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
@@ -27,7 +28,14 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const apiKey = decrypt(row.apiKey);
-  const result = await testProviderConnection(row.provider, apiKey, row.endpoint);
+  const result = await assertPublicEndpoint(row.endpoint).then(
+    () => testProviderConnection(row.provider, apiKey, row.endpoint),
+    (e: unknown) => ({
+      ok: false as const,
+      error: e instanceof Error ? e.message : "Endpoint not allowed",
+      models: undefined,
+    })
+  );
   // Update result back, again under GUC.
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);

@@ -12,6 +12,8 @@ import { readBodyCapped, safeFetch } from "@/lib/net-guard";
 
 /** Largest document the URL source downloads. */
 const KB_URL_MAX_BYTES = 20 * 1024 * 1024;
+/** Largest document an upload may carry: same bound as the URL source. */
+const KB_FILE_MAX_BYTES = KB_URL_MAX_BYTES;
 
 const ingestJsonSchema = z.object({
   title: z.string().optional(),
@@ -73,6 +75,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "file field required" }, { status: 400 });
     }
+    if (file.size > KB_FILE_MAX_BYTES)
+      return NextResponse.json({ error: "File too large (max 20 MB)" }, { status: 413 });
     fileBuffer = Buffer.from(await file.arrayBuffer());
     detectedFileType = file.type || guessTypeFromName(file.name);
     payload = {
@@ -85,6 +89,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!parsed.ok) return parsed.response;
     payload = { ...parsed.data, title: parsed.data.title ?? "" } as IngestPayload;
     if (payload.source === "file" && payload.binaryBase64) {
+      if ((payload.binaryBase64.length * 3) / 4 > KB_FILE_MAX_BYTES)
+        return NextResponse.json({ error: "File too large (max 20 MB)" }, { status: 413 });
       fileBuffer = Buffer.from(payload.binaryBase64, "base64");
       detectedFileType = payload.contentType ?? null;
     }

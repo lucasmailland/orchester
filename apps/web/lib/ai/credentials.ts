@@ -1,4 +1,5 @@
 import "server-only";
+import { assertPublicEndpoint } from "@/lib/net-guard";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
 import { decrypt } from "../encryption";
@@ -36,6 +37,7 @@ export async function loadCredential(workspaceId: string, providerId: string): P
     .limit(1);
   const row = rows[0];
   if (!row || !row.enabled) throw new ProviderNotConnectedError(providerId);
+  await assertPublicEndpoint(row.endpoint);
   return {
     apiKey: decrypt(row.apiKey),
     endpoint: row.endpoint ?? undefined,

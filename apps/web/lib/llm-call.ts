@@ -7,6 +7,7 @@ import { type ProviderType } from "./providers";
 import { normalizeToolOutput } from "./tool-output";
 import { resolveModel } from "./ai/catalog";
 import { DEFAULT_MAX_TOKENS } from "./ai/output-limit";
+import { assertPublicEndpoint } from "./net-guard";
 import { fetchWithTimeout, fetchStreamWithConnectTimeout, withRetry, HttpError } from "./http-util";
 import { recordMetric, logWithContext } from "./observability";
 import type {
@@ -231,6 +232,8 @@ async function getProviderKey(
     .limit(1);
   const row = rows[0];
   if (!row || !row.enabled) throw new ProviderNotConfiguredError(provider);
+  // The endpoint is typed by the workspace: an internal address must not be reachable.
+  await assertPublicEndpoint(row.endpoint);
   return { apiKey: decrypt(row.apiKey), endpoint: row.endpoint };
 }
 

@@ -8,6 +8,7 @@ import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { encrypt, maskKey, decrypt } from "@/lib/encryption";
 import { logAudit } from "@/lib/audit";
 import { parseBody } from "@/lib/validation";
+import { assertPublicEndpoint } from "@/lib/net-guard";
 
 const connectProviderSchema = z.object({
   provider: z.string().min(1, "provider and apiKey required"),
@@ -85,6 +86,14 @@ export async function POST(req: Request) {
   const { provider, apiKey, endpoint } = parsed.data;
   if (!apiKey.trim())
     return NextResponse.json({ error: "provider and apiKey required" }, { status: 400 });
+  try {
+    await assertPublicEndpoint(endpoint);
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Endpoint not allowed" },
+      { status: 400 }
+    );
+  }
 
   const db = getDb();
   const existing = await db

@@ -199,6 +199,71 @@ export function assertPublicDbHost(connectionString: string): void {
   }
 }
 
+/**
+ * A provider `endpoint` the workspace typed (Azure, Bedrock VPC, an
+ * OpenAI-compatible server). It is a base URL the client appends paths to, so
+ * a query or fragment (which would swallow the appended path) is refused, and
+ * its name is resolved and every address checked. A bare Bedrock region
+ * ("us-east-1") is not a URL and passes.
+ *
+ * ponytail: resolved here, not pinned on the socket (see assertPublicDbConnection).
+ */
+export async function assertPublicEndpoint(endpoint: string | null | undefined): Promise<void> {
+  const raw = (endpoint ?? "").trim();
+  if (!raw || !raw.includes("://")) return;
+  const url = assertPublicUrl(raw);
+  if (/[?#]/.test(raw)) {
+    throw new BlockedDestinationError("El endpoint no puede llevar query ni fragmento.");
+  }
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  if (isIP(host) || isAllowedHost(host)) return;
+  const addresses = await (resolverOverride ?? systemResolver)(host);
+  if (addresses.length === 0 || addresses.some((a) => isBlockedAddress(a.address))) {
+    throw new BlockedDestinationError();
+  }
+}
+
+/** Connection-string params that would point postgres.js at another host. */
+const DB_HOST_PARAMS = ["host", "hostaddr", "port", "service", "options"];
+
+/**
+ * `assertPublicDbHost`, plus what it cannot see from the string alone:
+ * postgres.js reads a comma in the host as a list of hosts and decodes
+ * %-escapes, and a public-looking name can resolve to an internal address.
+ * Neither form is accepted, and the name is resolved and every address checked.
+ *
+ * ponytail: checked when resolved, not pinned on the socket; an answer that
+ * changes between this check and the connection (DNS rebinding) gets through.
+ * Pin the address in the connection options if that becomes a concern.
+ */
+export async function assertPublicDbConnection(connectionString: string): Promise<void> {
+  const authority = /^postgres(?:ql)?:\/\/([^/?#]*)/i.exec(connectionString)?.[1];
+  if (authority === undefined) {
+    throw new Error("La connection string tiene que empezar con postgres:// o postgresql://");
+  }
+  const hostPort = authority.slice(authority.lastIndexOf("@") + 1);
+  if (!hostPort || /[,%]/.test(hostPort)) {
+    throw new BlockedDestinationError(
+      "La connection string tiene un host que no se puede verificar."
+    );
+  }
+  assertPublicDbHost(connectionString);
+  const url = new URL(connectionString.replace(/^postgres(ql)?:\/\//i, "https://"));
+  if (DB_HOST_PARAMS.some((k) => url.searchParams.has(k))) {
+    throw new BlockedDestinationError(
+      "La connection string no puede cambiar el host por parámetros."
+    );
+  }
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  if (isIP(host) || isAllowedHost(host)) return;
+  const addresses = await (resolverOverride ?? systemResolver)(host);
+  if (addresses.length === 0 || addresses.some((a) => isBlockedAddress(a.address))) {
+    throw new BlockedDestinationError(
+      "La base apunta a un host interno/privado y esta bloqueada por seguridad."
+    );
+  }
+}
+
 // ─── Connection-time check ─────────────────────────────────────────────────
 
 type ResolvedAddress = { address: string; family: number };
