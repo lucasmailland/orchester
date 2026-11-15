@@ -5,9 +5,28 @@
 
 let warnedDevAuthSecret = false;
 
+/**
+ * In production, refuse a secret that is a placeholder from .env.example or
+ * the docs (anyone can read them, so anyone could sign with it) or too short to
+ * be random.
+ */
+export function assertUsableSecret(name: string, secret: string): void {
+  if (process.env["NODE_ENV"] !== "production") return;
+  if (process.env["NEXT_PHASE"] === "phase-production-build") return;
+  const placeholder = /generate-with|change-?me|replace-?me|your[-_ ]?secret|dev-secret|example/i;
+  if (secret.length < 16 || placeholder.test(secret)) {
+    throw new Error(
+      `${name} looks like a placeholder or is too short. Generate one: openssl rand -base64 32`
+    );
+  }
+}
+
 export function resolveAuthSecret(): string {
   const secret = process.env["BETTER_AUTH_SECRET"] ?? process.env["AUTH_SECRET"];
-  if (secret) return secret;
+  if (secret) {
+    assertUsableSecret("BETTER_AUTH_SECRET", secret);
+    return secret;
+  }
   // `next build` imports lib/auth.ts while collecting page data, with
   // NODE_ENV=production and no runtime secrets (deploy/Dockerfile). Nothing
   // is signed during the build, so only a running server must have the secret.

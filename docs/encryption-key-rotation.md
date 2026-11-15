@@ -17,10 +17,10 @@ it can be rotated without downtime and without manual re-encryption.
 
 ## Environment variables
 
-| Var | Required | Meaning |
-| --- | --- | --- |
-| `ENCRYPTION_SECRET` | yes | 32-byte hex (64 chars). Always registered as **version 1**. Same name and key derivation as before — existing deployments and ciphertext are unaffected. |
-| `ENCRYPTION_KEYS` | no | Additional keys for rotation. The **highest** registered version becomes the current write key. |
+| Var                 | Required | Meaning                                                                                                                                                  |
+| ------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ENCRYPTION_SECRET` | yes      | 32-byte hex (64 chars). Always registered as **version 1**. Same name and key derivation as before — existing deployments and ciphertext are unaffected. |
+| `ENCRYPTION_KEYS`   | no       | Additional keys for rotation. The **highest** registered version becomes the current write key.                                                          |
 
 `ENCRYPTION_KEYS` accepts either:
 
@@ -36,8 +36,8 @@ startup throws.
 1. **Generate a new key:** `openssl rand -hex 32`.
 2. **Register it at a higher version while keeping the old key available.**
    Going from v1 → v2:
-   - `ENCRYPTION_SECRET=<old v1 hex>`  (keeps v1 available for decrypt)
-   - `ENCRYPTION_KEYS=2:<new v2 hex>`  (v2 is now the current write key)
+   - `ENCRYPTION_SECRET=<old v1 hex>` (keeps v1 available for decrypt)
+   - `ENCRYPTION_KEYS=2:<new v2 hex>` (v2 is now the current write key)
 3. **Deploy.** New writes use v2; existing v1 (and legacy unversioned) ciphertext
    still decrypts via the registered v1 key.
 4. **Migrate stored data** with the re-encrypt script (dry-run first):
@@ -61,7 +61,9 @@ startup throws.
 - **Flags:** `--dry-run` (or `DRY_RUN=1`) reports would-be changes without writing.
 
 The script intentionally mirrors the keyring logic from `lib/encryption.ts`
-rather than importing it, because that module is `server-only`. DB access follows
-the same raw `postgres` tagged-template pattern as the pre-existing
-`apps/web/scripts/rotate-encryption-secret.ts`.
+rather than importing it, because that module is `server-only`. It exits non-zero
+when any row fails to decrypt: do not retire a key until it runs clean.
 
+The old `rotate-encryption-secret` script was removed: it only understood the
+pre-versioning format, skipped every current (`v1:`) row and still printed a new
+secret, so following it made every stored credential undecryptable.

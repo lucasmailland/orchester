@@ -67,6 +67,7 @@ export async function assertSafeDbRole(): Promise<void> {
   }
 
   const { rolname, rolsuper, rolbypassrls } = rows[0]!;
+  warnOnPublicDefaultPassword(process.env["DATABASE_URL"]);
   if (!rolsuper && !rolbypassrls) {
     // All clear. Layer 2 of defense-in-depth holds; layer 1 (the
     // SET LOCAL ROLE in tx wrappers) is the safety net.
@@ -94,4 +95,31 @@ export async function assertSafeDbRole(): Promise<void> {
   // Dev / test: warn but don't block. The tx wrappers' SET LOCAL ROLE
   // still keeps RLS effective for callers that go through them.
   safeLogError("[db-role-check]", msg);
+}
+
+/**
+ * Migration 0007 creates `app_user` with the password `app`, which is in this
+ * public repository. Anyone who can reach the database can then log in with
+ * read and write on every table. Not fatal (rotating it needs the operator),
+ * but said loudly at every boot until the password is changed:
+ *
+ *   ALTER ROLE app_user PASSWORD '<new>';  -- then set APP_DB_PASSWORD / DATABASE_URL
+ */
+export function warnOnPublicDefaultPassword(databaseUrl: string | undefined): boolean {
+  let url: URL;
+  try {
+    url = new URL(databaseUrl ?? "");
+  } catch {
+    return false;
+  }
+  const isDefault =
+    decodeURIComponent(url.username) === "app_user" && decodeURIComponent(url.password) === "app";
+  if (isDefault) {
+    safeLogError(
+      "[db-role-check]",
+      "DATABASE_URL uses app_user with the default password 'app', which is public in the " +
+        "orchester repository. Rotate it: ALTER ROLE app_user PASSWORD '<new>', then set it in DATABASE_URL."
+    );
+  }
+  return isDefault;
 }

@@ -39,6 +39,16 @@ describe("SEC-6 — resolveAuthSecret", () => {
     warn.mockRestore();
   });
 
+  it("PRODUCTION: refuses the .env.example placeholder and short secrets", async () => {
+    (process.env as Record<string, string | undefined>)["NODE_ENV"] = "production";
+    const { resolveAuthSecret } = await import("@/lib/auth-secret");
+    process.env["BETTER_AUTH_SECRET"] = "generate-with: openssl rand -base64 32";
+    expect(() => resolveAuthSecret()).toThrow(/placeholder/);
+    process.env["BETTER_AUTH_SECRET"] = "short";
+    expect(() => resolveAuthSecret()).toThrow(/placeholder|too short/);
+    delete process.env["BETTER_AUTH_SECRET"];
+  });
+
   it("accepts AUTH_SECRET as an alias", async () => {
     (process.env as Record<string, string | undefined>)["NODE_ENV"] = "production";
     process.env["AUTH_SECRET"] = "an-aliased-production-secret-32chars";

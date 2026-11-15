@@ -13,6 +13,11 @@ node_modules
 .env.local
 .env.development
 .env.production
+# Only the root ones above match at the root: next build copies apps/web/.env*
+# into the standalone output, so a local build would bake those secrets in.
+**/.env
+**/.env.*
+!**/.env.example
 .agents
 docs
 .superpowers

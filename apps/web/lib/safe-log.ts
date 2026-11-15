@@ -31,6 +31,13 @@ const PATTERNS: Array<[RegExp, string]> = [
   [/(postgres(?:ql)?:\/\/[^:@\s]+):([^@\s]+)@/gi, "$1:***REDACTED***@"],
   // JWT (3 segmentos base64url)
   [/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "eyJ***REDACTED***"],
+  // Other key formats this app holds or proxies: Orchester and Mnemosyne API
+  // keys, Stripe secret and webhook keys, GitHub and GitLab tokens.
+  [/\b(ok|mns)_live_[A-Za-z0-9_-]{8,}/g, "$1_live_***REDACTED***"],
+  [/\b(sk|rk)_live_[A-Za-z0-9]{16,}/g, "$1_live_***REDACTED***"],
+  [/\bwhsec_[A-Za-z0-9]{16,}/g, "whsec_***REDACTED***"],
+  [/\bgh[pousr]_[A-Za-z0-9]{30,}/g, "gh*_***REDACTED***"],
+  [/\bglpat-[A-Za-z0-9_-]{16,}/g, "glpat-***REDACTED***"],
 ];
 
 export function redactSecrets(input: unknown): string {

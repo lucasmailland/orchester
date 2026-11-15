@@ -207,11 +207,17 @@ Procedimiento (tomá 5 minutos):
 Procedimiento de emergencia:
 
 1. **Cortar acceso a la DB** desde internet (firewall/security group).
-2. **Rotar `ENCRYPTION_SECRET`** — todas las API keys cifradas se vuelven inservibles para el atacante:
+2. **Rotar la clave de cifrado** — todas las API keys cifradas se vuelven inservibles para el atacante
+   (procedimiento completo en [`docs/encryption-key-rotation.md`](encryption-key-rotation.md)):
    ```bash
-   DATABASE_URL=... ENCRYPTION_SECRET=<viejo> ./scripts/rotate-encryption-secret.sh
+   openssl rand -hex 32                     # clave nueva
+   # ENCRYPTION_KEYS=2:<nueva>  (ENCRYPTION_SECRET queda como v1), deploy de web + worker
+   DATABASE_URL=... ENCRYPTION_SECRET=<v1> ENCRYPTION_KEYS=2:<nueva> \
+     pnpm --filter web exec tsx scripts/reencrypt-credentials.ts --dry-run
+   DATABASE_URL=... ENCRYPTION_SECRET=<v1> ENCRYPTION_KEYS=2:<nueva> \
+     pnpm --filter web exec tsx scripts/reencrypt-credentials.ts
    ```
-   Actualizar `ENCRYPTION_SECRET` en config + reiniciar web/worker.
+   Recién cuando el re-cifrado terminó sin errores, la v1 deja de hacer falta.
 3. **Forzar logout global** (todos los users vuelven a loguear):
    ```sql
    DELETE FROM session;
@@ -303,9 +309,10 @@ Procedimiento de zero-downtime imposible — necesita stop-the-world breve.
 # 2. Pausá web + worker
 docker compose stop web worker
 
-# 3. Rota el secret
-DATABASE_URL=... ENCRYPTION_SECRET=<viejo> ./scripts/rotate-encryption-secret.sh
-# El script imprime el nuevo. Pegalo en .env / secret manager.
+# 3. Rotá la clave: agregá la nueva en ENCRYPTION_KEYS a una versión mayor
+#    (ver docs/encryption-key-rotation.md) y re-cifrá lo guardado
+DATABASE_URL=... ENCRYPTION_SECRET=<v1> ENCRYPTION_KEYS=2:<nueva> \
+  pnpm --filter web exec tsx scripts/reencrypt-credentials.ts
 
 # 4. Levantá web + worker con el nuevo
 docker compose up -d web worker
