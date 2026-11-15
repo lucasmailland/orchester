@@ -9,7 +9,6 @@ describe("safeReturnPath", () => {
   it.each([
     "/\t/evil.com",
     "/\n/evil.com",
-    "/%09/evil.com".replace("%09", "\t"),
     "//evil.com",
     "/\\evil.com",
     "https://evil.com",
