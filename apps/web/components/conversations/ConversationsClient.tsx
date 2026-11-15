@@ -1,7 +1,7 @@
 "use client";
 
 import { Markdown } from "@/components/ui/Markdown";
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   Search,
   X,
@@ -76,18 +76,32 @@ interface Label {
   color: string;
 }
 
-export function ConversationsClient({ agents, labels }: { agents: Agent[]; labels: Label[] }) {
+interface InitialData {
+  rows: Conv[];
+  hasMore: boolean;
+  nextOffset: number | null;
+}
+
+export function ConversationsClient({
+  agents,
+  labels,
+  initialData,
+}: {
+  agents: Agent[];
+  labels: Label[];
+  initialData?: InitialData;
+}) {
   const t = useTranslations("pages.conversations");
   const STATUS_LABEL: Record<string, string> = {
     open: t("status.open"),
     closed: t("status.closed"),
     escalated: t("status.escalated"),
   };
-  const [conversations, setConversations] = useState<Conv[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [conversations, setConversations] = useState<Conv[]>(initialData?.rows ?? []);
+  const [loading, setLoading] = useState(!initialData);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [hasMore, setHasMore] = useState(initialData?.hasMore ?? false);
+  const [nextOffset, setNextOffset] = useState<number | null>(initialData?.nextOffset ?? null);
   const [filters, setFilters] = useState({
     status: "",
     channel: "",
@@ -162,7 +176,14 @@ export function ConversationsClient({ agents, labels }: { agents: Agent[]; label
     setLoadingMore(false);
   }
 
+  const isFirstRender = useRef(true);
   useEffect(() => {
+    // Skip the initial client fetch when the server already sent SSR data.
+    if (isFirstRender.current && initialData) {
+      isFirstRender.current = false;
+      return;
+    }
+    isFirstRender.current = false;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
@@ -302,6 +323,7 @@ export function ConversationsClient({ agents, labels }: { agents: Agent[]; label
             >
               <SelectItem key="widget">{t("channel.widget")}</SelectItem>
               <SelectItem key="telegram">{t("channel.telegram")}</SelectItem>
+              <SelectItem key="web">{t("channel.web")}</SelectItem>
               <SelectItem key="whatsapp">{t("channel.whatsapp")}</SelectItem>
               <SelectItem key="slack">{t("channel.slack")}</SelectItem>
               <SelectItem key="discord">{t("channel.discord")}</SelectItem>
@@ -527,18 +549,30 @@ function ConversationDrawer({
 
   async function takeOver() {
     setBusy(true);
-    await fetch(`/api/conversations/${conversation.id}/takeover`, { method: "POST" });
-    setBusy(false);
-    toast.success(t("actions.taken"));
-    onUpdated();
+    try {
+      const r = await fetch(`/api/conversations/${conversation.id}/takeover`, { method: "POST" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      toast.success(t("actions.taken"));
+      onUpdated();
+    } catch {
+      toast.error(t("actions.takeoverError"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function release() {
     setBusy(true);
-    await fetch(`/api/conversations/${conversation.id}/takeover`, { method: "DELETE" });
-    setBusy(false);
-    toast.success(t("actions.returned"));
-    onUpdated();
+    try {
+      const r = await fetch(`/api/conversations/${conversation.id}/takeover`, { method: "DELETE" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      toast.success(t("actions.returned"));
+      onUpdated();
+    } catch {
+      toast.error(t("actions.releaseError"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function sendReply() {
@@ -551,10 +585,15 @@ function ConversationDrawer({
     });
     setBusy(false);
     if (r.ok) {
+      const j = (await r.json()) as { ok: boolean; message?: Msg };
       setReply("");
       toast.success(t("actions.sent"));
-      const j = await fetch(`/api/conversations/${conversation.id}`).then((x) => x.json());
-      setMessages(j?.messages ?? []);
+      if (j.message) {
+        setMessages((prev) => [...prev, j.message!]);
+      } else {
+        const data = await fetch(`/api/conversations/${conversation.id}`).then((x) => x.json());
+        setMessages((data as { messages?: Msg[] })?.messages ?? []);
+      }
     } else toast.error(t("actions.sendError"));
   }
 

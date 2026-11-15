@@ -198,6 +198,36 @@ export function FlowsListClient({ flows: initialFlows }: { flows: Item[] }) {
     </TourSpot>
   );
 
+  const isEmpty = flows.length === 0 && createFlow.phase === "hidden";
+  const nextSteps = (
+    <section aria-labelledby="flows-next-steps-title" className="pt-2">
+      <h2 id="flows-next-steps-title" className="mb-3 text-sm font-semibold text-strong">
+        {t("nextStepsTitle")}
+      </h2>
+      <TourSpot
+        tourId="flows"
+        step={4}
+        titleKey="compass.tours.flows.step4.title"
+        bodyKey="compass.tours.flows.step4.body"
+      >
+        <NextStepGroup>
+          <NextStep
+            href={`/${locale}/${workspaceSlug}/channels`}
+            icon={<KeyRound className="h-4 w-4" aria-hidden="true" />}
+            title={t("nextStepConnectChannel.title")}
+            body={t("nextStepConnectChannel.body")}
+          />
+          <NextStep
+            href={`/${locale}/${workspaceSlug}/knowledge`}
+            icon={<BookOpenText className="h-4 w-4" aria-hidden="true" />}
+            title={t("nextStepAddKnowledge.title")}
+            body={t("nextStepAddKnowledge.body")}
+          />
+        </NextStepGroup>
+      </TourSpot>
+    </section>
+  );
+
   return (
     <div className="space-y-6 p-6">
       <NoProviderBanner />
@@ -267,8 +297,12 @@ export function FlowsListClient({ flows: initialFlows }: { flows: Item[] }) {
         </div>
       ) : null}
 
-      {flows.length === 0 && createFlow.phase === "hidden" ? (
-        <EmptyStateForFlows newFlowLabel={t("newFlow")} onCreate={handleStartCreate} />
+      {isEmpty ? (
+        // SET-4: show guidance first so a fresh user sees it above the fold.
+        <>
+          {nextSteps}
+          <EmptyStateForFlows newFlowLabel={t("newFlow")} onCreate={handleStartCreate} />
+        </>
       ) : (
         <TourSpot
           tourId="flows"
@@ -412,32 +446,7 @@ export function FlowsListClient({ flows: initialFlows }: { flows: Item[] }) {
         />
       ) : null}
 
-      <section aria-labelledby="flows-next-steps-title" className="pt-2">
-        <h2 id="flows-next-steps-title" className="mb-3 text-sm font-semibold text-strong">
-          {t("nextStepsTitle")}
-        </h2>
-        <TourSpot
-          tourId="flows"
-          step={4}
-          titleKey="compass.tours.flows.step4.title"
-          bodyKey="compass.tours.flows.step4.body"
-        >
-          <NextStepGroup>
-            <NextStep
-              href={`/${locale}/${workspaceSlug}/channels`}
-              icon={<KeyRound className="h-4 w-4" aria-hidden="true" />}
-              title={t("nextStepConnectChannel.title")}
-              body={t("nextStepConnectChannel.body")}
-            />
-            <NextStep
-              href={`/${locale}/${workspaceSlug}/knowledge`}
-              icon={<BookOpenText className="h-4 w-4" aria-hidden="true" />}
-              title={t("nextStepAddKnowledge.title")}
-              body={t("nextStepAddKnowledge.body")}
-            />
-          </NextStepGroup>
-        </TourSpot>
-      </section>
+      {isEmpty ? null : nextSteps}
     </div>
   );
 }
@@ -458,6 +467,7 @@ function EmptyStateForFlows({
   onCreate: () => void;
 }) {
   const tEmpty = useTranslations("compass.empty.flows");
+
   return (
     <EmptyState
       icon={<Workflow className="h-5 w-5" />}

@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { getDb, schema } from "@orchester/db";
 import { and, asc, eq } from "drizzle-orm";
 import { recordTenantContextSet, recordTenantContextMissing } from "./tenant/telemetry";
+import { verifySigned } from "./cookies";
 
 /**
  * `cache()` deduplicates calls within a single React request — if 5 server
@@ -75,7 +76,20 @@ export const getCurrentWorkspace = cache(async () => {
     return null;
   }
 
-  const ctx = await loadWorkspace(session.user.id, null);
+  // SEC-10: honour the signed orch-active-workspace cookie so workspace
+  // switching actually changes which workspace is resolved rather than
+  // always returning the oldest membership.
+  let slug: string | null = null;
+  try {
+    const { cookies } = await import("next/headers");
+    const raw = (await cookies()).get("orch-active-workspace")?.value ?? null;
+    if (raw) slug = await verifySigned(raw);
+  } catch {
+    slug = null;
+  }
+
+  const fromCookie = slug ? await loadWorkspace(session.user.id, slug) : null;
+  const ctx = fromCookie ?? (await loadWorkspace(session.user.id, null));
   if (!ctx) {
     recordTenantContextMissing("no-membership");
     return null;

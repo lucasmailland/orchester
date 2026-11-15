@@ -1,93 +1,128 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getDb, schema } from "@orchester/db";
+import { schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
-import { getCurrentWorkspace } from "@/lib/workspace";
-import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { requireAction } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
+import { updateKnowledgeBase } from "@/lib/knowledge/kb-store";
 
 const updateKbSchema = z.object({
   name: z.string().optional(),
   description: z.string().nullable().optional(),
   chunkSize: z.number().optional(),
   chunkOverlap: z.number().optional(),
+  embeddingModel: z.string().optional(),
+  embeddingProvider: z.string().optional(),
 });
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ws = await getCurrentWorkspace();
-  if (!ws) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.knowledgeBases)
-    .where(
-      and(eq(schema.knowledgeBases.id, id), eq(schema.knowledgeBases.workspaceId, ws.workspace.id))
-    )
-    .limit(1);
-  const row = rows[0];
-  if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(row);
+  const result = await requireAction({
+    run: async ({ ctx, tx }) => {
+      const rows = await tx
+        .select()
+        .from(schema.knowledgeBases)
+        .where(
+          and(
+            eq(schema.knowledgeBases.id, id),
+            eq(schema.knowledgeBases.workspaceId, ctx.workspace.id)
+          )
+        )
+        .limit(1);
+      const row = rows[0];
+      if (!row) return { _err: "Not found", _status: 404 };
+      return { row };
+    },
+  });
+  if (result instanceof Response) return result;
+  if ("_err" in result)
+    return NextResponse.json({ error: result._err }, { status: result._status as number });
+  return NextResponse.json(result.row);
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ctx = await requireAuth({ minRole: "editor" });
-  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
   const parsed = await parseBody(req, updateKbSchema);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
-  const db = getDb();
-  const updated = await db
-    .update(schema.knowledgeBases)
-    .set({
-      ...(body.name !== undefined && { name: body.name }),
-      ...(body.description !== undefined && { description: body.description }),
-      ...(body.chunkSize !== undefined && { chunkSize: body.chunkSize }),
-      ...(body.chunkOverlap !== undefined && { chunkOverlap: body.chunkOverlap }),
-      updatedAt: new Date(),
-    })
-    .where(
-      and(eq(schema.knowledgeBases.id, id), eq(schema.knowledgeBases.workspaceId, ctx.workspace.id))
-    )
-    .returning();
-  const row = updated[0];
-  if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(row);
+
+  const result = await requireAction({
+    minRole: "editor",
+    run: async ({ ctx, tx }) => {
+      try {
+        // exactOptionalPropertyTypes: strip undefined keys before passing to KbPatch
+        const patch = Object.fromEntries(
+          Object.entries(body).filter(([, v]) => v !== undefined)
+        ) as import("@/lib/knowledge/kb-store").KbPatch;
+        await updateKnowledgeBase(ctx.workspace.id, id, patch);
+      } catch (e) {
+        if (e instanceof Error && /re-index/i.test(e.message)) {
+          return { _err: e.message, _status: 409 as const };
+        }
+        throw e;
+      }
+      const rows = await tx
+        .select()
+        .from(schema.knowledgeBases)
+        .where(
+          and(
+            eq(schema.knowledgeBases.id, id),
+            eq(schema.knowledgeBases.workspaceId, ctx.workspace.id)
+          )
+        )
+        .limit(1);
+      const row = rows[0];
+      if (!row) return { _err: "Not found", _status: 404 as const };
+      return { row };
+    },
+  });
+  if (result instanceof Response) return result;
+  if ("_err" in result)
+    return NextResponse.json({ error: result._err }, { status: result._status as number });
+  return NextResponse.json(result.row);
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ctx = await requireAuth({ minRole: "editor" });
-  if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
-  const db = getDb();
-  const before = (
-    await db
-      .select({ name: schema.knowledgeBases.name })
-      .from(schema.knowledgeBases)
-      .where(
-        and(
-          eq(schema.knowledgeBases.id, id),
-          eq(schema.knowledgeBases.workspaceId, ctx.workspace.id)
+  const result = await requireAction({
+    minRole: "editor",
+    run: async ({ ctx, user, tx }) => {
+      const before = (
+        await tx
+          .select({ name: schema.knowledgeBases.name })
+          .from(schema.knowledgeBases)
+          .where(
+            and(
+              eq(schema.knowledgeBases.id, id),
+              eq(schema.knowledgeBases.workspaceId, ctx.workspace.id)
+            )
+          )
+          .limit(1)
+      )[0];
+      const deleted = await tx
+        .delete(schema.knowledgeBases)
+        .where(
+          and(
+            eq(schema.knowledgeBases.id, id),
+            eq(schema.knowledgeBases.workspaceId, ctx.workspace.id)
+          )
         )
-      )
-      .limit(1)
-  )[0];
-  const deleted = await db
-    .delete(schema.knowledgeBases)
-    .where(
-      and(eq(schema.knowledgeBases.id, id), eq(schema.knowledgeBases.workspaceId, ctx.workspace.id))
-    )
-    .returning({ id: schema.knowledgeBases.id });
-  if (!deleted[0]) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  await logAudit({
-    workspaceId: ctx.workspace.id,
-    userId: ctx.user.id,
-    action: "knowledge.delete",
-    resource: "knowledge_base",
-    resourceId: id,
-    before: before ? { name: before.name } : undefined,
+        .returning({ id: schema.knowledgeBases.id });
+      if (!deleted[0]) return { _err: "Not found", _status: 404 };
+      await logAudit({
+        workspaceId: ctx.workspace.id,
+        userId: user.id,
+        action: "knowledge.delete",
+        resource: "knowledge_base",
+        resourceId: id,
+        before: before ? { name: before.name } : undefined,
+      });
+      return { ok: true };
+    },
   });
-  return NextResponse.json({ ok: true });
+  if (result instanceof Response) return result;
+  if ("_err" in result)
+    return NextResponse.json({ error: result._err }, { status: result._status as number });
+  return NextResponse.json(result);
 }

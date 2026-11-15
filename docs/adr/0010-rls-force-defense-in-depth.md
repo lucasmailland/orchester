@@ -73,3 +73,13 @@ A healthy deployment returns:
 ```
 
 Any `t` in either column means the deployment is back in the "RLS theatre" state. The boot check should already have failed the deploy before this matters — but the manual probe is the ground-truth verification.
+
+## SEC-16 note: `app_user` password must come from a secret manager
+
+The `app_user` role was created with a static password (`'app'`) in migration 0007 to simplify local development. **In production, you must rotate this password** and source it from your secret manager (e.g. AWS Secrets Manager, Vault, Doppler). Hard-coding the password in `DATABASE_URL` defeats Layer 2 of the defense-in-depth — an attacker who can read the connection string gets a working credential with `BYPASSRLS=f` (the unprivileged role), which is the safe side, but still enables them to connect directly and read their own workspace's data without going through the API.
+
+Operator checklist:
+
+1. After deploy, run `ALTER ROLE app_user PASSWORD '<strong-random-password>'` using a privileged migration credential.
+2. Update `DATABASE_URL` in your secret manager with the new password.
+3. Restart the app; the boot probe at `apps/web/lib/db-role-check.ts` will confirm the connection still authenticates successfully with the non-BYPASSRLS role.

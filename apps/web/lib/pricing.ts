@@ -118,11 +118,20 @@ function priceFor<T>(table: Record<string, T>, model: string): T | undefined {
   return bare !== model && Object.hasOwn(table, bare) ? table[bare] : undefined;
 }
 
+const warnedUnknownModel = new Set<string>();
+
 /** Rate blended USD/1k para `model`: catálogo (promedio in/out) → tabla legacy → default. */
 function blendedRate(model: string): number {
   const cat = priceFor(CATALOG_CHAT_PRICE, model);
   if (cat) return (cat.in + cat.out) / 2;
-  return priceFor(COST_PER_1K_USD, model) ?? DEFAULT_COST_PER_1K;
+  const known = priceFor(COST_PER_1K_USD, model);
+  if (known != null) return known;
+  // COST-14: never silently bill an unknown model at the Sonnet default — warn once.
+  if (!warnedUnknownModel.has(model)) {
+    warnedUnknownModel.add(model);
+    console.warn("[pricing] unknown model, using blended default rate:", model);
+  }
+  return DEFAULT_COST_PER_1K;
 }
 
 /** Costo USD para `tokens` consumidos por `model`. Usa fallback si no conoce el model. */
@@ -183,14 +192,22 @@ export function calculateChatCostUsd(
   return Math.round(usd * 1_000_000) / 1_000_000;
 }
 
+const warnedUnknownCapability = new Set<string>();
+
 /**
  * Costo USD aproximado para una capacidad no-token (image/video/tts/stt/avatar/
  * music/ocr). `units` es la cantidad (imágenes, clips, requests, documentos…).
- * Si la capacidad no está en la tabla, devuelve 0 (best-effort: nunca rompe).
+ * Si la capacidad no está en la tabla, devuelve 0 pero emite un warning (COST-7).
  */
 export function calculateCapabilityCostUsd(capability: string, units: number): number {
   const price = CAPABILITY_PRICE[capability];
-  if (!price) return 0;
+  if (!price) {
+    if (!warnedUnknownCapability.has(capability)) {
+      warnedUnknownCapability.add(capability);
+      console.warn("[pricing] unknown capability, pricing at 0:", capability);
+    }
+    return 0;
+  }
   return Math.round(price.perUnit * Math.max(0, units) * 1_000_000) / 1_000_000;
 }
 

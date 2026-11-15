@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { getCurrentSession } from "@/lib/workspace";
 import { parseBody } from "@/lib/validation";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
+import { hashApiKey } from "@/lib/api-auth/key";
 
 const acceptInviteSchema = z.object({
   token: z.string().optional(),
@@ -29,10 +30,11 @@ export async function POST(req: Request) {
   // workspace_invite are FORCE RLS, so the lookup, the membership insert
   // and the invite status update all need to bypass tenant scoping.
   const result = await withCrossTenantAdmin("invite.accept", async (tx) => {
+    // SEC-11: token at rest is a sha256 hash; compare hash, never plaintext.
     const rows = await tx
       .select()
       .from(schema.workspaceInvites)
-      .where(eq(schema.workspaceInvites.token, token))
+      .where(eq(schema.workspaceInvites.token, hashApiKey(token)))
       .limit(1);
     const invite = rows[0];
     if (!invite) return { kind: "not_found" as const };
@@ -44,9 +46,10 @@ export async function POST(req: Request) {
         .where(eq(schema.workspaceInvites.id, invite.id));
       return { kind: "expired" as const };
     }
-    // email check (warning, not blocking — let user accept their own invite even if not exact email)
+    // SEC-3: enforce the recipient email. A token must only be redeemable by the
+    // person it was sent to — otherwise any logged-in user with any token joins.
     if (invite.email.toLowerCase() !== session.user.email.toLowerCase()) {
-      // Soft check — proceed but record a notice
+      return { kind: "email_mismatch" as const };
     }
 
     // Add membership
@@ -64,7 +67,12 @@ export async function POST(req: Request) {
       .set({ status: "accepted", acceptedAt: new Date() })
       .where(eq(schema.workspaceInvites.id, invite.id));
 
-    return { kind: "ok" as const, workspaceId: invite.workspaceId, role: invite.role };
+    return {
+      kind: "ok" as const,
+      workspaceId: invite.workspaceId,
+      role: invite.role,
+      inviteeEmail: session.user.email,
+    };
   });
 
   if (result.kind === "not_found")
@@ -73,6 +81,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `Invite ${result.status}` }, { status: 400 });
   if (result.kind === "expired")
     return NextResponse.json({ error: "Invite expired" }, { status: 400 });
+  if (result.kind === "email_mismatch")
+    return NextResponse.json(
+      { error: "This invite was sent to a different email" },
+      { status: 403 }
+    );
 
+  void import("@/lib/notifications/triggers").then((m) =>
+    m.notifyNewMember(result.workspaceId, { email: result.inviteeEmail })
+  );
   return NextResponse.json({ workspaceId: result.workspaceId, role: result.role });
 }

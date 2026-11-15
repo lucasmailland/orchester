@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck — Phase 3: recall path stubbed; channels routing still active.
 import "server-only";
 import { mapToolOutputText } from "@/lib/tool-output";
 import { createId } from "@paralleldrive/cuid2";
@@ -14,6 +12,7 @@ import { assertWithinSpend } from "@/lib/cost-alerts";
 import { logWithContext } from "@/lib/observability";
 import { calculateChatCostUsd, calculateCostUsd } from "@/lib/pricing";
 import { UNTRUSTED_CONTENT_GUARDRAIL, wrapUntrusted } from "@/lib/agent-runtime";
+import { dispatchEvent } from "@/lib/webhooks-out";
 
 export interface InboundMessage {
   channelId: string;
@@ -167,6 +166,11 @@ async function resolveInbound(
       })
       .returning();
     conversation = inserted[0]!;
+    void dispatchEvent(workspaceId, "conversation.created", {
+      conversationId: conversation.id,
+      channelId: channel.id,
+      externalId: msg.externalId,
+    });
   }
 
   const baseMessageCount = conversation.messageCount ?? 0;
@@ -212,6 +216,11 @@ async function resolveInbound(
     .update(schema.conversations)
     .set({ messageCount: baseMessageCount + 1 })
     .where(eq(schema.conversations.id, conversation.id));
+  void dispatchEvent(workspaceId, "message.received", {
+    conversationId: conversation.id,
+    role: "user",
+    text: msg.text,
+  });
 
   // 3.5 If conversation is taken-over by a human, do NOT auto-reply.
   if (conversation.takenOverAt) {
@@ -394,6 +403,62 @@ async function persistAssistantTurn(
     agentId: ctx.agent.id,
     metadata: { tokens, model: activeAgent.model },
   });
+  void dispatchEvent(workspaceId, "agent.responded", {
+    conversationId: conversation.id,
+    agentId: activeAgent.id,
+    tokensUsed: tokens,
+    costUsd: String(costUsd),
+  });
+}
+
+/**
+ * COST-5: flush usage for a partial stream (aborted by the client or cut
+ * short by a provider error). Tokens were already consumed upstream, so
+ * the bill + spend cap must see them. No-op when tokens == 0.
+ */
+export async function flushPartialTurn(
+  workspaceId: string,
+  agentId: string,
+  conversationId: string,
+  reply: string,
+  tokens: number
+): Promise<void> {
+  if (tokens <= 0) return;
+  try {
+    await withWorkspaceTx(workspaceId, async (tx) => {
+      const agentRows = await tx
+        .select()
+        .from(schema.agents)
+        .where(and(eq(schema.agents.id, agentId), eq(schema.agents.workspaceId, workspaceId)))
+        .limit(1);
+      const convRows = await tx
+        .select()
+        .from(schema.conversations)
+        .where(eq(schema.conversations.id, conversationId))
+        .limit(1);
+      const agent = agentRows[0];
+      const conversation = convRows[0];
+      if (!agent || !conversation) return;
+      const ctx: ConvCtx = {
+        workspaceId,
+        channel: { id: conversation.channelId } as Channel,
+        agent,
+        conversation,
+        baseMessageCount: conversation.messageCount ?? 0,
+      };
+      await persistAssistantTurn(
+        ctx,
+        agent,
+        conversation,
+        reply || "[respuesta interrumpida]",
+        tokens,
+        tx
+      );
+    });
+  } catch (e) {
+    const { safeLogError } = await import("@/lib/safe-log");
+    safeLogError("[router] flushPartialTurn failed:", e);
+  }
 }
 
 /**
@@ -464,7 +529,6 @@ async function buildConversationContext(
         workspaceId,
         query: String(lastUserMsg.content).slice(0, 500),
         topK: 3,
-        agentId: agent.id,
       });
       if (hits.length > 0) {
         const lines = hits
@@ -809,6 +873,7 @@ export async function handleInbound(
  */
 export type InboundStreamChunk =
   | { type: "text"; delta: string }
+  | { type: "tool"; name: string }
   | { type: "done"; conversationId: string; reply: string; tokensUsed: number }
   | { type: "error"; error: string };
 
@@ -893,14 +958,17 @@ export async function* handleInboundStream(
 
   // Sin tools: streaming real. Sin tools no hay handoff → activeAgent = agent
   // y la conversation no se reasigna, así que la persistencia es directa.
+  // Accumulators hoisted out of the try so the catch can flush a partial turn
+  // (COST-5) — `agent`/`conversation` are already in scope from `ctx`.
+  let reply = "";
+  let tokens = 0;
+  let persisted = false;
   try {
     // Phase 2a — leer historia + memoria en otra txn corta (FORCE RLS necesita
     // GUC). Cerramos la txn antes del stream del LLM.
     const { chatMsgs, systemPrompt } = await withWorkspaceTx(wsId, (tx) =>
       buildConversationContext(ctx, tx)
     );
-    let reply = "";
-    let tokens = 0;
     // Spend cap también para el path de streaming (sin tools) — gap detectado
     // por la 2ª pasada de meta-auditoría. Sin txn: el spend cap fail-opens en
     // error de lectura, así que no necesita el GUC para el path crítico.
@@ -914,14 +982,17 @@ export async function* handleInboundStream(
       ...(agent.maxTokens != null && { maxTokens: agent.maxTokens }),
       ...(signal ? { signal } : {}),
     })) {
-      // Si el cliente se desconectó, dejamos de emitir/persistir.
-      if (signal?.aborted) return;
+      if (signal?.aborted) {
+        await flushPartialTurn(wsId, agent.id, conversation.id, reply, tokens);
+        return;
+      }
       if (chunk.type === "text") {
         reply += chunk.delta;
         yield { type: "text", delta: chunk.delta };
       } else if (chunk.type === "done") {
         tokens += chunk.tokensUsed;
       } else if (chunk.type === "error") {
+        await flushPartialTurn(wsId, agent.id, conversation.id, reply, tokens);
         yield { type: "error", error: chunk.error };
         return;
       }
@@ -962,8 +1033,13 @@ export async function* handleInboundStream(
       yield { type: "error", error: accessErr };
       return;
     }
+    persisted = true;
     yield { type: "done", conversationId: conversation.id, reply, tokensUsed: tokens };
   } catch (e) {
+    // COST-5: a thrown exception after partial tokens accrued must still flush
+    // so the turn is billed/counted (parity with the abort + error-chunk paths).
+    // `persisted` guards against double-billing the happy path.
+    if (!persisted) await flushPartialTurn(wsId, agent.id, conversation.id, reply, tokens);
     yield { type: "error", error: e instanceof Error ? e.message : String(e) };
   }
 }

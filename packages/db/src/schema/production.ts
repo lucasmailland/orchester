@@ -164,8 +164,17 @@ export const workspaceBilling = pgTable("workspace_billing", {
   stripePriceId: text("stripe_price_id"),
   currentPeriodEnd: timestamp("current_period_end"),
   cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+  pastDue: boolean("past_due").notNull().default(false),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+export const stripeEvents = pgTable("stripe_event", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(),
+  workspaceId: text("workspace_id"),
+  processedAt: timestamp("processed_at").notNull().defaultNow(),
+});
+export type StripeEvent = typeof stripeEvents.$inferSelect;
 
 export type AuditLogLegacy = typeof auditLogsLegacy.$inferSelect;
 export type WorkspaceInvite = typeof workspaceInvites.$inferSelect;

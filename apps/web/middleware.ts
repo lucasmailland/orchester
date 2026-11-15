@@ -74,6 +74,11 @@ export async function middleware(request: NextRequest) {
   if (request.headers.has("x-tenant-slug")) {
     request.headers.delete("x-tenant-slug");
   }
+  // SEC-16: also strip x-tenant-id — an attacker could set this to impersonate
+  // a tenant before the server resolves the real id from the session.
+  if (request.headers.has("x-tenant-id")) {
+    request.headers.delete("x-tenant-id");
+  }
 
   // Generamos nonce SIEMPRE para HTML responses; APIs y assets no lo necesitan
   // (no devuelven HTML).
@@ -101,7 +106,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next();
     }
     const loginUrl = new URL(`/${locale}/login`, request.url);
-    loginUrl.searchParams.set("callbackUrl", pathname);
+    loginUrl.searchParams.set("return", pathname);
     return NextResponse.redirect(loginUrl);
   }
 

@@ -10,6 +10,7 @@ import { schema } from "@orchester/db";
 import { eq } from "drizzle-orm";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 import { checkStripeSignature } from "@/lib/billing/stripe-signature";
+import { logAudit } from "@/lib/audit";
 
 type Plan = "free" | "starter" | "pro" | "business";
 
@@ -41,6 +42,19 @@ export async function POST(req: Request) {
   const customerId = (obj?.customer as string | undefined) ?? null;
 
   if (!workspaceId) return NextResponse.json({ ok: true, ignored: "no workspaceId" });
+
+  // Dedup: an event id recorded below was already applied, so a redelivery is a no-op.
+  const eventId = (event as { id?: string }).id;
+  if (eventId) {
+    const seen = await withCrossTenantAdmin("billing.dedup", (tx) =>
+      tx
+        .select({ id: schema.stripeEvents.id })
+        .from(schema.stripeEvents)
+        .where(eq(schema.stripeEvents.id, eventId))
+        .limit(1)
+    );
+    if (seen[0]) return NextResponse.json({ ok: true, deduped: true });
+  }
 
   // priceId → plan pago. "free" es el default del schema (no degradamos a "starter").
   const priceMap: Record<string, Plan> = {};
@@ -89,6 +103,10 @@ export async function POST(req: Request) {
     if (resolvedPlan) set.plan = resolvedPlan;
     if (priceId) set.stripePriceId = priceId;
     if (periodEnd) set.currentPeriodEnd = periodEnd;
+    // A failed renewal arrives as a subscription update with status past_due.
+    if (event.type !== "checkout.session.completed") {
+      set.pastDue = obj?.status === "past_due" || obj?.status === "unpaid";
+    }
 
     // Stripe webhook is unauthenticated (verified via HMAC above) so the
     // request has no workspace GUC set. workspace_billing has FORCE RLS,
@@ -106,6 +124,14 @@ export async function POST(req: Request) {
           cancelAtPeriodEnd,
         })
         .onConflictDoUpdate({ target: schema.workspaceBilling.workspaceId, set });
+      await logAudit({
+        workspaceId,
+        action: "billing.plan_change",
+        resource: "workspace_billing",
+        resourceId: workspaceId,
+        actorKind: "system",
+        after: { plan: resolvedPlan ?? "free", eventType: event.type },
+      });
     });
   } else if (event.type === "customer.subscription.deleted") {
     await withCrossTenantAdmin("billing.stripe_webhook", async (tx) => {
@@ -118,7 +144,36 @@ export async function POST(req: Request) {
           updatedAt: new Date(),
         })
         .where(eq(schema.workspaceBilling.workspaceId, workspaceId));
+      await logAudit({
+        workspaceId,
+        action: "billing.plan_change",
+        resource: "workspace_billing",
+        resourceId: workspaceId,
+        actorKind: "system",
+        after: { plan: "free", eventType: event.type },
+      });
     });
+  } else if (
+    event.type === "invoice.payment_failed" ||
+    event.type === "invoice.payment_action_required"
+  ) {
+    await withCrossTenantAdmin("billing.payment_failed", async (tx) => {
+      await tx
+        .update(schema.workspaceBilling)
+        .set({ pastDue: true, updatedAt: new Date() })
+        .where(eq(schema.workspaceBilling.workspaceId, workspaceId));
+    });
+  }
+
+  // Recorded only once the change is applied: if applying it threw, Stripe's
+  // redelivery must run it again instead of being taken for a duplicate.
+  if (eventId) {
+    await withCrossTenantAdmin("billing.dedup", (tx) =>
+      tx
+        .insert(schema.stripeEvents)
+        .values({ id: eventId, type: event.type, workspaceId })
+        .onConflictDoNothing()
+    );
   }
 
   return NextResponse.json({ ok: true });

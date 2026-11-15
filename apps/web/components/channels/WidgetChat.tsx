@@ -31,18 +31,26 @@ export function WidgetChat({ channelId, color, title, greeting, starters, placeh
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [visitorId, setVisitorId] = useState<string>("");
+  const [lead, setLead] = useState<{ name: string; email: string }>({ name: "", email: "" });
+  const [leadDone, setLeadDone] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // A reply is streaming into the last message: polling must not replace it.
+  const busyRef = useRef(false);
+  useEffect(() => {
+    busyRef.current = loading;
+  }, [loading]);
 
   useEffect(() => {
     let id = "";
     try {
       id = localStorage.getItem(VISITOR_KEY) ?? "";
       if (!id) {
-        id = "v_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        // The id is the only thing that reads the transcript back: unguessable.
+        id = "v_" + crypto.randomUUID();
         localStorage.setItem(VISITOR_KEY, id);
       }
     } catch {
-      id = "v_" + Math.random().toString(36).slice(2);
+      id = "v_" + crypto.randomUUID();
     }
     setVisitorId(id);
   }, []);
@@ -50,6 +58,41 @@ export function WidgetChat({ channelId, color, title, greeting, starters, placeh
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 99999, behavior: "smooth" });
   }, [messages, loading]);
+
+  // CONV-7: rehydrate thread on mount; CONV-2: poll for operator/bot turns.
+  // The server's transcript is the source of truth, so each poll replaces the
+  // thread rather than appending to it: appending duplicated what this tab sent.
+  useEffect(() => {
+    if (!visitorId) return;
+    let cancelled = false;
+    const sync = async () => {
+      try {
+        const r = await fetch(
+          `/api/widget/${channelId}/messages?${new URLSearchParams({ visitorId })}`
+        );
+        if (!r.ok) return;
+        const j = (await r.json()) as {
+          messages: Array<{ role: string; content: string }>;
+        };
+        const thread = j.messages.filter(
+          (m): m is Msg => m.role === "user" || m.role === "assistant"
+        );
+        if (cancelled || busyRef.current || thread.length === 0) return;
+        setMessages([
+          { role: "assistant", content: greeting },
+          ...thread.map((m) => ({ role: m.role, content: m.content })),
+        ]);
+      } catch {
+        /* best-effort */
+      }
+    };
+    void sync();
+    const iv = setInterval(() => void sync(), 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+    };
+  }, [visitorId, channelId, greeting]);
 
   async function send(text: string) {
     if (!text.trim() || loading) return;
@@ -92,7 +135,12 @@ export function WidgetChat({ channelId, color, title, greeting, starters, placeh
       const r = await fetch(`/api/widget/${channelId}/stream`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ visitorId, text: text.trim() }),
+        body: JSON.stringify({
+          visitorId,
+          text: text.trim(),
+          ...(lead.name ? { customerName: lead.name } : {}),
+          ...(lead.email ? { customerEmail: lead.email } : {}),
+        }),
       });
       if (!r.ok || !r.body) {
         setLast("Lo siento, hubo un error.");
@@ -205,6 +253,40 @@ export function WidgetChat({ channelId, color, title, greeting, starters, placeh
           <div style={{ fontSize: 11, color: "#71717a", paddingLeft: 4 }}>Escribiendo…</div>
         )}
       </div>
+      {!leadDone && messages.length <= 1 && (
+        <div style={{ padding: "0 14px 8px", display: "flex", flexDirection: "column", gap: 6 }}>
+          <input
+            value={lead.name}
+            onChange={(e) => setLead((l) => ({ ...l, name: e.target.value }))}
+            placeholder="Tu nombre (opcional)"
+            style={{
+              padding: "7px 10px",
+              borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(255,255,255,0.04)",
+              color: "white",
+              fontSize: 12,
+              outline: "none",
+            }}
+          />
+          <input
+            value={lead.email}
+            onChange={(e) => setLead((l) => ({ ...l, email: e.target.value }))}
+            placeholder="Tu email (opcional)"
+            type="email"
+            onBlur={() => setLeadDone(Boolean(lead.name || lead.email))}
+            style={{
+              padding: "7px 10px",
+              borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(255,255,255,0.04)",
+              color: "white",
+              fontSize: 12,
+              outline: "none",
+            }}
+          />
+        </div>
+      )}
       {messages.length <= 1 && starters.length > 0 && (
         <div style={{ padding: "0 14px 8px", display: "flex", flexWrap: "wrap", gap: 6 }}>
           {starters.slice(0, 4).map((s, i) => (

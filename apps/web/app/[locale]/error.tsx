@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { RotateCcw, ArrowRight } from "lucide-react";
+import { captureException } from "@/lib/observability";
 
 /**
  * Route error boundary for the localized segment. Rendered inside the
@@ -22,6 +23,7 @@ export default function LocaleError({
 
   useEffect(() => {
     console.error("[LocaleError]", error);
+    captureException(error, { tags: { boundary: "locale-error" } });
   }, [error]);
 
   return (

@@ -29,6 +29,7 @@ import { resolveBySlug } from "@/lib/tenant/resolve";
 import { checkMembership } from "@/lib/tenant/membership";
 import { isAccessible } from "@/lib/tenant/lifecycle";
 import { requireAuth } from "@/lib/auth-guards";
+import { regenerateSignedUrl } from "@/lib/gdpr/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -84,12 +85,30 @@ export async function GET(
     return NextResponse.json({ error: "role_insufficient" }, { status: 403 });
   }
 
-  // Serialise the row. bigint → string for JSON; drop noisy internal
-  // fields the UI doesn't need.
-  const { storageKey: _storageKey, checkpoint: _checkpoint, bytesTotal, ...rest } = job;
+  // SEC-9: never echo a stored signedUrl — a DB dump would leak live links.
+  // Strip both stale fields and regenerate a fresh URL per request instead.
+  const {
+    storageKey: _storageKey,
+    checkpoint: _checkpoint,
+    bytesTotal,
+    signedUrl: _staleUrl,
+    signedUrlExpiresAt: _staleExp,
+    ...rest
+  } = job;
 
+  let signedUrl: string | null = null;
+  let signedUrlExpiresAt: string | null = null;
+  if (job.state === "completed" && job.storageKey) {
+    const r = await regenerateSignedUrl(job.storageKey);
+    signedUrl = r.signedUrl;
+    signedUrlExpiresAt = r.expiresAt.toISOString();
+  }
+
+  // Same field names the progress component reads, now always freshly signed.
   return NextResponse.json({
     ...rest,
     bytesTotal: bytesTotal === null || bytesTotal === undefined ? null : bytesTotal.toString(),
+    signedUrl,
+    signedUrlExpiresAt,
   });
 }

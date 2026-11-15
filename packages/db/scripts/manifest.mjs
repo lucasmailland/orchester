@@ -55,6 +55,22 @@ export const MANIFEST = [
     "0064_tool_call.sql",
     "tabla tool_call: una fila por llamada a una tool (agentes y pasos de integración), append-only con RLS",
   ],
+  [
+    "0065_workspace_member_unique.sql",
+    "una membresía por (workspace, usuario): colapsa duplicados y agrega el índice único",
+  ],
+  [
+    "0066_stripe_event_and_past_due.sql",
+    "tabla stripe_event para no aplicar dos veces un webhook, y workspace_billing.past_due",
+  ],
+  [
+    "0067_agent_version_full_snapshot.sql",
+    "agent_version guarda tools, variables, response_format y output_schema",
+  ],
+  [
+    "0068_workspace_invite_token_hash.sql",
+    "tokens de invitación guardados como sha256: hashea los que estaban en texto plano",
+  ],
   // Sin número: ajuste del deploy single-tenant, no historia de upstream.
   // 0049 deja `org` con FORCE RLS y sólo una política de SELECT, así que ningún
   // INSERT pasa y crear un workspace da 500. Ver el header del archivo.

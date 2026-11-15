@@ -4,6 +4,7 @@ import { APIError } from "better-auth/api";
 import { twoFactor } from "better-auth/plugins";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { createDbClient, schema } from "@orchester/db";
+import { resolveAuthSecret } from "@/lib/auth-secret";
 import { assertSignupAllowed, getSignupMode, SignupNotAllowedError } from "@/lib/signup-policy";
 
 async function hasPendingInvite(email: string): Promise<boolean> {
@@ -33,7 +34,7 @@ function getAuthDb() {
 }
 
 export const auth = betterAuth({
-  secret: process.env["BETTER_AUTH_SECRET"] ?? "dev-secret-change-in-production",
+  secret: resolveAuthSecret(),
   baseURL:
     process.env["BETTER_AUTH_URL"] ?? process.env["NEXT_PUBLIC_APP_URL"] ?? "http://localhost:3001",
   database: drizzleAdapter(getAuthDb(), {
@@ -83,6 +84,25 @@ export const auth = betterAuth({
       },
     },
   },
+  session: {
+    expiresIn: 60 * 60 * 24 * 7, // 7 days
+    updateAge: 60 * 60 * 24, // refresh daily
+    // PERF-8: cache the session in a short-lived signed cookie so most
+    // navigations skip the session-table lookup. 5 min is short enough that
+    // revocation/role changes propagate quickly.
+    cookieCache: {
+      enabled: true,
+      maxAge: 5 * 60,
+    },
+  },
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 30,
+  },
+  trustedOrigins: [
+    process.env["BETTER_AUTH_URL"] ?? process.env["NEXT_PUBLIC_APP_URL"] ?? "http://localhost:3001",
+  ],
   user: {
     additionalFields: {
       onboardingCompleted: {

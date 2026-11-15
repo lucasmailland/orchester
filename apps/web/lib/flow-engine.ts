@@ -1372,9 +1372,24 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
       channel: cfg.channel,
       message: interpolate((cfg.message as string) ?? "", ctx.variables),
     };
-    // Today this step only records what it would send; in a dry run it says so
-    // in the same shape as every other simulated step.
-    helpers.setOutput(ctx.dryRun ? { ...out, ...simulated({ ...out }) } : out);
+    // In a dry run it says what it would send, in the same shape as every other
+    // simulated step. Email is delivered for real; other channels only record.
+    if (ctx.dryRun) {
+      helpers.setOutput({ ...out, ...simulated({ ...out }) });
+      return;
+    }
+    if (out.channel === "email") {
+      if (!out.to) throw new Error("notify: missing recipient");
+      const { sendEmail } = await import("@/lib/email");
+      const sent = await sendEmail({
+        to: out.to,
+        subject: "Orchester flow notification",
+        text: out.message,
+      });
+      helpers.setOutput({ ...out, sent: sent.status === "sent" });
+      return;
+    }
+    helpers.setOutput(out);
   },
 
   code: async ({ cfg, ctx, helpers }) => {

@@ -51,8 +51,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     return NextResponse.json({ error: "invalid_focus_param" }, { status: 400 });
   }
 
+  // `asOf` (optional ISO 8601) reconstructs the graph at a past instant. Reject
+  // unparseable values before they reach the SDK query string.
+  const asOfParam = url.searchParams.get("asOf");
+  if (asOfParam && Number.isNaN(Date.parse(asOfParam))) {
+    return NextResponse.json({ error: "invalid_asof_param" }, { status: 400 });
+  }
+
   try {
-    const { mode, graph } = await fetchWorkspaceGraph(ws.id, focusParam ?? undefined);
+    const { mode, graph } = await fetchWorkspaceGraph(
+      ws.id,
+      focusParam ?? undefined,
+      asOfParam ?? undefined
+    );
     return NextResponse.json(graph, {
       headers: {
         "Cache-Control": "private, max-age=30",

@@ -48,6 +48,10 @@ export interface GraphAnalytics {
   modularity: number;
   /** Node ids sorted by centrality, descending — drives the top-N cap. */
   ranked: string[];
+  /** Graph degree (number of edges) per node id. */
+  degreeById: Map<string, number>;
+  /** Set of neighbour ids per node id. */
+  neighborsById: Map<string, Set<string>>;
 }
 
 // A calm, high-contrast palette for the dark canvas (#050507). Indices wrap,
@@ -79,6 +83,8 @@ const EMPTY: GraphAnalytics = {
   communityCount: 0,
   modularity: 0,
   ranked: [],
+  degreeById: new Map(),
+  neighborsById: new Map(),
 };
 
 /**
@@ -155,5 +161,14 @@ export function computeGraphAnalytics(
 
   const ranked = graph.nodes().sort((a, b) => (scores[b] ?? 0) - (scores[a] ?? 0));
 
-  return { byId, communityCount, modularity, ranked };
+  // Adjacency maps — built once here so consumers (BrainGraph useMemo, hover
+  // highlight, 3D edge alpha) don't each scan all links independently.
+  const degreeById = new Map<string, number>();
+  const neighborsById = new Map<string, Set<string>>();
+  graph.forEachNode((id) => {
+    degreeById.set(id, graph.degree(id));
+    neighborsById.set(id, new Set(graph.neighbors(id)));
+  });
+
+  return { byId, communityCount, modularity, ranked, degreeById, neighborsById };
 }

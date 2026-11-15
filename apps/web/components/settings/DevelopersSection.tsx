@@ -127,17 +127,28 @@ export function DevelopersSection() {
   }
 
   async function toggleWebhook(id: string, enabled: boolean) {
-    await fetch(`/api/webhooks-out/${id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ enabled }),
-    });
+    try {
+      const r = await fetch(`/api/webhooks-out/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    } catch {
+      toast.error(t("saveError"));
+    }
     load();
   }
 
   async function deleteWebhook(id: string) {
     if (!confirm(t("deleteWebhookConfirm"))) return;
-    await fetch(`/api/webhooks-out/${id}`, { method: "DELETE" });
+    try {
+      const r = await fetch(`/api/webhooks-out/${id}`, { method: "DELETE" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      toast.success(t("webhookDeleted"));
+    } catch {
+      toast.error(t("deleteError"));
+    }
     load();
   }
 
@@ -434,7 +445,15 @@ export function DevelopersSection() {
         <code className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[10px] text-body">
           /api/v1/flows
         </code>
-        . Rate limit: 60 req/min.
+        . Rate limit: 60 req/min.{" "}
+        <a
+          href="/api/v1/openapi.json"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary underline-offset-2 hover:underline"
+        >
+          OpenAPI spec ↗
+        </a>
       </div>
     </div>
   );

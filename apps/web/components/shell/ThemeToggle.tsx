@@ -1,7 +1,6 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { motion, AnimatePresence } from "framer-motion";
 import { Sun, Moon } from "lucide-react";
 import { Button } from "@heroui/react";
 import { useTranslations } from "next-intl";
@@ -27,31 +26,26 @@ export function ThemeToggle() {
       size="sm"
       onPress={() => setTheme(isDark ? "light" : "dark")}
       aria-label={isDark ? t("themeLight") : t("themeDark")}
-      className="text-muted hover:text-strong"
+      className="relative text-muted hover:text-strong"
     >
-      <AnimatePresence mode="wait" initial={false}>
-        {isDark ? (
-          <motion.div
-            key="sun"
-            initial={{ rotate: -90, opacity: 0, scale: 0.8 }}
-            animate={{ rotate: 0, opacity: 1, scale: 1 }}
-            exit={{ rotate: 90, opacity: 0, scale: 0.8 }}
-            transition={{ duration: 0.2 }}
-          >
-            <Sun size={16} />
-          </motion.div>
-        ) : (
-          <motion.div
-            key="moon"
-            initial={{ rotate: 90, opacity: 0, scale: 0.8 }}
-            animate={{ rotate: 0, opacity: 1, scale: 1 }}
-            exit={{ rotate: -90, opacity: 0, scale: 0.8 }}
-            transition={{ duration: 0.2 }}
-          >
-            <Moon size={16} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <span
+        className="absolute transition-all duration-200"
+        style={{
+          opacity: isDark ? 1 : 0,
+          transform: isDark ? "rotate(0deg) scale(1)" : "rotate(-90deg) scale(0.8)",
+        }}
+      >
+        <Sun size={16} />
+      </span>
+      <span
+        className="absolute transition-all duration-200"
+        style={{
+          opacity: isDark ? 0 : 1,
+          transform: isDark ? "rotate(90deg) scale(0.8)" : "rotate(0deg) scale(1)",
+        }}
+      >
+        <Moon size={16} />
+      </span>
     </Button>
   );
 }

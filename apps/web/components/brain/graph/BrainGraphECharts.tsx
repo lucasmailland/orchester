@@ -13,7 +13,7 @@
 // imported, client-only, exactly like react-force-graph.
 
 import { useEffect, useRef, useState } from "react";
-import { ENTITY_KIND_COLOR } from "@/lib/memory/graph-canvas";
+import { ENTITY_KIND_COLOR, stellarColor, edgeIntensity, edgeKey } from "@/lib/memory/graph-canvas";
 import type { GraphNode } from "@/lib/memory/graph-canvas";
 import { communityColor } from "@/lib/memory/graph-analytics";
 import type { GraphAnalytics } from "@/lib/memory/graph-analytics";
@@ -37,11 +37,14 @@ const NODE_CAP = 350;
 
 // ECharts graph series has no zoom() method; programmatic zoom is done by
 // multiplying series[0].zoom and re-applying it.
+const ZOOM_MIN = 0.2;
+const ZOOM_MAX = 5;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function zoomEChartsBy(chart: any, factor: number) {
   const opt = chart.getOption?.();
   const cur = opt?.series?.[0]?.zoom ?? 1;
-  chart.setOption({ series: [{ zoom: Math.max(0.2, Math.min(5, cur * factor)) }] });
+  const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, cur * factor));
+  chart.setOption({ series: [{ zoom: next }] });
 }
 
 export interface BrainGraphEChartsProps {
@@ -55,7 +58,7 @@ export interface BrainGraphEChartsProps {
   // Optional structural analytics (communities + centrality). When present,
   // node size tracks PageRank and `colorMode: "community"` becomes meaningful.
   analytics?: GraphAnalytics;
-  colorMode?: "kind" | "community";
+  colorMode?: "kind" | "community" | "centrality";
   width: number;
   height: number;
   onNodeClick: (node: GraphNode) => void;
@@ -66,6 +69,11 @@ export interface BrainGraphEChartsProps {
   controlsRef?: {
     current: { zoomIn: () => void; zoomOut: () => void; fit: () => void } | null;
   };
+  // Undirected edge keys (from `keyForEdge`) that lie on the highlighted path,
+  // and the node ids on that path. When present, those edges/nodes render as a
+  // bright violet route above the normal styling. Empty/undefined = no path.
+  pathEdgeKeys?: Set<string>;
+  pathNodeIds?: Set<string>;
 }
 
 export function BrainGraphECharts({
@@ -83,6 +91,8 @@ export function BrainGraphECharts({
   onNodeClick,
   onNodeHover,
   controlsRef,
+  pathEdgeKeys,
+  pathNodeIds,
 }: BrainGraphEChartsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -173,11 +183,13 @@ export function BrainGraphECharts({
     const data = visibleNodes.map((n) => {
       const a = analytics?.byId.get(n.id);
       const val = n.mentionCount + (degreeById.get(n.id) ?? 0) * 2;
-      // Colour by entity type (default) or by Louvain community.
+      // Colour by entity type (default), Louvain community, or PageRank centrality.
       const color =
-        colorMode === "community" && a
-          ? communityColor(a.community)
-          : (ENTITY_KIND_COLOR[n.entityKind ?? n.kind] ?? "#52525b");
+        colorMode === "centrality" && a
+          ? stellarColor(a.centrality)
+          : colorMode === "community" && a
+            ? communityColor(a.community)
+            : (ENTITY_KIND_COLOR[n.entityKind ?? n.kind] ?? "#52525b");
       // Size by PageRank centrality when available (sqrt spreads the long tail
       // so mid-tier nodes stay visible); else fall back to mentions+degree.
       const symbolSize = a ? 9 + Math.sqrt(a.centrality) * 38 : 12 + (val / max) * 34;
@@ -192,10 +204,18 @@ export function BrainGraphECharts({
         symbolSize,
         itemStyle: {
           color,
-          shadowBlur: isSel ? 26 : 14,
+          // Centrality-scaled halo: hubs glow brighter, leaves stay faint —
+          // the 2D analogue of the 3D UnrealBloom corona.
+          shadowBlur: isSel ? 26 : 8 + (a?.centrality ?? 0) * 22,
           shadowColor: color,
-          borderColor: isSel ? "#a78bfa" : isMatch ? "#fbbf24" : "rgba(255,255,255,0.20)",
-          borderWidth: isSel ? 2.5 : isMatch ? 2 : 0.6,
+          borderColor: pathNodeIds?.has(n.id)
+            ? "#a78bfa"
+            : isSel
+              ? "#a78bfa"
+              : isMatch
+                ? "#fbbf24"
+                : "rgba(255,255,255,0.20)",
+          borderWidth: pathNodeIds?.has(n.id) ? 3 : isSel ? 2.5 : isMatch ? 2 : 0.6,
           opacity: searchActive && !isMatch ? 0.28 : 1,
         },
         label: { show: labelShow },
@@ -205,10 +225,33 @@ export function BrainGraphECharts({
       .filter((l) => visibleIds.has(l.source) && visibleIds.has(l.target))
       .map((l) => {
         const style = RELATION_LINE[l.relation ?? "related"];
+        const onPath = pathEdgeKeys?.has(edgeKey(l.source, l.target)) ?? false;
+        // Community-aware opacity: intra-cluster edges read as bright structural
+        // ties, cross-community bridges fade back so clusters pop as constellations.
+        const sc = analytics?.byId.get(
+          typeof l.source === "object" ? (l.source as { id: string }).id : l.source
+        )?.community;
+        const tc = analytics?.byId.get(
+          typeof l.target === "object" ? (l.target as { id: string }).id : l.target
+        )?.community;
+        const intensity = edgeIntensity(sc, tc);
+        // conflicts_with edges curve so contradictions arc visually distinct from
+        // structural ties. All other edges keep a gentle curveness.
+        const curveness = l.relation === "conflicts_with" ? 0.2 : 0.06;
         return {
           source: l.source,
           target: l.target,
-          lineStyle: { width: 0.6 + (l.confidence ?? 0.7), ...(style ?? {}) },
+          lineStyle: onPath
+            ? { color: "#a78bfa", opacity: 1, width: 3, curveness: 0.06 }
+            : {
+                width: 0.6 + (l.confidence ?? 0.7),
+                opacity: intensity,
+                curveness,
+                ...(style ?? {}),
+              },
+          // Pin the path edge above the adjacency-blur so it stays bright even
+          // when an unrelated node is hovered.
+          ...(onPath ? { emphasis: { lineStyle: { color: "#c4b5fd", width: 3.5 } } } : {}),
         };
       });
     chart.setOption({
@@ -216,6 +259,8 @@ export function BrainGraphECharts({
       tooltip: { show: false },
       animationDuration: 600,
       animationEasingUpdate: "quinticInOut",
+      // Smooth state transitions when colorMode changes or data updates.
+      animationDurationUpdate: 300,
       series: [
         {
           type: "graph",
@@ -267,6 +312,8 @@ export function BrainGraphECharts({
     degreeById,
     analytics,
     colorMode,
+    pathEdgeKeys,
+    pathNodeIds,
   ]);
 
   // Keep the canvas sized to the container.

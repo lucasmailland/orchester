@@ -478,7 +478,14 @@ function ProviderCard({
             <Sparkles className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-strong">{def.name}</div>
+            <div className="flex items-center gap-1.5 truncate">
+              <span className="truncate text-sm font-semibold text-strong">{def.name}</span>
+              {!def.implemented && (
+                <span className="shrink-0 rounded-full bg-zinc-500/10 px-1.5 py-0.5 text-[9px] font-medium text-muted">
+                  coming soon
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-1.5 text-[11px] text-muted">
               <span
                 className={cn(
@@ -492,13 +499,19 @@ function ProviderCard({
             </div>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className="shrink-0 rounded-lg border border-line px-2 py-1 text-[11px] text-body hover:bg-hover"
-        >
-          {connected ? t("edit") : t("connect")}
-        </button>
+        {def.implemented ? (
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            className="shrink-0 rounded-lg border border-line px-2 py-1 text-[11px] text-body hover:bg-hover"
+          >
+            {connected ? t("edit") : t("connect")}
+          </button>
+        ) : (
+          <span className="shrink-0 rounded-lg border border-line px-2 py-1 text-[11px] text-faint opacity-50 cursor-not-allowed">
+            {t("connect")}
+          </span>
+        )}
       </div>
 
       <div className="mt-2 flex flex-wrap gap-1">

@@ -102,6 +102,7 @@ export async function getMonthlyUsage(workspaceId: string, tx?: WsDb) {
     .select({
       kind: schema.usageEvents.kind,
       total: sum(schema.usageEvents.amount).mapWith(Number),
+      cost: sum(schema.usageEvents.costUsd).mapWith(Number),
     })
     .from(schema.usageEvents)
     .where(
@@ -109,7 +110,11 @@ export async function getMonthlyUsage(workspaceId: string, tx?: WsDb) {
     )
     .groupBy(schema.usageEvents.kind);
   const byKind: Record<string, number> = {};
-  for (const r of rows) byKind[r.kind] = r.total ?? 0;
+  let costUsd = 0;
+  for (const r of rows) {
+    byKind[r.kind] = r.total ?? 0;
+    costUsd += r.cost ?? 0;
+  }
   return {
     conversations: byKind["agent_message"] ?? 0,
     tokensIn: byKind["tokens_in"] ?? 0,
@@ -117,6 +122,7 @@ export async function getMonthlyUsage(workspaceId: string, tx?: WsDb) {
     flowRuns: byKind["flow_run"] ?? 0,
     kbQueries: byKind["kb_query"] ?? 0,
     webhookCalls: byKind["webhook_call"] ?? 0,
+    costUsd: Math.round(costUsd * 1_000_000) / 1_000_000,
   };
 }
 

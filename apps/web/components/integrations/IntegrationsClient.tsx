@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import {
@@ -67,11 +67,16 @@ const ICONS: Record<string, typeof Database> = {
   gitlab: GitBranch,
 };
 
-export function IntegrationsClient() {
+interface InitialData {
+  catalog: Connector[];
+  configured: Configured[];
+}
+
+export function IntegrationsClient({ initialData }: { initialData?: InitialData }) {
   const t = useTranslations("pages.integrations");
-  const [catalog, setCatalog] = useState<Connector[]>([]);
-  const [configured, setConfigured] = useState<Configured[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [catalog, setCatalog] = useState<Connector[]>(initialData?.catalog ?? []);
+  const [configured, setConfigured] = useState<Configured[]>(initialData?.configured ?? []);
+  const [loading, setLoading] = useState(!initialData);
   const [modal, setModal] = useState<{ connector: Connector; editId?: string } | null>(null);
 
   async function load() {
@@ -83,8 +88,15 @@ export function IntegrationsClient() {
     }
     setLoading(false);
   }
+  const isFirstRender = useRef(true);
   useEffect(() => {
+    if (isFirstRender.current && initialData) {
+      isFirstRender.current = false;
+      return;
+    }
+    isFirstRender.current = false;
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function test(id: string) {
@@ -103,8 +115,13 @@ export function IntegrationsClient() {
 
   async function remove(id: string, name: string) {
     if (!window.confirm(t("deleteConfirm", { name }))) return;
-    await fetch(`/api/integrations/${id}`, { method: "DELETE" });
-    toast.success(t("deleted"));
+    try {
+      const r = await fetch(`/api/integrations/${id}`, { method: "DELETE" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      toast.success(t("deleted"));
+    } catch {
+      toast.error(t("deleteError"));
+    }
     load();
   }
 

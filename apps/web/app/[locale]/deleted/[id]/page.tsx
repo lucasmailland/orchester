@@ -47,7 +47,7 @@ export default async function DeletedWorkspaceRestorePage({ params, searchParams
     // lands back on this page with everything intact. Encode in case
     // a token character ever lands outside the URL-safe set.
     const callback = `/${locale}/deleted/${id}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
-    redirect(`/${locale}/login?callbackUrl=${encodeURIComponent(callback)}`);
+    redirect(`/${locale}/login?return=${encodeURIComponent(callback)}`);
   }
 
   // Cross-tenant read: the workspace is in `status='deleted'` so
