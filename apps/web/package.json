@@ -48,7 +48,7 @@
     "@paralleldrive/cuid2": "^3.3.0",
     "@xyflow/react": "^12.11.2",
     "archiver": "^7.0.1",
-    "better-auth": "~1.6.33",
+    "better-auth": "~1.7.7",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -64,7 +64,7 @@
     "lru-cache": "^11.5.2",
     "lucide-react": "^0.577.0",
     "mammoth": "^1.12.0",
-    "next": "^15.5.27",
+    "next": "^15.5.28",
     "next-intl": "^4.9.2",
     "next-themes": "^0.4.4",
     "pdf-parse": "^2.4.5",
@@ -86,7 +86,7 @@
     "three": "^0.185.1",
     "three-spritetext": "^1.10.0",
     "undici": "^7.30.1",
-    "zod": "^4.6.5"
+    "zod": "^4.6.6"
   },
   "optionalDependencies": {
     "@sentry/nextjs": "^10.68.0"
