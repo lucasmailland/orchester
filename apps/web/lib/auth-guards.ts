@@ -65,8 +65,9 @@ export async function requireAuth(
   // A suspended or deleted workspace is closed to its members. Callers that
   // pass `workspaceOptional` (lifecycle, switching, restore) resolve the
   // workspace they act on themselves and apply its own rules.
-  if (!opts.workspaceOptional && ws.workspace.status !== "active") {
-    const suspended = ws.workspace.status === "suspended";
+  const status = (ws.workspace as { status?: string }).status;
+  if (!opts.workspaceOptional && status && status !== "active") {
+    const suspended = status === "suspended";
     return NextResponse.json(
       { error: suspended ? "workspace_suspended" : "workspace_deleted" },
       { status: suspended ? 423 : 410 }

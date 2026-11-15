@@ -6,6 +6,10 @@ import {
   OUTPUT_LIMIT_REFUSAL_PREFIX,
   outputLimitRefusal,
 } from "@/lib/ai/output-limit";
+import { _setResolverForTests } from "@/lib/net-guard";
+
+// Provider endpoints are resolved and checked before use; resolve them publicly.
+_setResolverForTests(async () => [{ address: "93.184.215.14", family: 4 }]);
 
 const h = vi.hoisted(() => ({ log: vi.fn() }));
 vi.mock("@orchester/db", () => ({

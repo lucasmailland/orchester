@@ -27,6 +27,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   return NextResponse.json(agent);
 }
 
+/** A referenced id (team, flow) that is not in the caller's workspace. */
+class UnknownReferenceError extends Error {
+  constructor(what: string) {
+    super(`Unknown ${what}`);
+  }
+}
+
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireAuth({ minRole: "editor" });
   if (!isAuthContext(ctx)) return ctx;
@@ -59,13 +66,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     outputSchema,
   } = parsed.data;
 
-  // A team or flow from another workspace must not be attached to this agent.
-  const db = getDb();
-  if (teamId && !(await ownedByWorkspace(db, schema.teams, ctx.workspace.id, [teamId])))
-    return NextResponse.json({ error: "Unknown team" }, { status: 400 });
-  if (flowId && !(await ownedByWorkspace(db, schema.flows, ctx.workspace.id, [flowId])))
-    return NextResponse.json({ error: "Unknown flow" }, { status: 400 });
-
   // `config` is shared by several settings (knowledge bases, tool-call cap):
   // each one is merged into the stored object instead of replacing it.
   if (knowledgeBaseIds !== undefined) {
@@ -83,6 +83,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const updated = await withAdminTx(
     { kind: "user", workspaceId: ctx.workspace.id, userId: ctx.user.id },
     async (tx) => {
+      // A team or flow from another workspace must not be attached to this agent.
+      if (teamId && !(await ownedByWorkspace(tx, schema.teams, ctx.workspace.id, [teamId])))
+        throw new UnknownReferenceError("team");
+      if (flowId && !(await ownedByWorkspace(tx, schema.flows, ctx.workspace.id, [flowId])))
+        throw new UnknownReferenceError("flow");
       // Read the status before writing it, to tell when an active agent goes down.
       if (status !== undefined && status !== "active") {
         const [before] = await tx
@@ -135,7 +140,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         .where(and(eq(schema.agents.id, id), eq(schema.agents.workspaceId, ctx.workspace.id)))
         .returning();
     }
-  );
+  ).catch((e: unknown) => {
+    if (e instanceof UnknownReferenceError) return e;
+    throw e;
+  });
+  if (updated instanceof UnknownReferenceError) {
+    return NextResponse.json({ error: updated.message }, { status: 400 });
+  }
 
   const agent = updated[0];
   if (!agent) return NextResponse.json({ error: "Not found" }, { status: 404 });

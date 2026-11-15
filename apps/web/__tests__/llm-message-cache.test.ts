@@ -2,6 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { llmCall, type LlmCallParams } from "@/lib/llm-call";
 import type { ChatMessage } from "@/lib/ai/capabilities";
+import { _setResolverForTests } from "@/lib/net-guard";
+
+// Provider endpoints are resolved and checked before use; resolve them publicly.
+_setResolverForTests(async () => [{ address: "93.184.215.14", family: 4 }]);
 
 vi.mock("@orchester/db", () => ({
   getDb: vi.fn(),

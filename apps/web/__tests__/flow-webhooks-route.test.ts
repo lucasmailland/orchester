@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn() }));
 vi.mock("@/lib/auth-guards", () => ({
+  satisfiesRole: () => true,
   requireAuth: async () => ({ workspace: { id: "ws_test" }, user: { id: "user_test" } }),
   isAuthContext: () => true,
 }));

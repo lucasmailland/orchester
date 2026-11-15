@@ -1,4 +1,8 @@
 import { it, expect, vi, afterEach } from "vitest";
+import { _setResolverForTests } from "@/lib/net-guard";
+
+// Provider endpoints are resolved and checked before use; resolve them publicly.
+_setResolverForTests(async () => [{ address: "93.184.215.14", family: 4 }]);
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/encryption", () => ({ decrypt: (s: string) => s }));
 const mockTx = {
