@@ -36,7 +36,7 @@ import {
   type TicketPriority,
 } from "./odoo-client";
 import { htmlToText } from "./html-text";
-import { safeFetch } from "@/lib/net-guard";
+import { readBodyCapped, safeFetch } from "@/lib/net-guard";
 import { markdownToHtml } from "@/lib/text/markdown-html";
 import {
   nerdgraph,
@@ -184,7 +184,8 @@ async function fetchJson(
   try {
     // Also used by the generic HTTP connector, whose baseUrl the workspace sets.
     const r = await safeFetch(url, { ...init, signal: ac.signal });
-    const text = await r.text();
+    // The generic HTTP connector's base URL is the workspace's: cap what it may send back.
+    const text = (await readBodyCapped(r, 5 * 1024 * 1024)).toString("utf8");
     let json: unknown = null;
     try {
       json = text ? JSON.parse(text) : null;

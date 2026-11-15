@@ -5,7 +5,7 @@ import { eq, and, inArray, lt, count, sql } from "drizzle-orm";
 import { mapToolOutputText, redactToolImages } from "./tool-output";
 import { llmCall, type ChatMessage } from "./llm-call";
 import { enqueue, JOB_FLOW_RUN } from "./queue";
-import { assertPublicUrl, BlockedDestinationError, safeFetch } from "./net-guard";
+import { assertPublicUrl, BlockedDestinationError, safeFetch, readBodyCapped } from "./net-guard";
 import { logWithContext, recordMetric } from "./observability";
 import { evaluateExpression } from "./flows/filters";
 import { buildSubflowInput, readSubflowMap, readSubflowOutputs } from "./flows/subflow-io";
@@ -951,6 +951,10 @@ function stepUsage(ctx: RunContext, runId: string, node: FlowNode): AiUsageAttri
   return { flowId: ctx.flowId, flowRunId: runId, nodeId: node.id };
 }
 
+/** Largest response the HTTP node reads (a JSON API answer, not a download). */
+const HTTP_NODE_MAX_BODY_BYTES = 10 * 1024 * 1024;
+/** How long the HTTP node waits for a body once headers arrived (the configurable maximum). */
+const HTTP_NODE_BODY_DEADLINE_MS = 60_000;
 const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
   trigger: async () => {
     // No-op: el nodo trigger sólo marca el punto de entrada del flow.
@@ -1256,8 +1260,17 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
                 }
                 throw e;
               });
+        // The configured timeout stops at headers (flows rely on that), but the
+        // body gets its own ceiling and a size cap: the URL can come from a
+        // webhook or a model, and so can the far end.
         clearTimeout(t);
-        const text = await r.text();
+        const bodyDeadline = setTimeout(() => ac.abort(), HTTP_NODE_BODY_DEADLINE_MS);
+        let text: string;
+        try {
+          text = (await readBodyCapped(r, HTTP_NODE_MAX_BODY_BYTES)).toString("utf8");
+        } finally {
+          clearTimeout(bodyDeadline);
+        }
         let body: unknown = text;
         try {
           body = JSON.parse(text);

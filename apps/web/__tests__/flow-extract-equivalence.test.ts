@@ -15,6 +15,7 @@ vi.mock("drizzle-orm", async () => {
 });
 vi.mock("@/lib/queue", () => ({ enqueue: vi.fn(), JOB_FLOW_RUN: "flow.run" }));
 vi.mock("@/lib/net-guard", () => ({
+  readBodyCapped: async (r: Response) => Buffer.from(await r.text()),
   assertPublicUrl: vi.fn(),
   safeFetch: (url: string, init?: RequestInit) => fetch(url, init),
   BlockedDestinationError: class extends Error {},

@@ -4,6 +4,7 @@
 // keeps everything else: LLM call, tool dispatch, agent loadup, policy
 // load, prompt-injection guardrails, profile cache.
 import "server-only";
+import { neutralizeUntrusted } from "./untrusted";
 import { mapToolOutputText, redactToolImages } from "@/lib/tool-output";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
@@ -83,6 +84,8 @@ export interface RunAgentParams {
   employeeId?: string;
   /** Set by the agent page's test chat: handoffs are simulated, not persisted. */
   testChat?: boolean;
+  /** How many agent_call hops led here; agent_call refuses past MAX_AGENT_CALL_DEPTH. */
+  agentCallDepth?: number;
   /**
    * Workspace transaction handle (R2-C). When the caller is already
    * inside `withWorkspaceTx`, threading `tx` keeps the agent loadup,
@@ -282,7 +285,7 @@ export const UNTRUSTED_CONTENT_GUARDRAIL =
 export function wrapUntrusted(content: string, source: string): string {
   if (!content) return content;
   const safeSource = source.replace(/[^a-z0-9_]/gi, "_").toLowerCase() || "external";
-  const body = redactPii(content);
+  const body = neutralizeUntrusted(redactPii(content));
   return `<untrusted_context source="${safeSource}">\n${body}\n</untrusted_context>`;
 }
 
@@ -614,6 +617,7 @@ export async function runAgent(p: RunAgentParams): Promise<RunAgentResult> {
           ...(p.conversationId ? { conversationId: p.conversationId } : {}),
           ...(p.employeeId ? { employeeId: p.employeeId } : {}),
           ...(p.testChat ? { testChat: true } : {}),
+          ...(p.agentCallDepth ? { agentCallDepth: p.agentCallDepth } : {}),
           ...(p.tx ? { tx: p.tx } : {}),
           source: p.testChat ? "test_chat" : "api",
         };
