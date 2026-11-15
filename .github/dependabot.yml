@@ -26,6 +26,11 @@ updates:
         update-types:
           - "patch"
           - "minor"
+        # better-auth minors have changed behaviour (1.7 broke the signup tests);
+        # they arrive as their own PR so one bump does not hold back the rest.
+        exclude-patterns:
+          - "better-auth"
+          - "@better-auth/*"
       # Security advisories: one PR per advisory, no grouping (faster review).
       security:
         applies-to: security-updates
