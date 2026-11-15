@@ -56,6 +56,11 @@ export type Invalidation =
 type Handler = (msg: Invalidation) => void;
 
 const CHANNEL = "tenant_cache_invalidation";
+
+// fetch_types off: this client only sends text, and postgres-js loads array
+// types on connect without handling the error, so a database going away
+// mid-connect became an unhandled rejection.
+const CLIENT_OPTIONS = { max: 1, idle_timeout: 0, connect_timeout: 10, fetch_types: false };
 const handlers: Handler[] = [];
 
 // One LISTEN connection per process. The connection holds a single
@@ -89,7 +94,7 @@ export function startListener(): void {
       const postgresFactory = await getPostgresFactory();
       // Dedicated connection — postgres-js keeps a single socket open
       // for LISTEN. idle_timeout:0 prevents recycling.
-      listenerSql = postgresFactory(url, { max: 1, idle_timeout: 0, connect_timeout: 10 });
+      listenerSql = postgresFactory(url, CLIENT_OPTIONS);
       await listenerSql.listen(
         CHANNEL,
         (payload) => {
@@ -154,7 +159,7 @@ export async function broadcastInvalidation(msg: Invalidation): Promise<void> {
     // same dedicated client so we don't spin up another pool.
     if (!listenerSql) {
       const postgresFactory = await getPostgresFactory();
-      listenerSql = postgresFactory(url, { max: 1, idle_timeout: 0, connect_timeout: 10 });
+      listenerSql = postgresFactory(url, CLIENT_OPTIONS);
     }
     await listenerSql.notify(CHANNEL, JSON.stringify(msg));
   } catch (e) {
