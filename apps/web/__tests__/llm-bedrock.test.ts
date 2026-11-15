@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { llmCall, llmStream, type LlmCallParams } from "@/lib/llm-call";
+import { _setResolverForTests } from "@/lib/net-guard";
+import { untrustedToolError } from "@/lib/untrusted";
 
 vi.mock("@orchester/db", () => ({
   getDb: vi.fn(),
@@ -39,6 +41,8 @@ function request() {
   return { url, init, body: JSON.parse(init!.body as string) };
 }
 beforeEach(() => {
+  // A configured endpoint is resolved and checked before use; resolve it publicly.
+  _setResolverForTests(async () => [{ address: "93.184.215.14", family: 4 }]);
   endpoint = null;
   fetchMock.mockReset().mockResolvedValue(Response.json(response));
   vi.stubGlobal("fetch", fetchMock);
@@ -202,7 +206,7 @@ describe("Bedrock Converse", () => {
           {
             toolResult: {
               toolUseId: "tool-3",
-              content: [{ text: "Error: Unavailable" }],
+              content: [{ text: untrustedToolError("Unavailable") }],
               status: "error",
             },
           },
@@ -237,7 +241,7 @@ describe("Bedrock Converse", () => {
       })
     );
     const toolResult = request().body.messages.at(-1).content[0].toolResult;
-    expect(toolResult.content).toEqual([{ text: "Error: Unavailable" }]);
+    expect(toolResult.content).toEqual([{ text: untrustedToolError("Unavailable") }]);
     expect("status" in toolResult).toBe(marked);
   });
   it("drops a turn that carries no content at all", async () => {

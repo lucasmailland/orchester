@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main, master]
 
+# Read-only token for every job: CI checks code, it never writes to the repo.
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

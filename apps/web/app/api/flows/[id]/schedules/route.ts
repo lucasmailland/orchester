@@ -4,6 +4,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { ownedByWorkspace } from "@/lib/tenant/owned";
 import { parseBody } from "@/lib/validation";
 import { isValidCron, computeNextRun } from "@/lib/cron";
 
@@ -50,6 +51,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const tz = parsed.data.timezone || "UTC";
   const nextRunAt = computeNextRun(cron, tz);
   const db = getDb();
+  if (!(await ownedByWorkspace(db, schema.flows, ctx.workspace.id, [id])))
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   const row = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
     await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);

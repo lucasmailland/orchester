@@ -25,7 +25,8 @@ Si tira ✗ en algo, arreglalo antes de seguir.
       AWS Secrets Manager) — NO en `.env` commiteado.
 - [ ] **`scripts/generate-secrets.sh`** genera el bloque listo.
 - [ ] Plan de rotación documentado: cada 90 días + ante sospecha de compromise
-      (`./scripts/rotate-encryption-secret.sh`).
+      (`ENCRYPTION_KEYS` + `apps/web/scripts/reencrypt-credentials.ts`, ver
+      `docs/encryption-key-rotation.md`).
 
 ## 2. Database
 

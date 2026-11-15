@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { schema } from "@orchester/db";
-import { and, asc, desc, eq, gt } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray } from "drizzle-orm";
 import { handleInbound } from "@/lib/channels/router";
 import {
   enforceWidgetRateLimit,
@@ -129,9 +129,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ channelI
       })
       .from(schema.messages)
       .where(
-        since
-          ? and(eq(schema.messages.conversationId, conv.id), gt(schema.messages.createdAt, since))
-          : eq(schema.messages.conversationId, conv.id)
+        and(
+          eq(schema.messages.conversationId, conv.id),
+          // The visitor sees the conversation, not the system notes (handoffs, agent ids).
+          inArray(schema.messages.role, ["user", "assistant"]),
+          ...(since ? [gt(schema.messages.createdAt, since)] : [])
+        )
       )
       .orderBy(asc(schema.messages.createdAt));
     return { messages: rows, conversationId: conv.id };

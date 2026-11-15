@@ -30,6 +30,7 @@
 // stub, which would break the Edge build. The module is still
 // effectively server-only because the only callers are server-side
 // (middleware + API routes); never import it from a client component.
+import { assertUsableSecret } from "@/lib/auth-secret";
 
 const DEV_FALLBACK_SECRET = "dev-cookie-signing-secret-do-not-use-in-production";
 
@@ -47,7 +48,10 @@ const DEV_FALLBACK_SECRET = "dev-cookie-signing-secret-do-not-use-in-production"
 let warnedDevSecret = false;
 function getSecret(): string {
   const env = process.env["COOKIE_SIGNING_SECRET"];
-  if (env && env.length > 0) return env;
+  if (env && env.length > 0) {
+    assertUsableSecret("COOKIE_SIGNING_SECRET", env);
+    return env;
+  }
   if (process.env["NODE_ENV"] === "production") {
     throw new Error("COOKIE_SIGNING_SECRET required in production");
   }

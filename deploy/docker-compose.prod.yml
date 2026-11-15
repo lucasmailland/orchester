@@ -104,14 +104,16 @@ services:
       # .env) so elevated creds never leak into the runtime container.
       # See ADR-0010 and docs/specs/audits/2026-05-25-mnemosyne-v1.4-final-audit.md
       # (P1: prod compose Layer 3 was missed when v1.0 landed Layers 1+2).
-      DATABASE_URL: postgresql://app_user:app@postgres:5432/orchester
+      DATABASE_URL: postgresql://app_user:${APP_DB_PASSWORD:-app}@postgres:5432/orchester
       # better-auth reads its signing secret + base URL from these exact
       # names (see apps/web/lib/auth.ts + lib/env.ts). Don't rename them.
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
       BETTER_AUTH_URL: https://${DOMAIN:?set DOMAIN in .env}
       # Who may create an account: open (default) | invite | closed.
       # Set it to invite once the first admin exists.
-      SIGNUP_MODE: ${SIGNUP_MODE:-open}
+      # Production defaults to invite-only: RLS is off in the single-tenant deploy,
+      # so open signup would let anyone create a workspace next to yours.
+      SIGNUP_MODE: ${SIGNUP_MODE:-invite}
       NEXT_PUBLIC_APP_URL: https://${DOMAIN}
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET:?set ENCRYPTION_SECRET in .env}
       # HMAC secret for signed cookies + signed export URLs. lib/cookies.ts
@@ -182,7 +184,7 @@ services:
       WORKER_MODE: "true"
       # Same posture as `web`: connect as `app_user` (non-BYPASSRLS).
       # See ADR-0010 and 2026-05-25-mnemosyne-v1.4-final-audit.md (P1).
-      DATABASE_URL: postgresql://app_user:app@postgres:5432/orchester
+      DATABASE_URL: postgresql://app_user:${APP_DB_PASSWORD:-app}@postgres:5432/orchester
       # better-auth secrets are imported by lib/* even from worker code
       # paths (lib/queue → lib/flow-engine → lib/auth). Keep both env
       # vars in sync between web + worker so a key rotation doesn't
@@ -246,7 +248,10 @@ services:
       - glitchtip-redis
     environment:
       DATABASE_URL: postgresql://orchester:${POSTGRES_PASSWORD}@postgres:5432/glitchtip
-      SECRET_KEY: ${GLITCHTIP_SECRET:-change-me}
+      # GlitchTip is public at errors.<domain>: its signing key cannot have a known
+      # default. Empty makes only GlitchTip refuse to start (compose resolves every
+      # service's variables, so a required one would block the whole stack).
+      SECRET_KEY: ${GLITCHTIP_SECRET:-}
       PORT: "8000"
       EMAIL_URL: smtp://${SMTP_USER}:${SMTP_PASS}@${SMTP_HOST}:${SMTP_PORT}
       GLITCHTIP_DOMAIN: https://errors.${DOMAIN}

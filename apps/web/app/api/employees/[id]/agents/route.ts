@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getDb, schema } from "@orchester/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { ownedByWorkspace } from "@/lib/tenant/owned";
 import { parseBody } from "@/lib/validation";
 
 const setEmployeeAgentsSchema = z.object({
@@ -17,6 +18,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   if (!parsed.ok) return parsed.response;
   const { agentIds } = parsed.data;
   const db = getDb();
+  if (!(await ownedByWorkspace(db, schema.agents, ctx.workspace.id, agentIds)))
+    return NextResponse.json({ error: "Unknown agent" }, { status: 400 });
   const updated = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT set_config('app.workspace_id', ${ctx.workspace.id}, true)`);
     await tx.execute(sql`SELECT set_config('app.user_id', ${ctx.user.id}, true)`);

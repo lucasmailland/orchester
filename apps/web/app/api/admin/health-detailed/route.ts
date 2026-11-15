@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb, schema } from "@orchester/db";
-import { count, eq, gte, sql } from "drizzle-orm";
+import { and, count, eq, gte, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 
 /**
@@ -66,7 +66,12 @@ export async function GET() {
         const r = await tx
           .select({ c: count() })
           .from(schema.auditLog)
-          .where(gte(schema.auditLog.createdAt, since));
+          .where(
+            and(
+              eq(schema.auditLog.workspaceId, ctx.workspace.id),
+              gte(schema.auditLog.createdAt, since)
+            )
+          );
         const value = r[0]?.c ?? 0;
         checks["audit_recent_24h"] = {
           ok: true, // sólo informativo — silence no es fail

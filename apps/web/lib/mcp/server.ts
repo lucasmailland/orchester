@@ -104,6 +104,8 @@ const TOOLS: McpToolDef[] = [
       const { loadAgent, runAgent } = await import("@/lib/agent-runtime");
       const agent = await loadAgent(auth.workspaceId, agentId);
       if (!agent) throw new Error("Agente no encontrado");
+      // Status is the kill switch everywhere, the API included.
+      if (agent.status !== "active") throw new Error(`El agente no está activo (${agent.status})`);
       const history = Array.isArray(input.history)
         ? (input.history as Array<{ role: "user" | "assistant"; content: string }>)
         : [];

@@ -28,8 +28,7 @@
  *   tsx apps/web/scripts/reencrypt-credentials.ts --dry-run
  *   tsx apps/web/scripts/reencrypt-credentials.ts
  *
- * NOTE: DB access here is modeled on apps/web/scripts/rotate-encryption-secret.ts
- * (raw `postgres` + tagged-template SQL). Table and column names were taken from
+ * NOTE: DB access uses raw `postgres` + tagged-template SQL. Table and column names were taken from
  * packages/db/src/schema (core.ts, ai-providers.ts, integrations.ts). If the
  * schema changes, update the SQL below accordingly.
  */
@@ -269,9 +268,11 @@ async function main(): Promise<void> {
   const db = drizzle(sql);
   void db;
 
+  let failed = 0;
   try {
     for (const spec of TABLES) {
       const s = await migrateTable(sql, ring, spec, dryRun);
+      failed += s.failed;
       console.log(
         `[reencrypt] ${spec.table}.${spec.column}: ` +
           `${s.reencrypted}${dryRun ? " would be" : ""} re-encrypted, ` +
@@ -283,6 +284,15 @@ async function main(): Promise<void> {
     await sql.end();
   }
 
+  if (failed > 0) {
+    // A row that did not decrypt is still under an older key: retiring that key
+    // now would lose it for good.
+    console.error(
+      `[reencrypt] ${failed} row(s) failed. Do NOT retire any key until they are fixed.`
+    );
+    process.exitCode = 1;
+    return;
+  }
   console.log(`[reencrypt] Done${dryRun ? " (dry run)" : ""}.`);
 }
 

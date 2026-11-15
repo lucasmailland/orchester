@@ -172,7 +172,7 @@ interface CdEntry {
 
 const ZIP_ERR = "Not a valid xlsx file (could not read the ZIP structure).";
 
-function readCentralDirectory(zip: Buffer): CdEntry[] {
+function readCentralDirectory(zip: Buffer, maxEntries = MAX_ZIP_ENTRIES): CdEntry[] {
   const min = Math.max(0, zip.length - 22 - 0xffff);
   let eocd = -1;
   for (let i = zip.length - 22; i >= min; i--) {
@@ -188,8 +188,8 @@ function readCentralDirectory(zip: Buffer): CdEntry[] {
   if (total === 0xffff || cdSize === 0xffffffff || pos === 0xffffffff)
     throw new Error("Unsupported xlsx: zip64 archives are not supported.");
   const entries: CdEntry[] = [];
-  if (total > MAX_ZIP_ENTRIES)
-    throw new Error(`Unsupported xlsx: too many entries (more than ${MAX_ZIP_ENTRIES}).`);
+  if (total > maxEntries)
+    throw new Error(`Unsupported xlsx: too many entries (more than ${maxEntries}).`);
   for (let n = 0; n < total; n++) {
     if (pos + 46 > zip.length || zip.readUInt32LE(pos) !== 0x02014b50) throw new Error(ZIP_ERR);
     const nameLen = zip.readUInt16LE(pos + 28);
@@ -214,8 +214,7 @@ function readCentralDirectory(zip: Buffer): CdEntry[] {
   return entries;
 }
 
-function makeReader(zip: Buffer) {
-  const entries = readCentralDirectory(zip);
+function makeReader(zip: Buffer, entries = readCentralDirectory(zip)) {
   let totalOut = 0;
   const byName = new Map(entries.map((e) => [e.name, e]));
   return (name: string): string | null => {
@@ -247,6 +246,18 @@ function makeReader(zip: Buffer) {
     if (totalOut > MAX_TOTAL_BYTES) throw new Error("Unsupported xlsx: contents are too large.");
     return out.toString("utf8");
   };
+}
+
+/**
+ * Inflates every entry under the reader's caps (actual size must match the
+ * header, 40 MB in all). A parser that trusts the archive, like mammoth for
+ * .docx, inflates whatever the file says: checked first, it only ever gets
+ * a bounded one.
+ */
+export function assertZipBounded(zip: Buffer, maxEntries = 1000): void {
+  const entries = readCentralDirectory(zip, maxEntries);
+  const read = makeReader(zip, entries);
+  for (const e of entries) if (!e.name.endsWith("/")) read(e.name);
 }
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };

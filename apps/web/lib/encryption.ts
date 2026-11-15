@@ -224,7 +224,10 @@ export function decrypt(encoded: string): string {
   const iv = Buffer.from(ivB64, "base64");
   const tag = Buffer.from(tagB64, "base64");
   const ct = Buffer.from(ctB64, "base64");
-  const decipher = crypto.createDecipheriv(ALGO, key, iv);
+  // GCM accepts tags down to 4 bytes unless told otherwise; ours are always 16,
+  // and a truncated tag is far easier to forge.
+  if (tag.length !== 16) throw new Error("Invalid ciphertext format");
+  const decipher = crypto.createDecipheriv(ALGO, key, iv, { authTagLength: 16 });
   decipher.setAuthTag(tag);
   const pt = Buffer.concat([decipher.update(ct), decipher.final()]);
   return pt.toString("utf8");

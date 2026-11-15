@@ -5,7 +5,7 @@ import { eq, and, inArray, lt, count, sql } from "drizzle-orm";
 import { mapToolOutputText, redactToolImages } from "./tool-output";
 import { llmCall, type ChatMessage } from "./llm-call";
 import { enqueue, JOB_FLOW_RUN } from "./queue";
-import { assertPublicUrl, BlockedDestinationError, safeFetch } from "./net-guard";
+import { assertPublicUrl, BlockedDestinationError, safeFetch, readBodyCapped } from "./net-guard";
 import { logWithContext, recordMetric } from "./observability";
 import { evaluateExpression } from "./flows/filters";
 import { buildSubflowInput, readSubflowMap, readSubflowOutputs } from "./flows/subflow-io";
@@ -400,8 +400,6 @@ export async function executeFlow({
   /** `paused` is not final: the run is waiting for a person and will continue. */
   status: "succeeded" | "failed" | "cancelled" | "paused";
   error?: string;
-  /** Only with `paused`: the secret that permits approval or rejection. */
-  approvalToken?: string;
   /** Action contract violations of the stored graph (always set when a real run is refused). */
   contractIssues?: ValidationIssue[];
 }> {
@@ -581,7 +579,9 @@ export async function executeFlow({
         const { notifyPause } = await import("./flows/notify-pause");
         await notifyPause(workspaceId, runId, token, e.approvalMessage, e.notification);
       }
-      return { runId, status: "paused", approvalToken: token, ...withIssues };
+      // The token is the credential that resolves the pause: it goes to the
+      // approver (notifyPause) and nowhere else, so it is not in the result.
+      return { runId, status: "paused", ...withIssues };
     }
     // F-B1/F-1: si la causa fue un abort (cliente desconectado o timeout
     // inline), marcamos `cancelled` (no `failed`) para que las métricas no
@@ -951,6 +951,10 @@ function stepUsage(ctx: RunContext, runId: string, node: FlowNode): AiUsageAttri
   return { flowId: ctx.flowId, flowRunId: runId, nodeId: node.id };
 }
 
+/** Largest response the HTTP node reads (a JSON API answer, not a download). */
+const HTTP_NODE_MAX_BODY_BYTES = 10 * 1024 * 1024;
+/** How long the HTTP node waits for a body once headers arrived (the configurable maximum). */
+const HTTP_NODE_BODY_DEADLINE_MS = 60_000;
 const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
   trigger: async () => {
     // No-op: el nodo trigger sólo marca el punto de entrada del flow.
@@ -961,12 +965,13 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
     if (!agentId) throw new Error("Falta elegir el agente en este paso.");
     // `prompt` (registry) se antepone al mensaje entrante; `message` es el legado.
     const userMessage = buildAgentUserMessage(cfg, ctx.variables);
-    // R2-C: agent lookup needs the workspace GUC (FORCE RLS).
+    // The flow is the workspace's, so the agent must be too: RLS is off in the
+    // single-tenant deploy, and the GUC alone would not stop another workspace's id.
     const agent = await withFlowTx(workspaceId, async (tx) => {
       const aRows = await tx
         .select()
         .from(schema.agents)
-        .where(eq(schema.agents.id, agentId))
+        .where(and(eq(schema.agents.id, agentId), eq(schema.agents.workspaceId, workspaceId)))
         .limit(1);
       return aRows[0];
     });
@@ -1255,8 +1260,17 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
                 }
                 throw e;
               });
+        // The configured timeout stops at headers (flows rely on that), but the
+        // body gets its own ceiling and a size cap: the URL can come from a
+        // webhook or a model, and so can the far end.
         clearTimeout(t);
-        const text = await r.text();
+        const bodyDeadline = setTimeout(() => ac.abort(), HTTP_NODE_BODY_DEADLINE_MS);
+        let text: string;
+        try {
+          text = (await readBodyCapped(r, HTTP_NODE_MAX_BODY_BYTES)).toString("utf8");
+        } finally {
+          clearTimeout(bodyDeadline);
+        }
         let body: unknown = text;
         try {
           body = JSON.parse(text);
@@ -1887,7 +1901,6 @@ export async function enqueueFlowRun({
    */
   status: "pending" | "succeeded" | "failed" | "cancelled" | "paused";
   error?: string;
-  approvalToken?: string;
 }> {
   const triggerSource = dryRun ? markDryRun(rawTriggerSource) : rawTriggerSource;
   const db = getDb();

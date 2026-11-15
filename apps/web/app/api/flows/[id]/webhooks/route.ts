@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { requireAuth, isAuthContext, satisfiesRole } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import {
   FlowServiceError,
@@ -18,10 +18,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!isAuthContext(ctx)) return ctx;
   const { id } = await params;
   try {
-    // Not redacted: the editor shows the secrets.
+    // Secrets only for editors: with one a viewer could run the flow through
+    // the public webhook, which running it directly would refuse them.
     const rows = await listFlowWebhooks(
       { kind: "user", workspaceId: ctx.workspace.id, userId: ctx.user.id },
-      id
+      id,
+      { redact: !satisfiesRole(ctx.role, "editor") }
     );
     return NextResponse.json(rows);
   } catch (e) {

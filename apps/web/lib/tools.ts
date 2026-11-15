@@ -2,7 +2,7 @@ import "server-only";
 import { getDb, schema, type DbClient } from "@orchester/db";
 import { eq, and, ne, inArray } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
-import { assertPublicUrl, safeFetch } from "./net-guard";
+import { assertPublicUrl, readBodyCapped, safeFetch } from "./net-guard";
 import { fetchWithTimeout } from "./http-util";
 import { logAudit } from "./audit";
 import { CONNECTOR_TOOLS } from "./connector-tools";
@@ -63,6 +63,8 @@ export interface ToolContext {
    * conversationId: other callers without one must keep failing.
    */
   testChat?: boolean;
+  /** agent_call hops so far, so A -> B -> A cannot bounce until the spend cap. */
+  agentCallDepth?: number;
   /**
    * Workspace transaction handle (R2-C). When the caller (agent
    * runtime, channels router) is inside `withWorkspaceTx`, threading
@@ -76,6 +78,11 @@ export interface ToolContext {
   source?: ToolCallSource;
   /** The channel of a channel conversation, for the tool call log. */
   channelId?: string;
+  /**
+   * The channel's type, when the call comes from one. A web widget is an
+   * anonymous visitor: handoff and the team list stay inside the caller's team.
+   */
+  channelType?: string;
   /** Flow, run and step of a flow agent step, for the tool call log. */
   flowId?: string;
   flowRunId?: string;
@@ -853,6 +860,14 @@ export function getToolDefinitions(enabledIds: string[]): ToolDefinition[] {
   return enabledIds.map((id) => BUILTINS[id]).filter(Boolean) as ToolDefinition[];
 }
 
+/** Channels whose sender is anyone on the internet, with no identity. */
+const ANONYMOUS_CHANNEL_TYPES = new Set(["widget", "web"]);
+
+/** Largest HTTP response a tool reads: the far end is chosen by the model or the workspace. */
+const MAX_TOOL_RESPONSE_BYTES = 5 * 1024 * 1024;
+
+/** Nested agent_call hops allowed (A -> B -> C -> D). */
+export const MAX_AGENT_CALL_DEPTH = 3;
 /**
  * `knowledge_search` as the model sees it for an agent bound to knowledge
  * bases: kbId becomes optional and the agent's bases are listed by name.
@@ -1189,7 +1204,7 @@ async function runTool(
       process.env.ALLOW_PRIVATE_HTTP === "1"
         ? await fetchWithTimeout(url, init, HTTP_REQUEST_TIMEOUT_MS)
         : await safeFetch(url, { ...init, timeoutMs: HTTP_REQUEST_TIMEOUT_MS });
-    const text = await r.text();
+    const text = (await readBodyCapped(r, MAX_TOOL_RESPONSE_BYTES)).toString("utf8");
     let body: unknown = text;
     try {
       body = JSON.parse(text);
@@ -1225,6 +1240,8 @@ async function runTool(
       // agent context, e.g. from a flow) keeps the workspace-wide list.
       const callerTeamId = await getCallerTeamId(db, ctx.agentId, ctx.workspaceId);
       if (callerTeamId) conds.push(eq(schema.agents.teamId, callerTeamId));
+      // An anonymous visitor does not get the workspace's internal agents.
+      else if (ANONYMOUS_CHANNEL_TYPES.has(ctx.channelType ?? "")) return { teammates: [] };
     }
     const teammates = await db
       .select({
@@ -1268,6 +1285,11 @@ async function runTool(
     // Same scoping as agent_team_list: a caller in a team may only hand off
     // within it, otherwise the model could use an id it saw elsewhere.
     const callerTeamId = await getCallerTeamId(db, ctx.agentId, ctx.workspaceId);
+    // From a web widget the visitor is anonymous: handing off to an agent outside
+    // the caller's team would give them that agent's tools.
+    if (!callerTeamId && ANONYMOUS_CHANNEL_TYPES.has(ctx.channelType ?? "")) {
+      throw new Error("agent_handoff from a web widget only works within the agent's team");
+    }
     if (callerTeamId && target.teamId !== callerTeamId) {
       throw new Error(`target agent ${target.name} is not in your team`);
     }
@@ -1489,8 +1511,9 @@ async function runTool(
       process.env.ALLOW_PRIVATE_HTTP === "1"
         ? await fetchWithTimeout(url, searchInit, HTTP_REQUEST_TIMEOUT_MS)
         : await safeFetch(url, { ...searchInit, timeoutMs: HTTP_REQUEST_TIMEOUT_MS });
-    if (!r.ok) throw new Error(`web_search ${r.status}: ${(await r.text()).slice(0, 120)}`);
-    const j = (await r.json()) as {
+    const searchText = (await readBodyCapped(r, MAX_TOOL_RESPONSE_BYTES)).toString("utf8");
+    if (!r.ok) throw new Error(`web_search ${r.status}: ${searchText.slice(0, 120)}`);
+    const j = JSON.parse(searchText) as {
       web?: { results?: Array<{ title?: string; url?: string; description?: string }> };
       results?: Array<{ title?: string; url?: string; description?: string; snippet?: string }>;
     };
@@ -1546,7 +1569,7 @@ async function runTool(
         );
       }
       const r = await safeFetch(url, { ...init, timeoutMs: HTTP_REQUEST_TIMEOUT_MS });
-      const text = await r.text();
+      const text = (await readBodyCapped(r, MAX_TOOL_RESPONSE_BYTES)).toString("utf8");
       let body: unknown = text;
       try {
         body = JSON.parse(text);
@@ -1562,6 +1585,10 @@ async function runTool(
     if (!targetAgentId) throw new Error("agentId required");
     if (!task) throw new Error("task required");
     if (targetAgentId === ctx.agentId) throw new Error("cannot delegate to yourself");
+    const depth = ctx.agentCallDepth ?? 0;
+    if (depth >= MAX_AGENT_CALL_DEPTH) {
+      throw new Error(`agent_call is limited to ${MAX_AGENT_CALL_DEPTH} nested delegations`);
+    }
 
     const db = ctx.tx ?? getDb();
     const rows = await db
@@ -1593,6 +1620,7 @@ async function runTool(
       workspaceId: ctx.workspaceId,
       agent: full,
       messages: [{ role: "user", content: task }],
+      agentCallDepth: depth + 1,
       ...(ctx.tx ? { tx: ctx.tx } : {}),
     });
     return {

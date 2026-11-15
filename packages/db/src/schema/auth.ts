@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, integer, text, timestamp, boolean } from "drizzle-orm/pg-core";
 
 export const users = pgTable("user", {
   id: text("id").primaryKey(),
@@ -33,6 +33,9 @@ export const twoFactors = pgTable("two_factor", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   verified: boolean("verified").default(true),
+  /** better-auth >= 1.7: failed TOTP attempts and the lockout they trigger. */
+  failedVerificationCount: integer("failed_verification_count").default(0),
+  lockedUntil: timestamp("locked_until"),
 });
 
 export const sessions = pgTable("session", {

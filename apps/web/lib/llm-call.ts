@@ -7,6 +7,8 @@ import { type ProviderType } from "./providers";
 import { normalizeToolOutput } from "./tool-output";
 import { resolveModel } from "./ai/catalog";
 import { DEFAULT_MAX_TOKENS } from "./ai/output-limit";
+import { assertPublicEndpoint } from "./net-guard";
+import { untrustedToolError } from "./untrusted";
 import { fetchWithTimeout, fetchStreamWithConnectTimeout, withRetry, HttpError } from "./http-util";
 import { recordMetric, logWithContext } from "./observability";
 import type {
@@ -231,6 +233,8 @@ async function getProviderKey(
     .limit(1);
   const row = rows[0];
   if (!row || !row.enabled) throw new ProviderNotConfiguredError(provider);
+  // The endpoint is typed by the workspace: an internal address must not be reachable.
+  await assertPublicEndpoint(row.endpoint);
   return { apiKey: decrypt(row.apiKey), endpoint: row.endpoint };
 }
 
@@ -352,7 +356,7 @@ function prepareToolImages(messages: ChatMessage[], acceptsImages: boolean): Cha
 }
 
 function anthropicToolContent(tr: ToolResultBlock) {
-  if (tr.error) return `Error: ${tr.error}`;
+  if (tr.error) return untrustedToolError(tr.error);
   const { text, images } = normalizeToolOutput(tr.output);
   return images.length
     ? [
@@ -366,7 +370,7 @@ function anthropicToolContent(tr: ToolResultBlock) {
 }
 
 function bedrockToolContent(tr: ToolResultBlock) {
-  if (tr.error) return [{ text: `Error: ${tr.error}` }];
+  if (tr.error) return [{ text: untrustedToolError(tr.error) }];
   const { text, images } = normalizeToolOutput(tr.output);
   // This adapter sends REST JSON, not SDK Uint8Arrays: blob bytes are base64 on the wire.
   return [
@@ -812,7 +816,7 @@ function toOpenAIMessages(p: LlmCallParams) {
         out.push({
           role: "tool",
           tool_call_id: tr.id,
-          content: tr.error ? `Error: ${tr.error}` : text,
+          content: tr.error ? untrustedToolError(tr.error) : text,
         });
         if (!tr.error && images.length) {
           imageContent.push({ type: "text", text: `Tool output: ${tr.name} (${tr.id})` });
@@ -929,7 +933,9 @@ async function callGoogle(p: LlmCallParams, apiKey: string): Promise<LlmCallResu
             functionResponse: {
               name: tr.name,
               response: {
-                result: tr.error ? `Error: ${tr.error}` : normalizeToolOutput(tr.output).text,
+                result: tr.error
+                  ? untrustedToolError(tr.error)
+                  : normalizeToolOutput(tr.output).text,
               },
             },
           })),

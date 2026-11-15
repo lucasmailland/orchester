@@ -6,7 +6,8 @@ import crypto from "node:crypto";
 import { getDb, schema } from "@orchester/db";
 import { eq, desc } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
-import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { requireAuth, isAuthContext, satisfiesRole, type Role } from "@/lib/auth-guards";
+import { ownedByWorkspace } from "@/lib/tenant/owned";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
 
@@ -28,10 +29,13 @@ export async function GET() {
     .from(schema.channels)
     .where(eq(schema.channels.workspaceId, ws.workspace.id))
     .orderBy(desc(schema.channels.updatedAt));
-  // Don't leak credentialsEncrypted
+  // Don't leak credentialsEncrypted. The webhook secret is part of the inbound
+  // URL, which only those who configure channels (editors) need to see.
+  const showSecret = satisfiesRole(ws.role as Role, "editor");
   return NextResponse.json(
-    rows.map(({ credentialsEncrypted, ...rest }) => ({
+    rows.map(({ credentialsEncrypted, secret, ...rest }) => ({
       ...rest,
+      ...(showSecret ? { secret } : {}),
       hasCredentials: Boolean(credentialsEncrypted),
     }))
   );
@@ -44,6 +48,8 @@ export async function POST(req: Request) {
   if (!parsed.ok) return parsed.response;
   const { name, type, agentId, config } = parsed.data;
   const db = getDb();
+  if (agentId && !(await ownedByWorkspace(db, schema.agents, ctx.workspace.id, [agentId])))
+    return NextResponse.json({ error: "Unknown agent" }, { status: 400 });
   const inserted = await db
     .insert(schema.channels)
     .values({

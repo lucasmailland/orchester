@@ -68,6 +68,17 @@ describe("agent_call tool", () => {
     ).rejects.toThrow(/yourself/i);
   });
 
+  it("refuses past the nested delegation limit, so agents cannot bounce forever", async () => {
+    const [caller, other] = [wsA.agentIds[0]!, wsA.agentIds[1]!];
+    await expect(
+      executeTool(
+        "agent_call",
+        { agentId: other, task: "x" },
+        { workspaceId: wsA.id, variables: {}, agentId: caller, agentCallDepth: 3 }
+      )
+    ).rejects.toThrow(/nested delegations/i);
+  });
+
   it("enforces the team allowlist: cannot call an agent in a different team", async () => {
     const db = getDb();
     const teamA = createId();

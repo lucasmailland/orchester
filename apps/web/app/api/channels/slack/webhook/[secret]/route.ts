@@ -69,6 +69,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
     return NextResponse.json({ challenge: envelope.challenge });
   }
 
+  // Slack retries any event it did not see acknowledged within 3 s, and the
+  // agent reply takes longer: each retry would run the agent (and bill) again.
+  // The first delivery is already being answered, so a retry is acknowledged.
+  if (req.headers.get("x-slack-retry-num")) {
+    return NextResponse.json({ ok: true, retried: true });
+  }
+
   if (envelope.type !== "event_callback" || !envelope.event) {
     return NextResponse.json({ ok: true });
   }
@@ -143,9 +150,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
     return NextResponse.json({ ok: true });
   } catch (e) {
     await ackPromise.catch(() => undefined);
-    return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    // Slack is the caller here: the detail stays in the server log.
+    const { safeLogError } = await import("@/lib/safe-log");
+    safeLogError("[slack-webhook] inbound failed:", e);
+    return NextResponse.json({ ok: false, error: "internal error" }, { status: 500 });
   }
 }

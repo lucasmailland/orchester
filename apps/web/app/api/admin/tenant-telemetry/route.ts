@@ -23,7 +23,7 @@ export async function GET() {
   if (!session) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
-  if (!isSystemAdmin(session.user.email)) {
+  if (!isSystemAdmin(session.user.email, session.user.emailVerified)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   return NextResponse.json(snapshotCounts());

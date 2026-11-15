@@ -738,6 +738,7 @@ async function runConversationalLoop(
             ...(conversation.employeeId ? { employeeId: conversation.employeeId } : {}),
             source: "channel",
             channelId: ctx.channel.id,
+            channelType: ctx.channel.type,
           };
           const offeredTool = await checkToolOffered(tc.name, tc.input, toolContext);
           // Phase F.1 fix: tools run on the same tx that has
@@ -785,7 +786,9 @@ async function runConversationalLoop(
           const newAgentRows = await db
             .select()
             .from(schema.agents)
-            .where(eq(schema.agents.id, newAgentId))
+            .where(
+              and(eq(schema.agents.id, newAgentId), eq(schema.agents.workspaceId, workspaceId))
+            )
             .limit(1);
           if (newAgentRows[0]) {
             activeAgent = newAgentRows[0];

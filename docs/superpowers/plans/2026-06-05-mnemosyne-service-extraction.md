@@ -430,7 +430,7 @@ docker compose up -d
 - 2026-06-05 — **Phase A boot complete (self-hosted).** Mnemosyne stack running locally via `vendor/mnemosyne/docker/docker-compose.yml`:
   - `mnemosyne-postgres` (pgvector/pgvector:pg17, port 55434, vol `mnemosyne-pgdata`) — 17 mnemo_* tables migrated (33/33 migrations applied)
   - `mnemosyne-server` (Hono + @mnemosyne/core, port 3939) — `/healthz` returns 200
-  - First API key minted: `mns_live_mvdjrcqv45tzwf6nh358cs0w` (workspace `ws_orchester`, label `orchester-local`)
+  - First API key minted: `mns_live_<redacted>` (workspace `ws_orchester`, label `orchester-local`)
   - `MNEMO_URL=http://localhost:3939` + `MNEMO_API_KEY=...` set in `apps/web/.env.local` — orchester now routes the 17 dual-mode endpoints through HTTP service mode
   - Smoke E2E (curl) verified on `/v1/facts`, `/v1/entities`, `/v1/review`, `/v1/graph` — all 200, empty workspace as expected
   - Stack is 100% self-hosted, open source (pgvector + Hono), no third-party SaaS

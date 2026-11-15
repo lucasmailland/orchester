@@ -92,9 +92,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
     }
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    // Telegram is the caller here: the detail stays in the server log.
+    const { safeLogError } = await import("@/lib/safe-log");
+    safeLogError("[telegram-webhook] inbound failed:", e);
+    return NextResponse.json({ ok: false, error: "internal error" }, { status: 500 });
   }
 }

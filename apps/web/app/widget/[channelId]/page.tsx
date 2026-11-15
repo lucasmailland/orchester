@@ -1,5 +1,5 @@
 import { getDb, schema } from "@orchester/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { WidgetChat } from "@/components/channels/WidgetChat";
 
@@ -40,7 +40,16 @@ export default async function WidgetPage({
 
   // Fetch agent for greeting/branding
   const agentRows = channel.agentId
-    ? await db.select().from(schema.agents).where(eq(schema.agents.id, channel.agentId)).limit(1)
+    ? await db
+        .select()
+        .from(schema.agents)
+        .where(
+          and(
+            eq(schema.agents.id, channel.agentId),
+            eq(schema.agents.workspaceId, channel.workspaceId)
+          )
+        )
+        .limit(1)
     : [];
   const agent = agentRows[0];
 

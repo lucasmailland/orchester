@@ -27,41 +27,41 @@ describe("rbac system-admin gate", () => {
     it("returns false when ADMIN_EMAILS is unset (fail closed)", async () => {
       delete process.env["ADMIN_EMAILS"];
       const { isSystemAdmin } = await import("@/lib/rbac");
-      expect(isSystemAdmin("anyone@anywhere.com")).toBe(false);
+      expect(isSystemAdmin("anyone@anywhere.com", true)).toBe(false);
     });
 
     it("returns false when ADMIN_EMAILS is empty string", async () => {
       process.env["ADMIN_EMAILS"] = "";
       const { isSystemAdmin } = await import("@/lib/rbac");
-      expect(isSystemAdmin("anyone@anywhere.com")).toBe(false);
+      expect(isSystemAdmin("anyone@anywhere.com", true)).toBe(false);
     });
 
     it("returns true for an email on the allowlist", async () => {
       process.env["ADMIN_EMAILS"] = "ops@example.com,oncall@example.com";
       const { isSystemAdmin } = await import("@/lib/rbac");
-      expect(isSystemAdmin("ops@example.com")).toBe(true);
-      expect(isSystemAdmin("oncall@example.com")).toBe(true);
+      expect(isSystemAdmin("ops@example.com", true)).toBe(true);
+      expect(isSystemAdmin("oncall@example.com", true)).toBe(true);
     });
 
     it("returns false for an email NOT on the allowlist", async () => {
       process.env["ADMIN_EMAILS"] = "ops@example.com";
       const { isSystemAdmin } = await import("@/lib/rbac");
-      expect(isSystemAdmin("attacker@example.com")).toBe(false);
+      expect(isSystemAdmin("attacker@example.com", true)).toBe(false);
     });
 
     it("handles whitespace + empty entries in the allowlist", async () => {
       process.env["ADMIN_EMAILS"] = "  ops@example.com , , oncall@example.com  ,";
       const { isSystemAdmin } = await import("@/lib/rbac");
-      expect(isSystemAdmin("ops@example.com")).toBe(true);
-      expect(isSystemAdmin("oncall@example.com")).toBe(true);
+      expect(isSystemAdmin("ops@example.com", true)).toBe(true);
+      expect(isSystemAdmin("oncall@example.com", true)).toBe(true);
     });
 
     it("returns false for null / undefined / empty caller", async () => {
       process.env["ADMIN_EMAILS"] = "ops@example.com";
       const { isSystemAdmin } = await import("@/lib/rbac");
-      expect(isSystemAdmin(null)).toBe(false);
-      expect(isSystemAdmin(undefined)).toBe(false);
-      expect(isSystemAdmin("")).toBe(false);
+      expect(isSystemAdmin(null, true)).toBe(false);
+      expect(isSystemAdmin(undefined, true)).toBe(false);
+      expect(isSystemAdmin("", true)).toBe(false);
     });
 
     it("is case-sensitive (no normalization)", async () => {
@@ -72,8 +72,8 @@ describe("rbac system-admin gate", () => {
       // class of bug).
       process.env["ADMIN_EMAILS"] = "Ops@Example.com";
       const { isSystemAdmin } = await import("@/lib/rbac");
-      expect(isSystemAdmin("Ops@Example.com")).toBe(true);
-      expect(isSystemAdmin("ops@example.com")).toBe(false);
+      expect(isSystemAdmin("Ops@Example.com", true)).toBe(true);
+      expect(isSystemAdmin("ops@example.com", true)).toBe(false);
     });
   });
 
@@ -81,14 +81,14 @@ describe("rbac system-admin gate", () => {
     it("throws SystemAdminRequiredError when caller not on the list", async () => {
       delete process.env["ADMIN_EMAILS"];
       const { assertSystemAdmin, SystemAdminRequiredError } = await import("@/lib/rbac");
-      expect(() => assertSystemAdmin("nobody@nowhere.com")).toThrow(SystemAdminRequiredError);
+      expect(() => assertSystemAdmin("nobody@nowhere.com", true)).toThrow(SystemAdminRequiredError);
     });
 
     it("error carries the actor email for forensic context", async () => {
       delete process.env["ADMIN_EMAILS"];
       const { assertSystemAdmin, SystemAdminRequiredError } = await import("@/lib/rbac");
       try {
-        assertSystemAdmin("attacker@example.com");
+        assertSystemAdmin("attacker@example.com", true);
         throw new Error("should have thrown");
       } catch (e) {
         expect(e).toBeInstanceOf(SystemAdminRequiredError);
@@ -102,14 +102,21 @@ describe("rbac system-admin gate", () => {
     it("returns silently when caller is on the list", async () => {
       process.env["ADMIN_EMAILS"] = "ops@example.com";
       const { assertSystemAdmin } = await import("@/lib/rbac");
-      expect(() => assertSystemAdmin("ops@example.com")).not.toThrow();
+      expect(() => assertSystemAdmin("ops@example.com", true)).not.toThrow();
     });
 
     it("treats null/undefined as anonymous (still throws)", async () => {
       process.env["ADMIN_EMAILS"] = "ops@example.com";
       const { assertSystemAdmin, SystemAdminRequiredError } = await import("@/lib/rbac");
-      expect(() => assertSystemAdmin(null)).toThrow(SystemAdminRequiredError);
-      expect(() => assertSystemAdmin(undefined)).toThrow(SystemAdminRequiredError);
+      expect(() => assertSystemAdmin(null, true)).toThrow(SystemAdminRequiredError);
+      expect(() => assertSystemAdmin(undefined, true)).toThrow(SystemAdminRequiredError);
     });
+  });
+
+  it("refuses a listed address whose email is not verified", async () => {
+    process.env["ADMIN_EMAILS"] = "ops@example.com";
+    const { isSystemAdmin } = await import("@/lib/rbac");
+    expect(isSystemAdmin("ops@example.com", false)).toBe(false);
+    expect(isSystemAdmin("ops@example.com", null)).toBe(false);
   });
 });

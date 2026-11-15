@@ -37,7 +37,8 @@ import {
  */
 
 export type Flow = typeof schema.flows.$inferSelect;
-export type FlowRun = typeof schema.flowRuns.$inferSelect;
+/** A run as callers see it: never with the approval token that resolves its pause. */
+export type FlowRun = Omit<typeof schema.flowRuns.$inferSelect, "approvalToken">;
 export type FlowRunStep = typeof schema.flowRunSteps.$inferSelect;
 export type FlowWebhook = typeof schema.flowWebhooks.$inferSelect;
 export interface RedactedFlowWebhook {

@@ -48,6 +48,16 @@ export async function authenticateApiKey(
     return rows[0] ?? null;
   });
   if (!row || row.revokedAt) return null;
+  // Keys of a suspended or deleted workspace stop working with it.
+  const [ws] = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.cross_tenant_admin', 'true', true)`);
+    return tx
+      .select({ status: schema.workspaces.status })
+      .from(schema.workspaces)
+      .where(eq(schema.workspaces.id, row.workspaceId))
+      .limit(1);
+  });
+  if (!ws || ws.status !== "active") return null;
   // Fire-and-forget lastUsedAt bump. Runs in its own txn with the
   // resolved workspace_id so RLS allows the UPDATE without a bypass.
   // R2-C: previously this swallowed every error under `.catch(() => {})`,

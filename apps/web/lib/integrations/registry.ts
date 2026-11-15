@@ -2,6 +2,7 @@ import "server-only";
 import { extractEmbeddedAttachmentIds } from "./odoo-embedded-images";
 import {
   AGENT_WRITE_PROJECTS_KEY,
+  assertAgentExecuteIsPlain,
   assertAgentMayTargetProject,
   assertAgentMayWriteTasks,
   parseAgentWriteProjects,
@@ -36,7 +37,7 @@ import {
   type TicketPriority,
 } from "./odoo-client";
 import { htmlToText } from "./html-text";
-import { safeFetch } from "@/lib/net-guard";
+import { readBodyCapped, safeFetch } from "@/lib/net-guard";
 import { markdownToHtml } from "@/lib/text/markdown-html";
 import {
   nerdgraph,
@@ -184,7 +185,8 @@ async function fetchJson(
   try {
     // Also used by the generic HTTP connector, whose baseUrl the workspace sets.
     const r = await safeFetch(url, { ...init, signal: ac.signal });
-    const text = await r.text();
+    // The generic HTTP connector's base URL is the workspace's: cap what it may send back.
+    const text = (await readBodyCapped(r, 5 * 1024 * 1024)).toString("utf8");
     let json: unknown = null;
     try {
       json = text ? JSON.parse(text) : null;
@@ -360,8 +362,8 @@ const postgres: Connector = {
     const cs = config.connectionString ?? "";
     if (!cs) return { ok: false, error: "Connection string required" };
     try {
-      const { assertPublicDbHost } = await import("@/lib/net-guard");
-      assertPublicDbHost(cs);
+      const { assertPublicDbConnection } = await import("@/lib/net-guard");
+      await assertPublicDbConnection(cs);
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : "host blocked" };
     }
@@ -391,8 +393,12 @@ const postgres: Connector = {
         ) {
           throw new Error("Only read-only queries are allowed (SELECT/WITH).");
         }
-        const { assertPublicDbHost } = await import("@/lib/net-guard");
-        assertPublicDbHost(config.connectionString ?? "");
+        // Without parameters postgres.js runs every statement in the string, so
+        // `select 1; commit; delete …` would end the read-only transaction.
+        const { isSingleStatement } = await import("@/lib/integrations/sql-guard");
+        if (!isSingleStatement(raw)) throw new Error("Only one statement per query is allowed.");
+        const { assertPublicDbConnection } = await import("@/lib/net-guard");
+        await assertPublicDbConnection(config.connectionString ?? "");
         const { default: pg } = await import("postgres");
         const sql = pg(config.connectionString ?? "", {
           max: 1,
@@ -1971,13 +1977,22 @@ const odoo: Connector = {
           throw new Error(`execute: ${model}.${method} is not allowed. Use a dedicated action.`);
         }
         const args = Array.isArray(input.args) ? input.args : [];
+        const kwargs = (input.kwargs as Record<string, unknown>) ?? {};
         if (model === "project.task" && !ODOO_READ_METHODS.has(method)) {
           const [first, second] = args;
           if (method === "create") {
             for (const vals of Array.isArray(first) ? first : [first]) {
               assertAgentMayTargetProject(config, ctx, vals, { required: true });
+              assertAgentExecuteIsPlain(config, ctx, method, vals, kwargs);
             }
           } else {
+            assertAgentExecuteIsPlain(
+              config,
+              ctx,
+              method,
+              method === "write" ? second : null,
+              kwargs
+            );
             // `write` and `message_post` take the record ids first; a write
             // may also move the task to another project.
             await assertAgentMayWriteTasks(
@@ -1991,13 +2006,7 @@ const odoo: Connector = {
             }
           }
         }
-        const result = await odooExecute(
-          config,
-          model,
-          method,
-          args,
-          (input.kwargs as Record<string, unknown>) ?? {}
-        );
+        const result = await odooExecute(config, model, method, args, kwargs);
         return { result };
       },
     },

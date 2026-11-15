@@ -51,6 +51,20 @@ export const auth = betterAuth({
     enabled: true,
     requireEmailVerification: false,
   },
+  // Sign-in does not wait for it, but a proven address is what the system-admin
+  // allowlist (lib/rbac.ts) relies on, so every email account gets the link.
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      const { sendEmail } = await import("@/lib/email");
+      await sendEmail({
+        to: user.email,
+        subject: "Confirm your email for Orchester",
+        text: `Confirm this address to finish setting up your account:\n\n${url}\n\nIf you did not create an account, ignore this email.`,
+      });
+    },
+  },
   socialProviders: {
     ...(process.env["GOOGLE_CLIENT_ID"] && process.env["GOOGLE_CLIENT_SECRET"]
       ? {

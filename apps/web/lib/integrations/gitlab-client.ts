@@ -1,5 +1,5 @@
 import "server-only";
-import { assertPublicUrl } from "@/lib/net-guard";
+import { assertPublicUrl, safeFetch } from "@/lib/net-guard";
 
 const MAX_FILE_BYTES = 200 * 1024;
 // Includes base64 expansion and JSON metadata; bounds every GitLab response.
@@ -72,11 +72,13 @@ async function get<T>(
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 20_000);
   try {
-    const res = await fetch(url.toString(), {
+    // safeFetch also refuses a name that resolves to an internal address, which
+    // the string check above cannot see; the token never follows a redirect.
+    const res = await safeFetch(url.toString(), {
       method: "GET",
       headers: { "PRIVATE-TOKEN": token, Accept: "application/json" },
-      // Do not forward a private token to a redirect target.
-      redirect: "error",
+      maxRedirects: 0,
+      timeoutMs: null,
       signal: ac.signal,
     });
     const text = await boundedText(res, ac);

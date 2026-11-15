@@ -34,7 +34,8 @@ function expectGet(calls: Captured[]) {
     expect(init.method).toBe("GET");
     expect(init.body).toBeUndefined();
     expect(new Headers(init.headers).get("PRIVATE-TOKEN")).toBe("test-token");
-    expect(init.redirect).toBe("error");
+    // safeFetch follows no redirect here (maxRedirects: 0): it stops at the first one.
+    expect(init.redirect).toBe("manual");
     expect(url).not.toContain("test-token");
   }
 }
