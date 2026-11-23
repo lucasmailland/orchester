@@ -85,7 +85,7 @@ En el deploy single-tenant RLS está apagado a propósito, así que los filtros 
 | SEC-008 | S3   | AES-GCM aceptaba tags de 4 bytes.                                                                                  | ✓                                                                                                           |
 | SEC-009 | S3   | El log de auditoría se puede falsificar o borrar en cascada.                                                       | ○ diseño                                                                                                    |
 | SEC-010 | S3   | GlitchTip con `change-me` como default; los puertos del compose de dev en 0.0.0.0.                                 | ✓                                                                                                           |
-| SEC-011 | S3   | Actions de terceros fijadas por tag, no por SHA; CI sin `permissions`.                                             | ✓ permissions; ○ SHAs                                                                                       |
+| SEC-011 | S3   | Actions de terceros fijadas por tag, no por SHA; CI sin `permissions`.                                             | ✓ permissions y SHAs (2026-11-22)                                                                           |
 | SEC-012 | S3   | Una key revocada pegada en un doc del plan.                                                                        | ✓ redactada                                                                                                 |
 | SEC-013 | S3   | A `safe-log` le faltaban formatos de keys.                                                                         | ✓                                                                                                           |
 | SEC-014 | S3   | Los exports GDPR no se borran después de vencer.                                                                   | ○                                                                                                           |
@@ -111,7 +111,6 @@ En el deploy single-tenant RLS está apagado a propósito, así que los filtros 
 - **PUB-010**: filtrar las URIs en el log de Caddy y agregar `beforeSend` a Sentry.
 - **SEC-007**: pasar los handlers autenticados restantes a `handleError`.
 - **SEC-009**: HMAC con una clave que no esté en la base, anclar la cadena fuera de ella, y `RESTRICT` en lugar de cascada.
-- **SEC-011**: fijar las actions de terceros por SHA.
 - **SEC-014**: retención de los exports GDPR.
 - **DNS rebinding** en el conector Postgres y en los endpoints de proveedores: hoy se valida al resolver, no queda fijado en el socket (marcado `ponytail:` en `lib/net-guard.ts`).
 
