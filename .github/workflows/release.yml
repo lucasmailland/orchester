@@ -1,8 +1,8 @@
 # Build & push Docker image to GHCR on tag.
 #
-# SAFETY: este workflow NO ejecuta `run:` con datos untrusted. Sólo usa
-# context vars seguros (github.repository, github.actor, secrets.GITHUB_TOKEN)
-# que son set por GitHub Actions. No hay command injection vectors.
+# SAFETY: the only external value is the release tag. It reaches `run:`
+# through `env`, must match vX.Y.Z, and is checked out as refs/tags/<tag>,
+# so only an existing release tag can be built and pushed.
 #
 # Trigger: push of a `v*.*.*` tag, or manual dispatch with the tag to build.
 # release-please creates tags with GITHUB_TOKEN, which does not trigger
@@ -34,9 +34,20 @@ jobs:
     timeout-minutes: 120
 
     steps:
+      - name: Validate tag
+        id: tag
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::not a release tag: $TAG"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          ref: refs/tags/${{ steps.tag.outputs.tag }}
 
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
@@ -54,11 +65,11 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=raw,value=${{ inputs.tag || github.ref_name }}
-            type=semver,pattern={{version}},value=${{ inputs.tag }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag }}
-            type=semver,pattern={{major}},value=${{ inputs.tag }}
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.tag.outputs.tag }}
+            type=semver,pattern={{version}},value=${{ steps.tag.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.tag.outputs.tag }}
+            type=semver,pattern={{major}},value=${{ steps.tag.outputs.tag }}
+            type=raw,value=latest
 
       - name: Build & push
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
