@@ -54,7 +54,7 @@ importers:
         specifier: ^3.10.1
         version: 3.10.1
       turbo:
-        specifier: ^2.11.11
+        specifier: ^2.11.13
         version: 2.11.13
       typescript:
         specifier: ^5.7.2
@@ -63,13 +63,13 @@ importers:
   apps/web:
     dependencies:
       '@aws-sdk/client-s3':
-        specifier: ^3.1167.0
+        specifier: ^3.1173.0
         version: 3.1175.0
       '@aws-sdk/lib-storage':
-        specifier: ^3.1167.0
+        specifier: ^3.1173.0
         version: 3.1175.0(@aws-sdk/client-s3@3.1175.0)
       '@aws-sdk/s3-request-presigner':
-        specifier: ^3.1167.0
+        specifier: ^3.1173.0
         version: 3.1175.0
       '@better-fetch/fetch':
         specifier: 1.3.3
@@ -153,7 +153,7 @@ importers:
         specifier: ^15.5.29
         version: 15.5.29(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@22.20.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       next-intl:
-        specifier: ^4.15.0
+        specifier: ^4.15.3
         version: 4.15.3(@swc/helpers@0.5.24)(@types/react@19.3.0)(next@15.5.29(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@22.20.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
       next-themes:
         specifier: ^0.4.4
@@ -186,13 +186,13 @@ importers:
         specifier: ^10
         version: 10.1.0(@types/react@19.3.0)(react@19.3.1)
       recharts:
-        specifier: ^3.10.1
-        version: 3.10.1(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react-is@17.0.2)(react@19.3.1)(redux@5.0.1)
+        specifier: ^3.11.0
+        version: 3.11.0(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react-is@17.0.2)(react@19.3.1)(redux@5.0.1)
       remark-gfm:
         specifier: ^4
         version: 4.0.1
       resend:
-        specifier: ^6.38.0
+        specifier: ^6.39.0
         version: 6.39.0
       server-only:
         specifier: ^0.0.1
@@ -204,8 +204,8 @@ importers:
         specifier: ^2.4.2
         version: 2.5.1(react@19.3.1)
       tailwind-merge:
-        specifier: ^2.6.0
-        version: 2.6.1
+        specifier: ^2.6.2
+        version: 2.6.2
       three:
         specifier: ^0.187.0
         version: 0.187.0
@@ -227,7 +227,7 @@ importers:
         specifier: ^10.5.0
         version: 10.6.0
       '@playwright/test':
-        specifier: ^1.65.0
+        specifier: ^1.65.1
         version: 1.65.1
       '@testing-library/jest-dom':
         specifier: ^6.6.3
@@ -266,7 +266,7 @@ importers:
         specifier: ^4.1.12
         version: 4.1.12(vitest@4.1.12)
       autoprefixer:
-        specifier: ^10.6.2
+        specifier: ^10.7.0
         version: 10.7.0(postcss@8.5.33)
       esbuild:
         specifier: ^0.28.1
@@ -278,20 +278,20 @@ importers:
         specifier: ^15.5.29
         version: 15.5.29(eslint@9.39.5(jiti@1.21.7))(typescript@5.9.3)
       fast-check:
-        specifier: ^4.9.0
-        version: 4.10.2
+        specifier: ^4.10.3
+        version: 4.11.0
       jsdom:
         specifier: ^25.0.1
         version: 25.0.1
       postcss:
-        specifier: ^8.5.32
+        specifier: ^8.5.33
         version: 8.5.33
       tailwindcss:
         specifier: ^3.4.17
         version: 3.4.19(tsx@4.23.15)(yaml@2.9.0)
       testcontainers:
-        specifier: ^12.2.1
-        version: 12.2.1
+        specifier: ^12.2.2
+        version: 12.2.2
       tsx:
         specifier: ^4.23.1
         version: 4.23.15
@@ -3922,8 +3922,8 @@ packages:
   '@types/docker-modem@3.0.6':
     resolution: {integrity: sha512-yKpAGEuKRSS8wwx0joknWxsmLha78wNMe9R2S3UNsVOkZded8UqOrV8KoeDXoXsjndxwyF3eIhyClGbO1SEhEg==}
 
-  '@types/dockerode@4.0.1':
-    resolution: {integrity: sha512-cmUpB+dPN955PxBEuXE3f6lKO1hHiIGYJA46IVF3BJpNsZGvtBDcRnlrHYHtOH/B6vtDOyl2kZ2ShAu3mgc27Q==}
+  '@types/dockerode@4.0.2':
+    resolution: {integrity: sha512-hA4myZ0XzwHG/p/eCLElYsQS3y1XZfvi6AfLFKVp1SNpPkO6J3xLatacAFVkReTxXRoIa3eHJmhJi9w6I3+zNA==}
 
   '@types/estree-jsx@1.0.5':
     resolution: {integrity: sha512-52CcUVNFyfb1A2ALocQw/Dd1BQFNmSdkuC3BkZ6iqhdMfQz7JWOFRuJFloOzjk+6WijU56m9oKXFAXc7o3Towg==}
@@ -3974,12 +3974,6 @@ packages:
 
   '@types/readdir-glob@1.1.5':
     resolution: {integrity: sha512-raiuEPUYqXu+nvtY2Pe8s8FEmZ3x5yAH4VkLdihcPdalvsHltomrRC9BzuStrJ9yk06470hS0Crw0f1pXqD+Hg==}
-
-  '@types/ssh2-streams@0.1.13':
-    resolution: {integrity: sha512-faHyY3brO9oLEA0QlcO8N2wT7R0+1sHWZvQ+y3rMLwdY1ZyS1z0W3t65j9PqT4HmQ6ALzNe7RZlNuCNE0wBSWA==}
-
-  '@types/ssh2@0.5.52':
-    resolution: {integrity: sha512-lbLLlXxdCZOSJMCInKH2+9V/77ET2J6NPQHpFI0kda61Dd1KglJs+fPQBchizmzYSOJBgdTajhPqBO1xxLywvg==}
 
   '@types/ssh2@1.15.5':
     resolution: {integrity: sha512-N1ASjp/nXH3ovBHddRJpli4ozpk6UdDYIX4RJWFa9L1YKnzdhTlVmiGHm4DZnj/jLbqZpes4aeR30EFGQtvhQQ==}
@@ -4474,8 +4468,8 @@ packages:
     resolution: {integrity: sha512-hsU18Ae8CDTR6Kgu9DYf0EbCr/a5iGL0rytQDobUcdpYOKokk8LEjVphnXkDkgpi0wYVsqrXuP0bZxJaTqdgoA==}
     engines: {node: '>= 0.4'}
 
-  async-lock@1.4.1:
-    resolution: {integrity: sha512-Az2ZTpuytrtqENulXwO3GGv1Bztugx6TT37NIo7imr/Qo0gsYiGtSdBa2B6fsXhTpVZDNfu1Qn3pk531e3q+nQ==}
+  async-lock@1.5.0:
+    resolution: {integrity: sha512-JgULma1mWaHlyJ67lvicyel5Cq+k55bXafE0gyvJBdHkH0vdE/IGGDF1glNyRInisNS6pZL2oho96S6Hw68kfQ==}
 
   async@3.2.6:
     resolution: {integrity: sha512-htCUDlxyyCLMgaM3xXg0C0LW2xqfuQ6p05pCEIsXuyQ+a1koYKTuBMzRNwmybfLgvJDMd0r1LTn4+E0Ti6C2AA==}
@@ -4676,11 +4670,6 @@ packages:
   braces@3.0.3:
     resolution: {integrity: sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==}
     engines: {node: '>=8'}
-
-  browserslist@4.29.5:
-    resolution: {integrity: sha512-khTmKu5NGYTotqcYo8Bew2k4RAE9PuXRSFRXG2lQBrCEQHyeQ/vX6gKMxfokwywBsLiXZMnHsmWMG1pnO8J7uQ==}
-    engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
-    hasBin: true
 
   browserslist@4.29.6:
     resolution: {integrity: sha512-CmVVIQ3RVc5HxYEc9X84GvxK/C8C1wH8TlKAiO7uTxF8PDwt7r8t9Qk3J9NkMOVzX5O/HbLv3yzxZg9HPrnI9w==}
@@ -5591,8 +5580,8 @@ packages:
   extend@3.0.2:
     resolution: {integrity: sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g==}
 
-  fast-check@4.10.2:
-    resolution: {integrity: sha512-iK2f+YrcmoeGqk6fA0ea2bptcu/itMIm4NfEozq6N25+aG6h7s5HZbB/k1aV7b5w5sFLMCbbtRUsTVR+BgC3xw==}
+  fast-check@4.11.0:
+    resolution: {integrity: sha512-V4Uc238rhQOdQlc+Gz7JG6SGBtrWnWL8d/6RyiBeCMcNKMhF6DZ0KkAVHJSyNV5r4lA0PmIpZ6iRpTVoz4qjoA==}
     engines: {node: '>=12.17.0'}
 
   fast-deep-equal@3.1.3:
@@ -7314,13 +7303,17 @@ packages:
     resolution: {integrity: sha512-hOS089on8RduqdbhvQ5Z37A0ESjsqz6qnRcffsMU3495FuTdqSm+7bhJ29JvIOsBDEEnan5DPu9t3To9VRlMzA==}
     engines: {node: '>=8.10.0'}
 
-  recharts@3.10.1:
-    resolution: {integrity: sha512-QXFrvt6IVcw7eeZCoyXTwkIJAX3Dv1nyVhMicXJ47GsGDDpcN8z6o644DibE9XjpBTThtsomLKnTV6lc+cVFUA==}
+  recharts@3.11.0:
+    resolution: {integrity: sha512-Hs7vXskAYl82TKKkeikPxMFOaOqVJBoqxay6a4Oj+sBURVorpSKk8J732vyNsmedxK08lpPhyj2GL4E6ZMHR6Q==}
     engines: {node: '>=18'}
     peerDependencies:
+      '@types/react': '*'
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-is: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   redent@3.0.0:
     resolution: {integrity: sha512-6tDA8g98We0zd0GvVeMT9arEOnTw9qM03L9cJXaCjrip1OO764RDBLBfrB4cwzNGDj5OA5ioymC9GkizgWJDUg==}
@@ -7613,9 +7606,6 @@ packages:
   sprintf-js@1.0.3:
     resolution: {integrity: sha512-D9cPgkvLlV3t3IzL0D0YLvGA9Ahk4PcvVwUbN0dSGr1aP0Nrt4AEnTUbuGvquEC0mA64Gqt1fzirlRs5ibXx8g==}
 
-  ssh-remote-port-forward@1.0.4:
-    resolution: {integrity: sha512-x0LV1eVDwjf1gmG7TTnfqIzf+3VPRz7vrNIjX6oYLbeCrf/PeVY6hkT68Mg+q02qXxQhrLjB0jfgvhevoCRmLQ==}
-
   ssh2@1.17.0:
     resolution: {integrity: sha512-wPldCk3asibAjQ/kziWQQt1Wh3PgDFpC0XpwclzKcdT1vql6KeYxf5LIt4nlFkUeR8WuphYMKqUA56X4rjbfgQ==}
     engines: {node: '>=10.16.0'}
@@ -7762,8 +7752,8 @@ packages:
   symbol-tree@3.2.4:
     resolution: {integrity: sha512-9QNk5KwDF+Bvz+PyObkmSYjI5ksVUYtjW7AU22r2NKcfLJcXp96hkDWU3+XndOsUb+AQ9QhfzfCT2O+CNWT5Tw==}
 
-  tailwind-merge@2.6.1:
-    resolution: {integrity: sha512-Oo6tHdpZsGpkKG88HJ8RR1rg/RdnEkQEfMoEk2x1XRI3F1AxeU+ijRXpiVUF4UbLfcxxRGw6TbUINKYdWVsQTQ==}
+  tailwind-merge@2.6.2:
+    resolution: {integrity: sha512-o2TX9QB8K2cfaJYgMwv96uAUQK5SqpRJHD2vGDK5nyF/tk9PQTZFpwgsDsySQjlIbYdZ6ZDkk5W+bSuWSe92AA==}
 
   tailwind-merge@3.4.0:
     resolution: {integrity: sha512-uSaO4gnW+b3Y2aWoWfFpX62vn2sR3skfhbjsEnaBI81WD1wBLlHZe5sWf0AqjksNdYTbGBEd0UasQMT3SNV15g==}
@@ -7851,8 +7841,8 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
-  testcontainers@12.2.1:
-    resolution: {integrity: sha512-JfbCyOvLdzatwgqUI3AvYCwRW0P5mCkKQVBPO8U5qSH1efC2kHvnfWmi9VHloy1rAFG2MEqWZObRH4bq0gU1kQ==}
+  testcontainers@12.2.2:
+    resolution: {integrity: sha512-ndmRB+wQnCd7YkelXoUtLVUFUQ3CrbIPmldSWzY8p1pXy09lBC/Hm99RYRCL2brHve/xNWCJX35173peMj5LUg==}
     engines: {node: '>= 22.22'}
 
   text-decoder@1.2.7:
@@ -8073,12 +8063,6 @@ packages:
 
   unrs-resolver@1.12.2:
     resolution: {integrity: sha512-dmlRxBJJayXjqTwC+JtF1HhJmgf3ftQ3YejFcZrf4+KKtJv0qDsK1pjqaaVjG7wJ5NJ6UVP1OqRMQ71Z4C3rxQ==}
-
-  update-browserslist-db@1.3.4:
-    resolution: {integrity: sha512-t8wonIOdQyOjtPd2VktlBu6QjTVTks6v8bSi7kd0r2Vll8TK1JYDZtRRdbmCHOAMphkZgrzK+L+vXK4pyZ8t4A==}
-    hasBin: true
-    peerDependencies:
-      browserslist: ^4.28.7
 
   update-browserslist-db@1.4.0:
     resolution: {integrity: sha512-WPJuOnjI9FWDct4fB+ej4Mz8opLaw5CDcZ2t44tFZ0vIQVYWzBhWR3mkixuUj/A7+vY4V9+ApOZ2YYLwdgq46w==}
@@ -8703,7 +8687,7 @@ snapshots:
     dependencies:
       '@babel/compat-data': 7.29.7
       '@babel/helper-validator-option': 7.29.7
-      browserslist: 4.29.5
+      browserslist: 4.29.6
       lru-cache: 5.1.1
       semver: 6.3.1
 
@@ -12788,7 +12772,7 @@ snapshots:
       '@types/node': 22.20.5
       '@types/ssh2': 1.15.5
 
-  '@types/dockerode@4.0.1':
+  '@types/dockerode@4.0.2':
     dependencies:
       '@types/docker-modem': 3.0.6
       '@types/node': 22.20.5
@@ -12850,15 +12834,6 @@ snapshots:
   '@types/readdir-glob@1.1.5':
     dependencies:
       '@types/node': 22.20.5
-
-  '@types/ssh2-streams@0.1.13':
-    dependencies:
-      '@types/node': 22.20.5
-
-  '@types/ssh2@0.5.52':
-    dependencies:
-      '@types/node': 22.20.5
-      '@types/ssh2-streams': 0.1.13
 
   '@types/ssh2@1.15.5':
     dependencies:
@@ -13461,7 +13436,7 @@ snapshots:
 
   async-function@1.0.0: {}
 
-  async-lock@1.4.1: {}
+  async-lock@1.5.0: {}
 
   async@3.2.6: {}
 
@@ -13647,14 +13622,6 @@ snapshots:
   braces@3.0.3:
     dependencies:
       fill-range: 7.1.1
-
-  browserslist@4.29.5:
-    dependencies:
-      baseline-browser-mapping: 2.11.37
-      caniuse-lite: 1.0.30001826
-      electron-to-chromium: 1.5.486
-      node-releases: 2.0.64
-      update-browserslist-db: 1.3.4(browserslist@4.29.5)
 
   browserslist@4.29.6:
     dependencies:
@@ -14678,7 +14645,7 @@ snapshots:
 
   extend@3.0.2: {}
 
-  fast-check@4.10.2:
+  fast-check@4.11.0:
     dependencies:
       pure-rand: 8.4.0
 
@@ -16664,7 +16631,7 @@ snapshots:
     dependencies:
       picomatch: 2.3.2
 
-  recharts@3.10.1(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react-is@17.0.2)(react@19.3.1)(redux@5.0.1):
+  recharts@3.11.0(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react-is@17.0.2)(react@19.3.1)(redux@5.0.1):
     dependencies:
       '@reduxjs/toolkit': 2.11.2(react-redux@9.2.0(@types/react@19.3.0)(react@19.3.1)(redux@5.0.1))(react@19.3.1)
       clsx: 2.1.1
@@ -16680,8 +16647,9 @@ snapshots:
       tiny-invariant: 1.3.3
       use-sync-external-store: 1.6.0(react@19.3.1)
       victory-vendor: 37.3.6
+    optionalDependencies:
+      '@types/react': 19.3.0
     transitivePeerDependencies:
-      - '@types/react'
       - redux
 
   redent@3.0.0:
@@ -17076,11 +17044,6 @@ snapshots:
 
   sprintf-js@1.0.3: {}
 
-  ssh-remote-port-forward@1.0.4:
-    dependencies:
-      '@types/ssh2': 0.5.52
-      ssh2: 1.17.0
-
   ssh2@1.17.0:
     dependencies:
       asn1: 0.2.6
@@ -17265,7 +17228,7 @@ snapshots:
 
   symbol-tree@3.2.4: {}
 
-  tailwind-merge@2.6.1: {}
+  tailwind-merge@2.6.2: {}
 
   tailwind-merge@3.4.0: {}
 
@@ -17371,12 +17334,12 @@ snapshots:
       source-map-support: 0.5.21
     optional: true
 
-  testcontainers@12.2.1:
+  testcontainers@12.2.2:
     dependencies:
       '@balena/dockerignore': 1.0.2
-      '@types/dockerode': 4.0.1
+      '@types/dockerode': 4.0.2
       archiver: 7.0.1
-      async-lock: 1.4.1
+      async-lock: 1.5.0
       byline: 5.0.0
       debug: 4.4.3
       docker-compose: 1.5.0
@@ -17384,7 +17347,7 @@ snapshots:
       get-port: 5.1.1
       proper-lockfile: 4.1.2
       properties-reader: 3.0.1
-      ssh-remote-port-forward: 1.0.4
+      ssh2: 1.17.0
       tar-fs: 3.1.3
       tmp: 0.2.7
       undici: 8.12.4
@@ -17653,12 +17616,6 @@ snapshots:
       '@unrs/resolver-binding-win32-arm64-msvc': 1.12.2
       '@unrs/resolver-binding-win32-ia32-msvc': 1.12.2
       '@unrs/resolver-binding-win32-x64-msvc': 1.12.2
-
-  update-browserslist-db@1.3.4(browserslist@4.29.5):
-    dependencies:
-      browserslist: 4.29.5
-      escalade: 3.2.0
-      picocolors: 1.1.1
 
   update-browserslist-db@1.4.0(browserslist@4.29.6):
     dependencies:
