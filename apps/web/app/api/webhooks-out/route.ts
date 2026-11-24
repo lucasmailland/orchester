@@ -6,6 +6,8 @@ import { getDb, schema } from "@orchester/db";
 import { eq, desc } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
+import { apiError } from "@/lib/api-response";
+import { BlockedDestinationError } from "@/lib/net-guard";
 import { logAudit } from "@/lib/audit";
 
 const createWebhookSchema = z.object({
@@ -38,9 +40,9 @@ export async function POST(req: Request) {
     const { assertPublicUrl } = await import("@/lib/net-guard");
     assertPublicUrl(url);
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "URL invalida" },
-      { status: 400 }
+    return apiError(
+      e instanceof BlockedDestinationError ? "Endpoint not allowed" : "Invalid URL",
+      400
     );
   }
   const db = getDb();

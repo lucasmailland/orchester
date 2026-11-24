@@ -5,6 +5,7 @@ import { getDb, schema } from "@orchester/db";
 import { eq, and, sql } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { safeLogError } from "@/lib/safe-log";
 import { ownedByWorkspace } from "@/lib/tenant/owned";
 import { encrypt } from "@/lib/encryption";
 import { telegramSetWebhook, telegramGetMe, newWebhookSecret } from "@/lib/channels/telegram";
@@ -132,12 +133,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         botUsername: me.result?.username,
       });
     } catch (e) {
+      safeLogError("[channels] webhook setup failed:", e);
       const { credentialsEncrypted, ...rest } = row;
       return NextResponse.json({
         ...rest,
         hasCredentials: true,
         webhookSet: false,
-        error: e instanceof Error ? e.message : String(e),
+        error: "webhook_setup_failed",
       });
     }
   }
@@ -171,12 +173,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         webhookUrl, // el operador la pega en api.slack.com → Event Subscriptions
       });
     } catch (e) {
+      safeLogError("[channels] webhook setup failed:", e);
       const { credentialsEncrypted, ...rest } = row;
       return NextResponse.json({
         ...rest,
         hasCredentials: true,
         webhookSet: false,
-        error: e instanceof Error ? e.message : String(e),
+        error: "webhook_setup_failed",
       });
     }
   }
@@ -218,12 +221,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         webhookUrl, // el operador la pega en Discord → Interactions Endpoint URL
       });
     } catch (e) {
+      safeLogError("[channels] discord command registration failed:", e);
       return NextResponse.json({
         ...rest,
         hasCredentials: true,
         webhookSet: false,
         webhookUrl,
-        error: e instanceof Error ? e.message : String(e),
+        error: "webhook_setup_failed",
       });
     }
   }

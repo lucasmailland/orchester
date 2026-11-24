@@ -5,6 +5,7 @@ import { ProviderNotConfiguredError } from "@/lib/llm-call";
 import { runAgent, loadAgent } from "@/lib/agent-runtime";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/validation";
+import { handleError } from "@/lib/api-response";
 
 const testChatSchema = z.object({
   messages: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() })),
@@ -78,9 +79,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         { error: "PROVIDER_NOT_CONFIGURED", provider: e.provider },
         { status: 401 }
       );
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return handleError("[test-chat] failed:", e);
   }
 }

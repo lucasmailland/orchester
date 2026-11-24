@@ -5,6 +5,7 @@ import { getDb, schema } from "@orchester/db";
 import { eq, and, desc } from "drizzle-orm";
 import { getCurrentWorkspace } from "@/lib/workspace";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { safeLogError } from "@/lib/safe-log";
 import { parseBody } from "@/lib/validation";
 import { embed } from "@/lib/embeddings";
 import { chunkText, extractTextFromBuffer, isParsable } from "@/lib/chunking";
@@ -202,12 +203,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       { status: 201 }
     );
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    safeLogError("[kb-docs] ingest failed:", e);
     await db
       .update(schema.knowledgeDocs)
-      .set({ status: "failed", error: msg })
+      .set({ status: "failed", error: "ingest_failed" })
       .where(eq(schema.knowledgeDocs.id, docId));
-    return NextResponse.json({ error: msg, docId }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error", docId }, { status: 500 });
   }
 }
 

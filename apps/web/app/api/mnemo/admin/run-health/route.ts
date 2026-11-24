@@ -18,7 +18,7 @@ import { z } from "zod";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
 import { getMnemoClient } from "@/lib/mnemo/client";
-import { safeLogError } from "@/lib/safe-log";
+import { handleError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
 
@@ -35,10 +35,6 @@ export async function POST(req: Request) {
     const snapshot = await client.health();
     return NextResponse.json({ enqueued: true, snapshot });
   } catch (e) {
-    safeLogError("[mnemo/admin/run-health] SDK call failed:", e);
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 502 }
-    );
+    return handleError("[mnemo/admin/run-health] SDK call failed:", e, 502);
   }
 }

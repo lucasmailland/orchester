@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { apiError, handleError } from "@/lib/api-response";
+import { FlowDisabledError } from "@/lib/flows/run-gate";
 import { parseBody } from "@/lib/validation";
 import { enqueueFlowRun } from "@/lib/flow-engine";
 
@@ -32,7 +34,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // /api/flow-runs/:runId. (Para feedback en vivo se usa /run-stream.)
     return NextResponse.json(result, { status: 202 });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: msg }, { status: msg === "Flow not found" ? 404 : 500 });
+    if (e instanceof Error && e.message === "Flow not found")
+      return apiError("Flow not found", 404);
+    if (e instanceof FlowDisabledError) return apiError("Flow is disabled", 409);
+    return handleError("[flow-run] failed:", e);
   }
 }

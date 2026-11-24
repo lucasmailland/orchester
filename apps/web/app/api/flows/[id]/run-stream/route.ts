@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { safeLogError } from "@/lib/safe-log";
 import { parseBody } from "@/lib/validation";
 import { executeFlow, type FlowRunEvent } from "@/lib/flow-engine";
 
@@ -57,10 +58,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           ...(parsed.data.dryRun ? { dryRun: true } : {}),
         });
       } catch (e) {
+        safeLogError("[run-stream]", e);
         send({
           type: "run_finish",
           status: "failed",
-          error: e instanceof Error ? e.message : String(e),
+          error: "Internal server error",
         });
       } finally {
         closed = true;

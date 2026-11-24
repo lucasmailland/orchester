@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { handleError } from "@/lib/api-response";
 import { parseBody } from "@/lib/validation";
 import { createCheckoutSession } from "@/lib/billing/stripe";
 import { PLANS, type Plan } from "@/lib/billing/plans";
@@ -34,9 +35,6 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ url: checkout.url });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    return handleError("[billing/checkout] failed:", e);
   }
 }

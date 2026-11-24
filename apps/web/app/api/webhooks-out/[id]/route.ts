@@ -4,6 +4,8 @@ import { getDb, schema } from "@orchester/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
+import { apiError } from "@/lib/api-response";
+import { BlockedDestinationError } from "@/lib/net-guard";
 import { logAudit } from "@/lib/audit";
 import { sendTestEvent } from "@/lib/webhooks-out";
 
@@ -39,9 +41,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       const { assertPublicUrl } = await import("@/lib/net-guard");
       assertPublicUrl(String(body.url));
     } catch (e) {
-      return NextResponse.json(
-        { error: e instanceof Error ? e.message : "URL invalida" },
-        { status: 400 }
+      return apiError(
+        e instanceof BlockedDestinationError ? "Endpoint not allowed" : "Invalid URL",
+        400
       );
     }
     set.url = body.url;

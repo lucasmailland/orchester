@@ -197,4 +197,51 @@ describe("API route handlers static audit", () => {
         `${TENANT_HELPERS.join(", ")}`
     ).toEqual([]);
   });
+  // SEC-007: authenticated routes must not echo exception text to the client.
+  // Unexpected errors go through `handleError` (generic body, redacted log);
+  // expected ones through `apiError` with a fixed string.
+  it("no route returns raw error text", () => {
+    // `(e as Error).message` too. A message parked in a variable
+    // (`const msg = e.message`) counts once that variable reaches a response.
+    const RAW = /\b(e|err|error)\.message\b|\(e as Error\)\.message|String\((e|err|error)\)/;
+    const RESPONSE = /json\(|error:|_err:|note:|send\(/;
+    // Routes whose message is built by our own code (validation), not by an
+    // exception. Keep each entry commented with why it is safe.
+    const RAW_ERROR_ALLOWLIST = new Set<string>([
+      // memory-policy: message comes from our own validator, not an exception.
+      "agents/[id]/memory-policy/route.ts",
+      // knowledge-base PATCH validation message built in the handler.
+      "knowledge-bases/[id]/route.ts",
+      // spreadsheet-preview: parser rejection with a fixed, code-built message.
+      "flows/spreadsheet-preview/route.ts",
+      // workspace suspend/unsuspend: `msg` is only echoed after matching one of
+      // two fixed lifecycle codes (workspace_lifecycle_invalid / _not_found).
+      "workspaces/[slug]/suspend/route.ts",
+    ]);
+
+    const all = walkRoutes(API_ROOT);
+    const hits: string[] = [];
+    const used = new Set<string>();
+    for (const abs of all) {
+      const rel = relPosix(abs);
+      const lines = readFileSync(abs, "utf8").split("\n");
+      const vars = lines
+        .filter((l) => RAW.test(l))
+        .map((l) => /\b(?:const|let)\s+(\w+)\s*=/.exec(l)?.[1])
+        .filter((v): v is string => !!v);
+      const viaVar = vars.length
+        ? new RegExp(`(error|note|_err):\\s*(${vars.join("|")})\\b`)
+        : null;
+      const leaks = lines.some(
+        (l) => (RAW.test(l) && RESPONSE.test(l)) || (viaVar !== null && viaVar.test(l))
+      );
+      if (!leaks) continue;
+      if (RAW_ERROR_ALLOWLIST.has(rel)) used.add(rel);
+      else hits.push(rel);
+    }
+    const stale = [...RAW_ERROR_ALLOWLIST].filter((p) => !used.has(p));
+
+    expect(hits, `routes return raw error text: ${hits.join(", ")}`).toEqual([]);
+    expect(stale, `stale raw-error allowlist entries: ${stale.join(", ")}`).toEqual([]);
+  });
 });

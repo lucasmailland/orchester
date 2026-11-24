@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getDb, schema } from "@orchester/db";
 import { and, count, eq, gte, sql } from "drizzle-orm";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { safeLogError } from "@/lib/safe-log";
 
 /**
  * GET /api/admin/health-detailed
@@ -35,7 +36,8 @@ export async function GET() {
     await db.execute(sql`SELECT 1`);
     checks["db"] = { ok: true };
   } catch (e) {
-    checks["db"] = { ok: false, note: e instanceof Error ? e.message : String(e) };
+    safeLogError("[health-detailed] db check failed:", e);
+    checks["db"] = { ok: false, note: "check failed" };
   }
 
   // Wrap the tenant-scoped checks in a single tx with the workspace
@@ -54,7 +56,8 @@ export async function GET() {
           .where(eq(schema.workspaceMembers.workspaceId, ctx.workspace.id));
         checks["members_count"] = { ok: (owners[0]?.c ?? 0) > 0, value: owners[0]?.c };
       } catch (e) {
-        checks["members_count"] = { ok: false, note: String(e) };
+        safeLogError("[health-detailed] members_count check failed:", e);
+        checks["members_count"] = { ok: false, note: "check failed" };
       }
 
       // 3. Audit log con actividad reciente (24h). Lee la nueva tabla
@@ -82,7 +85,8 @@ export async function GET() {
               : undefined,
         };
       } catch (e) {
-        checks["audit_recent_24h"] = { ok: false, note: String(e) };
+        safeLogError("[health-detailed] audit_recent_24h check failed:", e);
+        checks["audit_recent_24h"] = { ok: false, note: "check failed" };
       }
 
       // 4. Provider configurado
@@ -106,7 +110,8 @@ export async function GET() {
               : undefined,
         };
       } catch (e) {
-        checks["provider_configured"] = { ok: false, note: String(e) };
+        safeLogError("[health-detailed] provider_configured check failed:", e);
+        checks["provider_configured"] = { ok: false, note: "check failed" };
       }
 
       // 5. Última hora — health del LLM (cuántos messages tipo assistant llegaron)
@@ -124,14 +129,16 @@ export async function GET() {
           );
         checks["assistant_msgs_1h"] = { ok: true, value: recent[0]?.c ?? 0 };
       } catch (e) {
-        checks["assistant_msgs_1h"] = { ok: false, note: String(e) };
+        safeLogError("[health-detailed] assistant_msgs_1h check failed:", e);
+        checks["assistant_msgs_1h"] = { ok: false, note: "check failed" };
       }
     });
   } catch (e) {
     // Transaction wrapper itself failed (rare — connection issue).
     // Mark all tenant-scoped checks as failed so the health endpoint
     // returns 503.
-    const note = e instanceof Error ? e.message : String(e);
+    safeLogError("[health-detailed] tenant checks failed:", e);
+    const note = "check failed";
     if (!checks["members_count"]) checks["members_count"] = { ok: false, note };
     if (!checks["audit_recent_24h"]) checks["audit_recent_24h"] = { ok: false, note };
     if (!checks["provider_configured"]) checks["provider_configured"] = { ok: false, note };

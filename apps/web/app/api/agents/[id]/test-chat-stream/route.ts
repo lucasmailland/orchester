@@ -120,7 +120,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           send({ type: "error", error: `Provider ${e.provider} not configured` });
         } else {
           safeLogError("[test-chat-stream]", e);
-          send({ type: "error", error: e instanceof Error ? e.message : String(e) });
+          send({ type: "error", error: "Internal server error" });
         }
       } finally {
         closed = true;

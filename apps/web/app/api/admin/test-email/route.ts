@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: e instanceof Error ? e.message : String(e),
+        error: "Internal server error",
         hint: HINT,
       },
       { status: 500 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { safeLogError } from "@/lib/safe-log";
 import { parseBody } from "@/lib/validation";
 import { llmCall, pickAvailableModel, type ChatMessage } from "@/lib/llm-call";
 import { assertWithinSpend } from "@/lib/cost-alerts";
@@ -120,7 +121,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       tools: COPILOT_TOOLS,
     });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : T.failed }, { status: 502 });
+    safeLogError("[flow-copilot] failed:", e);
+    return NextResponse.json({ error: T.failed }, { status: 502 });
   }
 
   // E2-2: metering del copiloto.

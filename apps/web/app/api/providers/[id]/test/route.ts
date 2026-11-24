@@ -30,9 +30,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const apiKey = decrypt(row.apiKey);
   const result = await assertPublicEndpoint(row.endpoint).then(
     () => testProviderConnection(row.provider, apiKey, row.endpoint),
-    (e: unknown) => ({
+    () => ({
       ok: false as const,
-      error: e instanceof Error ? e.message : "Endpoint not allowed",
+      error: "Endpoint not allowed",
       models: undefined,
     })
   );

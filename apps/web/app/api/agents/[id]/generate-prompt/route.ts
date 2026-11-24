@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { parseBody } from "@/lib/validation";
+import { apiError, handleError } from "@/lib/api-response";
 import { llmCall, pickAvailableModel } from "@/lib/llm-call";
-import { assertWithinSpend } from "@/lib/cost-alerts";
+import { assertWithinSpend, SpendGuardError } from "@/lib/cost-alerts";
 import { recordAiUsage, chargeFor } from "@/lib/ai/run";
 
 const generatePromptSchema = z.object({
@@ -82,9 +83,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!variations.length) variations = [r.content];
     return NextResponse.json({ variations, model: pick.model });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 500 }
-    );
+    if (e instanceof SpendGuardError) return apiError("Spend limit reached", 402);
+    return handleError("[generate-prompt] failed:", e);
   }
 }

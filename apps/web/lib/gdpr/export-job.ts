@@ -216,13 +216,14 @@ export async function runExportJob(jobId: string): Promise<void> {
       // about to be persisted. We piggyback on the existing `error`
       // column (no schema migration here): the polling response shows
       // `error` alongside the download link, so a recipient sees
-      // `email_send_failed: <provider message>` and knows to use the
+      // `email_send_failed` and knows to use the
       // URL directly instead of waiting for an inbox notification.
       let emailError: string | null = null;
       if (owner) {
         const r = await sendExportReadyEmail(owner.email, signedUrl, expiresAt);
         if (!r.ok && r.error) {
-          emailError = `email_send_failed: ${r.error}`;
+          safeLogError("[gdpr.export] export-ready email failed:", r.error);
+          emailError = "email_send_failed";
         }
       }
 
@@ -251,13 +252,12 @@ export async function runExportJob(jobId: string): Promise<void> {
       // un-diagnosable from logs.
       safeLogError("[gdpr.export] job failed:", e);
 
-      const msg = e instanceof Error ? e.message : String(e);
       try {
         await tx
           .update(schema.gdprExportJobs)
           .set({
             state: "failed",
-            error: msg,
+            error: "export_failed",
             retryCount: (job.retryCount ?? 0) + 1,
           })
           .where(eq(schema.gdprExportJobs.id, jobId));

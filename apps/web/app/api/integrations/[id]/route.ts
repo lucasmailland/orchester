@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { handleError } from "@/lib/api-response";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
 import { testIntegration, deleteIntegration, upsertIntegration } from "@/lib/integrations/store";
@@ -28,10 +29,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const result = await testIntegration(ctx.workspace.id, id);
     return NextResponse.json(result);
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 400 }
-    );
+    return handleError("[integrations/id] test failed:", e);
   }
 }
 
@@ -60,10 +58,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     });
     return NextResponse.json(result);
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 400 }
-    );
+    return handleError("[integrations/id] update failed:", e);
   }
 }
 

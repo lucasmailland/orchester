@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentWorkspace } from "@/lib/workspace";
 import { requireAuth, isAuthContext } from "@/lib/auth-guards";
+import { handleError } from "@/lib/api-response";
 import { parseBody } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
 import { listConnectors } from "@/lib/integrations/registry";
@@ -53,9 +54,6 @@ export async function POST(req: Request) {
     });
     return NextResponse.json(result);
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
-      { status: 400 }
-    );
+    return handleError("[integrations] upsert failed:", e);
   }
 }
