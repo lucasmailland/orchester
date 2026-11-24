@@ -38,7 +38,15 @@
 
 	log {
 		output stdout
-		format json
+		# Access logs must not carry bearer-style secrets from URLs or headers.
+		format filter {
+			wrap json
+			request>uri regexp "(/(?:webhooks?|exports|approvals|approve|invite)/)[^/?]+" "${1}[redacted]"
+			request>uri regexp "([?&](?:token|secret|key|signature|code)=)[^&]*" "${1}[redacted]"
+			request>headers>Authorization delete
+			request>headers>Cookie delete
+			request>headers>X-Telegram-Bot-Api-Secret-Token delete
+		}
 		level INFO
 	}
 }

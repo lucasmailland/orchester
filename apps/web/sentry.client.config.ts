@@ -25,6 +25,7 @@ export async function initClientSentry(): Promise<void> {
   const dsn = process.env["NEXT_PUBLIC_SENTRY_DSN"];
   if (!dsn) return;
   const Sentry = await import("@sentry/nextjs");
+  const { scrubSentryEvent, scrubBreadcrumb } = await import("./lib/sentry-scrub");
   Sentry.init({
     dsn,
     tracesSampleRate: Number(process.env["NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE"] ?? 0.1),
@@ -32,5 +33,8 @@ export async function initClientSentry(): Promise<void> {
     release: process.env["NEXT_PUBLIC_SENTRY_RELEASE"],
     // Reasonable defaults — replay/perf are opt-in via subsequent PRs.
     integrations: [],
+    sendDefaultPii: false,
+    beforeSend: scrubSentryEvent,
+    beforeBreadcrumb: scrubBreadcrumb,
   });
 }

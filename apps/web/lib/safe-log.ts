@@ -1,5 +1,7 @@
 import "server-only";
 
+import { SECRET_PATTERNS } from "./secret-patterns";
+
 /**
  * Sanitization de errores antes de loguearlos. Reemplaza patrones que parecen
  * secrets por `***REDACTED***`. Usar en lugar de `console.error(error)` cuando
@@ -14,32 +16,6 @@ import "server-only";
  * conocidas que incluyen el request en el error message.
  */
 
-const PATTERNS: Array<[RegExp, string]> = [
-  // Anthropic / OpenAI / Anthropic-style keys
-  [/sk-ant-api[0-9a-zA-Z_-]{20,}/g, "sk-ant-***REDACTED***"],
-  [/sk-proj-[A-Za-z0-9_-]{20,}/g, "sk-proj-***REDACTED***"],
-  [/sk-[A-Za-z0-9_-]{30,}/g, "sk-***REDACTED***"],
-  // Google AI keys
-  [/AIza[0-9A-Za-z_-]{30,}/g, "AIza***REDACTED***"],
-  // Slack bot tokens
-  [/xox[abpors]-[0-9A-Za-z-]{10,}/g, "xox*-***REDACTED***"],
-  // Bearer headers en strings
-  [/Bearer\s+[A-Za-z0-9._-]{20,}/gi, "Bearer ***REDACTED***"],
-  // Basic auth
-  [/Basic\s+[A-Za-z0-9+/=]{8,}/gi, "Basic ***REDACTED***"],
-  // postgres://user:pass@host → postgres://user:***@host
-  [/(postgres(?:ql)?:\/\/[^:@\s]+):([^@\s]+)@/gi, "$1:***REDACTED***@"],
-  // JWT (3 segmentos base64url)
-  [/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "eyJ***REDACTED***"],
-  // Other key formats this app holds or proxies: Orchester and Mnemosyne API
-  // keys, Stripe secret and webhook keys, GitHub and GitLab tokens.
-  [/\b(ok|mns)_live_[A-Za-z0-9_-]{8,}/g, "$1_live_***REDACTED***"],
-  [/\b(sk|rk)_live_[A-Za-z0-9]{16,}/g, "$1_live_***REDACTED***"],
-  [/\bwhsec_[A-Za-z0-9]{16,}/g, "whsec_***REDACTED***"],
-  [/\bgh[pousr]_[A-Za-z0-9]{30,}/g, "gh*_***REDACTED***"],
-  [/\bglpat-[A-Za-z0-9_-]{16,}/g, "glpat-***REDACTED***"],
-];
-
 export function redactSecrets(input: unknown): string {
   let str: string;
   if (input instanceof Error) {
@@ -53,7 +29,7 @@ export function redactSecrets(input: unknown): string {
       str = String(input);
     }
   }
-  for (const [re, replacement] of PATTERNS) {
+  for (const [re, replacement] of SECRET_PATTERNS) {
     str = str.replace(re, replacement);
   }
   return str;

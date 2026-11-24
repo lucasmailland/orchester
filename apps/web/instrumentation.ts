@@ -23,19 +23,27 @@ export async function register(): Promise<void> {
   if (process.env["SENTRY_DSN"]) {
     if (process.env["NEXT_RUNTIME"] === "nodejs") {
       const Sentry = await import("@sentry/nextjs");
+      const { scrubSentryEvent, scrubBreadcrumb } = await import("./lib/sentry-scrub");
       Sentry.init({
         dsn: process.env["SENTRY_DSN"],
         tracesSampleRate: Number(process.env["SENTRY_TRACES_SAMPLE_RATE"] ?? 0.1),
         environment: process.env["NODE_ENV"],
         release: process.env["SENTRY_RELEASE"],
+        sendDefaultPii: false,
+        beforeSend: scrubSentryEvent,
+        beforeBreadcrumb: scrubBreadcrumb,
       });
     } else if (process.env["NEXT_RUNTIME"] === "edge") {
       const Sentry = await import("@sentry/nextjs");
+      const { scrubSentryEvent, scrubBreadcrumb } = await import("./lib/sentry-scrub");
       Sentry.init({
         dsn: process.env["SENTRY_DSN"],
         tracesSampleRate: Number(process.env["SENTRY_TRACES_SAMPLE_RATE"] ?? 0.1),
         environment: process.env["NODE_ENV"],
         release: process.env["SENTRY_RELEASE"],
+        sendDefaultPii: false,
+        beforeSend: scrubSentryEvent,
+        beforeBreadcrumb: scrubBreadcrumb,
       });
     }
   }
