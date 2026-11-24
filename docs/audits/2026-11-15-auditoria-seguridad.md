@@ -4,14 +4,14 @@ Alcance: el monorepo completo en `main` @ `1719e45` (app web, worker, paquete `d
 
 ## Resumen
 
-|                                       | Antes                     | Después                             |
-| ------------------------------------- | ------------------------- | ----------------------------------- |
-| Avisos de dependencias (`pnpm audit`) | 96 (3 críticos, 55 altos) | 1 bajo, sin parche publicado        |
-| Hallazgos de código críticos/altos    | 5                         | 0                                   |
-| Hallazgos de código medios            | 17                        | 1 de diseño (EXEC-005), documentado |
-| Tests                                 | 2893                      | 2957, todos en verde                |
+|                                       | Antes                     | Después                      |
+| ------------------------------------- | ------------------------- | ---------------------------- |
+| Avisos de dependencias (`pnpm audit`) | 96 (3 críticos, 55 altos) | 1 bajo, sin parche publicado |
+| Hallazgos de código críticos/altos    | 5                         | 0                            |
+| Hallazgos de código medios            | 17                        | 0                            |
+| Tests                                 | 2893                      | 3061, todos en verde         |
 
-**Gate: aprobado.** Ningún S0/S1 abierto. Quedan abiertos los puntos de la sección "Pendiente", que son decisiones de diseño o cambios de comportamiento que no conviene hacer sin decidirlo.
+**Gate: aprobado.** Ningún S0/S1 abierto. Queda abierto solo SEC-001 (rotación de `app_user`, a cargo del operador), en la sección "Pendiente". Los nueve hallazgos que habían quedado abiertos se cerraron en la rama `fix/audit-pending-2026-11`; las transiciones de compatibilidad y los límites conocidos están más abajo.
 
 ## Dependencias
 
@@ -42,57 +42,57 @@ En el deploy single-tenant RLS está apagado a propósito, así que los filtros 
 
 ### Ejecución de código, SSRF e inyección
 
-| ID       | Sev. | Hallazgo                                                                                                                                                                                                                                                               | Estado                                                                            |
-| -------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| EXEC-001 | S1   | Conector Postgres: `select 1; commit; delete …` escribía a través de la transacción de solo lectura (verificado: 2 filas → 0; `prepare: true` no lo frena). El chequeo de host aceptaba hosts con `%`-escapes, listas con coma y nombres que resuelven a IPs internas. | ✓                                                                                 |
-| EXEC-002 | S2   | El `endpoint` de los proveedores de IA (Azure, Bedrock, OpenAI-compatible) no tenía guard SSRF.                                                                                                                                                                        | ✓                                                                                 |
-| EXEC-003 | S2   | El cliente de GitLab usaba `fetch` directo después de un chequeo solo de texto, así que el token llegaba a hosts internos.                                                                                                                                             | ✓                                                                                 |
-| EXEC-004 | S2   | Un `.docx` de 100 KB inflaba ~290 MB en la ingesta de conocimiento, y no había tope de subida.                                                                                                                                                                         | ✓                                                                                 |
-| EXEC-005 | S2   | `run_integration` y `flow_call` alcanzan cualquier integración o flow del workspace, no solo los del agente.                                                                                                                                                           | ○ diseño                                                                          |
-| EXEC-006 | S3   | El texto no confiable podía cerrar `<untrusted_context>`, y los errores de tools llegaban al modelo sin envolver.                                                                                                                                                      | ✓                                                                                 |
-| EXEC-007 | S3   | Las respuestas HTTP se leían sin tope ni plazo.                                                                                                                                                                                                                        | ✓ (Odoo queda sin tope: sus adjuntos son grandes y el host lo configura un admin) |
-| EXEC-008 | S3   | La interpolación en el body JSON del nodo HTTP no escapa los valores.                                                                                                                                                                                                  | ○ cambia comportamiento                                                           |
-| EXEC-009 | S3   | `agent_call` no tenía límite de profundidad.                                                                                                                                                                                                                           | ✓ (3)                                                                             |
-| EXEC-010 | S3   | Odoo: con límite de proyectos, un agente podía escribir otros registros con comandos x2many o `partner_ids`.                                                                                                                                                           | ✓                                                                                 |
+| ID       | Sev. | Hallazgo                                                                                                                                                                                                                                                               | Estado                                                                                                           |
+| -------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| EXEC-001 | S1   | Conector Postgres: `select 1; commit; delete …` escribía a través de la transacción de solo lectura (verificado: 2 filas → 0; `prepare: true` no lo frena). El chequeo de host aceptaba hosts con `%`-escapes, listas con coma y nombres que resuelven a IPs internas. | ✓                                                                                                                |
+| EXEC-002 | S2   | El `endpoint` de los proveedores de IA (Azure, Bedrock, OpenAI-compatible) no tenía guard SSRF.                                                                                                                                                                        | ✓                                                                                                                |
+| EXEC-003 | S2   | El cliente de GitLab usaba `fetch` directo después de un chequeo solo de texto, así que el token llegaba a hosts internos.                                                                                                                                             | ✓                                                                                                                |
+| EXEC-004 | S2   | Un `.docx` de 100 KB inflaba ~290 MB en la ingesta de conocimiento, y no había tope de subida.                                                                                                                                                                         | ✓                                                                                                                |
+| EXEC-005 | S2   | `run_integration` y `flow_call` alcanzan cualquier integración o flow del workspace, no solo los del agente.                                                                                                                                                           | ✓ listas por agente (9238b9a, migración 0071); los agentes nuevos no tienen ninguna hasta configurarlas          |
+| EXEC-006 | S3   | El texto no confiable podía cerrar `<untrusted_context>`, y los errores de tools llegaban al modelo sin envolver.                                                                                                                                                      | ✓                                                                                                                |
+| EXEC-007 | S3   | Las respuestas HTTP se leían sin tope ni plazo.                                                                                                                                                                                                                        | ✓ (Odoo queda sin tope: sus adjuntos son grandes y el host lo configura un admin)                                |
+| EXEC-008 | S3   | La interpolación en el body JSON del nodo HTTP no escapa los valores.                                                                                                                                                                                                  | ✓ los nodos HTTP guardados sin `bodyMode` siguen enviando el body crudo; los nuevos usan JSON escapado (ab31f1b) |
+| EXEC-009 | S3   | `agent_call` no tenía límite de profundidad.                                                                                                                                                                                                                           | ✓ (3)                                                                                                            |
+| EXEC-010 | S3   | Odoo: con límite de proyectos, un agente podía escribir otros registros con comandos x2many o `partner_ids`.                                                                                                                                                           | ✓                                                                                                                |
 
 ### Superficies públicas
 
-| ID      | Sev. | Hallazgo                                                                                                                            | Estado                                                                        |
-| ------- | ---- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| PUB-001 | S2   | El token de aprobación de una pausa `wait_human` salía en cada lectura de runs, así que viewers y keys `flows:read` podían aprobar. | ✓                                                                             |
-| PUB-002 | S2   | Desde el widget, un visitante anónimo podía llegar por handoff a cualquier agente interno.                                          | ✓                                                                             |
-| PUB-003 | S2   | Redirección abierta después del login (`/\t/evil.com`).                                                                             | ✓                                                                             |
-| PUB-004 | S2   | Email sin verificar usado para autorizar (ver AUTHZ-008).                                                                           | ✓ parcial: el gate de invitación sigue confiando en el token de la invitación |
-| PUB-005 | S3   | Los reintentos de Slack corrían el agente hasta 4 veces por mensaje.                                                                | ✓                                                                             |
-| PUB-006 | S3   | El rate limit del widget se esquivaba con `channelId` aleatorios.                                                                   | ✓                                                                             |
-| PUB-007 | S3   | Los canales de Telegram viejos sin `secret_token` siguen aceptando requests.                                                        | ○ compatibilidad                                                              |
-| PUB-008 | S3   | El webhook de flows dispara también con GET y la firma no tiene ventana de replay.                                                  | ○ compatibilidad                                                              |
-| PUB-009 | S3   | El transcript del widget devolvía mensajes de sistema.                                                                              | ✓                                                                             |
-| PUB-010 | S3   | Los secretos que viajan en URLs quedan en el log de Caddy; Sentry no tiene `beforeSend`.                                            | ○                                                                             |
-| PUB-011 | S3   | Slack, Telegram y `/api/health` devolvían texto de error interno.                                                                   | ✓                                                                             |
+| ID      | Sev. | Hallazgo                                                                                                                            | Estado                                                                                                             |
+| ------- | ---- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| PUB-001 | S2   | El token de aprobación de una pausa `wait_human` salía en cada lectura de runs, así que viewers y keys `flows:read` podían aprobar. | ✓                                                                                                                  |
+| PUB-002 | S2   | Desde el widget, un visitante anónimo podía llegar por handoff a cualquier agente interno.                                          | ✓                                                                                                                  |
+| PUB-003 | S2   | Redirección abierta después del login (`/\t/evil.com`).                                                                             | ✓                                                                                                                  |
+| PUB-004 | S2   | Email sin verificar usado para autorizar (ver AUTHZ-008).                                                                           | ✓ parcial: el gate de invitación sigue confiando en el token de la invitación                                      |
+| PUB-005 | S3   | Los reintentos de Slack corrían el agente hasta 4 veces por mensaje.                                                                | ✓                                                                                                                  |
+| PUB-006 | S3   | El rate limit del widget se esquivaba con `channelId` aleatorios.                                                                   | ✓                                                                                                                  |
+| PUB-007 | S3   | Los canales de Telegram viejos sin `secret_token` siguen aceptando requests.                                                        | ✓ firma por canal (18fa208, d15837b); transición `TELEGRAM_ALLOW_UNSIGNED=1`                                       |
+| PUB-008 | S3   | El webhook de flows dispara también con GET y la firma no tiene ventana de replay.                                                  | ✓ solo POST, ventana de 300 s (3c26ea5); transición `FLOW_WEBHOOK_ALLOW_GET=1` y `FLOW_WEBHOOK_LEGACY_SIGNATURE=1` |
+| PUB-009 | S3   | El transcript del widget devolvía mensajes de sistema.                                                                              | ✓                                                                                                                  |
+| PUB-010 | S3   | Los secretos que viajan en URLs quedan en el log de Caddy; Sentry no tiene `beforeSend`.                                            | ✓ Caddy sin URIs en el log y `beforeSend` en Sentry (39e6ad6, 527384d, 1073e66)                                    |
+| PUB-011 | S3   | Slack, Telegram y `/api/health` devolvían texto de error interno.                                                                   | ✓                                                                                                                  |
 
 ### Secretos, criptografía y deploy
 
-| ID      | Sev. | Hallazgo                                                                                                           | Estado                                                                                                      |
-| ------- | ---- | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| SEC-001 | S1*  | Los roles de 0007 tienen contraseñas que están en el repo público. *Crítico si Postgres es accesible desde afuera. | ✓ parcial: `cron_admin` y `read_only_audit` sin LOGIN (0070); **`app_user` requiere rotación del operador** |
-| SEC-002 | S1   | El script de rotación del runbook dejaba todas las credenciales sin descifrar.                                     | ✓ (borrado; runbook corregido; el re-cifrado falla ante filas rotas)                                        |
-| SEC-003 | S2   | = AUTHZ-002.                                                                                                       | ✓                                                                                                           |
-| SEC-004 | S2   | En producción se aceptaban los placeholders de `.env.example` como secretos.                                       | ✓                                                                                                           |
-| SEC-005 | S2   | Las imágenes Docker se llevaban `apps/web/.env`.                                                                   | ✓                                                                                                           |
-| SEC-006 | S2   | El compose de producción tenía `SIGNUP_MODE=open` por defecto, con RLS apagado.                                    | ✓ (`invite`)                                                                                                |
-| SEC-007 | S3   | ~30 handlers autenticados devuelven `e.message`.                                                                   | ✓ en los públicos; ○ en los autenticados                                                                    |
-| SEC-008 | S3   | AES-GCM aceptaba tags de 4 bytes.                                                                                  | ✓                                                                                                           |
-| SEC-009 | S3   | El log de auditoría se puede falsificar o borrar en cascada.                                                       | ○ diseño                                                                                                    |
-| SEC-010 | S3   | GlitchTip con `change-me` como default; los puertos del compose de dev en 0.0.0.0.                                 | ✓                                                                                                           |
-| SEC-011 | S3   | Actions de terceros fijadas por tag, no por SHA; CI sin `permissions`.                                             | ✓ permissions y SHAs (2026-11-22)                                                                           |
-| SEC-012 | S3   | Una key revocada pegada en un doc del plan.                                                                        | ✓ redactada                                                                                                 |
-| SEC-013 | S3   | A `safe-log` le faltaban formatos de keys.                                                                         | ✓                                                                                                           |
-| SEC-014 | S3   | Los exports GDPR no se borran después de vencer.                                                                   | ○                                                                                                           |
+| ID      | Sev. | Hallazgo                                                                                                           | Estado                                                                                                                                                              |
+| ------- | ---- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SEC-001 | S1*  | Los roles de 0007 tienen contraseñas que están en el repo público. *Crítico si Postgres es accesible desde afuera. | ✓ parcial: `cron_admin` y `read_only_audit` sin LOGIN (0070); **`app_user` requiere rotación del operador**                                                         |
+| SEC-002 | S1   | El script de rotación del runbook dejaba todas las credenciales sin descifrar.                                     | ✓ (borrado; runbook corregido; el re-cifrado falla ante filas rotas)                                                                                                |
+| SEC-003 | S2   | = AUTHZ-002.                                                                                                       | ✓                                                                                                                                                                   |
+| SEC-004 | S2   | En producción se aceptaban los placeholders de `.env.example` como secretos.                                       | ✓                                                                                                                                                                   |
+| SEC-005 | S2   | Las imágenes Docker se llevaban `apps/web/.env`.                                                                   | ✓                                                                                                                                                                   |
+| SEC-006 | S2   | El compose de producción tenía `SIGNUP_MODE=open` por defecto, con RLS apagado.                                    | ✓ (`invite`)                                                                                                                                                        |
+| SEC-007 | S3   | ~30 handlers autenticados devuelven `e.message`.                                                                   | ✓ públicos y autenticados vía `handleError` (c8380b1, 8bc912b)                                                                                                      |
+| SEC-008 | S3   | AES-GCM aceptaba tags de 4 bytes.                                                                                  | ✓                                                                                                                                                                   |
+| SEC-009 | S3   | El log de auditoría se puede falsificar o borrar en cascada.                                                       | ✓ HMAC con clave derivada de `ENCRYPTION_SECRET`, marcadores de retención, ancla diaria en el log, sin cascada (fffbe11, 563e34f, d421166, 3f48085; migración 0072) |
+| SEC-010 | S3   | GlitchTip con `change-me` como default; los puertos del compose de dev en 0.0.0.0.                                 | ✓                                                                                                                                                                   |
+| SEC-011 | S3   | Actions de terceros fijadas por tag, no por SHA; CI sin `permissions`.                                             | ✓ permissions y SHAs (2026-11-22)                                                                                                                                   |
+| SEC-012 | S3   | Una key revocada pegada en un doc del plan.                                                                        | ✓ redactada                                                                                                                                                         |
+| SEC-013 | S3   | A `safe-log` le faltaban formatos de keys.                                                                         | ✓                                                                                                                                                                   |
+| SEC-014 | S3   | Los exports GDPR no se borran después de vencer.                                                                   | ✓ retención de exports vencidos (f24efef)                                                                                                                           |
 
 ## Pasos de operación al deployar
 
-1. **Migrar antes de arrancar la app** (`pnpm --filter @orchester/db migrate`): 0065–0070. La 0069 es imprescindible para better-auth 1.7.
+1. **Migrar antes de arrancar la app** (`pnpm --filter @orchester/db migrate`): 0065–0072. La 0069 es imprescindible para better-auth 1.7. **La 0072 toma un lock sobre `audit_log` mientras arma un índice: correrla fuera de horario pico.** La 0071 completa las listas de integraciones y flows de cada agente con lo que usó en los últimos 90 días.
 2. **Rotar la contraseña de `app_user`** si la base es accesible desde fuera de la red interna. Mientras siga la de fábrica, la app lo avisa en cada arranque.
    ```sql
    ALTER ROLE app_user PASSWORD '<nueva>';
@@ -103,23 +103,29 @@ En el deploy single-tenant RLS está apagado a propósito, así que los filtros 
 5. **Admins de sistema (`ADMIN_EMAILS`)**: necesitan el email verificado. Google ya lo da verificado; las cuentas de email reciben el link al registrarse, o lo pueden pedir con `POST /api/auth/send-verification-email`.
 6. **Widget**: un agente sin equipo atendiendo un widget ya no puede hacer handoff. Hay que poner en un mismo equipo a los agentes que se pasan conversaciones.
 
+7. **`AUDIT_V2_SINCE`**: definirla con la fecha y hora del deploy. Las filas anteriores se verifican con el esquema viejo y las posteriores con el HMAC.
+8. **Telegram**: después del deploy, correr `pnpm --filter @orchester/web telegram:register-secrets` para dar de alta el `secret_token` de los canales existentes. Hasta entonces se puede deployar con `TELEGRAM_ALLOW_UNSIGNED=1`; sacarla apenas termine el script.
+9. **Webhooks de flows**: avisar antes a quien los llame por GET o con la firma vieja. Si hace falta tiempo, deployar con `FLOW_WEBHOOK_ALLOW_GET=1` y/o `FLOW_WEBHOOK_LEGACY_SIGNATURE=1`, y sacarlas en la fecha acordada.
+10. **Agentes**: revisar en la pantalla de cada uno las listas de integraciones y flows que armó la 0071. Los agentes nuevos no tienen `run_integration` ni `flow_call` hasta que se configuran.
+11. **Ancla de la auditoría**: se escribe una vez por día en el log; guardarla fuera de la base (ver límites conocidos).
+
 ## Pendiente
 
-- **EXEC-005**: atar `run_integration` y `flow_call` a las integraciones, acciones y flows configurados en cada agente. Requiere decidir el modelo de configuración y su UI.
-- **EXEC-008**: interpolar los valores escapados como JSON en el body del nodo HTTP. Cambia lo que reciben flows existentes.
-- **PUB-007 / PUB-008**: rechazar los canales de Telegram sin `secret_token` y hacer el webhook de flows solo-POST con ventana de replay, después de una ventana de migración.
-- **PUB-010**: filtrar las URIs en el log de Caddy y agregar `beforeSend` a Sentry.
-- **SEC-007**: pasar los handlers autenticados restantes a `handleError`.
-- **SEC-009**: HMAC con una clave que no esté en la base, anclar la cadena fuera de ella, y `RESTRICT` en lugar de cascada.
-- **SEC-014**: retención de los exports GDPR.
-- **DNS rebinding** en el conector Postgres y en los endpoints de proveedores: hoy se valida al resolver, no queda fijado en el socket (marcado `ponytail:` en `lib/net-guard.ts`).
+- **SEC-001**: rotar la contraseña de `app_user` (paso 2 de arriba). Lo hace el operador.
+
+## Límites conocidos
+
+- Los webhooks de flows aceptan un replay dentro de la ventana de 300 s.
+- Borrar el final de la cadena de auditoría, o la cadena entera, solo se detecta comparando con las anclas del log.
+- Las conexiones a Postgres sin `sslmode` siguen en texto plano (sin cambios).
+- Las filas de auditoría conservan id, IP y user agent del actor después de borrar al usuario, hasta la retención (365 días).
 
 ## Cobertura
 
 | Celda                                                                                        | Estado                                       |
 | -------------------------------------------------------------------------------------------- | -------------------------------------------- |
 | Typecheck, lint, `i18n:check`, `audit-invariants.sh`                                         | ✓                                            |
-| Suite completa (unit + integración con Postgres real por testcontainers)                     | ✓ 2957 tests                                 |
+| Suite completa (unit + integración con Postgres real por testcontainers)                     | ✓ 3061 tests                                 |
 | Migraciones en base limpia (drizzle + 30 SQL)                                                | ✓                                            |
 | Rol no privilegiado: `app_user` lee las tablas y columnas nuevas; `cron_admin` rechaza login | ✓                                            |
 | Build de producción con el entorno del Dockerfile                                            | ✓                                            |
