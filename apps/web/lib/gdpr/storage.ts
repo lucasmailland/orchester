@@ -11,7 +11,7 @@
 // The `getAdapter()` cache also makes the per-request hot path a single
 // property read.
 //
-// Signed URLs are valid 7 days. That window matches the GDPR data
+// Signed URLs are valid 7 days from completion, after which the purge cron deletes the file. That window matches the GDPR data
 // portability SLA we promise in `/legal/privacy` and lets the email
 // notification land + the user click the link without us needing a
 // re-issue endpoint.
@@ -38,13 +38,21 @@ export interface StorageAdapter {
    * URL is never persisted plain in the DB — every poll computes a
    * new one with a fresh expiry. Implementations MUST NOT mutate the
    * artefact.
+   *
+   * The expiry is anchored to `completedAt` (`completedAt + 7 days`),
+   * never to "now", so polling cannot extend the link's life.
    */
-  regenerateSignedUrl(key: string): Promise<{ signedUrl: string; expiresAt: Date }>;
+  regenerateSignedUrl(
+    key: string,
+    completedAt: Date
+  ): Promise<{ signedUrl: string; expiresAt: Date }>;
+
+  /** Delete the artefact. Idempotent: a missing object is not an error. */
+  delete(key: string): Promise<void>;
 }
 
-const SIGNED_URL_TTL_DAYS = 7;
-const SIGNED_URL_TTL_MS = SIGNED_URL_TTL_DAYS * 24 * 60 * 60 * 1000;
-const SIGNED_URL_TTL_SECS = SIGNED_URL_TTL_DAYS * 24 * 60 * 60;
+export const SIGNED_URL_TTL_DAYS = 7;
+export const SIGNED_URL_TTL_MS = SIGNED_URL_TTL_DAYS * 24 * 60 * 60 * 1000;
 
 /**
  * S3 adapter. Pulls `@aws-sdk/client-s3` + presigner lazily so the dep
@@ -90,22 +98,34 @@ class S3Adapter implements StorageAdapter {
     });
     await upload.done();
 
-    return this.regenerateSignedUrl(key);
+    return this.regenerateSignedUrl(key, new Date());
   }
 
-  async regenerateSignedUrl(key: string): Promise<{ signedUrl: string; expiresAt: Date }> {
+  async delete(key: string): Promise<void> {
+    const { S3Client, DeleteObjectCommand } = await loadS3Client();
+    const region = process.env["AWS_REGION"] ?? "us-east-1";
+    await new S3Client({ region }).send(
+      new DeleteObjectCommand({ Bucket: requireS3Bucket(), Key: key })
+    );
+  }
+
+  async regenerateSignedUrl(
+    key: string,
+    completedAt: Date
+  ): Promise<{ signedUrl: string; expiresAt: Date }> {
+    const expiresAt = new Date(completedAt.getTime() + SIGNED_URL_TTL_MS);
+    // S3 rejects a non-positive presign expiry; callers must check first.
+    const expiresIn = Math.floor((expiresAt.getTime() - Date.now()) / 1000);
+    if (expiresIn <= 0) throw new Error("export_expired");
     const { S3Client, GetObjectCommand } = await loadS3Client();
     const { getSignedUrl } = await loadS3Presigner();
     const bucket = requireS3Bucket();
     const region = process.env["AWS_REGION"] ?? "us-east-1";
     const s3 = new S3Client({ region });
     const signedUrl = await getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: key }), {
-      expiresIn: SIGNED_URL_TTL_SECS,
+      expiresIn,
     });
-    return {
-      signedUrl,
-      expiresAt: new Date(Date.now() + SIGNED_URL_TTL_MS),
-    };
+    return { signedUrl, expiresAt };
   }
 }
 
@@ -208,11 +228,25 @@ class FilesystemAdapter implements StorageAdapter {
       }
     }
 
-    return this.regenerateSignedUrl(key);
+    return this.regenerateSignedUrl(key, new Date());
   }
 
-  async regenerateSignedUrl(key: string): Promise<{ signedUrl: string; expiresAt: Date }> {
-    const expiresAt = new Date(Date.now() + SIGNED_URL_TTL_MS);
+  async delete(key: string): Promise<void> {
+    const { unlink } = await import("node:fs/promises");
+    const path = await import("node:path");
+    const dir = process.env["GDPR_EXPORT_DIR"] ?? "/tmp/orchester-exports";
+    try {
+      await unlink(path.join(dir, key.replace(/\//g, "_")));
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+    }
+  }
+
+  async regenerateSignedUrl(
+    key: string,
+    completedAt: Date
+  ): Promise<{ signedUrl: string; expiresAt: Date }> {
+    const expiresAt = new Date(completedAt.getTime() + SIGNED_URL_TTL_MS);
     const { buildExportDownloadUrl } = await import("./signed-url");
     const signedUrl = await buildExportDownloadUrl(key, expiresAt);
     return { signedUrl, expiresAt };
@@ -261,7 +295,13 @@ export async function uploadZip(
  * attacker a storageKey, not a working download link.
  */
 export async function regenerateSignedUrl(
-  key: string
+  key: string,
+  completedAt: Date
 ): Promise<{ signedUrl: string; expiresAt: Date }> {
-  return getAdapter().regenerateSignedUrl(key);
+  return getAdapter().regenerateSignedUrl(key, completedAt);
+}
+
+/** Delete a stored export artefact (no-op if it is already gone). */
+export async function deleteExport(key: string): Promise<void> {
+  return getAdapter().delete(key);
 }

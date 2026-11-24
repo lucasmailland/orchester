@@ -33,6 +33,7 @@ import {
   JOB_WORKSPACE_HARD_DELETE,
   JOB_GDPR_EXPORT,
   JOB_GDPR_EXPORT_WATCHDOG,
+  JOB_GDPR_EXPORT_PURGE,
   JOB_WEEKLY_REPORT,
 } from "../lib/queue";
 import { executeFlow, reapStaleRuns } from "../lib/flow-engine";
@@ -44,6 +45,7 @@ import { runVerifyAllChains } from "../lib/audit/verify-job";
 import { runHardDeleteCron } from "../lib/tenant/hard-delete-job";
 import { runExportJob } from "../lib/gdpr/export-job";
 import { runExportWatchdog } from "../lib/gdpr/watchdog";
+import { purgeExpiredExports } from "../lib/gdpr/purge";
 
 // All mnemo extraction / embedding / consolidation / dedup / prune /
 // review-sweep / auto-pin / summary / health / sweeper crons used to
@@ -196,6 +198,11 @@ async function main(): Promise<void> {
     await runExportWatchdog();
   });
   await schedule(JOB_GDPR_EXPORT_WATCHDOG, "*/15 * * * *");
+
+  await registerWorker(JOB_GDPR_EXPORT_PURGE, async () => {
+    await purgeExpiredExports();
+  });
+  await schedule(JOB_GDPR_EXPORT_PURGE, "15 4 * * *");
 
   // ── Weekly usage report (cron, lunes 08:00 UTC) ─────────────
   await registerWorker(JOB_WEEKLY_REPORT, async () => {

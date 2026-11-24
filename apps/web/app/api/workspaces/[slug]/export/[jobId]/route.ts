@@ -29,7 +29,7 @@ import { resolveBySlug } from "@/lib/tenant/resolve";
 import { checkMembership } from "@/lib/tenant/membership";
 import { isAccessible } from "@/lib/tenant/lifecycle";
 import { requireAuth } from "@/lib/auth-guards";
-import { regenerateSignedUrl } from "@/lib/gdpr/storage";
+import { regenerateSignedUrl, SIGNED_URL_TTL_MS } from "@/lib/gdpr/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -98,8 +98,14 @@ export async function GET(
 
   let signedUrl: string | null = null;
   let signedUrlExpiresAt: string | null = null;
-  if (job.state === "completed" && job.storageKey) {
-    const r = await regenerateSignedUrl(job.storageKey);
+  if (job.state === "completed") {
+    // Purged, or past the 7-day window but not purged yet (R2): either way gone.
+    const expired =
+      !job.storageKey ||
+      !job.completedAt ||
+      job.completedAt.getTime() + SIGNED_URL_TTL_MS <= Date.now();
+    if (expired) return NextResponse.json({ error: "Export expired" }, { status: 410 });
+    const r = await regenerateSignedUrl(job.storageKey!, job.completedAt!);
     signedUrl = r.signedUrl;
     signedUrlExpiresAt = r.expiresAt.toISOString();
   }

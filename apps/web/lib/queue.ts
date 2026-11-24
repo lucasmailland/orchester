@@ -215,6 +215,7 @@ export const JOB_AUDIT_VERIFY_ALL = "audit:verify_all_chains";
 export const JOB_WORKSPACE_HARD_DELETE = "workspace:hard_delete";
 export const JOB_GDPR_EXPORT = "gdpr:export";
 export const JOB_GDPR_EXPORT_WATCHDOG = "gdpr:export:watchdog";
+export const JOB_GDPR_EXPORT_PURGE = "gdpr-export-purge";
 export const JOB_WEEKLY_REPORT = "report:weekly";
 
 /**
@@ -241,6 +242,7 @@ export const ALL_QUEUES: readonly string[] = [
   JOB_WORKSPACE_HARD_DELETE,
   JOB_GDPR_EXPORT,
   JOB_GDPR_EXPORT_WATCHDOG,
+  JOB_GDPR_EXPORT_PURGE,
   JOB_WEEKLY_REPORT,
 ];
 
