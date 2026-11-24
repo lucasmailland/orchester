@@ -15,6 +15,7 @@
 - [Sospecho compromise de credenciales](#sospecho-compromise-de-credenciales)
 - [Sospecho compromise de la DB](#sospecho-compromise-de-la-db)
 - [Telegram: canales sin secret token](#telegram-canales-sin-secret-token)
+- [Audit log: AUDIT_V2_SINCE tras el deploy de 0072](#audit-log-audit_v2_since-tras-el-deploy-de-0072)
 - [Webhook saliente falla repetido](#webhook-saliente-falla-repetido)
 - [El secret commiteado por accidente](#el-secret-commiteado-por-accidente)
 - [Restore de backup tras DB destruida](#restore-de-backup-tras-db-destruida)
@@ -246,6 +247,24 @@ Imprime los ids actualizados y los que fallaron (nunca tokens). Reintentá los
 fallidos; un fallo no modifica las credenciales del canal. Mientras migrás
 podés poner `TELEGRAM_ALLOW_UNSIGNED=1` para aceptar canales sin secreto;
 sacalo al terminar.
+
+---
+
+## Audit log: AUDIT_V2_SINCE tras el deploy de 0072
+
+**Paso de operación tras el deploy:** cuando la migración
+`0072_audit_log_hmac.sql` quedó aplicada y web + worker corren la versión
+nueva, fijá `AUDIT_V2_SINCE` (web y worker) con ese instante en ISO-8601 y
+redeployá:
+
+```bash
+AUDIT_V2_SINCE=2026-11-24T03:00:00Z   # el momento real en que 0072 entró
+```
+
+Desde ahí la verificación diaria marca rota cualquier fila más nueva que no
+sea `hash_version = 2`. Si una verificación falla con `hint` sobre
+`ENCRYPTION_SECRET`, revisá primero si el secreto cambió antes de tratarlo como
+manipulación.
 
 ---
 

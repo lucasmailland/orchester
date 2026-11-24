@@ -39,6 +39,11 @@ function envDays(name: string, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
+/** RETENTION_AUDIT_DAYS (default 365). Also used by lib/audit/verify.ts. */
+export function auditRetentionDays(): number {
+  return envDays("RETENTION_AUDIT_DAYS", 365);
+}
+
 function cutoff(days: number): Date {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 }
@@ -57,8 +62,7 @@ export interface PurgeResult {
 // fallback was masking future regressions where a refactor accidentally
 // dropped the wrapper and the DELETEs silently no-op'd under FORCE RLS.
 type DbOrTx =
-  | ReturnType<typeof getDb>
-  | Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+  ReturnType<typeof getDb> | Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 
 export async function purgeOldData(opts: {
   runsDays?: number;
@@ -76,7 +80,7 @@ export async function purgeOldData(opts: {
   //  - usage_events 90d (billing investigations típicas)
   //  - messages 180d desde una conv CERRADA (conversations activas no se tocan)
   //  - flow_versions: mantenemos las últimas N por flow (20) en vez de por edad
-  const auditLogsDays = opts.auditLogsDays ?? envDays("RETENTION_AUDIT_DAYS", 365);
+  const auditLogsDays = opts.auditLogsDays ?? auditRetentionDays();
   const usageEventsDays = opts.usageEventsDays ?? envDays("RETENTION_USAGE_DAYS", 90);
   const messagesDays = opts.messagesDays ?? envDays("RETENTION_MESSAGES_DAYS", 180);
   const flowVersionsKeepLast =

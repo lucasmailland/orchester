@@ -78,15 +78,20 @@ export function computePayloadHashV2(input: PayloadHashInputV2): string {
   return createHash("sha256").update(canonical).digest("hex");
 }
 
+let cachedKey: { secret: string; key: Buffer } | null = null;
+
 /** HMAC key for v2 chain hashes, derived from ENCRYPTION_SECRET (outside the DB). */
 export function auditKey(): Buffer {
   const secret = process.env.ENCRYPTION_SECRET;
   if (!secret || !/^[0-9a-fA-F]{64}$/.test(secret)) {
     throw new Error("ENCRYPTION_SECRET must be a 32-byte hex string (64 chars)");
   }
-  return Buffer.from(
+  if (cachedKey?.secret === secret) return cachedKey.key;
+  const key = Buffer.from(
     hkdfSync("sha256", Buffer.from(secret, "hex"), "orchester", "audit-log-v1", 32)
   );
+  cachedKey = { secret, key };
+  return key;
 }
 
 export function computeChainHashV2(

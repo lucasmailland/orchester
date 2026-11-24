@@ -139,6 +139,19 @@ describe("v2 (HMAC) hashes", () => {
     }
   });
 
+  it("auditKey is memoized per secret value", () => {
+    const prev = process.env.ENCRYPTION_SECRET;
+    try {
+      process.env.ENCRYPTION_SECRET = SECRET;
+      const k1 = auditKey();
+      expect(auditKey()).toBe(k1);
+      process.env.ENCRYPTION_SECRET = "cd".repeat(32);
+      expect(auditKey().equals(k1)).toBe(false);
+    } finally {
+      process.env.ENCRYPTION_SECRET = prev;
+    }
+  });
+
   it("auditKey throws without a valid ENCRYPTION_SECRET", () => {
     const prev = process.env.ENCRYPTION_SECRET;
     process.env.ENCRYPTION_SECRET = "short";

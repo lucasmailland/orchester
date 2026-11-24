@@ -11,6 +11,7 @@
 // pg-boss job (Phase B) — for now it falls back to the sync path so we
 // never lose entries.
 import "server-only";
+import { isIP } from "node:net";
 import { sql, desc, eq } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
@@ -85,11 +86,16 @@ export async function appendAuditInTx(
     }
   }
 
-  // actor_ip is an inet column, and Postgres prints it back normalized
-  // (lowercase IPv6, compressed zeros). Hash the form the verifier will read.
+  // actor_ip often comes from X-Forwarded-For, which the client controls. A
+  // value Postgres can't cast to inet would abort the caller's whole
+  // transaction, so validate here: first hop only, and null if it isn't an IP.
+  // Valid values go through ::inet because Postgres prints inet back
+  // normalized (lowercase IPv6, compressed zeros) and the verifier hashes
+  // what it reads.
   let actorIp: string | null = null;
-  if (entry.actorIp) {
-    const rows = await tx.execute<{ ip: string }>(sql`SELECT ${entry.actorIp}::inet AS ip`);
+  const firstHop = entry.actorIp?.split(",")[0]?.trim() ?? "";
+  if (isIP(firstHop) !== 0) {
+    const rows = await tx.execute<{ ip: string }>(sql`SELECT ${firstHop}::inet AS ip`);
     actorIp = rows[0]!.ip;
   }
   const actorUserAgent = entry.actorUserAgent ?? null;

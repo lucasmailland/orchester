@@ -75,6 +75,8 @@ describe("verifyChain", () => {
   });
 });
 
+const DAY = 24 * 60 * 60 * 1000;
+
 // ── SEC-009: HMAC chain, mixed versions, trimmed chains, anchor ───────────
 
 async function newWs(): Promise<{ wsId: string; ownerId: string }> {
@@ -129,6 +131,8 @@ describe("verifyChain — v2 HMAC rows", () => {
     await setRow(wsId, BigInt(2), { actorIp: "10.9.9.9" });
     const r = await verifyChain(wsId);
     expect(r.brokenAt?.entryId).toBe(before[1]!.id);
+    expect(r.brokenAt?.reason).toBe("hash_mismatch");
+    expect(r.brokenAt?.hint).toMatch(/ENCRYPTION_SECRET/);
   });
 
   it("flags a v2 row rewritten with recomputed unkeyed sha256 hashes", async () => {
@@ -223,13 +227,32 @@ describe("verifyChain — v2 HMAC rows", () => {
 
   it("accepts a chain whose first rows were trimmed by retention", async () => {
     const { wsId, ownerId } = await newWs();
-    await append(wsId, ownerId, 5);
+    // Rows as old as retention leaves them: just inside the 365-day window.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(Date.now() - 364.5 * DAY));
+    try {
+      await append(wsId, ownerId, 5);
+    } finally {
+      vi.useRealTimers();
+    }
     await getDb()
       .delete(schema.auditLog)
       .where(and(eq(schema.auditLog.workspaceId, wsId), lt(schema.auditLog.seq, BigInt(3))));
     const r = await verifyChain(wsId);
     expect(r.brokenAt).toBeNull();
     expect(r.entriesChecked).toBe(3);
+  });
+
+  it("flags a fresh chain whose first rows were deleted (inside the retention window)", async () => {
+    const { wsId, ownerId } = await newWs();
+    await append(wsId, ownerId, 4);
+    const before = await rows(wsId);
+    await getDb()
+      .delete(schema.auditLog)
+      .where(and(eq(schema.auditLog.workspaceId, wsId), lt(schema.auditLog.seq, BigInt(3))));
+    const r = await verifyChain(wsId);
+    expect(r.brokenAt?.entryId).toBe(before[2]!.id);
+    expect(r.brokenAt?.reason).toBe("head_trimmed_inside_retention");
   });
 
   it("still flags a row deleted from the middle of the chain", async () => {
@@ -239,6 +262,70 @@ describe("verifyChain — v2 HMAC rows", () => {
       .delete(schema.auditLog)
       .where(and(eq(schema.auditLog.workspaceId, wsId), eq(schema.auditLog.seq, BigInt(2))));
     expect((await verifyChain(wsId)).brokenAt).not.toBeNull();
+  });
+});
+
+describe("verifyChain — AUDIT_V2_SINCE", () => {
+  // Relabel every row of a v2 chain as v1, recomputing unkeyed hashes from
+  // genesis: the one downgrade the seenV2 rule can't see.
+  async function relabelAllToV1(wsId: string) {
+    let prev: string | null = null;
+    for (const row of await rows(wsId)) {
+      const payloadHash = chain.computePayloadHash({
+        action: row.action,
+        actorUserId: row.actorUserId,
+        actorKind: row.actorKind,
+        targetType: row.targetType,
+        targetId: row.targetId,
+        meta: row.meta as Record<string, unknown>,
+        createdAt: row.createdAt,
+      });
+      const chainHash = chain.computeChainHash(prev, payloadHash, row.seq);
+      await setRow(wsId, row.seq, { hashVersion: 1, payloadHash, chainHash, prevHash: prev });
+      prev = chainHash;
+    }
+  }
+
+  it("without it, an all-v1 relabelled chain still verifies (anchor is the only check)", async () => {
+    const { wsId, ownerId } = await newWs();
+    await append(wsId, ownerId, 3);
+    await relabelAllToV1(wsId);
+    expect((await verifyChain(wsId)).brokenAt).toBeNull();
+  });
+
+  it("with it, flags a v1 row created after the cutover", async () => {
+    const since = new Date(Date.now() - 1000).toISOString();
+    const { wsId, ownerId } = await newWs();
+    await append(wsId, ownerId, 3);
+    const first = (await rows(wsId))[0]!;
+    await relabelAllToV1(wsId);
+    process.env["AUDIT_V2_SINCE"] = since;
+    try {
+      const r = await verifyChain(wsId);
+      expect(r.brokenAt?.entryId).toBe(first.id);
+      expect(r.brokenAt?.reason).toBe("downgrade");
+    } finally {
+      delete process.env["AUDIT_V2_SINCE"];
+    }
+  });
+});
+
+describe("appendAuditSync — untrusted actorIp", () => {
+  it("stores null for a non-IP and the first hop of a forwarded list", async () => {
+    const { wsId, ownerId } = await newWs();
+    for (const actorIp of ["not-an-ip", "1.2.3.4, 10.0.0.1"]) {
+      await appendAuditSync(wsId, {
+        action: "workspace.update",
+        actorUserId: ownerId,
+        actorKind: "user",
+        actorIp,
+        targetType: "workspace",
+        targetId: wsId,
+        meta: {},
+      });
+    }
+    expect((await rows(wsId)).map((r) => r.actorIp)).toEqual([null, "1.2.3.4"]);
+    expect((await verifyChain(wsId)).brokenAt).toBeNull();
   });
 });
 

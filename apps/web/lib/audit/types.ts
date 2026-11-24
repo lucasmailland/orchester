@@ -52,7 +52,14 @@ export interface AuditEntryInput {
 export interface ChainVerifyResult {
   workspaceId: string;
   entriesChecked: number;
-  brokenAt: { entryId: string; expectedHash: string; foundHash: string } | null;
+  brokenAt: {
+    entryId: string;
+    expectedHash: string;
+    foundHash: string;
+    reason: "hash_mismatch" | "downgrade" | "head_trimmed_inside_retention";
+    /** Non-secret operator hint, e.g. that a changed ENCRYPTION_SECRET looks the same. */
+    hint?: string;
+  } | null;
   /** Last verified link (null when broken or empty). seq is a string so it serializes to JSON. */
   head: { seq: string; chainHash: string } | null;
   verifiedAt: Date;

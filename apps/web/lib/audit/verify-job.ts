@@ -71,6 +71,8 @@ export async function runVerifyAllChains(): Promise<void> {
             entryId: result.brokenAt.entryId,
             expectedHash: result.brokenAt.expectedHash,
             foundHash: result.brokenAt.foundHash,
+            reason: result.brokenAt.reason,
+            ...(result.brokenAt.hint ? { hint: result.brokenAt.hint } : {}),
           },
         });
         // Stderr line is the universal signal — every deploy (with

@@ -23,7 +23,21 @@ import {
   computePayloadHashV2,
   computeChainHashV2,
 } from "./chain";
+import { auditRetentionDays } from "../retention";
 import type { ChainVerifyResult } from "./types";
+
+const ZERO_HASH = "0".repeat(64);
+const DAY_MS = 24 * 60 * 60 * 1000;
+const V2_MISMATCH_HINT =
+  "a v2 row also fails this way if ENCRYPTION_SECRET changed since it was written";
+
+/** AUDIT_V2_SINCE: ISO-8601 time 0072 went live. Unset or invalid = rule off. */
+function parseV2Since(): Date | null {
+  const raw = process.env["AUDIT_V2_SINCE"];
+  if (!raw) return null;
+  const t = Date.parse(raw);
+  return Number.isNaN(t) ? null : new Date(t);
+}
 
 /**
  * Walk a workspace's audit chain and surface the first break, if any.
@@ -59,8 +73,37 @@ export async function verifyChain(workspaceId: string, db?: AnyDb): Promise<Chai
   // workspace (entriesChecked > 0, brokenAt: null).
   const chainEntries = entries.filter((e) => !e.action.startsWith("legacy."));
 
+  const now = new Date();
+  const broken = (
+    i: number,
+    e: (typeof chainEntries)[number],
+    brokenAt: Omit<NonNullable<ChainVerifyResult["brokenAt"]>, "entryId" | "foundHash">
+  ): ChainVerifyResult => ({
+    workspaceId,
+    entriesChecked: i + 1,
+    brokenAt: { entryId: e.id, foundHash: e.chainHash, ...brokenAt },
+    head: null,
+    verifiedAt: now,
+  });
+
+  // A first row that chains to a predecessor (non-null prev_hash) means rows
+  // before it were deleted. Retention only deletes rows older than its
+  // cutoff, so that first row must be about as old as the cutoff too; a
+  // younger one means someone deleted the head of the chain.
+  const first = chainEntries[0];
+  if (first?.prevHash && first.prevHash !== ZERO_HASH) {
+    const youngestTrimmedHead = now.getTime() - (auditRetentionDays() - 1) * DAY_MS;
+    if (first.createdAt.getTime() > youngestTrimmedHead) {
+      return broken(0, first, {
+        reason: "head_trimmed_inside_retention",
+        expectedHash: first.chainHash,
+      });
+    }
+  }
+
+  const v2Since = parseV2Since();
   let key: Buffer | null = null;
-  let prevHash: string | null = chainEntries[0]?.prevHash ?? null;
+  let prevHash: string | null = first?.prevHash ?? null;
   let seenV2 = false;
   for (const [i, e] of chainEntries.entries()) {
     const base = {
@@ -72,9 +115,10 @@ export async function verifyChain(workspaceId: string, db?: AnyDb): Promise<Chai
       meta: e.meta as Record<string, unknown>,
       createdAt: e.createdAt,
     };
+    const isV2 = e.hashVersion === 2;
     let expectedPayloadHash: string;
     let expectedChainHash: string;
-    if (e.hashVersion === 2) {
+    if (isV2) {
       seenV2 = true;
       key ??= auditKey();
       expectedPayloadHash = computePayloadHashV2({
@@ -88,21 +132,19 @@ export async function verifyChain(workspaceId: string, db?: AnyDb): Promise<Chai
       expectedPayloadHash = computePayloadHash(base);
       expectedChainHash = computeChainHash(prevHash, expectedPayloadHash, e.seq);
     }
-    // A v1 row after a v2 one is a downgrade: v1 hashes need no key, so
-    // relabelling rows as v1 would let anyone with DB access rewrite them.
-    const downgraded = e.hashVersion !== 2 && seenV2;
-    if (downgraded || e.payloadHash !== expectedPayloadHash || e.chainHash !== expectedChainHash) {
-      return {
-        workspaceId,
-        entriesChecked: i + 1,
-        brokenAt: {
-          entryId: e.id,
-          expectedHash: expectedChainHash,
-          foundHash: e.chainHash,
-        },
-        head: null,
-        verifiedAt: new Date(),
-      };
+    // v1 hashes need no key, so a row relabelled as v1 could be rewritten by
+    // anyone with DB access. A v1 row is a downgrade when it follows a v2 row,
+    // or when it was created after AUDIT_V2_SINCE (moving created_at back
+    // means recomputing hashes, which this same rule then catches).
+    if (!isV2 && (seenV2 || (v2Since !== null && e.createdAt >= v2Since))) {
+      return broken(i, e, { reason: "downgrade", expectedHash: expectedChainHash });
+    }
+    if (e.payloadHash !== expectedPayloadHash || e.chainHash !== expectedChainHash) {
+      return broken(i, e, {
+        reason: "hash_mismatch",
+        expectedHash: expectedChainHash,
+        ...(isV2 ? { hint: V2_MISMATCH_HINT } : {}),
+      });
     }
     prevHash = e.chainHash;
   }
@@ -113,6 +155,6 @@ export async function verifyChain(workspaceId: string, db?: AnyDb): Promise<Chai
     entriesChecked: entries.length, // includes legacy rows (not chain-verified)
     brokenAt: null,
     head: last ? { seq: last.seq.toString(), chainHash: last.chainHash } : null,
-    verifiedAt: new Date(),
+    verifiedAt: now,
   };
 }

@@ -30,4 +30,8 @@ BEGIN
   END LOOP;
 END $$;
 
+-- This build takes a SHARE lock on audit_log (writes wait until it ends). It
+-- can't be CONCURRENTLY: scripts/apply-sql-migrations.mjs runs each file
+-- inside sql.begin(), and CREATE INDEX CONCURRENTLY can't run in a
+-- transaction. On a large audit_log, run the migration off-peak.
 CREATE INDEX IF NOT EXISTS idx_audit_workspace_created ON audit_log(workspace_id, created_at);
