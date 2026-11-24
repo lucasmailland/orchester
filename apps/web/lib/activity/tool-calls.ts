@@ -189,6 +189,10 @@ export function outcomeOf(end: ToolCallEnd): {
     if (stringProp(e, "code") === TOOL_NOT_OFFERED_CODE) {
       return { outcome: "refused", errorCode: TOOL_NOT_OFFERED_CODE, error: errorText(message) };
     }
+    // EXEC-005: an integration or flow not assigned to the agent (lib/agents/tool-scope).
+    if (e instanceof Error && e.name === "ToolScopeError") {
+      return { outcome: "refused", errorCode: "tool_scope", error: errorText(message) };
+    }
     if (message.includes(WRITE_SCOPE_REFUSAL_PREFIX)) {
       return { outcome: "refused", errorCode: "write_scope", error: errorText(message) };
     }

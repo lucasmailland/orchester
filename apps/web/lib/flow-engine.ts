@@ -1113,7 +1113,7 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
             ctx.dryRun &&
             (offeredTool.effect ??
               (await withFlowTx(workspaceId, (tx) =>
-                toolEffect(tc.name, input, { workspaceId, tx })
+                toolEffect(tc.name, input, { workspaceId, tx, agentId: agent.id })
               ))) === "write"
           ) {
             simulatedTools.push(tc.name);

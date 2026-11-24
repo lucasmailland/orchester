@@ -18,6 +18,8 @@ const { runIntegrationActionMock } = vi.hoisted(() => ({
 vi.mock("@/lib/integrations/store", () => ({
   runIntegrationAction: runIntegrationActionMock,
 }));
+// Scope (EXEC-005) is covered by tests/integration/security/agent-tool-scope.spec.ts.
+vi.mock("@/lib/agents/tool-scope", () => ({ assertIntegrationInScope: async () => {} }));
 
 import { getToolDefinitions, listAllTools, executeTool } from "@/lib/tools";
 

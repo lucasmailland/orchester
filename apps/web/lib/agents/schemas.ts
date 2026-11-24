@@ -21,6 +21,10 @@ export const updateAgentSchema = z.object({
   tools: z.array(z.string()).optional(),
   // Knowledge bases the agent may search; stored in agent.config.knowledgeBaseIds.
   knowledgeBaseIds: z.array(z.string()).optional(),
+  // EXEC-005: integrations (run_integration) and flows (flow_call) the agent may
+  // reach; stored in agent.config.allowedIntegrationIds / allowedFlowIds.
+  allowedIntegrationIds: z.array(z.string()).optional(),
+  allowedFlowIds: z.array(z.string()).optional(),
   variables: z.record(z.string(), z.string()).optional(),
   greeting: z.string().nullable().optional(),
   fallback: z.string().nullable().optional(),

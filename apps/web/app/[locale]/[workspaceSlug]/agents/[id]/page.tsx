@@ -1,4 +1,5 @@
 import { readAgentKbIds } from "@/lib/agents/knowledge-bases";
+import { readAgentScope } from "@/lib/agents/tool-scope";
 import { notFound, redirect } from "next/navigation";
 import { getDb, schema } from "@orchester/db";
 import { eq, and } from "drizzle-orm";
@@ -37,6 +38,8 @@ export default async function AgentStudioPage({
         flowId: agent.flowId,
         tools: agent.tools,
         knowledgeBaseIds: readAgentKbIds(agent.config),
+        allowedIntegrationIds: readAgentScope(agent.config).integrationIds,
+        allowedFlowIds: readAgentScope(agent.config).flowIds,
         variables: agent.variables,
         greeting: agent.greeting,
         fallback: agent.fallback,

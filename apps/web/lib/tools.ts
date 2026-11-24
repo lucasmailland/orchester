@@ -895,6 +895,68 @@ function boundKnowledgeSearch(kbs: { id: string; name: string }[]): ToolDefiniti
   };
 }
 
+/** `def` with `key` limited to `options`, which are listed by name in the description. */
+function withEnum(
+  def: ToolDefinition,
+  key: string,
+  options: { id: string; label: string }[]
+): ToolDefinition {
+  const props = (def.inputSchema as { properties: Record<string, Record<string, unknown>> })
+    .properties;
+  const list = options.map((o) => `${o.label} (${o.id})`).join("; ");
+  return {
+    ...def,
+    description: `${def.description} This agent can use only: ${list}.`,
+    inputSchema: {
+      ...def.inputSchema,
+      properties: { ...props, [key]: { ...props[key], enum: options.map((o) => o.id) } },
+    },
+  };
+}
+
+/**
+ * EXEC-005: run_integration and flow_call as the model sees them for an agent:
+ * the id is an enum of what the agent was assigned, and a tool with nothing
+ * assigned is not offered at all.
+ */
+async function scopeIntegrationAndFlowTools(
+  workspaceId: string,
+  defs: ToolDefinition[],
+  config: unknown,
+  tx?: WsDb
+): Promise<ToolDefinition[]> {
+  const { readAgentScope, scopedIntegrations, scopedFlows } = await import("./agents/tool-scope");
+  const scope = readAgentScope(config);
+  const has = (name: string) => defs.some((d) => d.name === name);
+  const integrations = has("run_integration")
+    ? await scopedIntegrations(workspaceId, scope.integrationIds, tx)
+    : [];
+  const flows = has("flow_call") ? await scopedFlows(workspaceId, scope.flowIds, tx) : [];
+  return defs.flatMap((d) => {
+    if (d.name === "run_integration")
+      return integrations.length
+        ? [
+            withEnum(
+              d,
+              "integrationId",
+              integrations.map((i) => ({ id: i.id, label: `${i.name} [${i.type}]` }))
+            ),
+          ]
+        : [];
+    if (d.name === "flow_call")
+      return flows.length
+        ? [
+            withEnum(
+              d,
+              "flowId",
+              flows.map((f) => ({ id: f.id, label: f.name }))
+            ),
+          ]
+        : [];
+    return [d];
+  });
+}
+
 export async function resolveToolDefinitions(
   workspaceId: string,
   enabledIds: string[],
@@ -909,6 +971,9 @@ export async function resolveToolDefinitions(
       builtins = builtins.map((d) =>
         d.name === "knowledge_search" ? boundKnowledgeSearch(kbs) : d
       );
+  }
+  if (agent && (enabledIds.includes("run_integration") || enabledIds.includes("flow_call"))) {
+    builtins = await scopeIntegrationAndFlowTools(workspaceId, builtins, agent.config, tx);
   }
   // KNOW-1: the workspace's own HTTP tools (agent_tool rows), offered by id or
   // name. A builtin keeps its name if a custom tool reuses it.
@@ -1080,7 +1145,7 @@ const AS_AGENT = { caller: "agent" } as const;
 export async function toolEffect(
   name: string,
   input: Record<string, unknown>,
-  ctx: Pick<ToolContext, "workspaceId" | "tx">
+  ctx: Pick<ToolContext, "workspaceId" | "tx" | "agentId">
 ): Promise<"read" | "write"> {
   if (READ_TOOLS.has(name)) return "read";
   if (name === "http_request") {
@@ -1100,6 +1165,9 @@ export async function toolEffect(
     const integrationId = String(input.integrationId ?? "");
     const action = String(input.action ?? "");
     if (!integrationId || !action) return "write";
+    // A dry run refuses an integration outside the agent's scope like the run does.
+    const { assertIntegrationInScope } = await import("./agents/tool-scope");
+    await assertIntegrationInScope(ctx, integrationId);
     // Unresolvable integration/action: let the lookup error surface, the same
     // one the real run raises, rather than simulating it as a write.
     const { getIntegrationActionEffect } = await import("@/lib/integrations/store");
@@ -1113,6 +1181,10 @@ export async function toolEffect(
   }
   // Workspace MCP tools are classified by the loop from their definition.
   if (name.startsWith("mcp__")) return "write";
+  if (name === "flow_call" && typeof input.flowId === "string" && input.flowId) {
+    const { assertFlowInScope } = await import("./agents/tool-scope");
+    await assertFlowInScope(ctx, input.flowId);
+  }
   // flow_call, agent_handoff, memory_set, memory_remove, mnemosyne_remember, and
   // any built-in nobody classified yet are writes; a name that is not a tool at
   // all is an error, not a write to simulate.
@@ -1215,6 +1287,8 @@ async function runTool(
   if (name === "flow_call") {
     const flowId = String(input.flowId ?? "");
     if (!flowId) throw new Error("flowId required");
+    const { assertFlowInScope } = await import("./agents/tool-scope");
+    await assertFlowInScope(ctx, flowId);
     // F-B1: async — el agente puede correr flows largos (video/avatar) sin
     // bloquear el turno conversacional. Devolvemos runId y el agente puede
     // chequear /api/flow-runs/:runId después.
@@ -1460,6 +1534,8 @@ async function runTool(
     const integrationId = String(input.integrationId ?? "");
     const action = String(input.action ?? "");
     if (!integrationId || !action) throw new Error("integrationId y action son requeridos");
+    const { assertIntegrationInScope } = await import("./agents/tool-scope");
+    await assertIntegrationInScope(ctx, integrationId);
     const { runIntegrationAction } = await import("@/lib/integrations/store");
     return runIntegrationAction(
       ctx.workspaceId,

@@ -31,6 +31,8 @@ interface AgentDTO {
   flowId: string | null;
   tools: string[] | null;
   knowledgeBaseIds?: string[];
+  allowedIntegrationIds?: string[];
+  allowedFlowIds?: string[];
   variables: Record<string, string> | null;
   greeting: string | null;
   fallback: string | null;
@@ -65,6 +67,8 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
     variables: agent.variables ?? {},
     tools: agent.tools ?? [],
     knowledgeBaseIds: agent.knowledgeBaseIds ?? [],
+    allowedIntegrationIds: agent.allowedIntegrationIds ?? [],
+    allowedFlowIds: agent.allowedFlowIds ?? [],
     greeting: agent.greeting ?? "",
     fallback: agent.fallback ?? "",
     starters: agent.starters ?? [],
@@ -110,6 +114,8 @@ export function AgentStudio({ agent }: { agent: AgentDTO }) {
         flowId: config.flowId,
         tools: config.tools,
         knowledgeBaseIds: config.knowledgeBaseIds,
+        allowedIntegrationIds: config.allowedIntegrationIds,
+        allowedFlowIds: config.allowedFlowIds,
         variables: config.variables,
         greeting: config.greeting,
         fallback: config.fallback,

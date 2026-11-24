@@ -31,4 +31,20 @@ describe("updateAgentSchema", () => {
   it.each([0, 16, 2.5, "8", null, -1])("rejects maxToolCalls %j", (n) => {
     expect(updateAgentSchema.safeParse({ ...base, maxToolCalls: n }).success).toBe(false);
   });
+
+  it("accepts the integration and flow lists the agent may reach", () => {
+    const parsed = updateAgentSchema.safeParse({
+      ...base,
+      allowedIntegrationIds: ["int_1"],
+      allowedFlowIds: [],
+    });
+    expect(parsed.success && parsed.data).toMatchObject({
+      allowedIntegrationIds: ["int_1"],
+      allowedFlowIds: [],
+    });
+  });
+
+  it.each([{ allowedIntegrationIds: "int_1" }, { allowedFlowIds: [1] }])("rejects %j", (bad) => {
+    expect(updateAgentSchema.safeParse({ ...base, ...bad }).success).toBe(false);
+  });
 });

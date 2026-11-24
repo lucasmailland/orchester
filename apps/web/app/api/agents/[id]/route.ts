@@ -11,6 +11,7 @@ import { adminErrorResponse, withAdminTx } from "@/lib/workspace-admin";
 import { unknownKbIds, withAgentKbIds } from "@/lib/agents/knowledge-bases";
 import { logAudit } from "@/lib/audit";
 import { ownedByWorkspace } from "@/lib/tenant/owned";
+import { withAgentScope } from "@/lib/agents/tool-scope";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const workspace = await getCurrentWorkspace();
@@ -54,6 +55,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     flowId,
     tools,
     knowledgeBaseIds,
+    allowedIntegrationIds,
+    allowedFlowIds,
     variables,
     greeting,
     fallback,
@@ -88,6 +91,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         throw new UnknownReferenceError("team");
       if (flowId && !(await ownedByWorkspace(tx, schema.flows, ctx.workspace.id, [flowId])))
         throw new UnknownReferenceError("flow");
+      if (
+        allowedIntegrationIds?.length &&
+        !(await ownedByWorkspace(
+          tx,
+          schema.workspaceIntegrations,
+          ctx.workspace.id,
+          allowedIntegrationIds
+        ))
+      )
+        throw new UnknownReferenceError("integration");
+      if (
+        allowedFlowIds?.length &&
+        !(await ownedByWorkspace(tx, schema.flows, ctx.workspace.id, allowedFlowIds))
+      )
+        throw new UnknownReferenceError("flow");
       // Read the status before writing it, to tell when an active agent goes down.
       if (status !== undefined && status !== "active") {
         const [before] = await tx
@@ -98,7 +116,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         wentDown = before?.status === "active";
       }
       let config: Record<string, unknown> | undefined;
-      if (knowledgeBaseIds !== undefined || maxToolCalls !== undefined) {
+      if (
+        knowledgeBaseIds !== undefined ||
+        maxToolCalls !== undefined ||
+        allowedIntegrationIds !== undefined ||
+        allowedFlowIds !== undefined
+      ) {
         const [current] = await tx
           .select({ config: schema.agents.config })
           .from(schema.agents)
@@ -109,6 +132,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         let next: Record<string, unknown> | unknown = current.config;
         if (knowledgeBaseIds !== undefined) next = withAgentKbIds(next, knowledgeBaseIds);
         if (maxToolCalls !== undefined) next = mergeAgentConfig(next, { maxToolCalls });
+        if (allowedIntegrationIds !== undefined || allowedFlowIds !== undefined)
+          next = withAgentScope(next as Record<string, unknown>, {
+            ...(allowedIntegrationIds !== undefined && { integrationIds: allowedIntegrationIds }),
+            ...(allowedFlowIds !== undefined && { flowIds: allowedFlowIds }),
+          });
         config = next as Record<string, unknown>;
       }
       return tx

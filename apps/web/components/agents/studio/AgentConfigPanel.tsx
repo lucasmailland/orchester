@@ -29,6 +29,9 @@ export interface AgentConfigState {
   variables: Record<string, string>;
   tools: string[];
   knowledgeBaseIds: string[];
+  /** EXEC-005: what run_integration and flow_call may reach (agent.config). */
+  allowedIntegrationIds: string[];
+  allowedFlowIds: string[];
   greeting: string;
   fallback: string;
   starters: string[];
@@ -61,6 +64,7 @@ export function AgentConfigPanel({ value, onChange }: Props) {
   const [flows, setFlows] = useState<FlowOption[]>([]);
   const [tools, setTools] = useState<ToolDef[]>([]);
   const [kbs, setKbs] = useState<FlowOption[]>([]);
+  const [integrations, setIntegrations] = useState<FlowOption[]>([]);
 
   useEffect(() => {
     fetch("/api/flows")
@@ -75,6 +79,17 @@ export function AgentConfigPanel({ value, onChange }: Props) {
         setKbs((Array.isArray(d) ? d : []).map((k) => ({ id: k.id, name: k.name })))
       )
       .catch(() => setKbs([]));
+    fetch("/api/integrations")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { configured?: Array<{ id: string; name: string; type: string }> } | null) =>
+        setIntegrations(
+          (Array.isArray(d?.configured) ? d.configured : []).map((i) => ({
+            id: i.id,
+            name: `${i.name} (${i.type})`,
+          }))
+        )
+      )
+      .catch(() => setIntegrations([]));
     fetch("/api/tools")
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setTools(Array.isArray(d) ? d : []))
@@ -246,6 +261,28 @@ export function AgentConfigPanel({ value, onChange }: Props) {
               })}
             </div>
           )}
+        </Section>
+      )}
+
+      {/* Integrations and flows the agent may reach (EXEC-005) */}
+      {value.kind === "conversational" && value.tools.includes("run_integration") && (
+        <Section title={t("integrationScopeTitle")} subtitle={t("integrationScopeSubtitle")}>
+          <ChipPicker
+            options={integrations}
+            selected={value.allowedIntegrationIds}
+            empty={t("integrationScopeEmpty")}
+            onChange={(allowedIntegrationIds) => onChange({ allowedIntegrationIds })}
+          />
+        </Section>
+      )}
+      {value.kind === "conversational" && value.tools.includes("flow_call") && (
+        <Section title={t("flowScopeTitle")} subtitle={t("flowScopeSubtitle")}>
+          <ChipPicker
+            options={flows}
+            selected={value.allowedFlowIds}
+            empty={t("flowScopeEmpty")}
+            onChange={(allowedFlowIds) => onChange({ allowedFlowIds })}
+          />
         </Section>
       )}
 
@@ -529,6 +566,46 @@ function VariablesEditor({
       >
         <Plus className="h-3 w-3" /> {t("addVariable")}
       </button>
+    </div>
+  );
+}
+
+/** A multi-select of named ids, shaped like the knowledge-base picker. */
+function ChipPicker({
+  options,
+  selected,
+  empty,
+  onChange,
+}: {
+  options: FlowOption[];
+  selected: string[];
+  empty: string;
+  onChange: (ids: string[]) => void;
+}) {
+  if (options.length === 0) return <div className="text-xs text-muted">{empty}</div>;
+  return (
+    <div className="grid grid-cols-2 gap-1.5">
+      {options.map((o) => {
+        const on = selected.includes(o.id);
+        return (
+          <button
+            key={o.id}
+            type="button"
+            aria-pressed={on}
+            onClick={() =>
+              onChange(on ? selected.filter((id) => id !== o.id) : [...selected, o.id])
+            }
+            className={cn(
+              "rounded-lg border px-2.5 py-2 text-left text-xs transition",
+              on
+                ? "border-violet-500/40 bg-violet-500/10 text-strong"
+                : "border-line bg-card text-muted hover:bg-elevated"
+            )}
+          >
+            {o.name}
+          </button>
+        );
+      })}
     </div>
   );
 }

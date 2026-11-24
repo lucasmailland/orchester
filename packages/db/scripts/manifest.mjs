@@ -79,6 +79,10 @@ export const MANIFEST = [
     "0070_default_roles_nologin.sql",
     "cron_admin y read_only_audit sin LOGIN — sus contraseñas de 0007 son públicas",
   ],
+  [
+    "0071_agent_tool_scope_backfill.sql",
+    "agent.config.allowedIntegrationIds/allowedFlowIds con lo que cada agente usó bien en 90 días",
+  ],
   // Sin número: ajuste del deploy single-tenant, no historia de upstream.
   // 0049 deja `org` con FORCE RLS y sólo una política de SELECT, así que ningún
   // INSERT pasa y crear un workspace da 500. Ver el header del archivo.
