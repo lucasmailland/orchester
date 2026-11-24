@@ -27,7 +27,11 @@ const { POST: telegram } = await import("@/app/api/channels/telegram/webhook/[se
 const { POST: slack } = await import("@/app/api/channels/slack/webhook/[secret]/route");
 const params = { params: Promise.resolve({ secret: "test-secret" }) };
 function request(body: unknown) {
-  return new Request("https://example.com", { method: "POST", body: JSON.stringify(body) });
+  return new Request("https://example.com", {
+    method: "POST",
+    body: JSON.stringify(body),
+    headers: { "x-telegram-bot-api-secret-token": "a".repeat(48) },
+  });
 }
 function channel(type: string, config?: Record<string, unknown>) {
   mocks.lookup.mockResolvedValue({
@@ -43,9 +47,7 @@ function channel(type: string, config?: Record<string, unknown>) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.inbound.mockResolvedValue({ reply: "Test reply" });
-  // Sin `webhookSecret`: un canal registrado antes de que existiera la
-  // verificación del header. Pasa, y deja un warning.
-  mocks.decodeTelegram.mockReturnValue({ botToken: "test-token" });
+  mocks.decodeTelegram.mockReturnValue({ botToken: "test-token", webhookSecret: "a".repeat(48) });
   mocks.signature.mockReturnValue(true);
   mocks.react.mockResolvedValue(undefined);
   mocks.thinking.mockResolvedValue(undefined);
@@ -114,13 +116,25 @@ it("Telegram acepta el header que registró", async () => {
   expect(mocks.inbound).toHaveBeenCalledOnce();
 });
 
-it("Telegram deja pasar un canal registrado antes de que existiera el header", async () => {
-  // Romper todos los canales que ya andan es peor que el agujero. Pasa, y el
-  // warning del log dice qué canal hay que volver a guardar.
+it("Telegram rejects a channel with no registered secret and never runs the agent", async () => {
   channel("telegram", { allowAnySender: true });
   mocks.decodeTelegram.mockReturnValue({ botToken: "test-token" });
-  await telegram(requestConHeader(mensaje, undefined), params);
-  expect(mocks.inbound).toHaveBeenCalledOnce();
+  const response = await telegram(requestConHeader(mensaje, undefined), params);
+  expect(response.status).toBe(404);
+  expect(mocks.inbound).not.toHaveBeenCalled();
+});
+
+it("Telegram lets an unsigned channel through only with TELEGRAM_ALLOW_UNSIGNED=1", async () => {
+  vi.stubEnv("TELEGRAM_ALLOW_UNSIGNED", "1");
+  try {
+    channel("telegram", { allowAnySender: true });
+    mocks.decodeTelegram.mockReturnValue({ botToken: "test-token" });
+    const response = await telegram(requestConHeader(mensaje, undefined), params);
+    expect(response.status).toBe(200);
+    expect(mocks.inbound).toHaveBeenCalledOnce();
+  } finally {
+    vi.unstubAllEnvs();
+  }
 });
 
 it("Telegram uses the sender username, not a group username", async () => {

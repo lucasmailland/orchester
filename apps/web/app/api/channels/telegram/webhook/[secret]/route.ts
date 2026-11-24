@@ -45,9 +45,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
     return NextResponse.json({ ok: false, error: "channel not found" }, { status: 404 });
   }
   if (check === "unconfigured") {
-    // The channel predates the check. It keeps working —breaking every existing
-    // Telegram channel is worse— but it is not silent: re-saving the bot token
-    // registers a secret and closes this.
+    // No secret token registered: the URL alone is the only proof, and it leaks.
+    // Refuse, unless the operator opted in while migrating old channels
+    // (`pnpm telegram:register-secrets` registers a secret on each of them).
+    if (process.env["TELEGRAM_ALLOW_UNSIGNED"] !== "1") {
+      return NextResponse.json({ ok: false, error: "channel not found" }, { status: 404 });
+    }
     logWithContext("warn", "telegram webhook without a secret token", {
       correlationId: channel.id,
       channelId: channel.id,

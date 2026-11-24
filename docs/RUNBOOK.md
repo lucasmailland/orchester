@@ -14,6 +14,7 @@
 - [Backup falla](#backup-falla)
 - [Sospecho compromise de credenciales](#sospecho-compromise-de-credenciales)
 - [Sospecho compromise de la DB](#sospecho-compromise-de-la-db)
+- [Telegram: canales sin secret token](#telegram-canales-sin-secret-token)
 - [Webhook saliente falla repetido](#webhook-saliente-falla-repetido)
 - [El secret commiteado por accidente](#el-secret-commiteado-por-accidente)
 - [Restore de backup tras DB destruida](#restore-de-backup-tras-db-destruida)
@@ -227,6 +228,24 @@ Procedimiento de emergencia:
    72 horas tras detection).
 6. **Restore desde último backup limpio** si los datos se manipularon (ver
    "Restore de backup tras DB destruida").
+
+---
+
+## Telegram: canales sin secret token
+
+**Síntomas:** un canal de Telegram viejo deja de responder tras un deploy (el
+webhook devuelve 404 si el canal no tiene `secret_token` registrado).
+
+**Paso de operación tras el deploy:** registrar el secreto en cada canal activo.
+
+```bash
+cd apps/web && pnpm telegram:register-secrets
+```
+
+Imprime los ids actualizados y los que fallaron (nunca tokens). Reintentá los
+fallidos; un fallo no modifica las credenciales del canal. Mientras migrás
+podés poner `TELEGRAM_ALLOW_UNSIGNED=1` para aceptar canales sin secreto;
+sacalo al terminar.
 
 ---
 

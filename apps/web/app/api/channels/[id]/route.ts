@@ -8,7 +8,11 @@ import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { safeLogError } from "@/lib/safe-log";
 import { ownedByWorkspace } from "@/lib/tenant/owned";
 import { encrypt } from "@/lib/encryption";
-import { telegramSetWebhook, telegramGetMe, newWebhookSecret } from "@/lib/channels/telegram";
+import {
+  InvalidTelegramBotTokenError,
+  registerTelegramWebhook,
+  telegramGetMe,
+} from "@/lib/channels/telegram";
 import { slackAuthTest } from "@/lib/channels/slack";
 import {
   DISCORD_COMMAND_DESCRIPTION,
@@ -106,25 +110,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     process.env["NEXT_PUBLIC_APP_URL"]
   ) {
     try {
-      const url = `${process.env["NEXT_PUBLIC_APP_URL"]}/api/channels/telegram/webhook/${row.secret}`;
+      // Ordering (secret stored only after Telegram accepted it): see the helper.
+      await registerTelegramWebhook(
+        { id: row.id, secret: row.secret, workspaceId: ctx.workspace.id },
+        body.credentials.botToken,
+        db,
+        body.credentials
+      );
       const me = await telegramGetMe(body.credentials.botToken);
-      if (!me.ok) {
-        return NextResponse.json({ ...row, webhookSet: false, error: "Invalid bot token" });
-      }
-      // El orden importa. El secreto del header se guarda **después** de que
-      // Telegram lo aceptó, y no junto al token más arriba: si `setWebhook`
-      // falla por un error pasajero y el secreto ya está en la base, el webhook
-      // que sigue vivo manda updates que no lo traen y se rechazan todos. Un
-      // canal que funcionaba quedaría muerto por una llamada perdida.
-      const webhookSecret = newWebhookSecret();
-      await telegramSetWebhook(body.credentials.botToken, url, webhookSecret);
-      await db
-        .update(schema.channels)
-        .set({
-          credentialsEncrypted: encrypt(JSON.stringify({ ...body.credentials, webhookSecret })),
-          updatedAt: new Date(),
-        })
-        .where(and(eq(schema.channels.id, id), eq(schema.channels.workspaceId, ctx.workspace.id)));
       const { credentialsEncrypted, ...rest } = row;
       return NextResponse.json({
         ...rest,
@@ -133,6 +126,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         botUsername: me.result?.username,
       });
     } catch (e) {
+      if (e instanceof InvalidTelegramBotTokenError) {
+        return NextResponse.json({ ...row, webhookSet: false, error: "Invalid bot token" });
+      }
       safeLogError("[channels] webhook setup failed:", e);
       const { credentialsEncrypted, ...rest } = row;
       return NextResponse.json({

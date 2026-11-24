@@ -1,6 +1,8 @@
 import "server-only";
 import { randomBytes, timingSafeEqual } from "crypto";
-import { decrypt } from "@/lib/encryption";
+import { and, eq } from "drizzle-orm";
+import { schema, type DbClient } from "@orchester/db";
+import { decrypt, encrypt } from "@/lib/encryption";
 import { fetchWithTimeout } from "@/lib/http-util";
 
 const TELEGRAM_TIMEOUT_MS = 15_000;
@@ -125,4 +127,81 @@ export async function telegramGetMe(
     TELEGRAM_TIMEOUT_MS
   );
   return r.json();
+}
+
+type WsDb = DbClient | Parameters<Parameters<DbClient["transaction"]>[0]>[0];
+
+export class InvalidTelegramBotTokenError extends Error {
+  constructor() {
+    super("Invalid bot token");
+  }
+}
+
+/**
+ * Register the webhook with a fresh `secret_token` and store it with the
+ * credentials. Returns the secret.
+ *
+ * `credentials` are the rest of the stored credentials to keep next to the
+ * new secret (the PATCH route passes the body, the backfill script the decoded
+ * row). The order matters: the secret is saved only **after** Telegram accepted
+ * it. If `setWebhook` fails on a transient error and the secret were already in
+ * the database, the webhook that is still live would send updates without it
+ * and all of them would be rejected, killing a channel that worked.
+ */
+export async function registerTelegramWebhook(
+  row: { id: string; secret: string; workspaceId: string },
+  botToken: string,
+  tx: WsDb,
+  credentials: object = {}
+): Promise<string> {
+  const appUrl = process.env["NEXT_PUBLIC_APP_URL"];
+  if (!appUrl) throw new Error("NEXT_PUBLIC_APP_URL is not set");
+  const me = await telegramGetMe(botToken);
+  if (!me.ok) throw new InvalidTelegramBotTokenError();
+  const webhookSecret = newWebhookSecret();
+  await telegramSetWebhook(
+    botToken,
+    `${appUrl}/api/channels/telegram/webhook/${row.secret}`,
+    webhookSecret
+  );
+  await tx
+    .update(schema.channels)
+    .set({
+      credentialsEncrypted: encrypt(JSON.stringify({ ...credentials, botToken, webhookSecret })),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(schema.channels.id, row.id), eq(schema.channels.workspaceId, row.workspaceId)));
+  return webhookSecret;
+}
+
+/**
+ * Backfill for channels created before the secret token existed: register one
+ * on every active Telegram channel that lacks it. A failure on one channel does
+ * not stop the rest and never leaves that channel's credentials half-written.
+ */
+export async function registerMissingTelegramSecrets(
+  tx: WsDb
+): Promise<{ updated: string[]; failed: string[] }> {
+  const rows = await tx
+    .select()
+    .from(schema.channels)
+    .where(and(eq(schema.channels.type, "telegram"), eq(schema.channels.status, "active")));
+  const updated: string[] = [];
+  const failed: string[] = [];
+  for (const row of rows) {
+    const creds = decodeTelegramCredentials(row.credentialsEncrypted);
+    if (!creds?.botToken || creds.webhookSecret) continue;
+    if (!row.secret) {
+      failed.push(row.id);
+      continue;
+    }
+    try {
+      await registerTelegramWebhook({ ...row, secret: row.secret }, creds.botToken, tx, creds);
+      updated.push(row.id);
+    } catch {
+      // Not logged with the error: its message can carry the bot token URL.
+      failed.push(row.id);
+    }
+  }
+  return { updated, failed };
 }
