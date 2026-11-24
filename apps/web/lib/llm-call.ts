@@ -7,9 +7,10 @@ import { type ProviderType } from "./providers";
 import { normalizeToolOutput } from "./tool-output";
 import { resolveModel } from "./ai/catalog";
 import { DEFAULT_MAX_TOKENS } from "./ai/output-limit";
-import { assertPublicEndpoint } from "./net-guard";
+import { assertPublicEndpoint, providerDispatcher } from "./net-guard";
 import { untrustedToolError } from "./untrusted";
 import { fetchWithTimeout, fetchStreamWithConnectTimeout, withRetry, HttpError } from "./http-util";
+import type { Dispatcher } from "undici";
 import { recordMetric, logWithContext } from "./observability";
 import type {
   ChatMessage as CapChatMessage,
@@ -329,7 +330,14 @@ async function llmCallInner(p: LlmCallParams): Promise<LlmCallResult> {
       return callGoogle(params, apiKey);
     case "openai-compatible": {
       const baseURL = (endpoint?.replace(/\/$/, "") || resolved.provider.baseURL)!;
-      return callOpenAICompatible(params, apiKey, baseURL);
+      // Only the workspace-typed endpoint is pinned: a catalog baseURL is ours
+      // (a local provider's localhost is enabled by ALLOW_LOCAL_AI_PROVIDERS).
+      return callOpenAICompatible(
+        params,
+        apiKey,
+        baseURL,
+        endpoint ? providerDispatcher() : undefined
+      );
     }
     default:
       throw new Error(`${resolved.provider.name} todavía no soporta chat.`);
@@ -487,6 +495,7 @@ async function callAnthropic(
     const r = await fetchWithTimeout(
       "https://api.anthropic.com/v1/messages",
       {
+        dispatcher: providerDispatcher(),
         method: "POST",
         headers: {
           "x-api-key": apiKey,
@@ -777,6 +786,7 @@ async function callBedrock(
       const r = await fetchWithTimeout(
         url,
         {
+          dispatcher: providerDispatcher(),
           method: "POST",
           headers: {
             authorization: `Bearer ${apiKey}`,
@@ -883,13 +893,15 @@ function buildOpenAIChatBody(
 async function callOpenAICompatible(
   p: LlmCallParams,
   apiKey: string,
-  baseURL: string
+  baseURL: string,
+  dispatcher?: Dispatcher
 ): Promise<LlmCallResult> {
   const body = buildOpenAIChatBody(p);
   const j = await withRetry(async () => {
     const r = await fetchWithTimeout(
       `${baseURL}/chat/completions`,
       {
+        dispatcher,
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
         body: JSON.stringify(body),
@@ -978,6 +990,7 @@ async function callGoogle(p: LlmCallParams, apiKey: string): Promise<LlmCallResu
     const r = await fetchWithTimeout(
       url,
       {
+        dispatcher: providerDispatcher(),
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
@@ -1035,6 +1048,7 @@ async function callAzure(
     const r = await fetchWithTimeout(
       url,
       {
+        dispatcher: providerDispatcher(),
         method: "POST",
         headers: { "api-key": apiKey, "content-type": "application/json" },
         body: JSON.stringify(body),

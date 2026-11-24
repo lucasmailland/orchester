@@ -1,6 +1,8 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { Agent } from "undici";
+import { fetchWithTimeout } from "@/lib/http-util";
 import {
   _setResolverForTests,
   assertPublicDbConnection,
@@ -8,6 +10,7 @@ import {
   assertPublicDbHost,
   assertPublicUrl,
   BlockedDestinationError,
+  guardedDispatcher,
   isBlockedAddress,
   readBodyCapped,
   ResponseTooLargeError,
@@ -239,7 +242,17 @@ describe("assertPublicDbConnection", () => {
     _setResolverForTests(async () => [{ address: "93.184.215.14", family: 4 }]);
     await expect(
       assertPublicDbConnection("postgresql://u:p%40ss@db.example.com:5432/app?sslmode=require")
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ host: "db.example.com", address: "93.184.215.14" });
+  });
+
+  it("returns the first validated address so the client can connect to it", async () => {
+    _setResolverForTests(async () => [
+      { address: "93.184.216.34", family: 4 },
+      { address: "93.184.216.35", family: 4 },
+    ]);
+    await expect(
+      assertPublicDbConnection("postgres://u:p@db.example.com:5432/x?sslmode=require")
+    ).resolves.toEqual({ host: "db.example.com", address: "93.184.216.34" });
   });
 });
 
@@ -273,5 +286,66 @@ describe("assertPublicEndpoint", () => {
     await expect(
       assertPublicEndpoint("https://my-azure.openai.azure.com")
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("guardedDispatcher", () => {
+  let server: http.Server;
+  let port: number;
+
+  beforeAll(async () => {
+    server = http.createServer((_req, res) => res.end("internal"));
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    port = (server.address() as AddressInfo).port;
+  });
+  afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    _setResolverForTests(undefined);
+  });
+
+  /** Public on the first answer, loopback on every answer after it. */
+  function rebindingResolver() {
+    let calls = 0;
+    return async () =>
+      calls++ === 0
+        ? [{ address: "93.184.216.34", family: 4 }]
+        : [{ address: "127.0.0.1", family: 4 }];
+  }
+
+  it("refuses a name that rebinds to an internal address after the check", async () => {
+    _setResolverForTests(rebindingResolver());
+    const url = `http://rebind.example.com:${port}/`;
+    await expect(assertPublicEndpoint(url)).resolves.toBeUndefined();
+    await expect(fetchWithTimeout(url, { dispatcher: guardedDispatcher() })).rejects.toThrow(
+      BlockedDestinationError
+    );
+  });
+
+  it("documents the gap: an unpinned connection follows the second answer", async () => {
+    const resolve = rebindingResolver();
+    await resolve(); // the answer the check saw
+    const unpinned = new Agent({
+      connect: {
+        lookup: ((_h: string, _o: unknown, cb: (e: null, a: unknown) => void) =>
+          resolve().then((a) => cb(null, a))) as never,
+      },
+    });
+    const res = await fetchWithTimeout(`http://rebind.example.com:${port}/`, {
+      dispatcher: unpinned,
+    });
+    expect(await res.text()).toBe("internal");
+    await unpinned.close();
+  });
+
+  it("connects to a host named in NET_GUARD_ALLOWED_HOSTS", async () => {
+    vi.stubEnv("NET_GUARD_ALLOWED_HOSTS", "ollama");
+    _setResolverForTests(async (host) =>
+      host === "ollama" ? [{ address: "127.0.0.1", family: 4 }] : []
+    );
+    const res = await fetchWithTimeout(`http://ollama:${port}/`, {
+      dispatcher: guardedDispatcher(),
+    });
+    expect(await res.text()).toBe("internal");
   });
 });

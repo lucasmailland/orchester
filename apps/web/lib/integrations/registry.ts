@@ -342,6 +342,23 @@ const notion: Connector = {
   },
 };
 
+/**
+ * postgres.js `ssl` for a connection pinned to an IP. It has to be an object:
+ * with an IP host postgres.js only sends SNI when `ssl.servername` is set.
+ */
+export function sslFor(
+  cs: string,
+  servername: string
+): false | { servername: string; rejectUnauthorized: boolean } {
+  const mode = /[?&]sslmode=([^&#]*)/i.exec(cs)?.[1]?.toLowerCase();
+  if (mode === "disable") return false;
+  if (mode === "verify-full" || mode === "verify-ca") {
+    return { servername, rejectUnauthorized: true };
+  }
+  // libpq's sslmode=require (and prefer/allow) encrypts without verifying the certificate.
+  return { servername, rejectUnauthorized: false };
+}
+
 const postgres: Connector = {
   id: "postgres",
   name: "PostgreSQL",
@@ -361,14 +378,21 @@ const postgres: Connector = {
   async test(config) {
     const cs = config.connectionString ?? "";
     if (!cs) return { ok: false, error: "Connection string required" };
+    let pinned: { host: string; address: string };
     try {
       const { assertPublicDbConnection } = await import("@/lib/net-guard");
-      await assertPublicDbConnection(cs);
+      pinned = await assertPublicDbConnection(cs);
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : "host blocked" };
     }
     const { default: pg } = await import("postgres");
-    const sql = pg(cs, { max: 1, idle_timeout: 5, connect_timeout: 8 });
+    const sql = pg(cs, {
+      host: pinned.address,
+      ssl: sslFor(cs, pinned.host),
+      max: 1,
+      idle_timeout: 5,
+      connect_timeout: 8,
+    });
     try {
       const rows = await sql`select current_database() as db, version() as version`;
       return { ok: true, meta: { db: rows[0]?.db } };
@@ -397,10 +421,13 @@ const postgres: Connector = {
         // `select 1; commit; delete …` would end the read-only transaction.
         const { isSingleStatement } = await import("@/lib/integrations/sql-guard");
         if (!isSingleStatement(raw)) throw new Error("Only one statement per query is allowed.");
+        const cs = config.connectionString ?? "";
         const { assertPublicDbConnection } = await import("@/lib/net-guard");
-        await assertPublicDbConnection(config.connectionString ?? "");
+        const { host, address } = await assertPublicDbConnection(cs);
         const { default: pg } = await import("postgres");
-        const sql = pg(config.connectionString ?? "", {
+        const sql = pg(cs, {
+          host: address,
+          ssl: sslFor(cs, host),
           max: 1,
           idle_timeout: 5,
           connect_timeout: 8,

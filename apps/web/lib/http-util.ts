@@ -1,4 +1,6 @@
 import "server-only";
+import type { Dispatcher } from "undici";
+import { unwrapBlocked } from "./net-guard";
 
 /**
  * Helpers compartidos para fetch a servicios externos: timeout obligatorio y
@@ -31,6 +33,9 @@ export class TimeoutError extends Error {
   }
 }
 
+/** `RequestInit` plus undici's `dispatcher`, which Node's fetch honours. */
+export type FetchInit = RequestInit & { dispatcher?: Dispatcher | undefined };
+
 /**
  * `fetch` con timeout via AbortController. Si la request supera `timeoutMs`,
  * aborta y lanza un `TimeoutError` claro. El timer se limpia siempre (finally).
@@ -40,7 +45,7 @@ export class TimeoutError extends Error {
  */
 export async function fetchWithTimeout(
   url: string,
-  init?: RequestInit,
+  init?: FetchInit,
   timeoutMs = 30_000
 ): Promise<Response> {
   const controller = new AbortController();
@@ -63,13 +68,13 @@ export async function fetchWithTimeout(
   }
 
   try {
-    return await fetch(url, { ...init, signal });
+    return await fetch(url, { ...init, signal } as RequestInit);
   } catch (e) {
     // Distinguir abort por timeout de un abort del caller.
     if (controller.signal.aborted && !callerSignal?.aborted) {
       throw new TimeoutError(`Request to ${host} timed out after ${timeoutMs}ms`);
     }
-    throw e;
+    throw unwrapBlocked(e);
   } finally {
     clearTimeout(timer);
   }
@@ -83,7 +88,7 @@ export async function fetchWithTimeout(
  */
 export async function fetchStreamWithConnectTimeout(
   url: string,
-  init?: RequestInit,
+  init?: FetchInit,
   connectTimeoutMs = 120_000
 ): Promise<Response> {
   const controller = new AbortController();
@@ -95,7 +100,7 @@ export async function fetchStreamWithConnectTimeout(
     /* keep raw url */
   }
   try {
-    const res = await fetch(url, { ...init, signal: controller.signal });
+    const res = await fetch(url, { ...init, signal: controller.signal } as RequestInit);
     // Headers llegaron: cancelar el timeout, el body se lee aparte.
     clearTimeout(timer);
     return res;
@@ -104,7 +109,7 @@ export async function fetchStreamWithConnectTimeout(
     if (controller.signal.aborted) {
       throw new TimeoutError(`Connection to ${host} timed out after ${connectTimeoutMs}ms`);
     }
-    throw e;
+    throw unwrapBlocked(e);
   }
 }
 

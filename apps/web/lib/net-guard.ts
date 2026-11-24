@@ -1,7 +1,7 @@
 import "server-only";
 import dns from "node:dns";
 import { isIP } from "node:net";
-import { Agent } from "undici";
+import { Agent, type Dispatcher } from "undici";
 
 /**
  * Anti-SSRF guard for destinations a user can influence: outgoing webhooks,
@@ -204,9 +204,8 @@ export function assertPublicDbHost(connectionString: string): void {
  * OpenAI-compatible server). It is a base URL the client appends paths to, so
  * a query or fragment (which would swallow the appended path) is refused, and
  * its name is resolved and every address checked. A bare Bedrock region
- * ("us-east-1") is not a URL and passes.
- *
- * ponytail: resolved here, not pinned on the socket (see assertPublicDbConnection).
+ * ("us-east-1") is not a URL and passes. The request itself goes through
+ * `providerDispatcher()`, which checks again on the socket (DNS rebinding).
  */
 export async function assertPublicEndpoint(endpoint: string | null | undefined): Promise<void> {
   const raw = (endpoint ?? "").trim();
@@ -232,11 +231,12 @@ const DB_HOST_PARAMS = ["host", "hostaddr", "port", "service", "options"];
  * %-escapes, and a public-looking name can resolve to an internal address.
  * Neither form is accepted, and the name is resolved and every address checked.
  *
- * ponytail: checked when resolved, not pinned on the socket; an answer that
- * changes between this check and the connection (DNS rebinding) gets through.
- * Pin the address in the connection options if that becomes a concern.
+ * Returns the first checked address: the client must connect to it (and keep
+ * `host` for TLS), or a DNS answer that changes after the check gets through.
  */
-export async function assertPublicDbConnection(connectionString: string): Promise<void> {
+export async function assertPublicDbConnection(
+  connectionString: string
+): Promise<{ host: string; address: string }> {
   const authority = /^postgres(?:ql)?:\/\/([^/?#]*)/i.exec(connectionString)?.[1];
   if (authority === undefined) {
     throw new Error("La connection string tiene que empezar con postgres:// o postgresql://");
@@ -255,13 +255,17 @@ export async function assertPublicDbConnection(connectionString: string): Promis
     );
   }
   const host = url.hostname.replace(/^\[|\]$/g, "");
-  if (isIP(host) || isAllowedHost(host)) return;
+  if (isIP(host)) return { host, address: host };
   const addresses = await (resolverOverride ?? systemResolver)(host);
-  if (addresses.length === 0 || addresses.some((a) => isBlockedAddress(a.address))) {
+  if (
+    addresses.length === 0 ||
+    (!isAllowedHost(host) && addresses.some((a) => isBlockedAddress(a.address)))
+  ) {
     throw new BlockedDestinationError(
       "La base apunta a un host interno/privado y esta bloqueada por seguridad."
     );
   }
+  return { host, address: addresses[0]!.address };
 }
 
 // ─── Connection-time check ─────────────────────────────────────────────────
@@ -308,8 +312,21 @@ function guardedLookup(hostname: string, options: { all?: boolean }, callback: L
 
 const guardedAgent = new Agent({ connect: { lookup: guardedLookup as never } });
 
+/** Dispatcher that checks every address a connection resolves to, at connect time. */
+export function guardedDispatcher(): Dispatcher {
+  return guardedAgent;
+}
+
+/**
+ * Dispatcher for provider calls to a workspace-configured endpoint:
+ * `guardedDispatcher()`, or none when the operator set `ALLOW_PRIVATE_HTTP=1`.
+ */
+export function providerDispatcher(): Dispatcher | undefined {
+  return process.env.ALLOW_PRIVATE_HTTP === "1" ? undefined : guardedAgent;
+}
+
 /** undici wraps connect errors in "fetch failed"; surface ours if it is in the chain. */
-function unwrapBlocked(err: unknown): unknown {
+export function unwrapBlocked(err: unknown): unknown {
   let current: unknown = err;
   for (let depth = 0; current && depth < 5; depth++) {
     if (current instanceof BlockedDestinationError) return current;

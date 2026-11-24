@@ -1,6 +1,7 @@
 import "server-only";
 import type { Cred, EmbeddingParams, EmbeddingResult } from "../capabilities";
 import { fetchWithTimeout } from "../../http-util";
+import { providerDispatcher } from "../../net-guard";
 
 const EMBED_TIMEOUT_MS = 60_000;
 
@@ -18,7 +19,7 @@ export async function embedWith(
   if (providerId === "google") return googleEmbed(p, cred);
   const url = baseURL ?? cred.endpoint;
   if (family === "openai-compatible" && url)
-    return openaiEmbed(p, cred, url, providerId === "openai" ? 1536 : undefined);
+    return openaiEmbed(p, cred, url, providerId === "openai" ? 1536 : undefined, !baseURL);
   throw new Error(`Embeddings con ${providerId} todavía no implementado.`);
 }
 
@@ -26,11 +27,14 @@ async function openaiEmbed(
   p: EmbeddingParams,
   cred: Cred,
   baseURL: string,
-  dims?: number
+  dims?: number,
+  workspaceEndpoint = false
 ): Promise<EmbeddingResult> {
   const r = await fetchWithTimeout(
     `${baseURL.replace(/\/$/, "")}/embeddings`,
     {
+      // The workspace-typed endpoint is re-checked on the socket (DNS rebinding).
+      dispatcher: workspaceEndpoint ? providerDispatcher() : undefined,
       method: "POST",
       headers: { Authorization: `Bearer ${cred.apiKey}`, "content-type": "application/json" },
       body: JSON.stringify({
