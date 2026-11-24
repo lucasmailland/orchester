@@ -315,3 +315,31 @@ describe("PATCH /api/agents/[id]", () => {
     await patch({ allowedIntegrationIds: [A], allowedFlowIds: [F1] });
   });
 });
+
+describe("admin service (MCP admin tools) sets the scope lists", () => {
+  const actor = () => ({ kind: "user" as const, workspaceId: wsA.id, userId: wsA.ownerId });
+  const update = async (input: Record<string, unknown>) => {
+    const { updateAgent } = await import("@/lib/agents/admin-service");
+    return updateAgent(actor(), agentId, input);
+  };
+
+  it("refuses an integration or flow of another workspace", async () => {
+    await expect(update({ allowedIntegrationIds: [A, FOREIGN] })).rejects.toThrow(/integration/i);
+    const foreignFlow = createId();
+    await getDb()
+      .insert(schema.flows)
+      .values({ id: foreignFlow, workspaceId: wsB.id, name: "B2" } as never);
+    await expect(update({ allowedFlowIds: [foreignFlow] })).rejects.toThrow(/flow/i);
+  });
+
+  it("merges valid lists into config, keeping the other keys", async () => {
+    await update({ allowedIntegrationIds: [A, ODOO], allowedFlowIds: [F2], maxToolCalls: 7 });
+    const [row] = await getDb().select().from(schema.agents).where(eq(schema.agents.id, agentId));
+    expect(row!.config).toMatchObject({
+      allowedIntegrationIds: [A, ODOO],
+      allowedFlowIds: [F2],
+      maxToolCalls: 7,
+    });
+    await update({ allowedIntegrationIds: [A], allowedFlowIds: [F1] });
+  });
+});

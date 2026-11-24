@@ -116,6 +116,18 @@ export const ADMIN_TOOLS: McpToolDef[] = [
           description:
             "Knowledge bases of this workspace the agent may search with knowledge_search. Replaces the list; [] clears it.",
         },
+        allowedIntegrationIds: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Integrations of this workspace the agent may call with run_integration. Replaces the list; [] or missing means none.",
+        },
+        allowedFlowIds: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Flows of this workspace the agent may start with flow_call. Replaces the list; [] or missing means none.",
+        },
         temperature: { type: ["number", "string"] },
         maxTokens: { type: "number" },
         maxToolCalls: {

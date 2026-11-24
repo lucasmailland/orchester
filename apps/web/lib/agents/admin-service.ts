@@ -5,6 +5,8 @@ import { updateAgentSchema } from "./schemas";
 import { mergeAgentConfig } from "./tool-call-cap";
 import { agentDeleteBlockers, agentBlockersMessage } from "./delete-impact";
 import { unknownKbIds, withAgentKbIds } from "./knowledge-bases";
+import { withAgentScope } from "./tool-scope";
+import { ownedByWorkspace } from "@/lib/tenant/owned";
 import { requireTeam } from "@/lib/teams/service";
 import {
   AdminError,
@@ -25,6 +27,8 @@ export const agentAdminPatchSchema = updateAgentSchema
     teamId: true,
     tools: true,
     knowledgeBaseIds: true,
+    allowedIntegrationIds: true,
+    allowedFlowIds: true,
     temperature: true,
     maxTokens: true,
     maxToolCalls: true,
@@ -65,13 +69,43 @@ export async function updateAgent(actor: AdminActor, id: string, input: Record<s
       if (unknown.length)
         throw new AdminError(`Unknown knowledge bases: ${unknown.join(", ")}`, 400);
     }
-    const { temperature, knowledgeBaseIds, maxToolCalls, ...fields } = data;
+    // RLS is off: ids handed in must name rows of this workspace.
+    if (
+      data.allowedIntegrationIds?.length &&
+      !(await ownedByWorkspace(
+        tx,
+        schema.workspaceIntegrations,
+        actor.workspaceId,
+        data.allowedIntegrationIds
+      ))
+    )
+      throw new AdminError("Unknown integrations in allowedIntegrationIds", 400);
+    if (
+      data.allowedFlowIds?.length &&
+      !(await ownedByWorkspace(tx, schema.flows, actor.workspaceId, data.allowedFlowIds))
+    )
+      throw new AdminError("Unknown flows in allowedFlowIds", 400);
+    const {
+      temperature,
+      knowledgeBaseIds,
+      maxToolCalls,
+      allowedIntegrationIds,
+      allowedFlowIds,
+      ...fields
+    } = data;
     // Merged, not replaced: `config` carries keys owned by several features, and
     // both may change in the same update.
     let nextConfig: unknown = current.config;
     if (knowledgeBaseIds !== undefined) nextConfig = withAgentKbIds(nextConfig, knowledgeBaseIds);
     if (maxToolCalls !== undefined) nextConfig = mergeAgentConfig(nextConfig, { maxToolCalls });
-    const configChanged = knowledgeBaseIds !== undefined || maxToolCalls !== undefined;
+    const scopeChanged = allowedIntegrationIds !== undefined || allowedFlowIds !== undefined;
+    if (scopeChanged)
+      nextConfig = withAgentScope(nextConfig as Record<string, unknown>, {
+        ...(allowedIntegrationIds !== undefined && { integrationIds: allowedIntegrationIds }),
+        ...(allowedFlowIds !== undefined && { flowIds: allowedFlowIds }),
+      });
+    const configChanged =
+      knowledgeBaseIds !== undefined || maxToolCalls !== undefined || scopeChanged;
     const [agent] = await tx
       .update(schema.agents)
       .set({
