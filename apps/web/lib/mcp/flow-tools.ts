@@ -482,7 +482,7 @@ export const FLOW_TOOLS: McpToolDef[] = [
     name: "create_flow_webhook",
     title: "Create a flow webhook",
     description:
-      "Crea un webhook para el flujo y devuelve su URL. Es la única vez que se devuelve el secreto: guardalo donde corresponda.",
+      'Crea un webhook para el flujo y devuelve su URL. Es la única vez que se devuelve el secreto: guardalo donde corresponda. Solo acepta POST. Con hmac:true, firmar cada request con el header x-orchester-signature: t=<unix>,v1=<hex>, donde hex = HMAC-SHA256(hmacKey, "<t>.<query>.<body>"); <query> es la query string con el ? (o vacío) y la firma vence a los 300 s. Ejemplo: T=$(date +%s); B=\'{"a":1}\'; S=$(printf \'%s\' "$T..$B" | openssl dgst -sha256 -hmac "$HMAC_KEY" | awk \'{print $2}\'); curl -X POST -H "x-orchester-signature: t=$T,v1=$S" -d "$B" https://example.com/api/webhooks/<secret>',
     access: "write",
     domain: "flows",
     inputSchema: {

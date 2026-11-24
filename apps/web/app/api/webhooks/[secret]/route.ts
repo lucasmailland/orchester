@@ -2,18 +2,22 @@
  * Public webhook endpoint — anyone with the secret URL can trigger a flow.
  *
  *   POST /api/webhooks/{secret}
- *   GET  /api/webhooks/{secret}   (also triggers — useful for cron-like services)
+ *   GET  -> 405 (a secret URL in logs/referrers must not fire a flow);
+ *           FLOW_WEBHOOK_ALLOW_GET=1 restores the old behaviour.
  *
  * Body (POST) is passed as `input` to the flow. Query params are merged in too.
- * If the webhook has an HMAC key, the request must include `X-Orchester-Signature`
- * header with the hex SHA-256 HMAC of the raw body.
+ * If the webhook has an HMAC key, the request must include
+ * `X-Orchester-Signature: t=<unix>,v1=<hex>` (see lib/flows/webhook-signature.ts);
+ * the timestamp expires after 300 s. FLOW_WEBHOOK_LEGACY_SIGNATURE=1 still
+ * accepts the old body-only hex HMAC while callers migrate.
  */
 import { NextResponse } from "next/server";
-import crypto from "node:crypto";
 import { schema } from "@orchester/db";
 import { eq, sql } from "drizzle-orm";
 import { enqueueFlowRun } from "@/lib/flow-engine";
 import { FlowDisabledError } from "@/lib/flows/run-gate";
+import { checkFlowWebhookSignature } from "@/lib/flows/webhook-signature";
+import { logWithContext } from "@/lib/observability";
 import { rateLimit } from "@/lib/rate-limit";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 
@@ -31,6 +35,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ secret:
   return handle(req, await params);
 }
 export async function GET(req: Request, { params }: { params: Promise<{ secret: string }> }) {
+  if (process.env.FLOW_WEBHOOK_ALLOW_GET !== "1") {
+    return NextResponse.json(
+      { error: "Method not allowed" },
+      { status: 405, headers: { allow: "POST" } }
+    );
+  }
   return handle(req, await params);
 }
 
@@ -71,14 +81,22 @@ async function handle(req: Request, p: { secret: string }) {
     return NextResponse.json({ error: "Payload too large" }, { status: 413 });
   }
 
-  // HMAC opcional con comparación timing-safe (evita oráculo de timing).
+  // HMAC opcional: firma con timestamp (vence a los 300 s) que cubre query y body.
   if (wh.hmacKey) {
-    const sig = req.headers.get("x-orchester-signature") ?? "";
-    const expected = crypto.createHmac("sha256", wh.hmacKey).update(rawBody).digest("hex");
-    const sigBuf = Buffer.from(sig, "hex");
-    const expBuf = Buffer.from(expected, "hex");
-    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+    const check = checkFlowWebhookSignature(
+      wh.hmacKey,
+      req.headers.get("x-orchester-signature"),
+      new URL(req.url).search,
+      rawBody
+    );
+    const legacyOk = check === "legacy" && process.env.FLOW_WEBHOOK_LEGACY_SIGNATURE === "1";
+    if (check !== "ok" && !legacyOk) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+    if (legacyOk) {
+      logWithContext("warn", "flow webhook accepted with legacy body-only signature", {
+        webhookId: wh.id,
+      });
     }
   }
 
