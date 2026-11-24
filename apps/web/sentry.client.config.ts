@@ -35,6 +35,7 @@ export async function initClientSentry(): Promise<void> {
     integrations: [],
     sendDefaultPii: false,
     beforeSend: scrubSentryEvent,
+    beforeSendTransaction: scrubSentryEvent,
     beforeBreadcrumb: scrubBreadcrumb,
   });
 }

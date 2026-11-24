@@ -37,7 +37,10 @@ export function redactText(s: string): string {
 
 // Path segments that carry a bearer-style secret, and query params that do.
 const SECRET_PATH = /(\/(?:webhooks?|exports|approvals|approve|invite)\/)[^/?#\s]+/g;
-const SECRET_QUERY = /([?&](?:token|secret|key|signature|code)=)[^&#\s]*/g;
+// Any param whose name contains one of these words (token, api_key, Password...).
+export const SECRET_PARAM_NAME = /token|secret|key|signature|passwor[dt]|code/i;
+const SECRET_QUERY =
+  /([?&][^=&#]*(?:token|secret|key|signature|passwor[dt]|code)[^=&#]*=)[^&#\s]*/gi;
 
 export function redactUrl(url: string): string {
   return url.replace(SECRET_PATH, "$1[redacted]").replace(SECRET_QUERY, "$1[redacted]");

@@ -31,6 +31,7 @@ export async function register(): Promise<void> {
         release: process.env["SENTRY_RELEASE"],
         sendDefaultPii: false,
         beforeSend: scrubSentryEvent,
+        beforeSendTransaction: scrubSentryEvent,
         beforeBreadcrumb: scrubBreadcrumb,
       });
     } else if (process.env["NEXT_RUNTIME"] === "edge") {
@@ -43,6 +44,7 @@ export async function register(): Promise<void> {
         release: process.env["SENTRY_RELEASE"],
         sendDefaultPii: false,
         beforeSend: scrubSentryEvent,
+        beforeSendTransaction: scrubSentryEvent,
         beforeBreadcrumb: scrubBreadcrumb,
       });
     }

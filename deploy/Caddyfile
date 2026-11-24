@@ -42,9 +42,15 @@
 		format filter {
 			wrap json
 			request>uri regexp "(/(?:webhooks?|exports|approvals|approve|invite)/)[^/?]+" "${1}[redacted]"
-			request>uri regexp "([?&](?:token|secret|key|signature|code)=)[^&]*" "${1}[redacted]"
+			request>uri regexp "(?i)([?&][^=&#]*(?:token|secret|key|signature|passwor[dt]|code)[^=&#]*=)[^&#]*" "${1}[redacted]"
 			request>headers>Authorization delete
 			request>headers>Cookie delete
+			request>headers>Referer delete
+			request>headers>X-Api-Key delete
+			request>headers>X-Slack-Signature delete
+			request>headers>Proxy-Authorization delete
+			response>headers>Set-Cookie delete
+			request>headers>X-Orchester-Signature delete
 			request>headers>X-Telegram-Bot-Api-Secret-Token delete
 		}
 		level INFO
