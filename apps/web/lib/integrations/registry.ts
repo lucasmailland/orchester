@@ -343,23 +343,50 @@ const notion: Connector = {
 };
 
 /**
- * postgres.js `ssl` for a connection pinned to an IP, matching what postgres.js
- * derives from `sslmode` itself. Where TLS is certain it is an object: with an
- * IP host postgres.js only sends SNI when `ssl.servername` is set.
+ * postgres.js `ssl` for a connection pinned to an IP. The mode is derived the
+ * way postgres.js 3.4.9 derives it (src/index.js parseOptions): `sslmode`, then
+ * `ssl`, `sslrootcert=system` as verify-full, then the PGSSL env var. Passing
+ * `ssl` explicitly overrides all of them, so they must all be read here.
+ * Where TLS is certain it is an object: with an IP host postgres.js only sends
+ * SNI when `ssl.servername` is set.
  */
 export function sslFor(
   cs: string,
   servername: string
 ): false | "allow" | "prefer" | { servername: string; rejectUnauthorized: boolean } {
-  const mode = /[?&]sslmode=([^&#]*)/.exec(cs)?.[1];
-  if (!mode || mode === "disable") return false;
+  const q = new URL(cs).searchParams;
+  let mode: string | false;
+  if (q.get("sslrootcert") === "system") mode = "verify-full";
+  else if (q.has("sslmode") || q.has("ssl")) {
+    const v = q.get("sslmode") || q.get("ssl") || "";
+    mode = v === "disable" || v === "false" ? false : v;
+  } else mode = process.env.PGSSL || false; // postgres.js does not map env "disable"
+  if (!mode) return false;
   // Kept as strings so postgres.js can fall back to plaintext; no SNI is sent
   // in these modes, since the host is pinned to an IP.
   if (mode === "allow" || mode === "prefer") return mode;
   // libpq's sslmode=require encrypts without verifying the certificate.
   if (mode === "require") return { servername, rejectUnauthorized: false };
-  // verify-ca, verify-full, and any other value postgres.js reads as verified TLS.
+  // "true", verify-ca, verify-full and any other value: postgres.js verifies.
   return { servername, rejectUnauthorized: true };
+}
+
+/**
+ * postgres.js options that connect to the validated address. `host` and `port`
+ * go as arrays: a string host is split on ":", which breaks an IPv6 address.
+ * postgres.js accepts arrays (parseOptions checks Array.isArray) but its types
+ * only declare a string and a number, hence the casts.
+ */
+export function pinnedPgOptions(
+  cs: string,
+  pinned: { host: string; address: string }
+): { host: string; port: number; ssl: ReturnType<typeof sslFor> } {
+  const port = Number(new URL(cs).port || process.env.PGPORT || 5432);
+  return {
+    host: [pinned.address] as unknown as string,
+    port: [port] as unknown as number,
+    ssl: sslFor(cs, pinned.host),
+  };
 }
 
 const postgres: Connector = {
@@ -390,8 +417,7 @@ const postgres: Connector = {
     }
     const { default: pg } = await import("postgres");
     const sql = pg(cs, {
-      host: pinned.address,
-      ssl: sslFor(cs, pinned.host),
+      ...pinnedPgOptions(cs, pinned),
       max: 1,
       idle_timeout: 5,
       connect_timeout: 8,
@@ -426,11 +452,10 @@ const postgres: Connector = {
         if (!isSingleStatement(raw)) throw new Error("Only one statement per query is allowed.");
         const cs = config.connectionString ?? "";
         const { assertPublicDbConnection } = await import("@/lib/net-guard");
-        const { host, address } = await assertPublicDbConnection(cs);
+        const pinned = await assertPublicDbConnection(cs);
         const { default: pg } = await import("postgres");
         const sql = pg(cs, {
-          host: address,
-          ssl: sslFor(cs, host),
+          ...pinnedPgOptions(cs, pinned),
           max: 1,
           idle_timeout: 5,
           connect_timeout: 8,
