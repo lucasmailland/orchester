@@ -49,7 +49,10 @@
 			request>headers>X-Api-Key delete
 			request>headers>X-Slack-Signature delete
 			request>headers>Proxy-Authorization delete
-			response>headers>Set-Cookie delete
+			request>headers>X-Hub-Signature delete
+			request>headers>X-Hub-Signature-256 delete
+			request>headers>X-Signature-Ed25519 delete
+			resp_headers>Set-Cookie delete
 			request>headers>X-Orchester-Signature delete
 			request>headers>X-Telegram-Bot-Api-Secret-Token delete
 		}

@@ -1,7 +1,9 @@
 import { redactText, redactUrl, SECRET_PARAM_NAME } from "./secret-patterns";
 
-const SECRET_HEADERS = new Set([
+export const SECRET_HEADERS = new Set([
   "cookie",
+  "referer",
+  "referrer",
   "set-cookie",
   "authorization",
   "proxy-authorization",
@@ -16,7 +18,19 @@ const SECRET_HEADERS = new Set([
 
 const MAX_DEPTH = 10;
 
-const scrubString = (s: string): string => redactText(redactUrl(s));
+function scrubString(s: string): string {
+  const out = redactText(redactUrl(s));
+  if (!s.includes("%")) return out;
+  // Encoded tokens (`exports%2Fabc`, `access%5Ftoken=`) slip past the plain patterns.
+  try {
+    const decoded = decodeURIComponent(s);
+    const redacted = redactText(redactUrl(decoded));
+    if (redacted !== decoded) return redacted;
+  } catch {
+    // malformed escape: keep the plain-redacted form
+  }
+  return out;
+}
 
 /** Recursively redacts every string in place. Cycle-safe; too-deep values are dropped. */
 function deepScrub(value: unknown, depth = 0, seen = new WeakSet<object>()): unknown {
@@ -26,7 +40,11 @@ function deepScrub(value: unknown, depth = 0, seen = new WeakSet<object>()): unk
   if (seen.has(value)) return "[circular]";
   seen.add(value);
   const rec = value as Record<string, unknown>;
-  for (const k of Object.keys(rec)) rec[k] = deepScrub(rec[k], depth + 1, seen);
+  for (const k of Object.keys(rec)) {
+    rec[k] = SECRET_HEADERS.has(k.toLowerCase())
+      ? "[redacted]"
+      : deepScrub(rec[k], depth + 1, seen);
+  }
   return value;
 }
 

@@ -1,6 +1,8 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { redactUrl } from "../lib/secret-patterns";
-import { scrubBreadcrumb, scrubSentryEvent } from "../lib/sentry-scrub";
+import { SECRET_HEADERS, scrubBreadcrumb, scrubSentryEvent } from "../lib/sentry-scrub";
 
 describe("redactUrl", () => {
   it("redacts the segment after /webhook/", () => {
@@ -109,5 +111,40 @@ describe("scrubSentryEvent", () => {
     for (let i = 0; i < 30; i++) deep = { n: deep };
     const ev = scrubSentryEvent({ extra: { a, deep } });
     expect(JSON.stringify(ev)).not.toMatch(/cyc1|deep1/);
+  });
+});
+
+describe("scrubSentryEvent round 2", () => {
+  it("redacts secret-named keys anywhere in the tree", () => {
+    const ev = scrubSentryEvent({
+      contexts: { response: { headers: { "Set-Cookie": "sess=zz1" } } },
+      extra: { a: { authorization: "Bearer zz2" } },
+    });
+    expect(JSON.stringify(ev)).not.toMatch(/zz1|zz2/);
+  });
+  it("drops the Referer header key", () => {
+    const ev = scrubSentryEvent({ request: { headers: { Referer: "https://x/p?a=1", ok: "1" } } });
+    expect(ev.request.headers).toEqual({ ok: "1" });
+  });
+  it("redacts percent-encoded tokens", () => {
+    const ev = scrubSentryEvent({
+      extra: { a: "/api/exports%2Fenc1", b: "/p?access%5Ftoken=enc2" },
+    });
+    expect(JSON.stringify(ev)).not.toMatch(/enc1|enc2/);
+  });
+});
+
+describe("Caddyfile / SECRET_HEADERS sync", () => {
+  const caddy = readFileSync(resolve(__dirname, "../../../deploy/Caddyfile"), "utf8");
+  const deletes = [...caddy.matchAll(/request>headers>([A-Za-z0-9-]+)\s+delete/g)].map((m) =>
+    m[1]!.toLowerCase()
+  );
+  // set-cookie is a response header (Caddy: resp_headers); referrer is only a Sentry-side alias.
+  const sentryOnly = new Set(["set-cookie", "referrer"]);
+  it("every Caddy request-header delete is in SECRET_HEADERS", () => {
+    for (const h of deletes) expect(SECRET_HEADERS.has(h)).toBe(true);
+  });
+  it("every SECRET_HEADERS entry has a Caddy delete", () => {
+    for (const h of SECRET_HEADERS) if (!sentryOnly.has(h)) expect(deletes).toContain(h);
   });
 });
