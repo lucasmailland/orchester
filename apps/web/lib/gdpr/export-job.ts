@@ -73,6 +73,14 @@ const STEPS: Array<{
   { name: "knowledge.json", run: exportKnowledge, weight: 10 },
 ];
 
+/** Thrown when the archive passes the size cap; stored on the job as a fixed code. */
+class ExportTooLargeError extends Error {
+  constructor() {
+    super("export_too_large");
+    this.name = "ExportTooLargeError";
+  }
+}
+
 export async function runExportJob(jobId: string): Promise<void> {
   await withCrossTenantAdmin("gdpr.export", async (tx) => {
     const jobRows = await tx
@@ -129,7 +137,7 @@ export async function runExportJob(jobId: string): Promise<void> {
       const archive = archiver("zip", { zlib: { level: 9 } });
       let bytesSoFar = 0;
       let aborted = false;
-      const exportTooLargeErr = new Error("export_too_large");
+      const exportTooLargeErr = new ExportTooLargeError();
 
       const counter = new Transform({
         transform(chunk: Buffer, _encoding, callback) {
@@ -257,7 +265,7 @@ export async function runExportJob(jobId: string): Promise<void> {
           .update(schema.gdprExportJobs)
           .set({
             state: "failed",
-            error: "export_failed",
+            error: e instanceof ExportTooLargeError ? "export_too_large" : "export_failed",
             retryCount: (job.retryCount ?? 0) + 1,
           })
           .where(eq(schema.gdprExportJobs.id, jobId));
