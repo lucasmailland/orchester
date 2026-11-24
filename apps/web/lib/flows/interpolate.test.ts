@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { interpolate } from "@/lib/flow-engine";
+import { interpolate, buildJsonBody, HttpBodyError } from "@/lib/flow-engine";
 
 describe("interpolate", () => {
   it("keeps strings and numbers as they are", () => {
@@ -31,5 +31,27 @@ describe("interpolate", () => {
 
   it("renders missing and null values as empty", () => {
     expect(interpolate("[{{a}}][{{b}}]", { b: null })).toBe("[][]");
+  });
+});
+
+describe("buildJsonBody", () => {
+  it("escapes quotes inside an interpolated value", () => {
+    const out = buildJsonBody('{"text":"{{msg}}"}', { msg: 'say "hi"' });
+    expect(JSON.parse(out).text).toBe('say "hi"');
+  });
+
+  it("cannot be used to inject sibling keys", () => {
+    const out = buildJsonBody('{"text":"{{msg}}"}', { msg: '","admin":true,"x":"' });
+    const parsed = JSON.parse(out);
+    expect(parsed).not.toHaveProperty("admin");
+    expect(parsed.text).toBe('","admin":true,"x":"');
+  });
+
+  it("keeps the type of a value that is exactly one placeholder", () => {
+    expect(buildJsonBody('{"n":"{{count}}"}', { count: 3 })).toBe('{"n":3}');
+  });
+
+  it("throws HttpBodyError when the template is not valid JSON", () => {
+    expect(() => buildJsonBody('{"a": {{x}}}', {})).toThrow(HttpBodyError);
   });
 });

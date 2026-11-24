@@ -354,4 +354,23 @@ describe("validateStoredFlow: subflow inputs/outputs", () => {
   it("rejects unknown filters in a bare output path", () => {
     expect(hasErrors(run({ outputs: { a: "x | nope" } }))).toBe(true);
   });
+  it("rejects an http json body that does not parse, but not a raw one", () => {
+    const http = (config: Record<string, unknown>) => ({
+      id: "h",
+      type: "http",
+      label: "H",
+      config: { url: "https://example.com", method: "POST", body: '{"a": {{x}}}', ...config },
+      position: { x: 0, y: 0 },
+      purpose: "Call",
+    });
+    const run = (n: unknown) =>
+      validateStoredFlow([trigger, n], [{ id: "e", source: "t", target: "h" }], { spec: "x" });
+    expect(
+      run(http({ bodyMode: "json" })).some((i) => i.nodeId === "h" && i.level === "error")
+    ).toBe(true);
+    expect(run(http({ bodyMode: "raw" })).some((i) => i.message.includes("JSON válido"))).toBe(
+      false
+    );
+    expect(run(http({})).some((i) => i.message.includes("JSON válido"))).toBe(false);
+  });
 });

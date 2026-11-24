@@ -98,6 +98,18 @@ export function validateStoredFlow(
   issues.push(...validateFlow(vnodes, edges, opts.locale ?? "es", { spec: opts.spec ?? null }));
 
   for (const n of nodes) {
+    const body = n.config.body;
+    if (n.type === "http" && n.config.bodyMode === "json" && typeof body === "string" && body) {
+      try {
+        JSON.parse(body);
+      } catch {
+        issues.push({
+          level: "error",
+          nodeId: n.id,
+          message: `El cuerpo de "${n.label}" no es JSON válido: ponelo entre comillas ("{{variable}}") o cambiá el formato a texto crudo.`,
+        });
+      }
+    }
     for (const s of strings(n.config)) {
       for (const problem of findTemplateErrors(s)) {
         issues.push({

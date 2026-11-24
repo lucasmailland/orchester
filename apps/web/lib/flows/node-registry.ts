@@ -726,6 +726,17 @@ export const NODE_REGISTRY: Record<string, NodeDef> = {
         help: "Los datos a enviar, en formato JSON.",
       },
       {
+        key: "bodyMode",
+        label: "Formato del cuerpo",
+        type: "select",
+        advanced: true,
+        options: [
+          { value: "json", label: "JSON, values escaped" },
+          { value: "raw", label: "Raw text, values inserted as-is" },
+        ],
+        help: "En JSON los valores de {{variables}} se escapan y no pueden alterar la estructura del cuerpo.",
+      },
+      {
         key: "failOnStatus",
         label: "Fallar si la respuesta no es 2xx",
         type: "boolean",
@@ -741,7 +752,7 @@ export const NODE_REGISTRY: Record<string, NodeDef> = {
         example: '{ "attempts": 3, "backoffMs": 1000, "maxBackoffMs": 30000 }',
       },
     ],
-    defaults: { method: "GET" },
+    defaults: { method: "GET", bodyMode: "json" },
   },
   transform: {
     id: "transform",

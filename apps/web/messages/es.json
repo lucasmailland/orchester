@@ -1100,6 +1100,7 @@
         "nameLabel": "Nombre de este paso",
         "nameHelp": "Cómo aparece en el flujo.",
         "pathValuePlaceholder": "valor del camino",
+        "httpRawBodyWarning": "Este paso envía el cuerpo como texto crudo. Cambialo a JSON para que los valores se escapen.",
         "removeAria": "Quitar",
         "keyPlaceholder": "clave",
         "valuePlaceholder": "valor",

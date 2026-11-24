@@ -145,6 +145,12 @@ export function InspectorForm({ node, locale, onChange, onDelete, availableData 
         ))}
       </div>
 
+      {def?.id === "http" && config.bodyMode === undefined && (
+        <p className="mt-3 rounded-md bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-300">
+          {t("httpRawBodyWarning")}
+        </p>
+      )}
+
       {advancedFields.length > 0 && (
         <details className="mt-4 rounded-lg border border-line bg-card">
           <summary className="flex cursor-pointer items-center gap-1.5 px-3 py-2 text-[11px] font-medium text-muted">

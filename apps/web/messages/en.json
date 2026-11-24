@@ -1100,6 +1100,7 @@
         "nameLabel": "Step name",
         "nameHelp": "How it appears in the flow.",
         "pathValuePlaceholder": "path value",
+        "httpRawBodyWarning": "This step sends its body as raw text. Switch to JSON to escape values.",
         "removeAria": "Remove",
         "keyPlaceholder": "key",
         "valuePlaceholder": "value",

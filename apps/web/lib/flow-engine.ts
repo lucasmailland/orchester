@@ -164,6 +164,25 @@ export function deepInterpolate(value: unknown, ctx: Record<string, unknown>): u
   return value;
 }
 
+export class HttpBodyError extends Error {}
+
+/**
+ * Builds an http body as JSON: parse the template first, interpolate the
+ * parsed values, then serialize. A value can never close its string or add
+ * keys, which splicing text into the template allowed.
+ */
+export function buildJsonBody(template: unknown, vars: Record<string, unknown>): string {
+  let parsed = template;
+  if (typeof template === "string") {
+    try {
+      parsed = JSON.parse(template);
+    } catch {
+      throw new HttpBodyError("http body is not valid JSON");
+    }
+  }
+  return JSON.stringify(deepInterpolate(parsed, vars));
+}
+
 /** Convierte "30s" | "5m" | "1h" | "1d" (o un número en ms) a milisegundos. */
 export function parseDuration(input: unknown): number {
   if (typeof input === "number") return input;
@@ -1222,7 +1241,15 @@ const NODE_HANDLERS: Record<Exclude<FlowNodeType, "end">, NodeHandler> = {
 
     const init: RequestInit = { method, headers };
     if (method !== "GET") {
-      init.body = interpolate((cfg.body as string) ?? "", ctx.variables);
+      // Stored nodes have no bodyMode and keep the raw text behaviour.
+      if (cfg.bodyMode === "json") {
+        init.body = buildJsonBody(cfg.body || "{}", ctx.variables);
+        if (!Object.keys(headers).some((h) => h.toLowerCase() === "content-type")) {
+          headers["content-type"] = "application/json";
+        }
+      } else {
+        init.body = interpolate((cfg.body as string) ?? "", ctx.variables);
+      }
     }
 
     // Dry run: only GET/HEAD leave the server. Headers and auth are left out of
