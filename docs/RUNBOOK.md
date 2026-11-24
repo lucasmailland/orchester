@@ -237,28 +237,35 @@ Procedimiento de emergencia:
 **Síntomas:** un canal de Telegram viejo deja de responder tras un deploy (el
 webhook devuelve 404 si el canal no tiene `secret_token` registrado).
 
-**Paso de operación tras el deploy:** registrar el secreto en cada canal activo.
+**Paso de operación antes del deploy:** registrar el secreto en cada canal
+activo, desde el código nuevo y contra la base de producción, **antes** de
+pasar web a la versión nueva. El código viejo ya valida el secreto cuando hay
+uno guardado, así que los canales siguen respondiendo; en el orden inverso,
+los canales viejos devuelven 404 hasta que corra el script.
 
 ```bash
 cd apps/web && pnpm telegram:register-secrets
 ```
 
 Imprime los ids actualizados y los que fallaron (nunca tokens). Reintentá los
-fallidos; un fallo no modifica las credenciales del canal. Mientras migrás
-podés poner `TELEGRAM_ALLOW_UNSIGNED=1` para aceptar canales sin secreto;
-sacalo al terminar.
+fallidos; un fallo no modifica las credenciales del canal. Si no podés correrlo
+antes, deployá con `TELEGRAM_ALLOW_UNSIGNED=1` para aceptar canales sin
+secreto y sacalo cuando termine el script.
 
 ---
 
 ## Audit log: AUDIT_V2_SINCE tras el deploy de 0072
 
 **Paso de operación tras el deploy:** cuando la migración
-`0072_audit_log_hmac.sql` quedó aplicada y web + worker corren la versión
-nueva, fijá `AUDIT_V2_SINCE` (web y worker) con ese instante en ISO-8601 y
-redeployá:
+`0072_audit_log_hmac.sql` quedó aplicada **y** ya no queda ninguna instancia
+vieja de web o worker corriendo, fijá `AUDIT_V2_SINCE` (web y worker) con ese
+instante (el más tardío de los dos) en ISO-8601 UTC con `Z` y redeployá. Sin
+zona, `Date.parse` lo toma como hora local del proceso. La variable es
+permanente: no la saques después; sin ella se apaga el control que marca rota
+una fila nueva sin HMAC.
 
 ```bash
-AUDIT_V2_SINCE=2026-11-24T03:00:00Z   # el momento real en que 0072 entró
+AUDIT_V2_SINCE=2026-11-24T03:00:00Z   # 0072 aplicada y sin instancias viejas
 ```
 
 Desde ahí la verificación diaria marca rota cualquier fila más nueva que no
