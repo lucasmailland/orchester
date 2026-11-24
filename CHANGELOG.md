@@ -6,6 +6,41 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 Releases are produced by [release-please](https://github.com/googleapis/release-please) from Conventional Commit messages on `main`.
 
+## [0.0.3](https://github.com/lucasmailland/orchester/compare/v0.0.2...v0.0.3) (2026-11-24)
+
+
+### Fixed
+
+* **db:** start the 0071 scope backfill from an object when config is json null ([443b92f](https://github.com/lucasmailland/orchester/commit/443b92fb741423c4625d4519fc93cf332a2a5508))
+* **llm:** pin the connection only for workspace-typed provider hosts ([17023e3](https://github.com/lucasmailland/orchester/commit/17023e3a2412e256123ea57a636ca43a30d34313))
+* **security:** accept zoned ipv6 in audit actor ip and keep trimmed chains continuous ([3f48085](https://github.com/lucasmailland/orchester/commit/3f48085c892ba437f66acc91b49e6770c0bec3a0))
+* **security:** close audit chain downgrade and head-trim gaps ([563e34f](https://github.com/lucasmailland/orchester/commit/563e34f690d4b3a15417ea3943909d9969f8434f))
+* **security:** commit each telegram secret backfill write on its own ([d15837b](https://github.com/lucasmailland/orchester/commit/d15837b5daacb6d7c9a8c3e30dc93ea8bf02b0cb))
+* **security:** delete gdpr exports once their link expires ([f24efef](https://github.com/lucasmailland/orchester/commit/f24efefd78945916da8e273d2921e23389c05c47))
+* **security:** escape interpolated values in json http bodies ([ab31f1b](https://github.com/lucasmailland/orchester/commit/ab31f1b5fe397a0809aea353ac8cdccbe18ae682))
+* **security:** keep export_too_large as a fixed code on failed gdpr export jobs ([8bc912b](https://github.com/lucasmailland/orchester/commit/8bc912b01d047aedf87481266a9f20a4ef3c3769))
+* **security:** keep postgres.js sslmode semantics when pinning the connector address ([3a46ef7](https://github.com/lucasmailland/orchester/commit/3a46ef79db96ae1496e4d39f3d3d23ad91fb30b3))
+* **security:** key the audit chain with hmac and stop cascading deletes ([fffbe11](https://github.com/lucasmailland/orchester/commit/fffbe11f029af25d97948e0c1e81e6add9442c4f))
+* **security:** let the mcp admin tools set an agent's integration and flow scope ([f688f20](https://github.com/lucasmailland/orchester/commit/f688f20a7397d2eef5120696ca631d41149946b1))
+* **security:** make the sentry url scrubber linear and keep stack frame paths ([d6ce4ad](https://github.com/lucasmailland/orchester/commit/d6ce4adf18b94e4f14534d675ddb1311e1a0b540))
+* **security:** mark audit retention trims in the chain itself ([d421166](https://github.com/lucasmailland/orchester/commit/d42116627ad5c167d803ba715a0e66ff8c6a0556))
+* **security:** pin validated addresses for provider endpoints and the postgres connector ([87cf719](https://github.com/lucasmailland/orchester/commit/87cf719dc134e81d583f90b51da2f1ed38b2207a))
+* **security:** post-only flow webhooks with timestamped signatures ([3c26ea5](https://github.com/lucasmailland/orchester/commit/3c26ea5e65ed8cbfef95022b45186dbeca596d29))
+* **security:** read every ssl source and keep ipv6 whole when pinning the postgres connector ([55d6b41](https://github.com/lucasmailland/orchester/commit/55d6b410251bfada79c76c526b169d8ef75d7a58))
+* **security:** redact secret-named keys, encoded tokens and referer in sentry and caddy ([1073e66](https://github.com/lucasmailland/orchester/commit/1073e660631b5313839a655a253d526fcab65d40))
+* **security:** require the telegram webhook secret token ([18fa208](https://github.com/lucasmailland/orchester/commit/18fa20863500b1ee0c053b224f2aa7716449f8d7))
+* **security:** scope run_integration and flow_call to each agent ([9238b9a](https://github.com/lucasmailland/orchester/commit/9238b9af3fed1e5c73de3af60d4a5c49fb3efde9))
+* **security:** scrub nested sentry data, transactions and extra secret headers ([527384d](https://github.com/lucasmailland/orchester/commit/527384d07d4da54a1a74d69e9aa05cc8b45853b1))
+* **security:** scrub secrets from sentry events and caddy access logs ([39e6ad6](https://github.com/lucasmailland/orchester/commit/39e6ad64f28d42faaed92b53bf2af6f708cd70e7))
+* **security:** stop returning raw error text from authenticated routes ([c8380b1](https://github.com/lucasmailland/orchester/commit/c8380b12243b9a0e8133975990631877f984a183))
+* **security:** trim audit retention through a security definer function ([7e981ef](https://github.com/lucasmailland/orchester/commit/7e981efe40108a463d50f0dc7c8b6ec101717874))
+
+
+### Documentation
+
+* **audit:** close the pending findings from 2026-11-15 ([92c1ba9](https://github.com/lucasmailland/orchester/commit/92c1ba94e7cda5e1c59236f6c6524f3e382ae1af))
+* **audit:** fix the telegram deploy order, audit_v2_since and the closed findings ([63bbbae](https://github.com/lucasmailland/orchester/commit/63bbbae68a233b4656c101af1ff4827831069e47))
+
 ## [0.0.2](https://github.com/lucasmailland/orchester/compare/v0.0.1...v0.0.2) (2026-11-23)
 
 
