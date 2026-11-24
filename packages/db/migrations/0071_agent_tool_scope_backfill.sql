@@ -13,9 +13,10 @@
 --   workspace.
 --
 -- Agents without the tool are not touched, and neither is a key that is
--- already set, so re-running this is a no-op.
+-- already set, so re-running this is a no-op. A config that is not a JSON
+-- object (SQL NULL, JSON null) starts from '{}': `'null' || {...}` is an array.
 UPDATE "agent" a
-SET "config" = COALESCE(a."config", '{}'::jsonb) || jsonb_build_object(
+SET "config" = (CASE WHEN jsonb_typeof(a."config") = 'object' THEN a."config" ELSE '{}'::jsonb END) || jsonb_build_object(
   'allowedIntegrationIds',
   COALESCE(
     (
@@ -38,10 +39,10 @@ SET "config" = COALESCE(a."config", '{}'::jsonb) || jsonb_build_object(
 )
 WHERE jsonb_typeof(a."tools") = 'array'
   AND a."tools" @> '["run_integration"]'::jsonb
-  AND NOT jsonb_exists(COALESCE(a."config", '{}'::jsonb), 'allowedIntegrationIds');
+  AND NOT jsonb_exists((CASE WHEN jsonb_typeof(a."config") = 'object' THEN a."config" ELSE '{}'::jsonb END), 'allowedIntegrationIds');
 
 UPDATE "agent" a
-SET "config" = COALESCE(a."config", '{}'::jsonb) || jsonb_build_object(
+SET "config" = (CASE WHEN jsonb_typeof(a."config") = 'object' THEN a."config" ELSE '{}'::jsonb END) || jsonb_build_object(
   'allowedFlowIds',
   COALESCE(
     (
@@ -64,4 +65,4 @@ SET "config" = COALESCE(a."config", '{}'::jsonb) || jsonb_build_object(
 )
 WHERE jsonb_typeof(a."tools") = 'array'
   AND a."tools" @> '["flow_call"]'::jsonb
-  AND NOT jsonb_exists(COALESCE(a."config", '{}'::jsonb), 'allowedFlowIds');
+  AND NOT jsonb_exists((CASE WHEN jsonb_typeof(a."config") = 'object' THEN a."config" ELSE '{}'::jsonb END), 'allowedFlowIds');

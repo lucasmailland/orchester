@@ -88,6 +88,12 @@ it("0071 assigns each agent what it used successfully in the last 90 days, once"
       call("run_integration", { integrationId: A, action: "x" }, 1, "ok", preset),
     ]);
 
+  // A JSON null config (not SQL NULL) must become an object, not [null, {...}].
+  const nullCfg = wsB.agentIds[0]!;
+  await db.execute(
+    sqlTag`UPDATE agent SET tools = '["run_integration","flow_call"]'::jsonb, config = 'null'::jsonb WHERE id = ${nullCfg}`
+  );
+
   const file = path.resolve(
     __dirname,
     "../../../../packages/db/migrations/0071_agent_tool_scope_backfill.sql"
@@ -107,6 +113,8 @@ it("0071 assigns each agent what it used successfully in the last 90 days, once"
   expect(await config(untouched)).not.toHaveProperty("allowedIntegrationIds");
   // A list already set is left alone.
   expect((await config(preset)).allowedIntegrationIds).toEqual([C]);
+
+  expect(await config(nullCfg)).toEqual({ allowedIntegrationIds: [], allowedFlowIds: [] });
 
   await db.execute(sqlTag.raw(body)); // re-running changes nothing
   expect(await config(agent)).toEqual(after);
