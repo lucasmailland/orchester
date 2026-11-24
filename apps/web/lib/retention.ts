@@ -90,6 +90,19 @@ function cutoff(days: number): Date {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 }
 
+/**
+ * Runs one retention block in its own savepoint: a failed statement aborts the
+ * whole transaction otherwise, and the caller's COMMIT would roll back every
+ * other block with it.
+ */
+async function block(db: DbOrTx, name: string, fn: (tx: DbOrTx) => Promise<void>) {
+  try {
+    await db.transaction(fn);
+  } catch (e) {
+    safeLogError(`[retention] purge ${name} failed:`, e);
+  }
+}
+
 export interface PurgeResult {
   runsDeleted: number;
   deliveriesDeleted: number;
@@ -141,26 +154,22 @@ export async function purgeOldData(opts: {
   // ── flow_run (cascade borra flow_run_step) ──────────────────────────────
   // Filtramos por startedAt: un run iniciado hace >runsDays ya está terminado
   // de sobra (el reaper marca como failed los colgados en ≤5 min).
-  try {
-    const rows = await db
+  await block(db, "flow_runs", async (tx) => {
+    const rows = await tx
       .delete(schema.flowRuns)
       .where(lt(schema.flowRuns.startedAt, cutoff(runsDays)))
       .returning({ id: schema.flowRuns.id });
     result.runsDeleted = rows.length;
-  } catch (e) {
-    safeLogError("[retention] purge flow_runs failed:", e);
-  }
+  });
 
   // ── webhook_delivery ─────────────────────────────────────────────────────
-  try {
-    const rows = await db
+  await block(db, "webhook_deliveries", async (tx) => {
+    const rows = await tx
       .delete(schema.webhookDeliveries)
       .where(lt(schema.webhookDeliveries.createdAt, cutoff(deliveriesDays)))
       .returning({ id: schema.webhookDeliveries.id });
     result.deliveriesDeleted = rows.length;
-  } catch (e) {
-    safeLogError("[retention] purge webhook_deliveries failed:", e);
-  }
+  });
 
   // ── audit_log + audit_log_legacy ────────────────────────────────────────
   // Default 365d para mantener trazabilidad forense de un año. Barremos las
@@ -171,44 +180,44 @@ export async function purgeOldData(opts: {
   // Trimming the head of a chain looks like tampering to verifyChain, so for
   // each workspace that lost rows (and still exists) we append a keyed
   // `audit.retention_trimmed` entry saying through which seq we trimmed.
-  try {
-    const newRows = await db
-      .delete(schema.auditLog)
-      .where(lt(schema.auditLog.createdAt, cutoff(auditLogsDays)))
-      .returning({
-        workspaceId: schema.auditLog.workspaceId,
-        seq: schema.auditLog.seq,
-        chainHash: schema.auditLog.chainHash,
-      });
-    await writeRetentionMarkers(db, newRows);
-    const legacyRows = await db
-      .delete(schema.auditLogsLegacy)
-      .where(lt(schema.auditLogsLegacy.createdAt, cutoff(auditLogsDays)))
-      .returning({ id: schema.auditLogsLegacy.id });
-    result.auditLogsDeleted = newRows.length + legacyRows.length;
-  } catch (e) {
-    safeLogError("[retention] purge audit_logs failed:", e);
-  }
+  //
+  // app_user has no DELETE on either table (0007, 0013): the deletes go
+  // through the SECURITY DEFINER functions of 0073. Rows and markers commit
+  // together, so trimmed rows never go without their marker.
+  await block(db, "audit_logs", async (tx) => {
+    const until = cutoff(auditLogsDays).toISOString();
+    const trimmed = await tx.execute<{ workspace_id: string; seq: string; chain_hash: string }>(
+      sql`SELECT workspace_id, seq, chain_hash FROM audit_log_trim(${until}::timestamptz)`
+    );
+    const newRows = [...trimmed].map((r) => ({
+      workspaceId: r.workspace_id,
+      seq: BigInt(r.seq),
+      chainHash: r.chain_hash,
+    }));
+    await writeRetentionMarkers(tx, newRows);
+    const [legacy] = await tx.execute<{ n: string }>(
+      sql`SELECT audit_log_legacy_trim(${until}::timestamptz) AS n`
+    );
+    result.auditLogsDeleted = newRows.length + Number(legacy?.n ?? 0);
+  });
 
   // ── usage_event ──────────────────────────────────────────────────────────
   // 90d alcanza para investigar billing del período anterior. Para histórico
   // largo plazo conviene un rollup mensual en una tabla aparte (TODO).
-  try {
-    const rows = await db
+  await block(db, "usage_events", async (tx) => {
+    const rows = await tx
       .delete(schema.usageEvents)
       .where(lt(schema.usageEvents.createdAt, cutoff(usageEventsDays)))
       .returning({ id: schema.usageEvents.id });
     result.usageEventsDeleted = rows.length;
-  } catch (e) {
-    safeLogError("[retention] purge usage_events failed:", e);
-  }
+  });
 
   // ── messages (sólo de conversations CERRADAS) ────────────────────────────
   // Nunca tocamos mensajes de conversations abiertas; conservar la conversation
   // viva no debería perder contexto. Borramos mensajes con createdAt < cutoff
   // cuya conversation está cerrada (`closedAt is not null`).
-  try {
-    const rows = await db
+  await block(db, "messages", async (tx) => {
+    const rows = await tx
       .delete(schema.messages)
       .where(
         and(
@@ -220,15 +229,13 @@ export async function purgeOldData(opts: {
       )
       .returning({ id: schema.messages.id });
     result.messagesDeleted = rows.length;
-  } catch (e) {
-    safeLogError("[retention] purge messages failed:", e);
-  }
+  });
 
   // ── flow_version: mantener las últimas N por flow ───────────────────────
   // No vamos por edad: una flow estable puede tener una versión vieja vigente.
   // Mantenemos las últimas N (default 20) por flow.
-  try {
-    const deleted = await db.execute(sql`
+  await block(db, "flow_versions", async (tx) => {
+    const deleted = await tx.execute(sql`
       DELETE FROM ${schema.flowVersions}
       WHERE id IN (
         SELECT id FROM (
@@ -247,9 +254,7 @@ export async function purgeOldData(opts: {
       (deleted as unknown as { rowCount?: number }).rowCount ??
       0;
     result.flowVersionsDeleted = rc;
-  } catch (e) {
-    safeLogError("[retention] purge flow_versions failed:", e);
-  }
+  });
 
   return result;
 }
