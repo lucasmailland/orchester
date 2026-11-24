@@ -19,19 +19,25 @@ afterEach(() => {
 });
 
 describe("sslFor", () => {
-  it("keeps libpq semantics and adds the servername", () => {
-    expect(sslFor(CS, "db.example.com")).toEqual({
+  const ssl = (mode: string) => sslFor(`postgres://u:p@db.example.com/x${mode}`, "db.example.com");
+
+  it("keeps postgres.js's sslmode semantics and adds the servername where TLS is certain", () => {
+    expect(ssl("")).toBe(false);
+    expect(ssl("?sslmode=disable")).toBe(false);
+    expect(ssl("?sslmode=allow")).toBe("allow");
+    expect(ssl("?sslmode=prefer")).toBe("prefer");
+    expect(ssl("?sslmode=require")).toEqual({
       servername: "db.example.com",
       rejectUnauthorized: false,
     });
-    expect(sslFor(CS.replace("require", "verify-full"), "db.example.com")).toEqual({
+    expect(ssl("?sslmode=verify-ca")).toEqual({
       servername: "db.example.com",
       rejectUnauthorized: true,
     });
-    expect(sslFor(CS.replace("require", "verify-ca"), "db.example.com")).toMatchObject({
+    expect(ssl("?sslmode=verify-full")).toEqual({
+      servername: "db.example.com",
       rejectUnauthorized: true,
     });
-    expect(sslFor(CS.replace("require", "disable"), "db.example.com")).toBe(false);
   });
 });
 

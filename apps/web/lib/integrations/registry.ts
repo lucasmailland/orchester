@@ -343,20 +343,23 @@ const notion: Connector = {
 };
 
 /**
- * postgres.js `ssl` for a connection pinned to an IP. It has to be an object:
- * with an IP host postgres.js only sends SNI when `ssl.servername` is set.
+ * postgres.js `ssl` for a connection pinned to an IP, matching what postgres.js
+ * derives from `sslmode` itself. Where TLS is certain it is an object: with an
+ * IP host postgres.js only sends SNI when `ssl.servername` is set.
  */
 export function sslFor(
   cs: string,
   servername: string
-): false | { servername: string; rejectUnauthorized: boolean } {
-  const mode = /[?&]sslmode=([^&#]*)/i.exec(cs)?.[1]?.toLowerCase();
-  if (mode === "disable") return false;
-  if (mode === "verify-full" || mode === "verify-ca") {
-    return { servername, rejectUnauthorized: true };
-  }
-  // libpq's sslmode=require (and prefer/allow) encrypts without verifying the certificate.
-  return { servername, rejectUnauthorized: false };
+): false | "allow" | "prefer" | { servername: string; rejectUnauthorized: boolean } {
+  const mode = /[?&]sslmode=([^&#]*)/.exec(cs)?.[1];
+  if (!mode || mode === "disable") return false;
+  // Kept as strings so postgres.js can fall back to plaintext; no SNI is sent
+  // in these modes, since the host is pinned to an IP.
+  if (mode === "allow" || mode === "prefer") return mode;
+  // libpq's sslmode=require encrypts without verifying the certificate.
+  if (mode === "require") return { servername, rejectUnauthorized: false };
+  // verify-ca, verify-full, and any other value postgres.js reads as verified TLS.
+  return { servername, rejectUnauthorized: true };
 }
 
 const postgres: Connector = {
