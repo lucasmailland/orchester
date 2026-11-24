@@ -314,3 +314,33 @@ describe("Bedrock Converse", () => {
     ]);
   });
 });
+
+describe("connect guard only on workspace-typed hosts", () => {
+  const dispatcherOf = () => (fetchMock.mock.calls[0]![1] as { dispatcher?: unknown }).dispatcher;
+  it.each([null, "eu-west-1"])("default fetch for the AWS host (endpoint %s)", async (e) => {
+    endpoint = e;
+    await llmCall(params());
+    expect(dispatcherOf()).toBeUndefined();
+  });
+  it("guarded dispatcher for a full custom URL", async () => {
+    endpoint = "https://bedrock.example.com";
+    await llmCall(params());
+    expect(dispatcherOf()).toBeDefined();
+  });
+  it("guarded dispatcher when the region is not a bare region name", async () => {
+    endpoint = "x.example.com/#";
+    await llmCall(params());
+    expect(dispatcherOf()).toBeDefined();
+  });
+  it("default fetch for the Anthropic API", async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({
+        content: [{ type: "text", text: "hi" }],
+        usage: { input_tokens: 1, output_tokens: 1 },
+      })
+    );
+    await llmCall(params({ model: "anthropic:claude-sonnet-4-5" }));
+    expect(fetchMock.mock.calls[0]![0]).toContain("api.anthropic.com");
+    expect(dispatcherOf()).toBeUndefined();
+  });
+});

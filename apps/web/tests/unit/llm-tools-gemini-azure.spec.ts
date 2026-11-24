@@ -58,6 +58,8 @@ it("Gemini: a tool-enabled call sends functionDeclarations and surfaces a functi
   });
   const body = JSON.parse((fetchSpy.mock.calls[0]![1] as RequestInit).body as string);
   expect(body.tools[0].functionDeclarations[0].name).toBe("get_weather");
+  // A vendor host: default fetch, so env proxies and private DNS keep working.
+  expect((fetchSpy.mock.calls[0]![1] as { dispatcher?: unknown }).dispatcher).toBeUndefined();
   expect(res.toolCalls?.[0]).toMatchObject({ name: "get_weather", input: { city: "BA" } });
 });
 
@@ -90,5 +92,7 @@ it("Azure: a tool-enabled call sends tools and surfaces tool_calls", async () =>
   });
   const body = JSON.parse((fetchSpy.mock.calls[0]![1] as RequestInit).body as string);
   expect(body.tools[0].function.name).toBe("get_weather");
+  // The Azure endpoint is typed by the workspace: pinned to the checked address.
+  expect((fetchSpy.mock.calls[0]![1] as { dispatcher?: unknown }).dispatcher).toBeDefined();
   expect(res.toolCalls?.[0]).toMatchObject({ name: "get_weather", input: { city: "BA" } });
 });

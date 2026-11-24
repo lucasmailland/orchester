@@ -495,7 +495,6 @@ async function callAnthropic(
     const r = await fetchWithTimeout(
       "https://api.anthropic.com/v1/messages",
       {
-        dispatcher: providerDispatcher(),
         method: "POST",
         headers: {
           "x-api-key": apiKey,
@@ -780,13 +779,18 @@ async function callBedrock(
   // El id lleva `:` y `.` (ej. `us.anthropic.claude-haiku-4-5-20251001-v1:0`),
   // así que va escapado o el `:` rompe el path.
   const url = `${bedrockBaseUrl(endpoint)}/model/${encodeURIComponent(p.model)}/converse`;
+  // A bare region builds an AWS host: default fetch, so PrivateLink private DNS
+  // and env proxies keep working. Anything else is a workspace-typed host and
+  // goes through the pinned, checked connection.
+  const dispatcher =
+    endpoint && !/^[a-z0-9-]+$/i.test(endpoint.trim()) ? providerDispatcher() : undefined;
 
   const pedir = (cuerpo: Record<string, unknown>) =>
     withRetry(async () => {
       const r = await fetchWithTimeout(
         url,
         {
-          dispatcher: providerDispatcher(),
+          dispatcher,
           method: "POST",
           headers: {
             authorization: `Bearer ${apiKey}`,
@@ -990,7 +994,6 @@ async function callGoogle(p: LlmCallParams, apiKey: string): Promise<LlmCallResu
     const r = await fetchWithTimeout(
       url,
       {
-        dispatcher: providerDispatcher(),
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
