@@ -265,7 +265,10 @@ Desde ahí la verificación diaria marca rota cualquier fila más nueva que no
 sea `hash_version = 2`. Sin la variable, el job loguea `audit.v2_since_unset` en cada corrida;
 con un valor que no es ISO-8601, cada workspace registra un `security_event`
 con `reason: "audit_v2_since_invalid"`. Las filas que la retención borra quedan
-cubiertas por una entrada `audit.retention_trimmed` en la propia cadena. Si una verificación falla con `hint` sobre
+cubiertas por una entrada `audit.retention_trimmed` en la propia cadena. Si
+la retención borra todas las filas de un workspace, esa entrada continúa la
+cadena (seq siguiente, `prev_hash` del último borrado), así que el ancla
+externa sigue avanzando en lugar de reiniciarse. Si una verificación falla con `hint` sobre
 `ENCRYPTION_SECRET`, revisá primero si el secreto cambió antes de tratarlo como
 manipulación.
 

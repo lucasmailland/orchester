@@ -273,6 +273,22 @@ describe("verifyChain — head trimmed by retention", () => {
     expect((await verifyChain(wsId)).brokenAt).toBeNull();
   });
 
+  it("continues the chain when retention trims every row of a workspace", async () => {
+    const { wsId, ownerId } = await newWs();
+    await appendAt(wsId, ownerId, 3, 400);
+    const tail = (await rows(wsId)).at(-1)!;
+    await purge();
+    const after = await rows(wsId);
+    expect(after).toHaveLength(1);
+    expect(after[0]).toMatchObject({
+      action: "audit.retention_trimmed",
+      seq: BigInt(4),
+      prevHash: tail.chainHash,
+      meta: { trimmedThroughSeq: "3" },
+    });
+    expect((await verifyChain(wsId)).brokenAt).toBeNull();
+  });
+
   it("does not raise a false alarm after an inactivity gap", async () => {
     const { wsId, ownerId } = await newWs();
     await appendAt(wsId, ownerId, 3, 400);
@@ -405,7 +421,7 @@ describe("AUDIT_V2_SINCE that doesn't parse", () => {
 describe("appendAuditSync — untrusted actorIp", () => {
   it("stores null for a non-IP and the first hop of a forwarded list", async () => {
     const { wsId, ownerId } = await newWs();
-    for (const actorIp of ["not-an-ip", "1.2.3.4, 10.0.0.1"]) {
+    for (const actorIp of ["not-an-ip", "1.2.3.4, 10.0.0.1", "fe80::1%eth0"]) {
       await appendAuditSync(wsId, {
         action: "workspace.update",
         actorUserId: ownerId,
@@ -416,7 +432,7 @@ describe("appendAuditSync — untrusted actorIp", () => {
         meta: {},
       });
     }
-    expect((await rows(wsId)).map((r) => r.actorIp)).toEqual([null, "1.2.3.4"]);
+    expect((await rows(wsId)).map((r) => r.actorIp)).toEqual([null, "1.2.3.4", "fe80::1"]);
     expect((await verifyChain(wsId)).brokenAt).toBeNull();
   });
 });

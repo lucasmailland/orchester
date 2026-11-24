@@ -29,7 +29,13 @@ export type AuditTx = Parameters<Parameters<ReturnType<typeof getDb>["transactio
 export async function appendAuditInTx(
   tx: AuditTx,
   workspaceId: string,
-  entry: AuditEntryInput
+  entry: AuditEntryInput,
+  /**
+   * Tail to chain onto when the workspace has no rows left (retention just
+   * deleted them all), so the chain continues instead of restarting at seq 1.
+   * Ignored when rows remain.
+   */
+  continueFrom?: { seq: bigint; chainHash: string }
 ): Promise<{ rotatedAtSeq: bigint | null }> {
   let rotated: bigint | null = null;
 
@@ -52,8 +58,9 @@ export async function appendAuditInTx(
     .where(eq(schema.auditLog.workspaceId, workspaceId))
     .orderBy(desc(schema.auditLog.seq))
     .limit(1);
+  const tail = last[0] ?? continueFrom;
 
-  const nextSeq = (last[0]?.seq ?? BigInt(0)) + BigInt(1);
+  const nextSeq = (tail?.seq ?? BigInt(0)) + BigInt(1);
   // Chain-start logic (B2.1 fix — silent reset closed):
   //   * Genesis row (seq=1): prev_hash MUST be null. Nothing to chain to.
   //   * Post-genesis (seq>1): we MUST inherit a real prev_hash from the
@@ -71,10 +78,10 @@ export async function appendAuditInTx(
   if (nextSeq === BigInt(1)) {
     prevHash = null;
   } else {
-    const lastChain = last[0]?.chainHash ?? null;
+    const lastChain = tail?.chainHash ?? null;
     if (!lastChain) {
       throw new Error(
-        `audit chain corruption at workspace ${workspaceId}: last seq=${last[0]?.seq} has null chain_hash`
+        `audit chain corruption at workspace ${workspaceId}: last seq=${tail?.seq} has null chain_hash`
       );
     }
     if (lastChain === "0".repeat(64)) {
@@ -93,7 +100,8 @@ export async function appendAuditInTx(
   // normalized (lowercase IPv6, compressed zeros) and the verifier hashes
   // what it reads.
   let actorIp: string | null = null;
-  const firstHop = entry.actorIp?.split(",")[0]?.trim() ?? "";
+  // Drop an IPv6 zone id ("fe80::1%eth0"): isIP accepts it, ::inet doesn't.
+  const firstHop = entry.actorIp?.split(",")[0]?.trim().split("%")[0] ?? "";
   if (isIP(firstHop) !== 0) {
     const rows = await tx.execute<{ ip: string }>(sql`SELECT ${firstHop}::inet AS ip`);
     actorIp = rows[0]!.ip;

@@ -40,7 +40,7 @@ function envDays(name: string, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-/** RETENTION_AUDIT_DAYS (default 365). Also used by lib/audit/verify.ts. */
+/** RETENTION_AUDIT_DAYS (default 365). */
 export function auditRetentionDays(): number {
   return envDays("RETENTION_AUDIT_DAYS", 365);
 }
@@ -48,12 +48,13 @@ export function auditRetentionDays(): number {
 /** Max deleted seq per workspace → one `audit.retention_trimmed` entry each. */
 async function writeRetentionMarkers(
   db: DbOrTx,
-  deleted: { workspaceId: string; seq: bigint }[]
+  deleted: { workspaceId: string; seq: bigint; chainHash: string }[]
 ): Promise<void> {
-  const maxSeq = new Map<string, bigint>();
+  // Deleted tail (highest seq) per workspace.
+  const maxSeq = new Map<string, { seq: bigint; chainHash: string }>();
   for (const r of deleted) {
     const cur = maxSeq.get(r.workspaceId);
-    if (cur === undefined || r.seq > cur) maxSeq.set(r.workspaceId, r.seq);
+    if (cur === undefined || r.seq > cur.seq) maxSeq.set(r.workspaceId, r);
   }
   if (maxSeq.size === 0) return;
   // Only live workspaces: markers for deleted ones would resurrect a chain
@@ -66,14 +67,21 @@ async function writeRetentionMarkers(
     // Nested transaction (a savepoint inside the caller's tx) so the advisory
     // lock and set_config in appendAuditInTx are scoped as usual.
     await db.transaction((tx) =>
-      appendAuditInTx(tx, id, {
-        action: "audit.retention_trimmed",
-        actorUserId: null,
-        actorKind: "system",
-        targetType: "workspace",
-        targetId: id,
-        meta: { trimmedThroughSeq: maxSeq.get(id)!.toString() },
-      })
+      appendAuditInTx(
+        tx,
+        id,
+        {
+          action: "audit.retention_trimmed",
+          actorUserId: null,
+          actorKind: "system",
+          targetType: "workspace",
+          targetId: id,
+          meta: { trimmedThroughSeq: maxSeq.get(id)!.seq.toString() },
+        },
+        // If every row went, chain onto the deleted tail instead of
+        // restarting at seq 1, so the external anchor keeps advancing.
+        maxSeq.get(id)
+      )
     );
   }
 }
@@ -167,7 +175,11 @@ export async function purgeOldData(opts: {
     const newRows = await db
       .delete(schema.auditLog)
       .where(lt(schema.auditLog.createdAt, cutoff(auditLogsDays)))
-      .returning({ workspaceId: schema.auditLog.workspaceId, seq: schema.auditLog.seq });
+      .returning({
+        workspaceId: schema.auditLog.workspaceId,
+        seq: schema.auditLog.seq,
+        chainHash: schema.auditLog.chainHash,
+      });
     await writeRetentionMarkers(db, newRows);
     const legacyRows = await db
       .delete(schema.auditLogsLegacy)
