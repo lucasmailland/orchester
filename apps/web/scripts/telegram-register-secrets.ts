@@ -12,12 +12,14 @@ import { registerMissingTelegramSecrets } from "@/lib/channels/telegram";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
 
 async function main() {
-  const { updated, failed } = await withCrossTenantAdmin(
-    "telegram.register_secrets",
-    registerMissingTelegramSecrets
+  const { updated, skipped, failed } = await registerMissingTelegramSecrets((fn) =>
+    withCrossTenantAdmin("telegram.register_secrets", fn)
   );
   console.log(`updated (${updated.length}): ${updated.join(", ") || "-"}`);
-  console.log(`failed (${failed.length}): ${failed.join(", ") || "-"}`);
+  console.log(`skipped (${skipped.length}): ${skipped.join(", ") || "-"}`);
+  console.log(
+    `failed (${failed.length}): ${failed.map((f) => `${f.id}=${f.reason}`).join(", ") || "-"}`
+  );
   process.exit(failed.length ? 1 : 0);
 }
 

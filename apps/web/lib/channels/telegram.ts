@@ -153,17 +153,38 @@ export async function registerTelegramWebhook(
   botToken: string,
   tx: WsDb,
   credentials: object = {}
-): Promise<string> {
+): Promise<{ secret: string; botUsername?: string | undefined }> {
+  const registered = await setTelegramWebhookSecret(row, botToken);
+  await storeTelegramWebhookSecret(row, botToken, registered.secret, tx, credentials);
+  return registered;
+}
+
+/** Network half: validate the token and make Telegram use a fresh secret_token. */
+export async function setTelegramWebhookSecret(
+  row: { secret: string },
+  botToken: string
+): Promise<{ secret: string; botUsername?: string | undefined }> {
   const appUrl = process.env["NEXT_PUBLIC_APP_URL"];
   if (!appUrl) throw new Error("NEXT_PUBLIC_APP_URL is not set");
   const me = await telegramGetMe(botToken);
   if (!me.ok) throw new InvalidTelegramBotTokenError();
-  const webhookSecret = newWebhookSecret();
+  const secret = newWebhookSecret();
   await telegramSetWebhook(
     botToken,
     `${appUrl}/api/channels/telegram/webhook/${row.secret}`,
-    webhookSecret
+    secret
   );
+  return { secret, botUsername: me.result?.username };
+}
+
+/** Database half: store the secret next to the rest of the credentials. */
+export async function storeTelegramWebhookSecret(
+  row: { id: string; workspaceId: string },
+  botToken: string,
+  webhookSecret: string,
+  tx: WsDb,
+  credentials: object = {}
+): Promise<void> {
   await tx
     .update(schema.channels)
     .set({
@@ -171,37 +192,63 @@ export async function registerTelegramWebhook(
       updatedAt: new Date(),
     })
     .where(and(eq(schema.channels.id, row.id), eq(schema.channels.workspaceId, row.workspaceId)));
-  return webhookSecret;
 }
+
+export type BackfillResult = {
+  updated: string[];
+  /** Undecodable credentials, no bot token or no URL secret: nothing was attempted. */
+  skipped: string[];
+  /** `reason` is a code, never an error message (those can carry the token). */
+  failed: { id: string; reason: "invalid_token" | "set_webhook_failed" | "write_failed" }[];
+};
 
 /**
  * Backfill for channels created before the secret token existed: register one
- * on every active Telegram channel that lacks it. A failure on one channel does
- * not stop the rest and never leaves that channel's credentials half-written.
+ * on every active Telegram channel that lacks it.
+ *
+ * Telegram applies a new secret the moment `setWebhook` returns, so each
+ * channel's credential write must commit on its own, right after its own call.
+ * One transaction around the whole loop would roll back earlier channels on any
+ * later failure while Telegram kept their new secrets, and those channels would
+ * then reject every update. The network calls stay outside any transaction.
+ * If a write fails after Telegram accepted the secret, the channel is reported
+ * as `write_failed` and re-running the script fixes it (it still lacks a secret).
  */
 export async function registerMissingTelegramSecrets(
-  tx: WsDb
-): Promise<{ updated: string[]; failed: string[] }> {
-  const rows = await tx
-    .select()
-    .from(schema.channels)
-    .where(and(eq(schema.channels.type, "telegram"), eq(schema.channels.status, "active")));
-  const updated: string[] = [];
-  const failed: string[] = [];
+  withTx: <T>(fn: (tx: WsDb) => Promise<T>) => Promise<T>
+): Promise<BackfillResult> {
+  const rows = await withTx((tx) =>
+    tx
+      .select()
+      .from(schema.channels)
+      .where(and(eq(schema.channels.type, "telegram"), eq(schema.channels.status, "active")))
+  );
+  const result: BackfillResult = { updated: [], skipped: [], failed: [] };
   for (const row of rows) {
     const creds = decodeTelegramCredentials(row.credentialsEncrypted);
-    if (!creds?.botToken || creds.webhookSecret) continue;
-    if (!row.secret) {
-      failed.push(row.id);
+    if (creds?.webhookSecret) continue;
+    if (!creds?.botToken || !row.secret) {
+      result.skipped.push(row.id);
+      continue;
+    }
+    let registered: { secret: string };
+    try {
+      registered = await setTelegramWebhookSecret({ secret: row.secret }, creds.botToken);
+    } catch (e) {
+      result.failed.push({
+        id: row.id,
+        reason: e instanceof InvalidTelegramBotTokenError ? "invalid_token" : "set_webhook_failed",
+      });
       continue;
     }
     try {
-      await registerTelegramWebhook({ ...row, secret: row.secret }, creds.botToken, tx, creds);
-      updated.push(row.id);
+      await withTx((tx) =>
+        storeTelegramWebhookSecret(row, creds.botToken, registered.secret, tx, creds)
+      );
+      result.updated.push(row.id);
     } catch {
-      // Not logged with the error: its message can carry the bot token URL.
-      failed.push(row.id);
+      result.failed.push({ id: row.id, reason: "write_failed" });
     }
   }
-  return { updated, failed };
+  return result;
 }

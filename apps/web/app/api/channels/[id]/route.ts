@@ -8,11 +8,7 @@ import { requireAuth, isAuthContext } from "@/lib/auth-guards";
 import { safeLogError } from "@/lib/safe-log";
 import { ownedByWorkspace } from "@/lib/tenant/owned";
 import { encrypt } from "@/lib/encryption";
-import {
-  InvalidTelegramBotTokenError,
-  registerTelegramWebhook,
-  telegramGetMe,
-} from "@/lib/channels/telegram";
+import { InvalidTelegramBotTokenError, registerTelegramWebhook } from "@/lib/channels/telegram";
 import { slackAuthTest } from "@/lib/channels/slack";
 import {
   DISCORD_COMMAND_DESCRIPTION,
@@ -111,19 +107,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   ) {
     try {
       // Ordering (secret stored only after Telegram accepted it): see the helper.
-      await registerTelegramWebhook(
+      const { botUsername } = await registerTelegramWebhook(
         { id: row.id, secret: row.secret, workspaceId: ctx.workspace.id },
         body.credentials.botToken,
         db,
         body.credentials
       );
-      const me = await telegramGetMe(body.credentials.botToken);
       const { credentialsEncrypted, ...rest } = row;
       return NextResponse.json({
         ...rest,
         hasCredentials: true,
         webhookSet: true,
-        botUsername: me.result?.username,
+        botUsername,
       });
     } catch (e) {
       if (e instanceof InvalidTelegramBotTokenError) {
