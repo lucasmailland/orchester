@@ -17,8 +17,13 @@ export const SECRET_HEADERS = new Set([
 ]);
 
 const MAX_DEPTH = 10;
+// Bounds the regex work per string; nothing worth keeping in an event is longer.
+const MAX_STRING = 16 * 1024;
+// Stack-frame locations: rewriting them breaks source maps and issue grouping.
+const FRAME_KEYS = new Set(["filename", "abs_path", "module", "function"]);
 
-function scrubString(s: string): string {
+function scrubString(raw: string): string {
+  const s = raw.length > MAX_STRING ? `${raw.slice(0, MAX_STRING)}…[truncated]` : raw;
   const out = redactText(redactUrl(s));
   if (!s.includes("%")) return out;
   // Encoded tokens (`exports%2Fabc`, `access%5Ftoken=`) slip past the plain patterns.
@@ -41,6 +46,7 @@ function deepScrub(value: unknown, depth = 0, seen = new WeakSet<object>()): unk
   seen.add(value);
   const rec = value as Record<string, unknown>;
   for (const k of Object.keys(rec)) {
+    if (FRAME_KEYS.has(k) && typeof rec[k] === "string") continue;
     rec[k] = SECRET_HEADERS.has(k.toLowerCase())
       ? "[redacted]"
       : deepScrub(rec[k], depth + 1, seen);

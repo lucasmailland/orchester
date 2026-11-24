@@ -148,3 +148,54 @@ describe("Caddyfile / SECRET_HEADERS sync", () => {
     for (const h of SECRET_HEADERS) if (!sentryOnly.has(h)) expect(deletes).toContain(h);
   });
 });
+
+describe("scrub performance (ReDoS)", () => {
+  const timed = (s: string) => {
+    const t = performance.now();
+    scrubSentryEvent({ request: { url: s }, transaction: s });
+    return performance.now() - t;
+  };
+  it.each([
+    ["?key repeated", "?key".repeat(5000)],
+    ["a?b= repeated (100 KB)", "a?b=".repeat(25_000)],
+    ["eyJ repeated", "eyJ".repeat(6000)],
+    ["postgres:// repeated", "postgres://a:".repeat(1500)],
+  ])("scrubs %s in < 200 ms", (_name, s) => {
+    expect(timed(s)).toBeLessThan(200);
+  });
+  it("truncates very long strings", () => {
+    const ev = scrubSentryEvent({ extra: { s: "x".repeat(20_000) } });
+    const s = (ev.extra as { s: string }).s;
+    expect(s.length).toBeLessThan(17_000);
+    expect(s.endsWith("…[truncated]")).toBe(true);
+  });
+  it("still redacts a JWT after a delimiter", () => {
+    expect(scrubSentryEvent({ message: "jwt=eyJhbGc.eyJzdWI.c2ln" }).message).toBe(
+      "jwt=eyJ***REDACTED***"
+    );
+  });
+  it("keeps the redaction when a secret param follows a value with ?", () => {
+    expect(redactUrl("https://x/p?next=/a?token=t9&ok=1")).not.toContain("t9");
+  });
+});
+
+describe("stack frames keep their paths", () => {
+  it("does not rewrite filename, abs_path, module or function", () => {
+    const frame = {
+      filename: "app:///api/webhooks/[secret]/route.js",
+      abs_path: "/srv/app/.next/server/app/api/webhooks/[secret]/route.js",
+      module: "app/api/webhooks/[secret]/route",
+      function: "POST /api/webhooks/[secret]",
+      vars: { url: "https://x/api/webhooks/tok7" },
+    };
+    const ev = scrubSentryEvent({
+      exception: { values: [{ stacktrace: { frames: [{ ...frame }] } }] },
+    });
+    const out = ev.exception.values[0]!.stacktrace.frames[0]!;
+    expect(out.filename).toBe(frame.filename);
+    expect(out.abs_path).toBe(frame.abs_path);
+    expect(out.module).toBe(frame.module);
+    expect(out.function).toBe(frame.function);
+    expect(JSON.stringify(out.vars)).not.toContain("tok7");
+  });
+});

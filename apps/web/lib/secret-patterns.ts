@@ -18,8 +18,9 @@ export const SECRET_PATTERNS: Array<[RegExp, string]> = [
   [/Basic\s+[A-Za-z0-9+/=]{8,}/gi, "Basic ***REDACTED***"],
   // postgres://user:pass@host → postgres://user:***@host
   [/(postgres(?:ql)?:\/\/[^:@\s]+):([^@\s]+)@/gi, "$1:***REDACTED***@"],
-  // JWT (3 segmentos base64url)
-  [/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "eyJ***REDACTED***"],
+  // JWT (3 segmentos base64url). The lookbehind keeps it linear: only the start
+  // of a base64url run can begin a match ("eyJeyJ..." was quadratic).
+  [/(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "eyJ***REDACTED***"],
   // Other key formats this app holds or proxies: Orchester and Mnemosyne API
   // keys, Stripe secret and webhook keys, GitHub and GitLab tokens.
   [/\b(ok|mns)_live_[A-Za-z0-9_-]{8,}/g, "$1_live_***REDACTED***"],
@@ -39,9 +40,14 @@ export function redactText(s: string): string {
 const SECRET_PATH = /(\/(?:webhooks?|exports|approvals|approve|invite)\/)[^/?#\s]+/g;
 // Any param whose name contains one of these words (token, api_key, Password...).
 export const SECRET_PARAM_NAME = /token|secret|key|signature|passwor[dt]|code/i;
-const SECRET_QUERY =
-  /([?&][^=&#]*(?:token|secret|key|signature|passwor[dt]|code)[^=&#]*=)[^&#\s]*/gi;
+// Linear on purpose: name and value stop at the next delimiter, so no start
+// position rescans the string (the old keyword-in-the-middle pattern was cubic).
+const QUERY_PARAM = /([?&])([^=?&#\s]*)=([^?&#\s]*)/g;
 
 export function redactUrl(url: string): string {
-  return url.replace(SECRET_PATH, "$1[redacted]").replace(SECRET_QUERY, "$1[redacted]");
+  return url
+    .replace(SECRET_PATH, "$1[redacted]")
+    .replace(QUERY_PARAM, (m, sep: string, name: string) =>
+      SECRET_PARAM_NAME.test(name) ? `${sep}${name}=[redacted]` : m
+    );
 }
