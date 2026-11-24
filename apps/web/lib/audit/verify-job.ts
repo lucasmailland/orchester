@@ -33,10 +33,17 @@ import { eq } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { schema } from "@orchester/db";
 import { withCrossTenantAdmin } from "@/lib/tenant/cron";
-import { safeLogError } from "@/lib/safe-log";
+import { safeLogError, safeLogWarn } from "@/lib/safe-log";
 import { verifyChain } from "./verify";
 
 export async function runVerifyAllChains(): Promise<void> {
+  if (!process.env["AUDIT_V2_SINCE"]) {
+    safeLogWarn("[audit] AUDIT_V2_SINCE not set:", {
+      level: "warn",
+      msg: "audit.v2_since_unset",
+      detail: "downgrade detection for audit rows relabelled as v1 is not configured",
+    });
+  }
   await withCrossTenantAdmin("audit.verify_all_chains", async (tx) => {
     const workspaces = await tx
       .select({ id: schema.workspaces.id })

@@ -25,6 +25,9 @@ export type AuditAction =
   | "session.revoke_all"
   | "audit.chain_break_detected"
   | "audit.chain_verified"
+  // Retention deleted this workspace's oldest audit rows.
+  // meta: { trimmedThroughSeq: string } (highest deleted seq)
+  | "audit.retention_trimmed"
   // Inspector UI v2 — recall debug endpoint emits this per call so an
   // admin can detect script-driven harvesting of fact-statement
   // previews via the captureTrace payload. See
@@ -56,7 +59,8 @@ export interface ChainVerifyResult {
     entryId: string;
     expectedHash: string;
     foundHash: string;
-    reason: "hash_mismatch" | "downgrade" | "head_trimmed_inside_retention";
+    reason:
+      "hash_mismatch" | "downgrade" | "head_trimmed_without_marker" | "audit_v2_since_invalid";
     /** Non-secret operator hint, e.g. that a changed ENCRYPTION_SECRET looks the same. */
     hint?: string;
   } | null;

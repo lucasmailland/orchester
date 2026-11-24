@@ -225,36 +225,6 @@ describe("verifyChain — v2 HMAC rows", () => {
     expect(r.brokenAt?.entryId).toBe(last.id);
   });
 
-  it("accepts a chain whose first rows were trimmed by retention", async () => {
-    const { wsId, ownerId } = await newWs();
-    // Rows as old as retention leaves them: just inside the 365-day window.
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date(Date.now() - 364.5 * DAY));
-    try {
-      await append(wsId, ownerId, 5);
-    } finally {
-      vi.useRealTimers();
-    }
-    await getDb()
-      .delete(schema.auditLog)
-      .where(and(eq(schema.auditLog.workspaceId, wsId), lt(schema.auditLog.seq, BigInt(3))));
-    const r = await verifyChain(wsId);
-    expect(r.brokenAt).toBeNull();
-    expect(r.entriesChecked).toBe(3);
-  });
-
-  it("flags a fresh chain whose first rows were deleted (inside the retention window)", async () => {
-    const { wsId, ownerId } = await newWs();
-    await append(wsId, ownerId, 4);
-    const before = await rows(wsId);
-    await getDb()
-      .delete(schema.auditLog)
-      .where(and(eq(schema.auditLog.workspaceId, wsId), lt(schema.auditLog.seq, BigInt(3))));
-    const r = await verifyChain(wsId);
-    expect(r.brokenAt?.entryId).toBe(before[2]!.id);
-    expect(r.brokenAt?.reason).toBe("head_trimmed_inside_retention");
-  });
-
   it("still flags a row deleted from the middle of the chain", async () => {
     const { wsId, ownerId } = await newWs();
     await append(wsId, ownerId, 4);
@@ -262,6 +232,86 @@ describe("verifyChain — v2 HMAC rows", () => {
       .delete(schema.auditLog)
       .where(and(eq(schema.auditLog.workspaceId, wsId), eq(schema.auditLog.seq, BigInt(2))));
     expect((await verifyChain(wsId)).brokenAt).not.toBeNull();
+  });
+});
+
+async function appendAt(wsId: string, ownerId: string, n: number, daysAgo: number) {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(Date.now() - daysAgo * DAY));
+  try {
+    await append(wsId, ownerId, n);
+  } finally {
+    vi.useRealTimers();
+  }
+}
+
+async function purge() {
+  const { purgeOldData } = await import("@/lib/retention");
+  await purgeOldData({ auditLogsDays: 365, db: getDb() });
+}
+
+async function deleteSeqBelow(wsId: string, seq: number) {
+  await getDb()
+    .delete(schema.auditLog)
+    .where(and(eq(schema.auditLog.workspaceId, wsId), lt(schema.auditLog.seq, BigInt(seq))));
+}
+
+describe("verifyChain — head trimmed by retention", () => {
+  it("retention purges old rows, writes a marker, and the chain verifies", async () => {
+    const { wsId, ownerId } = await newWs();
+    await appendAt(wsId, ownerId, 2, 400);
+    await append(wsId, ownerId, 2);
+    await purge();
+    const after = await rows(wsId);
+    expect(after.map((r) => Number(r.seq))).toEqual([3, 4, 5]);
+    expect(after[2]).toMatchObject({
+      action: "audit.retention_trimmed",
+      actorKind: "system",
+      hashVersion: 2,
+      meta: { trimmedThroughSeq: "2" },
+    });
+    expect((await verifyChain(wsId)).brokenAt).toBeNull();
+  });
+
+  it("does not raise a false alarm after an inactivity gap", async () => {
+    const { wsId, ownerId } = await newWs();
+    await appendAt(wsId, ownerId, 3, 400);
+    await appendAt(wsId, ownerId, 2, 100);
+    await purge();
+    expect((await rows(wsId)).map((r) => Number(r.seq))).toEqual([4, 5, 6]);
+    expect((await verifyChain(wsId)).brokenAt).toBeNull();
+  });
+
+  it("flags head rows deleted beyond the marker's trimmedThroughSeq", async () => {
+    const { wsId, ownerId } = await newWs();
+    await appendAt(wsId, ownerId, 2, 400);
+    await append(wsId, ownerId, 3);
+    await purge();
+    await deleteSeqBelow(wsId, 4); // marker covers seq <= 2; seq 3 deleted by hand
+    const r = await verifyChain(wsId);
+    expect(r.brokenAt?.reason).toBe("head_trimmed_without_marker");
+  });
+
+  it("flags a head trimmed with no marker and no AUDIT_V2_SINCE", async () => {
+    const { wsId, ownerId } = await newWs();
+    await append(wsId, ownerId, 4);
+    const before = await rows(wsId);
+    await deleteSeqBelow(wsId, 3);
+    const r = await verifyChain(wsId);
+    expect(r.brokenAt?.entryId).toBe(before[2]!.id);
+    expect(r.brokenAt?.reason).toBe("head_trimmed_without_marker");
+  });
+
+  it("accepts a pre-marker trim when the first row predates AUDIT_V2_SINCE", async () => {
+    const { wsId, ownerId } = await newWs();
+    await append(wsId, ownerId, 4);
+    await deleteSeqBelow(wsId, 3);
+    process.env["AUDIT_V2_SINCE"] = new Date(Date.now() + 60_000).toISOString();
+    try {
+      expect((await verifyChain(wsId)).brokenAt).toBeNull();
+    } finally {
+      delete process.env["AUDIT_V2_SINCE"];
+    }
   });
 });
 
@@ -306,6 +356,48 @@ describe("verifyChain — AUDIT_V2_SINCE", () => {
       expect(r.brokenAt?.reason).toBe("downgrade");
     } finally {
       delete process.env["AUDIT_V2_SINCE"];
+    }
+  });
+});
+
+describe("AUDIT_V2_SINCE that doesn't parse", () => {
+  it("is reported as a break, and the verify job records it", async () => {
+    const { wsId, ownerId } = await newWs();
+    await append(wsId, ownerId, 2);
+    process.env["AUDIT_V2_SINCE"] = "not-a-date";
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      expect((await verifyChain(wsId)).brokenAt?.reason).toBe("audit_v2_since_invalid");
+      const { runVerifyAllChains } = await import("@/lib/audit/verify-job");
+      await runVerifyAllChains();
+      const events = await getDb()
+        .select()
+        .from(schema.securityEvents)
+        .where(eq(schema.securityEvents.workspaceId, wsId));
+      expect(events.map((e) => (e.detail as Record<string, unknown>)["reason"])).toContain(
+        "audit_v2_since_invalid"
+      );
+    } finally {
+      delete process.env["AUDIT_V2_SINCE"];
+      errorSpy.mockRestore();
+      infoSpy.mockRestore();
+    }
+  });
+
+  it("when unset, the verify job warns that downgrade detection is off", async () => {
+    const { runVerifyAllChains } = await import("@/lib/audit/verify-job");
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      await runVerifyAllChains();
+      const warned = warnSpy.mock.calls.map((c) => JSON.stringify(c)).join("\n");
+      expect(warned).toContain("audit.v2_since_unset");
+    } finally {
+      warnSpy.mockRestore();
+      errorSpy.mockRestore();
+      infoSpy.mockRestore();
     }
   });
 });

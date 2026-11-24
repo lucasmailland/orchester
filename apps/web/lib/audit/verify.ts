@@ -23,20 +23,28 @@ import {
   computePayloadHashV2,
   computeChainHashV2,
 } from "./chain";
-import { auditRetentionDays } from "../retention";
 import type { ChainVerifyResult } from "./types";
 
 const ZERO_HASH = "0".repeat(64);
-const DAY_MS = 24 * 60 * 60 * 1000;
+const RETENTION_MARKER = "audit.retention_trimmed";
+
+function markerSeq(meta: unknown): bigint | null {
+  const v = (meta as Record<string, unknown> | null)?.["trimmedThroughSeq"];
+  if (typeof v !== "string" || !/^\d+$/.test(v)) return null;
+  return BigInt(v);
+}
 const V2_MISMATCH_HINT =
   "a v2 row also fails this way if ENCRYPTION_SECRET changed since it was written";
 
-/** AUDIT_V2_SINCE: ISO-8601 time 0072 went live. Unset or invalid = rule off. */
-function parseV2Since(): Date | null {
+/**
+ * AUDIT_V2_SINCE: ISO-8601 time 0072 went live. Unset = rule off. A value
+ * that doesn't parse is "invalid": it must not switch the rule off quietly.
+ */
+function parseV2Since(): Date | null | "invalid" {
   const raw = process.env["AUDIT_V2_SINCE"];
   if (!raw) return null;
   const t = Date.parse(raw);
-  return Number.isNaN(t) ? null : new Date(t);
+  return Number.isNaN(t) ? "invalid" : new Date(t);
 }
 
 /**
@@ -86,22 +94,23 @@ export async function verifyChain(workspaceId: string, db?: AnyDb): Promise<Chai
     verifiedAt: now,
   });
 
-  // A first row that chains to a predecessor (non-null prev_hash) means rows
-  // before it were deleted. Retention only deletes rows older than its
-  // cutoff, so that first row must be about as old as the cutoff too; a
-  // younger one means someone deleted the head of the chain.
   const first = chainEntries[0];
-  if (first?.prevHash && first.prevHash !== ZERO_HASH) {
-    const youngestTrimmedHead = now.getTime() - (auditRetentionDays() - 1) * DAY_MS;
-    if (first.createdAt.getTime() > youngestTrimmedHead) {
-      return broken(0, first, {
-        reason: "head_trimmed_inside_retention",
-        expectedHash: first.chainHash,
-      });
-    }
-  }
-
   const v2Since = parseV2Since();
+  if (v2Since === "invalid") {
+    return {
+      workspaceId,
+      entriesChecked: 0,
+      brokenAt: {
+        entryId: first?.id ?? "",
+        expectedHash: "",
+        foundHash: first?.chainHash ?? "",
+        reason: "audit_v2_since_invalid",
+        hint: "AUDIT_V2_SINCE is set but is not an ISO-8601 timestamp",
+      },
+      head: null,
+      verifiedAt: now,
+    };
+  }
   let key: Buffer | null = null;
   let prevHash: string | null = first?.prevHash ?? null;
   let seenV2 = false;
@@ -147,6 +156,29 @@ export async function verifyChain(workspaceId: string, db?: AnyDb): Promise<Chai
       });
     }
     prevHash = e.chainHash;
+  }
+
+  // A first row that chains to a predecessor (non-null, non-zero prev_hash;
+  // genesis and rotated chains store NULL) means rows before it were deleted.
+  // That is legitimate only if retention did it: a verified
+  // `audit.retention_trimmed` v2 row must cover every missing seq. Trims
+  // from before markers existed are accepted when AUDIT_V2_SINCE is set and
+  // the first row predates it.
+  if (first?.prevHash && first.prevHash !== ZERO_HASH) {
+    const covered = chainEntries.some(
+      (e) =>
+        e.action === RETENTION_MARKER &&
+        e.hashVersion === 2 &&
+        markerSeq(e.meta) !== null &&
+        markerSeq(e.meta)! >= first.seq - BigInt(1)
+    );
+    const legacyTrim = v2Since !== null && first.createdAt < v2Since;
+    if (!covered && !legacyTrim) {
+      return broken(0, first, {
+        reason: "head_trimmed_without_marker",
+        expectedHash: first.chainHash,
+      });
+    }
   }
 
   const last = chainEntries.at(-1);

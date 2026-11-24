@@ -1,7 +1,8 @@
 import "server-only";
 import { getDb, schema } from "@orchester/db";
-import { and, lt, sql } from "drizzle-orm";
+import { and, inArray, lt, sql } from "drizzle-orm";
 import { safeLogError } from "./safe-log";
+import { appendAuditInTx } from "./audit/log";
 
 /**
  * Retención de datos (finding G1-1).
@@ -42,6 +43,39 @@ function envDays(name: string, fallback: number): number {
 /** RETENTION_AUDIT_DAYS (default 365). Also used by lib/audit/verify.ts. */
 export function auditRetentionDays(): number {
   return envDays("RETENTION_AUDIT_DAYS", 365);
+}
+
+/** Max deleted seq per workspace → one `audit.retention_trimmed` entry each. */
+async function writeRetentionMarkers(
+  db: DbOrTx,
+  deleted: { workspaceId: string; seq: bigint }[]
+): Promise<void> {
+  const maxSeq = new Map<string, bigint>();
+  for (const r of deleted) {
+    const cur = maxSeq.get(r.workspaceId);
+    if (cur === undefined || r.seq > cur) maxSeq.set(r.workspaceId, r.seq);
+  }
+  if (maxSeq.size === 0) return;
+  // Only live workspaces: markers for deleted ones would resurrect a chain
+  // that the verify job no longer checks.
+  const alive = await db
+    .select({ id: schema.workspaces.id })
+    .from(schema.workspaces)
+    .where(inArray(schema.workspaces.id, [...maxSeq.keys()]));
+  for (const { id } of alive) {
+    // Nested transaction (a savepoint inside the caller's tx) so the advisory
+    // lock and set_config in appendAuditInTx are scoped as usual.
+    await db.transaction((tx) =>
+      appendAuditInTx(tx, id, {
+        action: "audit.retention_trimmed",
+        actorUserId: null,
+        actorKind: "system",
+        targetType: "workspace",
+        targetId: id,
+        meta: { trimmedThroughSeq: maxSeq.get(id)!.toString() },
+      })
+    );
+  }
 }
 
 function cutoff(days: number): Date {
@@ -125,11 +159,16 @@ export async function purgeOldData(opts: {
   // dos tablas con el mismo umbral: la nueva `audit_log` (con hash chain,
   // ver lib/audit/log.ts) y la `audit_log_legacy` que sigue conteniendo las
   // entries pre-hash-chain hasta que se vacíen por edad.
+  //
+  // Trimming the head of a chain looks like tampering to verifyChain, so for
+  // each workspace that lost rows (and still exists) we append a keyed
+  // `audit.retention_trimmed` entry saying through which seq we trimmed.
   try {
     const newRows = await db
       .delete(schema.auditLog)
       .where(lt(schema.auditLog.createdAt, cutoff(auditLogsDays)))
-      .returning({ id: schema.auditLog.id });
+      .returning({ workspaceId: schema.auditLog.workspaceId, seq: schema.auditLog.seq });
+    await writeRetentionMarkers(db, newRows);
     const legacyRows = await db
       .delete(schema.auditLogsLegacy)
       .where(lt(schema.auditLogsLegacy.createdAt, cutoff(auditLogsDays)))
