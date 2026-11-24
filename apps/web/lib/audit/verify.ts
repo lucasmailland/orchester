@@ -7,10 +7,22 @@
 // hashes from the persisted columns. The first row whose recomputed hash
 // doesn't match what's stored is returned as `brokenAt`. An intact chain
 // returns `brokenAt: null` plus the total number of entries verified.
+//
+// Each row is checked by its hash_version (1 = unkeyed sha256, 2 = HMAC, see
+// chain.ts). Retention trims the oldest rows, so the walk starts from the
+// first row that still exists and trusts its stored prev_hash as the anchor.
+// Rows before it are gone by design; the tail is anchored outside the DB by
+// the daily verify job's log line.
 import "server-only";
 import { asc, eq } from "drizzle-orm";
 import { getDb, schema, type DbClient } from "@orchester/db";
-import { computePayloadHash, computeChainHash } from "./chain";
+import {
+  auditKey,
+  computePayloadHash,
+  computeChainHash,
+  computePayloadHashV2,
+  computeChainHashV2,
+} from "./chain";
 import type { ChainVerifyResult } from "./types";
 
 /**
@@ -47,9 +59,11 @@ export async function verifyChain(workspaceId: string, db?: AnyDb): Promise<Chai
   // workspace (entriesChecked > 0, brokenAt: null).
   const chainEntries = entries.filter((e) => !e.action.startsWith("legacy."));
 
-  let prevHash: string | null = null;
-  for (const e of chainEntries) {
-    const expectedPayloadHash = computePayloadHash({
+  let key: Buffer | null = null;
+  let prevHash: string | null = chainEntries[0]?.prevHash ?? null;
+  let seenV2 = false;
+  for (const [i, e] of chainEntries.entries()) {
+    const base = {
       action: e.action,
       actorUserId: e.actorUserId,
       actorKind: e.actorKind,
@@ -57,27 +71,48 @@ export async function verifyChain(workspaceId: string, db?: AnyDb): Promise<Chai
       targetId: e.targetId,
       meta: e.meta as Record<string, unknown>,
       createdAt: e.createdAt,
-    });
-    const expectedChainHash = computeChainHash(prevHash, expectedPayloadHash, e.seq);
-    if (e.payloadHash !== expectedPayloadHash || e.chainHash !== expectedChainHash) {
+    };
+    let expectedPayloadHash: string;
+    let expectedChainHash: string;
+    if (e.hashVersion === 2) {
+      seenV2 = true;
+      key ??= auditKey();
+      expectedPayloadHash = computePayloadHashV2({
+        ...base,
+        workspaceId: e.workspaceId,
+        actorIp: e.actorIp ?? null,
+        actorUserAgent: e.actorUserAgent ?? null,
+      });
+      expectedChainHash = computeChainHashV2(key, prevHash, expectedPayloadHash, e.seq);
+    } else {
+      expectedPayloadHash = computePayloadHash(base);
+      expectedChainHash = computeChainHash(prevHash, expectedPayloadHash, e.seq);
+    }
+    // A v1 row after a v2 one is a downgrade: v1 hashes need no key, so
+    // relabelling rows as v1 would let anyone with DB access rewrite them.
+    const downgraded = e.hashVersion !== 2 && seenV2;
+    if (downgraded || e.payloadHash !== expectedPayloadHash || e.chainHash !== expectedChainHash) {
       return {
         workspaceId,
-        entriesChecked: Number(e.seq),
+        entriesChecked: i + 1,
         brokenAt: {
           entryId: e.id,
           expectedHash: expectedChainHash,
           foundHash: e.chainHash,
         },
+        head: null,
         verifiedAt: new Date(),
       };
     }
     prevHash = e.chainHash;
   }
 
+  const last = chainEntries.at(-1);
   return {
     workspaceId,
     entriesChecked: entries.length, // includes legacy rows (not chain-verified)
     brokenAt: null,
+    head: last ? { seq: last.seq.toString(), chainHash: last.chainHash } : null,
     verifiedAt: new Date(),
   };
 }

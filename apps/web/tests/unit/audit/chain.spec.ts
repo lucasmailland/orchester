@@ -8,7 +8,15 @@
 // deterministic outputs so the chain can be reconstructed and verified
 // from raw rows.
 import { describe, it, expect } from "vitest";
-import { canonicalize, computePayloadHash, computeChainHash } from "@/lib/audit/chain";
+import {
+  canonicalize,
+  computePayloadHash,
+  computeChainHash,
+  computePayloadHashV2,
+  computeChainHashV2,
+  auditKey,
+} from "@/lib/audit/chain";
+import { createHmac, hkdfSync } from "crypto";
 import * as fc from "fast-check";
 
 describe("canonicalize", () => {
@@ -100,5 +108,65 @@ describe("computeChainHash", () => {
 
   it("produces 64-char hex", () => {
     expect(computeChainHash(null, "a".repeat(64), BigInt(1))).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
+describe("v2 (HMAC) hashes", () => {
+  const SECRET = "ab".repeat(32);
+  const base = {
+    workspaceId: "ws_1",
+    action: "workspace.update",
+    actorUserId: "usr_1",
+    actorKind: "user",
+    actorIp: "10.0.0.1",
+    actorUserAgent: "ua/1",
+    targetType: "workspace",
+    targetId: "ws_1",
+    meta: { a: 1 },
+    createdAt: new Date("2026-11-23T10:00:00Z"),
+  };
+
+  it("auditKey is hkdf(sha256, ENCRYPTION_SECRET, 'orchester', 'audit-log-v1', 32)", () => {
+    const prev = process.env.ENCRYPTION_SECRET;
+    process.env.ENCRYPTION_SECRET = SECRET;
+    try {
+      const expected = Buffer.from(
+        hkdfSync("sha256", Buffer.from(SECRET, "hex"), "orchester", "audit-log-v1", 32)
+      );
+      expect(auditKey().equals(expected)).toBe(true);
+    } finally {
+      process.env.ENCRYPTION_SECRET = prev;
+    }
+  });
+
+  it("auditKey throws without a valid ENCRYPTION_SECRET", () => {
+    const prev = process.env.ENCRYPTION_SECRET;
+    process.env.ENCRYPTION_SECRET = "short";
+    try {
+      expect(() => auditKey()).toThrow(/ENCRYPTION_SECRET/);
+    } finally {
+      process.env.ENCRYPTION_SECRET = prev;
+    }
+  });
+
+  it("payload hash covers workspace_id, actor_ip and actor_user_agent", () => {
+    const ref = computePayloadHashV2(base);
+    expect(computePayloadHashV2({ ...base, workspaceId: "ws_2" })).not.toBe(ref);
+    expect(computePayloadHashV2({ ...base, actorIp: "10.0.0.2" })).not.toBe(ref);
+    expect(computePayloadHashV2({ ...base, actorIp: null })).not.toBe(ref);
+    expect(computePayloadHashV2({ ...base, actorUserAgent: "ua/2" })).not.toBe(ref);
+  });
+
+  it("chain hash is an HMAC, not the unkeyed v1 sha256", () => {
+    const key = Buffer.alloc(32, 7);
+    const p = "a".repeat(64);
+    const h = computeChainHashV2(key, null, p, BigInt(1));
+    expect(h).toBe(
+      createHmac("sha256", key)
+        .update(`${"0".repeat(64)}|${p}|1`)
+        .digest("hex")
+    );
+    expect(h).not.toBe(computeChainHash(null, p, BigInt(1)));
+    expect(h).not.toBe(computeChainHashV2(Buffer.alloc(32, 8), null, p, BigInt(1)));
   });
 });

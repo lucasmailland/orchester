@@ -14,7 +14,7 @@ import "server-only";
 import { sql, desc, eq } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { getDb, schema } from "@orchester/db";
-import { computePayloadHash, computeChainHash } from "./chain";
+import { auditKey, computePayloadHashV2, computeChainHashV2 } from "./chain";
 import type { AuditEntryInput } from "./types";
 
 export type AuditTx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
@@ -85,17 +85,29 @@ export async function appendAuditInTx(
     }
   }
 
+  // actor_ip is an inet column, and Postgres prints it back normalized
+  // (lowercase IPv6, compressed zeros). Hash the form the verifier will read.
+  let actorIp: string | null = null;
+  if (entry.actorIp) {
+    const rows = await tx.execute<{ ip: string }>(sql`SELECT ${entry.actorIp}::inet AS ip`);
+    actorIp = rows[0]!.ip;
+  }
+  const actorUserAgent = entry.actorUserAgent ?? null;
+
   const createdAt = new Date();
-  const payloadHash = computePayloadHash({
+  const payloadHash = computePayloadHashV2({
+    workspaceId,
     action: entry.action,
     actorUserId: entry.actorUserId,
     actorKind: entry.actorKind,
+    actorIp,
+    actorUserAgent,
     targetType: entry.targetType,
     targetId: entry.targetId,
     meta: entry.meta,
     createdAt,
   });
-  const chainHash = computeChainHash(prevHash, payloadHash, nextSeq);
+  const chainHash = computeChainHashV2(auditKey(), prevHash, payloadHash, nextSeq);
 
   await tx.insert(schema.auditLog).values({
     id: createId(),
@@ -107,12 +119,13 @@ export async function appendAuditInTx(
     action: entry.action,
     actorUserId: entry.actorUserId,
     actorKind: entry.actorKind,
-    actorIp: entry.actorIp ?? null,
-    actorUserAgent: entry.actorUserAgent ?? null,
+    actorIp,
+    actorUserAgent,
     targetType: entry.targetType,
     targetId: entry.targetId,
     meta: entry.meta,
     createdAt,
+    hashVersion: 2,
   });
 
   return { rotatedAtSeq: rotated };

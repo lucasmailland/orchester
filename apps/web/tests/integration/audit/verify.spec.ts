@@ -14,9 +14,14 @@ import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 vi.unmock("@orchester/db");
 vi.doUnmock("@orchester/db");
 
+// v2 rows are keyed from ENCRYPTION_SECRET (CI sets one; local runs may not).
+process.env.ENCRYPTION_SECRET ??= "0123456789abcdef".repeat(4);
+
+import { createId } from "@paralleldrive/cuid2";
 import {
   setupTestWorkspaces,
   teardownTestWorkspaces,
+  insertAdHocWorkspace,
   type WsFixture,
 } from "../../fixtures/workspaces";
 
@@ -26,13 +31,18 @@ let verifyChain: typeof import("@/lib/audit/verify").verifyChain;
 let getDb: typeof import("@orchester/db").getDb;
 let schema: typeof import("@orchester/db").schema;
 let eq: typeof import("drizzle-orm").eq;
+let and: typeof import("drizzle-orm").and;
+let asc: typeof import("drizzle-orm").asc;
+let lt: typeof import("drizzle-orm").lt;
+let chain: typeof import("@/lib/audit/chain");
 
 beforeAll(async () => {
   [wsA] = await setupTestWorkspaces();
   ({ appendAuditSync } = await import("@/lib/audit/log"));
   ({ verifyChain } = await import("@/lib/audit/verify"));
   ({ getDb, schema } = await import("@orchester/db"));
-  ({ eq } = await import("drizzle-orm"));
+  ({ eq, and, asc, lt } = await import("drizzle-orm"));
+  chain = await import("@/lib/audit/chain");
 
   for (let i = 0; i < 5; i++) {
     await appendAuditSync(wsA.id, {
@@ -62,5 +72,204 @@ describe("verifyChain", () => {
       .where(eq(schema.auditLog.workspaceId, wsA.id));
     const r = await verifyChain(wsA.id);
     expect(r.brokenAt).not.toBeNull();
+  });
+});
+
+// ── SEC-009: HMAC chain, mixed versions, trimmed chains, anchor ───────────
+
+async function newWs(): Promise<{ wsId: string; ownerId: string }> {
+  const wsId = createId();
+  const ownerId = createId();
+  await insertAdHocWorkspace(getDb(), { wsId, ownerId, slug: `v-${wsId.slice(0, 10)}` });
+  return { wsId, ownerId };
+}
+
+async function append(wsId: string, ownerId: string, n: number): Promise<void> {
+  for (let i = 0; i < n; i++) {
+    await appendAuditSync(wsId, {
+      action: "workspace.update",
+      actorUserId: ownerId,
+      actorKind: "user",
+      actorIp: "10.0.0.1",
+      actorUserAgent: "test-agent",
+      targetType: "workspace",
+      targetId: wsId,
+      meta: { i },
+    });
+  }
+}
+
+async function rows(wsId: string) {
+  return getDb()
+    .select()
+    .from(schema.auditLog)
+    .where(eq(schema.auditLog.workspaceId, wsId))
+    .orderBy(asc(schema.auditLog.seq));
+}
+
+async function setRow(wsId: string, seq: bigint, values: Record<string, unknown>) {
+  await getDb()
+    .update(schema.auditLog)
+    .set(values)
+    .where(and(eq(schema.auditLog.workspaceId, wsId), eq(schema.auditLog.seq, seq)));
+}
+
+describe("verifyChain — v2 HMAC rows", () => {
+  it("writes new rows as hash_version 2", async () => {
+    const { wsId, ownerId } = await newWs();
+    await append(wsId, ownerId, 2);
+    expect((await rows(wsId)).map((r) => r.hashVersion)).toEqual([2, 2]);
+    expect((await verifyChain(wsId)).brokenAt).toBeNull();
+  });
+
+  it("flags a v2 row whose actor_ip was changed", async () => {
+    const { wsId, ownerId } = await newWs();
+    await append(wsId, ownerId, 3);
+    const before = await rows(wsId);
+    await setRow(wsId, BigInt(2), { actorIp: "10.9.9.9" });
+    const r = await verifyChain(wsId);
+    expect(r.brokenAt?.entryId).toBe(before[1]!.id);
+  });
+
+  it("flags a v2 row rewritten with recomputed unkeyed sha256 hashes", async () => {
+    const { wsId, ownerId } = await newWs();
+    await append(wsId, ownerId, 3);
+    const before = await rows(wsId);
+    // What someone with only DB access can do: change the row and recompute
+    // every hash from seq 2 on without the key.
+    let prev = before[0]!.chainHash;
+    for (const row of before.slice(1)) {
+      const actorIp = row.seq === BigInt(2) ? "10.9.9.9" : row.actorIp;
+      const payloadHash = chain.computePayloadHashV2({
+        workspaceId: row.workspaceId,
+        action: row.action,
+        actorUserId: row.actorUserId,
+        actorKind: row.actorKind,
+        actorIp: actorIp ?? null,
+        actorUserAgent: row.actorUserAgent ?? null,
+        targetType: row.targetType,
+        targetId: row.targetId,
+        meta: row.meta as Record<string, unknown>,
+        createdAt: row.createdAt,
+      });
+      const chainHash = chain.computeChainHash(prev, payloadHash, row.seq);
+      await setRow(wsId, row.seq, { actorIp, payloadHash, chainHash, prevHash: prev });
+      prev = chainHash;
+    }
+    const r = await verifyChain(wsId);
+    expect(r.brokenAt?.entryId).toBe(before[1]!.id);
+  });
+
+  it("accepts a chain of 3 old v1 rows followed by 2 new v2 rows", async () => {
+    const { wsId, ownerId } = await newWs();
+    let prev: string | null = null;
+    for (let seq = 1; seq <= 3; seq++) {
+      const createdAt = new Date(Date.now() - (10 - seq) * 1000);
+      const v1 = {
+        action: "workspace.update",
+        actorUserId: ownerId,
+        actorKind: "user",
+        targetType: "workspace",
+        targetId: wsId,
+        meta: { seq },
+        createdAt,
+      };
+      const payloadHash = chain.computePayloadHash(v1);
+      const chainHash = chain.computeChainHash(prev, payloadHash, BigInt(seq));
+      await getDb()
+        .insert(schema.auditLog)
+        .values({
+          id: createId(),
+          workspaceId: wsId,
+          seq: BigInt(seq),
+          prevHash: prev,
+          payloadHash,
+          chainHash,
+          ...v1,
+          actorIp: "10.0.0.1",
+          actorUserAgent: "old-agent",
+        });
+      prev = chainHash;
+    }
+    await append(wsId, ownerId, 2);
+    expect((await rows(wsId)).map((r) => r.hashVersion)).toEqual([1, 1, 1, 2, 2]);
+    const r = await verifyChain(wsId);
+    expect(r.brokenAt).toBeNull();
+    expect(r.entriesChecked).toBe(5);
+  });
+
+  it("flags a v2 row relabelled as v1 with recomputed v1 hashes (downgrade)", async () => {
+    const { wsId, ownerId } = await newWs();
+    await append(wsId, ownerId, 3);
+    const before = await rows(wsId);
+    const last = before[2]!;
+    const payloadHash = chain.computePayloadHash({
+      action: last.action,
+      actorUserId: last.actorUserId,
+      actorKind: last.actorKind,
+      targetType: last.targetType,
+      targetId: last.targetId,
+      meta: last.meta as Record<string, unknown>,
+      createdAt: last.createdAt,
+    });
+    await setRow(wsId, last.seq, {
+      hashVersion: 1,
+      payloadHash,
+      chainHash: chain.computeChainHash(before[1]!.chainHash, payloadHash, last.seq),
+    });
+    const r = await verifyChain(wsId);
+    expect(r.brokenAt?.entryId).toBe(last.id);
+  });
+
+  it("accepts a chain whose first rows were trimmed by retention", async () => {
+    const { wsId, ownerId } = await newWs();
+    await append(wsId, ownerId, 5);
+    await getDb()
+      .delete(schema.auditLog)
+      .where(and(eq(schema.auditLog.workspaceId, wsId), lt(schema.auditLog.seq, BigInt(3))));
+    const r = await verifyChain(wsId);
+    expect(r.brokenAt).toBeNull();
+    expect(r.entriesChecked).toBe(3);
+  });
+
+  it("still flags a row deleted from the middle of the chain", async () => {
+    const { wsId, ownerId } = await newWs();
+    await append(wsId, ownerId, 4);
+    await getDb()
+      .delete(schema.auditLog)
+      .where(and(eq(schema.auditLog.workspaceId, wsId), eq(schema.auditLog.seq, BigInt(2))));
+    expect((await verifyChain(wsId)).brokenAt).not.toBeNull();
+  });
+});
+
+describe("runVerifyAllChains — anchor outside the DB", () => {
+  it("logs { workspaceId, seq, chainHash } of the last link", async () => {
+    const { wsId, ownerId } = await newWs();
+    await append(wsId, ownerId, 3);
+    const last = (await rows(wsId)).at(-1)!;
+    const { runVerifyAllChains } = await import("@/lib/audit/verify-job");
+    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await runVerifyAllChains();
+      const anchors = infoSpy.mock.calls
+        .map((args) => {
+          try {
+            return JSON.parse(String(args[0])) as Record<string, unknown>;
+          } catch {
+            return {};
+          }
+        })
+        .filter((l) => l["msg"] === "audit.chain_anchor" && l["workspaceId"] === wsId);
+      expect(anchors).toHaveLength(1);
+      expect(anchors[0]).toMatchObject({
+        workspaceId: wsId,
+        seq: last.seq.toString(),
+        chainHash: last.chainHash,
+      });
+    } finally {
+      infoSpy.mockRestore();
+      errorSpy.mockRestore();
+    }
   });
 });

@@ -83,6 +83,10 @@ export const MANIFEST = [
     "0071_agent_tool_scope_backfill.sql",
     "agent.config.allowedIntegrationIds/allowedFlowIds con lo que cada agente usó bien en 90 días",
   ],
+  [
+    "0072_audit_log_hmac.sql",
+    "audit_log.hash_version (cadena HMAC) y sin FKs a workspace/user: la auditoría no se borra en cascada",
+  ],
   // Sin número: ajuste del deploy single-tenant, no historia de upstream.
   // 0049 deja `org` con FORCE RLS y sólo una política de SELECT, así que ningún
   // INSERT pasa y crear un workspace da 500. Ver el header del archivo.

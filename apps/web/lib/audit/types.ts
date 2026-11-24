@@ -53,5 +53,7 @@ export interface ChainVerifyResult {
   workspaceId: string;
   entriesChecked: number;
   brokenAt: { entryId: string; expectedHash: string; foundHash: string } | null;
+  /** Last verified link (null when broken or empty). seq is a string so it serializes to JSON. */
+  head: { seq: string; chainHash: string } | null;
   verifiedAt: Date;
 }

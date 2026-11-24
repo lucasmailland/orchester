@@ -152,8 +152,9 @@ export async function DELETE(req: Request) {
 
       // 5. Borrar user (cascade: account, verification, two_factor, sessions,
       // workspace_member, notification_pref filas con FK onDelete cascade).
-      // audit_log filas con userId se mantienen porque audit_log NO tiene FK con
-      // onDelete cascade — es por diseño, los logs se preservan para forensics.
+      // audit_log rows naming this user stay: since 0072 audit_log has no FK
+      // to user or workspace, so this delete neither fails nor removes them.
+      // Retention purges them by age (RETENTION_AUDIT_DAYS).
       await tx.delete(schema.users).where(eq(schema.users.id, userId));
 
       return {

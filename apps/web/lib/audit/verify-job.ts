@@ -23,6 +23,11 @@
 //     dependency. Passing `tx` makes the dependency explicit.
 //   - The `security_event` INSERT also runs on `tx` — same reasoning,
 //     keeps the bypass auditable through the cron log.
+//
+// Anchor outside the database (SEC-009): for every intact chain the job logs
+// `{ workspaceId, seq, chainHash }` of the last link with console.info, which
+// the log shipper keeps outside the DB. Deleting or rewriting the tail of a
+// chain makes it stop matching the previous day's anchor.
 import "server-only";
 import { eq } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
@@ -43,6 +48,19 @@ export async function runVerifyAllChains(): Promise<void> {
       // bypass we set above. Don't rely on the cron role's BYPASSRLS to
       // paper over a missing GUC propagation.
       const result = await verifyChain(ws.id, tx);
+      if (result.head) {
+        // eslint-disable-next-line no-console
+        console.info(
+          JSON.stringify({
+            level: "info",
+            msg: "audit.chain_anchor",
+            workspaceId: ws.id,
+            seq: result.head.seq,
+            chainHash: result.head.chainHash,
+            verifiedAt: result.verifiedAt.toISOString(),
+          })
+        );
+      }
       if (result.brokenAt) {
         await tx.insert(schema.securityEvents).values({
           id: createId(),

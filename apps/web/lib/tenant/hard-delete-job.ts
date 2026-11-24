@@ -69,6 +69,7 @@ export async function runHardDeleteCron(): Promise<void> {
       }
 
       // CASCADE wipes every dependent row (members, agents, conversations…).
+      // audit_log has no FK since 0072, so its rows stay until retention.
       await tx.delete(schema.workspaces).where(eq(schema.workspaces.id, ws.id));
       // eslint-disable-next-line no-console
       console.log(
